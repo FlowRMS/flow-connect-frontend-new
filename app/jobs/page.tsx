@@ -1,9 +1,9 @@
 import Sidebar from '@/components/Sidebar';
 import TopBar from '@/components/TopBar';
-import DashboardContent from '@/components/DashboardContent';
+import JobsContent from '@/components/JobsContent';
 import PendingActions from '@/components/PendingActions';
 
-export default function Home() {
+export default function JobsPage() {
   return (
     <div className="flex h-screen bg-[var(--background)]">
       {/* Left Sidebar */}
@@ -12,7 +12,7 @@ export default function Home() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <TopBar />
-        <DashboardContent />
+        <JobsContent />
       </div>
 
       {/* Right Sidebar - Pending Actions */}
