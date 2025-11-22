@@ -191,10 +191,7 @@ export default function NotesContent() {
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
           <div>
-            <h1 className="text-2xl font-semibold text-[var(--foreground)] mb-1">Notes</h1>
-            <p className="text-sm text-[var(--muted-foreground)]">
-              Capture insights, meetings, and important information
-            </p>
+            <h1 className="text-2xl font-semibold text-[var(--foreground)]">Notes</h1>
           </div>
           <button className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors">
             <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">

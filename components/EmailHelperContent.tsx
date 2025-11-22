@@ -115,10 +115,7 @@ export default function EmailHelperContent() {
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
           <div>
-            <h1 className="text-2xl font-semibold text-[var(--foreground)] mb-1">Email Helper</h1>
-            <p className="text-sm text-[var(--muted-foreground)]">
-              Create targeted email campaigns with AI personalization
-            </p>
+            <h1 className="text-2xl font-semibold text-[var(--foreground)]">Email Helper</h1>
           </div>
           <button
             onClick={() => setActiveTab('new-campaign')}
