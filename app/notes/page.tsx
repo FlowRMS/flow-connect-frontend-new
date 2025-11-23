@@ -1,7 +1,6 @@
 import Sidebar from '@/components/Sidebar';
 import TopBar from '@/components/TopBar';
 import NotesContent from '@/components/NotesContent';
-import PendingActions from '@/components/PendingActions';
 
 export default function NotesPage() {
   return (
@@ -14,9 +13,6 @@ export default function NotesPage() {
         <TopBar />
         <NotesContent />
       </div>
-
-      {/* Right Sidebar - Pending Actions */}
-      <PendingActions />
     </div>
   );
 }

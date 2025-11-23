@@ -1,7 +1,6 @@
 import Sidebar from '@/components/Sidebar';
 import TopBar from '@/components/TopBar';
 import EmailHelperContent from '@/components/EmailHelperContent';
-import PendingActions from '@/components/PendingActions';
 
 export default function EmailHelperPage() {
   return (
@@ -14,9 +13,6 @@ export default function EmailHelperPage() {
         <TopBar />
         <EmailHelperContent />
       </div>
-
-      {/* Right Sidebar - Pending Actions */}
-      <PendingActions />
     </div>
   );
 }

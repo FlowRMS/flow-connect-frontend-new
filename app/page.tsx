@@ -1,7 +1,6 @@
 import Sidebar from '@/components/Sidebar';
 import TopBar from '@/components/TopBar';
 import DashboardContent from '@/components/DashboardContent';
-import PendingActions from '@/components/PendingActions';
 
 export default function Home() {
   return (
@@ -14,9 +13,6 @@ export default function Home() {
         <TopBar />
         <DashboardContent />
       </div>
-
-      {/* Right Sidebar - Pending Actions */}
-      <PendingActions />
     </div>
   );
 }

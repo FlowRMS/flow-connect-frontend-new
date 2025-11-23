@@ -14,6 +14,7 @@ import {
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import AdvancedFilters from './AdvancedFilters';
 
 type Job = {
   id: string;
@@ -95,6 +96,21 @@ function SortableJobCard({ job }: { job: Job }) {
 export default function JobsContent() {
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [activeId, setActiveId] = useState<string | null>(null);
+
+  const jobFilterOptions = [
+    { id: 'job-id', label: 'Job ID', type: 'text' as const },
+    { id: 'job-name', label: 'Job Name', type: 'text' as const },
+    { id: 'status', label: 'Status', type: 'dropdown' as const },
+    { id: 'job-type', label: 'Job Type', type: 'dropdown' as const },
+    { id: 'value-min', label: 'Min Value', type: 'number' as const },
+    { id: 'value-max', label: 'Max Value', type: 'number' as const },
+    { id: 'start-date', label: 'Start Date', type: 'date' as const },
+    { id: 'gc', label: 'General Contractor', type: 'dropdown' as const },
+    { id: 'ec', label: 'Electrical Contractor', type: 'dropdown' as const },
+    { id: 'owner', label: 'Owner', type: 'dropdown' as const },
+    { id: 'territory', label: 'Territory', type: 'dropdown' as const },
+    { id: 'tags', label: 'Tags', type: 'dropdown' as const },
+  ];
 
   const initialJobs: Job[] = [
     {
@@ -278,57 +294,53 @@ export default function JobsContent() {
           <div>
             <h1 className="text-2xl font-semibold text-[var(--foreground)]">Jobs</h1>
           </div>
-          <button className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors">
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="10" cy="10" r="7"/>
-              <path d="M10 7v6M7 10h6" strokeLinecap="round"/>
-            </svg>
-            Add Job
-          </button>
+          <div className="flex items-center gap-2">
+            {/* View Mode Toggle */}
+            <div className="flex items-center gap-1 p-1 bg-[var(--muted)] rounded-md">
+              <button
+                onClick={() => setViewMode('kanban')}
+                className={`p-2 rounded ${viewMode === 'kanban' ? 'bg-white shadow-sm' : 'hover:bg-[var(--card)]'}`}
+                title="Kanban View"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="3" width="7" height="18" rx="1"/>
+                  <rect x="14" y="3" width="7" height="10" rx="1"/>
+                </svg>
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`p-2 rounded ${viewMode === 'list' ? 'bg-white shadow-sm' : 'hover:bg-[var(--card)]'}`}
+                title="List View"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="8" y1="6" x2="21" y2="6"/>
+                  <line x1="8" y1="12" x2="21" y2="12"/>
+                  <line x1="8" y1="18" x2="21" y2="18"/>
+                  <line x1="3" y1="6" x2="3.01" y2="6"/>
+                  <line x1="3" y1="12" x2="3.01" y2="12"/>
+                  <line x1="3" y1="18" x2="3.01" y2="18"/>
+                </svg>
+              </button>
+            </div>
+
+            <AdvancedFilters filterOptions={jobFilterOptions} />
+            <button className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors">
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 4h14M6 8h11M9 12h8M12 16h5" strokeLinecap="round"/>
+              </svg>
+              Sort
+            </button>
+            <button className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors">
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="10" cy="10" r="7"/>
+                <path d="M10 7v6M7 10h6" strokeLinecap="round"/>
+              </svg>
+              Add Job
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* View Toggle */}
-      <div className="mb-6 flex items-center justify-between border-b border-[var(--border)]">
-        <div className="flex gap-2">
-          <button
-            onClick={() => setViewMode('kanban')}
-            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
-              viewMode === 'kanban'
-                ? 'border-[var(--primary)] text-[var(--primary)]'
-                : 'border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
-            }`}
-          >
-            Board
-          </button>
-          <button
-            onClick={() => setViewMode('list')}
-            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
-              viewMode === 'list'
-                ? 'border-[var(--primary)] text-[var(--primary)]'
-                : 'border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
-            }`}
-          >
-            List
-          </button>
-        </div>
-
-        <div className="flex gap-2 pb-2">
-          <button className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors">
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M3 6h14M3 10h14M3 14h14" strokeLinecap="round"/>
-            </svg>
-            Filter
-          </button>
-          <button className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors">
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="3" width="14" height="14" rx="2"/>
-              <path d="M8 3v4M12 3v4" strokeLinecap="round"/>
-            </svg>
-            Display
-          </button>
-        </div>
-      </div>
 
       {/* Kanban View */}
       {viewMode === 'kanban' ? (

@@ -14,6 +14,7 @@ import {
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import AdvancedFilters from './AdvancedFilters';
 
 type PreOpp = {
   id: string;
@@ -110,6 +111,21 @@ function SortablePreOppCard({ preOpp }: { preOpp: PreOpp }) {
 export default function PreOpportunitiesContent() {
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [activeId, setActiveId] = useState<string | null>(null);
+
+  const preOppFilterOptions = [
+    { id: 'preopp-id', label: 'Pre-Opp ID', type: 'text' as const },
+    { id: 'name', label: 'Opportunity Name', type: 'text' as const },
+    { id: 'stage', label: 'Stage', type: 'dropdown' as const },
+    { id: 'value-min', label: 'Min Value', type: 'number' as const },
+    { id: 'value-max', label: 'Max Value', type: 'number' as const },
+    { id: 'sold-to', label: 'Sold To', type: 'dropdown' as const },
+    { id: 'manufacturer', label: 'Manufacturer', type: 'dropdown' as const },
+    { id: 'owner', label: 'Owner', type: 'dropdown' as const },
+    { id: 'created-date', label: 'Created Date', type: 'date' as const },
+    { id: 'expiration-date', label: 'Expiration Date', type: 'date' as const },
+    { id: 'job', label: 'Related Job', type: 'dropdown' as const },
+    { id: 'tags', label: 'Tags', type: 'dropdown' as const },
+  ];
 
   const initialPreOpps: PreOpp[] = [
     {
@@ -307,13 +323,30 @@ export default function PreOpportunitiesContent() {
           <div>
             <h1 className="text-2xl font-semibold text-[var(--foreground)]">Pre-Opportunities</h1>
           </div>
-          <button className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors">
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="10" cy="10" r="7"/>
-              <path d="M10 7v6M7 10h6" strokeLinecap="round"/>
-            </svg>
-            Create Pre-Opp
-          </button>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 p-1 bg-[var(--muted)] rounded-md">
+              <button className="p-2 rounded bg-white shadow-sm" title="Kanban View">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="3" width="7" height="18" rx="1"/>
+                  <rect x="14" y="3" width="7" height="10" rx="1"/>
+                </svg>
+              </button>
+            </div>
+            <AdvancedFilters filterOptions={preOppFilterOptions} />
+            <button className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors">
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 4h14M6 8h11M9 12h8M12 16h5" strokeLinecap="round"/>
+              </svg>
+              Sort
+            </button>
+            <button className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors">
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="10" cy="10" r="7"/>
+                <path d="M10 7v6M7 10h6" strokeLinecap="round"/>
+              </svg>
+              Create Pre-Opp
+            </button>
+          </div>
         </div>
       </div>
 

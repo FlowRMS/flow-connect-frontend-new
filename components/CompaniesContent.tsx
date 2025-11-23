@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import AdvancedFilters from './AdvancedFilters';
 
 type Company = {
   id: string;
@@ -14,10 +15,26 @@ type Company = {
   contactCount: number;
   jobCount: number;
   lastActivity: string;
+  followers: string[];
 };
 
 export default function CompaniesContent() {
   const [selectedType, setSelectedType] = useState<string>('All');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+
+  const companyFilterOptions = [
+    { id: 'company-id', label: 'Company ID', type: 'text' as const },
+    { id: 'name', label: 'Company Name', type: 'text' as const },
+    { id: 'type', label: 'Company Type', type: 'dropdown' as const },
+    { id: 'website', label: 'Website', type: 'text' as const },
+    { id: 'phone', label: 'Phone', type: 'text' as const },
+    { id: 'address', label: 'Address', type: 'text' as const },
+    { id: 'territory', label: 'Territory', type: 'dropdown' as const },
+    { id: 'tags', label: 'Tags', type: 'dropdown' as const },
+    { id: 'contact-count', label: 'Contact Count', type: 'number' as const },
+    { id: 'job-count', label: 'Job Count', type: 'number' as const },
+    { id: 'last-activity', label: 'Last Activity', type: 'date' as const },
+  ];
 
   const initialCompanies: Company[] = [
     {
@@ -32,6 +49,7 @@ export default function CompaniesContent() {
       contactCount: 12,
       jobCount: 8,
       lastActivity: '2024-11-20',
+      followers: ['Sarah Johnson', 'Marcus Chen'],
     },
     {
       id: 'CO-002',
@@ -45,6 +63,7 @@ export default function CompaniesContent() {
       contactCount: 8,
       jobCount: 5,
       lastActivity: '2024-11-19',
+      followers: ['Marcus Chen'],
     },
     {
       id: 'CO-003',
@@ -58,6 +77,7 @@ export default function CompaniesContent() {
       contactCount: 6,
       jobCount: 4,
       lastActivity: '2024-11-21',
+      followers: ['Sarah Johnson', 'David Torres'],
     },
     {
       id: 'CO-004',
@@ -71,6 +91,7 @@ export default function CompaniesContent() {
       contactCount: 15,
       jobCount: 12,
       lastActivity: '2024-11-18',
+      followers: ['Sarah Johnson', 'Emily Roberts'],
     },
     {
       id: 'CO-005',
@@ -84,6 +105,7 @@ export default function CompaniesContent() {
       contactCount: 18,
       jobCount: 10,
       lastActivity: '2024-11-22',
+      followers: ['David Torres'],
     },
     {
       id: 'CO-006',
@@ -97,6 +119,7 @@ export default function CompaniesContent() {
       contactCount: 10,
       jobCount: 7,
       lastActivity: '2024-11-17',
+      followers: ['Marcus Chen', 'Emily Roberts'],
     },
     {
       id: 'CO-007',
@@ -110,6 +133,7 @@ export default function CompaniesContent() {
       contactCount: 14,
       jobCount: 6,
       lastActivity: '2024-11-21',
+      followers: ['David Torres', 'Sarah Johnson'],
     },
     {
       id: 'CO-008',
@@ -123,6 +147,7 @@ export default function CompaniesContent() {
       contactCount: 5,
       jobCount: 3,
       lastActivity: '2024-11-16',
+      followers: ['Marcus Chen'],
     },
     {
       id: 'CO-009',
@@ -136,6 +161,7 @@ export default function CompaniesContent() {
       contactCount: 20,
       jobCount: 9,
       lastActivity: '2024-11-20',
+      followers: ['Sarah Johnson', 'Emily Roberts'],
     },
     {
       id: 'CO-010',
@@ -149,6 +175,7 @@ export default function CompaniesContent() {
       contactCount: 11,
       jobCount: 6,
       lastActivity: '2024-11-19',
+      followers: ['David Torres'],
     },
     {
       id: 'CO-011',
@@ -162,6 +189,7 @@ export default function CompaniesContent() {
       contactCount: 25,
       jobCount: 15,
       lastActivity: '2024-11-22',
+      followers: ['Marcus Chen', 'Emily Roberts', 'David Torres'],
     },
     {
       id: 'CO-012',
@@ -175,6 +203,7 @@ export default function CompaniesContent() {
       contactCount: 8,
       jobCount: 0,
       lastActivity: '2024-11-15',
+      followers: ['Sarah Johnson'],
     },
   ];
 
@@ -218,13 +247,52 @@ export default function CompaniesContent() {
           <div>
             <h1 className="text-2xl font-semibold text-[var(--foreground)]">Companies</h1>
           </div>
-          <button className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors">
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="10" cy="10" r="7"/>
-              <path d="M10 7v6M7 10h6" strokeLinecap="round"/>
-            </svg>
-            Add Company
-          </button>
+          <div className="flex items-center gap-2">
+            {/* View Mode Toggle */}
+            <div className="flex items-center gap-1 p-1 bg-[var(--muted)] rounded-md">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`p-2 rounded ${viewMode === 'grid' ? 'bg-white shadow-sm' : 'hover:bg-[var(--card)]'}`}
+                title="Grid View"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="3" width="7" height="7" rx="1"/>
+                  <rect x="14" y="3" width="7" height="7" rx="1"/>
+                  <rect x="14" y="14" width="7" height="7" rx="1"/>
+                  <rect x="3" y="14" width="7" height="7" rx="1"/>
+                </svg>
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`p-2 rounded ${viewMode === 'list' ? 'bg-white shadow-sm' : 'hover:bg-[var(--card)]'}`}
+                title="List View"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="8" y1="6" x2="21" y2="6"/>
+                  <line x1="8" y1="12" x2="21" y2="12"/>
+                  <line x1="8" y1="18" x2="21" y2="18"/>
+                  <line x1="3" y1="6" x2="3.01" y2="6"/>
+                  <line x1="3" y1="12" x2="3.01" y2="12"/>
+                  <line x1="3" y1="18" x2="3.01" y2="18"/>
+                </svg>
+              </button>
+            </div>
+
+            <AdvancedFilters filterOptions={companyFilterOptions} />
+            <button className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors">
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 4h14M6 8h11M9 12h8M12 16h5" strokeLinecap="round"/>
+              </svg>
+              Sort
+            </button>
+            <button className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors">
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="10" cy="10" r="7"/>
+                <path d="M10 7v6M7 10h6" strokeLinecap="round"/>
+              </svg>
+              Add Company
+            </button>
+          </div>
         </div>
       </div>
 
@@ -250,21 +318,6 @@ export default function CompaniesContent() {
               )}
             </button>
           ))}
-        </div>
-
-        <div className="flex gap-2 pb-2">
-          <button className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors">
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M3 6h14M3 10h14M3 14h14" strokeLinecap="round"/>
-            </svg>
-            Filter
-          </button>
-          <button className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors">
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M3 4h14M6 8h11M9 12h8M12 16h5" strokeLinecap="round"/>
-            </svg>
-            Sort
-          </button>
         </div>
       </div>
 

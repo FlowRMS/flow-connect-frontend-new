@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import AdvancedFilters from './AdvancedFilters';
 
 type Contact = {
   id: string;
@@ -18,6 +19,19 @@ type Contact = {
 export default function ContactsContent() {
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [selectedType, setSelectedType] = useState<string>('All');
+
+  const contactFilterOptions = [
+    { id: 'contact-id', label: 'Contact ID', type: 'text' as const },
+    { id: 'name', label: 'Name', type: 'text' as const },
+    { id: 'email', label: 'Email', type: 'text' as const },
+    { id: 'phone', label: 'Phone', type: 'text' as const },
+    { id: 'company', label: 'Company', type: 'dropdown' as const },
+    { id: 'role', label: 'Role', type: 'dropdown' as const },
+    { id: 'contact-type', label: 'Contact Type', type: 'dropdown' as const },
+    { id: 'territory', label: 'Territory', type: 'dropdown' as const },
+    { id: 'tags', label: 'Tags', type: 'dropdown' as const },
+    { id: 'last-activity', label: 'Last Activity', type: 'date' as const },
+  ];
 
   const initialContacts: Contact[] = [
     {
@@ -180,13 +194,52 @@ export default function ContactsContent() {
           <div>
             <h1 className="text-2xl font-semibold text-[var(--foreground)]">Contacts</h1>
           </div>
-          <button className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors">
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="10" cy="10" r="7"/>
-              <path d="M10 7v6M7 10h6" strokeLinecap="round"/>
-            </svg>
-            Add Contact
-          </button>
+          <div className="flex items-center gap-2">
+            {/* View Mode Toggle */}
+            <div className="flex items-center gap-1 p-1 bg-[var(--muted)] rounded-md">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`p-2 rounded ${viewMode === 'grid' ? 'bg-white shadow-sm' : 'hover:bg-[var(--card)]'}`}
+                title="Grid View"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="3" width="7" height="7" rx="1"/>
+                  <rect x="14" y="3" width="7" height="7" rx="1"/>
+                  <rect x="14" y="14" width="7" height="7" rx="1"/>
+                  <rect x="3" y="14" width="7" height="7" rx="1"/>
+                </svg>
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`p-2 rounded ${viewMode === 'list' ? 'bg-white shadow-sm' : 'hover:bg-[var(--card)]'}`}
+                title="List View"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="8" y1="6" x2="21" y2="6"/>
+                  <line x1="8" y1="12" x2="21" y2="12"/>
+                  <line x1="8" y1="18" x2="21" y2="18"/>
+                  <line x1="3" y1="6" x2="3.01" y2="6"/>
+                  <line x1="3" y1="12" x2="3.01" y2="12"/>
+                  <line x1="3" y1="18" x2="3.01" y2="18"/>
+                </svg>
+              </button>
+            </div>
+
+            <AdvancedFilters filterOptions={contactFilterOptions} />
+            <button className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors">
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 4h14M6 8h11M9 12h8M12 16h5" strokeLinecap="round"/>
+              </svg>
+              Sort
+            </button>
+            <button className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors">
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="10" cy="10" r="7"/>
+                <path d="M10 7v6M7 10h6" strokeLinecap="round"/>
+              </svg>
+              Add Contact
+            </button>
+          </div>
         </div>
       </div>
 
@@ -212,21 +265,6 @@ export default function ContactsContent() {
               )}
             </button>
           ))}
-        </div>
-
-        <div className="flex gap-2 pb-2">
-          <button className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors">
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M3 6h14M3 10h14M3 14h14" strokeLinecap="round"/>
-            </svg>
-            Filter
-          </button>
-          <button className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors">
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M3 4h14M6 8h11M9 12h8M12 16h5" strokeLinecap="round"/>
-            </svg>
-            Sort
-          </button>
         </div>
       </div>
 

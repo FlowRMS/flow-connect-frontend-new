@@ -1,7 +1,6 @@
 import Sidebar from '@/components/Sidebar';
 import TopBar from '@/components/TopBar';
 import TasksContent from '@/components/TasksContent';
-import PendingActions from '@/components/PendingActions';
 
 export default function TasksPage() {
   return (
@@ -14,9 +13,6 @@ export default function TasksPage() {
         <TopBar />
         <TasksContent />
       </div>
-
-      {/* Right Sidebar - Pending Actions */}
-      <PendingActions />
     </div>
   );
 }

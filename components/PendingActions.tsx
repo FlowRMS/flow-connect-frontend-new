@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 
 export default function PendingActions() {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
 
   const tasks = [
     {

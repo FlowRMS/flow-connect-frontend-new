@@ -1,7 +1,6 @@
 import Sidebar from '@/components/Sidebar';
 import TopBar from '@/components/TopBar';
 import CompaniesContent from '@/components/CompaniesContent';
-import PendingActions from '@/components/PendingActions';
 
 export default function CompaniesPage() {
   return (
@@ -14,9 +13,6 @@ export default function CompaniesPage() {
         <TopBar />
         <CompaniesContent />
       </div>
-
-      {/* Right Sidebar - Pending Actions */}
-      <PendingActions />
     </div>
   );
 }

@@ -21,8 +21,19 @@ type Campaign = {
   createdDate: string;
 };
 
+type Rule = {
+  id: string;
+  name: string;
+  subject: string;
+  trigger: string;
+  status: 'Active' | 'Paused' | 'Draft';
+  emailsSent: number;
+  lastTriggered?: string;
+  createdDate: string;
+};
+
 export default function EmailHelperContent() {
-  const [activeTab, setActiveTab] = useState<'campaigns' | 'new-campaign'>('campaigns');
+  const [activeTab, setActiveTab] = useState<'campaigns' | 'new-campaign' | 'rules' | 'new-rule'>('campaigns');
   const [selectedSource, setSelectedSource] = useState<'Contacts' | 'Jobs' | 'Companies' | 'Pre-Opportunities'>('Contacts');
   const [recipientList, setRecipientList] = useState<Contact[]>([]);
   const [emailSubject, setEmailSubject] = useState('');
@@ -80,6 +91,48 @@ export default function EmailHelperContent() {
     },
   ];
 
+  const rules: Rule[] = [
+    {
+      id: 'RULE-001',
+      name: 'New Contact Welcome Email',
+      subject: 'Welcome to Our Network',
+      trigger: 'When contact is added',
+      status: 'Active',
+      emailsSent: 127,
+      lastTriggered: '2024-11-22',
+      createdDate: '2024-10-01',
+    },
+    {
+      id: 'RULE-002',
+      name: 'Job Win Follow-up',
+      subject: 'Congratulations on Your Project Win',
+      trigger: 'When job status = Won',
+      status: 'Active',
+      emailsSent: 34,
+      lastTriggered: '2024-11-21',
+      createdDate: '2024-10-15',
+    },
+    {
+      id: 'RULE-003',
+      name: 'Inactive Contact Re-engagement',
+      subject: "We'd Love to Reconnect",
+      trigger: 'When contact inactive > 90 days',
+      status: 'Paused',
+      emailsSent: 52,
+      lastTriggered: '2024-11-10',
+      createdDate: '2024-09-01',
+    },
+    {
+      id: 'RULE-004',
+      name: 'Birthday Greeting',
+      subject: 'Happy Birthday from Our Team!',
+      trigger: "When contact's birthday",
+      status: 'Draft',
+      emailsSent: 0,
+      createdDate: '2024-11-20',
+    },
+  ];
+
   const addToRecipientList = (contact: Contact) => {
     if (!recipientList.find(c => c.id === contact.id)) {
       setRecipientList([...recipientList, contact]);
@@ -100,6 +153,10 @@ export default function EmailHelperContent() {
         return 'bg-yellow-100 text-yellow-700';
       case 'Completed':
         return 'bg-green-100 text-green-700';
+      case 'Active':
+        return 'bg-green-100 text-green-700';
+      case 'Paused':
+        return 'bg-yellow-100 text-yellow-700';
       default:
         return 'bg-gray-100 text-gray-700';
     }
@@ -115,18 +172,44 @@ export default function EmailHelperContent() {
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
           <div>
-            <h1 className="text-2xl font-semibold text-[var(--foreground)]">Email Helper</h1>
+            <h1 className="text-2xl font-semibold text-[var(--foreground)]">Email Flow</h1>
           </div>
-          <button
-            onClick={() => setActiveTab('new-campaign')}
-            className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"
-          >
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="10" cy="10" r="7"/>
-              <path d="M10 7v6M7 10h6" strokeLinecap="round"/>
-            </svg>
-            New Campaign
-          </button>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 p-1 bg-[var(--muted)] rounded-md">
+              <button className="p-2 rounded bg-white shadow-sm" title="List View">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="8" y1="6" x2="21" y2="6"/>
+                  <line x1="8" y1="12" x2="21" y2="12"/>
+                  <line x1="8" y1="18" x2="21" y2="18"/>
+                  <line x1="3" y1="6" x2="3.01" y2="6"/>
+                  <line x1="3" y1="12" x2="3.01" y2="12"/>
+                  <line x1="3" y1="18" x2="3.01" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            <button className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors">
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 6h14M3 10h14M3 14h14" strokeLinecap="round"/>
+              </svg>
+              Filter
+            </button>
+            <button className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors">
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 4h14M6 8h11M9 12h8M12 16h5" strokeLinecap="round"/>
+              </svg>
+              Sort
+            </button>
+            <button
+              onClick={() => setActiveTab('new-campaign')}
+              className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="10" cy="10" r="7"/>
+                <path d="M10 7v6M7 10h6" strokeLinecap="round"/>
+              </svg>
+              New Campaign
+            </button>
+          </div>
         </div>
       </div>
 
@@ -152,6 +235,26 @@ export default function EmailHelperContent() {
             }`}
           >
             New Campaign
+          </button>
+          <button
+            onClick={() => setActiveTab('rules')}
+            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
+              activeTab === 'rules'
+                ? 'border-[var(--primary)] text-[var(--primary)]'
+                : 'border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+            }`}
+          >
+            Rules
+          </button>
+          <button
+            onClick={() => setActiveTab('new-rule')}
+            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
+              activeTab === 'new-rule'
+                ? 'border-[var(--primary)] text-[var(--primary)]'
+                : 'border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+            }`}
+          >
+            New Rule
           </button>
         </div>
       </div>
@@ -473,6 +576,227 @@ export default function EmailHelperContent() {
                     No recipients selected yet
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rules List View */}
+      {activeTab === 'rules' && (
+        <div className="space-y-4">
+          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
+            {/* Table Header */}
+            <div className="grid grid-cols-12 gap-4 px-6 py-3 border-b border-[var(--border)] bg-[var(--muted)]/30">
+              <div className="col-span-4 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
+                Rule Name
+              </div>
+              <div className="col-span-3 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
+                Trigger
+              </div>
+              <div className="col-span-2 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
+                Status
+              </div>
+              <div className="col-span-1 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider text-center">
+                Emails Sent
+              </div>
+              <div className="col-span-2 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
+                Last Triggered
+              </div>
+            </div>
+
+            {/* Table Body */}
+            <div className="divide-y divide-[var(--border)]">
+              {rules.map((rule) => (
+                <div
+                  key={rule.id}
+                  className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-[var(--muted)]/20 transition-colors cursor-pointer"
+                >
+                  <div className="col-span-4">
+                    <h3 className="font-medium text-[var(--foreground)] mb-1">{rule.name}</h3>
+                    <p className="text-xs text-[var(--muted-foreground)]">{rule.subject}</p>
+                  </div>
+                  <div className="col-span-3 flex items-center">
+                    <span className="text-sm text-[var(--foreground)]">{rule.trigger}</span>
+                  </div>
+                  <div className="col-span-2 flex items-center">
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(rule.status)}`}>
+                      {rule.status}
+                    </span>
+                  </div>
+                  <div className="col-span-1 flex items-center justify-center">
+                    <span className="text-sm font-medium text-[var(--foreground)]">{rule.emailsSent}</span>
+                  </div>
+                  <div className="col-span-2 flex items-center">
+                    <span className="text-xs text-[var(--muted-foreground)]">
+                      {rule.lastTriggered ? formatDate(rule.lastTriggered) : 'Never'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Rule View */}
+      {activeTab === 'new-rule' && (
+        <div className="grid grid-cols-12 gap-6">
+          {/* Left Column - Rule Configuration */}
+          <div className="col-span-8 space-y-6">
+            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6">
+              <h2 className="text-lg font-semibold text-[var(--foreground)] mb-4">Rule Configuration</h2>
+
+              {/* Rule Name */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                  Rule Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g., New Contact Welcome Email"
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
+                />
+              </div>
+
+              {/* Trigger Condition */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                  Trigger When
+                </label>
+                <select className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]">
+                  <option value="">Select trigger...</option>
+                  <option value="contact-added">Contact is added</option>
+                  <option value="job-won">Job status changes to Won</option>
+                  <option value="job-lost">Job status changes to Lost</option>
+                  <option value="contact-inactive">Contact inactive for X days</option>
+                  <option value="birthday">Contact's birthday</option>
+                  <option value="anniversary">Contact's work anniversary</option>
+                  <option value="tag-added">Tag is added to contact</option>
+                  <option value="note-added">Note is added</option>
+                </select>
+              </div>
+
+              {/* Email Subject */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                  Email Subject
+                </label>
+                <input
+                  type="text"
+                  placeholder="Enter email subject"
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
+                />
+              </div>
+
+              {/* Email Body */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                  Email Body
+                </label>
+                <textarea
+                  rows={10}
+                  placeholder="Compose your email..."
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] resize-none bg-[var(--background)]"
+                />
+                <p className="text-xs text-[var(--muted-foreground)] mt-1">
+                  Use variables: {'{name}'}, {'{company}'}, {'{email}'}, {'{phone}'}
+                </p>
+              </div>
+
+              {/* AI Personalization */}
+              <div className="mb-4 flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={useAIPersonalization}
+                  onChange={(e) => setUseAIPersonalization(e.target.checked)}
+                  className="w-4 h-4 accent-[var(--primary)]"
+                />
+                <label className="text-sm text-[var(--foreground)]">
+                  Use AI to personalize each email
+                </label>
+              </div>
+
+              {/* Send Pace */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                  Send Pace
+                </label>
+                <select
+                  value={sendPace}
+                  onChange={(e) => setSendPace(e.target.value as any)}
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
+                >
+                  <option value="fast">Fast (500/hour)</option>
+                  <option value="medium">Medium (200/hour)</option>
+                  <option value="slow">Slow (100/hour)</option>
+                  <option value="very-slow">Very Slow (50/hour)</option>
+                  <option value="randomized">Randomized (Human-like)</option>
+                </select>
+              </div>
+
+              {/* Max Emails Per Day */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                  Max Emails Per Day
+                </label>
+                <input
+                  type="number"
+                  value={maxPerDay}
+                  onChange={(e) => setMaxPerDay(parseInt(e.target.value))}
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors">
+                  Activate Rule
+                </button>
+                <button className="px-4 py-2 border border-[var(--border)] rounded-lg font-medium text-sm hover:bg-[var(--muted)] transition-colors">
+                  Save as Draft
+                </button>
+                <button
+                  onClick={() => setActiveTab('rules')}
+                  className="px-4 py-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column - Rule Info */}
+          <div className="col-span-4 space-y-4">
+            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6">
+              <h3 className="text-sm font-semibold text-[var(--foreground)] mb-4">About Rules</h3>
+              <div className="space-y-3 text-sm text-[var(--muted-foreground)]">
+                <p>
+                  Rules automatically send emails when specific triggers occur, unlike campaigns which are one-time sends.
+                </p>
+                <p>
+                  <strong className="text-[var(--foreground)]">Examples:</strong>
+                </p>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li>Welcome new contacts</li>
+                  <li>Follow up on won/lost jobs</li>
+                  <li>Re-engage inactive contacts</li>
+                  <li>Send birthday wishes</li>
+                </ul>
+                <p>
+                  Rules can be paused or activated at any time from the Rules tab.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6">
+              <h3 className="text-sm font-semibold text-[var(--foreground)] mb-4">Best Practices</h3>
+              <div className="space-y-2 text-sm text-[var(--muted-foreground)]">
+                <p>✓ Test with a small group first</p>
+                <p>✓ Use personalization variables</p>
+                <p>✓ Set reasonable send limits</p>
+                <p>✓ Monitor engagement metrics</p>
+                <p>✓ Review and update regularly</p>
               </div>
             </div>
           </div>

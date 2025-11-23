@@ -1,7 +1,6 @@
 import Sidebar from '@/components/Sidebar';
 import TopBar from '@/components/TopBar';
 import PreOpportunitiesContent from '@/components/PreOpportunitiesContent';
-import PendingActions from '@/components/PendingActions';
 
 export default function PreOpportunitiesPage() {
   return (
@@ -14,9 +13,6 @@ export default function PreOpportunitiesPage() {
         <TopBar />
         <PreOpportunitiesContent />
       </div>
-
-      {/* Right Sidebar - Pending Actions */}
-      <PendingActions />
     </div>
   );
 }

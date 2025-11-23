@@ -1,8 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import TaskModal from './TaskModal';
-import AdvancedFilters from './AdvancedFilters';
 
 type Task = {
   id: string;
@@ -205,7 +203,6 @@ export default function TasksContent() {
   const [showTagsDropdown, setShowTagsDropdown] = useState<string | null>(null);
   const [showEntityDropdown, setShowEntityDropdown] = useState<string | null>(null);
   const [showTaskTypeDropdown, setShowTaskTypeDropdown] = useState<string | null>(null);
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showPriorityDropdown, setShowPriorityDropdown] = useState<string | null>(null);
   const [showDueDatePicker, setShowDueDatePicker] = useState<string | null>(null);
   const [showReminderDatePicker, setShowReminderDatePicker] = useState<string | null>(null);
@@ -221,21 +218,6 @@ export default function TasksContent() {
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [expandedText, setExpandedText] = useState<{ taskId: string; field: 'title' | 'description' } | null>(null);
   const [taskDetailModal, setTaskDetailModal] = useState<string | null>(null);
-
-  const taskFilterOptions = [
-    { id: 'task-id', label: 'Task ID', type: 'text' as const },
-    { id: 'title', label: 'Task Title', type: 'text' as const },
-    { id: 'status', label: 'Status', type: 'dropdown' as const },
-    { id: 'task-type', label: 'Task Type', type: 'dropdown' as const },
-    { id: 'priority', label: 'Priority', type: 'dropdown' as const },
-    { id: 'assigned-to', label: 'Assigned To', type: 'dropdown' as const },
-    { id: 'due-date', label: 'Due Date', type: 'date' as const },
-    { id: 'reminder-date', label: 'Reminder Date', type: 'date' as const },
-    { id: 'tags', label: 'Tags', type: 'dropdown' as const },
-    { id: 'related-job', label: 'Related Job', type: 'dropdown' as const },
-    { id: 'related-contact', label: 'Related Contact', type: 'dropdown' as const },
-    { id: 'related-company', label: 'Related Company', type: 'dropdown' as const },
-  ];
 
   const initialTasks: Task[] = [
     {
@@ -756,13 +738,155 @@ export default function TasksContent() {
             </div>
 
             {/* Filters and Actions */}
-            <AdvancedFilters filterOptions={taskFilterOptions} />
-            <button className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors">
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M3 4h14M6 8h11M9 12h8M12 16h5" strokeLinecap="round"/>
-              </svg>
-              Sort
-            </button>
+            <div className="relative">
+            <button
+              onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors"
+            >
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 6h14M3 10h14M3 14h14" strokeLinecap="round"/>
+                </svg>
+                Filter
+                {(filters.assignees.length + filters.tags.length + filters.taskTypes.length + filters.priorities.length) > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 bg-[var(--primary)] text-white text-xs rounded-full">
+                    {filters.assignees.length + filters.tags.length + filters.taskTypes.length + filters.priorities.length}
+                  </span>
+                )}
+              </button>
+              {showFilterDropdown && (
+                <div className="absolute top-full left-0 mt-1 bg-white border border-[var(--border)] rounded-lg shadow-lg z-10 min-w-[300px]">
+                  <div className="p-4 space-y-4">
+                    {/* Assignee Filter */}
+                    <div>
+                      <h4 className="text-sm font-semibold text-[var(--foreground)] mb-2">Assignee</h4>
+                      <div className="space-y-1">
+                        {availableAssignees.map((assignee) => (
+                          <label
+                            key={assignee}
+                            className="flex items-center gap-2 px-2 py-1.5 hover:bg-[var(--muted)] rounded cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={filters.assignees.includes(assignee)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setFilters(prev => ({ ...prev, assignees: [...prev.assignees, assignee] }));
+                                } else {
+                                  setFilters(prev => ({ ...prev, assignees: prev.assignees.filter(a => a !== assignee) }));
+                                }
+                              }}
+                              className="w-4 h-4 accent-[var(--primary)]"
+                            />
+                            <span className="text-sm">{assignee}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Task Type Filter */}
+                    <div>
+                      <h4 className="text-sm font-semibold text-[var(--foreground)] mb-2">Task Type</h4>
+                      <div className="space-y-1">
+                        {availableTaskTypes.map((type) => (
+                          <label
+                            key={type}
+                            className="flex items-center gap-2 px-2 py-1.5 hover:bg-[var(--muted)] rounded cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={filters.taskTypes.includes(type)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setFilters(prev => ({ ...prev, taskTypes: [...prev.taskTypes, type] }));
+                                } else {
+                                  setFilters(prev => ({ ...prev, taskTypes: prev.taskTypes.filter(t => t !== type) }));
+                                }
+                              }}
+                              className="w-4 h-4 accent-[var(--primary)]"
+                            />
+                            <span className="text-sm">{type}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Priority Filter */}
+                    <div>
+                      <h4 className="text-sm font-semibold text-[var(--foreground)] mb-2">Priority</h4>
+                      <div className="space-y-1">
+                        {availablePriorities.map((priority) => (
+                          <label
+                            key={priority}
+                            className="flex items-center gap-2 px-2 py-1.5 hover:bg-[var(--muted)] rounded cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={filters.priorities.includes(priority)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setFilters(prev => ({ ...prev, priorities: [...prev.priorities, priority] }));
+                                } else {
+                                  setFilters(prev => ({ ...prev, priorities: prev.priorities.filter(p => p !== priority) }));
+                                }
+                              }}
+                              className="w-4 h-4 accent-[var(--primary)]"
+                            />
+                            <span className="text-sm flex items-center gap-2">
+                              {getPriorityIcon(priority)}
+                              {priority}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Tags Filter */}
+                    <div>
+                      <h4 className="text-sm font-semibold text-[var(--foreground)] mb-2">Tags</h4>
+                      <div className="space-y-1 max-h-[150px] overflow-y-auto">
+                        {availableTags.map((tag) => (
+                          <label
+                            key={tag}
+                            className="flex items-center gap-2 px-2 py-1.5 hover:bg-[var(--muted)] rounded cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={filters.tags.includes(tag)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setFilters(prev => ({ ...prev, tags: [...prev.tags, tag] }));
+                                } else {
+                                  setFilters(prev => ({ ...prev, tags: prev.tags.filter(t => t !== tag) }));
+                                }
+                              }}
+                              className="w-4 h-4 accent-[var(--primary)]"
+                            />
+                            <span className="text-sm">{tag}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Clear Filters Button */}
+                    <div className="pt-2 border-t border-[var(--border)]">
+                      <button
+                        onClick={() => {
+                          setFilters({
+                            assignees: [],
+                            tags: [],
+                            taskTypes: [],
+                            priorities: [],
+                          });
+                        }}
+                        className="w-full px-3 py-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)] rounded transition-colors"
+                      >
+                        Clear all filters
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
             <div className="relative">
               <button
                 onClick={() => setShowBulkActionsDropdown(!showBulkActionsDropdown)}
@@ -998,8 +1122,7 @@ export default function TasksContent() {
           {filteredTasks.map((task) => (
             <div
               key={task.id}
-              onClick={() => setSelectedTask(task)}
-              className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-5 hover:shadow-lg transition-all cursor-pointer"
+              className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-5 hover:shadow-lg transition-all"
             >
               {/* Task Header */}
               <div className="flex items-start justify-between mb-3">
@@ -1007,11 +1130,7 @@ export default function TasksContent() {
                   <input
                     type="checkbox"
                     checked={task.completed}
-                    onChange={(e) => {
-                      e.stopPropagation();
-                      updateTask(task.id, { completed: !task.completed });
-                    }}
-                    onClick={(e) => e.stopPropagation()}
+                    onChange={() => updateTask(task.id, { completed: !task.completed })}
                     className="w-5 h-5 accent-[var(--primary)] rounded flex-shrink-0"
                   />
                   {editingTask === task.id && editingField === 'title' ? (
@@ -1020,7 +1139,6 @@ export default function TasksContent() {
                       value={editValue}
                       onChange={(e) => setEditValue(e.target.value)}
                       onBlur={() => saveTitleEdit(task.id)}
-                      onClick={(e) => e.stopPropagation()}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') saveTitleEdit(task.id);
                         if (e.key === 'Escape') cancelEdit();
@@ -1031,10 +1149,7 @@ export default function TasksContent() {
                   ) : (
                     <h3
                       className={`font-semibold text-[var(--foreground)] text-base cursor-pointer hover:bg-[var(--muted)] px-2 py-1 rounded ${task.completed ? 'line-through opacity-60' : ''}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        startEditingTitle(task.id, task.title);
-                      }}
+                      onClick={() => startEditingTitle(task.id, task.title)}
                     >
                       {task.title}
                     </h3>
@@ -1048,7 +1163,6 @@ export default function TasksContent() {
                       setShowPriorityDropdown(null);
                     }}
                     onBlur={() => setShowPriorityDropdown(null)}
-                    onClick={(e) => e.stopPropagation()}
                     autoFocus
                     className="px-2 py-1 border border-[var(--primary)] rounded text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                   >
@@ -1058,20 +1172,14 @@ export default function TasksContent() {
                 ) : task.priority === 'Urgent' ? (
                   <span
                     className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-medium cursor-pointer hover:bg-red-200"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowPriorityDropdown(task.id);
-                    }}
+                    onClick={() => setShowPriorityDropdown(task.id)}
                   >
                     Urgent
                   </span>
                 ) : (
                   <span
                     className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium cursor-pointer hover:bg-gray-200"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowPriorityDropdown(task.id);
-                    }}
+                    onClick={() => setShowPriorityDropdown(task.id)}
                   >
                     No priority
                   </span>
@@ -1084,7 +1192,6 @@ export default function TasksContent() {
                   value={editValue}
                   onChange={(e) => setEditValue(e.target.value)}
                   onBlur={() => saveDescriptionEdit(task.id)}
-                  onClick={(e) => e.stopPropagation()}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && e.ctrlKey) saveDescriptionEdit(task.id);
                     if (e.key === 'Escape') cancelEdit();
@@ -1096,10 +1203,7 @@ export default function TasksContent() {
               ) : (
                 <p
                   className="text-sm text-[var(--muted-foreground)] mb-4 line-clamp-2 cursor-pointer hover:bg-[var(--muted)] px-2 py-1 rounded"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    startEditingDescription(task.id, task.description);
-                  }}
+                  onClick={() => startEditingDescription(task.id, task.description)}
                 >
                   {task.description}
                 </p>
@@ -1255,18 +1359,12 @@ export default function TasksContent() {
                 )}
                 <div className="flex items-center gap-3 text-xs text-[var(--muted-foreground)]">
                   {(task.comments ?? 0) > 0 && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedTask(task);
-                      }}
-                      className="flex items-center gap-1 hover:text-[var(--primary)] transition-colors"
-                    >
+                    <div className="flex items-center gap-1">
                       <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M2 4c0-1 1-2 2-2h12c1 0 2 1 2 2v10c0 1-1 2-2 2H6l-4 3V4z" strokeLinecap="round"/>
                       </svg>
                       {task.comments}
-                    </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1279,32 +1377,23 @@ export default function TasksContent() {
             {filteredTasks.map((task) => (
               <div
                 key={task.id}
-                onClick={() => setSelectedTask(task)}
-                className="p-4 hover:bg-[var(--muted)]/20 transition-colors cursor-pointer"
+                className="p-4 hover:bg-[var(--muted)]/20 transition-colors"
               >
                 <div className="flex items-start gap-4">
                   {/* Checkbox */}
                   <input
                     type="checkbox"
                     checked={task.completed}
-                    onChange={(e) => {
-                      e.stopPropagation();
-                      updateTask(task.id, { completed: !task.completed });
-                    }}
-                    onClick={(e) => e.stopPropagation()}
+                    onChange={() => updateTask(task.id, { completed: !task.completed })}
                     className="w-5 h-5 accent-[var(--primary)] rounded mt-1 flex-shrink-0"
                   />
 
                   {/* Avatar */}
                   {showAssigneeDropdown === task.id ? (
                     <select
-                      value={task.assignedTo}
-                      onChange={(e) => {
-                        updateTask(task.id, { assignedTo: e.target.value });
-                        setShowAssigneeDropdown(null);
-                      }}
-                      onBlur={() => setShowAssigneeDropdown(null)}
-                      onClick={(e) => e.stopPropagation()}
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onBlur={() => saveEdit(task.id, 'assignedTo')}
                       autoFocus
                       className="w-10 h-10 px-1 py-1 border border-[var(--primary)] rounded-full text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                     >
@@ -1315,10 +1404,7 @@ export default function TasksContent() {
                   ) : (
                     <div
                       className={`w-10 h-10 rounded-full ${getAvatarColor(task.assignedTo)} flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-[var(--primary)]`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowAssigneeDropdown(task.id);
-                      }}
+                      onClick={() => startEditing(task.id, 'assignedTo', task.assignedTo)}
                     >
                       {getInitials(task.assignedTo)}
                     </div>
@@ -1332,11 +1418,11 @@ export default function TasksContent() {
                         {editingTask === task.id && editingField === 'title' ? (
                           <input
                             type="text"
-                            value={task.priority}
-                            onChange={(e) => { updateTask(task.id, { priority: e.target.value as 'No priority' | 'Urgent' }); setShowPriorityDropdown(null); }}
-                            onBlur={() => saveTitleEdit(task.id)}
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            onBlur={() => saveEdit(task.id, 'title')}
                             onKeyDown={(e) => {
-                              if (e.key === 'Enter') saveTitleEdit(task.id);
+                              if (e.key === 'Enter') saveEdit(task.id, 'title');
                               if (e.key === 'Escape') cancelEdit();
                             }}
                             autoFocus
@@ -1345,10 +1431,7 @@ export default function TasksContent() {
                         ) : (
                           <h3
                             className={`font-semibold text-[var(--foreground)] text-base mb-1 cursor-pointer hover:bg-[var(--muted)] px-2 py-1 rounded ${task.completed ? 'line-through opacity-60' : ''}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              startEditingTitle(task.id, task.title);
-                            }}
+                            onClick={() => startEditing(task.id, 'title', task.title)}
                           >
                             {task.title}
                           </h3>
@@ -1360,19 +1443,20 @@ export default function TasksContent() {
                           {showDueDatePicker === task.id ? (
                             <input
                               type="date"
-                              value={task.dueDate}
-                              onChange={(e) => {
-                                updateTask(task.id, { dueDate: e.target.value });
-                                setShowDueDatePicker(null);
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              onBlur={() => saveEdit(task.id, 'dueDate')}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') saveEdit(task.id, 'dueDate');
+                                if (e.key === 'Escape') cancelEdit();
                               }}
-                              onBlur={() => setShowDueDatePicker(null)}
                               autoFocus
                               className="px-2 py-1 border border-[var(--primary)] rounded focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                             />
                           ) : (
                             <span
                               className="cursor-pointer hover:bg-[var(--muted)] px-2 py-1 rounded"
-                              onClick={() => setShowDueDatePicker(task.id)}
+                              onClick={() => startEditing(task.id, 'dueDate', task.dueDate)}
                             >
                               {formatTaskDate(task.dueDate)}
                             </span>
@@ -1381,9 +1465,9 @@ export default function TasksContent() {
                             <>
                               <span>·</span>
                               <select
-                                value={task.priority}
-                                onChange={(e) => { updateTask(task.id, { priority: e.target.value as 'No priority' | 'Urgent' }); setShowPriorityDropdown(null); }}
-                                onBlur={() => setShowPriorityDropdown(null)}
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                onBlur={() => saveEdit(task.id, 'priority')}
                                 autoFocus
                                 className="px-2 py-0.5 border border-[var(--primary)] rounded font-medium focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                               >
@@ -1397,7 +1481,7 @@ export default function TasksContent() {
                               <span>·</span>
                               <span
                                 className="px-2 py-0.5 bg-red-100 text-red-700 rounded font-medium cursor-pointer hover:bg-red-200"
-                                onClick={() => setShowPriorityDropdown(task.id)}
+                                onClick={() => startEditing(task.id, 'priority', task.priority)}
                               >
                                 Urgent
                               </span>
@@ -1414,7 +1498,7 @@ export default function TasksContent() {
                         onChange={(e) => setEditValue(e.target.value)}
                         onBlur={() => saveEdit(task.id, 'description')}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter' && e.ctrlKey) saveDescriptionEdit(task.id);
+                          if (e.key === 'Enter' && e.ctrlKey) saveEdit(task.id, 'description');
                           if (e.key === 'Escape') cancelEdit();
                         }}
                         autoFocus
@@ -1424,7 +1508,7 @@ export default function TasksContent() {
                     ) : (
                       <p
                         className="text-sm text-[var(--muted-foreground)] mb-3 line-clamp-2 cursor-pointer hover:bg-[var(--muted)] px-2 py-1 rounded"
-                        onClick={() => startEditingDescription(task.id, task.description)}
+                        onClick={() => startEditing(task.id, 'description', task.description)}
                       >
                         {task.description}
                       </p>
@@ -1435,8 +1519,8 @@ export default function TasksContent() {
                       <div className="mb-2 flex gap-1.5 flex-wrap text-xs">
                         {showTaskTypeDropdown === task.id ? (
                           <select
-                            value={task.taskType}
-                            onChange={(e) => { updateTask(task.id, { taskType: e.target.value }); setShowTaskTypeDropdown(null); }}
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
                             onBlur={() => saveEdit(task.id, 'taskType')}
                             autoFocus
                             className="px-2 py-1 bg-gray-100 text-gray-700 rounded font-medium border border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
@@ -1448,7 +1532,7 @@ export default function TasksContent() {
                         ) : (
                           <span
                             className="px-2 py-1 bg-gray-100 text-gray-700 rounded font-medium cursor-pointer hover:bg-gray-200"
-                            onClick={() => setShowTaskTypeDropdown(task.id)}
+                            onClick={() => startEditing(task.id, 'taskType', task.taskType)}
                           >
                             {task.taskType}
                           </span>
@@ -1493,12 +1577,12 @@ export default function TasksContent() {
                         ))}
                         {showTagsDropdown === task.id ? (
                           <select
-                            value=""
+                            value={editValue}
                             onChange={(e) => {
                               if (e.target.value) {
                                 addTag(task.id, e.target.value);
                                 setEditingField(null);
-                                setShowTagsDropdown(null);
+                                setEditValue('');
                               }
                             }}
                             onBlur={() => cancelEdit()}
@@ -1512,7 +1596,7 @@ export default function TasksContent() {
                           </select>
                         ) : (
                           <button
-                            onClick={() => setShowTagsDropdown(task.id)}
+                            onClick={() => startEditing(task.id, 'addTag', '')}
                             className="px-2 py-1 border border-dashed border-[var(--border)] text-[var(--muted-foreground)] rounded text-xs hover:border-[var(--primary)] hover:text-[var(--primary)] transition-colors"
                           >
                             + Add tag
@@ -1520,18 +1604,12 @@ export default function TasksContent() {
                         )}
                       </div>
                       {(task.comments ?? 0) > 0 && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedTask(task);
-                          }}
-                          className="flex items-center gap-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--primary)] transition-colors"
-                        >
+                        <div className="flex items-center gap-1 text-xs text-[var(--muted-foreground)]">
                           <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                             <path d="M2 4c0-1 1-2 2-2h12c1 0 2 1 2 2v10c0 1-1 2-2 2H6l-4 3V4z" strokeLinecap="round"/>
                           </svg>
                           {task.comments}
-                        </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -2038,15 +2116,6 @@ export default function TasksContent() {
           </div>
         );
       })()}
-
-      {/* Task Modal */}
-      {selectedTask && (
-        <TaskModal
-          task={selectedTask}
-          onClose={() => setSelectedTask(null)}
-          onToggleComplete={handleToggleComplete}
-        />
-      )}
     </main>
   );
 }
