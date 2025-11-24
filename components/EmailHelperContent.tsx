@@ -32,15 +32,59 @@ type Rule = {
   createdDate: string;
 };
 
+type RuleCondition = {
+  id: string;
+  entity: 'Contact' | 'Job' | 'Company' | 'Pre-Opportunity' | 'Quote' | '';
+  field: string;
+  operator: 'equals' | 'contains' | 'greater_than' | 'less_than' | 'days_until' | 'days_after' | '';
+  value: string;
+};
+
+type RuleConditionGroup = {
+  id: string;
+  logic: 'AND' | 'OR';
+  conditions: RuleCondition[];
+};
+
 export default function EmailHelperContent() {
   const [activeTab, setActiveTab] = useState<'campaigns' | 'new-campaign' | 'rules' | 'new-rule'>('campaigns');
   const [selectedSource, setSelectedSource] = useState<'Contacts' | 'Jobs' | 'Companies' | 'Pre-Opportunities'>('Contacts');
   const [recipientList, setRecipientList] = useState<Contact[]>([]);
+  const [listType, setListType] = useState<'static' | 'criteria' | 'dynamic'>('static');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCompanies, setSelectedCompanies] = useState<string[]>([]);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const [showAIModal, setShowAIModal] = useState(false);
+  const [aiPrompt, setAIPrompt] = useState('');
+  const [aiContext, setAIContext] = useState<'campaign' | 'rule' | null>(null);
   const [emailSubject, setEmailSubject] = useState('');
   const [emailBody, setEmailBody] = useState('');
   const [sendPace, setSendPace] = useState<'fast' | 'medium' | 'slow' | 'very-slow' | 'randomized'>('medium');
   const [maxPerDay, setMaxPerDay] = useState(50);
   const [useAIPersonalization, setUseAIPersonalization] = useState(true);
+  const [communicationType, setCommunicationType] = useState<'email' | 'notification' | 'both'>('email');
+  const [isInternalCommunication, setIsInternalCommunication] = useState(false);
+  const [ruleConditionGroups, setRuleConditionGroups] = useState<RuleConditionGroup[]>([
+    {
+      id: '1',
+      logic: 'AND',
+      conditions: [
+        { id: '1-1', entity: '', field: '', operator: '', value: '' }
+      ]
+    }
+  ]);
+  const [campaignConditionGroups, setCampaignConditionGroups] = useState<RuleConditionGroup[]>([
+    {
+      id: '1',
+      logic: 'AND',
+      conditions: [
+        { id: '1-1', entity: '', field: '', operator: '', value: '' }
+      ]
+    }
+  ]);
 
   const availableContacts: Contact[] = [
     { id: 'C-001', name: 'Michael Rodriguez', email: 'mrodriguez@turnerconst.com', company: 'Turner Construction', type: 'GC' },
@@ -141,6 +185,216 @@ export default function EmailHelperContent() {
 
   const removeFromRecipientList = (contactId: string) => {
     setRecipientList(recipientList.filter(c => c.id !== contactId));
+  };
+
+  const getFieldsForEntity = (entity: string) => {
+    const fieldMap: Record<string, { value: string; label: string; type: string }[]> = {
+      'Contact': [
+        { value: 'name', label: 'Name', type: 'text' },
+        { value: 'email', label: 'Email', type: 'text' },
+        { value: 'company', label: 'Company', type: 'text' },
+        { value: 'role', label: 'Role', type: 'text' },
+        { value: 'type', label: 'Contact Type', type: 'text' },
+        { value: 'tags', label: 'Tags', type: 'text' },
+        { value: 'territory', label: 'Territory', type: 'text' },
+        { value: 'last_activity', label: 'Last Activity Date', type: 'date' },
+        { value: 'created_date', label: 'Created Date', type: 'date' },
+      ],
+      'Job': [
+        { value: 'name', label: 'Job Name', type: 'text' },
+        { value: 'status', label: 'Status', type: 'text' },
+        { value: 'type', label: 'Job Type', type: 'text' },
+        { value: 'value', label: 'Value', type: 'number' },
+        { value: 'start_date', label: 'Start Date', type: 'date' },
+        { value: 'gc', label: 'General Contractor', type: 'text' },
+        { value: 'ec', label: 'Electrical Contractor', type: 'text' },
+        { value: 'owner', label: 'Owner', type: 'text' },
+        { value: 'tags', label: 'Tags', type: 'text' },
+      ],
+      'Company': [
+        { value: 'name', label: 'Company Name', type: 'text' },
+        { value: 'type', label: 'Company Type', type: 'text' },
+        { value: 'territory', label: 'Territory', type: 'text' },
+        { value: 'tags', label: 'Tags', type: 'text' },
+        { value: 'contact_count', label: 'Contact Count', type: 'number' },
+        { value: 'job_count', label: 'Job Count', type: 'number' },
+        { value: 'last_activity', label: 'Last Activity Date', type: 'date' },
+      ],
+      'Pre-Opportunity': [
+        { value: 'name', label: 'Name', type: 'text' },
+        { value: 'stage', label: 'Stage', type: 'text' },
+        { value: 'owner', label: 'Owner', type: 'text' },
+        { value: 'tags', label: 'Tags', type: 'text' },
+        { value: 'created_date', label: 'Created Date', type: 'date' },
+        { value: 'due_date', label: 'Due Date', type: 'date' },
+      ],
+      'Quote': [
+        { value: 'name', label: 'Quote Name', type: 'text' },
+        { value: 'status', label: 'Status', type: 'text' },
+        { value: 'amount', label: 'Amount', type: 'number' },
+        { value: 'valid_until', label: 'Valid Until Date', type: 'date' },
+        { value: 'created_date', label: 'Created Date', type: 'date' },
+        { value: 'owner', label: 'Owner', type: 'text' },
+        { value: 'customer', label: 'Customer', type: 'text' },
+        { value: 'tags', label: 'Tags', type: 'text' },
+      ],
+    };
+    return fieldMap[entity] || [];
+  };
+
+  const getOperatorsForFieldType = (fieldType: string) => {
+    const operatorMap: Record<string, { value: string; label: string }[]> = {
+      'text': [
+        { value: 'equals', label: 'equals' },
+        { value: 'contains', label: 'contains' },
+      ],
+      'number': [
+        { value: 'equals', label: 'equals' },
+        { value: 'greater_than', label: 'greater than' },
+        { value: 'less_than', label: 'less than' },
+      ],
+      'date': [
+        { value: 'equals', label: 'equals' },
+        { value: 'days_until', label: 'days until' },
+        { value: 'days_after', label: 'days after' },
+      ],
+    };
+    return operatorMap[fieldType] || operatorMap['text'];
+  };
+
+  const addCondition = (groupId: string) => {
+    setRuleConditionGroups(groups =>
+      groups.map(group =>
+        group.id === groupId
+          ? {
+              ...group,
+              conditions: [
+                ...group.conditions,
+                { id: `${groupId}-${group.conditions.length + 1}`, entity: '', field: '', operator: '', value: '' }
+              ]
+            }
+          : group
+      )
+    );
+  };
+
+  const removeCondition = (groupId: string, conditionId: string) => {
+    setRuleConditionGroups(groups =>
+      groups.map(group =>
+        group.id === groupId
+          ? { ...group, conditions: group.conditions.filter(c => c.id !== conditionId) }
+          : group
+      )
+    );
+  };
+
+  const updateCondition = (groupId: string, conditionId: string, field: keyof RuleCondition, value: any) => {
+    setRuleConditionGroups(groups =>
+      groups.map(group =>
+        group.id === groupId
+          ? {
+              ...group,
+              conditions: group.conditions.map(c =>
+                c.id === conditionId ? { ...c, [field]: value } : c
+              )
+            }
+          : group
+      )
+    );
+  };
+
+  const addConditionGroup = () => {
+    const newGroupId = String(ruleConditionGroups.length + 1);
+    setRuleConditionGroups([
+      ...ruleConditionGroups,
+      {
+        id: newGroupId,
+        logic: 'AND',
+        conditions: [
+          { id: `${newGroupId}-1`, entity: '', field: '', operator: '', value: '' }
+        ]
+      }
+    ]);
+  };
+
+  const removeConditionGroup = (groupId: string) => {
+    setRuleConditionGroups(groups => groups.filter(g => g.id !== groupId));
+  };
+
+  const updateGroupLogic = (groupId: string, logic: 'AND' | 'OR') => {
+    setRuleConditionGroups(groups =>
+      groups.map(group =>
+        group.id === groupId ? { ...group, logic } : group
+      )
+    );
+  };
+
+  // Campaign condition helpers (reuse same logic)
+  const addCampaignCondition = (groupId: string) => {
+    setCampaignConditionGroups(groups =>
+      groups.map(group =>
+        group.id === groupId
+          ? {
+              ...group,
+              conditions: [
+                ...group.conditions,
+                { id: `${groupId}-${group.conditions.length + 1}`, entity: '', field: '', operator: '', value: '' }
+              ]
+            }
+          : group
+      )
+    );
+  };
+
+  const removeCampaignCondition = (groupId: string, conditionId: string) => {
+    setCampaignConditionGroups(groups =>
+      groups.map(group =>
+        group.id === groupId
+          ? { ...group, conditions: group.conditions.filter(c => c.id !== conditionId) }
+          : group
+      )
+    );
+  };
+
+  const updateCampaignCondition = (groupId: string, conditionId: string, field: keyof RuleCondition, value: any) => {
+    setCampaignConditionGroups(groups =>
+      groups.map(group =>
+        group.id === groupId
+          ? {
+              ...group,
+              conditions: group.conditions.map(c =>
+                c.id === conditionId ? { ...c, [field]: value } : c
+              )
+            }
+          : group
+      )
+    );
+  };
+
+  const addCampaignConditionGroup = () => {
+    const newGroupId = String(campaignConditionGroups.length + 1);
+    setCampaignConditionGroups([
+      ...campaignConditionGroups,
+      {
+        id: newGroupId,
+        logic: 'AND',
+        conditions: [
+          { id: `${newGroupId}-1`, entity: '', field: '', operator: '', value: '' }
+        ]
+      }
+    ]);
+  };
+
+  const removeCampaignConditionGroup = (groupId: string) => {
+    setCampaignConditionGroups(groups => groups.filter(g => g.id !== groupId));
+  };
+
+  const updateCampaignGroupLogic = (groupId: string, logic: 'AND' | 'OR') => {
+    setCampaignConditionGroups(groups =>
+      groups.map(group =>
+        group.id === groupId ? { ...group, logic } : group
+      )
+    );
   };
 
   const getStatusColor = (status: string) => {
@@ -332,94 +586,761 @@ export default function EmailHelperContent() {
 
       {/* New Campaign View */}
       {activeTab === 'new-campaign' && (
-        <div className="grid grid-cols-3 gap-6">
-          {/* Left Column - Build Target List */}
-          <div className="col-span-1 space-y-4">
-            <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
-              <h3 className="font-semibold text-[var(--foreground)] mb-4">Build Target List</h3>
+        <div className="grid grid-cols-12 gap-6">
+          {/* Left Column - Campaign Configuration */}
+          <div className="col-span-8 space-y-6">
+            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6">
+              <h2 className="text-lg font-semibold text-[var(--foreground)] mb-4">Campaign Configuration</h2>
 
-              {/* Source Selection */}
+              {/* Campaign Name */}
               <div className="mb-4">
-                <label className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider mb-2 block">
-                  Source
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                  Campaign Name
                 </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(['Contacts', 'Jobs', 'Companies', 'Pre-Opportunities'] as const).map((source) => (
-                    <button
-                      key={source}
-                      onClick={() => setSelectedSource(source)}
-                      className={`px-3 py-2 text-sm rounded-md transition-colors ${
-                        selectedSource === source
-                          ? 'bg-[var(--primary)] text-white'
-                          : 'bg-[var(--muted)] text-[var(--foreground)] hover:bg-[var(--muted)]/70'
-                      }`}
-                    >
-                      {source}
-                    </button>
-                  ))}
-                </div>
+                <input
+                  type="text"
+                  placeholder="e.g., Q1 Product Launch"
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
+                />
               </div>
 
-              {/* Available Contacts */}
-              <div>
-                <label className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider mb-2 block">
-                  Available {selectedSource}
-                </label>
-                <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                  {availableContacts.map((contact) => (
-                    <div
-                      key={contact.id}
-                      className="flex items-center justify-between p-2 border border-[var(--border)] rounded-md hover:bg-[var(--muted)]/20"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-[var(--foreground)] truncate">{contact.name}</div>
-                        <div className="text-xs text-[var(--muted-foreground)] truncate">{contact.company}</div>
-                      </div>
-                      <button
-                        onClick={() => addToRecipientList(contact)}
-                        className="ml-2 p-1 text-[var(--primary)] hover:bg-[var(--primary)]/10 rounded"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M10 6v8M6 10h8" strokeLinecap="round"/>
+              {/* List Type Selection */}
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="block text-sm font-medium text-[var(--foreground)]">
+                    Recipient List Type
+                  </label>
+                  <button
+                    onClick={() => {
+                      setAIContext('campaign');
+                      setShowAIModal(true);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 text-sm bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all shadow-sm"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    Generate with AI
+                  </button>
+                </div>
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  <button
+                    onClick={() => setListType('static')}
+                    className={`px-4 py-3 text-sm rounded-lg border-2 transition-all ${
+                      listType === 'static'
+                        ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)] font-medium'
+                        : 'border-[var(--border)] text-[var(--foreground)] hover:border-[var(--primary)]/50'
+                    }`}
+                  >
+                    <div className="font-medium mb-1">Static List</div>
+                    <div className="text-xs opacity-75">Manually select recipients</div>
+                  </button>
+                  <button
+                    onClick={() => setListType('criteria')}
+                    className={`px-4 py-3 text-sm rounded-lg border-2 transition-all ${
+                      listType === 'criteria'
+                        ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)] font-medium'
+                        : 'border-[var(--border)] text-[var(--foreground)] hover:border-[var(--primary)]/50'
+                    }`}
+                  >
+                    <div className="font-medium mb-1">Criteria-Based</div>
+                    <div className="text-xs opacity-75">Filter by conditions</div>
+                  </button>
+                  <button
+                    onClick={() => setListType('dynamic')}
+                    className={`px-4 py-3 text-sm rounded-lg border-2 transition-all ${
+                      listType === 'dynamic'
+                        ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)] font-medium'
+                        : 'border-[var(--border)] text-[var(--foreground)] hover:border-[var(--primary)]/50'
+                    }`}
+                  >
+                    <div className="font-medium mb-1">Dynamic Rules</div>
+                    <div className="text-xs opacity-75">Auto-updating list</div>
+                  </button>
+                </div>
+
+                {/* Static List - Manual Selection with Filters */}
+                {listType === 'static' && (
+                  <div className="border border-[var(--border)] rounded-lg p-4">
+                    {/* Search and Filters */}
+                    <div className="mb-4 space-y-3">
+                      {/* Search Bar */}
+                      <div className="relative">
+                        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-foreground)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
-                      </button>
+                        <input
+                          type="text"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          placeholder="Search contacts by name, email, or company..."
+                          className="w-full pl-10 pr-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
+                        />
+                      </div>
+
+                      {/* Filter Chips */}
+                      <div className="flex flex-wrap gap-2">
+                        {/* Company Filter */}
+                        <div className="relative">
+                          <button
+                            onClick={() => setOpenDropdown(openDropdown === 'company' ? null : 'company')}
+                            className="px-3 py-1.5 text-xs border border-[var(--border)] rounded-md bg-[var(--background)] hover:border-[var(--primary)] transition-colors flex items-center gap-1"
+                          >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                            </svg>
+                            Company {selectedCompanies.length > 0 && `(${selectedCompanies.length})`}
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </button>
+                          {openDropdown === 'company' && (
+                            <div className="absolute top-full left-0 mt-1 bg-white border border-[var(--border)] rounded-md shadow-lg z-10 min-w-[200px] max-h-[200px] overflow-y-auto">
+                              {Array.from(new Set(availableContacts.map(c => c.company))).map(company => (
+                                <label key={company} className="flex items-center gap-2 px-3 py-2 hover:bg-[var(--muted)] cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedCompanies.includes(company)}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedCompanies([...selectedCompanies, company]);
+                                      } else {
+                                        setSelectedCompanies(selectedCompanies.filter(c => c !== company));
+                                      }
+                                    }}
+                                    className="w-4 h-4 accent-[var(--primary)]"
+                                  />
+                                  <span className="text-xs">{company}</span>
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Type Filter */}
+                        <div className="relative">
+                          <button
+                            onClick={() => setOpenDropdown(openDropdown === 'type' ? null : 'type')}
+                            className="px-3 py-1.5 text-xs border border-[var(--border)] rounded-md bg-[var(--background)] hover:border-[var(--primary)] transition-colors flex items-center gap-1"
+                          >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                            </svg>
+                            Type {selectedTypes.length > 0 && `(${selectedTypes.length})`}
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </button>
+                          {openDropdown === 'type' && (
+                            <div className="absolute top-full left-0 mt-1 bg-white border border-[var(--border)] rounded-md shadow-lg z-10 min-w-[150px]">
+                              {Array.from(new Set(availableContacts.map(c => c.type))).map(type => (
+                                <label key={type} className="flex items-center gap-2 px-3 py-2 hover:bg-[var(--muted)] cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedTypes.includes(type)}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedTypes([...selectedTypes, type]);
+                                      } else {
+                                        setSelectedTypes(selectedTypes.filter(t => t !== type));
+                                      }
+                                    }}
+                                    className="w-4 h-4 accent-[var(--primary)]"
+                                  />
+                                  <span className="text-xs">{type}</span>
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Tags Filter */}
+                        <div className="relative">
+                          <button
+                            onClick={() => setOpenDropdown(openDropdown === 'tags' ? null : 'tags')}
+                            className="px-3 py-1.5 text-xs border border-[var(--border)] rounded-md bg-[var(--background)] hover:border-[var(--primary)] transition-colors flex items-center gap-1"
+                          >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                            </svg>
+                            Tags {selectedTags.length > 0 && `(${selectedTags.length})`}
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </button>
+                          {openDropdown === 'tags' && (
+                            <div className="absolute top-full left-0 mt-1 bg-white border border-[var(--border)] rounded-md shadow-lg z-10 min-w-[150px]">
+                              {['VIP', 'Decision Maker', 'Follow Up', 'Hot Lead', 'Cold Lead'].map(tag => (
+                                <label key={tag} className="flex items-center gap-2 px-3 py-2 hover:bg-[var(--muted)] cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedTags.includes(tag)}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedTags([...selectedTags, tag]);
+                                      } else {
+                                        setSelectedTags(selectedTags.filter(t => t !== tag));
+                                      }
+                                    }}
+                                    className="w-4 h-4 accent-[var(--primary)]"
+                                  />
+                                  <span className="text-xs">{tag}</span>
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Location Filter */}
+                        <div className="relative">
+                          <button
+                            onClick={() => setOpenDropdown(openDropdown === 'location' ? null : 'location')}
+                            className="px-3 py-1.5 text-xs border border-[var(--border)] rounded-md bg-[var(--background)] hover:border-[var(--primary)] transition-colors flex items-center gap-1"
+                          >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            Location
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </button>
+                        </div>
+
+                        {/* Status Filter */}
+                        <div className="relative">
+                          <button
+                            onClick={() => setOpenDropdown(openDropdown === 'status' ? null : 'status')}
+                            className="px-3 py-1.5 text-xs border border-[var(--border)] rounded-md bg-[var(--background)] hover:border-[var(--primary)] transition-colors flex items-center gap-1"
+                          >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Status
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </button>
+                        </div>
+
+                        {/* Clear Filters */}
+                        {(searchQuery || selectedCompanies.length > 0 || selectedTypes.length > 0 || selectedTags.length > 0) && (
+                          <button
+                            onClick={() => {
+                              setSearchQuery('');
+                              setSelectedCompanies([]);
+                              setSelectedTypes([]);
+                              setSelectedTags([]);
+                            }}
+                            className="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                          >
+                            Clear all
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Active Filter Tags */}
+                      {(selectedCompanies.length > 0 || selectedTypes.length > 0 || selectedTags.length > 0) && (
+                        <div className="flex flex-wrap gap-1">
+                          {selectedCompanies.map(company => (
+                            <span key={company} className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
+                              {company}
+                              <button onClick={() => setSelectedCompanies(selectedCompanies.filter(c => c !== company))} className="hover:text-blue-900">
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </span>
+                          ))}
+                          {selectedTypes.map(type => (
+                            <span key={type} className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-green-100 text-green-800 rounded">
+                              {type}
+                              <button onClick={() => setSelectedTypes(selectedTypes.filter(t => t !== type))} className="hover:text-green-900">
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </span>
+                          ))}
+                          {selectedTags.map(tag => (
+                            <span key={tag} className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded">
+                              {tag}
+                              <button onClick={() => setSelectedTags(selectedTags.filter(t => t !== tag))} className="hover:text-purple-900">
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  ))}
-                </div>
+
+                    {/* Bulk Actions Bar */}
+                    {(() => {
+                      const filteredContacts = availableContacts
+                        .filter(contact => {
+                          if (searchQuery) {
+                            const query = searchQuery.toLowerCase();
+                            return contact.name.toLowerCase().includes(query) ||
+                                   contact.email.toLowerCase().includes(query) ||
+                                   contact.company.toLowerCase().includes(query);
+                          }
+                          return true;
+                        })
+                        .filter(contact => {
+                          if (selectedCompanies.length > 0) {
+                            return selectedCompanies.includes(contact.company);
+                          }
+                          return true;
+                        })
+                        .filter(contact => {
+                          if (selectedTypes.length > 0) {
+                            return selectedTypes.includes(contact.type);
+                          }
+                          return true;
+                        });
+
+                      const allFilteredSelected = filteredContacts.length > 0 &&
+                        filteredContacts.every(c => selectedContactIds.includes(c.id));
+
+                      return (
+                        <>
+                          <div className="flex items-center justify-between py-2 px-3 bg-[var(--muted)]/30 rounded-md mb-2">
+                            <label className="flex items-center gap-2 text-sm cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={allFilteredSelected}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedContactIds([...new Set([...selectedContactIds, ...filteredContacts.map(c => c.id)])]);
+                                  } else {
+                                    setSelectedContactIds(selectedContactIds.filter(id => !filteredContacts.some(c => c.id === id)));
+                                  }
+                                }}
+                                className="w-4 h-4 accent-[var(--primary)]"
+                              />
+                              <span className="text-[var(--foreground)]">Select all ({filteredContacts.length})</span>
+                            </label>
+                            {selectedContactIds.length > 0 && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-[var(--muted-foreground)]">{selectedContactIds.length} selected</span>
+                                <button
+                                  onClick={() => {
+                                    const contactsToAdd = availableContacts.filter(c => selectedContactIds.includes(c.id));
+                                    setRecipientList([...recipientList, ...contactsToAdd.filter(c => !recipientList.some(r => r.id === c.id))]);
+                                    setSelectedContactIds([]);
+                                  }}
+                                  className="px-3 py-1 text-xs bg-[var(--primary)] text-white rounded-md hover:bg-[var(--primary)]/90 transition-colors"
+                                >
+                                  Add Selected
+                                </button>
+                                <button
+                                  onClick={() => setSelectedContactIds([])}
+                                  className="px-3 py-1 text-xs text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                                >
+                                  Clear Selection
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Results List */}
+                          <div className="max-h-[350px] overflow-y-auto space-y-2 mb-3">
+                            {filteredContacts.map((contact) => (
+                              <div
+                                key={contact.id}
+                                className={`flex items-center gap-3 p-3 border rounded-md transition-colors ${
+                                  selectedContactIds.includes(contact.id)
+                                    ? 'border-[var(--primary)] bg-[var(--primary)]/5'
+                                    : 'border-[var(--border)] hover:bg-[var(--muted)]/20'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={selectedContactIds.includes(contact.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedContactIds([...selectedContactIds, contact.id]);
+                                    } else {
+                                      setSelectedContactIds(selectedContactIds.filter(id => id !== contact.id));
+                                    }
+                                  }}
+                                  className="w-4 h-4 accent-[var(--primary)] flex-shrink-0"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <div className="text-sm font-medium text-[var(--foreground)] truncate">{contact.name}</div>
+                                    <span className="text-xs px-2 py-0.5 rounded bg-[var(--muted)] text-[var(--muted-foreground)]">{contact.type}</span>
+                                  </div>
+                                  <div className="text-xs text-[var(--muted-foreground)] truncate">{contact.company}</div>
+                                  <div className="text-xs text-[var(--muted-foreground)] truncate">{contact.email}</div>
+                                </div>
+                                <button
+                                  onClick={() => addToRecipientList(contact)}
+                                  className="ml-3 px-3 py-1.5 text-xs text-[var(--primary)] border border-[var(--primary)] rounded-md hover:bg-[var(--primary)] hover:text-white transition-colors flex-shrink-0"
+                                >
+                                  Add
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      );
+                    })()}
+
+                    <div className="pt-3 border-t border-[var(--border)] flex items-center justify-between">
+                      <div className="text-sm text-[var(--muted-foreground)]">
+                        {recipientList.length} recipients added to campaign
+                      </div>
+                      {recipientList.length > 0 && (
+                        <button
+                          onClick={() => setRecipientList([])}
+                          className="text-xs text-red-600 hover:text-red-700"
+                        >
+                          Clear all recipients
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Criteria-Based List */}
+                {listType === 'criteria' && (
+                  <div className="border border-[var(--border)] rounded-lg p-4">
+                    <div className="mb-3">
+                      <label className="text-sm font-medium text-[var(--foreground)]">
+                        Define Criteria
+                      </label>
+                      <p className="text-xs text-[var(--muted-foreground)] mt-1">
+                        The list will be generated once when the campaign is created, based on the criteria below.
+                      </p>
+                    </div>
+
+                    <div className="space-y-4">
+                      {campaignConditionGroups.map((group, groupIndex) => (
+                        <div key={group.id} className="border border-[var(--border)] rounded-lg p-4">
+                          {groupIndex > 0 && (
+                            <div className="flex items-center justify-between mb-3 pb-3 border-b border-[var(--border)]">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase">Group Logic:</span>
+                                <select
+                                  value={group.logic}
+                                  onChange={(e) => updateCampaignGroupLogic(group.id, e.target.value as 'AND' | 'OR')}
+                                  className="px-3 py-1.5 text-xs border border-[var(--border)] rounded-md bg-[var(--background)] hover:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-colors cursor-pointer appearance-none bg-[length:12px] bg-[position:right_8px_center] bg-no-repeat"
+                                  style={{backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23666'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E\")"}}
+                                >
+                                  <option value="AND">AND</option>
+                                  <option value="OR">OR</option>
+                                </select>
+                                <span className="text-xs text-[var(--muted-foreground)]">with previous group</span>
+                              </div>
+                              <button
+                                onClick={() => removeCampaignConditionGroup(group.id)}
+                                className="p-1 text-red-600 hover:bg-red-50 rounded"
+                              >
+                                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                                </svg>
+                              </button>
+                            </div>
+                          )}
+
+                          <div className="space-y-3">
+                            {group.conditions.map((condition, conditionIndex) => {
+                              const selectedField = getFieldsForEntity(condition.entity).find(f => f.value === condition.field);
+                              const availableOperators = selectedField ? getOperatorsForFieldType(selectedField.type) : [];
+
+                              return (
+                                <div key={condition.id}>
+                                  {conditionIndex > 0 && (
+                                    <div className="flex items-center gap-2 my-2">
+                                      <div className="flex-1 border-t border-[var(--border)]"></div>
+                                      <span className="text-xs font-semibold text-[var(--muted-foreground)] bg-[var(--muted)] px-2 py-1 rounded">
+                                        {group.logic}
+                                      </span>
+                                      <div className="flex-1 border-t border-[var(--border)]"></div>
+                                    </div>
+                                  )}
+
+                                  <div className="grid grid-cols-12 gap-2">
+                                    <div className="col-span-3">
+                                      <select
+                                        value={condition.entity}
+                                        onChange={(e) => updateCampaignCondition(group.id, condition.id, 'entity', e.target.value)}
+                                        className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-md bg-[var(--background)] hover:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-colors cursor-pointer appearance-none bg-[length:16px] bg-[position:right_12px_center] bg-no-repeat"
+                                        style={{backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23666'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E\")"}}
+                                      >
+                                        <option value="">Select entity...</option>
+                                        <option value="Contact">Contact</option>
+                                        <option value="Job">Job</option>
+                                        <option value="Company">Company</option>
+                                        <option value="Pre-Opportunity">Pre-Opportunity</option>
+                                        <option value="Quote">Quote</option>
+                                      </select>
+                                    </div>
+                                    <div className="col-span-3">
+                                      <select
+                                        value={condition.field}
+                                        onChange={(e) => updateCampaignCondition(group.id, condition.id, 'field', e.target.value)}
+                                        disabled={!condition.entity}
+                                        className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-md bg-[var(--background)] hover:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-colors cursor-pointer appearance-none bg-[length:16px] bg-[position:right_12px_center] bg-no-repeat disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-[var(--border)]"
+                                        style={{backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23666'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E\")"}}
+                                      >
+                                        <option value="">Select field...</option>
+                                        {getFieldsForEntity(condition.entity).map(field => (
+                                          <option key={field.value} value={field.value}>{field.label}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <div className="col-span-2">
+                                      <select
+                                        value={condition.operator}
+                                        onChange={(e) => updateCampaignCondition(group.id, condition.id, 'operator', e.target.value)}
+                                        disabled={!condition.field}
+                                        className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-md bg-[var(--background)] hover:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-colors cursor-pointer appearance-none bg-[length:16px] bg-[position:right_12px_center] bg-no-repeat disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-[var(--border)]"
+                                        style={{backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23666'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E\")"}}
+                                      >
+                                        <option value="">Operator...</option>
+                                        {availableOperators.map(op => (
+                                          <option key={op.value} value={op.value}>{op.label}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <div className="col-span-3">
+                                      <input
+                                        type="text"
+                                        value={condition.value}
+                                        onChange={(e) => updateCampaignCondition(group.id, condition.id, 'value', e.target.value)}
+                                        placeholder="Value..."
+                                        disabled={!condition.operator}
+                                        className="w-full px-2 py-2 text-sm border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] disabled:opacity-50"
+                                      />
+                                    </div>
+                                    <div className="col-span-1 flex items-center justify-center">
+                                      {group.conditions.length > 1 && (
+                                        <button
+                                          onClick={() => removeCampaignCondition(group.id, condition.id)}
+                                          className="p-1 text-red-600 hover:bg-red-50 rounded"
+                                        >
+                                          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                                          </svg>
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          <button
+                            onClick={() => addCampaignCondition(group.id)}
+                            className="mt-3 flex items-center gap-1 text-xs text-[var(--primary)] hover:text-[var(--primary-hover)]"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M10 6v8M6 10h8" strokeLinecap="round"/>
+                            </svg>
+                            Add {group.logic} condition
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={addCampaignConditionGroup}
+                      className="mt-3 flex items-center gap-2 px-3 py-2 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M10 6v8M6 10h8" strokeLinecap="round"/>
+                      </svg>
+                      Add OR condition group
+                    </button>
+                  </div>
+                )}
+
+                {/* Dynamic Rules - Same as Criteria but Always Dynamic */}
+                {listType === 'dynamic' && (
+                  <div className="border border-[var(--border)] rounded-lg p-4">
+                    <div className="mb-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex gap-2">
+                        <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div className="text-sm text-green-900">
+                          <strong>Dynamic rules enabled:</strong> This list is automatically evaluated daily and recipients are added/removed based on the rules below.
+                        </div>
+                      </div>
+                    </div>
+
+                    <label className="block text-sm font-medium text-[var(--foreground)] mb-3">
+                      Define Rules
+                    </label>
+
+                    {/* Same condition builder as criteria */}
+                    <div className="space-y-4">
+                      {campaignConditionGroups.map((group, groupIndex) => (
+                        <div key={group.id} className="border border-[var(--border)] rounded-lg p-4">
+                          {groupIndex > 0 && (
+                            <div className="flex items-center justify-between mb-3 pb-3 border-b border-[var(--border)]">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase">Group Logic:</span>
+                                <select
+                                  value={group.logic}
+                                  onChange={(e) => updateCampaignGroupLogic(group.id, e.target.value as 'AND' | 'OR')}
+                                  className="px-3 py-1.5 text-xs border border-[var(--border)] rounded-md bg-[var(--background)] hover:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-colors cursor-pointer appearance-none bg-[length:12px] bg-[position:right_8px_center] bg-no-repeat"
+                                  style={{backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23666'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E\")"}}
+                                >
+                                  <option value="AND">AND</option>
+                                  <option value="OR">OR</option>
+                                </select>
+                                <span className="text-xs text-[var(--muted-foreground)]">with previous group</span>
+                              </div>
+                              <button
+                                onClick={() => removeCampaignConditionGroup(group.id)}
+                                className="p-1 text-red-600 hover:bg-red-50 rounded"
+                              >
+                                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                                </svg>
+                              </button>
+                            </div>
+                          )}
+
+                          <div className="space-y-3">
+                            {group.conditions.map((condition, conditionIndex) => {
+                              const selectedField = getFieldsForEntity(condition.entity).find(f => f.value === condition.field);
+                              const availableOperators = selectedField ? getOperatorsForFieldType(selectedField.type) : [];
+
+                              return (
+                                <div key={condition.id}>
+                                  {conditionIndex > 0 && (
+                                    <div className="flex items-center gap-2 my-2">
+                                      <div className="flex-1 border-t border-[var(--border)]"></div>
+                                      <span className="text-xs font-semibold text-[var(--muted-foreground)] bg-[var(--muted)] px-2 py-1 rounded">
+                                        {group.logic}
+                                      </span>
+                                      <div className="flex-1 border-t border-[var(--border)]"></div>
+                                    </div>
+                                  )}
+
+                                  <div className="grid grid-cols-12 gap-2">
+                                    <div className="col-span-3">
+                                      <select
+                                        value={condition.entity}
+                                        onChange={(e) => updateCampaignCondition(group.id, condition.id, 'entity', e.target.value)}
+                                        className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-md bg-[var(--background)] hover:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-colors cursor-pointer appearance-none bg-[length:16px] bg-[position:right_12px_center] bg-no-repeat"
+                                        style={{backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23666'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E\")"}}
+                                      >
+                                        <option value="">Select entity...</option>
+                                        <option value="Contact">Contact</option>
+                                        <option value="Job">Job</option>
+                                        <option value="Company">Company</option>
+                                        <option value="Pre-Opportunity">Pre-Opportunity</option>
+                                        <option value="Quote">Quote</option>
+                                      </select>
+                                    </div>
+                                    <div className="col-span-3">
+                                      <select
+                                        value={condition.field}
+                                        onChange={(e) => updateCampaignCondition(group.id, condition.id, 'field', e.target.value)}
+                                        disabled={!condition.entity}
+                                        className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-md bg-[var(--background)] hover:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-colors cursor-pointer appearance-none bg-[length:16px] bg-[position:right_12px_center] bg-no-repeat disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-[var(--border)]"
+                                        style={{backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23666'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E\")"}}
+                                      >
+                                        <option value="">Select field...</option>
+                                        {getFieldsForEntity(condition.entity).map(field => (
+                                          <option key={field.value} value={field.value}>{field.label}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <div className="col-span-2">
+                                      <select
+                                        value={condition.operator}
+                                        onChange={(e) => updateCampaignCondition(group.id, condition.id, 'operator', e.target.value)}
+                                        disabled={!condition.field}
+                                        className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-md bg-[var(--background)] hover:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-colors cursor-pointer appearance-none bg-[length:16px] bg-[position:right_12px_center] bg-no-repeat disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-[var(--border)]"
+                                        style={{backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23666'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E\")"}}
+                                      >
+                                        <option value="">Operator...</option>
+                                        {availableOperators.map(op => (
+                                          <option key={op.value} value={op.value}>{op.label}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <div className="col-span-3">
+                                      <input
+                                        type="text"
+                                        value={condition.value}
+                                        onChange={(e) => updateCampaignCondition(group.id, condition.id, 'value', e.target.value)}
+                                        placeholder="Value..."
+                                        disabled={!condition.operator}
+                                        className="w-full px-2 py-2 text-sm border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] disabled:opacity-50"
+                                      />
+                                    </div>
+                                    <div className="col-span-1 flex items-center justify-center">
+                                      {group.conditions.length > 1 && (
+                                        <button
+                                          onClick={() => removeCampaignCondition(group.id, condition.id)}
+                                          className="p-1 text-red-600 hover:bg-red-50 rounded"
+                                        >
+                                          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                                          </svg>
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          <button
+                            onClick={() => addCampaignCondition(group.id)}
+                            className="mt-3 flex items-center gap-1 text-xs text-[var(--primary)] hover:text-[var(--primary-hover)]"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M10 6v8M6 10h8" strokeLinecap="round"/>
+                            </svg>
+                            Add {group.logic} condition
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={addCampaignConditionGroup}
+                      className="mt-3 flex items-center gap-2 px-3 py-2 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M10 6v8M6 10h8" strokeLinecap="round"/>
+                      </svg>
+                      Add OR condition group
+                    </button>
+                  </div>
+                )}
               </div>
 
-              {/* Recipient Count */}
-              <div className="mt-4 pt-4 border-t border-[var(--border)]">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-[var(--muted-foreground)]">Recipients Selected</span>
-                  <span className="font-semibold text-[var(--foreground)]">{recipientList.length}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Middle Column - Email Drafting */}
-          <div className="col-span-1 space-y-4">
-            <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
-              <h3 className="font-semibold text-[var(--foreground)] mb-4">Email Content</h3>
-
-              {/* Subject */}
+              {/* Email Subject */}
               <div className="mb-4">
-                <label className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider mb-2 block">
-                  Subject Line
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                  Email Subject
                 </label>
                 <input
                   type="text"
                   value={emailSubject}
                   onChange={(e) => setEmailSubject(e.target.value)}
                   placeholder="Enter email subject..."
-                  className="w-full px-3 py-2 border border-[var(--border)] rounded-md bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
                 />
               </div>
 
-              {/* Body */}
+              {/* Email Body */}
               <div className="mb-4">
-                <label className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider mb-2 block">
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
                   Email Body
                 </label>
                 <textarea
@@ -427,157 +1348,130 @@ export default function EmailHelperContent() {
                   onChange={(e) => setEmailBody(e.target.value)}
                   placeholder="Enter base email content... AI will personalize for each recipient."
                   rows={12}
-                  className="w-full px-3 py-2 border border-[var(--border)] rounded-md bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] resize-none"
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] resize-none bg-[var(--background)]"
                 />
               </div>
 
               {/* AI Personalization */}
-              <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
+              <div className="mb-4 flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
                 <input
                   type="checkbox"
-                  id="ai-personalization"
+                  id="campaign-ai-personalization"
                   checked={useAIPersonalization}
                   onChange={(e) => setUseAIPersonalization(e.target.checked)}
                   className="w-4 h-4 accent-[var(--primary)]"
                 />
-                <label htmlFor="ai-personalization" className="text-sm text-blue-900">
+                <label htmlFor="campaign-ai-personalization" className="text-sm text-blue-900">
                   Enable AI personalization per recipient
                 </label>
               </div>
-            </div>
-          </div>
 
-          {/* Right Column - Scheduling & Settings */}
-          <div className="col-span-1 space-y-4">
-            <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
-              <h3 className="font-semibold text-[var(--foreground)] mb-4">Scheduling & Throttling</h3>
+              {/* Send Pace */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                  Send Pace
+                </label>
+                <select
+                  value={sendPace}
+                  onChange={(e) => setSendPace(e.target.value as any)}
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm hover:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-colors cursor-pointer appearance-none bg-[var(--background)] bg-[length:16px] bg-[position:right_12px_center] bg-no-repeat"
+                  style={{backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23666'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E\")"}}
+                >
+                  <option value="fast">Fast (500/hour)</option>
+                  <option value="medium">Medium (200/hour)</option>
+                  <option value="slow">Slow (100/hour)</option>
+                  <option value="very-slow">Very Slow (50/hour)</option>
+                  <option value="randomized">Randomized (Human-like)</option>
+                </select>
+              </div>
 
               {/* Max Per Day */}
-              <div className="mb-4">
-                <label className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider mb-2 block">
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
                   Max Emails Per Day
                 </label>
                 <input
                   type="number"
                   value={maxPerDay}
                   onChange={(e) => setMaxPerDay(parseInt(e.target.value))}
-                  className="w-full px-3 py-2 border border-[var(--border)] rounded-md bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
                 />
               </div>
 
-              {/* Send Pace */}
-              <div className="mb-4">
-                <label className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider mb-2 block">
-                  Send Pace
-                </label>
-                <div className="space-y-2">
-                  {(['fast', 'medium', 'slow', 'very-slow', 'randomized'] as const).map((pace) => (
-                    <label key={pace} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="send-pace"
-                        value={pace}
-                        checked={sendPace === pace}
-                        onChange={(e) => setSendPace(e.target.value as typeof sendPace)}
-                        className="w-4 h-4 accent-[var(--primary)]"
-                      />
-                      <span className="text-sm text-[var(--foreground)] capitalize">
-                        {pace === 'very-slow' ? 'Very Slow' : pace}
-                      </span>
-                    </label>
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors">
+                  Create Campaign
+                </button>
+                <button className="px-4 py-2 border border-[var(--border)] rounded-lg font-medium text-sm hover:bg-[var(--muted)] transition-colors">
+                  Save as Draft
+                </button>
+                <button
+                  onClick={() => setActiveTab('campaigns')}
+                  className="px-4 py-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column - Info & Selected Recipients */}
+          <div className="col-span-4 space-y-4">
+            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6">
+              <h3 className="text-sm font-semibold text-[var(--foreground)] mb-4">About List Types</h3>
+              <div className="space-y-3 text-sm text-[var(--muted-foreground)]">
+                <div>
+                  <strong className="text-[var(--foreground)]">Static List:</strong>
+                  <p className="mt-1">Manually select specific recipients. The list remains fixed once created.</p>
+                </div>
+                <div>
+                  <strong className="text-[var(--foreground)]">Criteria-Based:</strong>
+                  <p className="mt-1">Define conditions to filter recipients. Optionally make it dynamic to auto-update daily.</p>
+                </div>
+                <div>
+                  <strong className="text-[var(--foreground)]">Dynamic Rules:</strong>
+                  <p className="mt-1">Automatically evaluates rules daily. Recipients are added/removed based on current data.</p>
+                </div>
+              </div>
+            </div>
+
+            {listType === 'static' && recipientList.length > 0 && (
+              <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6">
+                <h3 className="text-sm font-semibold text-[var(--foreground)] mb-4">Selected Recipients ({recipientList.length})</h3>
+                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                  {recipientList.map((contact) => (
+                    <div
+                      key={contact.id}
+                      className="flex items-center justify-between p-2 border border-[var(--border)] rounded-md"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-[var(--foreground)] truncate">{contact.name}</div>
+                        <div className="text-xs text-[var(--muted-foreground)] truncate">{contact.email}</div>
+                      </div>
+                      <button
+                        onClick={() => removeFromRecipientList(contact.id)}
+                        className="ml-2 p-1 text-red-600 hover:bg-red-50 rounded"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                        </svg>
+                      </button>
+                    </div>
                   ))}
                 </div>
               </div>
+            )}
 
-              {/* Time Windows */}
-              <div className="mb-4">
-                <label className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider mb-2 block">
-                  Time Window
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="time"
-                    defaultValue="09:00"
-                    className="flex-1 px-3 py-2 border border-[var(--border)] rounded-md bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                  />
-                  <span className="text-[var(--muted-foreground)] flex items-center">to</span>
-                  <input
-                    type="time"
-                    defaultValue="17:00"
-                    className="flex-1 px-3 py-2 border border-[var(--border)] rounded-md bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                  />
+            {(listType === 'criteria' || listType === 'dynamic') && (
+              <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6">
+                <h3 className="text-sm font-semibold text-[var(--foreground)] mb-4">Estimated Recipients</h3>
+                <div className="text-center py-8">
+                  <div className="text-4xl font-bold text-[var(--foreground)] mb-2">~45</div>
+                  <div className="text-sm text-[var(--muted-foreground)]">recipients match your criteria</div>
                 </div>
               </div>
-
-              {/* Output Options */}
-              <div className="mb-4">
-                <label className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider mb-2 block">
-                  Output
-                </label>
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="output"
-                      value="drafts"
-                      defaultChecked
-                      className="w-4 h-4 accent-[var(--primary)]"
-                    />
-                    <span className="text-sm text-[var(--foreground)]">Push to Outlook/Gmail drafts</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="output"
-                      value="scheduled"
-                      className="w-4 h-4 accent-[var(--primary)]"
-                    />
-                    <span className="text-sm text-[var(--foreground)]">Send on schedule</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="space-y-2 pt-4 border-t border-[var(--border)]">
-                <button className="w-full px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors">
-                  Create Campaign
-                </button>
-                <button className="w-full px-4 py-2 border border-[var(--border)] text-[var(--foreground)] rounded-lg font-medium text-sm hover:bg-[var(--muted)] transition-colors">
-                  Save as Draft
-                </button>
-              </div>
-            </div>
-
-            {/* Selected Recipients */}
-            <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
-              <h3 className="font-semibold text-[var(--foreground)] mb-4">Selected Recipients ({recipientList.length})</h3>
-              <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                {recipientList.map((contact) => (
-                  <div
-                    key={contact.id}
-                    className="flex items-center justify-between p-2 border border-[var(--border)] rounded-md"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-[var(--foreground)] truncate">{contact.name}</div>
-                      <div className="text-xs text-[var(--muted-foreground)] truncate">{contact.email}</div>
-                    </div>
-                    <button
-                      onClick={() => removeFromRecipientList(contact.id)}
-                      className="ml-2 p-1 text-red-600 hover:bg-red-50 rounded"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
-                      </svg>
-                    </button>
-                  </div>
-                ))}
-                {recipientList.length === 0 && (
-                  <div className="text-center text-sm text-[var(--muted-foreground)] py-8">
-                    No recipients selected yet
-                  </div>
-                )}
-              </div>
-            </div>
+            )}
           </div>
         </div>
       )}
@@ -659,44 +1553,269 @@ export default function EmailHelperContent() {
                 />
               </div>
 
-              {/* Trigger Condition */}
+              {/* Trigger Conditions */}
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="block text-sm font-medium text-[var(--foreground)]">
+                    Trigger When
+                  </label>
+                  <button
+                    onClick={() => {
+                      setAIContext('rule');
+                      setShowAIModal(true);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 text-sm bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all shadow-sm"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    Generate with AI
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  {ruleConditionGroups.map((group, groupIndex) => (
+                    <div key={group.id} className="border border-[var(--border)] rounded-lg p-4">
+                      {groupIndex > 0 && (
+                        <div className="flex items-center justify-between mb-3 pb-3 border-b border-[var(--border)]">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase">Group Logic:</span>
+                            <select
+                              value={group.logic}
+                              onChange={(e) => updateGroupLogic(group.id, e.target.value as 'AND' | 'OR')}
+                              className="px-3 py-1.5 text-xs border border-[var(--border)] rounded-md bg-[var(--background)] hover:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-colors cursor-pointer appearance-none bg-[length:12px] bg-[position:right_8px_center] bg-no-repeat"
+                              style={{backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23666'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E\")"}}
+                            >
+                              <option value="AND">AND</option>
+                              <option value="OR">OR</option>
+                            </select>
+                            <span className="text-xs text-[var(--muted-foreground)]">with previous group</span>
+                          </div>
+                          <button
+                            onClick={() => removeConditionGroup(group.id)}
+                            className="p-1 text-red-600 hover:bg-red-50 rounded"
+                            title="Remove group"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                            </svg>
+                          </button>
+                        </div>
+                      )}
+
+                      <div className="space-y-3">
+                        {group.conditions.map((condition, conditionIndex) => {
+                          const selectedField = getFieldsForEntity(condition.entity).find(f => f.value === condition.field);
+                          const availableOperators = selectedField ? getOperatorsForFieldType(selectedField.type) : [];
+
+                          return (
+                            <div key={condition.id}>
+                              {conditionIndex > 0 && (
+                                <div className="flex items-center gap-2 my-2">
+                                  <div className="flex-1 border-t border-[var(--border)]"></div>
+                                  <span className="text-xs font-semibold text-[var(--muted-foreground)] bg-[var(--muted)] px-2 py-1 rounded">
+                                    {group.logic}
+                                  </span>
+                                  <div className="flex-1 border-t border-[var(--border)]"></div>
+                                </div>
+                              )}
+
+                              <div className="grid grid-cols-12 gap-2">
+                                {/* Entity Selection */}
+                                <div className="col-span-3">
+                                  <select
+                                    value={condition.entity}
+                                    onChange={(e) => updateCondition(group.id, condition.id, 'entity', e.target.value)}
+                                    className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-md bg-[var(--background)] hover:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-colors cursor-pointer appearance-none bg-[length:16px] bg-[position:right_12px_center] bg-no-repeat"
+                                    style={{backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23666'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E\")"}}
+                                  >
+                                    <option value="">Select entity...</option>
+                                    <option value="Contact">Contact</option>
+                                    <option value="Job">Job</option>
+                                    <option value="Company">Company</option>
+                                    <option value="Pre-Opportunity">Pre-Opportunity</option>
+                                    <option value="Quote">Quote</option>
+                                  </select>
+                                </div>
+
+                                {/* Field Selection */}
+                                <div className="col-span-3">
+                                  <select
+                                    value={condition.field}
+                                    onChange={(e) => updateCondition(group.id, condition.id, 'field', e.target.value)}
+                                    disabled={!condition.entity}
+                                    className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-md bg-[var(--background)] hover:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-colors cursor-pointer appearance-none bg-[length:16px] bg-[position:right_12px_center] bg-no-repeat disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-[var(--border)]"
+                                    style={{backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23666'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E\")"}}
+                                  >
+                                    <option value="">Select field...</option>
+                                    {getFieldsForEntity(condition.entity).map(field => (
+                                      <option key={field.value} value={field.value}>{field.label}</option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                {/* Operator Selection */}
+                                <div className="col-span-2">
+                                  <select
+                                    value={condition.operator}
+                                    onChange={(e) => updateCondition(group.id, condition.id, 'operator', e.target.value)}
+                                    disabled={!condition.field}
+                                    className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-md bg-[var(--background)] hover:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-colors cursor-pointer appearance-none bg-[length:16px] bg-[position:right_12px_center] bg-no-repeat disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-[var(--border)]"
+                                    style={{backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23666'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E\")"}}
+                                  >
+                                    <option value="">Operator...</option>
+                                    {availableOperators.map(op => (
+                                      <option key={op.value} value={op.value}>{op.label}</option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                {/* Value Input */}
+                                <div className="col-span-3">
+                                  <input
+                                    type="text"
+                                    value={condition.value}
+                                    onChange={(e) => updateCondition(group.id, condition.id, 'value', e.target.value)}
+                                    placeholder="Value..."
+                                    disabled={!condition.operator}
+                                    className="w-full px-2 py-2 text-sm border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] disabled:opacity-50 disabled:cursor-not-allowed"
+                                  />
+                                </div>
+
+                                {/* Remove Condition Button */}
+                                <div className="col-span-1 flex items-center justify-center">
+                                  {group.conditions.length > 1 && (
+                                    <button
+                                      onClick={() => removeCondition(group.id, condition.id)}
+                                      className="p-1 text-red-600 hover:bg-red-50 rounded"
+                                      title="Remove condition"
+                                    >
+                                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                                      </svg>
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Add Condition to Group */}
+                      <button
+                        onClick={() => addCondition(group.id)}
+                        className="mt-3 flex items-center gap-1 text-xs text-[var(--primary)] hover:text-[var(--primary-hover)]"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M10 6v8M6 10h8" strokeLinecap="round"/>
+                        </svg>
+                        Add {group.logic} condition
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Add New Condition Group */}
+                <button
+                  onClick={addConditionGroup}
+                  className="mt-3 flex items-center gap-2 px-3 py-2 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M10 6v8M6 10h8" strokeLinecap="round"/>
+                  </svg>
+                  Add OR condition group
+                </button>
+              </div>
+
+              {/* Communication Type */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-                  Trigger When
+                  Communication Type
                 </label>
-                <select className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]">
-                  <option value="">Select trigger...</option>
-                  <option value="contact-added">Contact is added</option>
-                  <option value="job-won">Job status changes to Won</option>
-                  <option value="job-lost">Job status changes to Lost</option>
-                  <option value="contact-inactive">Contact inactive for X days</option>
-                  <option value="birthday">Contact's birthday</option>
-                  <option value="anniversary">Contact's work anniversary</option>
-                  <option value="tag-added">Tag is added to contact</option>
-                  <option value="note-added">Note is added</option>
-                </select>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    onClick={() => setCommunicationType('email')}
+                    className={`px-3 py-2 text-sm rounded-md transition-colors ${
+                      communicationType === 'email'
+                        ? 'bg-[var(--primary)] text-white'
+                        : 'bg-[var(--muted)] text-[var(--foreground)] hover:bg-[var(--muted)]/70'
+                    }`}
+                  >
+                    Email
+                  </button>
+                  <button
+                    onClick={() => setCommunicationType('notification')}
+                    className={`px-3 py-2 text-sm rounded-md transition-colors ${
+                      communicationType === 'notification'
+                        ? 'bg-[var(--primary)] text-white'
+                        : 'bg-[var(--muted)] text-[var(--foreground)] hover:bg-[var(--muted)]/70'
+                    }`}
+                  >
+                    Notification
+                  </button>
+                  <button
+                    onClick={() => setCommunicationType('both')}
+                    className={`px-3 py-2 text-sm rounded-md transition-colors ${
+                      communicationType === 'both'
+                        ? 'bg-[var(--primary)] text-white'
+                        : 'bg-[var(--muted)] text-[var(--foreground)] hover:bg-[var(--muted)]/70'
+                    }`}
+                  >
+                    Both
+                  </button>
+                </div>
+              </div>
+
+              {/* Audience Type */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                  Audience
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setIsInternalCommunication(false)}
+                    className={`px-3 py-2 text-sm rounded-md transition-colors ${
+                      !isInternalCommunication
+                        ? 'bg-[var(--primary)] text-white'
+                        : 'bg-[var(--muted)] text-[var(--foreground)] hover:bg-[var(--muted)]/70'
+                    }`}
+                  >
+                    External
+                  </button>
+                  <button
+                    onClick={() => setIsInternalCommunication(true)}
+                    className={`px-3 py-2 text-sm rounded-md transition-colors ${
+                      isInternalCommunication
+                        ? 'bg-[var(--primary)] text-white'
+                        : 'bg-[var(--muted)] text-[var(--foreground)] hover:bg-[var(--muted)]/70'
+                    }`}
+                  >
+                    Internal
+                  </button>
+                </div>
               </div>
 
               {/* Email Subject */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-                  Email Subject
+                  {communicationType === 'notification' ? 'Notification Title' : 'Email Subject'}
                 </label>
                 <input
                   type="text"
-                  placeholder="Enter email subject"
+                  placeholder={communicationType === 'notification' ? 'Enter notification title' : 'Enter email subject'}
                   className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
                 />
               </div>
 
-              {/* Email Body */}
+              {/* Email Body / Message */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-                  Email Body
+                  {communicationType === 'notification' ? 'Message' : 'Email Body'}
                 </label>
                 <textarea
                   rows={10}
-                  placeholder="Compose your email..."
+                  placeholder={communicationType === 'notification' ? 'Compose your notification message...' : 'Compose your email...'}
                   className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] resize-none bg-[var(--background)]"
                 />
                 <p className="text-xs text-[var(--muted-foreground)] mt-1">
@@ -725,7 +1844,8 @@ export default function EmailHelperContent() {
                 <select
                   value={sendPace}
                   onChange={(e) => setSendPace(e.target.value as any)}
-                  className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm hover:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-colors cursor-pointer appearance-none bg-[var(--background)] bg-[length:16px] bg-[position:right_12px_center] bg-no-repeat"
+                  style={{backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23666'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E\")"}}
                 >
                   <option value="fast">Fast (500/hour)</option>
                   <option value="medium">Medium (200/hour)</option>
@@ -798,6 +1918,93 @@ export default function EmailHelperContent() {
                 <p>✓ Monitor engagement metrics</p>
                 <p>✓ Review and update regularly</p>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Generation Modal */}
+      {showAIModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center">
+                    <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900">
+                      {aiContext === 'campaign' ? 'Generate Campaign with AI' : 'Generate Rule with AI'}
+                    </h2>
+                    <p className="text-sm text-gray-500">
+                      Describe what you want to create and AI will build it for you
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowAIModal(false);
+                    setAIPrompt('');
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {aiContext === 'campaign'
+                  ? 'Describe your campaign goal and target audience'
+                  : 'Describe when this rule should trigger and what it should do'}
+              </label>
+              <textarea
+                value={aiPrompt}
+                onChange={(e) => setAIPrompt(e.target.value)}
+                placeholder={
+                  aiContext === 'campaign'
+                    ? 'Example: Create a campaign to reach out to all electrical contractors in California who haven\'t been contacted in the last 6 months. Focus on our new energy-efficient lighting products.'
+                    : 'Example: When a new contact is added with the title "Project Manager" at a general contractor company, send them a welcome email introducing our building automation services.'
+                }
+                className="w-full h-40 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+              />
+              <div className="mt-2 flex items-start gap-2 text-xs text-gray-500">
+                <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>Be specific about your criteria, target audience, and desired outcome. The more detail you provide, the better AI can generate your {aiContext === 'campaign' ? 'campaign' : 'rule'}.</span>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-200 flex items-center justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowAIModal(false);
+                  setAIPrompt('');
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  // AI generation logic would go here
+                  console.log('Generating with AI:', { context: aiContext, prompt: aiPrompt });
+                  // For now, just close the modal
+                  setShowAIModal(false);
+                  setAIPrompt('');
+                }}
+                disabled={!aiPrompt.trim()}
+                className="px-6 py-2 text-sm font-medium text-white bg-gradient-to-r from-purple-600 to-blue-600 rounded-md hover:from-purple-700 hover:to-blue-700 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Generate
+              </button>
             </div>
           </div>
         </div>
