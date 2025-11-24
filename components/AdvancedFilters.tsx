@@ -8,7 +8,7 @@ type FilterOption = {
   type: 'dropdown' | 'date' | 'text' | 'number';
 };
 
-type TimeRange = 'all' | 'current' | 'last' | 'last2' | 'last3';
+type TimeRange = 'all' | 'yesterday' | 'lastWeek' | 'current' | 'last' | 'last2' | 'last3';
 
 type AdvancedFiltersProps = {
   filterOptions: FilterOption[];
@@ -22,6 +22,8 @@ export default function AdvancedFilters({ filterOptions, onFilterChange }: Advan
 
   const timeRangeOptions = [
     { value: 'all', label: 'All Years' },
+    { value: 'yesterday', label: 'Yesterday' },
+    { value: 'lastWeek', label: 'Last Week' },
     { value: 'current', label: 'Current Year' },
     { value: 'last', label: 'Last Year' },
     { value: 'last2', label: 'Last 2 Years' },

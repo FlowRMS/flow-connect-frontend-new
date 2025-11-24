@@ -23,6 +23,7 @@ export default function NotesContent() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [viewMode, setViewMode] = useState<'grid' | 'list' | 'read'>('grid');
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
+  const [showSummarizeModal, setShowSummarizeModal] = useState(false);
 
   const noteFilterOptions = [
     { id: 'note-id', label: 'Note ID', type: 'text' as const },
@@ -257,6 +258,17 @@ export default function NotesContent() {
                 <path d="M3 4h14M6 8h11M9 12h8M12 16h5" strokeLinecap="round"/>
               </svg>
               Sort
+            </button>
+            <button
+              onClick={() => setShowSummarizeModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-medium text-sm hover:from-purple-700 hover:to-blue-700 transition-all shadow-md"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                <path d="M2 17l10 5 10-5"/>
+                <path d="M2 12l10 5 10-5"/>
+              </svg>
+              Summarize with FlowChat
             </button>
             <button className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors">
               <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
@@ -645,6 +657,161 @@ export default function NotesContent() {
           note={selectedNote}
           onClose={() => setSelectedNote(null)}
         />
+      )}
+
+      {/* Summarize Modal */}
+      {showSummarizeModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-gradient-to-r from-purple-600 to-blue-600 px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/20 rounded-lg">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                    <path d="M2 17l10 5 10-5"/>
+                    <path d="M2 12l10 5 10-5"/>
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-white">Summarize with FlowChat</h2>
+                  <p className="text-sm text-white/80">Select filters to generate AI summary</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowSummarizeModal(false)}
+                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+              >
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="white" strokeWidth="2">
+                  <path d="M4 4l12 12M16 4L4 16" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-6">
+              {/* Date Range Filter */}
+              <div>
+                <label className="block text-sm font-semibold text-[var(--foreground)] mb-3">Date Range</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button className="px-4 py-2.5 border-2 border-purple-600 bg-purple-50 text-purple-700 rounded-lg text-sm font-medium hover:bg-purple-100 transition-colors">
+                    All Time
+                  </button>
+                  <button className="px-4 py-2.5 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors">
+                    Yesterday
+                  </button>
+                  <button className="px-4 py-2.5 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors">
+                    Last Week
+                  </button>
+                  <button className="px-4 py-2.5 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors">
+                    Current Year
+                  </button>
+                </div>
+              </div>
+
+              {/* Created By Filter */}
+              <div>
+                <label className="block text-sm font-semibold text-[var(--foreground)] mb-3">Created By</label>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-3 p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] cursor-pointer transition-colors">
+                    <input type="checkbox" className="w-4 h-4 accent-purple-600" defaultChecked />
+                    <span className="text-sm">All Users</span>
+                  </label>
+                  <label className="flex items-center gap-3 p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] cursor-pointer transition-colors">
+                    <input type="checkbox" className="w-4 h-4 accent-purple-600" />
+                    <span className="text-sm">Sarah Johnson</span>
+                  </label>
+                  <label className="flex items-center gap-3 p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] cursor-pointer transition-colors">
+                    <input type="checkbox" className="w-4 h-4 accent-purple-600" />
+                    <span className="text-sm">Marcus Chen</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Tags Filter */}
+              <div>
+                <label className="block text-sm font-semibold text-[var(--foreground)] mb-3">Tags</label>
+                <div className="flex flex-wrap gap-2">
+                  {['Meeting', 'Opportunity', 'Site Visit', 'Strategy', 'Pricing', 'Follow-up'].map((tag) => (
+                    <label key={tag} className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-full hover:bg-[var(--muted)] cursor-pointer transition-colors">
+                      <input type="checkbox" className="w-4 h-4 accent-purple-600" />
+                      <span className="text-sm">{tag}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Entity Type Filter */}
+              <div>
+                <label className="block text-sm font-semibold text-[var(--foreground)] mb-3">Entity Type</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="flex items-center gap-3 p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] cursor-pointer transition-colors">
+                    <input type="checkbox" className="w-4 h-4 accent-purple-600" />
+                    <span className="text-sm">Job</span>
+                  </label>
+                  <label className="flex items-center gap-3 p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] cursor-pointer transition-colors">
+                    <input type="checkbox" className="w-4 h-4 accent-purple-600" />
+                    <span className="text-sm">Pre-Opportunity</span>
+                  </label>
+                  <label className="flex items-center gap-3 p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] cursor-pointer transition-colors">
+                    <input type="checkbox" className="w-4 h-4 accent-purple-600" />
+                    <span className="text-sm">Contact</span>
+                  </label>
+                  <label className="flex items-center gap-3 p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] cursor-pointer transition-colors">
+                    <input type="checkbox" className="w-4 h-4 accent-purple-600" />
+                    <span className="text-sm">Company</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Summary Options */}
+              <div>
+                <label className="block text-sm font-semibold text-[var(--foreground)] mb-3">Summary Type</label>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-3 p-3 border-2 border-purple-600 bg-purple-50 rounded-lg cursor-pointer transition-colors">
+                    <input type="radio" name="summaryType" className="w-4 h-4 accent-purple-600" defaultChecked />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-purple-900">Brief Overview</div>
+                      <div className="text-xs text-purple-700">High-level summary with key points</div>
+                    </div>
+                  </label>
+                  <label className="flex items-center gap-3 p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] cursor-pointer transition-colors">
+                    <input type="radio" name="summaryType" className="w-4 h-4 accent-purple-600" />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">Detailed Analysis</div>
+                      <div className="text-xs text-[var(--muted-foreground)]">In-depth summary with insights and trends</div>
+                    </div>
+                  </label>
+                  <label className="flex items-center gap-3 p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] cursor-pointer transition-colors">
+                    <input type="radio" name="summaryType" className="w-4 h-4 accent-purple-600" />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">Action Items</div>
+                      <div className="text-xs text-[var(--muted-foreground)]">Focus on next steps and tasks</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="sticky bottom-0 bg-[var(--muted)]/30 px-6 py-4 border-t border-[var(--border)] flex items-center justify-between">
+              <div className="text-sm text-[var(--muted-foreground)]">
+                <span className="font-medium text-[var(--foreground)]">{filteredNotes.length}</span> notes selected
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowSummarizeModal(false)}
+                  className="px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button className="px-6 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg text-sm font-medium hover:from-purple-700 hover:to-blue-700 transition-all shadow-md">
+                  Generate Summary
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </main>
   );

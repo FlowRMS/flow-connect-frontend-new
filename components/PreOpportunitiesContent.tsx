@@ -31,57 +31,43 @@ type PreOpp = {
 };
 
 function PreOppCard({ preOpp, isDragging }: { preOpp: PreOpp; isDragging?: boolean }) {
+  const ownerInitials = preOpp.owner.split(' ').map(n => n[0]).join('');
+  const ownerColors = ['bg-orange-500', 'bg-teal-500', 'bg-green-500', 'bg-purple-500'];
+  const colorIndex = preOpp.id.charCodeAt(preOpp.id.length - 1) % ownerColors.length;
+
   return (
     <div
-      className={`bg-white rounded-lg border border-gray-200 p-4 hover:shadow-lg transition-all cursor-grab active:cursor-grabbing mb-3 ${
+      className={`bg-white border border-gray-200 rounded-md p-3 mb-2 hover:shadow-md transition-all cursor-grab active:cursor-grabbing ${
         isDragging ? 'opacity-50' : ''
       }`}
     >
-      <div className="flex items-start justify-between mb-3">
-        <h4 className="font-semibold text-[var(--foreground)] text-base flex-1 pr-2">{preOpp.name}</h4>
-        <button className="text-gray-400 hover:text-gray-600 flex-shrink-0">
-          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M6 10h8M10 6v8" strokeLinecap="round"/>
-          </svg>
-        </button>
-      </div>
-
-      <div className="space-y-2 text-sm">
-        <div className="text-gray-600">Amount: <span className="font-semibold text-[var(--foreground)]">{preOpp.value}</span></div>
-        <div className="text-gray-600">Deal owner: <span className="text-[var(--foreground)]">{preOpp.owner}</span></div>
-        <div className="text-gray-600">Create date: <span className="text-[var(--foreground)]">{new Date(preOpp.dateCreated).toLocaleDateString()}</span></div>
-      </div>
-
-      <div className="mt-3 pt-3 border-t border-gray-100">
-        <div className="flex items-center gap-2 text-sm text-gray-600">
-          <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium">
-            {preOpp.soldTo.charAt(0)}
-          </div>
-          <span>{preOpp.soldTo}</span>
+      <div className="flex items-start gap-2 mb-2">
+        <input type="checkbox" className="mt-1 accent-gray-400" />
+        <div className="flex-1">
+          <h4 className="text-sm font-medium text-gray-900">{preOpp.name}</h4>
         </div>
+        <div className={`w-5 h-5 rounded-full ${ownerColors[colorIndex]} flex items-center justify-center text-white text-[10px] font-semibold`}>
+          {ownerInitials}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 text-xs text-gray-600 mb-2">
+        <span className="font-mono text-gray-500">{preOpp.id}</span>
       </div>
 
       {preOpp.tags.length > 0 && (
-        <div className="mt-3 text-xs text-gray-500">
-          Note {Math.floor(Math.random() * 12)} months ago
+        <div className="flex gap-1.5 flex-wrap">
+          {preOpp.tags.map((tag, idx) => (
+            <span
+              key={idx}
+              className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+              {tag}
+            </span>
+          ))}
         </div>
       )}
-
-      <div className="mt-3 flex gap-2">
-        {[1, 2, 3, 4].map((i) => (
-          <button
-            key={i}
-            className="p-1.5 hover:bg-gray-100 rounded transition-colors"
-          >
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              {i === 1 && <rect x="3" y="3" width="14" height="14" rx="2"/>}
-              {i === 2 && <path d="M10 3v14M3 10h14" strokeLinecap="round"/>}
-              {i === 3 && <path d="M3 6h14M3 10h14M3 14h14" strokeLinecap="round"/>}
-              {i === 4 && <circle cx="10" cy="10" r="7"/>}
-            </svg>
-          </button>
-        ))}
-      </div>
     </div>
   );
 }
@@ -114,123 +100,121 @@ export default function PreOpportunitiesContent() {
 
   const preOppFilterOptions = [
     { id: 'preopp-id', label: 'Pre-Opp ID', type: 'text' as const },
-    { id: 'name', label: 'Opportunity Name', type: 'text' as const },
+    { id: 'preopp-name', label: 'Pre-Opp Name', type: 'text' as const },
     { id: 'stage', label: 'Stage', type: 'dropdown' as const },
+    { id: 'job', label: 'Job', type: 'text' as const },
     { id: 'value-min', label: 'Min Value', type: 'number' as const },
     { id: 'value-max', label: 'Max Value', type: 'number' as const },
     { id: 'sold-to', label: 'Sold To', type: 'dropdown' as const },
     { id: 'manufacturer', label: 'Manufacturer', type: 'dropdown' as const },
     { id: 'owner', label: 'Owner', type: 'dropdown' as const },
-    { id: 'created-date', label: 'Created Date', type: 'date' as const },
-    { id: 'expiration-date', label: 'Expiration Date', type: 'date' as const },
-    { id: 'job', label: 'Related Job', type: 'dropdown' as const },
     { id: 'tags', label: 'Tags', type: 'dropdown' as const },
   ];
 
   const initialPreOpps: PreOpp[] = [
     {
-      id: 'PO-2024-001',
-      name: 'LED Lighting Package',
-      job: 'Downtown Plaza Renovation',
-      stage: 'Negotiation',
-      value: '$145,000',
-      soldTo: 'Miller Electric',
+      id: 'PO-001',
+      name: 'Downtown Plaza LED Upgrade',
+      job: 'J-001',
+      stage: 'Qualified',
+      value: '$45,000',
+      soldTo: 'Turner Construction',
       manufacturer: 'Acuity Brands',
-      dateCreated: '2024-11-15',
-      expirationDate: '2024-12-15',
-      owner: 'Curtis Seare',
+      dateCreated: '2024-01-15',
+      expirationDate: '2024-04-15',
+      owner: 'Sarah Johnson',
       tags: ['Lighting', 'LED'],
     },
     {
-      id: 'PO-2024-002',
-      name: 'HVAC Controls System',
-      job: 'TechCorp HQ Expansion',
-      stage: 'Qualified',
-      value: '$89,000',
-      soldTo: 'Summit Electric',
-      manufacturer: 'Johnson Controls',
-      dateCreated: '2024-11-18',
-      expirationDate: '2024-12-20',
-      owner: 'Curtis Seare',
-      tags: ['HVAC', 'Controls'],
-    },
-    {
-      id: 'PO-2024-003',
-      name: 'Emergency Power Systems',
-      job: 'Riverside Medical Center',
-      stage: 'Waiting on Factory',
-      value: '$234,000',
-      soldTo: 'Johnson Controls',
+      id: 'PO-002',
+      name: 'TechCorp Emergency Lighting',
+      job: 'J-002',
+      stage: 'Negotiation',
+      value: '$28,500',
+      soldTo: 'Hensel Phelps',
       manufacturer: 'Eaton',
-      dateCreated: '2024-11-10',
-      expirationDate: '2024-12-10',
-      owner: 'Curtis Seare',
-      tags: ['Power', 'Emergency'],
+      dateCreated: '2024-01-20',
+      expirationDate: '2024-03-20',
+      owner: 'Marcus Chen',
+      tags: ['Emergency', 'Controls'],
     },
     {
-      id: 'PO-2024-004',
-      name: 'Smart Building Package',
-      job: 'Harbor View Apartments',
-      stage: 'Negotiation',
-      value: '$67,000',
-      soldTo: 'Bay Area Electric',
-      manufacturer: 'Schneider Electric',
-      dateCreated: '2024-11-12',
-      expirationDate: '2024-12-18',
-      owner: 'Matias Denti',
-      tags: ['Smart Building', 'IoT'],
-    },
-    {
-      id: 'PO-2024-005',
-      name: 'Lab Specialty Lighting',
-      job: 'University Lab Building',
-      stage: 'Qualified',
-      value: '$123,000',
-      soldTo: 'Prime Electric',
-      manufacturer: 'Philips',
-      dateCreated: '2024-11-20',
-      expirationDate: '2024-12-25',
-      owner: 'Curtis Seare',
-      tags: ['Lighting', 'Specialty'],
-    },
-    {
-      id: 'PO-2024-006',
-      name: 'Panel Upgrades',
-      job: 'Westside Mall Renovation',
+      id: 'PO-003',
+      name: 'Medical Center Backup Power',
+      job: 'J-003',
       stage: 'Follow-up',
-      value: '$45,000',
-      soldTo: 'Advanced Electric',
-      manufacturer: 'Siemens',
-      dateCreated: '2024-11-08',
-      expirationDate: '2024-12-08',
-      owner: 'Curtis Seare',
-      tags: ['Electrical', 'Panels'],
+      value: '$95,000',
+      soldTo: 'McCarthy Building',
+      manufacturer: 'Schneider Electric',
+      dateCreated: '2024-02-01',
+      expirationDate: '2024-05-01',
+      owner: 'Sarah Johnson',
+      tags: ['Critical', 'Power'],
     },
     {
-      id: 'PO-2024-007',
-      name: 'Building Automation System',
-      job: 'Downtown Plaza Renovation',
-      stage: 'Qualified',
-      value: '$178,000',
-      soldTo: 'Miller Electric',
+      id: 'PO-004',
+      name: 'Westside Mall EV Chargers',
+      job: 'J-006',
+      stage: 'Waiting on Factory',
+      value: '$125,000',
+      soldTo: 'Gilbane Building',
+      manufacturer: 'ChargePoint',
+      dateCreated: '2024-02-10',
+      expirationDate: '2024-06-10',
+      owner: 'David Torres',
+      tags: ['EV', 'Infrastructure'],
+    },
+    {
+      id: 'PO-005',
+      name: 'Harbor Apartments Smart Controls',
+      job: 'J-004',
+      stage: 'Converted',
+      value: '$62,000',
+      soldTo: 'Turner Construction',
       manufacturer: 'Lutron',
-      dateCreated: '2024-10-28',
-      expirationDate: '2024-11-28',
-      owner: 'Matias Denti',
-      tags: ['Controls', 'Automation'],
+      dateCreated: '2024-01-05',
+      expirationDate: '2024-03-05',
+      owner: 'Marcus Chen',
+      tags: ['Smart Home', 'Controls'],
     },
     {
-      id: 'PO-2024-008',
-      name: 'Fire Alarm System',
-      job: 'Riverside Medical Center',
+      id: 'PO-006',
+      name: 'University Lab Specialty Lighting',
+      job: 'J-005',
       stage: 'Negotiation',
-      value: '$92,000',
-      soldTo: 'Johnson Controls',
-      manufacturer: 'Honeywell',
-      dateCreated: '2024-11-05',
-      expirationDate: '2024-12-05',
-      owner: 'Curtis Seare',
-      tags: ['Safety', 'Fire'],
+      value: '$78,500',
+      soldTo: 'Hensel Phelps',
+      manufacturer: 'Signify',
+      dateCreated: '2024-02-15',
+      expirationDate: '2024-05-15',
+      owner: 'David Torres',
+      tags: ['Lab Systems', 'Specialty'],
+    },
+    {
+      id: 'PO-007',
+      name: 'City Center Office Tower Fixtures',
+      job: 'J-007',
+      stage: 'Qualified',
+      value: '$52,000',
+      soldTo: 'Turner Construction',
+      manufacturer: 'Cooper Lighting',
+      dateCreated: '2024-01-25',
+      expirationDate: '2024-04-25',
+      owner: 'Marcus Chen',
+      tags: ['High-rise', 'Commercial'],
+    },
+    {
+      id: 'PO-008',
+      name: 'Airport Terminal Exit Signs',
+      job: 'J-008',
+      stage: 'Qualified',
+      value: '$38,000',
+      soldTo: 'Hensel Phelps',
+      manufacturer: 'Philips',
+      dateCreated: '2024-02-20',
+      expirationDate: '2024-06-20',
+      owner: 'David Torres',
+      tags: ['Infrastructure', 'Safety'],
     },
   ];
 
@@ -245,38 +229,17 @@ export default function PreOpportunitiesContent() {
   );
 
   const stages = [
-    { name: 'Qualified' as const, color: 'bg-blue-50', count: 0 },
-    { name: 'Negotiation' as const, color: 'bg-orange-50', count: 0 },
-    { name: 'Follow-up' as const, color: 'bg-purple-50', count: 0 },
-    { name: 'Waiting on Factory' as const, color: 'bg-gray-50', count: 0 },
+    { name: 'Qualified' as const },
+    { name: 'Negotiation' as const },
+    { name: 'Follow-up' as const },
+    { name: 'Waiting on Factory' as const },
+    { name: 'Lost' as const },
+    { name: 'Converted' as const },
   ];
 
-  const getStageColor = (stage: string) => {
-    switch (stage) {
-      case 'Qualified':
-        return 'bg-[var(--info)] text-white';
-      case 'Negotiation':
-        return 'bg-[var(--warning)] text-white';
-      case 'Follow-up':
-        return 'bg-[var(--primary)] text-white';
-      case 'Waiting on Factory':
-        return 'bg-[var(--muted-foreground)] text-white';
-      case 'Lost':
-        return 'bg-[var(--error)] text-white';
-      case 'Converted':
-        return 'bg-[var(--success)] text-white';
-      default:
-        return 'bg-[var(--muted)] text-[var(--foreground)]';
-    }
-  };
-
   const getPreOppsByStage = (stage: string) => {
-    return preOpps.filter(po => po.stage === stage);
+    return preOpps.filter(preOpp => preOpp.stage === stage);
   };
-
-  const totalValue = preOpps
-    .filter(po => po.stage !== 'Lost' && po.stage !== 'Converted')
-    .reduce((sum, po) => sum + parseFloat(po.value.replace('$', '').replace(',', '')) , 0);
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
@@ -293,15 +256,14 @@ export default function PreOpportunitiesContent() {
     const activeId = active.id as string;
     const overId = over.id as string;
 
-    // Check if we're dropping over a stage column
     const targetStage = stages.find(s => `stage-${s.name}` === overId);
 
     if (targetStage) {
       setPreOpps(prevPreOpps =>
-        prevPreOpps.map(po =>
-          po.id === activeId
-            ? { ...po, stage: targetStage.name }
-            : po
+        prevPreOpps.map(preOpp =>
+          preOpp.id === activeId
+            ? { ...preOpp, stage: targetStage.name }
+            : preOpp
         )
       );
     }
@@ -313,7 +275,7 @@ export default function PreOpportunitiesContent() {
     setActiveId(null);
   };
 
-  const activePreOpp = activeId ? preOpps.find(po => po.id === activeId) : null;
+  const activePreOpp = activeId ? preOpps.find(preOpp => preOpp.id === activeId) : null;
 
   return (
     <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
@@ -324,18 +286,42 @@ export default function PreOpportunitiesContent() {
             <h1 className="text-2xl font-semibold text-[var(--foreground)]">Pre-Opportunities</h1>
           </div>
           <div className="flex items-center gap-2">
+            {/* View Mode Toggle */}
             <div className="flex items-center gap-1 p-1 bg-[var(--muted)] rounded-md">
-              <button className="p-2 rounded bg-white shadow-sm" title="Kanban View">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="3" width="7" height="18" rx="1"/>
-                  <rect x="14" y="3" width="7" height="10" rx="1"/>
+              <button
+                onClick={() => setViewMode('kanban')}
+                className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                  viewMode === 'kanban'
+                    ? 'bg-white text-[var(--foreground)] shadow-sm'
+                    : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+                }`}
+              >
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="inline-block mr-1">
+                  <rect x="3" y="3" width="5" height="14"/>
+                  <rect x="12" y="3" width="5" height="14"/>
                 </svg>
+                Board
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                  viewMode === 'list'
+                    ? 'bg-white text-[var(--foreground)] shadow-sm'
+                    : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+                }`}
+              >
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="inline-block mr-1">
+                  <path d="M3 6h14M3 10h14M3 14h14" strokeLinecap="round"/>
+                </svg>
+                List
               </button>
             </div>
+
             <AdvancedFilters filterOptions={preOppFilterOptions} />
-            <button className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors">
+
+            <button className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors">
               <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M3 4h14M6 8h11M9 12h8M12 16h5" strokeLinecap="round"/>
+                <path d="M3 6l7 7 7-7" strokeLinecap="round"/>
               </svg>
               Sort
             </button>
@@ -344,65 +330,12 @@ export default function PreOpportunitiesContent() {
                 <circle cx="10" cy="10" r="7"/>
                 <path d="M10 7v6M7 10h6" strokeLinecap="round"/>
               </svg>
-              Create Pre-Opp
+              Add Pre-Opportunity
             </button>
           </div>
         </div>
       </div>
 
-      {/* Metrics */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
-          <div className="text-sm text-[var(--muted-foreground)] mb-1">Total Pipeline</div>
-          <div className="text-2xl font-semibold text-[var(--foreground)]">
-            ${(totalValue / 1000).toFixed(0)}K
-          </div>
-        </div>
-        <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
-          <div className="text-sm text-[var(--muted-foreground)] mb-1">Active</div>
-          <div className="text-2xl font-semibold text-[var(--foreground)]">
-            {preOpps.filter(po => po.stage !== 'Lost' && po.stage !== 'Converted').length}
-          </div>
-        </div>
-        <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
-          <div className="text-sm text-[var(--muted-foreground)] mb-1">In Negotiation</div>
-          <div className="text-2xl font-semibold text-[var(--foreground)]">
-            {preOpps.filter(po => po.stage === 'Negotiation').length}
-          </div>
-        </div>
-        <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
-          <div className="text-sm text-[var(--muted-foreground)] mb-1">Converted</div>
-          <div className="text-2xl font-semibold text-[var(--success)]">
-            {preOpps.filter(po => po.stage === 'Converted').length}
-          </div>
-        </div>
-      </div>
-
-      {/* View Toggle */}
-      <div className="mb-6 flex items-center justify-between">
-        <div className="flex gap-2">
-          <button
-            onClick={() => setViewMode('kanban')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              viewMode === 'kanban'
-                ? 'bg-[var(--primary)] text-white'
-                : 'bg-[var(--card)] text-[var(--muted-foreground)] hover:bg-[var(--muted)] border border-[var(--border)]'
-            }`}
-          >
-            Kanban
-          </button>
-          <button
-            onClick={() => setViewMode('list')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              viewMode === 'list'
-                ? 'bg-[var(--primary)] text-white'
-                : 'bg-[var(--card)] text-[var(--muted-foreground)] hover:bg-[var(--muted)] border border-[var(--border)]'
-            }`}
-          >
-            List
-          </button>
-        </div>
-      </div>
 
       {/* Kanban View */}
       {viewMode === 'kanban' ? (
@@ -413,7 +346,7 @@ export default function PreOpportunitiesContent() {
           onDragEnd={handleDragEnd}
           onDragCancel={handleDragCancel}
         >
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-6 gap-4">
             {stages.map((stage) => {
               const stagePreOpps = getPreOppsByStage(stage.name);
 
@@ -421,17 +354,27 @@ export default function PreOpportunitiesContent() {
                 <SortableContext
                   key={stage.name}
                   id={`stage-${stage.name}`}
-                  items={stagePreOpps.map(po => po.id)}
+                  items={stagePreOpps.map(preOpp => preOpp.id)}
                   strategy={verticalListSortingStrategy}
                 >
                   <div className="flex flex-col">
                     {/* Column Header */}
-                    <div className="bg-gray-50 rounded-t-lg px-4 py-3 mb-0 border-b-2 border-gray-200">
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-semibold text-[var(--foreground)] text-base">{stage.name} <span className="text-gray-500 font-normal ml-1">{stagePreOpps.length}</span></h3>
-                        <button className="text-gray-400 hover:text-gray-600">
+                    <div className="flex items-center justify-between px-3 py-2 mb-3">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-sm text-gray-900">
+                          {stage.name}
+                          <span className="ml-2 text-gray-500 font-normal">{stagePreOpps.length}</span>
+                        </h3>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button className="p-1 hover:bg-gray-100 rounded transition-colors">
                           <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M8 4l-4 6 4 6M12 4l4 6-4 6" strokeLinecap="round" strokeLinejoin="round"/>
+                            <path d="M4 6h12M4 10h12M4 14h12" strokeLinecap="round"/>
+                          </svg>
+                        </button>
+                        <button className="p-1 hover:bg-gray-100 rounded transition-colors">
+                          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M10 6v8M6 10h8" strokeLinecap="round"/>
                           </svg>
                         </button>
                       </div>
@@ -440,12 +383,20 @@ export default function PreOpportunitiesContent() {
                     {/* Drop Zone */}
                     <div
                       id={`stage-${stage.name}`}
-                      className="bg-gray-50 rounded-b-lg p-4 min-h-[600px]"
+                      className="min-h-[500px]"
                     >
                       {stagePreOpps.map((preOpp) => (
                         <SortablePreOppCard key={preOpp.id} preOpp={preOpp} />
                       ))}
                     </div>
+
+                    {/* Add Card Button */}
+                    <button className="flex items-center gap-2 px-3 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-md transition-colors mt-2">
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M10 6v8M6 10h8" strokeLinecap="round"/>
+                      </svg>
+                      New
+                    </button>
                   </div>
                 </SortableContext>
               );
@@ -453,72 +404,53 @@ export default function PreOpportunitiesContent() {
           </div>
 
           <DragOverlay>
-            {activePreOpp ? <PreOppCard preOpp={activePreOpp} /> : null}
+            {activePreOpp ? <PreOppCard preOpp={activePreOpp} isDragging /> : null}
           </DragOverlay>
         </DndContext>
       ) : (
         /* List View */
-        <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
-          {/* Table Header */}
-          <div className="grid grid-cols-12 gap-4 px-6 py-3 border-b border-[var(--border)] bg-[var(--muted)]/30">
-            <div className="col-span-3 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-              Name
-            </div>
-            <div className="col-span-2 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-              Job
-            </div>
-            <div className="col-span-1 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-              Stage
-            </div>
-            <div className="col-span-1 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-              Value
-            </div>
-            <div className="col-span-2 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-              Sold To
-            </div>
-            <div className="col-span-2 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-              Manufacturer
-            </div>
-            <div className="col-span-1 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-              Expires
-            </div>
-          </div>
-
-          {/* Table Body */}
-          <div className="divide-y divide-[var(--border)]">
-            {preOpps.map((preOpp) => (
-              <div
-                key={preOpp.id}
-                className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-[var(--muted)]/20 transition-colors cursor-pointer"
-              >
-                <div className="col-span-3">
-                  <h3 className="font-medium text-[var(--foreground)] mb-1">{preOpp.name}</h3>
-                  <p className="text-xs text-[var(--muted-foreground)]">{preOpp.id}</p>
-                </div>
-                <div className="col-span-2 flex items-center">
-                  <span className="text-sm text-[var(--foreground)]">{preOpp.job}</span>
-                </div>
-                <div className="col-span-1 flex items-center">
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${getStageColor(preOpp.stage)}`}>
-                    {preOpp.stage}
-                  </span>
-                </div>
-                <div className="col-span-1 flex items-center">
-                  <span className="text-sm font-medium text-[var(--foreground)]">{preOpp.value}</span>
-                </div>
-                <div className="col-span-2 flex items-center">
-                  <span className="text-sm text-[var(--foreground)]">{preOpp.soldTo}</span>
-                </div>
-                <div className="col-span-2 flex items-center">
-                  <span className="text-sm text-[var(--foreground)]">{preOpp.manufacturer}</span>
-                </div>
-                <div className="col-span-1 flex items-center">
-                  <span className="text-xs text-[var(--muted-foreground)]">
-                    {new Date(preOpp.expirationDate).toLocaleDateString()}
-                  </span>
-                </div>
-              </div>
-            ))}
+        <div className="bg-white rounded-lg border border-[var(--border)]">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-[var(--muted)] border-b border-[var(--border)]">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">
+                    <input type="checkbox" className="accent-[var(--primary)]" />
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">ID</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Name</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Job</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Stage</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Value</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Sold To</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Owner</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border)]">
+                {preOpps.map((preOpp) => (
+                  <tr key={preOpp.id} className="hover:bg-[var(--muted)]/50 transition-colors">
+                    <td className="px-4 py-3">
+                      <input type="checkbox" className="accent-[var(--primary)]" />
+                    </td>
+                    <td className="px-4 py-3 text-sm font-mono text-gray-500">{preOpp.id}</td>
+                    <td className="px-4 py-3 text-sm font-medium text-[var(--foreground)]">{preOpp.name}</td>
+                    <td className="px-4 py-3 text-sm text-[var(--muted-foreground)]">{preOpp.job}</td>
+                    <td className="px-4 py-3 text-sm">
+                      <span className="px-2 py-1 rounded bg-[var(--muted)] text-[var(--foreground)] text-xs">
+                        {preOpp.stage}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-[var(--foreground)]">{preOpp.value}</td>
+                    <td className="px-4 py-3 text-sm text-[var(--muted-foreground)]">{preOpp.soldTo}</td>
+                    <td className="px-4 py-3 text-sm text-[var(--muted-foreground)]">{preOpp.owner}</td>
+                    <td className="px-4 py-3 text-sm">
+                      <button className="text-[var(--primary)] hover:underline">View</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

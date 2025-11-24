@@ -47,7 +47,6 @@ export default function CompaniesContent() {
       phone: '(555) 100-2000',
       address: 'San Francisco, CA',
       tags: ['Commercial', 'Healthcare'],
-      lists: ['Strategic Accounts', 'Top Tier GCs'],
       territory: 'West',
       contactCount: 12,
       jobCount: 8,
@@ -62,7 +61,6 @@ export default function CompaniesContent() {
       phone: '(555) 200-3000',
       address: 'Los Angeles, CA',
       tags: ['Commercial', 'Industrial'],
-      lists: ['Preferred Partners', 'West Coast ECs'],
       territory: 'West',
       contactCount: 8,
       jobCount: 5,
@@ -77,7 +75,6 @@ export default function CompaniesContent() {
       phone: '(555) 300-4000',
       address: 'Portland, OR',
       tags: ['Design', 'High-rise'],
-      lists: [],
       territory: 'West',
       contactCount: 6,
       jobCount: 4,
@@ -92,7 +89,6 @@ export default function CompaniesContent() {
       phone: '(555) 400-5000',
       address: 'Seattle, WA',
       tags: ['HVAC', 'Controls'],
-      lists: [],
       territory: 'West',
       contactCount: 15,
       jobCount: 12,
@@ -107,7 +103,6 @@ export default function CompaniesContent() {
       phone: '(555) 500-6000',
       address: 'Denver, CO',
       tags: ['Commercial', 'Education'],
-      lists: [],
       territory: 'Central',
       contactCount: 18,
       jobCount: 10,
@@ -122,7 +117,6 @@ export default function CompaniesContent() {
       phone: '(555) 600-7000',
       address: 'Sacramento, CA',
       tags: ['Office', 'Retail'],
-      lists: [],
       territory: 'West',
       contactCount: 10,
       jobCount: 7,
@@ -137,7 +131,6 @@ export default function CompaniesContent() {
       phone: '(555) 700-8000',
       address: 'Phoenix, AZ',
       tags: ['Healthcare', 'Mission Critical'],
-      lists: [],
       territory: 'Southwest',
       contactCount: 14,
       jobCount: 6,
@@ -152,7 +145,6 @@ export default function CompaniesContent() {
       phone: '(555) 800-9000',
       address: 'Oakland, CA',
       tags: ['Residential', 'Multi-family'],
-      lists: [],
       territory: 'West',
       contactCount: 5,
       jobCount: 3,
@@ -167,7 +159,6 @@ export default function CompaniesContent() {
       phone: '(555) 900-1000',
       address: 'New York, NY',
       tags: ['Education', 'Infrastructure'],
-      lists: [],
       territory: 'East',
       contactCount: 20,
       jobCount: 9,
@@ -182,7 +173,6 @@ export default function CompaniesContent() {
       phone: '(555) 101-2000',
       address: 'Boston, MA',
       tags: ['Education', 'Institutional'],
-      lists: [],
       territory: 'East',
       contactCount: 11,
       jobCount: 6,
@@ -197,7 +187,6 @@ export default function CompaniesContent() {
       phone: '(555) 102-3000',
       address: 'Dallas, TX',
       tags: ['National', 'Full-service'],
-      lists: [],
       territory: 'Central',
       contactCount: 25,
       jobCount: 15,
@@ -212,7 +201,6 @@ export default function CompaniesContent() {
       phone: '(555) 103-4000',
       address: 'West Hartford, CT',
       tags: ['Electrical', 'Wiring Devices'],
-      lists: [],
       territory: 'National',
       contactCount: 8,
       jobCount: 0,
@@ -315,10 +303,10 @@ export default function CompaniesContent() {
       <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
         {/* Table Header */}
         <div className="grid grid-cols-12 gap-4 px-6 py-3 border-b border-[var(--border)] bg-[var(--muted)]/30">
-          <div className="col-span-2 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
+          <div className="col-span-3 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
             Company Name
           </div>
-          <div className="col-span-1 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
+          <div className="col-span-2 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
             Type
           </div>
           <div className="col-span-2 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
@@ -333,9 +321,6 @@ export default function CompaniesContent() {
           <div className="col-span-2 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
             Tags
           </div>
-          <div className="col-span-2 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-            Lists
-          </div>
           <div className="col-span-1 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
             Last Activity
           </div>
@@ -348,7 +333,7 @@ export default function CompaniesContent() {
               key={company.id}
               className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-[var(--muted)]/20 transition-colors cursor-pointer"
             >
-              <div className="col-span-2 flex items-center gap-3">
+              <div className="col-span-3 flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-lg ${getLogoColor(company.id)} flex items-center justify-center text-white text-xs font-bold`}>
                   {getCompanyInitials(company.name)}
                 </div>
@@ -364,7 +349,7 @@ export default function CompaniesContent() {
                   </div>
                 </div>
               </div>
-              <div className="col-span-1 flex items-center gap-1 flex-wrap">
+              <div className="col-span-2 flex items-center gap-1 flex-wrap">
                 {company.type.map((type, idx) => (
                   <span
                     key={idx}
@@ -393,16 +378,6 @@ export default function CompaniesContent() {
                     className="px-2 py-0.5 bg-[var(--secondary)] text-[var(--secondary-foreground)] rounded text-xs"
                   >
                     {tag}
-                  </span>
-                ))}
-              </div>
-              <div className="col-span-2 flex items-center gap-1 flex-wrap">
-                {company.lists.map((list, idx) => (
-                  <span
-                    key={idx}
-                    className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-medium"
-                  >
-                    {list}
                   </span>
                 ))}
               </div>
