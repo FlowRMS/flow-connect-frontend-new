@@ -1,0 +1,177 @@
+/**
+ * Mock Data for Notes
+ */
+
+import type { Note, Comment } from './types';
+
+// Initial notes data
+export const INITIAL_NOTES: Note[] = [
+  {
+    id: 'N-001',
+    title: 'Downtown Plaza - Lighting Meeting Notes',
+    content: 'Met with Turner Construction PM and Miller Electric to discuss lighting control requirements. Key takeaways: Need dimming on all zones, prefer wireless controls, budget is flexible for quality system. Action: Send quote for Lutron system by Friday.',
+    createdBy: 'Sarah Johnson',
+    createdDate: '2024-11-22',
+    tags: ['Meeting', 'Lighting', 'Controls'],
+    entityType: 'Job',
+    entityName: 'Downtown Plaza Renovation',
+    mentions: ['@Turner Construction', '@Miller Electric'],
+    attachments: 2,
+    comments: 3,
+  },
+  {
+    id: 'N-002',
+    title: 'TechCorp HQ - HVAC Controls Opportunity',
+    content: 'Initial conversation with facility manager. Building has aging pneumatic controls that need replacement. Looking at BACnet system with web interface. Timeline: Design in Q1, install Q2. Estimated value: $300K. Competitors: Johnson Controls, Honeywell.',
+    createdBy: 'Marcus Chen',
+    createdDate: '2024-11-21',
+    tags: ['Opportunity', 'HVAC', 'Controls'],
+    entityType: 'Pre-Opportunity',
+    entityName: 'TechCorp HVAC Controls',
+    mentions: ['@David Torres'],
+    attachments: 1,
+    comments: 5,
+  },
+  {
+    id: 'N-003',
+    title: 'Riverside Medical - Site Visit Observations',
+    content: 'Walked the job site today. Panel locations approved, but need to coordinate with EC on conduit routing. Critical: All work in patient areas must be done after hours. Safety protocols are strict - need badging for all technicians. Follow up with McCarthy PM on schedule.',
+    createdBy: 'Sarah Johnson',
+    createdDate: '2024-11-20',
+    tags: ['Site Visit', 'Healthcare', 'Coordination'],
+    entityType: 'Job',
+    entityName: 'Riverside Medical Center',
+    mentions: ['@McCarthy Building'],
+    attachments: 5,
+    comments: 2,
+  },
+  {
+    id: 'N-004',
+    title: 'Q4 Strategy - West Territory',
+    content: 'Focus areas for Q4: Push LED retrofits to existing healthcare clients, develop relationships with new GCs in commercial sector, attend NECA regional meeting. Goals: 3 new GC relationships, 5 LED proposals submitted, close University Lab deal.',
+    createdBy: 'Sarah Johnson',
+    createdDate: '2024-11-19',
+    tags: ['Strategy', 'Planning'],
+    mentions: [],
+    attachments: 0,
+    comments: 1,
+  },
+  {
+    id: 'N-005',
+    title: 'Miller Electric - Q1 Pricing Discussion',
+    content: 'Call with Jennifer Walsh re: upcoming price increases. LED fixtures going up 8% in January, controls staying flat. Discussed stocking programs - they want to carry more inventory if we can improve delivery. Need factory approval on consignment.',
+    createdBy: 'Marcus Chen',
+    createdDate: '2024-11-18',
+    tags: ['Pricing', 'EC', 'Distributor'],
+    entityType: 'Contact',
+    entityName: 'Jennifer Walsh',
+    mentions: ['@Miller Electric'],
+    attachments: 1,
+    comments: 0,
+  },
+  {
+    id: 'N-006',
+    title: 'University Lab - Factory Engineering Support',
+    content: 'Spoke with factory engineering about custom panel requirements. They can meet the specs but need 12-week lead time. Cost adder is $15K. Waiting on electrical drawings from engineer to finalize quote. Check back next week.',
+    createdBy: 'David Torres',
+    createdDate: '2024-11-17',
+    tags: ['Engineering', 'Education', 'Custom'],
+    entityType: 'Job',
+    entityName: 'University Lab Building',
+    mentions: [],
+    attachments: 3,
+    comments: 4,
+  },
+  {
+    id: 'N-007',
+    title: 'Skanska - Lunch and Learn Presentation',
+    content: 'Presented new LED product line to Skanska estimating team (8 people attended). Good engagement, lots of questions about energy savings and rebates. They\'re working on 3 upcoming education projects that could be good fits. Follow up: Send product sheets and case studies.',
+    createdBy: 'Sarah Johnson',
+    createdDate: '2024-11-16',
+    tags: ['Lunch-and-Learn', 'GC', 'Education'],
+    entityType: 'Company',
+    entityName: 'Skanska USA',
+    mentions: [],
+    attachments: 4,
+    comments: 2,
+  },
+  {
+    id: 'N-008',
+    title: 'Harbor View Apartments - Bid Strategy',
+    content: 'Reviewed bid package with team. Multi-family project, 120 units. Standard spec but tight budget. Strategy: Use value line fixtures, minimize customization, leverage factory rebate program. Target price: $890K. Submission deadline: Friday.',
+    createdBy: 'Marcus Chen',
+    createdDate: '2024-11-15',
+    tags: ['Bidding', 'Residential', 'Strategy'],
+    entityType: 'Job',
+    entityName: 'Harbor View Apartments',
+    mentions: ['@Bay Area Electric'],
+    attachments: 2,
+    comments: 6,
+  },
+  {
+    id: 'N-009',
+    title: 'Prime Electric - Relationship Building',
+    content: 'Coffee meeting with Rachel Kim, their new Chief Estimator. She came from commercial background, looking to learn more about our education/institutional products. Very engaged, asked about training opportunities. This could be a great relationship - they do a lot of university work.',
+    createdBy: 'David Torres',
+    createdDate: '2024-11-14',
+    tags: ['Relationship', 'EC', 'Education'],
+    entityType: 'Contact',
+    entityName: 'Rachel Kim',
+    mentions: ['@Prime Electric'],
+    attachments: 0,
+    comments: 1,
+  },
+  {
+    id: 'N-010',
+    title: 'Trade Show Planning - LightFair 2025',
+    content: 'Planning meeting for LightFair booth. Budget approved: $50K. Goals: Launch new product line, meet with top 20 distributors, schedule 30+ customer meetings. Team: All three reps attending. Need to coordinate travel and hotel by end of month.',
+    createdBy: 'Marcus Chen',
+    createdDate: '2024-11-13',
+    tags: ['Trade Show', 'Planning', 'Events'],
+    mentions: ['@Sarah Johnson', '@David Torres'],
+    attachments: 1,
+    comments: 8,
+  },
+];
+
+// Mock comments for notes
+export const MOCK_COMMENTS: Record<string, Comment[]> = {
+  'N-001': [
+    {
+      id: 'C-001',
+      author: 'Sarah Johnson',
+      content: 'Great notes from the meeting. I think we should prioritize the wireless controls option.',
+      timestamp: '2024-11-22T14:30:00',
+    },
+    {
+      id: 'C-002',
+      author: 'Marcus Chen',
+      content: 'Agreed. I\'ll reach out to the Lutron rep to get pricing on the wireless system.',
+      timestamp: '2024-11-22T15:45:00',
+    },
+    {
+      id: 'C-003',
+      author: 'David Torres',
+      content: 'Don\'t forget to include the integration costs with their existing BMS.',
+      timestamp: '2024-11-22T16:20:00',
+    },
+  ],
+  'default': [
+    {
+      id: 'C-001',
+      author: 'David Torres',
+      content: 'Great notes! I\'ll follow up with them on the pricing details.',
+      timestamp: '2024-11-20T10:30:00',
+    },
+    {
+      id: 'C-002',
+      author: 'Marcus Chen',
+      content: 'Thanks for capturing this. Let\'s discuss in our next team meeting.',
+      timestamp: '2024-11-21T14:15:00',
+    },
+  ],
+};
+
+export function getCommentsForNote(noteId: string): Comment[] {
+  return MOCK_COMMENTS[noteId] || MOCK_COMMENTS['default'];
+}

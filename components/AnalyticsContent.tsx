@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, type ReactElement } from 'react';
 import LineChart from './charts/LineChart';
 import BarChart from './charts/BarChart';
 import PieChart from './charts/PieChart';
@@ -12,7 +12,7 @@ type TabId = 'activity' | 'pipeline' | 'sales' | 'contacts' | 'forecast' | 'perf
 type Tab = {
   id: TabId;
   name: string;
-  icon: JSX.Element;
+  icon: ReactElement;
 };
 
 // Chart wrapper component

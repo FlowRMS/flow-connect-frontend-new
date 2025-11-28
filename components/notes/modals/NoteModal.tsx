@@ -1,76 +1,22 @@
+/**
+ * Note Modal Component
+ */
+
 'use client';
 
 import React, { useState } from 'react';
-
-type Comment = {
-  id: string;
-  author: string;
-  content: string;
-  timestamp: string;
-};
-
-type Note = {
-  id: string;
-  title: string;
-  content: string;
-  createdBy: string;
-  createdDate: string;
-  tags: string[];
-  entityType?: string;
-  entityName?: string;
-  mentions: string[];
-  attachments: number;
-  comments: number;
-};
+import type { Note, Comment } from '../types';
+import { formatTimestamp, getInitials, getAvatarColor } from '../utils';
+import { getCommentsForNote } from '../mockData';
 
 interface NoteModalProps {
   note: Note;
   onClose: () => void;
 }
 
-export default function NoteModal({ note, onClose }: NoteModalProps) {
+export function NoteModal({ note, onClose }: NoteModalProps) {
   const [newComment, setNewComment] = useState('');
-  const [conversation, setConversation] = useState<Comment[]>([
-    {
-      id: 'C-001',
-      author: 'Sarah Johnson',
-      content: 'Great notes from the meeting. I think we should prioritize the wireless controls option.',
-      timestamp: '2024-11-22T14:30:00',
-    },
-    {
-      id: 'C-002',
-      author: 'Marcus Chen',
-      content: 'Agreed. I\'ll reach out to the Lutron rep to get pricing on the wireless system.',
-      timestamp: '2024-11-22T15:45:00',
-    },
-    {
-      id: 'C-003',
-      author: 'David Torres',
-      content: 'Don\'t forget to include the integration costs with their existing BMS.',
-      timestamp: '2024-11-22T16:20:00',
-    },
-  ]);
-
-  const formatTimestamp = (timestamp: string) => {
-    const date = new Date(timestamp);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    });
-  };
-
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('');
-  };
-
-  const getAvatarColor = (name: string) => {
-    const colors = ['bg-orange-500', 'bg-teal-500', 'bg-green-500', 'bg-purple-500', 'bg-blue-500', 'bg-pink-500'];
-    const index = name.charCodeAt(0) % colors.length;
-    return colors[index];
-  };
+  const [conversation, setConversation] = useState<Comment[]>(getCommentsForNote(note.id));
 
   const handleAddComment = () => {
     if (newComment.trim()) {

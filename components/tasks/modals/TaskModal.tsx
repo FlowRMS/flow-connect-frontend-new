@@ -1,33 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-
-type Comment = {
-  id: string;
-  author: string;
-  content: string;
-  timestamp: string;
-};
-
-type Task = {
-  id: string;
-  title: string;
-  description: string;
-  dueDate: string;
-  reminderDate?: string;
-  assignedTo: string;
-  taskType: string;
-  status: 'Today' | 'Overdue' | 'Upcoming' | 'Waiting' | 'Completed';
-  tags: string[];
-  entities?: {
-    jobs?: string[];
-    contacts?: string[];
-    companies?: string[];
-  };
-  priority: 'No priority' | 'Urgent';
-  completed?: boolean;
-  comments?: number;
-};
+import { Task, TaskComment } from '../types';
+import { getInitials, getAvatarColor, getStatusColor, getPriorityColor, formatDate } from '../utils';
 
 interface TaskModalProps {
   task: Task;
@@ -37,7 +12,7 @@ interface TaskModalProps {
 
 export default function TaskModal({ task, onClose, onToggleComplete }: TaskModalProps) {
   const [newComment, setNewComment] = useState('');
-  const [conversation, setConversation] = useState<Comment[]>([
+  const [conversation, setConversation] = useState<TaskComment[]>([
     {
       id: 'C-001',
       author: 'Sarah Johnson',
@@ -63,51 +38,9 @@ export default function TaskModal({ task, onClose, onToggleComplete }: TaskModal
     });
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
-
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('');
-  };
-
-  const getAvatarColor = (name: string) => {
-    const colors = ['bg-orange-500', 'bg-teal-500', 'bg-green-500', 'bg-purple-500', 'bg-blue-500', 'bg-pink-500'];
-    const index = name.charCodeAt(0) % colors.length;
-    return colors[index];
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Overdue':
-        return 'bg-red-100 text-red-700 border-red-200';
-      case 'Today':
-        return 'bg-blue-100 text-blue-700 border-blue-200';
-      case 'Upcoming':
-        return 'bg-green-100 text-green-700 border-green-200';
-      case 'Waiting':
-        return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-      case 'Completed':
-        return 'bg-gray-100 text-gray-700 border-gray-200';
-      default:
-        return 'bg-gray-100 text-gray-700 border-gray-200';
-    }
-  };
-
-  const getPriorityColor = (priority: string) => {
-    return priority === 'Urgent'
-      ? 'bg-red-100 text-red-700 border-red-200'
-      : 'bg-gray-100 text-gray-700 border-gray-200';
-  };
-
   const handleAddComment = () => {
     if (newComment.trim()) {
-      const comment: Comment = {
+      const comment: TaskComment = {
         id: `C-${Date.now()}`,
         author: 'Current User',
         content: newComment,

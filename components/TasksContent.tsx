@@ -1,685 +1,96 @@
+/**
+ * Tasks Content Component - Main Container
+ * Refactored to use modular, clean architecture
+ */
+
 'use client';
 
-import React, { useState } from 'react';
-import TaskModal from './TaskModal';
+import React from 'react';
+import { useTasksState } from './tasks/hooks/useTasksState';
+import { getTaskFilterOptions } from './tasks/config/filterConfig';
+import { TASK_CATEGORIES, AVAILABLE_ASSIGNEES, AVAILABLE_PRIORITIES, AVAILABLE_TAGS } from './tasks/constants';
+import GridView from './tasks/views/GridView';
+import ListView from './tasks/views/ListView';
+import KanbanView from './tasks/views/KanbanView';
+import SpreadsheetView from './tasks/views/SpreadsheetView';
+import CalendarView from './tasks/views/CalendarView';
+import TaskModal from './tasks/modals/TaskModal';
 import AdvancedFilters from './AdvancedFilters';
 
-type Task = {
-  id: string;
-  title: string;
-  description: string;
-  dueDate: string;
-  reminderDate?: string;
-  assignedTo: string;
-  taskType: string;
-  status: 'Today' | 'Overdue' | 'Upcoming' | 'Waiting' | 'Completed';
-  tags: string[];
-  entities?: {
-    jobs?: string[];
-    contacts?: string[];
-    companies?: string[];
-  };
-  priority: 'No priority' | 'Urgent';
-  completed?: boolean;
-  comments?: number;
-};
-
-function CalendarView({ tasks, onToggleComplete }: { tasks: Task[], onToggleComplete: (id: string) => void }) {
-  const [currentDate, setCurrentDate] = useState(new Date());
-
-  // Get current month and year
-  const currentMonth = currentDate.getMonth();
-  const currentYear = currentDate.getFullYear();
-
-  // Get first day of month and number of days
-  const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
-  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-  const daysInPrevMonth = new Date(currentYear, currentMonth, 0).getDate();
-
-  // Month names
-  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
-  // Get tasks for a specific date
-  const getTasksForDate = (date: Date) => {
-    const dateStr = date.toISOString().split('T')[0];
-    return tasks.filter(task => task.dueDate === dateStr);
-  };
-
-  // Generate calendar days
-  const calendarDays = [];
-
-  // Previous month days
-  for (let i = firstDayOfMonth - 1; i >= 0; i--) {
-    calendarDays.push({
-      day: daysInPrevMonth - i,
-      isCurrentMonth: false,
-      date: new Date(currentYear, currentMonth - 1, daysInPrevMonth - i),
-    });
-  }
-
-  // Current month days
-  for (let day = 1; day <= daysInMonth; day++) {
-    calendarDays.push({
-      day,
-      isCurrentMonth: true,
-      date: new Date(currentYear, currentMonth, day),
-    });
-  }
-
-  // Next month days to fill grid
-  const remainingDays = 42 - calendarDays.length; // 6 rows * 7 days
-  for (let day = 1; day <= remainingDays; day++) {
-    calendarDays.push({
-      day,
-      isCurrentMonth: false,
-      date: new Date(currentYear, currentMonth + 1, day),
-    });
-  }
-
-  const goToPreviousMonth = () => {
-    setCurrentDate(new Date(currentYear, currentMonth - 1, 1));
-  };
-
-  const goToNextMonth = () => {
-    setCurrentDate(new Date(currentYear, currentMonth + 1, 1));
-  };
-
-  const goToToday = () => {
-    setCurrentDate(new Date());
-  };
-
-  const isToday = (date: Date) => {
-    const today = new Date();
-    return date.toDateString() === today.toDateString();
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'Urgent':
-        return 'border-l-red-500';
-      case 'No priority':
-        return 'border-l-gray-300';
-      default:
-        return 'border-l-gray-400';
-    }
-  };
-
-  return (
-    <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg overflow-hidden">
-      {/* Calendar Header */}
-      <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-[var(--foreground)]">
-          {monthNames[currentMonth]} {currentYear}
-        </h2>
-        <div className="flex gap-2">
-          <button
-            onClick={goToToday}
-            className="px-3 py-1.5 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors"
-          >
-            Today
-          </button>
-          <button
-            onClick={goToPreviousMonth}
-            className="p-1.5 border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors"
-          >
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M13 6l-4 4 4 4" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
-          <button
-            onClick={goToNextMonth}
-            className="p-1.5 border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors"
-          >
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M7 6l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      {/* Calendar Grid */}
-      <div className="p-4">
-        {/* Day headers */}
-        <div className="grid grid-cols-7 gap-2 mb-2">
-          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-            <div key={day} className="text-center text-xs font-semibold text-[var(--muted-foreground)] py-2">
-              {day}
-            </div>
-          ))}
-        </div>
-
-        {/* Calendar days */}
-        <div className="grid grid-cols-7 gap-2">
-          {calendarDays.map((calDay, idx) => {
-            const dayTasks = getTasksForDate(calDay.date);
-            const isTodayDate = isToday(calDay.date);
-
-            return (
-              <div
-                key={idx}
-                className={`min-h-[120px] border border-[var(--border)] rounded-lg p-2 ${
-                  calDay.isCurrentMonth ? 'bg-[var(--background)]' : 'bg-[var(--muted)]/20'
-                } ${isTodayDate ? 'ring-2 ring-[var(--primary)]' : ''}`}
-              >
-                <div className={`text-sm font-medium mb-2 ${
-                  calDay.isCurrentMonth ? 'text-[var(--foreground)]' : 'text-[var(--muted-foreground)]'
-                } ${isTodayDate ? 'text-[var(--primary)]' : ''}`}>
-                  {calDay.day}
-                </div>
-                <div className="space-y-1">
-                  {dayTasks.slice(0, 3).map((task) => (
-                    <div
-                      key={task.id}
-                      className={`text-xs p-1.5 bg-white border-l-2 ${getPriorityColor(task.priority)} rounded cursor-pointer hover:shadow-sm transition-shadow ${
-                        task.status === 'Completed' ? 'opacity-50 line-through' : ''
-                      }`}
-                      onClick={() => onToggleComplete(task.id)}
-                      title={task.title}
-                    >
-                      <div className="font-medium text-[var(--foreground)] truncate">{task.title}</div>
-                      <div className="text-[var(--muted-foreground)] truncate">{task.assignedTo}</div>
-                    </div>
-                  ))}
-                  {dayTasks.length > 3 && (
-                    <div className="text-xs text-[var(--muted-foreground)] pl-1">
-                      +{dayTasks.length - 3} more
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function TasksContent() {
-  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'kanban' | 'spreadsheet' | 'calendar'>('grid');
-  const [selectedCategory, setSelectedCategory] = useState<string>('All');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [editingTask, setEditingTask] = useState<string | null>(null);
-  const [editingField, setEditingField] = useState<'title' | 'description' | null>(null);
-  const [showAssigneeDropdown, setShowAssigneeDropdown] = useState<string | null>(null);
-  const [showTagsDropdown, setShowTagsDropdown] = useState<string | null>(null);
-  const [showEntityDropdown, setShowEntityDropdown] = useState<string | null>(null);
-  const [showTaskTypeDropdown, setShowTaskTypeDropdown] = useState<string | null>(null);
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [showPriorityDropdown, setShowPriorityDropdown] = useState<string | null>(null);
-  const [showDueDatePicker, setShowDueDatePicker] = useState<string | null>(null);
-  const [showReminderDatePicker, setShowReminderDatePicker] = useState<string | null>(null);
-  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
-  const [filters, setFilters] = useState({
-    assignees: [] as string[],
-    tags: [] as string[],
-    taskTypes: [] as string[],
-    priorities: [] as string[],
-  });
-  const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
-  const [showBulkActionsDropdown, setShowBulkActionsDropdown] = useState(false);
-  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
-  const [expandedText, setExpandedText] = useState<{ taskId: string; field: 'title' | 'description' } | null>(null);
-  const [taskDetailModal, setTaskDetailModal] = useState<string | null>(null);
-  const [showSummarizeModal, setShowSummarizeModal] = useState(false);
+  const {
+    // View state
+    viewMode,
+    setViewMode,
+    
+    // Task data
+    tasks,
+    filteredTasks,
+    
+    // Search and category
+    selectedCategory,
+    setSelectedCategory,
+    searchQuery,
+    setSearchQuery,
+    
+    // Editing
+    editState,
+    setEditState,
+    startEditing,
+    saveEdit,
+    cancelEdit,
+    
+    // Dropdowns
+    dropdowns,
+    setDropdown,
+    
+    // Selection
+    selectedTask,
+    setSelectedTask,
+    selectedTasks,
+    setSelectedTasks,
+    
+    // Modals
+    showBulkActionsDropdown,
+    setShowBulkActionsDropdown,
+    showSummarizeModal,
+    setShowSummarizeModal,
+    taskDetailModal,
+    setTaskDetailModal,
+    expandedText,
+    setExpandedText,
+    
+    // Filters
+    filters,
+    setFilters,
+    
+    // Drag and drop
+    draggedTaskId,
+    handleDragStart,
+    handleDrop,
+    handleDragEnd,
+    
+    // Task operations
+    updateTask,
+    toggleTaskComplete,
+    addTag,
+    removeTag,
+    toggleTag,
+    getTasksByStatus,
+  } = useTasksState();
 
-  const taskFilterOptions = [
-    { id: 'task-id', label: 'Task ID', type: 'text' as const },
-    { id: 'title', label: 'Task Title', type: 'text' as const },
-    { id: 'status', label: 'Status', type: 'dropdown' as const },
-    { id: 'task-type', label: 'Task Type', type: 'dropdown' as const },
-    { id: 'priority', label: 'Priority', type: 'dropdown' as const },
-    { id: 'assigned-to', label: 'Assigned To', type: 'dropdown' as const },
-    { id: 'due-date', label: 'Due Date', type: 'date' as const },
-    { id: 'reminder-date', label: 'Reminder Date', type: 'date' as const },
-    { id: 'tags', label: 'Tags', type: 'dropdown' as const },
-    { id: 'related-job', label: 'Related Job', type: 'dropdown' as const },
-    { id: 'related-contact', label: 'Related Contact', type: 'dropdown' as const },
-    { id: 'related-company', label: 'Related Company', type: 'dropdown' as const },
-  ];
-
-  const initialTasks: Task[] = [
-    {
-      id: 'T-001',
-      title: 'Follow up with Turner on lighting spec',
-      description: 'Discuss updated lighting requirements for Downtown Plaza',
-      dueDate: '2025-11-22',
-      assignedTo: 'Sarah Johnson',
-      taskType: 'Follow-up',
-      status: 'Today',
-      tags: ['Commercial', 'Lighting'],
-      entities: {
-        jobs: ['Downtown Plaza Renovation'],
-        contacts: ['Michael Rodriguez'],
-        companies: ['Turner Construction']
-      },
-      priority: 'Urgent',
-      completed: false,
-      comments: 3,
-    },
-    {
-      id: 'T-002',
-      title: 'Site visit - Riverside Medical Center',
-      description: 'Walk through with PM and EC to review panel locations',
-      dueDate: '2025-11-20',
-      assignedTo: 'Sarah Johnson',
-      taskType: 'Site Visit',
-      status: 'Overdue',
-      tags: ['Healthcare', 'Critical'],
-      entities: {
-        jobs: ['Riverside Medical Center'],
-        companies: ['McCarthy Building', 'Johnson Controls']
-      },
-      priority: 'Urgent',
-      completed: false,
-      comments: 1,
-    },
-    {
-      id: 'T-003',
-      title: 'Send quote for TechCorp HQ HVAC controls',
-      description: 'Prepare and send quote for HVAC control system',
-      dueDate: '2025-11-25',
-      assignedTo: 'Marcus Chen',
-      taskType: 'General',
-      status: 'Upcoming',
-      tags: ['HVAC', 'Quote'],
-      entities: {
-        jobs: ['TechCorp HQ Expansion'],
-        contacts: ['David Chen']
-      },
-      priority: 'No priority',
-      completed: false,
-      comments: 0,
-    },
-    {
-      id: 'T-004',
-      title: 'Call - Miller Electric purchasing',
-      description: 'Discuss Q1 pricing and new product availability',
-      dueDate: '2025-11-22',
-      assignedTo: 'Marcus Chen',
-      taskType: 'Call',
-      status: 'Today',
-      tags: ['EC', 'Pricing'],
-      entities: {
-        contacts: ['Jennifer Walsh'],
-        companies: ['Miller Electric']
-      },
-      priority: 'No priority',
-      completed: false,
-      comments: 2,
-    },
-    {
-      id: 'T-005',
-      title: 'Waiting on factory - University Lab specs',
-      description: 'Need factory response on custom panel requirements',
-      dueDate: '2025-11-28',
-      assignedTo: 'David Torres',
-      taskType: 'Waiting',
-      status: 'Waiting',
-      tags: ['Education', 'Specialty'],
-      entities: {
-        jobs: ['University Lab Building']
-      },
-      priority: 'No priority',
-      completed: false,
-      comments: 0,
-    },
-    {
-      id: 'T-006',
-      title: 'Lunch and learn - Skanska office',
-      description: 'Present new LED product line to Skanska team',
-      dueDate: '2025-11-27',
-      assignedTo: 'Sarah Johnson',
-      taskType: 'Lunch-and-Learn',
-      status: 'Upcoming',
-      tags: ['Education', 'GC'],
-      entities: {
-        companies: ['Skanska USA']
-      },
-      priority: 'No priority',
-      completed: false,
-      comments: 1,
-    },
-    {
-      id: 'T-007',
-      title: 'Trade show prep - LightFair 2025',
-      description: 'Coordinate booth setup and meeting schedule',
-      dueDate: '2025-12-01',
-      assignedTo: 'Marcus Chen',
-      taskType: 'Trade Show',
-      status: 'Upcoming',
-      tags: ['Events', 'Networking'],
-      priority: 'Urgent',
-      completed: false,
-      comments: 5,
-    },
-    {
-      id: 'T-008',
-      title: 'Meeting - McCarthy Building quarterly review',
-      description: 'Review Q4 activity and Q1 opportunities',
-      dueDate: '2025-11-22',
-      assignedTo: 'David Torres',
-      taskType: 'Meeting',
-      status: 'Today',
-      tags: ['GC', 'Healthcare'],
-      entities: {
-        companies: ['McCarthy Building'],
-        contacts: ['Robert Jackson']
-      },
-      priority: 'Urgent',
-      completed: false,
-      comments: 0,
-    },
-    {
-      id: 'T-009',
-      title: 'Submit bid - Harbor View Apartments electrical',
-      description: 'Final bid review and submission for electrical package',
-      dueDate: '2025-11-19',
-      assignedTo: 'Marcus Chen',
-      taskType: 'General',
-      status: 'Overdue',
-      tags: ['Residential', 'Bidding'],
-      entities: {
-        jobs: ['Harbor View Apartments'],
-        companies: ['Bay Area Electric']
-      },
-      priority: 'Urgent',
-      completed: false,
-      comments: 4,
-    },
-    {
-      id: 'T-010',
-      title: 'Update CRM notes - Prime Electric',
-      description: 'Log recent conversation about upcoming projects',
-      dueDate: '2025-11-23',
-      assignedTo: 'David Torres',
-      taskType: 'Note/Action',
-      status: 'Upcoming',
-      tags: ['EC', 'Follow-up'],
-      entities: {
-        companies: ['Prime Electric'],
-        contacts: ['Rachel Kim']
-      },
-      priority: 'No priority',
-      completed: false,
-      comments: 0,
-    },
-  ];
-
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
-  const [editValue, setEditValue] = useState<string>('');
-
-  // Helper functions
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('');
-  };
-
-  const getAvatarColor = (name: string) => {
-    const colors = ['bg-orange-500', 'bg-teal-500', 'bg-green-500', 'bg-purple-500', 'bg-blue-500', 'bg-pink-500'];
-    const index = name.charCodeAt(0) % colors.length;
-    return colors[index];
-  };
-
-  const formatTaskDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const today = new Date();
-    const diffTime = Math.abs(today.getTime() - date.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Tomorrow';
-    if (diffDays === -1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays} days`;
-    return date.toLocaleDateString();
-  };
-
-  // Available options for dropdowns
-  const availableAssignees = ['Sarah Johnson', 'Marcus Chen', 'David Torres', 'Emily Roberts'];
-  const availableTags = ['Commercial', 'Healthcare', 'HVAC', 'Lighting', 'Controls', 'EC', 'GC', 'Pricing', 'Education', 'Specialty', 'Quote', 'Bidding', 'Residential', 'Follow-up', 'Events', 'Networking'];
-  const availableEntityTypes = ['Job', 'Contact', 'Company', 'Pre-Opportunity'];
-  const allEntities = {
-    Job: ['Downtown Plaza Renovation', 'Riverside Medical Center', 'TechCorp HQ Expansion', 'Harbor View Apartments', 'University Lab Building'],
-    Contact: ['Jennifer Walsh', 'Michael Rodriguez', 'David Chen', 'Rachel Kim'],
-    Company: ['Turner Construction', 'Miller Electric', 'McCarthy Building', 'Skanska USA', 'Prime Electric'],
-    'Pre-Opportunity': ['TechCorp HVAC Controls', 'LED Retrofit - Hospital', 'Controls Upgrade']
-  };
-
-  const categories = ['All', 'Today', 'Overdue', 'Upcoming', 'Waiting', 'Completed'];
-  const availableTaskTypes = ['Call', 'Meeting', 'Follow-up', 'Site Visit', 'Lunch-and-Learn', 'Trade Show', 'General', 'Note/Action', 'Waiting'];
-
-  // Inline editing helpers
-  const startEditingTitle = (taskId: string, currentValue: string) => {
-    setEditingTask(taskId);
-    setEditingField('title');
-    setEditValue(currentValue);
-  };
-
-  const startEditingDescription = (taskId: string, currentValue: string) => {
-    setEditingTask(taskId);
-    setEditingField('description');
-    setEditValue(currentValue);
-  };
-
-  const saveTitleEdit = (taskId: string) => {
-    if (!editValue.trim()) {
-      setEditingTask(null);
-      setEditingField(null);
-      return;
-    }
-    updateTask(taskId, { title: editValue });
-    setEditingTask(null);
-    setEditingField(null);
-    setEditValue('');
-  };
-
-  const saveDescriptionEdit = (taskId: string) => {
-    if (!editValue.trim()) {
-      setEditingTask(null);
-      setEditingField(null);
-      return;
-    }
-    updateTask(taskId, { description: editValue });
-    setEditingTask(null);
-    setEditingField(null);
-    setEditValue('');
-  };
-
-  const cancelEdit = () => {
-    setEditingTask(null);
-    setEditingField(null);
-    setEditValue('');
-  };
-
-  const addTag = (taskId: string, tag: string) => {
-    const task = tasks.find(t => t.id === taskId);
-    if (task && !task.tags.includes(tag)) {
-      updateTask(taskId, { tags: [...task.tags, tag] });
-    }
-  };
-
-  const removeTag = (taskId: string, tagToRemove: string) => {
-    const task = tasks.find(t => t.id === taskId);
-    if (task) {
-      updateTask(taskId, { tags: task.tags.filter(t => t !== tagToRemove) });
-    }
-  };
-
-  const updateTask = (taskId: string, updates: Partial<Task>) => {
-    setTasks(prevTasks =>
-      prevTasks.map(task =>
-        task.id === taskId ? { ...task, ...updates } : task
-      )
-    );
-  };
-
-  const toggleTag = (taskId: string, tag: string) => {
-    const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
-
-    const newTags = task.tags.includes(tag)
-      ? task.tags.filter(t => t !== tag)
-      : [...task.tags, tag];
-
-    updateTask(taskId, { tags: newTags });
-  };
-
-  const handleDragStart = (taskId: string) => {
-    setDraggedTaskId(taskId);
-  };
+  const taskFilterOptions = getTaskFilterOptions();
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
   };
 
-  const handleDrop = (e: React.DragEvent, targetTaskId: string) => {
+  const handleKanbanDrop = (e: React.DragEvent, targetTaskId: string, status: any) => {
     e.preventDefault();
-    if (!draggedTaskId || draggedTaskId === targetTaskId) return;
-
-    const draggedIndex = filteredTasks.findIndex(t => t.id === draggedTaskId);
-    const targetIndex = filteredTasks.findIndex(t => t.id === targetTaskId);
-
-    if (draggedIndex === -1 || targetIndex === -1) return;
-
-    // Reorder the tasks array
-    const newTasks = [...tasks];
-    const allDraggedIndex = newTasks.findIndex(t => t.id === draggedTaskId);
-    const allTargetIndex = newTasks.findIndex(t => t.id === targetTaskId);
-
-    const [draggedTask] = newTasks.splice(allDraggedIndex, 1);
-    newTasks.splice(allTargetIndex, 0, draggedTask);
-
-    setTasks(newTasks);
-    setDraggedTaskId(null);
-  };
-
-  const handleDragEnd = () => {
-    setDraggedTaskId(null);
-  };
-
-  // Search and filter logic
-  const filteredTasksBySearch = tasks.filter(task => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      task.title.toLowerCase().includes(query) ||
-      task.description.toLowerCase().includes(query) ||
-      task.tags.some(tag => tag.toLowerCase().includes(query))
-    );
-  });
-
-  let filteredTasks = selectedCategory === 'All'
-    ? filteredTasksBySearch
-    : filteredTasksBySearch.filter(task => task.status === selectedCategory);
-
-  // Apply additional filters
-  if (filters.assignees.length > 0) {
-    filteredTasks = filteredTasks.filter(task => filters.assignees.includes(task.assignedTo));
-  }
-  if (filters.tags.length > 0) {
-    filteredTasks = filteredTasks.filter(task => task.tags.some(tag => filters.tags.includes(tag)));
-  }
-  if (filters.taskTypes.length > 0) {
-    filteredTasks = filteredTasks.filter(task => filters.taskTypes.includes(task.taskType));
-  }
-  if (filters.priorities.length > 0) {
-    filteredTasks = filteredTasks.filter(task => filters.priorities.includes(task.priority));
-  }
-
-  const getTasksByStatus = (status: string) => {
-    return tasks.filter(task => task.status === status).length;
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'High':
-        return 'bg-red-100 text-red-700 border-red-200';
-      case 'Medium':
-        return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-      case 'Low':
-        return 'bg-green-100 text-green-700 border-green-200';
-      default:
-        return 'bg-gray-100 text-gray-700 border-gray-200';
+    handleDrop(targetTaskId);
+    if (draggedTaskId) {
+      updateTask(draggedTaskId, { status });
     }
-  };
-
-  const getTaskTypeIcon = (type: string) => {
-    return null;
-  };
-
-  const getPriorityIcon = (priority: string) => {
-    switch (priority) {
-      case 'Urgent':
-        return (
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="text-red-500">
-            <circle cx="8" cy="12" r="1" fill="currentColor"/>
-            <path d="M8 2v7" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-          </svg>
-        );
-      case 'High':
-        return (
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" className="text-gray-600">
-            <rect x="2" y="4" width="3" height="10" rx="1"/>
-            <rect x="6.5" y="6" width="3" height="8" rx="1"/>
-            <rect x="11" y="8" width="3" height="6" rx="1"/>
-          </svg>
-        );
-      case 'Medium':
-        return (
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" className="text-gray-500">
-            <rect x="3" y="6" width="4" height="8" rx="1"/>
-            <rect x="9" y="9" width="4" height="5" rx="1"/>
-          </svg>
-        );
-      case 'Low':
-        return (
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" className="text-gray-400">
-            <rect x="6" y="9" width="4" height="5" rx="1"/>
-          </svg>
-        );
-      default:
-        return (
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="text-gray-400">
-            <path d="M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeDasharray="2 2"/>
-          </svg>
-        );
-    }
-  };
-
-  const availablePriorities: Array<'No priority' | 'Urgent'> = [
-    'No priority',
-    'Urgent'
-  ];
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  };
-
-  const getDaysUntilDue = (dateString: string) => {
-    const date = new Date(dateString);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const taskDate = new Date(date);
-    taskDate.setHours(0, 0, 0, 0);
-
-    const diffTime = taskDate.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 0) return 'Today';
-    if (diffDays === -1) return '1 day overdue';
-    if (diffDays === 1) return '1 day';
-    if (diffDays < 0) return `${Math.abs(diffDays)} days overdue`;
-    return `${diffDays} days`;
-  };
-
-  const toggleTaskComplete = (taskId: string) => {
-    setTasks(prevTasks =>
-      prevTasks.map(task =>
-        task.id === taskId
-          ? { ...task, status: task.status === 'Completed' ? 'Upcoming' : 'Completed' }
-          : task
-      )
-    );
   };
 
   return (
@@ -788,7 +199,7 @@ export default function TasksContent() {
                 )}
               </button>
               {showBulkActionsDropdown && selectedTasks.length > 0 && (
-                <div className="absolute top-full left-0 mt-1 bg-white border border-[var(--border)] rounded-lg shadow-lg z-10 min-w-[250px]">
+                <div className="absolute top-full right-0 mt-1 bg-white border border-[var(--border)] rounded-lg shadow-lg z-10 min-w-[250px]">
                   <div className="p-3 space-y-3">
                     {/* Bulk Change Assignee */}
                     <div>
@@ -805,7 +216,7 @@ export default function TasksContent() {
                         className="w-full px-3 py-2 border border-[var(--border)] rounded text-sm focus:outline-none focus:border-[var(--primary)]"
                       >
                         <option value="">Select assignee...</option>
-                        {availableAssignees.map(assignee => (
+                        {AVAILABLE_ASSIGNEES.map(assignee => (
                           <option key={assignee} value={assignee}>{assignee}</option>
                         ))}
                       </select>
@@ -826,51 +237,17 @@ export default function TasksContent() {
                         className="w-full px-3 py-2 border border-[var(--border)] rounded text-sm focus:outline-none focus:border-[var(--primary)]"
                       >
                         <option value="">Select priority...</option>
-                        {availablePriorities.map(priority => (
+                        {AVAILABLE_PRIORITIES.map(priority => (
                           <option key={priority} value={priority}>{priority}</option>
                         ))}
                       </select>
-                    </div>
-
-                    {/* Bulk Change Due Date */}
-                    <div>
-                      <label className="text-xs font-semibold text-[var(--muted-foreground)] mb-1 block">Change Due Date</label>
-                      <input
-                        type="date"
-                        onChange={(e) => {
-                          if (e.target.value) {
-                            selectedTasks.forEach(taskId => {
-                              updateTask(taskId, { dueDate: e.target.value });
-                            });
-                            e.target.value = '';
-                          }
-                        }}
-                        className="w-full px-3 py-2 border border-[var(--border)] rounded text-sm focus:outline-none focus:border-[var(--primary)]"
-                      />
-                    </div>
-
-                    {/* Bulk Change Reminder Date */}
-                    <div>
-                      <label className="text-xs font-semibold text-[var(--muted-foreground)] mb-1 block">Change Reminder Date</label>
-                      <input
-                        type="date"
-                        onChange={(e) => {
-                          if (e.target.value) {
-                            selectedTasks.forEach(taskId => {
-                              updateTask(taskId, { reminderDate: e.target.value });
-                            });
-                            e.target.value = '';
-                          }
-                        }}
-                        className="w-full px-3 py-2 border border-[var(--border)] rounded text-sm focus:outline-none focus:border-[var(--primary)]"
-                      />
                     </div>
 
                     {/* Bulk Add Tags */}
                     <div>
                       <label className="text-xs font-semibold text-[var(--muted-foreground)] mb-1 block">Add Tags</label>
                       <div className="space-y-1 max-h-[120px] overflow-y-auto border border-[var(--border)] rounded p-2">
-                        {availableTags.map(tag => (
+                        {AVAILABLE_TAGS.map(tag => (
                           <label key={tag} className="flex items-center gap-2 px-2 py-1 hover:bg-[var(--muted)] rounded cursor-pointer">
                             <input
                               type="checkbox"
@@ -909,12 +286,6 @@ export default function TasksContent() {
                 </div>
               )}
             </div>
-            <button className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors">
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M3 4h14M6 8h11M9 12h8M12 16h5" strokeLinecap="round"/>
-              </svg>
-              Sort
-            </button>
             <button
               onClick={() => setShowSummarizeModal(true)}
               className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-medium text-sm hover:from-purple-700 hover:to-blue-700 transition-all shadow-md"
@@ -963,7 +334,7 @@ export default function TasksContent() {
       {/* Category Filters and Bulk Select */}
       <div className="mb-6 flex items-center gap-4">
         <div className="flex gap-2 overflow-x-auto pb-2 flex-1">
-          {categories.map((category) => (
+          {TASK_CATEGORIES.map((category) => (
             <button
               key={category}
               onClick={() => setSelectedCategory(category)}
@@ -1004,1228 +375,81 @@ export default function TasksContent() {
         </div>
       </div>
 
-      {/* Grid View */}
-      {viewMode === 'grid' ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {filteredTasks.map((task) => (
-            <div
-              key={task.id}
-              onClick={() => setSelectedTask(task)}
-              className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-5 hover:shadow-lg transition-all cursor-pointer"
-            >
-              {/* Task Header */}
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3 flex-1">
-                  <input
-                    type="checkbox"
-                    checked={task.completed}
-                    onChange={(e) => {
-                      e.stopPropagation();
-                      updateTask(task.id, { completed: !task.completed });
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                    className="w-5 h-5 accent-[var(--primary)] rounded flex-shrink-0"
-                  />
-                  {editingTask === task.id && editingField === 'title' ? (
-                    <input
-                      type="text"
-                      value={editValue}
-                      onChange={(e) => setEditValue(e.target.value)}
-                      onBlur={() => saveTitleEdit(task.id)}
-                      onClick={(e) => e.stopPropagation()}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') saveTitleEdit(task.id);
-                        if (e.key === 'Escape') cancelEdit();
-                      }}
-                      autoFocus
-                      className="flex-1 font-semibold text-[var(--foreground)] text-base px-2 py-1 border border-[var(--primary)] rounded focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                    />
-                  ) : (
-                    <h3
-                      className={`font-semibold text-[var(--foreground)] text-base cursor-pointer hover:bg-[var(--muted)] px-2 py-1 rounded ${task.completed ? 'line-through opacity-60' : ''}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        startEditingTitle(task.id, task.title);
-                      }}
-                    >
-                      {task.title}
-                    </h3>
-                  )}
-                </div>
-                {showPriorityDropdown === task.id ? (
-                  <select
-                    value={task.priority}
-                    onChange={(e) => {
-                      updateTask(task.id, { priority: e.target.value as 'No priority' | 'Urgent' });
-                      setShowPriorityDropdown(null);
-                    }}
-                    onBlur={() => setShowPriorityDropdown(null)}
-                    onClick={(e) => e.stopPropagation()}
-                    autoFocus
-                    className="px-2 py-1 border border-[var(--primary)] rounded text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                  >
-                    <option value="No priority">No priority</option>
-                    <option value="Urgent">Urgent</option>
-                  </select>
-                ) : task.priority === 'Urgent' ? (
-                  <span
-                    className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-medium cursor-pointer hover:bg-red-200"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowPriorityDropdown(task.id);
-                    }}
-                  >
-                    Urgent
-                  </span>
-                ) : (
-                  <span
-                    className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium cursor-pointer hover:bg-gray-200"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowPriorityDropdown(task.id);
-                    }}
-                  >
-                    No priority
-                  </span>
-                )}
-              </div>
-
-              {/* Task Description */}
-              {editingTask === task.id && editingField === 'description' ? (
-                <textarea
-                  value={editValue}
-                  onChange={(e) => setEditValue(e.target.value)}
-                  onBlur={() => saveDescriptionEdit(task.id)}
-                  onClick={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && e.ctrlKey) saveDescriptionEdit(task.id);
-                    if (e.key === 'Escape') cancelEdit();
-                  }}
-                  autoFocus
-                  rows={3}
-                  className="w-full text-sm text-[var(--muted-foreground)] mb-4 px-2 py-1 border border-[var(--primary)] rounded focus:outline-none focus:ring-2 focus:ring-[var(--primary)] resize-none"
-                />
-              ) : (
-                <p
-                  className="text-sm text-[var(--muted-foreground)] mb-4 line-clamp-2 cursor-pointer hover:bg-[var(--muted)] px-2 py-1 rounded"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    startEditingDescription(task.id, task.description);
-                  }}
-                >
-                  {task.description}
-                </p>
-              )}
-
-              {/* Task Metadata */}
-              <div className="mb-3">
-                <div className="flex items-center gap-2 text-xs text-[var(--muted-foreground)] mb-2 flex-wrap">
-                  {showTaskTypeDropdown === task.id ? (
-                    <select
-                      value={task.taskType}
-                      onChange={(e) => {
-                        updateTask(task.id, { taskType: e.target.value });
-                        setShowTaskTypeDropdown(null);
-                      }}
-                      onBlur={() => setShowTaskTypeDropdown(null)}
-                      autoFocus
-                      className="px-2 py-1 bg-gray-100 text-gray-700 rounded font-medium border border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                    >
-                      {availableTaskTypes.map(type => (
-                        <option key={type} value={type}>{type}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <span
-                      className="px-2 py-1 bg-gray-100 text-gray-700 rounded font-medium cursor-pointer hover:bg-gray-200"
-                      onClick={() => setShowTaskTypeDropdown(task.id)}
-                    >
-                      {task.taskType}
-                    </span>
-                  )}
-                  <span>Due:</span>
-                  {showDueDatePicker === task.id ? (
-                    <input
-                      type="date"
-                      value={task.dueDate}
-                      onChange={(e) => {
-                        updateTask(task.id, { dueDate: e.target.value });
-                        setShowDueDatePicker(null);
-                      }}
-                      onBlur={() => setShowDueDatePicker(null)}
-                      autoFocus
-                      className="px-2 py-1 border border-[var(--primary)] rounded focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                    />
-                  ) : (
-                    <span
-                      className="cursor-pointer hover:bg-[var(--muted)] px-2 py-1 rounded"
-                      onClick={() => setShowDueDatePicker(task.id)}
-                    >
-                      {formatTaskDate(task.dueDate)}
-                    </span>
-                  )}
-                </div>
-
-                {/* Entity Links */}
-                {task.entities && (
-                  <div className="flex gap-1.5 flex-wrap text-xs">
-                    {task.entities.jobs?.map((job, idx) => (
-                      <span key={idx} className="px-2 py-1 bg-gray-100 text-gray-700 rounded">
-                        Job: {job}
-                      </span>
-                    ))}
-                    {task.entities.contacts?.map((contact, idx) => (
-                      <span key={idx} className="px-2 py-1 bg-gray-100 text-gray-700 rounded">
-                        {contact}
-                      </span>
-                    ))}
-                    {task.entities.companies?.map((company, idx) => (
-                      <span key={idx} className="px-2 py-1 bg-gray-100 text-gray-700 rounded">
-                        {company}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Tags */}
-              <div className="flex gap-1.5 mb-4 flex-wrap">
-                {task.tags.map((tag, idx) => (
-                  <span
-                    key={idx}
-                    className="px-2 py-1 bg-[var(--secondary)] text-[var(--secondary-foreground)] rounded text-xs font-medium flex items-center gap-1 group cursor-pointer"
-                  >
-                    {tag}
-                    <button
-                      onClick={() => removeTag(task.id, tag)}
-                      className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
-                      title="Remove tag"
-                    >
-                      <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M5 5l10 10M15 5l-10 10" strokeLinecap="round"/>
-                      </svg>
-                    </button>
-                  </span>
-                ))}
-                {showTagsDropdown === task.id ? (
-                  <select
-                    value=""
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        addTag(task.id, e.target.value);
-                        setShowTagsDropdown(null);
-                      }
-                    }}
-                    onBlur={() => setShowTagsDropdown(null)}
-                    autoFocus
-                    className="px-2 py-1 border border-[var(--primary)] rounded text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                  >
-                    <option value="">Select tag...</option>
-                    {availableTags.filter(t => !task.tags.includes(t)).map(tag => (
-                      <option key={tag} value={tag}>{tag}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <button
-                    onClick={() => setShowTagsDropdown(task.id)}
-                    className="px-2 py-1 border border-dashed border-[var(--border)] text-[var(--muted-foreground)] rounded text-xs hover:border-[var(--primary)] hover:text-[var(--primary)] transition-colors"
-                  >
-                    + Add tag
-                  </button>
-                )}
-              </div>
-
-              {/* Task Footer */}
-              <div className="flex items-center justify-between pt-3 border-t border-[var(--border)]">
-                {showAssigneeDropdown === task.id ? (
-                  <select
-                    value={task.assignedTo}
-                    onChange={(e) => {
-                      updateTask(task.id, { assignedTo: e.target.value });
-                      setShowAssigneeDropdown(null);
-                    }}
-                    onBlur={() => setShowAssigneeDropdown(null)}
-                    autoFocus
-                    className="flex items-center gap-2 px-2 py-1 border border-[var(--primary)] rounded text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                  >
-                    {availableAssignees.map(assignee => (
-                      <option key={assignee} value={assignee}>{assignee}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <div
-                    className="flex items-center gap-2 cursor-pointer hover:bg-[var(--muted)] px-2 py-1 rounded"
-                    onClick={() => setShowAssigneeDropdown(task.id)}
-                  >
-                    <div className={`w-6 h-6 rounded-full ${getAvatarColor(task.assignedTo)} flex items-center justify-center text-white text-xs font-semibold`}>
-                      {getInitials(task.assignedTo)}
-                    </div>
-                    <div className="text-xs text-[var(--muted-foreground)]">
-                      {task.assignedTo}
-                    </div>
-                  </div>
-                )}
-                <div className="flex items-center gap-3 text-xs text-[var(--muted-foreground)]">
-                  {(task.comments ?? 0) > 0 && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedTask(task);
-                      }}
-                      className="flex items-center gap-1 hover:text-[var(--primary)] transition-colors"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M2 4c0-1 1-2 2-2h12c1 0 2 1 2 2v10c0 1-1 2-2 2H6l-4 3V4z" strokeLinecap="round"/>
-                      </svg>
-                      {task.comments}
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : viewMode === 'list' ? (
-        <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
-          <div className="divide-y divide-[var(--border)]">
-            {filteredTasks.map((task) => (
-              <div
-                key={task.id}
-                onClick={() => setSelectedTask(task)}
-                className="p-4 hover:bg-[var(--muted)]/20 transition-colors cursor-pointer"
-              >
-                <div className="flex items-start gap-4">
-                  {/* Checkbox */}
-                  <input
-                    type="checkbox"
-                    checked={task.completed}
-                    onChange={(e) => {
-                      e.stopPropagation();
-                      updateTask(task.id, { completed: !task.completed });
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                    className="w-5 h-5 accent-[var(--primary)] rounded mt-1 flex-shrink-0"
-                  />
-
-                  {/* Avatar */}
-                  {showAssigneeDropdown === task.id ? (
-                    <select
-                      value={task.assignedTo}
-                      onChange={(e) => {
-                        updateTask(task.id, { assignedTo: e.target.value });
-                        setShowAssigneeDropdown(null);
-                      }}
-                      onBlur={() => setShowAssigneeDropdown(null)}
-                      onClick={(e) => e.stopPropagation()}
-                      autoFocus
-                      className="w-10 h-10 px-1 py-1 border border-[var(--primary)] rounded-full text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                    >
-                      {availableAssignees.map(assignee => (
-                        <option key={assignee} value={assignee}>{getInitials(assignee)}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <div
-                      className={`w-10 h-10 rounded-full ${getAvatarColor(task.assignedTo)} flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-[var(--primary)]`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowAssigneeDropdown(task.id);
-                      }}
-                    >
-                      {getInitials(task.assignedTo)}
-                    </div>
-                  )}
-
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    {/* Header */}
-                    <div className="flex items-start justify-between gap-4 mb-2">
-                      <div className="flex-1 min-w-0">
-                        {editingTask === task.id && editingField === 'title' ? (
-                          <input
-                            type="text"
-                            value={task.priority}
-                            onChange={(e) => { updateTask(task.id, { priority: e.target.value as 'No priority' | 'Urgent' }); setShowPriorityDropdown(null); }}
-                            onBlur={() => saveTitleEdit(task.id)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') saveTitleEdit(task.id);
-                              if (e.key === 'Escape') cancelEdit();
-                            }}
-                            autoFocus
-                            className="w-full font-semibold text-[var(--foreground)] text-base mb-1 px-2 py-1 border border-[var(--primary)] rounded focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                          />
-                        ) : (
-                          <h3
-                            className={`font-semibold text-[var(--foreground)] text-base mb-1 cursor-pointer hover:bg-[var(--muted)] px-2 py-1 rounded ${task.completed ? 'line-through opacity-60' : ''}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              startEditingTitle(task.id, task.title);
-                            }}
-                          >
-                            {task.title}
-                          </h3>
-                        )}
-                        <div className="flex items-center gap-2 text-xs text-[var(--muted-foreground)] flex-wrap">
-                          <span>{task.assignedTo}</span>
-                          <span>·</span>
-                          <span>Due:</span>
-                          {showDueDatePicker === task.id ? (
-                            <input
-                              type="date"
-                              value={task.dueDate}
-                              onChange={(e) => {
-                                updateTask(task.id, { dueDate: e.target.value });
-                                setShowDueDatePicker(null);
-                              }}
-                              onBlur={() => setShowDueDatePicker(null)}
-                              autoFocus
-                              className="px-2 py-1 border border-[var(--primary)] rounded focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                            />
-                          ) : (
-                            <span
-                              className="cursor-pointer hover:bg-[var(--muted)] px-2 py-1 rounded"
-                              onClick={() => setShowDueDatePicker(task.id)}
-                            >
-                              {formatTaskDate(task.dueDate)}
-                            </span>
-                          )}
-                          {showPriorityDropdown === task.id ? (
-                            <>
-                              <span>·</span>
-                              <select
-                                value={task.priority}
-                                onChange={(e) => { updateTask(task.id, { priority: e.target.value as 'No priority' | 'Urgent' }); setShowPriorityDropdown(null); }}
-                                onBlur={() => setShowPriorityDropdown(null)}
-                                autoFocus
-                                className="px-2 py-0.5 border border-[var(--primary)] rounded font-medium focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                              >
-                                {availablePriorities.map(p => (
-                                  <option key={p} value={p}>{p}</option>
-                                ))}
-                              </select>
-                            </>
-                          ) : task.priority === 'Urgent' ? (
-                            <>
-                              <span>·</span>
-                              <span
-                                className="px-2 py-0.5 bg-red-100 text-red-700 rounded font-medium cursor-pointer hover:bg-red-200"
-                                onClick={() => setShowPriorityDropdown(task.id)}
-                              >
-                                Urgent
-                              </span>
-                            </>
-                          ) : null}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Task Description */}
-                    {editingTask === task.id && editingField === 'description' ? (
-                      <textarea
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onBlur={() => saveEdit(task.id, 'description')}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && e.ctrlKey) saveDescriptionEdit(task.id);
-                          if (e.key === 'Escape') cancelEdit();
-                        }}
-                        autoFocus
-                        rows={2}
-                        className="w-full text-sm text-[var(--muted-foreground)] mb-3 px-2 py-1 border border-[var(--primary)] rounded focus:outline-none focus:ring-2 focus:ring-[var(--primary)] resize-none"
-                      />
-                    ) : (
-                      <p
-                        className="text-sm text-[var(--muted-foreground)] mb-3 line-clamp-2 cursor-pointer hover:bg-[var(--muted)] px-2 py-1 rounded"
-                        onClick={() => startEditingDescription(task.id, task.description)}
-                      >
-                        {task.description}
-                      </p>
-                    )}
-
-                    {/* Entity Links */}
-                    {task.entities && (
-                      <div className="mb-2 flex gap-1.5 flex-wrap text-xs">
-                        {showTaskTypeDropdown === task.id ? (
-                          <select
-                            value={task.taskType}
-                            onChange={(e) => { updateTask(task.id, { taskType: e.target.value }); setShowTaskTypeDropdown(null); }}
-                            onBlur={() => saveEdit(task.id, 'taskType')}
-                            autoFocus
-                            className="px-2 py-1 bg-gray-100 text-gray-700 rounded font-medium border border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                          >
-                            {availableTaskTypes.map(type => (
-                              <option key={type} value={type}>{type}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <span
-                            className="px-2 py-1 bg-gray-100 text-gray-700 rounded font-medium cursor-pointer hover:bg-gray-200"
-                            onClick={() => setShowTaskTypeDropdown(task.id)}
-                          >
-                            {task.taskType}
-                          </span>
-                        )}
-                        {task.entities.jobs?.map((job, idx) => (
-                          <span key={idx} className="px-2 py-1 bg-gray-100 text-gray-700 rounded">
-                            Job: {job}
-                          </span>
-                        ))}
-                        {task.entities.contacts?.map((contact, idx) => (
-                          <span key={idx} className="px-2 py-1 bg-gray-100 text-gray-700 rounded">
-                            {contact}
-                          </span>
-                        ))}
-                        {task.entities.companies?.map((company, idx) => (
-                          <span key={idx} className="px-2 py-1 bg-gray-100 text-gray-700 rounded">
-                            {company}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Tags and Metadata */}
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <div className="flex gap-1.5 flex-wrap">
-                        {task.tags.map((tag, idx) => (
-                          <span
-                            key={idx}
-                            className="px-2 py-1 bg-[var(--secondary)] text-[var(--secondary-foreground)] rounded text-xs font-medium flex items-center gap-1 group cursor-pointer"
-                          >
-                            {tag}
-                            <button
-                              onClick={() => removeTag(task.id, tag)}
-                              className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
-                              title="Remove tag"
-                            >
-                              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M5 5l10 10M15 5l-10 10" strokeLinecap="round"/>
-                              </svg>
-                            </button>
-                          </span>
-                        ))}
-                        {showTagsDropdown === task.id ? (
-                          <select
-                            value=""
-                            onChange={(e) => {
-                              if (e.target.value) {
-                                addTag(task.id, e.target.value);
-                                setEditingField(null);
-                                setShowTagsDropdown(null);
-                              }
-                            }}
-                            onBlur={() => cancelEdit()}
-                            autoFocus
-                            className="px-2 py-1 border border-[var(--primary)] rounded text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                          >
-                            <option value="">Select tag...</option>
-                            {availableTags.filter(t => !task.tags.includes(t)).map(tag => (
-                              <option key={tag} value={tag}>{tag}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <button
-                            onClick={() => setShowTagsDropdown(task.id)}
-                            className="px-2 py-1 border border-dashed border-[var(--border)] text-[var(--muted-foreground)] rounded text-xs hover:border-[var(--primary)] hover:text-[var(--primary)] transition-colors"
-                          >
-                            + Add tag
-                          </button>
-                        )}
-                      </div>
-                      {(task.comments ?? 0) > 0 && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedTask(task);
-                          }}
-                          className="flex items-center gap-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--primary)] transition-colors"
-                        >
-                          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M2 4c0-1 1-2 2-2h12c1 0 2 1 2 2v10c0 1-1 2-2 2H6l-4 3V4z" strokeLinecap="round"/>
-                          </svg>
-                          {task.comments}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : viewMode === 'spreadsheet' ? (
-        /* Spreadsheet View */
-        <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-[var(--muted)]/30 border-b border-[var(--border)]">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider w-12">
-                    <input
-                      type="checkbox"
-                      checked={selectedTasks.length === filteredTasks.length && filteredTasks.length > 0}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedTasks(filteredTasks.map(t => t.id));
-                        } else {
-                          setSelectedTasks([]);
-                        }
-                      }}
-                      className="w-4 h-4 accent-[var(--primary)]"
-                    />
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider w-12">Done</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider w-[300px]">Title</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider w-[375px]">Description</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Priority</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Assignee</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Due Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Type</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Tags</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border)]">
-                {filteredTasks.map((task) => (
-                  <tr key={task.id} className="hover:bg-[var(--muted)]/20 transition-colors">
-                    <td className="px-4 py-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedTasks.includes(task.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedTasks(prev => [...prev, task.id]);
-                          } else {
-                            setSelectedTasks(prev => prev.filter(id => id !== task.id));
-                          }
-                        }}
-                        className="w-4 h-4 accent-[var(--primary)]"
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => toggleTaskComplete(task.id)}
-                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
-                          task.status === 'Completed'
-                            ? 'bg-green-500 border-green-500'
-                            : 'bg-white border-gray-300 hover:border-green-500'
-                        }`}
-                      >
-                        {task.status === 'Completed' && (
-                          <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="white" strokeWidth="3">
-                            <path d="M5 10l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
-                        )}
-                      </button>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="relative">
-                        <button
-                          onClick={() => setTaskDetailModal(task.id)}
-                          className="text-left w-full"
-                        >
-                          {task.title.length > 80 ? (
-                            <div className="text-sm font-medium text-[var(--foreground)] hover:text-[var(--primary)] transition-colors">
-                              <div className="line-clamp-2">{task.title}</div>
-                              <span className="text-xs text-[var(--primary)] hover:underline mt-1">
-                                Read more...
-                              </span>
-                            </div>
-                          ) : (
-                            <div className="text-sm font-medium text-[var(--foreground)] hover:text-[var(--primary)] transition-colors line-clamp-2">{task.title}</div>
-                          )}
-                        </button>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="relative">
-                        {task.description.length > 100 ? (
-                          <div className="text-xs text-[var(--muted-foreground)]">
-                            <div className="line-clamp-3">{task.description}</div>
-                            <button
-                              onClick={() => setExpandedText({ taskId: task.id, field: 'description' })}
-                              className="text-xs text-[var(--primary)] hover:underline mt-1"
-                            >
-                              Read more...
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="text-xs text-[var(--muted-foreground)] line-clamp-3">{task.description}</div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <select
-                        value={task.status}
-                        onChange={(e) => updateTask(task.id, { status: e.target.value as Task['status'] })}
-                        className="px-2 py-1 text-sm border border-[var(--border)] rounded focus:outline-none focus:border-[var(--primary)]"
-                      >
-                        <option value="Today">Today</option>
-                        <option value="Overdue">Overdue</option>
-                        <option value="Upcoming">Upcoming</option>
-                        <option value="Waiting">Waiting</option>
-                        <option value="Completed">Completed</option>
-                      </select>
-                    </td>
-                    <td className="px-4 py-3">
-                      <select
-                        value={task.priority}
-                        onChange={(e) => updateTask(task.id, { priority: e.target.value as Task['priority'] })}
-                        className="px-2 py-1 text-sm border border-[var(--border)] rounded focus:outline-none focus:border-[var(--primary)]"
-                      >
-                        <option value="No priority">No priority</option>
-                        <option value="Urgent">Urgent</option>
-                      </select>
-                    </td>
-                    <td className="px-4 py-3">
-                      <select
-                        value={task.assignedTo}
-                        onChange={(e) => updateTask(task.id, { assignedTo: e.target.value })}
-                        className="px-2 py-1 text-sm border border-[var(--border)] rounded focus:outline-none focus:border-[var(--primary)]"
-                      >
-                        {availableAssignees.map(assignee => (
-                          <option key={assignee} value={assignee}>{assignee}</option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="px-4 py-3">
-                      <input
-                        type="date"
-                        value={task.dueDate}
-                        onChange={(e) => updateTask(task.id, { dueDate: e.target.value })}
-                        className="px-2 py-1 text-sm border border-[var(--border)] rounded focus:outline-none focus:border-[var(--primary)]"
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      <select
-                        value={task.taskType}
-                        onChange={(e) => updateTask(task.id, { taskType: e.target.value })}
-                        className="px-2 py-1 text-sm border border-[var(--border)] rounded focus:outline-none focus:border-[var(--primary)]"
-                      >
-                        {availableTaskTypes.map(type => (
-                          <option key={type} value={type}>{type}</option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-1 flex-wrap">
-                        {task.tags.map((tag, idx) => (
-                          <span
-                            key={idx}
-                            className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : viewMode === 'kanban' ? (
-        /* Kanban View */
-        <div className="grid grid-cols-5 gap-4">
-          {categories.filter(cat => cat !== 'All').map((status) => (
-            <div key={status} className="bg-[var(--card)] border border-[var(--border)] rounded-lg">
-              <div className="p-4 border-b border-[var(--border)]">
-                <h3 className="font-semibold text-[var(--foreground)] flex items-center justify-between">
-                  {status}
-                  <span className="text-xs text-[var(--muted-foreground)] bg-[var(--muted)] px-2 py-1 rounded">
-                    {tasks.filter(t => t.status === status).length}
-                  </span>
-                </h3>
-              </div>
-              <div className="p-2 space-y-2 min-h-[500px]">
-                {tasks.filter(t => t.status === status).map((task) => (
-                  <div
-                    key={task.id}
-                    draggable
-                    onDragStart={() => handleDragStart(task.id)}
-                    onDragOver={handleDragOver}
-                    onDrop={(e) => {
-                      handleDrop(e, task.id);
-                      // Also update the status when dropping in a different column
-                      if (draggedTaskId) {
-                        updateTask(draggedTaskId, { status: status as Task['status'] });
-                      }
-                    }}
-                    onDragEnd={handleDragEnd}
-                    className={`bg-white border border-[var(--border)] rounded-lg p-3 cursor-move hover:shadow-md transition-all ${
-                      draggedTaskId === task.id ? 'opacity-50' : ''
-                    }`}
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <h4 className="font-medium text-sm text-[var(--foreground)]">{task.title}</h4>
-                      <button
-                        onClick={() => toggleTaskComplete(task.id)}
-                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors flex-shrink-0 ml-2 ${
-                          task.status === 'Completed'
-                            ? 'bg-green-500 border-green-500'
-                            : 'bg-white border-gray-300 hover:border-green-500'
-                        }`}
-                      >
-                        {task.status === 'Completed' && (
-                          <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="white" strokeWidth="3">
-                            <path d="M5 10l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
-                        )}
-                      </button>
-                    </div>
-                    <p className="text-xs text-[var(--muted-foreground)] mb-2 line-clamp-2">{task.description}</p>
-                    <div className="flex items-center gap-2 text-xs text-[var(--muted-foreground)] mb-2">
-                      <span className="flex items-center gap-1">
-                        <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                          <rect x="3" y="4" width="14" height="14" rx="2"/>
-                          <path d="M3 8h14M7 2v4M13 2v4" strokeLinecap="round"/>
-                        </svg>
-                        {formatDate(task.dueDate)}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1 flex-wrap">
-                      {task.tags.slice(0, 2).map((tag, idx) => (
-                        <span
-                          key={idx}
-                          className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                      {task.tags.length > 2 && (
-                        <span className="text-xs text-[var(--muted-foreground)]">+{task.tags.length - 2}</span>
-                      )}
-                    </div>
-                    <div className="mt-2 pt-2 border-t border-[var(--border)] flex items-center justify-between">
-                      <span className="text-xs text-[var(--muted-foreground)]">{task.assignedTo}</span>
-                      {task.priority === 'Urgent' && (
-                        <span className="text-xs text-red-500 font-medium flex items-center gap-1">
-                          {getPriorityIcon(task.priority)}
-                          Urgent
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        /* Calendar View */
-        <CalendarView tasks={filteredTasks} onToggleComplete={toggleTaskComplete} />
+      {/* View Rendering */}
+      {viewMode === 'grid' && (
+        <GridView
+          tasks={filteredTasks}
+          editState={editState}
+          dropdowns={dropdowns}
+          onUpdateTask={updateTask}
+          onStartEditing={startEditing}
+          onSaveEdit={saveEdit}
+          onCancelEdit={cancelEdit}
+          onSetDropdown={setDropdown}
+          onAddTag={addTag}
+          onRemoveTag={removeTag}
+          onSelectTask={setSelectedTask}
+          setEditValue={(value) => setEditState({ ...editState, value })}
+        />
       )}
-
-      {/* Expanded Text Modal */}
-      {expandedText && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-          onClick={() => setExpandedText(null)}
-        >
-          <div
-            className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between mb-4">
-              <h3 className="text-lg font-semibold text-[var(--foreground)]">
-                {expandedText.field === 'title' ? 'Task Title' : 'Task Description'}
-              </h3>
-              <button
-                onClick={() => setExpandedText(null)}
-                className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-              >
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
-                </svg>
-              </button>
-            </div>
-            <div className="text-sm text-[var(--foreground)] whitespace-pre-wrap">
-              {expandedText.field === 'title'
-                ? tasks.find(t => t.id === expandedText.taskId)?.title
-                : tasks.find(t => t.id === expandedText.taskId)?.description}
-            </div>
-            <div className="mt-6 flex justify-end">
-              <button
-                onClick={() => setExpandedText(null)}
-                className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
+      
+      {viewMode === 'list' && (
+        <ListView
+          tasks={filteredTasks}
+          onUpdateTask={updateTask}
+          onSelectTask={setSelectedTask}
+        />
       )}
-
-      {/* Task Detail Modal */}
-      {taskDetailModal && (() => {
-        const task = tasks.find(t => t.id === taskDetailModal);
-        if (!task) return null;
-
-        return (
-          <div
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-            onClick={() => setTaskDetailModal(null)}
-          >
-            <div
-              className="bg-white rounded-lg p-6 max-w-3xl w-full mx-4 max-h-[85vh] overflow-y-auto"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-start justify-between mb-6">
-                <h2 className="text-2xl font-semibold text-[var(--foreground)]">Task Details</h2>
-                <button
-                  onClick={() => setTaskDetailModal(null)}
-                  className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                >
-                  <svg width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
-                  </svg>
-                </button>
-              </div>
-
-              <div className="space-y-6">
-                {/* Title */}
-                <div>
-                  <label className="block text-sm font-semibold text-[var(--foreground)] mb-2">Title</label>
-                  <div className="text-base text-[var(--foreground)]">{task.title}</div>
-                </div>
-
-                {/* Description */}
-                <div>
-                  <label className="block text-sm font-semibold text-[var(--foreground)] mb-2">Description</label>
-                  <div className="text-sm text-[var(--foreground)] whitespace-pre-wrap">{task.description}</div>
-                </div>
-
-                {/* Status and Priority Row */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-[var(--foreground)] mb-2">Status</label>
-                    <span className="inline-flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium">
-                      {task.status}
-                    </span>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-[var(--foreground)] mb-2">Priority</label>
-                    <span className={`inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium ${
-                      task.priority === 'Urgent'
-                        ? 'bg-red-100 text-red-700'
-                        : 'bg-gray-100 text-gray-700'
-                    }`}>
-                      {task.priority === 'Urgent' && (
-                        <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" className="mr-1.5">
-                          <circle cx="10" cy="15" r="1.5"/>
-                          <path d="M10 5v7" strokeWidth="2" stroke="currentColor" strokeLinecap="round"/>
-                        </svg>
-                      )}
-                      {task.priority}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Dates Row */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-[var(--foreground)] mb-2">Due Date</label>
-                    <div className="flex items-center gap-2 text-sm text-[var(--foreground)]">
-                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                        <rect x="3" y="4" width="14" height="14" rx="2"/>
-                        <path d="M3 8h14M7 2v4M13 2v4" strokeLinecap="round"/>
-                      </svg>
-                      {formatDate(task.dueDate)}
-                    </div>
-                  </div>
-                  {task.reminderDate && (
-                    <div>
-                      <label className="block text-sm font-semibold text-[var(--foreground)] mb-2">Reminder Date</label>
-                      <div className="flex items-center gap-2 text-sm text-[var(--foreground)]">
-                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M10 6v4l3 3" strokeLinecap="round"/>
-                          <circle cx="10" cy="10" r="7"/>
-                        </svg>
-                        {formatDate(task.reminderDate)}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Assignee and Task Type Row */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-[var(--foreground)] mb-2">Assigned To</label>
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-semibold">
-                        {task.assignedTo.split(' ').map(n => n[0]).join('')}
-                      </div>
-                      <span className="text-sm text-[var(--foreground)]">{task.assignedTo}</span>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-[var(--foreground)] mb-2">Task Type</label>
-                    <span className="inline-flex items-center px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-sm font-medium">
-                      {task.taskType}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Tags */}
-                {task.tags.length > 0 && (
-                  <div>
-                    <label className="block text-sm font-semibold text-[var(--foreground)] mb-2">Tags</label>
-                    <div className="flex flex-wrap gap-2">
-                      {task.tags.map((tag, idx) => (
-                        <span
-                          key={idx}
-                          className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Related Entities */}
-                {task.entities && (task.entities.jobs || task.entities.contacts || task.entities.companies) && (
-                  <div>
-                    <label className="block text-sm font-semibold text-[var(--foreground)] mb-2">Related Entities</label>
-                    <div className="space-y-3">
-                      {task.entities.jobs && task.entities.jobs.length > 0 && (
-                        <div>
-                          <div className="text-xs font-medium text-[var(--muted-foreground)] mb-1">Jobs</div>
-                          <div className="flex flex-wrap gap-2">
-                            {task.entities.jobs.map((job, idx) => (
-                              <span
-                                key={idx}
-                                className="px-2.5 py-1 bg-green-100 text-green-700 rounded text-xs font-medium"
-                              >
-                                {job}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {task.entities.contacts && task.entities.contacts.length > 0 && (
-                        <div>
-                          <div className="text-xs font-medium text-[var(--muted-foreground)] mb-1">Contacts</div>
-                          <div className="flex flex-wrap gap-2">
-                            {task.entities.contacts.map((contact, idx) => (
-                              <span
-                                key={idx}
-                                className="px-2.5 py-1 bg-orange-100 text-orange-700 rounded text-xs font-medium"
-                              >
-                                {contact}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {task.entities.companies && task.entities.companies.length > 0 && (
-                        <div>
-                          <div className="text-xs font-medium text-[var(--muted-foreground)] mb-1">Companies</div>
-                          <div className="flex flex-wrap gap-2">
-                            {task.entities.companies.map((company, idx) => (
-                              <span
-                                key={idx}
-                                className="px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded text-xs font-medium"
-                              >
-                                {company}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-6 pt-6 border-t border-[var(--border)] flex justify-end">
-                <button
-                  onClick={() => setTaskDetailModal(null)}
-                  className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+      
+      {viewMode === 'kanban' && (
+        <KanbanView
+          tasks={filteredTasks}
+          onUpdateTask={updateTask}
+          onToggleComplete={toggleTaskComplete}
+          draggedTaskId={draggedTaskId}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onDrop={handleKanbanDrop}
+        />
+      )}
+      
+      {viewMode === 'spreadsheet' && (
+        <SpreadsheetView
+          tasks={filteredTasks}
+          selectedTasks={selectedTasks}
+          onUpdateTask={updateTask}
+          onToggleComplete={toggleTaskComplete}
+          onSelectTask={(taskId, selected) => {
+            if (selected) {
+              setSelectedTasks(prev => [...prev, taskId]);
+            } else {
+              setSelectedTasks(prev => prev.filter(id => id !== taskId));
+            }
+          }}
+          onSelectAll={(selected) => {
+            if (selected) {
+              setSelectedTasks(filteredTasks.map(t => t.id));
+            } else {
+              setSelectedTasks([]);
+            }
+          }}
+        />
+      )}
+      
+      {viewMode === 'calendar' && (
+        <CalendarView
+          tasks={filteredTasks}
+          onToggleComplete={toggleTaskComplete}
+        />
+      )}
 
       {/* Task Modal */}
       {selectedTask && (
         <TaskModal
           task={selectedTask}
           onClose={() => setSelectedTask(null)}
-          onToggleComplete={handleToggleComplete}
+          onToggleComplete={toggleTaskComplete}
         />
-      )}
-
-      {/* Summarize Modal */}
-      {showSummarizeModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="sticky top-0 bg-gradient-to-r from-purple-600 to-blue-600 px-6 py-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-white/20 rounded-lg">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-                    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-                    <path d="M2 17l10 5 10-5"/>
-                    <path d="M2 12l10 5 10-5"/>
-                  </svg>
-                </div>
-                <div>
-                  <h2 className="text-xl font-semibold text-white">Summarize with FlowChat</h2>
-                  <p className="text-sm text-white/80">Select filters to generate AI summary</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowSummarizeModal(false)}
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-              >
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="white" strokeWidth="2">
-                  <path d="M4 4l12 12M16 4L4 16" strokeLinecap="round"/>
-                </svg>
-              </button>
-            </div>
-
-            {/* Modal Content */}
-            <div className="p-6 space-y-6">
-              {/* Date Range Filter */}
-              <div>
-                <label className="block text-sm font-semibold text-[var(--foreground)] mb-3">Date Range</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button className="px-4 py-2.5 border-2 border-purple-600 bg-purple-50 text-purple-700 rounded-lg text-sm font-medium hover:bg-purple-100 transition-colors">
-                    All Time
-                  </button>
-                  <button className="px-4 py-2.5 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors">
-                    Yesterday
-                  </button>
-                  <button className="px-4 py-2.5 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors">
-                    Last Week
-                  </button>
-                  <button className="px-4 py-2.5 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors">
-                    Current Year
-                  </button>
-                </div>
-              </div>
-
-              {/* Status Filter */}
-              <div>
-                <label className="block text-sm font-semibold text-[var(--foreground)] mb-3">Status</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="flex items-center gap-3 p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] cursor-pointer transition-colors">
-                    <input type="checkbox" className="w-4 h-4 accent-purple-600" />
-                    <span className="text-sm">Today</span>
-                  </label>
-                  <label className="flex items-center gap-3 p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] cursor-pointer transition-colors">
-                    <input type="checkbox" className="w-4 h-4 accent-purple-600" />
-                    <span className="text-sm">Overdue</span>
-                  </label>
-                  <label className="flex items-center gap-3 p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] cursor-pointer transition-colors">
-                    <input type="checkbox" className="w-4 h-4 accent-purple-600" />
-                    <span className="text-sm">Upcoming</span>
-                  </label>
-                  <label className="flex items-center gap-3 p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] cursor-pointer transition-colors">
-                    <input type="checkbox" className="w-4 h-4 accent-purple-600" />
-                    <span className="text-sm">Completed</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* Assigned To Filter */}
-              <div>
-                <label className="block text-sm font-semibold text-[var(--foreground)] mb-3">Assigned To</label>
-                <div className="space-y-2">
-                  <label className="flex items-center gap-3 p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] cursor-pointer transition-colors">
-                    <input type="checkbox" className="w-4 h-4 accent-purple-600" defaultChecked />
-                    <span className="text-sm">All Users</span>
-                  </label>
-                  <label className="flex items-center gap-3 p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] cursor-pointer transition-colors">
-                    <input type="checkbox" className="w-4 h-4 accent-purple-600" />
-                    <span className="text-sm">Sarah Johnson</span>
-                  </label>
-                  <label className="flex items-center gap-3 p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] cursor-pointer transition-colors">
-                    <input type="checkbox" className="w-4 h-4 accent-purple-600" />
-                    <span className="text-sm">Marcus Chen</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* Priority Filter */}
-              <div>
-                <label className="block text-sm font-semibold text-[var(--foreground)] mb-3">Priority</label>
-                <div className="flex flex-wrap gap-2">
-                  {['Urgent', 'No priority'].map((priority) => (
-                    <label key={priority} className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-full hover:bg-[var(--muted)] cursor-pointer transition-colors">
-                      <input type="checkbox" className="w-4 h-4 accent-purple-600" />
-                      <span className="text-sm">{priority}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {/* Task Type Filter */}
-              <div>
-                <label className="block text-sm font-semibold text-[var(--foreground)] mb-3">Task Type</label>
-                <div className="flex flex-wrap gap-2">
-                  {['Follow-up', 'Meeting', 'Call', 'Email', 'Site Visit'].map((type) => (
-                    <label key={type} className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-full hover:bg-[var(--muted)] cursor-pointer transition-colors">
-                      <input type="checkbox" className="w-4 h-4 accent-purple-600" />
-                      <span className="text-sm">{type}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {/* Summary Options */}
-              <div>
-                <label className="block text-sm font-semibold text-[var(--foreground)] mb-3">Summary Type</label>
-                <div className="space-y-2">
-                  <label className="flex items-center gap-3 p-3 border-2 border-purple-600 bg-purple-50 rounded-lg cursor-pointer transition-colors">
-                    <input type="radio" name="summaryType" className="w-4 h-4 accent-purple-600" defaultChecked />
-                    <div className="flex-1">
-                      <div className="text-sm font-medium text-purple-900">Brief Overview</div>
-                      <div className="text-xs text-purple-700">High-level summary with key points</div>
-                    </div>
-                  </label>
-                  <label className="flex items-center gap-3 p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] cursor-pointer transition-colors">
-                    <input type="radio" name="summaryType" className="w-4 h-4 accent-purple-600" />
-                    <div className="flex-1">
-                      <div className="text-sm font-medium">Detailed Analysis</div>
-                      <div className="text-xs text-[var(--muted-foreground)]">In-depth summary with insights and trends</div>
-                    </div>
-                  </label>
-                  <label className="flex items-center gap-3 p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] cursor-pointer transition-colors">
-                    <input type="radio" name="summaryType" className="w-4 h-4 accent-purple-600" />
-                    <div className="flex-1">
-                      <div className="text-sm font-medium">Action Items</div>
-                      <div className="text-xs text-[var(--muted-foreground)]">Focus on next steps and priorities</div>
-                    </div>
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="sticky bottom-0 bg-[var(--muted)]/30 px-6 py-4 border-t border-[var(--border)] flex items-center justify-between">
-              <div className="text-sm text-[var(--muted-foreground)]">
-                <span className="font-medium text-[var(--foreground)]">{filteredTasks.length}</span> tasks selected
-              </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowSummarizeModal(false)}
-                  className="px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
-                >
-                  Cancel
-                </button>
-                <button className="px-6 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg text-sm font-medium hover:from-purple-700 hover:to-blue-700 transition-all shadow-md">
-                  Generate Summary
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
       )}
     </main>
   );
