@@ -20,6 +20,13 @@ import {
   type ContactInput,
   type UpdateContactInput,
   type ContactLandingPage,
+  type PreOpportunity,
+  type PreOpportunityLandingPage,
+  type CreatePreOpportunityInput,
+  type UpdatePreOpportunityInput,
+  type ProductSearchResult,
+  type FactorySearchResult,
+  type CustomerSearchResult,
   type LandingPageFilter,
   type LandingPageOrderBy,
   // Job functions
@@ -46,6 +53,17 @@ import {
   updateContact,
   deleteContact,
   fetchContactLandingPages,
+  // PreOpportunity functions
+  fetchPreOpportunityLandingPages,
+  fetchPreOpportunity,
+  fetchPreOpportunitiesByJob,
+  fetchPreOpportunitiesByCustomer,
+  searchProducts,
+  searchFactories,
+  searchCustomers,
+  createPreOpportunity,
+  updatePreOpportunity,
+  deletePreOpportunity,
 } from '../lib/crm-graphql';
 
 // ============================================================================
@@ -75,6 +93,22 @@ export const crmQueryKeys = {
   contactsByCompany: (companyId: string) => [...crmQueryKeys.contacts(), 'byCompany', companyId] as const,
   contactLandingPages: (filters?: LandingPageFilter[], orderBy?: LandingPageOrderBy[]) => 
     [...crmQueryKeys.all, 'contactLandingPages', { filters, orderBy }] as const,
+  
+  // PreOpportunities
+  preOpportunities: () => [...crmQueryKeys.all, 'preOpportunities'] as const,
+  preOpportunity: (id: string) => [...crmQueryKeys.preOpportunities(), id] as const,
+  preOpportunitiesByJob: (jobId: string) => [...crmQueryKeys.preOpportunities(), 'byJob', jobId] as const,
+  preOpportunitiesByCustomer: (customerId: string) => [...crmQueryKeys.preOpportunities(), 'byCustomer', customerId] as const,
+  preOpportunityLandingPages: (filters?: LandingPageFilter[], orderBy?: LandingPageOrderBy[]) => 
+    [...crmQueryKeys.all, 'preOpportunityLandingPages', { filters, orderBy }] as const,
+  
+  // Search
+  productSearch: (searchTerm: string, factoryId?: string) => 
+    [...crmQueryKeys.all, 'productSearch', { searchTerm, factoryId }] as const,
+  factorySearch: (searchTerm: string, published?: boolean) => 
+    [...crmQueryKeys.all, 'factorySearch', { searchTerm, published }] as const,
+  customerSearch: (searchTerm: string, published?: boolean) => 
+    [...crmQueryKeys.all, 'customerSearch', { searchTerm, published }] as const,
 };
 
 // ============================================================================
@@ -380,3 +414,141 @@ export function useCRMContactLandingPages(
     staleTime: 30 * 1000,
   });
 }
+
+// ============================================================================
+// PreOpportunity Hooks
+// ============================================================================
+
+/**
+ * Fetch pre-opportunity landing pages with filtering/sorting
+ */
+export function useCRMPreOpportunityLandingPages(
+  filters?: LandingPageFilter[],
+  orderBy?: LandingPageOrderBy[]
+) {
+  return useQuery<PreOpportunityLandingPage[], Error>({
+    queryKey: crmQueryKeys.preOpportunityLandingPages(filters, orderBy),
+    queryFn: () => fetchPreOpportunityLandingPages(filters, orderBy),
+    enabled: hasCRMTokens(),
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Fetch single pre-opportunity
+ */
+export function useCRMPreOpportunity(id: string) {
+  return useQuery<PreOpportunity | null, Error>({
+    queryKey: crmQueryKeys.preOpportunity(id),
+    queryFn: () => fetchPreOpportunity(id),
+    enabled: hasCRMTokens() && !!id,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Fetch pre-opportunities by job
+ */
+export function useCRMPreOpportunitiesByJob(jobId: string) {
+  return useQuery<PreOpportunity[], Error>({
+    queryKey: crmQueryKeys.preOpportunitiesByJob(jobId),
+    queryFn: () => fetchPreOpportunitiesByJob(jobId),
+    enabled: hasCRMTokens() && !!jobId,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Fetch pre-opportunities by customer
+ */
+export function useCRMPreOpportunitiesByCustomer(customerId: string) {
+  return useQuery<PreOpportunity[], Error>({
+    queryKey: crmQueryKeys.preOpportunitiesByCustomer(customerId),
+    queryFn: () => fetchPreOpportunitiesByCustomer(customerId),
+    enabled: hasCRMTokens() && !!customerId,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Search for products
+ */
+export function useCRMProductSearch(searchTerm: string, factoryId?: string) {
+  return useQuery<ProductSearchResult[], Error>({
+    queryKey: crmQueryKeys.productSearch(searchTerm, factoryId),
+    queryFn: () => searchProducts(searchTerm, factoryId),
+    enabled: hasCRMTokens() && searchTerm.length > 0,
+    staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * Search for factories
+ */
+export function useCRMFactorySearch(searchTerm: string, published?: boolean) {
+  return useQuery<FactorySearchResult[], Error>({
+    queryKey: crmQueryKeys.factorySearch(searchTerm, published),
+    queryFn: () => searchFactories(searchTerm, published),
+    enabled: hasCRMTokens() && searchTerm.length > 0,
+    staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * Search for customers
+ */
+export function useCRMCustomerSearch(searchTerm: string, published?: boolean) {
+  return useQuery<CustomerSearchResult[], Error>({
+    queryKey: crmQueryKeys.customerSearch(searchTerm, published),
+    queryFn: () => searchCustomers(searchTerm, published),
+    enabled: hasCRMTokens() && searchTerm.length > 0,
+    staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * Create pre-opportunity mutation
+ */
+export function useCreateCRMPreOpportunity() {
+  const queryClient = useQueryClient();
+
+  return useMutation<PreOpportunity, Error, CreatePreOpportunityInput>({
+    mutationFn: createPreOpportunity,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.preOpportunities() });
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.preOpportunityLandingPages() });
+    },
+  });
+}
+
+/**
+ * Update pre-opportunity mutation
+ */
+export function useUpdateCRMPreOpportunity() {
+  const queryClient = useQueryClient();
+
+  return useMutation<PreOpportunity, Error, UpdatePreOpportunityInput>({
+    mutationFn: updatePreOpportunity,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.preOpportunities() });
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.preOpportunity(data.id) });
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.preOpportunityLandingPages() });
+    },
+  });
+}
+
+/**
+ * Delete pre-opportunity mutation
+ */
+export function useDeleteCRMPreOpportunity() {
+  const queryClient = useQueryClient();
+
+  return useMutation<boolean, Error, string>({
+    mutationFn: deletePreOpportunity,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.preOpportunities() });
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.preOpportunityLandingPages() });
+    },
+  });
+}
+

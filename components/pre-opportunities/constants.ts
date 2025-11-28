@@ -3,43 +3,41 @@
  */
 
 import type { PreOppStage } from './types';
+import type { PreOpportunityStatus } from './types';
 
-// Owner color palette
-export const OWNER_COLORS = [
-  'bg-orange-500',
-  'bg-teal-500',
-  'bg-green-500',
-  'bg-purple-500'
-] as const;
+// Status display configuration
+export const STATUS_CONFIG: Record<PreOpportunityStatus, { label: string; color: string }> = {
+  DRAFT: { label: 'Draft', color: 'bg-gray-500 text-white' },
+  PENDING: { label: 'Pending', color: 'bg-blue-500 text-white' },
+  APPROVED: { label: 'Approved', color: 'bg-green-500 text-white' },
+  REJECTED: { label: 'Rejected', color: 'bg-red-500 text-white' },
+  CONVERTED: { label: 'Converted', color: 'bg-purple-500 text-white' },
+} as const;
 
-// Default pre-opp stages
+// Default pre-opp stages for Kanban
 export const DEFAULT_STAGES: PreOppStage[] = [
-  { name: 'Qualified' },
-  { name: 'Negotiation' },
-  { name: 'Follow-up' },
-  { name: 'Waiting on Factory' },
-  { name: 'Lost' },
-  { name: 'Converted' },
+  { name: 'DRAFT', displayName: 'Draft', color: 'bg-gray-500' },
+  { name: 'PENDING', displayName: 'Pending', color: 'bg-blue-500' },
+  { name: 'APPROVED', displayName: 'Approved', color: 'bg-green-500' },
+  { name: 'REJECTED', displayName: 'Rejected', color: 'bg-red-500' },
+  { name: 'CONVERTED', displayName: 'Converted', color: 'bg-purple-500' },
 ] as const;
 
 // Stage color mapping
-export const STAGE_COLORS: Record<string, string> = {
-  'Qualified': 'bg-blue-500 text-white',
-  'Negotiation': 'bg-yellow-500 text-white',
-  'Follow-up': 'bg-purple-500 text-white',
-  'Waiting on Factory': 'bg-orange-500 text-white',
-  'Lost': 'bg-red-500 text-white',
-  'Converted': 'bg-green-500 text-white',
+export const STAGE_COLORS: Record<PreOpportunityStatus, string> = {
+  DRAFT: 'bg-gray-500 text-white',
+  PENDING: 'bg-blue-500 text-white',
+  APPROVED: 'bg-green-500 text-white',
+  REJECTED: 'bg-red-500 text-white',
+  CONVERTED: 'bg-purple-500 text-white',
 } as const;
 
-// Filter options column mapping (API column names to UI fields)
+// Filter options column mapping (API column names)
 export const FILTER_COLUMN_MAP: Record<string, string> = {
-  'preopp-id': 'id',
-  'preopp-name': 'name',
-  'stage': 'stage',
-  'job': 'job',
-  'sold-to': 'soldTo',
-  'manufacturer': 'manufacturer',
-  'owner': 'owner',
-  'tags': 'tags',
+  'entity-number': 'entityNumber',
+  'status': 'status',
+  'customer': 'soldToCustomerId',
+  'job': 'jobId',
+  'created-by': 'createdBy',
 } as const;
+

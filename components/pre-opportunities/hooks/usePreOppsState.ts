@@ -1,13 +1,14 @@
 /**
- * Custom Hook for Pre-Opportunities State Management
+ * Custom Hook for Pre-Opportunities State Management with API Integration
  */
 
 import { useState, useMemo } from 'react';
-import type { PreOpp, ViewMode } from '../types';
+import type { ViewMode, PreOpportunityStatus } from '../types';
 import type { ActiveFilter } from '../../AdvancedFilters';
-import { applyFilter, sortPreOpps, getUniqueValues } from '../utils';
+import { convertToLandingPageFilter, sortPreOpps, getUniqueValues, getPreOppsByStatus } from '../utils';
 import { DEFAULT_STAGES } from '../constants';
-import { INITIAL_PRE_OPPS } from '../mockData';
+import { useCRMPreOpportunityLandingPages } from '../../hooks/useCRMApi';
+import type { LandingPageFilter, LandingPageOrderBy } from '../../lib/crm-graphql';
 
 export function usePreOppsState() {
   // View mode
@@ -16,44 +17,54 @@ export function usePreOppsState() {
   // Drag and drop
   const [activeId, setActiveId] = useState<string | null>(null);
 
-  // Pre-opportunities data
-  const [preOpps, setPreOpps] = useState<PreOpp[]>(INITIAL_PRE_OPPS);
-
   // Filtering and sorting
   const [activeFilter, setActiveFilter] = useState<ActiveFilter | undefined>(undefined);
   const [clientSortColumn, setClientSortColumn] = useState<string | undefined>(undefined);
   const [clientSortDirection, setClientSortDirection] = useState<'ASC' | 'DESC'>('ASC');
 
-  // Process pre-opps with filtering and sorting
-  const processedPreOpps: PreOpp[] = useMemo(() => {
-    let filtered = [...preOpps];
+  // Convert activeFilter to API filter format
+  const apiFilters: LandingPageFilter[] | undefined = useMemo(() => {
+    if (!activeFilter) return undefined;
+    return [convertToLandingPageFilter(activeFilter)];
+  }, [activeFilter]);
 
-    // Apply client-side filter
-    if (activeFilter) {
-      filtered = filtered.filter((preOpp) => applyFilter(preOpp, activeFilter));
-    }
+  // Build orderBy for API
+  const apiOrderBy: LandingPageOrderBy[] | undefined = useMemo(() => {
+    if (!clientSortColumn) return undefined;
+    return [{ columnName: clientSortColumn, direction: clientSortDirection }];
+  }, [clientSortColumn, clientSortDirection]);
 
-    // Apply client-side sorting
-    if (clientSortColumn) {
-      filtered = sortPreOpps(filtered, clientSortColumn, clientSortDirection);
-    }
-
-    return filtered;
-  }, [preOpps, activeFilter, clientSortColumn, clientSortDirection]);
+  // Fetch pre-opportunities from API
+  const {
+    data: preOpps = [],
+    isLoading,
+    error,
+    refetch,
+  } = useCRMPreOpportunityLandingPages(apiFilters, apiOrderBy);
 
   // Get stages
   const stages = DEFAULT_STAGES;
 
   // Calculate unique values for filters
-  const uniquePreOppNames = useMemo(() => getUniqueValues(preOpps, 'name'), [preOpps]);
-  const uniqueStages = useMemo(() => getUniqueValues(preOpps, 'stage'), [preOpps]);
-  const uniqueJobs = useMemo(() => getUniqueValues(preOpps, 'job'), [preOpps]);
-  const uniqueSoldTo = useMemo(() => getUniqueValues(preOpps, 'soldTo'), [preOpps]);
-  const uniqueManufacturers = useMemo(() => getUniqueValues(preOpps, 'manufacturer'), [preOpps]);
-  const uniqueOwners = useMemo(() => getUniqueValues(preOpps, 'owner'), [preOpps]);
-  const uniqueTags = useMemo(() => {
-    const allTags = preOpps.flatMap(p => p.tags);
-    return Array.from(new Set(allTags)).sort();
+  const uniqueEntityNumbers = useMemo(() => getUniqueValues(preOpps, 'entityNumber'), [preOpps]);
+  const uniqueStatuses = useMemo(() => getUniqueValues(preOpps, 'status'), [preOpps]);
+  const uniqueCreatedBy = useMemo(() => getUniqueValues(preOpps, 'createdBy'), [preOpps]);
+
+  // Get counts by status
+  const statusCounts = useMemo(() => {
+    const counts: Record<PreOpportunityStatus, number> = {
+      DRAFT: 0,
+      PENDING: 0,
+      APPROVED: 0,
+      REJECTED: 0,
+      CONVERTED: 0,
+    };
+    
+    preOpps.forEach((preOpp) => {
+      counts[preOpp.status] = (counts[preOpp.status] || 0) + 1;
+    });
+    
+    return counts;
   }, [preOpps]);
 
   return {
@@ -62,9 +73,12 @@ export function usePreOppsState() {
     setViewMode,
     
     // Pre-opp state
-    preOpps: processedPreOpps,
-    setPreOpps,
+    preOpps,
+    isLoading,
+    error,
+    refetch,
     stages,
+    statusCounts,
     
     // Drag and drop
     activeId,
@@ -79,12 +93,9 @@ export function usePreOppsState() {
     setClientSortDirection,
     
     // Unique values for filters
-    uniquePreOppNames,
-    uniqueStages,
-    uniqueJobs,
-    uniqueSoldTo,
-    uniqueManufacturers,
-    uniqueOwners,
-    uniqueTags,
+    uniqueEntityNumbers,
+    uniqueStatuses,
+    uniqueCreatedBy,
   };
 }
+

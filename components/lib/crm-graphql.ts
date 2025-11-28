@@ -160,6 +160,143 @@ export interface UpdateContactInput {
   territory?: string;
 }
 
+// PreOpportunity Types
+export type PreOpportunityStatus = 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'CONVERTED';
+
+export interface PreOpportunityBalance {
+  id: string;
+  quantity: number;
+  subtotal: number;
+  discount: number;
+  discountRate: number;
+  total: number;
+}
+
+export interface PreOpportunityProduct {
+  id: string;
+  factoryId: string;
+  factoryPartNumber: string;
+}
+
+export interface PreOpportunityDetail {
+  id: string;
+  preOpportunityId: string;
+  itemNumber: number;
+  productId: string;
+  productCpnId?: string;
+  product: PreOpportunityProduct;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+  discount: number;
+  discountRate: number;
+  total: number;
+  leadTime?: string;
+  endUserId?: string;
+}
+
+export interface PreOpportunity {
+  id: string;
+  entityNumber: string;
+  entityDate: string;
+  status: PreOpportunityStatus;
+  soldToCustomerId: string;
+  billToCustomerId?: string;
+  soldToCustomerAddressId?: string;
+  billToCustomerAddressId?: string;
+  jobId?: string;
+  expDate?: string;
+  acceptDate?: string;
+  reviseDate?: string;
+  customerRef?: string;
+  paymentTerms?: string;
+  freightTerms?: string;
+  balance?: PreOpportunityBalance;
+  details: PreOpportunityDetail[];
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface PreOpportunityLandingPage {
+  id: string;
+  entityNumber: string;
+  entityDate: string;
+  status: PreOpportunityStatus;
+  total: number;
+  expDate?: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface PreOpportunityDetailInput {
+  id?: string;
+  itemNumber: number;
+  productId: string;
+  productCpnId?: string;
+  quantity: number;
+  unitPrice: number;
+  discountRate?: number;
+  leadTime?: string;
+  endUserId?: string;
+}
+
+export interface CreatePreOpportunityInput {
+  entityNumber: string;
+  entityDate: string;
+  status: PreOpportunityStatus;
+  soldToCustomerId: string;
+  billToCustomerId?: string;
+  soldToCustomerAddressId?: string;
+  billToCustomerAddressId?: string;
+  jobId?: string;
+  expDate?: string;
+  acceptDate?: string;
+  reviseDate?: string;
+  customerRef?: string;
+  paymentTerms?: string;
+  freightTerms?: string;
+  details: PreOpportunityDetailInput[];
+  userOwnerIds?: string;
+}
+
+export interface UpdatePreOpportunityInput {
+  id: string;
+  entityNumber?: string;
+  entityDate?: string;
+  status?: PreOpportunityStatus;
+  soldToCustomerId?: string;
+  billToCustomerId?: string;
+  soldToCustomerAddressId?: string;
+  billToCustomerAddressId?: string;
+  jobId?: string;
+  expDate?: string;
+  acceptDate?: string;
+  reviseDate?: string;
+  customerRef?: string;
+  paymentTerms?: string;
+  freightTerms?: string;
+  details?: PreOpportunityDetailInput[];
+  userOwnerIds?: string;
+}
+
+export interface ProductSearchResult {
+  id: string;
+  factoryId: string;
+  factoryPartNumber: string;
+}
+
+export interface FactorySearchResult {
+  id: string;
+  title: string;
+}
+
+export interface CustomerSearchResult {
+  id: string;
+  companyName: string;
+  parentId?: string;
+  insideRepId?: string;
+}
+
 // Landing Page Types
 export type FilterOperator = 
   | 'EQ' 
@@ -579,6 +716,330 @@ const FIND_CONTACT_LANDING_PAGES = `
   }
 `;
 
+// PreOpportunity Queries
+const FIND_PRE_OPPORTUNITY_LANDING_PAGES = `
+  query FindPreOpportunityLandingPages(
+    $filters: [Filter!]
+    $orderBy: [OrderBy!]
+  ) {
+    findLandingPages(
+      sourceType: PRE_OPPORTUNITIES
+      filters: $filters
+      orderBy: $orderBy
+    ) {
+      records {
+        ... on PreOpportunityLandingPage {
+          id
+          total
+          status
+          expDate
+          entityNumber
+          entityDate
+          createdBy
+          createdAt
+        }
+      }
+      total
+    }
+  }
+`;
+
+const GET_PRE_OPPORTUNITY = `
+  query GetPreOpportunity($id: UUID!) {
+    preOpportunity(id: $id) {
+      id
+      entityNumber
+      entityDate
+      status
+      soldToCustomerId
+      billToCustomerId
+      soldToCustomerAddressId
+      billToCustomerAddressId
+      jobId
+      expDate
+      acceptDate
+      reviseDate
+      customerRef
+      paymentTerms
+      freightTerms
+      balance {
+        id
+        quantity
+        subtotal
+        discount
+        discountRate
+        total
+      }
+      details {
+        id
+        preOpportunityId
+        itemNumber
+        productId
+        productCpnId
+        product {
+          id
+          factoryId
+          factoryPartNumber
+        }
+        quantity
+        unitPrice
+        subtotal
+        discount
+        discountRate
+        total
+        leadTime
+        endUserId
+      }
+      createdBy
+      createdAt
+    }
+  }
+`;
+
+const GET_PRE_OPPORTUNITIES_BY_JOB = `
+  query GetPreOpportunitiesByJob($jobId: UUID!) {
+    preOpportunitiesByJob(jobId: $jobId) {
+      id
+      entityNumber
+      entityDate
+      status
+      soldToCustomerId
+      billToCustomerId
+      soldToCustomerAddressId
+      billToCustomerAddressId
+      jobId
+      expDate
+      acceptDate
+      reviseDate
+      customerRef
+      paymentTerms
+      freightTerms
+      balance {
+        id
+        quantity
+        subtotal
+        discount
+        discountRate
+        total
+      }
+      details {
+        id
+        preOpportunityId
+        itemNumber
+        productId
+        productCpnId
+        product {
+          id
+          factoryId
+          factoryPartNumber
+        }
+        quantity
+        unitPrice
+        subtotal
+        discount
+        discountRate
+        total
+        leadTime
+        endUserId
+      }
+      createdBy
+      createdAt
+    }
+  }
+`;
+
+const GET_PRE_OPPORTUNITIES_BY_CUSTOMER = `
+  query GetPreOpportunitiesByCustomer($customerId: UUID!) {
+    preOpportunitiesByCustomer(customerId: $customerId) {
+      id
+      entityNumber
+      entityDate
+      status
+      soldToCustomerId
+      billToCustomerId
+      soldToCustomerAddressId
+      billToCustomerAddressId
+      jobId
+      expDate
+      acceptDate
+      reviseDate
+      customerRef
+      paymentTerms
+      freightTerms
+      balance {
+        id
+        quantity
+        subtotal
+        discount
+        discountRate
+        total
+      }
+      details {
+        id
+        preOpportunityId
+        itemNumber
+        productId
+        productCpnId
+        product {
+          id
+          factoryId
+          factoryPartNumber
+        }
+        quantity
+        unitPrice
+        subtotal
+        discount
+        discountRate
+        total
+        leadTime
+        endUserId
+      }
+      createdBy
+      createdAt
+    }
+  }
+`;
+
+const SEARCH_PRODUCTS = `
+  query SearchProducts($searchTerm: String!, $factoryId: UUID) {
+    productSearch(searchTerm: $searchTerm, factoryId: $factoryId) {
+      id
+      factoryId
+      factoryPartNumber
+    }
+  }
+`;
+
+const SEARCH_FACTORIES = `
+  query SearchFactories($searchTerm: String!, $published: Boolean) {
+    factorySearch(searchTerm: $searchTerm, published: $published) {
+      id
+      title
+    }
+  }
+`;
+
+const SEARCH_CUSTOMERS = `
+  query SearchCustomers($searchTerm: String!, $published: Boolean) {
+    customerSearch(searchTerm: $searchTerm, published: $published) {
+      id
+      companyName
+      parentId
+      insideRepId
+    }
+  }
+`;
+
+const CREATE_PRE_OPPORTUNITY = `
+  mutation CreatePreOpportunity($input: PreOpportunityInput!) {
+    createPreOpportunity(input: $input) {
+      id
+      entityNumber
+      entityDate
+      status
+      soldToCustomerId
+      billToCustomerId
+      soldToCustomerAddressId
+      billToCustomerAddressId
+      jobId
+      expDate
+      acceptDate
+      reviseDate
+      customerRef
+      paymentTerms
+      freightTerms
+      balance {
+        id
+        quantity
+        subtotal
+        discount
+        discountRate
+        total
+      }
+      details {
+        id
+        preOpportunityId
+        itemNumber
+        productId
+        productCpnId
+        product {
+          id
+          factoryId
+          factoryPartNumber
+        }
+        quantity
+        unitPrice
+        subtotal
+        discount
+        discountRate
+        total
+        leadTime
+        endUserId
+      }
+      createdBy
+      createdAt
+    }
+  }
+`;
+
+const UPDATE_PRE_OPPORTUNITY = `
+  mutation UpdatePreOpportunity($input: PreOpportunityInput!) {
+    updatePreOpportunity(input: $input) {
+      id
+      entityNumber
+      entityDate
+      status
+      soldToCustomerId
+      billToCustomerId
+      soldToCustomerAddressId
+      billToCustomerAddressId
+      jobId
+      expDate
+      acceptDate
+      reviseDate
+      customerRef
+      paymentTerms
+      freightTerms
+      balance {
+        id
+        quantity
+        subtotal
+        discount
+        discountRate
+        total
+      }
+      details {
+        id
+        preOpportunityId
+        itemNumber
+        productId
+        productCpnId
+        product {
+          id
+          factoryId
+          factoryPartNumber
+        }
+        quantity
+        unitPrice
+        subtotal
+        discount
+        discountRate
+        total
+        leadTime
+        endUserId
+      }
+      createdBy
+      createdAt
+    }
+  }
+`;
+
+const DELETE_PRE_OPPORTUNITY = `
+  mutation DeletePreOpportunity($id: UUID!) {
+    deletePreOpportunity(id: $id)
+  }
+`;
+
 // ============================================================================
 // Core GraphQL Request Function
 // ============================================================================
@@ -989,3 +1450,169 @@ export async function fetchContactLandingPages(
 
   return response.data?.findLandingPages?.records || [];
 }
+
+// ============================================================================
+// PreOpportunity Functions
+// ============================================================================
+
+export async function fetchPreOpportunityLandingPages(
+  filters?: LandingPageFilter[],
+  orderBy?: LandingPageOrderBy[]
+): Promise<PreOpportunityLandingPage[]> {
+  // Import the normalization function
+  const { normalizePreOpportunitiesStatus } = await import('../pre-opportunities/utils');
+  
+  const response = await crmGraphQLRequest<{
+    findLandingPages: { records: PreOpportunityLandingPage[]; total: number }
+  }>({
+    query: FIND_PRE_OPPORTUNITY_LANDING_PAGES,
+    variables: { filters, orderBy },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch pre-opportunity landing pages');
+  }
+
+  const records = response.data?.findLandingPages?.records || [];
+  // Normalize status values (convert numeric to string)
+  return normalizePreOpportunitiesStatus(records);
+}
+
+export async function fetchPreOpportunity(id: string): Promise<PreOpportunity | null> {
+  // Import the normalization function
+  const { normalizePreOpportunityStatus } = await import('../pre-opportunities/utils');
+  
+  const response = await crmGraphQLRequest<{ preOpportunity: PreOpportunity }>({
+    query: GET_PRE_OPPORTUNITY,
+    variables: { id },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch pre-opportunity');
+  }
+
+  const preOpp = response.data?.preOpportunity;
+  // Normalize status value (convert numeric to string)
+  return preOpp ? normalizePreOpportunityStatus(preOpp) : null;
+}
+
+export async function fetchPreOpportunitiesByJob(jobId: string): Promise<PreOpportunity[]> {
+  // Import the normalization function
+  const { normalizePreOpportunitiesStatus } = await import('../pre-opportunities/utils');
+  
+  const response = await crmGraphQLRequest<{ preOpportunitiesByJob: PreOpportunity[] }>({
+    query: GET_PRE_OPPORTUNITIES_BY_JOB,
+    variables: { jobId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch pre-opportunities by job');
+  }
+
+  const records = response.data?.preOpportunitiesByJob || [];
+  return normalizePreOpportunitiesStatus(records);
+}
+
+export async function fetchPreOpportunitiesByCustomer(customerId: string): Promise<PreOpportunity[]> {
+  // Import the normalization function
+  const { normalizePreOpportunitiesStatus } = await import('../pre-opportunities/utils');
+  
+  const response = await crmGraphQLRequest<{ preOpportunitiesByCustomer: PreOpportunity[] }>({
+    query: GET_PRE_OPPORTUNITIES_BY_CUSTOMER,
+    variables: { customerId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch pre-opportunities by customer');
+  }
+
+  const records = response.data?.preOpportunitiesByCustomer || [];
+  return normalizePreOpportunitiesStatus(records);
+}
+
+export async function searchProducts(searchTerm: string, factoryId?: string): Promise<ProductSearchResult[]> {
+  const response = await crmGraphQLRequest<{ productSearch: ProductSearchResult[] }>({
+    query: SEARCH_PRODUCTS,
+    variables: { searchTerm, factoryId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search products');
+  }
+
+  return response.data?.productSearch || [];
+}
+
+export async function searchFactories(searchTerm: string, published?: boolean): Promise<FactorySearchResult[]> {
+  const response = await crmGraphQLRequest<{ factorySearch: FactorySearchResult[] }>({
+    query: SEARCH_FACTORIES,
+    variables: { searchTerm, published },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search factories');
+  }
+
+  return response.data?.factorySearch || [];
+}
+
+export async function searchCustomers(searchTerm: string, published?: boolean): Promise<CustomerSearchResult[]> {
+  const response = await crmGraphQLRequest<{ customerSearch: CustomerSearchResult[] }>({
+    query: SEARCH_CUSTOMERS,
+    variables: { searchTerm, published },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search customers');
+  }
+
+  return response.data?.customerSearch || [];
+}
+
+export async function createPreOpportunity(input: CreatePreOpportunityInput): Promise<PreOpportunity> {
+  const response = await crmGraphQLRequest<{ createPreOpportunity: PreOpportunity }>({
+    query: CREATE_PRE_OPPORTUNITY,
+    variables: { input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to create pre-opportunity');
+  }
+
+  if (!response.data?.createPreOpportunity) {
+    throw new Error('No pre-opportunity returned from create mutation');
+  }
+
+  return response.data.createPreOpportunity;
+}
+
+export async function updatePreOpportunity(input: UpdatePreOpportunityInput): Promise<PreOpportunity> {
+  const response = await crmGraphQLRequest<{ updatePreOpportunity: PreOpportunity }>({
+    query: UPDATE_PRE_OPPORTUNITY,
+    variables: { input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to update pre-opportunity');
+  }
+
+  if (!response.data?.updatePreOpportunity) {
+    throw new Error('No pre-opportunity returned from update mutation');
+  }
+
+  return response.data.updatePreOpportunity;
+}
+
+export async function deletePreOpportunity(id: string): Promise<boolean> {
+  const response = await crmGraphQLRequest<{ deletePreOpportunity: boolean }>({
+    query: DELETE_PRE_OPPORTUNITY,
+    variables: { id },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to delete pre-opportunity');
+  }
+
+  return response.data?.deletePreOpportunity || false;
+}
+

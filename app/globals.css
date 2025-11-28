@@ -122,69 +122,19 @@
   --font-sans: var(--font-sans);
 }
 
+/* 
+ * DISABLED: Dark mode is not supported - this app is light mode only.
+ * The media query below is commented out to prevent automatic dark mode switching.
+ */
+/*
 @media (prefers-color-scheme: dark) {
   :root {
-    /* Core (Dark) - FlowConnect Dark Mode */
     --background: #0F1419;
     --foreground: #F9FAFB;
-
-    --primary: #6B63EA;
-    --primary-foreground: #FFFFFF;
-    --primary-hover: #8179EE;
-
-    --secondary: #2E2B5F;
-    --secondary-foreground: #A5A3FF;
-
-    --accent: #6B63EA;
-    --accent-foreground: #FFFFFF;
-
-    --muted: #1F2937;
-    --muted-foreground: #9CA3AF;
-
-    --card: #1A1D29;
-    --card-foreground: var(--foreground);
-    --popover: #1A1D29;
-    --popover-foreground: var(--foreground);
-
-    --border: #2D3748;
-    --border-light: #374151;
-    --input: #1F2937;
-    --input-border: #374151;
-    --ring: #6B63EA;
-
-    --destructive: #F87171;
-    --destructive-foreground: #FFFFFF;
-    --error: #F87171;
-    --error-foreground: #FFFFFF;
-    --warning: #FBBF24;
-    --warning-foreground: #111827;
-    --success: #34D399;
-    --success-foreground: #111827;
-    --info: #60A5FA;
-    --info-foreground: #111827;
-
-    --neutral-dark: #F9FAFB;
-    --neutral-900: #F9FAFB;
-    --neutral-800: #F3F4F6;
-    --neutral-700: #E5E7EB;
-    --neutral-600: #D1D5DB;
-    --neutral-500: #9CA3AF;
-    --neutral-400: #6B7280;
-    --neutral-300: #4B5563;
-    --neutral-200: #374151;
-    --neutral-100: #1F2937;
-    --neutral-50: #111827;
-
-    --gradient-primary: linear-gradient(135deg, #6B63EA 0%, #8179EE 100%);
-    --gradient-subtle: linear-gradient(180deg, #1A1D29 0%, #111827 100%);
-
-    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.3);
-    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5), 0 4px 6px rgba(0, 0, 0, 0.3);
-    --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.6), 0 10px 10px rgba(0, 0, 0, 0.4);
+    ... dark mode variables disabled ...
   }
 }
+*/
 
 body {
   background: var(--background);

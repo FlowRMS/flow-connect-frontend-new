@@ -24,7 +24,7 @@ export default function CRMAuthContent() {
   const [refreshToken, setRefreshToken] = useState('');
 
   // Token Server state
-  const [serverUrl, setServerUrl] = useState('http://127.0.0.1:8000');
+  const [serverUrl, setServerUrl] = useState(process.env.NEXT_PUBLIC_TOKEN_SERVER_URL || 'http://127.0.0.1:8000');
   const [tenant, setTenant] = useState('staging2');
   const [env, setEnv] = useState('staging');
   const [tokenServerEnabled, setTokenServerEnabled] = useState(false);
@@ -263,7 +263,7 @@ export default function CRMAuthContent() {
                   type="text"
                   value={serverUrl}
                   onChange={(e) => setServerUrl(e.target.value)}
-                  placeholder="http://127.0.0.1:8000"
+                  placeholder={process.env.NEXT_PUBLIC_TOKEN_SERVER_URL || 'http://127.0.0.1:8000'}
                   className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
                 />
               </div>

@@ -1,26 +1,166 @@
 /**
  * Pre-Opportunity Types and Interfaces
+ * Complete type definitions for PreOpportunity domain from GraphQL API
  */
 
-// UI PreOpp type (display format)
-export interface PreOpp {
+// ============================================================================
+// GraphQL API Types
+// ============================================================================
+
+export type PreOpportunityStatus = 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'CONVERTED';
+
+export interface PreOpportunityBalance {
   id: string;
-  name: string;
-  job: string;
-  stage: 'Qualified' | 'Negotiation' | 'Follow-up' | 'Waiting on Factory' | 'Lost' | 'Converted';
-  value: string;
-  soldTo: string;
-  manufacturer: string;
-  dateCreated: string;
-  expirationDate: string;
-  owner: string;
-  tags: string[];
+  quantity: number;
+  subtotal: number;
+  discount: number;
+  discountRate: number;
+  total: number;
 }
 
-// Pre-Opp Stage for Kanban
-export interface PreOppStage {
-  name: 'Qualified' | 'Negotiation' | 'Follow-up' | 'Waiting on Factory' | 'Lost' | 'Converted';
+export interface PreOpportunityProduct {
+  id: string;
+  factoryId: string;
+  factoryPartNumber: string;
 }
+
+export interface PreOpportunityDetail {
+  id: string;
+  preOpportunityId: string;
+  itemNumber: number;
+  productId: string;
+  productCpnId?: string;
+  product: PreOpportunityProduct;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+  discount: number;
+  discountRate: number;
+  total: number;
+  leadTime?: string;
+  endUserId?: string;
+}
+
+export interface PreOpportunity {
+  id: string;
+  entityNumber: string;
+  entityDate: string;
+  status: PreOpportunityStatus;
+  soldToCustomerId: string;
+  billToCustomerId?: string;
+  soldToCustomerAddressId?: string;
+  billToCustomerAddressId?: string;
+  jobId?: string;
+  expDate?: string;
+  acceptDate?: string;
+  reviseDate?: string;
+  customerRef?: string;
+  paymentTerms?: string;
+  freightTerms?: string;
+  balance?: PreOpportunityBalance;
+  details: PreOpportunityDetail[];
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface PreOpportunityLandingPage {
+  id: string;
+  entityNumber: string;
+  entityDate: string;
+  status: PreOpportunityStatus;
+  total: number;
+  expDate?: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+// ============================================================================
+// Input Types
+// ============================================================================
+
+export interface PreOpportunityDetailInput {
+  id?: string;
+  itemNumber: number;
+  productId: string;
+  productCpnId?: string;
+  quantity: number;
+  unitPrice: number;
+  discountRate?: number;
+  leadTime?: string;
+  endUserId?: string;
+}
+
+export interface CreatePreOpportunityInput {
+  entityNumber: string;
+  entityDate: string;
+  status: PreOpportunityStatus;
+  soldToCustomerId: string;
+  billToCustomerId?: string;
+  soldToCustomerAddressId?: string;
+  billToCustomerAddressId?: string;
+  jobId?: string;
+  expDate?: string;
+  acceptDate?: string;
+  reviseDate?: string;
+  customerRef?: string;
+  paymentTerms?: string;
+  freightTerms?: string;
+  details: PreOpportunityDetailInput[];
+  userOwnerIds?: string;
+}
+
+export interface UpdatePreOpportunityInput {
+  id: string;
+  entityNumber?: string;
+  entityDate?: string;
+  status?: PreOpportunityStatus;
+  soldToCustomerId?: string;
+  billToCustomerId?: string;
+  soldToCustomerAddressId?: string;
+  billToCustomerAddressId?: string;
+  jobId?: string;
+  expDate?: string;
+  acceptDate?: string;
+  reviseDate?: string;
+  customerRef?: string;
+  paymentTerms?: string;
+  freightTerms?: string;
+  details?: PreOpportunityDetailInput[];
+  userOwnerIds?: string;
+}
+
+// ============================================================================
+// Search Types
+// ============================================================================
+
+export interface ProductSearchResult {
+  id: string;
+  factoryId: string;
+  factoryPartNumber: string;
+}
+
+export interface FactorySearchResult {
+  id: string;
+  title: string;
+}
+
+export interface CustomerSearchResult {
+  id: string;
+  companyName: string;
+  parentId?: string;
+  insideRepId?: string;
+}
+
+// ============================================================================
+// UI Types
+// ============================================================================
 
 // View mode type
 export type ViewMode = 'kanban' | 'list';
+
+// Pre-Opp Stage for Kanban (maps to status)
+export interface PreOppStage {
+  name: PreOpportunityStatus;
+  displayName: string;
+  color: string;
+}

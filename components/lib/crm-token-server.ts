@@ -1,11 +1,11 @@
 /**
  * FlowCRM Token Server Client
- * Integrates with the Token Server running on http://127.0.0.1:8000
+ * Integrates with the Token Server configured via environment variables
  * Provides automatic token management with caching and refresh
  */
 
 // Configuration defaults
-const DEFAULT_TOKEN_SERVER_URL = 'http://127.0.0.1:8000';
+const DEFAULT_TOKEN_SERVER_URL = process.env.NEXT_PUBLIC_TOKEN_SERVER_URL || 'http://127.0.0.1:8000';
 const DEFAULT_TENANT = 'staging2';
 const DEFAULT_ENV = 'staging';
 

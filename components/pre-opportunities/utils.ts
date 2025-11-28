@@ -2,36 +2,117 @@
  * Pre-Opportunity Utility Functions
  */
 
-import { OWNER_COLORS, STAGE_COLORS, FILTER_COLUMN_MAP } from './constants';
-import type { PreOpp } from './types';
+import { STAGE_COLORS, FILTER_COLUMN_MAP, STATUS_CONFIG } from './constants';
+import type { PreOpportunity, PreOpportunityStatus, PreOpportunityLandingPage } from './types';
 import type { ActiveFilter } from '../AdvancedFilters';
+import type { LandingPageFilter, LandingPageOrderBy } from '../lib/crm-graphql';
 
 /**
- * Get initials from a name
+ * Map numeric status to string status
+ * API returns: 1=DRAFT, 2=PENDING, 3=APPROVED, 4=REJECTED, 5=CONVERTED
  */
-export function getOwnerInitials(name: string): string {
-  return name.split(' ').map(n => n[0]).join('');
+const STATUS_NUMBER_MAP: Record<string, PreOpportunityStatus> = {
+  '1': 'DRAFT',
+  '2': 'PENDING',
+  '3': 'APPROVED',
+  '4': 'REJECTED',
+  '5': 'CONVERTED',
+};
+
+/**
+ * Normalize status value - converts numeric status to string enum
+ */
+export function normalizeStatus(status: string | number | PreOpportunityStatus): PreOpportunityStatus {
+  // If it's already a valid string status, return it
+  if (typeof status === 'string' && ['DRAFT', 'PENDING', 'APPROVED', 'REJECTED', 'CONVERTED'].includes(status)) {
+    return status as PreOpportunityStatus;
+  }
+  
+  // Convert to string and try to map from number
+  const statusStr = String(status);
+  const mapped = STATUS_NUMBER_MAP[statusStr];
+  if (mapped) {
+    return mapped;
+  }
+  
+  // Default to DRAFT if unknown
+  return 'DRAFT';
 }
 
 /**
- * Get color for owner badge based on ID
+ * Normalize a pre-opportunity object's status field
  */
-export function getOwnerColor(id: string): string {
-  const colorIndex = id.charCodeAt(id.length - 1) % OWNER_COLORS.length;
-  return OWNER_COLORS[colorIndex];
+export function normalizePreOpportunityStatus<T extends { status: any }>(preOpp: T): T {
+  return {
+    ...preOpp,
+    status: normalizeStatus(preOpp.status),
+  };
+}
+
+/**
+ * Normalize an array of pre-opportunity objects
+ */
+export function normalizePreOpportunitiesStatus<T extends { status: any }>(preOpps: T[]): T[] {
+  return preOpps.map(normalizePreOpportunityStatus);
+}
+
+/**
+ * Get status display label
+ */
+export function getStatusLabel(status: PreOpportunityStatus): string {
+  return STATUS_CONFIG[status]?.label || status;
 }
 
 /**
  * Get stage badge color
  */
-export function getStageColor(stage: string): string {
-  return STAGE_COLORS[stage] || 'bg-gray-500 text-white';
+export function getStageColor(status: PreOpportunityStatus): string {
+  return STAGE_COLORS[status] || 'bg-gray-500 text-white';
 }
 
 /**
- * Apply filter to a pre-opp
+ * Format currency value
  */
-export function applyFilter(preOpp: PreOpp, filter: ActiveFilter): boolean {
+export function formatCurrency(value: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+/**
+ * Format date
+ */
+export function formatDate(dateString: string): string {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+/**
+ * Convert ActiveFilter to LandingPageFilter
+ */
+export function convertToLandingPageFilter(filter: ActiveFilter): LandingPageFilter {
+  const columnName = FILTER_COLUMN_MAP[filter.columnName] || filter.columnName;
+  
+  return {
+    columnName,
+    operator: filter.operator,
+    value: filter.value,
+    values: filter.values,
+  };
+}
+
+/**
+ * Apply client-side filter to a pre-opp (for additional filtering)
+ */
+export function applyFilter(preOpp: PreOpportunityLandingPage, filter: ActiveFilter): boolean {
   const actualColumn = FILTER_COLUMN_MAP[filter.columnName] || filter.columnName;
   const value = String((preOpp as any)[actualColumn] || '').toLowerCase();
   const filterValue = String(filter.value || '').toLowerCase();
@@ -65,14 +146,21 @@ export function applyFilter(preOpp: PreOpp, filter: ActiveFilter): boolean {
  * Sort pre-opps by a column
  */
 export function sortPreOpps(
-  preOpps: PreOpp[],
+  preOpps: PreOpportunityLandingPage[],
   sortColumn: string,
   sortDirection: 'ASC' | 'DESC'
-): PreOpp[] {
+): PreOpportunityLandingPage[] {
   return [...preOpps].sort((a, b) => {
-    const aVal = String((a as any)[sortColumn] || '');
-    const bVal = String((b as any)[sortColumn] || '');
-    const comparison = aVal.localeCompare(bVal);
+    const aVal = (a as any)[sortColumn];
+    const bVal = (b as any)[sortColumn];
+    
+    if (typeof aVal === 'number' && typeof bVal === 'number') {
+      return sortDirection === 'ASC' ? aVal - bVal : bVal - aVal;
+    }
+    
+    const aStr = String(aVal || '');
+    const bStr = String(bVal || '');
+    const comparison = aStr.localeCompare(bStr);
     return sortDirection === 'ASC' ? comparison : -comparison;
   });
 }
@@ -80,15 +168,29 @@ export function sortPreOpps(
 /**
  * Get unique values from pre-opps for a specific field
  */
-export function getUniqueValues(preOpps: PreOpp[], field: keyof PreOpp): string[] {
-  return Array.from(new Set(preOpps.map(p => p[field] as string)))
+export function getUniqueValues(
+  preOpps: PreOpportunityLandingPage[],
+  field: keyof PreOpportunityLandingPage
+): string[] {
+  return Array.from(new Set(preOpps.map(p => String(p[field] || ''))))
     .filter(Boolean)
     .sort();
 }
 
 /**
- * Get pre-opps by stage
+ * Get pre-opps by status
  */
-export function getPreOppsByStage(preOpps: PreOpp[], stage: string): PreOpp[] {
-  return preOpps.filter(preOpp => preOpp.stage === stage);
+export function getPreOppsByStatus(
+  preOpps: PreOpportunityLandingPage[],
+  status: PreOpportunityStatus
+): PreOpportunityLandingPage[] {
+  return preOpps.filter(preOpp => preOpp.status === status);
 }
+
+/**
+ * Calculate total value for pre-opps
+ */
+export function calculateTotalValue(preOpps: PreOpportunityLandingPage[]): number {
+  return preOpps.reduce((sum, preOpp) => sum + (preOpp.total || 0), 0);
+}
+
