@@ -8,7 +8,7 @@ projects:
       isolation: enabled
     services:
     - type: web
-      name: flow-crm MOCK
+      name: flow-crm
       runtime: node
       repo: https://github.com/FlowRMSLabs/flow-crm
       plan: starter
