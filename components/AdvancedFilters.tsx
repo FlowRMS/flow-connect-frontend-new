@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 
 export type FilterOperator = 'EQ' | 'NE' | 'ILIKE' | 'LIKE' | 'BEGINS_WITH' | 'ENDS_WITH' | 'IS_NULL' | 'IS_NOT_NULL' | 'GT' | 'GTE' | 'LT' | 'LTE' | 'IN';
 
@@ -28,19 +28,52 @@ type FilterOption = {
 type AdvancedFiltersProps = {
   filterOptions: FilterOption[];
   onFilterChange?: (filter: ActiveFilter | undefined) => void;
+  onFiltersChange?: (filters: ActiveFilter[]) => void; // Support multiple filters
   activeFilter?: ActiveFilter;
+  activeFilters?: ActiveFilter[]; // Support multiple active filters
 };
+
+// Stable empty array to prevent unnecessary re-renders
+const EMPTY_FILTERS: ActiveFilter[] = [];
 
 export default function AdvancedFilters({ 
   filterOptions, 
   onFilterChange, 
+  onFiltersChange,
   activeFilter,
+  activeFilters,
 }: AdvancedFiltersProps) {
+  // Use stable reference for empty array
+  const stableActiveFilters = activeFilters ?? EMPTY_FILTERS;
+  
   const [isExpanded, setIsExpanded] = useState(false);
   const [expandedFilterId, setExpandedFilterId] = useState<string | null>(null);
   const [filterValue, setFilterValue] = useState('');
   const [selectedValues, setSelectedValues] = useState<string[]>([]);
+  const [localFilters, setLocalFilters] = useState<ActiveFilter[]>([]);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  // Create a stable key for the filters to compare
+  const filtersKey = useMemo(() => {
+    if (stableActiveFilters.length > 0) {
+      return JSON.stringify(stableActiveFilters);
+    }
+    if (activeFilter) {
+      return JSON.stringify([activeFilter]);
+    }
+    return '';
+  }, [stableActiveFilters, activeFilter]);
+
+  // Sync local filters with prop - use filtersKey for stable comparison
+  useEffect(() => {
+    if (stableActiveFilters.length > 0) {
+      setLocalFilters(stableActiveFilters);
+    } else if (activeFilter) {
+      setLocalFilters([activeFilter]);
+    } else {
+      setLocalFilters([]);
+    }
+  }, [filtersKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Close panel when clicking outside
   useEffect(() => {
@@ -61,15 +94,19 @@ export default function AdvancedFilters({
 
   // Initialize selected values when opening a filter that has active values
   useEffect(() => {
-    if (expandedFilterId && activeFilter) {
+    if (expandedFilterId) {
       const option = filterOptions.find(o => o.id === expandedFilterId);
-      if (option && option.columnName === activeFilter.columnName) {
-        if (activeFilter.operator === 'IN' && activeFilter.values) {
-          setSelectedValues(activeFilter.values);
-        } else if (activeFilter.value) {
-          // If it's a single value filter but we're opening a dropdown, 
-          // we might want to pre-select it if it matches one of the options
-          setSelectedValues([activeFilter.value]);
+      if (option && option.columnName) {
+        // Find existing filter for this column
+        const existingFilter = localFilters.find(f => f.columnName === option.columnName);
+        if (existingFilter) {
+          if (existingFilter.operator === 'IN' && existingFilter.values) {
+            setSelectedValues(existingFilter.values);
+          } else if (existingFilter.value) {
+            setSelectedValues([existingFilter.value]);
+          } else {
+            setSelectedValues([]);
+          }
         } else {
           setSelectedValues([]);
         }
@@ -79,7 +116,7 @@ export default function AdvancedFilters({
     } else {
       setSelectedValues([]);
     }
-  }, [expandedFilterId, activeFilter, filterOptions]);
+  }, [expandedFilterId, localFilters, filterOptions]);
 
   const handleFilterOptionClick = (option: FilterOption) => {
     if (option.available === false) return;
@@ -95,12 +132,25 @@ export default function AdvancedFilters({
   const handleApplyFilter = (option: FilterOption, value: string, operator: FilterOperator = 'ILIKE') => {
     if (!option.columnName) return;
     
-    if (onFilterChange) {
-      onFilterChange({
-        columnName: option.columnName,
-        operator,
-        value: value.trim(),
-      });
+    const newFilter: ActiveFilter = {
+      columnName: option.columnName,
+      operator,
+      value: value.trim(),
+    };
+    
+    // Update local filters - add or replace filter for this column
+    const newFilters = localFilters.filter(f => f.columnName !== option.columnName);
+    if (value.trim()) {
+      newFilters.push(newFilter);
+    }
+    setLocalFilters(newFilters);
+    
+    // Notify parent
+    if (onFiltersChange) {
+      onFiltersChange(newFilters);
+    } else if (onFilterChange) {
+      // Backward compatibility - use the first filter
+      onFilterChange(newFilters.length > 0 ? newFilters[0] : undefined);
     }
     setExpandedFilterId(null);
     setFilterValue('');
@@ -109,22 +159,26 @@ export default function AdvancedFilters({
   const handleApplyMultiSelect = (option: FilterOption) => {
     if (!option.columnName) return;
     
-    if (selectedValues.length === 0) {
-      // If no values selected, clear the filter for this column
-      if (activeFilter?.columnName === option.columnName) {
-        handleClearFilter();
-      }
-      setExpandedFilterId(null);
-      return;
-    }
-
-    if (onFilterChange) {
-      onFilterChange({
+    // Update local filters
+    let newFilters = localFilters.filter(f => f.columnName !== option.columnName);
+    
+    if (selectedValues.length > 0) {
+      newFilters.push({
         columnName: option.columnName,
         operator: 'IN',
         values: selectedValues,
-        value: selectedValues.join(','), // Fallback for display or simple APIs
+        value: selectedValues.join(','),
       });
+    }
+    
+    setLocalFilters(newFilters);
+
+    // Notify parent
+    if (onFiltersChange) {
+      onFiltersChange(newFilters);
+    } else if (onFilterChange) {
+      // Backward compatibility - use the first filter or undefined if no filters
+      onFilterChange(newFilters.length > 0 ? newFilters[0] : undefined);
     }
     setExpandedFilterId(null);
   };
@@ -137,15 +191,30 @@ export default function AdvancedFilters({
     }
   };
 
-  const handleClearFilter = () => {
-    if (onFilterChange) {
-      onFilterChange(undefined);
+  const handleClearFilter = (columnName?: string) => {
+    if (columnName) {
+      // Clear specific filter
+      const newFilters = localFilters.filter(f => f.columnName !== columnName);
+      setLocalFilters(newFilters);
+      if (onFiltersChange) {
+        onFiltersChange(newFilters);
+      } else if (onFilterChange) {
+        onFilterChange(newFilters.length > 0 ? newFilters[0] : undefined);
+      }
+    } else {
+      // Clear all filters
+      setLocalFilters([]);
+      if (onFiltersChange) {
+        onFiltersChange([]);
+      } else if (onFilterChange) {
+        onFilterChange(undefined);
+      }
     }
     setFilterValue('');
     setExpandedFilterId(null);
   };
 
-  const activeFilterCount = activeFilter ? 1 : 0;
+  const activeFilterCount = localFilters.length;
 
   return (
     <div className="relative" ref={panelRef}>
@@ -156,7 +225,7 @@ export default function AdvancedFilters({
           if (isExpanded) setExpandedFilterId(null);
         }}
         className={`flex items-center gap-2 px-3 py-1.5 text-sm border rounded-md transition-colors ${
-          activeFilter 
+          localFilters.length > 0 
             ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]' 
             : 'border-[var(--border)] hover:bg-[var(--muted)]'
         }`}
@@ -205,23 +274,32 @@ export default function AdvancedFilters({
             </div>
 
             {/* Active Filters Display */}
-            {activeFilter && (
+            {localFilters.length > 0 && (
               <div className="mb-6 bg-white/10 rounded-lg p-4">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-sm font-medium text-white/80">Active:</span>
-                  <span className="px-3 py-1.5 bg-white/20 text-white rounded-lg text-sm flex items-center gap-2">
-                    <span className="font-medium">{activeFilter.columnName}:</span>
-                    <span className="text-white/90">
-                      {activeFilter.operator === 'IN' && activeFilter.values 
-                        ? activeFilter.values.join(', ') 
-                        : activeFilter.value}
-                    </span>
-                    <button onClick={handleClearFilter} className="ml-1 p-0.5 hover:bg-white/20 rounded transition-colors">
-                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
-                      </svg>
-                    </button>
-                  </span>
+                  {localFilters.map((filter, index) => {
+                    const option = filterOptions.find(o => o.columnName === filter.columnName);
+                    const label = option?.label || filter.columnName;
+                    return (
+                      <span key={index} className="px-3 py-1.5 bg-white/20 text-white rounded-lg text-sm flex items-center gap-2">
+                        <span className="font-medium">{label}:</span>
+                        <span className="text-white/90">
+                          {filter.operator === 'IN' && filter.values 
+                            ? filter.values.join(', ') 
+                            : filter.value}
+                        </span>
+                        <button 
+                          onClick={() => handleClearFilter(filter.columnName)} 
+                          className="ml-1 p-0.5 hover:bg-white/20 rounded transition-colors"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                          </svg>
+                        </button>
+                      </span>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -245,7 +323,7 @@ export default function AdvancedFilters({
                           ? 'bg-white/5 text-white/40 cursor-not-allowed'
                           : expandedFilterId === option.id
                             ? 'bg-white text-blue-600 shadow-lg'
-                            : activeFilter?.columnName === option.columnName
+                            : localFilters.some(f => f.columnName === option.columnName)
                               ? 'bg-white/90 text-blue-600 shadow-md'
                               : 'bg-white/20 hover:bg-white/30 text-white'
                       }`}
@@ -325,7 +403,7 @@ export default function AdvancedFilters({
             </div>
 
             {/* Clear All Button */}
-            {activeFilter && (
+            {localFilters.length > 0 && (
               <div className="flex justify-end mt-6">
                 <button
                   onClick={() => {

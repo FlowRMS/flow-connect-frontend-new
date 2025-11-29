@@ -1,5 +1,6 @@
 /**
  * Filter Configuration for Companies
+ * Note: columnName should match the UI Company type field names
  */
 
 import type { Company } from '../types';

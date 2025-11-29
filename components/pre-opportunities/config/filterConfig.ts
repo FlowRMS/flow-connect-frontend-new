@@ -1,5 +1,6 @@
 /**
  * Pre-Opportunity Filter and Sort Configuration
+ * Note: columnName should match the PreOpportunityLandingPage type field names
  */
 
 export function getPreOppFilterOptions(
@@ -11,8 +12,8 @@ export function getPreOppFilterOptions(
     { 
       id: 'entity-number', 
       label: 'Entity Number', 
-      type: 'text' as const, 
-      columnName: 'entity-number', 
+      type: 'dropdown' as const, 
+      columnName: 'entityNumber', 
       available: true, 
       options: uniqueEntityNumbers 
     },
@@ -28,7 +29,7 @@ export function getPreOppFilterOptions(
       id: 'created-by', 
       label: 'Created By', 
       type: 'dropdown' as const, 
-      columnName: 'created-by', 
+      columnName: 'createdBy', 
       available: true, 
       options: uniqueCreatedBy 
     },

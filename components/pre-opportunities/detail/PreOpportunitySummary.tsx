@@ -33,7 +33,7 @@ export function PreOpportunitySummary({ preOpp }: PreOpportunitySummaryProps) {
             </div>
             <div>
               <div className="text-sm text-gray-500">Total Qty</div>
-              <div className="text-lg font-semibold text-gray-900">{totalQuantity}</div>
+              <div className="text-lg font-semibold text-gray-900">{Math.round(totalQuantity)}</div>
             </div>
           </div>
           {totalDiscount > 0 && (
@@ -45,7 +45,7 @@ export function PreOpportunitySummary({ preOpp }: PreOpportunitySummaryProps) {
         </div>
       </div>
 
-      {/* Job Information Card */}
+      {/* Associated Job Card */}
       {preOpp.job && (
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Associated Job</h3>

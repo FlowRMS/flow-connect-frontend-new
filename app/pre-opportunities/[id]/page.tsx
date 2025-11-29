@@ -4,7 +4,7 @@
 
 'use client';
 
-import React, { useState, useEffect, use } from 'react';
+import React, { useState, useEffect, use, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import TopBar from '@/components/TopBar';
@@ -12,6 +12,7 @@ import { useCRMPreOpportunity, useUpdateCRMPreOpportunity, useDeleteCRMPreOpport
 import { PreOpportunityDetailView } from '@/components/pre-opportunities/detail';
 import { preOpportunityToasts } from '@/components/lib/toast';
 import type { EditFormData } from '@/components/pre-opportunities/detail/PreOpportunityDetailsForm';
+import type { PreOpportunityDetailInput } from '@/components/pre-opportunities/types';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -37,6 +38,9 @@ export default function PreOpportunityDetailPage({ params }: PageProps) {
     jobId: '',
     jobName: '',
   });
+  
+  // Track edited line items
+  const [editedLineItems, setEditedLineItems] = useState<PreOpportunityDetailInput[] | null>(null);
 
   // Sync form data when preOpp loads
   useEffect(() => {
@@ -52,6 +56,8 @@ export default function PreOpportunityDetailPage({ params }: PageProps) {
         jobId: preOpp.jobId || '',
         jobName: preOpp.job?.jobName || '',
       });
+      // Reset edited line items when data loads
+      setEditedLineItems(null);
     }
   }, [preOpp]);
 
@@ -63,8 +69,25 @@ export default function PreOpportunityDetailPage({ params }: PageProps) {
     setEditFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const handleLineItemsChange = useCallback((items: PreOpportunityDetailInput[]) => {
+    setEditedLineItems(items);
+  }, []);
+
   const handleSave = async () => {
     if (!preOpp) return;
+
+    // Use edited line items if available, otherwise use existing details
+    const detailsToSave = editedLineItems || preOpp.details?.map(d => ({
+      id: d.id,
+      itemNumber: d.itemNumber,
+      productId: d.productId,
+      productCpnId: d.productCpnId,
+      quantity: d.quantity,
+      unitPrice: d.unitPrice,
+      discountRate: d.discountRate,
+      leadTime: d.leadTime,
+      endUserId: d.endUserId || preOpp.soldToCustomerId,
+    }));
 
     try {
       await updateMutation.mutateAsync({
@@ -82,25 +105,35 @@ export default function PreOpportunityDetailPage({ params }: PageProps) {
         paymentTerms: editFormData.paymentTerms || undefined,
         freightTerms: editFormData.freightTerms || undefined,
         jobId: editFormData.jobId || undefined,
-        // Include existing details to avoid losing them
-        details: preOpp.details?.map(d => ({
-          id: d.id,
-          itemNumber: d.itemNumber,
-          productId: d.productId,
-          productCpnId: d.productCpnId,
-          quantity: d.quantity,
-          unitPrice: d.unitPrice,
-          discountRate: d.discountRate,
-          leadTime: d.leadTime,
-          endUserId: d.endUserId || preOpp.soldToCustomerId,
-        })),
+        // Include line items
+        details: detailsToSave,
       });
       preOpportunityToasts.updateSuccess(preOpp.entityNumber);
       setIsEditing(false);
+      setEditedLineItems(null);
       refetch();
     } catch (error) {
       console.error('Failed to update:', error);
       preOpportunityToasts.updateError(error instanceof Error ? error.message : undefined);
+    }
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    setEditedLineItems(null);
+    // Reset form data to original values
+    if (preOpp) {
+      setEditFormData({
+        status: preOpp.status,
+        expDate: preOpp.expDate || '',
+        reviseDate: preOpp.reviseDate || '',
+        acceptDate: preOpp.acceptDate || '',
+        customerRef: preOpp.customerRef || '',
+        paymentTerms: preOpp.paymentTerms || '',
+        freightTerms: preOpp.freightTerms || '',
+        jobId: preOpp.jobId || '',
+        jobName: preOpp.job?.jobName || '',
+      });
     }
   };
 
@@ -186,9 +219,10 @@ export default function PreOpportunityDetailPage({ params }: PageProps) {
           onBack={handleBack}
           onEditClick={() => setIsEditing(true)}
           onSave={handleSave}
-          onCancel={() => setIsEditing(false)}
+          onCancel={handleCancel}
           onDelete={handleDelete}
           onEditChange={handleEditChange}
+          onLineItemsChange={handleLineItemsChange}
         />
       </div>
     </div>

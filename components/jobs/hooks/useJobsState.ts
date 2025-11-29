@@ -43,6 +43,9 @@ export function useJobsState(
   const [repType, setRepType] = useState<RepType>('electrical');
 
   // Filtering and sorting
+  const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
+  const [clientSortColumns, setClientSortColumns] = useState<{ columnName: string; direction: 'ASC' | 'DESC' }[]>([]);
+  // Keep single filter for backward compatibility
   const [activeFilter, setActiveFilter] = useState<ActiveFilter | undefined>(undefined);
   const [clientSortColumn, setClientSortColumn] = useState<string | undefined>(undefined);
   const [clientSortDirection, setClientSortDirection] = useState<'ASC' | 'DESC'>('ASC');
@@ -52,18 +55,35 @@ export function useJobsState(
     if (!landingPageJobs) return [];
     let filtered = landingPageJobs.map(mapLandingPageToUIJob);
 
-    // Apply client-side filter
-    if (activeFilter) {
+    // Apply client-side filters (support multiple)
+    if (activeFilters.length > 0) {
+      filtered = filtered.filter((job) => 
+        activeFilters.every(filter => applyFilter(job, filter))
+      );
+    } else if (activeFilter) {
+      // Backward compatibility for single filter
       filtered = filtered.filter((job) => applyFilter(job, activeFilter));
     }
 
-    // Apply client-side sorting
-    if (clientSortColumn) {
+    // Apply client-side sorting (support multiple)
+    if (clientSortColumns.length > 0) {
+      filtered = [...filtered].sort((a, b) => {
+        for (const sort of clientSortColumns) {
+          const aVal = String((a as any)[sort.columnName] || '');
+          const bVal = String((b as any)[sort.columnName] || '');
+          const comparison = aVal.localeCompare(bVal);
+          if (comparison !== 0) {
+            return sort.direction === 'ASC' ? comparison : -comparison;
+          }
+        }
+        return 0;
+      });
+    } else if (clientSortColumn) {
       filtered = sortJobs(filtered, clientSortColumn, clientSortDirection);
     }
 
     return filtered;
-  }, [landingPageJobs, activeFilter, clientSortColumn, clientSortDirection]);
+  }, [landingPageJobs, activeFilters, activeFilter, clientSortColumns, clientSortColumn, clientSortDirection]);
 
   // Get stages from API or use defaults
   const stages = useMemo(() => {
@@ -129,8 +149,12 @@ export function useJobsState(
     setRepType,
     
     // Filtering and sorting
+    activeFilters,
+    setActiveFilters,
     activeFilter,
     setActiveFilter,
+    clientSortColumns,
+    setClientSortColumns,
     clientSortColumn,
     setClientSortColumn,
     clientSortDirection,

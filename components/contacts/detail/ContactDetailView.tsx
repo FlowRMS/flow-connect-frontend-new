@@ -5,8 +5,10 @@
 import React from 'react';
 import ContactDetailHeader from './ContactDetailHeader';
 import ContactInfoForm from './ContactInfoForm';
+import ContactRelatedEntities from './ContactRelatedEntities';
 import DeleteConfirmModal from './DeleteConfirmModal';
 import type { Contact } from '../types';
+import type { Job as APIJob, Company as APICompany } from '../../lib/crm-graphql';
 
 interface ContactDetailViewProps {
   contact: Contact;
@@ -22,6 +24,8 @@ interface ContactDetailViewProps {
   onDelete: (id: string) => void;
   onFieldChange: (field: string, value: string) => void;
   setDeleteConfirmId: (id: string | null) => void;
+  onJobClick?: (job: APIJob) => void;
+  onCompanyClick?: (company: APICompany) => void;
 }
 
 export default function ContactDetailView({
@@ -38,6 +42,8 @@ export default function ContactDetailView({
   onDelete,
   onFieldChange,
   setDeleteConfirmId,
+  onJobClick,
+  onCompanyClick,
 }: ContactDetailViewProps) {
   return (
     <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
@@ -59,29 +65,12 @@ export default function ContactDetailView({
         onFieldChange={onFieldChange}
       />
 
-      {/* Activity Timeline - Placeholder */}
-      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] mb-6">
-        <div className="px-6 py-4 border-b border-[var(--border)]">
-          <h2 className="text-lg font-semibold text-[var(--foreground)]">Activity Timeline</h2>
-        </div>
-        <div className="p-6">
-          <div className="text-center py-8 text-[var(--muted-foreground)]">
-            Activity timeline feature coming soon
-          </div>
-        </div>
-      </div>
-
-      {/* Related Jobs - Placeholder */}
-      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
-        <div className="px-6 py-4 border-b border-[var(--border)]">
-          <h2 className="text-lg font-semibold text-[var(--foreground)]">Related Jobs</h2>
-        </div>
-        <div className="p-6">
-          <div className="text-center py-8 text-[var(--muted-foreground)]">
-            Jobs connected to this contact will appear here
-          </div>
-        </div>
-      </div>
+      {/* Related Entities (Company & Jobs) */}
+      <ContactRelatedEntities
+        contact={contact}
+        onJobClick={onJobClick}
+        onCompanyClick={onCompanyClick}
+      />
 
       {/* Delete Confirmation Modal */}
       {deleteConfirmId && (

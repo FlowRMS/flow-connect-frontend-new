@@ -4,7 +4,8 @@
 
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import AdvancedFilters from '../AdvancedFilters';
 import SortButton from '../SortButton';
 import ContactDetailView from './detail/ContactDetailView';
@@ -15,9 +16,34 @@ import { useContactsState } from './hooks/useContactsState';
 import { getContactFilterOptions } from './config/filterConfig';
 import { CONTACT_TYPES, CONTACT_SORT_OPTIONS } from './constants';
 import type { DuplicateGroup } from './types';
+import type { Job as APIJob, Company as APICompany } from '../lib/crm-graphql';
 
 export default function ContactsContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const state = useContactsState();
+
+  // Check for ID in query params to auto-select a contact
+  const contactId = searchParams.get('id');
+  useEffect(() => {
+    if (contactId && state.contacts.length > 0 && !state.selectedContact) {
+      const contact = state.contacts.find(c => c.id === contactId);
+      if (contact) {
+        state.setSelectedContact(contact);
+        // Clear the query param after selecting
+        router.replace('/contacts', { scroll: false });
+      }
+    }
+  }, [contactId, state.contacts.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Navigation handlers for related entities
+  const handleJobClick = (job: APIJob) => {
+    router.push(`/jobs?id=${job.id}`);
+  };
+
+  const handleCompanyClick = (company: APICompany) => {
+    router.push(`/companies?id=${company.id}`);
+  };
 
   // Generate filter options with current data
   const contactFilterOptions = useMemo(
@@ -135,6 +161,8 @@ export default function ContactsContent() {
           state.setEditFormData((prev) => ({ ...prev, [field]: value }))
         }
         setDeleteConfirmId={state.setDeleteConfirmId}
+        onJobClick={handleJobClick}
+        onCompanyClick={handleCompanyClick}
       />
     );
   }

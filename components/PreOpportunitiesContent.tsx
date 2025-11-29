@@ -6,10 +6,12 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import AdvancedFilters from './AdvancedFilters';
+import AdvancedFilters, { ActiveFilter, ActiveSort } from './AdvancedFilters';
+import SortButton from './SortButton';
 import {
   usePreOppsState,
   getPreOppFilterOptions,
+  getPreOppSortOptions,
   KanbanView,
   ListView,
   CreatePreOpportunityModal,
@@ -34,6 +36,10 @@ export default function PreOpportunitiesContent() {
     setActiveId,
     activeFilter,
     setActiveFilter,
+    clientSortColumn,
+    setClientSortColumn,
+    clientSortDirection,
+    setClientSortDirection,
     uniqueEntityNumbers,
     uniqueStatuses,
     uniqueCreatedBy,
@@ -44,6 +50,22 @@ export default function PreOpportunitiesContent() {
     uniqueStatuses,
     uniqueCreatedBy
   );
+
+  const preOppSortOptions = getPreOppSortOptions();
+
+  const handleFilterChange = useCallback((filter: ActiveFilter | undefined) => {
+    setActiveFilter(filter);
+  }, [setActiveFilter]);
+
+  const handleSortChange = useCallback((sort: ActiveSort | undefined) => {
+    if (sort) {
+      setClientSortColumn(sort.columnName);
+      setClientSortDirection(sort.direction);
+    } else {
+      setClientSortColumn(undefined);
+      setClientSortDirection('ASC');
+    }
+  }, [setClientSortColumn, setClientSortDirection]);
 
   const handleOpenCreateModal = useCallback(() => {
     setIsCreateModalOpen(true);
@@ -76,10 +98,16 @@ export default function PreOpportunitiesContent() {
           <div className="flex items-center gap-2">
             <ViewModeToggle viewMode={viewMode} onViewModeChange={setViewMode} />
 
+            <SortButton
+              sortOptions={preOppSortOptions}
+              onSortChange={handleSortChange}
+              activeSort={clientSortColumn ? { columnName: clientSortColumn, direction: clientSortDirection } : undefined}
+            />
+
             <AdvancedFilters
               filterOptions={preOppFilterOptions}
               activeFilter={activeFilter}
-              onFilterChange={setActiveFilter}
+              onFilterChange={handleFilterChange}
             />
 
             <button

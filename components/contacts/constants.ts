@@ -21,11 +21,12 @@ export const AVATAR_COLORS = [
 ] as const;
 
 // Sort options for contacts
+// Note: columnName should match the UI Contact type field names
 export const CONTACT_SORT_OPTIONS = [
   { columnName: 'firstName', label: 'First Name' },
   { columnName: 'lastName', label: 'Last Name' },
   { columnName: 'email', label: 'Email' },
   { columnName: 'role', label: 'Role' },
-  { columnName: 'companyName', label: 'Company' },
-  { columnName: 'createdAt', label: 'Created Date' },
+  { columnName: 'company', label: 'Company' },
+  { columnName: 'lastActivity', label: 'Last Activity' },
 ];

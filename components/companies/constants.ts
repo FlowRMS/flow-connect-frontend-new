@@ -18,8 +18,11 @@ export const LOGO_COLORS = [
 ] as const;
 
 // Sort options for companies
+// Note: columnName should match the UI Company type field names
 export const COMPANY_SORT_OPTIONS = [
   { columnName: 'name', label: 'Name' },
   { columnName: 'companySourceType', label: 'Type' },
-  { columnName: 'createdAt', label: 'Created Date' },
+  { columnName: 'phone', label: 'Phone' },
+  { columnName: 'website', label: 'Website' },
+  { columnName: 'lastActivity', label: 'Last Activity' },
 ];

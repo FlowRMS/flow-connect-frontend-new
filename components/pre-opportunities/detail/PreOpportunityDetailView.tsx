@@ -8,7 +8,7 @@ import { PreOpportunityDetailHeader } from './PreOpportunityDetailHeader';
 import { PreOpportunityDetailsForm, type EditFormData } from './PreOpportunityDetailsForm';
 import { PreOpportunityLineItems } from './PreOpportunityLineItems';
 import { PreOpportunitySummary } from './PreOpportunitySummary';
-import type { PreOpportunity } from '../types';
+import type { PreOpportunity, PreOpportunityDetailInput } from '../types';
 
 interface PreOpportunityDetailViewProps {
   preOpp: PreOpportunity;
@@ -22,6 +22,7 @@ interface PreOpportunityDetailViewProps {
   onCancel: () => void;
   onDelete: () => void;
   onEditChange: (field: keyof EditFormData, value: string) => void;
+  onLineItemsChange?: (items: PreOpportunityDetailInput[]) => void;
 }
 
 export function PreOpportunityDetailView({
@@ -36,6 +37,7 @@ export function PreOpportunityDetailView({
   onCancel,
   onDelete,
   onEditChange,
+  onLineItemsChange,
 }: PreOpportunityDetailViewProps) {
   return (
     <main className="flex-1 overflow-y-auto bg-gray-50 p-6">
@@ -60,7 +62,11 @@ export function PreOpportunityDetailView({
             editFormData={editFormData}
             onChange={onEditChange}
           />
-          <PreOpportunityLineItems preOpp={preOpp} />
+          <PreOpportunityLineItems 
+            preOpp={preOpp} 
+            isEditing={isEditing}
+            onLineItemsChange={onLineItemsChange}
+          />
         </div>
 
         {/* Sidebar - 1 column */}

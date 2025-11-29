@@ -632,6 +632,52 @@ const GET_CONTACTS_BY_COMPANY = `
   }
 `;
 
+const GET_JOBS_BY_COMPANY = `
+  query GetJobsByCompany($companyId: UUID!) {
+    jobsByCompany(companyId: $companyId) {
+      id
+      jobName
+      jobType
+      description
+      additionalInformation
+      structuralInformation
+      structuralDetails
+      startDate
+      endDate
+      requesterId
+      createdBy
+      createdAt
+      status {
+        id
+        name
+      }
+    }
+  }
+`;
+
+const GET_JOBS_BY_CONTACT = `
+  query GetJobsByContact($contactId: UUID!) {
+    jobsByContact(contactId: $contactId) {
+      id
+      jobName
+      jobType
+      description
+      additionalInformation
+      structuralInformation
+      structuralDetails
+      startDate
+      endDate
+      requesterId
+      createdBy
+      createdAt
+      status {
+        id
+        name
+      }
+    }
+  }
+`;
+
 const CREATE_CONTACT = `
   mutation CreateContact($input: ContactInput!) {
     createContact(input: $input) {
@@ -1502,6 +1548,32 @@ export async function fetchContactsByCompanyId(companyId: string): Promise<Conta
   }
 
   return response.data?.contactsByCompany || [];
+}
+
+export async function fetchJobsByCompanyId(companyId: string): Promise<Job[]> {
+  const response = await crmGraphQLRequest<{ jobsByCompany: Job[] }>({
+    query: GET_JOBS_BY_COMPANY,
+    variables: { companyId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch jobs by company');
+  }
+
+  return response.data?.jobsByCompany || [];
+}
+
+export async function fetchJobsByContactId(contactId: string): Promise<Job[]> {
+  const response = await crmGraphQLRequest<{ jobsByContact: Job[] }>({
+    query: GET_JOBS_BY_CONTACT,
+    variables: { contactId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch jobs by contact');
+  }
+
+  return response.data?.jobsByContact || [];
 }
 
 export async function createContact(input: ContactInput): Promise<Contact> {

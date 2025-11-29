@@ -5,14 +5,15 @@
 
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import AdvancedFilters from './AdvancedFilters';
 import SortButton from './SortButton';
 import CreateCompanyModal from './CreateCompanyModal';
 import { useCRMCompanyLandingPages, useDeleteCRMCompany, useUpdateCRMCompany } from './hooks/useCRMApi';
 import { hasCRMTokens } from './lib/crm-auth';
 import { companyToasts } from './lib/toast';
-import type { CompanySourceType } from './lib/crm-graphql';
+import type { CompanySourceType, Contact as APIContact, Job as APIJob } from './lib/crm-graphql';
 
 // Modular imports
 import { useCompaniesState } from './companies/hooks/useCompaniesState';
@@ -23,6 +24,10 @@ import GridView from './companies/views/GridView';
 import ListView from './companies/views/ListView';
 
 export default function CompaniesContent() {
+  // Router for navigation
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  
   // CRM API hooks
   const isConnected = hasCRMTokens();
   const { data: landingPageCompanies, isLoading, error, refetch } = useCRMCompanyLandingPages();
@@ -58,6 +63,30 @@ export default function CompaniesContent() {
     handleStartEdit,
     handleCancelEdit,
   } = useCompaniesState(landingPageCompanies);
+
+  // Check for ID in query params to auto-select a company
+  useEffect(() => {
+    const companyId = searchParams.get('id');
+    if (companyId && companies.length > 0 && !selectedCompany) {
+      const company = companies.find(c => c.id === companyId);
+      if (company) {
+        setSelectedCompany(company);
+        // Clear the query param after selecting
+        router.replace('/companies', { scroll: false });
+      }
+    }
+  }, [searchParams, companies, selectedCompany, setSelectedCompany, router]);
+
+  // Navigation handlers for related entities
+  const handleContactClick = (contact: APIContact) => {
+    // Navigate to contacts page with the contact ID as query param
+    router.push(`/contacts?id=${contact.id}`);
+  };
+
+  const handleJobClick = (job: APIJob) => {
+    // Navigate to jobs page with the job ID as query param
+    router.push(`/jobs?id=${job.id}`);
+  };
 
   // Filter options with unique values
   const companyFilterOptions = useMemo(
@@ -139,6 +168,8 @@ export default function CompaniesContent() {
         onDeleteConfirm={() => handleDeleteCompany(deleteConfirmId!)}
         onDeleteCancel={() => setDeleteConfirmId(null)}
         onFieldChange={handleFieldChange}
+        onContactClick={handleContactClick}
+        onJobClick={handleJobClick}
       />
     );
   }

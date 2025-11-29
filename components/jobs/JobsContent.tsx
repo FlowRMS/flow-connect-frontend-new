@@ -5,7 +5,8 @@
 
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
 import AdvancedFilters, { ActiveFilter, ActiveSort } from '../AdvancedFilters';
 import SortButton from '../SortButton';
@@ -24,6 +25,10 @@ import type { Job } from './types';
 import type { Company, Contact } from '../lib/crm-graphql';
 
 export default function JobsContent() {
+  // Router for navigation
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  
   // CRM API hooks
   const isConnected = hasCRMTokens();
   const { data: landingPageJobs, isLoading: jobsLoading, error: jobsError, refetch: refetchJobs } = useCRMJobLandingPages();
@@ -48,11 +53,26 @@ export default function JobsContent() {
     primaryJob, setPrimaryJob,
     visibleCategories, setVisibleCategories,
     repType, setRepType,
+    activeFilters, setActiveFilters,
     activeFilter, setActiveFilter,
+    clientSortColumns, setClientSortColumns,
     clientSortColumn, setClientSortColumn,
     clientSortDirection, setClientSortDirection,
     uniqueJobNames, uniqueStatuses, uniqueTypes, uniqueCreators,
   } = useJobsState(landingPageJobs, apiStatuses);
+
+  // Check for ID in query params to auto-select a job
+  useEffect(() => {
+    const jobId = searchParams.get('id');
+    if (jobId && jobs.length > 0 && !selectedJob) {
+      const job = jobs.find(j => j.id === jobId);
+      if (job) {
+        setSelectedJob(job);
+        // Clear the query param after selecting
+        router.replace('/jobs', { scroll: false });
+      }
+    }
+  }, [searchParams, jobs, selectedJob, setSelectedJob, router]);
 
   // Filter and sort configuration
   const jobFilterOptions = getJobFilterOptions(uniqueJobNames, uniqueStatuses, uniqueTypes, uniqueCreators);
@@ -75,12 +95,38 @@ export default function JobsContent() {
 
   const handleFilterChange = (filter: ActiveFilter | undefined) => {
     setActiveFilter(filter);
+    // Also update the multi-filter state
+    if (filter) {
+      setActiveFilters([filter]);
+    } else {
+      setActiveFilters([]);
+    }
+  };
+
+  const handleFiltersChange = (filters: ActiveFilter[]) => {
+    setActiveFilters(filters);
+    // Also update the single filter for backward compatibility
+    setActiveFilter(filters.length > 0 ? filters[0] : undefined);
   };
 
   const handleSortChange = (sort: ActiveSort | undefined) => {
     if (sort) {
       setClientSortColumn(sort.columnName);
       setClientSortDirection(sort.direction);
+      setClientSortColumns([sort]);
+    } else {
+      setClientSortColumn(undefined);
+      setClientSortDirection('ASC');
+      setClientSortColumns([]);
+    }
+  };
+
+  const handleMultiSortChange = (sorts: ActiveSort[]) => {
+    setClientSortColumns(sorts);
+    // Also update single sort for backward compatibility
+    if (sorts.length > 0) {
+      setClientSortColumn(sorts[0].columnName);
+      setClientSortDirection(sorts[0].direction);
     } else {
       setClientSortColumn(undefined);
       setClientSortDirection('ASC');
@@ -264,7 +310,7 @@ export default function JobsContent() {
         onRepTypeChange={setRepType}
         onToggleRepTypeModal={setShowRepTypeModal}
         onCompanyClick={(company: Company) => setSelectedCompany(company)}
-        onContactClick={(contact: Contact) => console.log('Contact clicked:', contact)}
+        onContactClick={(contact: Contact) => router.push(`/contacts?id=${contact.id}`)}
       />
     );
   }
@@ -326,7 +372,9 @@ export default function JobsContent() {
             <AdvancedFilters 
               filterOptions={jobFilterOptions}
               onFilterChange={handleFilterChange}
+              onFiltersChange={handleFiltersChange}
               activeFilter={activeFilter}
+              activeFilters={activeFilters}
             />
             
             <button 

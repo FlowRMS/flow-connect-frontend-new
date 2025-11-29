@@ -42,6 +42,8 @@ import {
   fetchJobsByIds,
   getStoredJobIds,
   fetchJobLandingPages,
+  fetchJobsByCompanyId,
+  fetchJobsByContactId,
   // Company functions
   fetchCompanies,
   fetchCompany,
@@ -90,6 +92,8 @@ export const crmQueryKeys = {
   job: (id: string) => [...crmQueryKeys.jobs(), id] as const,
   jobLandingPages: (filters?: LandingPageFilter[], orderBy?: LandingPageOrderBy[]) => 
     [...crmQueryKeys.all, 'jobLandingPages', { filters, orderBy }] as const,
+  jobsByCompany: (companyId: string) => [...crmQueryKeys.jobs(), 'byCompany', companyId] as const,
+  jobsByContact: (contactId: string) => [...crmQueryKeys.jobs(), 'byContact', contactId] as const,
   
   // Companies
   companies: () => [...crmQueryKeys.all, 'companies'] as const,
@@ -266,6 +270,30 @@ export function useCRMCompaniesByJob(jobId: string) {
     queryKey: crmQueryKeys.companiesByJob(jobId),
     queryFn: () => fetchCompaniesByJobId(jobId),
     enabled: hasCRMTokens() && !!jobId,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Fetch jobs by company
+ */
+export function useCRMJobsByCompany(companyId: string) {
+  return useQuery<Job[], Error>({
+    queryKey: crmQueryKeys.jobsByCompany(companyId),
+    queryFn: () => fetchJobsByCompanyId(companyId),
+    enabled: hasCRMTokens() && !!companyId,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Fetch jobs by contact
+ */
+export function useCRMJobsByContact(contactId: string) {
+  return useQuery<Job[], Error>({
+    queryKey: crmQueryKeys.jobsByContact(contactId),
+    queryFn: () => fetchJobsByContactId(contactId),
+    enabled: hasCRMTokens() && !!contactId,
     staleTime: 30 * 1000,
   });
 }
@@ -489,48 +517,52 @@ export function useCRMPreOpportunitiesByCustomer(customerId: string) {
 
 /**
  * Search for products
+ * When allowEmpty is true, empty string search will fetch all products
  */
-export function useCRMProductSearch(searchTerm: string, factoryId?: string) {
+export function useCRMProductSearch(searchTerm: string, factoryId?: string, allowEmpty = false) {
   return useQuery<ProductSearchResult[], Error>({
     queryKey: crmQueryKeys.productSearch(searchTerm, factoryId),
     queryFn: () => searchProducts(searchTerm, factoryId),
-    enabled: hasCRMTokens() && searchTerm.length > 0,
+    enabled: hasCRMTokens() && (allowEmpty || searchTerm.length > 0),
     staleTime: 60 * 1000,
   });
 }
 
 /**
  * Search for factories
+ * When allowEmpty is true, empty string search will fetch all factories
  */
-export function useCRMFactorySearch(searchTerm: string, published?: boolean) {
+export function useCRMFactorySearch(searchTerm: string, published?: boolean, allowEmpty = false) {
   return useQuery<FactorySearchResult[], Error>({
     queryKey: crmQueryKeys.factorySearch(searchTerm, published),
     queryFn: () => searchFactories(searchTerm, published),
-    enabled: hasCRMTokens() && searchTerm.length > 0,
+    enabled: hasCRMTokens() && (allowEmpty || searchTerm.length > 0),
     staleTime: 60 * 1000,
   });
 }
 
 /**
  * Search for customers
+ * When allowEmpty is true, empty string search will fetch all customers
  */
-export function useCRMCustomerSearch(searchTerm: string, published?: boolean) {
+export function useCRMCustomerSearch(searchTerm: string, published?: boolean, allowEmpty = false) {
   return useQuery<CustomerSearchResult[], Error>({
     queryKey: crmQueryKeys.customerSearch(searchTerm, published),
     queryFn: () => searchCustomers(searchTerm, published),
-    enabled: hasCRMTokens() && searchTerm.length > 0,
+    enabled: hasCRMTokens() && (allowEmpty || searchTerm.length > 0),
     staleTime: 60 * 1000,
   });
 }
 
 /**
  * Search for jobs
+ * When allowEmpty is true, empty string search will fetch all jobs
  */
-export function useCRMJobSearch(searchTerm: string) {
+export function useCRMJobSearch(searchTerm: string, allowEmpty = false) {
   return useQuery<JobSearchResult[], Error>({
     queryKey: crmQueryKeys.jobSearch(searchTerm),
     queryFn: () => searchJobs(searchTerm),
-    enabled: hasCRMTokens() && searchTerm.length > 0,
+    enabled: hasCRMTokens() && (allowEmpty || searchTerm.length > 0),
     staleTime: 60 * 1000,
   });
 }
@@ -617,6 +649,34 @@ export function useCreateCRMLink() {
           queryKey: crmQueryKeys.jobRelatedEntities(variables.targetEntityId) 
         });
       }
+      // Invalidate company-related queries
+      if (variables.sourceEntityType === 'COMPANY') {
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.contactsByCompany(variables.sourceEntityId) 
+        });
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.jobsByCompany(variables.sourceEntityId) 
+        });
+      }
+      if (variables.targetEntityType === 'COMPANY') {
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.contactsByCompany(variables.targetEntityId) 
+        });
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.jobsByCompany(variables.targetEntityId) 
+        });
+      }
+      // Invalidate contact-related queries
+      if (variables.sourceEntityType === 'CONTACT') {
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.jobsByContact(variables.sourceEntityId) 
+        });
+      }
+      if (variables.targetEntityType === 'CONTACT') {
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.jobsByContact(variables.targetEntityId) 
+        });
+      }
     },
   });
 }
@@ -658,6 +718,34 @@ export function useDeleteCRMLinkByEntities() {
       if (variables.targetEntityType === 'JOB') {
         queryClient.invalidateQueries({ 
           queryKey: crmQueryKeys.jobRelatedEntities(variables.targetEntityId) 
+        });
+      }
+      // Invalidate company-related queries
+      if (variables.sourceEntityType === 'COMPANY') {
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.contactsByCompany(variables.sourceEntityId) 
+        });
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.jobsByCompany(variables.sourceEntityId) 
+        });
+      }
+      if (variables.targetEntityType === 'COMPANY') {
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.contactsByCompany(variables.targetEntityId) 
+        });
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.jobsByCompany(variables.targetEntityId) 
+        });
+      }
+      // Invalidate contact-related queries
+      if (variables.sourceEntityType === 'CONTACT') {
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.jobsByContact(variables.sourceEntityId) 
+        });
+      }
+      if (variables.targetEntityType === 'CONTACT') {
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.jobsByContact(variables.targetEntityId) 
         });
       }
     },

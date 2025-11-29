@@ -4,7 +4,7 @@
 
 import React from 'react';
 import type { Company } from '../types';
-import type { CompanySourceType } from '../../lib/crm-graphql';
+import type { CompanySourceType, Contact as APIContact, Job as APIJob } from '../../lib/crm-graphql';
 import CompanyDetailHeader from './CompanyDetailHeader';
 import CompanyInfoForm from './CompanyInfoForm';
 import CompanyRelatedEntities from './CompanyRelatedEntities';
@@ -25,6 +25,8 @@ interface CompanyDetailViewProps {
   onDeleteConfirm: () => void;
   onDeleteCancel: () => void;
   onFieldChange: (field: string, value: string | CompanySourceType) => void;
+  onContactClick?: (contact: APIContact) => void;
+  onJobClick?: (job: APIJob) => void;
 }
 
 export default function CompanyDetailView({
@@ -42,6 +44,8 @@ export default function CompanyDetailView({
   onDeleteConfirm,
   onDeleteCancel,
   onFieldChange,
+  onContactClick,
+  onJobClick,
 }: CompanyDetailViewProps) {
   return (
     <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
@@ -63,7 +67,11 @@ export default function CompanyDetailView({
         onFieldChange={onFieldChange}
       />
 
-      <CompanyRelatedEntities company={company} />
+      <CompanyRelatedEntities 
+        company={company}
+        onContactClick={onContactClick}
+        onJobClick={onJobClick}
+      />
 
       {deleteConfirmId && (
         <DeleteConfirmModal

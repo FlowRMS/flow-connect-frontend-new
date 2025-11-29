@@ -69,9 +69,10 @@ export function sortJobs(
   sortColumn: string,
   sortDirection: 'ASC' | 'DESC'
 ): Job[] {
+  const actualColumn = FILTER_COLUMN_MAP[sortColumn] || sortColumn;
   return [...jobs].sort((a, b) => {
-    const aVal = String((a as any)[sortColumn] || '');
-    const bVal = String((b as any)[sortColumn] || '');
+    const aVal = String((a as any)[actualColumn] || '');
+    const bVal = String((b as any)[actualColumn] || '');
     const comparison = aVal.localeCompare(bVal);
     return sortDirection === 'ASC' ? comparison : -comparison;
   });

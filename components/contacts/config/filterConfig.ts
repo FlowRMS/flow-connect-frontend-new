@@ -1,5 +1,6 @@
 /**
  * Contact Filter Configuration
+ * Note: columnName should match the UI Contact type field names
  */
 
 import type { Contact } from '../types';
@@ -17,7 +18,8 @@ export interface ContactFilterOption {
  * Generate filter options with dynamic unique values
  */
 export function getContactFilterOptions(contacts: Contact[]): ContactFilterOption[] {
-  const uniqueNames = Array.from(new Set(contacts.map(c => c.name))).sort();
+  const uniqueFirstNames = Array.from(new Set(contacts.map(c => c.firstName).filter(Boolean))).sort();
+  const uniqueLastNames = Array.from(new Set(contacts.map(c => c.lastName).filter(Boolean))).sort();
   const uniqueEmails = Array.from(new Set(contacts.map(c => c.email).filter(Boolean))).sort();
   const uniqueCompanies = Array.from(new Set(contacts.map(c => c.company).filter(Boolean))).sort();
   const uniqueRoles = Array.from(new Set(contacts.map(c => c.role).filter(Boolean))).sort();
@@ -27,22 +29,23 @@ export function getContactFilterOptions(contacts: Contact[]): ContactFilterOptio
     { 
       id: 'first-name', 
       label: 'First Name', 
-      type: 'text', 
+      type: 'dropdown', 
       columnName: 'firstName', 
       available: true, 
-      options: uniqueNames 
+      options: uniqueFirstNames 
     },
     { 
       id: 'last-name', 
       label: 'Last Name', 
-      type: 'text', 
+      type: 'dropdown', 
       columnName: 'lastName', 
-      available: true 
+      available: true,
+      options: uniqueLastNames 
     },
     { 
       id: 'email', 
       label: 'Email', 
-      type: 'text', 
+      type: 'dropdown', 
       columnName: 'email', 
       available: true, 
       options: uniqueEmails 
@@ -58,7 +61,7 @@ export function getContactFilterOptions(contacts: Contact[]): ContactFilterOptio
       id: 'company', 
       label: 'Company', 
       type: 'dropdown', 
-      columnName: 'companyName', 
+      columnName: 'company', 
       available: true, 
       options: uniqueCompanies 
     },

@@ -6,6 +6,8 @@
 export { ViewModeToggle } from './ViewModeToggle';
 export { LoadingState } from './LoadingState';
 export { ErrorState } from './ErrorState';
+export { SearchableDropdown } from './SearchableDropdown';
+export { LineItemEditor } from './LineItemEditor';
 export {
   BoardIcon,
   ListIcon,
