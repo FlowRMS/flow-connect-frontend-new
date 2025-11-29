@@ -7,8 +7,8 @@ import { JobDetailHeader } from './JobDetailHeader';
 import { JobDetailsForm } from './JobDetailsForm';
 import { ConnectedEntitiesSection } from './ConnectedEntitiesSection';
 import { RepTypeModal } from '../modals/RepTypeModal';
-import type { Job, RepType, ConnectedEntities } from '../types';
-import { DEFAULT_VISIBLE_CATEGORIES } from '../constants';
+import type { Job, RepType } from '../types';
+import type { Company, Contact } from '../../lib/crm-graphql';
 
 interface JobDetailViewProps {
   job: Job;
@@ -17,8 +17,6 @@ interface JobDetailViewProps {
   editFormData: Partial<Job>;
   repType: RepType;
   showRepTypeModal: boolean;
-  visibleCategories: string[];
-  connectedEntities: ConnectedEntities;
   onBack: () => void;
   onEditChange: (field: keyof Job, value: string) => void;
   onStartEdit: () => void;
@@ -26,9 +24,8 @@ interface JobDetailViewProps {
   onCancelEdit: () => void;
   onRepTypeChange: (type: RepType) => void;
   onToggleRepTypeModal: (show: boolean) => void;
-  onToggleCategory: (category: string) => void;
-  onToggleAllCategories: () => void;
-  onCompanyClick?: (company: any) => void;
+  onCompanyClick?: (company: Company) => void;
+  onContactClick?: (contact: Contact) => void;
 }
 
 export function JobDetailView({
@@ -38,8 +35,6 @@ export function JobDetailView({
   editFormData,
   repType,
   showRepTypeModal,
-  visibleCategories,
-  connectedEntities,
   onBack,
   onEditChange,
   onStartEdit,
@@ -47,9 +42,8 @@ export function JobDetailView({
   onCancelEdit,
   onRepTypeChange,
   onToggleRepTypeModal,
-  onToggleCategory,
-  onToggleAllCategories,
   onCompanyClick,
+  onContactClick,
 }: JobDetailViewProps) {
   return (
     <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
@@ -73,12 +67,9 @@ export function JobDetailView({
       />
 
       <ConnectedEntitiesSection
-        entities={connectedEntities}
-        visibleCategories={visibleCategories}
-        repType={repType}
-        onToggleCategory={onToggleCategory}
-        onToggleAll={onToggleAllCategories}
+        jobId={job.id}
         onCompanyClick={onCompanyClick}
+        onContactClick={onContactClick}
       />
 
       <RepTypeModal

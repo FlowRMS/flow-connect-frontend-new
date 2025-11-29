@@ -19,8 +19,9 @@ import { JobDetailView } from './detail/JobDetailView';
 import { CompanyDetailView } from './detail/CompanyDetailView';
 import { KanbanView } from './views/KanbanView';
 import { ListView } from './views/ListView';
-import { mockConnectedEntities, getCompanyDetails } from './mockData';
+import { getCompanyDetails } from './mockData';
 import type { Job } from './types';
+import type { Company, Contact } from '../lib/crm-graphql';
 
 export default function JobsContent() {
   // CRM API hooks
@@ -147,26 +148,6 @@ export default function JobsContent() {
     setEditFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const toggleCategory = (category: string) => {
-    if (visibleCategories.includes(category)) {
-      setVisibleCategories(visibleCategories.filter(c => c !== category));
-    } else {
-      setVisibleCategories([...visibleCategories, category]);
-    }
-  };
-
-  const toggleAllCategories = () => {
-    if (visibleCategories.length === 8) {
-      setVisibleCategories([]);
-    } else {
-      setVisibleCategories(['contacts', 'companies', 'pre-opportunities', 'quotes', 'orders', 'invoices', 'checks', 'documents']);
-    }
-  };
-
-  const handleCompanyClick = (company: any) => {
-    setSelectedCompany(company);
-  };
-
   // Show connection required message if not connected
   if (!isConnected) {
     return (
@@ -275,8 +256,6 @@ export default function JobsContent() {
         editFormData={editFormData}
         repType={repType}
         showRepTypeModal={showRepTypeModal}
-        visibleCategories={visibleCategories}
-        connectedEntities={mockConnectedEntities}
         onBack={() => setSelectedJob(null)}
         onEditChange={handleEditChange}
         onStartEdit={handleStartEdit}
@@ -284,9 +263,8 @@ export default function JobsContent() {
         onCancelEdit={handleCancelEdit}
         onRepTypeChange={setRepType}
         onToggleRepTypeModal={setShowRepTypeModal}
-        onToggleCategory={toggleCategory}
-        onToggleAllCategories={toggleAllCategories}
-        onCompanyClick={handleCompanyClick}
+        onCompanyClick={(company: Company) => setSelectedCompany(company)}
+        onContactClick={(contact: Contact) => console.log('Contact clicked:', contact)}
       />
     );
   }

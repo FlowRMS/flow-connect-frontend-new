@@ -1,0 +1,21 @@
+# Exported from Render on 2025-11-29T01:44:42Z
+version: "1"
+projects:
+- name: Flow RMS Services
+  environments:
+  - name: Staging
+    networking:
+      isolation: enabled
+    services:
+    - type: web
+      name: flow-crm MOCK
+      runtime: node
+      repo: https://github.com/FlowRMSLabs/flow-crm
+      plan: starter
+      envVars:
+      - key: PORT
+        sync: false
+      region: ohio
+      buildCommand: npm install; npm run build
+      startCommand: npm run dev
+      autoDeployTrigger: commit

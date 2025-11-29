@@ -1747,3 +1747,210 @@ export async function deletePreOpportunity(id: string): Promise<boolean> {
   return response.data?.deletePreOpportunity || false;
 }
 
+// ============================================================================
+// Entity Link Types
+// ============================================================================
+
+export type EntityType = 'JOB' | 'COMPANY' | 'CONTACT';
+
+export interface EntityLink {
+  id: string;
+  sourceEntityType: EntityType;
+  sourceEntityId: string;
+  targetEntityType: EntityType;
+  targetEntityId: string;
+  createdAt: string;
+  createdBy: string;
+}
+
+export interface CreateLinkInput {
+  sourceEntityType: EntityType;
+  sourceEntityId: string;
+  targetEntityType: EntityType;
+  targetEntityId: string;
+}
+
+export interface DeleteLinkByEntitiesInput {
+  sourceEntityType: EntityType;
+  sourceEntityId: string;
+  targetEntityType: EntityType;
+  targetEntityId: string;
+}
+
+export interface JobRelatedEntities {
+  companies: Company[];
+  contacts: Contact[];
+  preOpportunities: PreOpportunity[];
+}
+
+// ============================================================================
+// Entity Link GraphQL Queries and Mutations
+// ============================================================================
+
+const CREATE_LINK = `
+  mutation CreateLink(
+    $sourceEntityType: EntityType!
+    $sourceEntityId: UUID!
+    $targetEntityType: EntityType!
+    $targetEntityId: UUID!
+  ) {
+    createLink(input: {
+      sourceEntityType: $sourceEntityType
+      sourceEntityId: $sourceEntityId
+      targetEntityType: $targetEntityType
+      targetEntityId: $targetEntityId
+    }) {
+      id
+      sourceEntityType
+      sourceEntityId
+      targetEntityType
+      targetEntityId
+      createdAt
+      createdBy
+    }
+  }
+`;
+
+const DELETE_LINK = `
+  mutation DeleteLink($id: UUID!) {
+    deleteLink(id: $id)
+  }
+`;
+
+const DELETE_LINK_BY_ENTITIES = `
+  mutation DeleteLinkByEntities(
+    $sourceEntityType: EntityType!
+    $sourceEntityId: UUID!
+    $targetEntityType: EntityType!
+    $targetEntityId: UUID!
+  ) {
+    deleteLinkByEntities(input: {
+      sourceEntityType: $sourceEntityType
+      sourceEntityId: $sourceEntityId
+      targetEntityType: $targetEntityType
+      targetEntityId: $targetEntityId
+    })
+  }
+`;
+
+const GET_JOB_RELATED_ENTITIES = `
+  query GetJobRelatedEntities($jobId: UUID!) {
+    jobRelatedEntities(jobId: $jobId) {
+      companies {
+        id
+        name
+        companySourceType
+        phone
+        website
+        tags
+        createdAt
+        createdBy
+        parentCompanyId
+      }
+      contacts {
+        id
+        firstName
+        lastName
+        email
+        phone
+        role
+        companyId
+        notes
+        tags
+        territory
+        createdAt
+        createdBy
+      }
+      preOpportunities {
+        id
+        entityNumber
+        entityDate
+        status
+        soldToCustomerId
+        billToCustomerId
+        soldToCustomerAddressId
+        billToCustomerAddressId
+        jobId
+        expDate
+        acceptDate
+        reviseDate
+        customerRef
+        paymentTerms
+        freightTerms
+        createdAt
+        createdBy
+      }
+    }
+  }
+`;
+
+// ============================================================================
+// Entity Link API Functions
+// ============================================================================
+
+export async function createLink(input: CreateLinkInput): Promise<EntityLink> {
+  const response = await crmGraphQLRequest<{ createLink: EntityLink }>({
+    query: CREATE_LINK,
+    variables: {
+      sourceEntityType: input.sourceEntityType,
+      sourceEntityId: input.sourceEntityId,
+      targetEntityType: input.targetEntityType,
+      targetEntityId: input.targetEntityId,
+    },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to create link');
+  }
+
+  if (!response.data?.createLink) {
+    throw new Error('No link returned from create mutation');
+  }
+
+  return response.data.createLink;
+}
+
+export async function deleteLink(id: string): Promise<boolean> {
+  const response = await crmGraphQLRequest<{ deleteLink: boolean }>({
+    query: DELETE_LINK,
+    variables: { id },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to delete link');
+  }
+
+  return response.data?.deleteLink || false;
+}
+
+export async function deleteLinkByEntities(input: DeleteLinkByEntitiesInput): Promise<boolean> {
+  const response = await crmGraphQLRequest<{ deleteLinkByEntities: boolean }>({
+    query: DELETE_LINK_BY_ENTITIES,
+    variables: {
+      sourceEntityType: input.sourceEntityType,
+      sourceEntityId: input.sourceEntityId,
+      targetEntityType: input.targetEntityType,
+      targetEntityId: input.targetEntityId,
+    },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to delete link by entities');
+  }
+
+  return response.data?.deleteLinkByEntities || false;
+}
+
+export async function fetchJobRelatedEntities(jobId: string): Promise<JobRelatedEntities> {
+  const response = await crmGraphQLRequest<{ jobRelatedEntities: JobRelatedEntities }>({
+    query: GET_JOB_RELATED_ENTITIES,
+    variables: { jobId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch job related entities');
+  }
+
+  return response.data?.jobRelatedEntities || { companies: [], contacts: [], preOpportunities: [] };
+}
+

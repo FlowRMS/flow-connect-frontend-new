@@ -30,6 +30,10 @@ import {
   type JobSearchResult,
   type LandingPageFilter,
   type LandingPageOrderBy,
+  type EntityLink,
+  type CreateLinkInput,
+  type DeleteLinkByEntitiesInput,
+  type JobRelatedEntities,
   // Job functions
   fetchJobStatuses,
   fetchJob,
@@ -66,6 +70,11 @@ import {
   createPreOpportunity,
   updatePreOpportunity,
   deletePreOpportunity,
+  // Entity Link functions
+  createLink,
+  deleteLink,
+  deleteLinkByEntities,
+  fetchJobRelatedEntities,
 } from '../lib/crm-graphql';
 
 // ============================================================================
@@ -113,6 +122,10 @@ export const crmQueryKeys = {
     [...crmQueryKeys.all, 'customerSearch', { searchTerm, published }] as const,
   jobSearch: (searchTerm: string) => 
     [...crmQueryKeys.all, 'jobSearch', { searchTerm }] as const,
+  
+  // Entity Links
+  jobRelatedEntities: (jobId: string) => 
+    [...crmQueryKeys.all, 'jobRelatedEntities', jobId] as const,
 };
 
 // ============================================================================
@@ -564,6 +577,89 @@ export function useDeleteCRMPreOpportunity() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: crmQueryKeys.preOpportunities() });
       queryClient.invalidateQueries({ queryKey: crmQueryKeys.preOpportunityLandingPages() });
+    },
+  });
+}
+
+// ============================================================================
+// Entity Link Hooks
+// ============================================================================
+
+/**
+ * Fetch job related entities (companies, contacts, pre-opportunities)
+ */
+export function useCRMJobRelatedEntities(jobId: string) {
+  return useQuery<JobRelatedEntities, Error>({
+    queryKey: crmQueryKeys.jobRelatedEntities(jobId),
+    queryFn: () => fetchJobRelatedEntities(jobId),
+    enabled: hasCRMTokens() && !!jobId,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Create entity link mutation
+ */
+export function useCreateCRMLink() {
+  const queryClient = useQueryClient();
+
+  return useMutation<EntityLink, Error, CreateLinkInput>({
+    mutationFn: createLink,
+    onSuccess: (_, variables) => {
+      // Invalidate related entities queries based on entity types
+      if (variables.sourceEntityType === 'JOB') {
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.jobRelatedEntities(variables.sourceEntityId) 
+        });
+      }
+      if (variables.targetEntityType === 'JOB') {
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.jobRelatedEntities(variables.targetEntityId) 
+        });
+      }
+    },
+  });
+}
+
+/**
+ * Delete entity link mutation by ID
+ */
+export function useDeleteCRMLink() {
+  const queryClient = useQueryClient();
+
+  return useMutation<boolean, Error, { id: string; jobId?: string }>({
+    mutationFn: ({ id }) => deleteLink(id),
+    onSuccess: (_, variables) => {
+      // Invalidate job related entities if jobId provided
+      if (variables.jobId) {
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.jobRelatedEntities(variables.jobId) 
+        });
+      }
+    },
+  });
+}
+
+/**
+ * Delete entity link mutation by entities
+ */
+export function useDeleteCRMLinkByEntities() {
+  const queryClient = useQueryClient();
+
+  return useMutation<boolean, Error, DeleteLinkByEntitiesInput>({
+    mutationFn: deleteLinkByEntities,
+    onSuccess: (_, variables) => {
+      // Invalidate related entities queries based on entity types
+      if (variables.sourceEntityType === 'JOB') {
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.jobRelatedEntities(variables.sourceEntityId) 
+        });
+      }
+      if (variables.targetEntityType === 'JOB') {
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.jobRelatedEntities(variables.targetEntityId) 
+        });
+      }
     },
   });
 }
