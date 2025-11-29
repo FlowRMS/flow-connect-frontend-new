@@ -11,6 +11,7 @@ import {
 } from '../../hooks/useCRMApi';
 import { hasCRMTokens } from '../../lib/crm-auth';
 import { mapLandingPageToUIContact } from '../types';
+import { contactToasts } from '../../lib/toast';
 import type { Contact, ViewMode } from '../types';
 import type { ActiveFilter, ActiveSort } from '../../AdvancedFilters';
 
@@ -143,11 +144,14 @@ export function useContactsState() {
         },
       });
       
+      const fullName = `${editFormData.firstName || selectedContact.firstName} ${editFormData.lastName || selectedContact.lastName}`;
+      contactToasts.updateSuccess(fullName);
+      
       setSelectedContact({
         ...selectedContact,
         firstName: editFormData.firstName || selectedContact.firstName,
         lastName: editFormData.lastName || selectedContact.lastName,
-        name: `${editFormData.firstName || selectedContact.firstName} ${editFormData.lastName || selectedContact.lastName}`,
+        name: fullName,
         email: editFormData.email || selectedContact.email,
         phone: editFormData.phone || selectedContact.phone,
         role: editFormData.role || selectedContact.role,
@@ -157,6 +161,7 @@ export function useContactsState() {
       refetch();
     } catch (err) {
       console.error('Failed to update contact:', err);
+      contactToasts.updateError(err instanceof Error ? err.message : undefined);
     }
   };
 
@@ -167,14 +172,17 @@ export function useContactsState() {
 
   // Handle delete
   const handleDeleteContact = async (id: string) => {
+    const contact = contacts.find(c => c.id === id);
     try {
       await deleteContactMutation.mutateAsync(id);
+      contactToasts.deleteSuccess(contact?.name || 'Contact');
       setDeleteConfirmId(null);
       if (selectedContact?.id === id) {
         setSelectedContact(null);
       }
     } catch (err) {
       console.error('Failed to delete contact:', err);
+      contactToasts.deleteError(err instanceof Error ? err.message : undefined);
     }
   };
 

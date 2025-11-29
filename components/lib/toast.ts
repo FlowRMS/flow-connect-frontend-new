@@ -1,0 +1,329 @@
+/**
+ * Toast Utility Module
+ * Centralized toast notification functions using Sonner
+ */
+
+import { toast } from 'sonner';
+
+// ============================================================================
+// Toast Configuration Types
+// ============================================================================
+
+interface ToastOptions {
+  description?: string;
+  duration?: number;
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
+}
+
+// ============================================================================
+// Success Toasts
+// ============================================================================
+
+export const showSuccessToast = (message: string, options?: ToastOptions) => {
+  toast.success(message, {
+    description: options?.description,
+    duration: options?.duration || 4000,
+    action: options?.action,
+  });
+};
+
+// ============================================================================
+// Error Toasts
+// ============================================================================
+
+export const showErrorToast = (message: string, options?: ToastOptions) => {
+  toast.error(message, {
+    description: options?.description,
+    duration: options?.duration || 5000,
+    action: options?.action,
+  });
+};
+
+// ============================================================================
+// Warning Toasts
+// ============================================================================
+
+export const showWarningToast = (message: string, options?: ToastOptions) => {
+  toast.warning(message, {
+    description: options?.description,
+    duration: options?.duration || 4500,
+    action: options?.action,
+  });
+};
+
+// ============================================================================
+// Info Toasts
+// ============================================================================
+
+export const showInfoToast = (message: string, options?: ToastOptions) => {
+  toast.info(message, {
+    description: options?.description,
+    duration: options?.duration || 4000,
+    action: options?.action,
+  });
+};
+
+// ============================================================================
+// Loading Toasts (Promise-based)
+// ============================================================================
+
+export const showLoadingToast = <T>(
+  promise: Promise<T>,
+  messages: {
+    loading: string;
+    success: string | ((data: T) => string);
+    error: string | ((error: Error) => string);
+  }
+) => {
+  return toast.promise(promise, {
+    loading: messages.loading,
+    success: messages.success,
+    error: messages.error,
+  });
+};
+
+// ============================================================================
+// Specific Operation Toasts
+// ============================================================================
+
+// Pre-Opportunity Toasts
+export const preOpportunityToasts = {
+  createSuccess: (entityNumber: string) =>
+    showSuccessToast('Pre-Opportunity Created', {
+      description: `${entityNumber} has been created successfully`,
+    }),
+  
+  createError: (error?: string) =>
+    showErrorToast('Failed to Create Pre-Opportunity', {
+      description: error || 'Please try again or contact support',
+    }),
+  
+  updateSuccess: (entityNumber: string) =>
+    showSuccessToast('Pre-Opportunity Updated', {
+      description: `${entityNumber} has been updated successfully`,
+    }),
+  
+  updateError: (error?: string) =>
+    showErrorToast('Failed to Update Pre-Opportunity', {
+      description: error || 'Please try again or contact support',
+    }),
+  
+  deleteSuccess: (entityNumber: string) =>
+    showSuccessToast('Pre-Opportunity Deleted', {
+      description: `${entityNumber} has been removed`,
+    }),
+  
+  deleteError: (error?: string) =>
+    showErrorToast('Failed to Delete Pre-Opportunity', {
+      description: error || 'Please try again or contact support',
+    }),
+  
+  statusChanged: (entityNumber: string, newStatus: string) =>
+    showSuccessToast('Status Updated', {
+      description: `${entityNumber} moved to ${newStatus}`,
+    }),
+};
+
+// Contact Toasts
+export const contactToasts = {
+  createSuccess: (name: string) =>
+    showSuccessToast('Contact Created', {
+      description: `${name} has been added to your contacts`,
+    }),
+  
+  createError: (error?: string) =>
+    showErrorToast('Failed to Create Contact', {
+      description: error || 'Please try again or contact support',
+    }),
+  
+  updateSuccess: (name: string) =>
+    showSuccessToast('Contact Updated', {
+      description: `${name}'s information has been updated`,
+    }),
+  
+  updateError: (error?: string) =>
+    showErrorToast('Failed to Update Contact', {
+      description: error || 'Please try again or contact support',
+    }),
+  
+  deleteSuccess: (name: string) =>
+    showSuccessToast('Contact Deleted', {
+      description: `${name} has been removed from your contacts`,
+    }),
+  
+  deleteError: (error?: string) =>
+    showErrorToast('Failed to Delete Contact', {
+      description: error || 'Please try again or contact support',
+    }),
+};
+
+// Company Toasts
+export const companyToasts = {
+  createSuccess: (name: string) =>
+    showSuccessToast('Company Created', {
+      description: `${name} has been added successfully`,
+    }),
+  
+  createError: (error?: string) =>
+    showErrorToast('Failed to Create Company', {
+      description: error || 'Please try again or contact support',
+    }),
+  
+  updateSuccess: (name: string) =>
+    showSuccessToast('Company Updated', {
+      description: `${name}'s information has been updated`,
+    }),
+  
+  updateError: (error?: string) =>
+    showErrorToast('Failed to Update Company', {
+      description: error || 'Please try again or contact support',
+    }),
+  
+  deleteSuccess: (name: string) =>
+    showSuccessToast('Company Deleted', {
+      description: `${name} has been removed`,
+    }),
+  
+  deleteError: (error?: string) =>
+    showErrorToast('Failed to Delete Company', {
+      description: error || 'Please try again or contact support',
+    }),
+};
+
+// Job Toasts
+export const jobToasts = {
+  createSuccess: (name: string) =>
+    showSuccessToast('Job Created', {
+      description: `${name} has been created successfully`,
+    }),
+  
+  createError: (error?: string) =>
+    showErrorToast('Failed to Create Job', {
+      description: error || 'Please try again or contact support',
+    }),
+  
+  updateSuccess: (name: string) =>
+    showSuccessToast('Job Updated', {
+      description: `${name} has been updated successfully`,
+    }),
+  
+  updateError: (error?: string) =>
+    showErrorToast('Failed to Update Job', {
+      description: error || 'Please try again or contact support',
+    }),
+  
+  deleteSuccess: (name: string) =>
+    showSuccessToast('Job Deleted', {
+      description: `${name} has been removed`,
+    }),
+  
+  deleteError: (error?: string) =>
+    showErrorToast('Failed to Delete Job', {
+      description: error || 'Please try again or contact support',
+    }),
+};
+
+// Task Toasts
+export const taskToasts = {
+  createSuccess: (title: string) =>
+    showSuccessToast('Task Created', {
+      description: `"${title}" has been added to your tasks`,
+    }),
+  
+  createError: (error?: string) =>
+    showErrorToast('Failed to Create Task', {
+      description: error || 'Please try again or contact support',
+    }),
+  
+  updateSuccess: (title: string) =>
+    showSuccessToast('Task Updated', {
+      description: `"${title}" has been updated`,
+    }),
+  
+  updateError: (error?: string) =>
+    showErrorToast('Failed to Update Task', {
+      description: error || 'Please try again or contact support',
+    }),
+  
+  deleteSuccess: () =>
+    showSuccessToast('Task Deleted', {
+      description: 'Task has been removed from your list',
+    }),
+  
+  deleteError: (error?: string) =>
+    showErrorToast('Failed to Delete Task', {
+      description: error || 'Please try again or contact support',
+    }),
+  
+  completedSuccess: (title: string) =>
+    showSuccessToast('Task Completed', {
+      description: `"${title}" marked as complete`,
+    }),
+};
+
+// Note Toasts
+export const noteToasts = {
+  createSuccess: () =>
+    showSuccessToast('Note Created', {
+      description: 'Your note has been saved',
+    }),
+  
+  createError: (error?: string) =>
+    showErrorToast('Failed to Create Note', {
+      description: error || 'Please try again or contact support',
+    }),
+  
+  updateSuccess: () =>
+    showSuccessToast('Note Updated', {
+      description: 'Your note has been saved',
+    }),
+  
+  updateError: (error?: string) =>
+    showErrorToast('Failed to Update Note', {
+      description: error || 'Please try again or contact support',
+    }),
+  
+  deleteSuccess: () =>
+    showSuccessToast('Note Deleted', {
+      description: 'Note has been removed',
+    }),
+  
+  deleteError: (error?: string) =>
+    showErrorToast('Failed to Delete Note', {
+      description: error || 'Please try again or contact support',
+    }),
+};
+
+// Generic Operation Toasts
+export const genericToasts = {
+  loading: (message: string) =>
+    showInfoToast(message),
+  
+  saveSuccess: () =>
+    showSuccessToast('Changes Saved', {
+      description: 'Your changes have been saved successfully',
+    }),
+  
+  saveError: (error?: string) =>
+    showErrorToast('Failed to Save', {
+      description: error || 'Please try again or contact support',
+    }),
+  
+  copySuccess: (item: string) =>
+    showSuccessToast('Copied to Clipboard', {
+      description: `${item} has been copied`,
+    }),
+  
+  networkError: () =>
+    showErrorToast('Network Error', {
+      description: 'Please check your connection and try again',
+    }),
+  
+  sessionExpired: () =>
+    showWarningToast('Session Expired', {
+      description: 'Please log in again to continue',
+    }),
+};

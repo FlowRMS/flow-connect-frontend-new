@@ -11,6 +11,7 @@ import SortButton from './SortButton';
 import CreateCompanyModal from './CreateCompanyModal';
 import { useCRMCompanyLandingPages, useDeleteCRMCompany, useUpdateCRMCompany } from './hooks/useCRMApi';
 import { hasCRMTokens } from './lib/crm-auth';
+import { companyToasts } from './lib/toast';
 import type { CompanySourceType } from './lib/crm-graphql';
 
 // Modular imports
@@ -66,14 +67,17 @@ export default function CompaniesContent() {
 
   // Handle delete company
   const handleDeleteCompany = async (id: string) => {
+    const company = companies.find(c => c.id === id);
     try {
       await deleteCompanyMutation.mutateAsync(id);
+      companyToasts.deleteSuccess(company?.name || 'Company');
       setDeleteConfirmId(null);
       if (selectedCompany?.id === id) {
         setSelectedCompany(null);
       }
     } catch (err) {
       console.error('Failed to delete company:', err);
+      companyToasts.deleteError(err instanceof Error ? err.message : undefined);
     }
   };
 
@@ -93,9 +97,11 @@ export default function CompaniesContent() {
       });
       
       // Update local state
+      const updatedName = editFormData.name || selectedCompany.name;
+      companyToasts.updateSuccess(updatedName);
       setSelectedCompany({
         ...selectedCompany,
-        name: editFormData.name || selectedCompany.name,
+        name: updatedName,
         phone: editFormData.phone || selectedCompany.phone,
         website: editFormData.website || selectedCompany.website,
         companySourceType: editFormData.companySourceType || selectedCompany.companySourceType,
@@ -106,6 +112,7 @@ export default function CompaniesContent() {
       refetch();
     } catch (err) {
       console.error('Failed to update company:', err);
+      companyToasts.updateError(err instanceof Error ? err.message : undefined);
     }
   };
 

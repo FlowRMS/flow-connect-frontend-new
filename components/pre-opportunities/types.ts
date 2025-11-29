@@ -51,6 +51,7 @@ export interface PreOpportunity {
   soldToCustomerAddressId?: string;
   billToCustomerAddressId?: string;
   jobId?: string;
+  job?: PreOpportunityJob;
   expDate?: string;
   acceptDate?: string;
   reviseDate?: string;
@@ -149,6 +150,46 @@ export interface CustomerSearchResult {
   companyName: string;
   parentId?: string;
   insideRepId?: string;
+}
+
+// Job Search Result for Pre-Opportunity
+export interface JobSearchResult {
+  id: string;
+  jobName: string;
+  jobType: string;
+  description: string;
+  additionalInformation: string;
+  structuralInformation: string;
+  structuralDetails: string;
+  startDate: string;
+  endDate: string;
+  requesterId: string;
+  createdBy: string;
+  createdAt: string;
+  status: {
+    id: string;
+    name: string;
+  };
+}
+
+// Job data embedded in PreOpportunity
+export interface PreOpportunityJob {
+  id: string;
+  jobName: string;
+  jobType: string;
+  description: string;
+  additionalInformation: string;
+  structuralInformation: string;
+  structuralDetails: string;
+  startDate: string;
+  endDate: string;
+  requesterId: string;
+  createdBy: string;
+  createdAt: string;
+  status: {
+    id: string;
+    name: string;
+  };
 }
 
 // ============================================================================

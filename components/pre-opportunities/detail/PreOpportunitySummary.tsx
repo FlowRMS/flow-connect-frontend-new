@@ -45,6 +45,55 @@ export function PreOpportunitySummary({ preOpp }: PreOpportunitySummaryProps) {
         </div>
       </div>
 
+      {/* Job Information Card */}
+      {preOpp.job && (
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Associated Job</h3>
+          <div className="space-y-3">
+            <div>
+              <div className="text-sm text-gray-500">Job Name</div>
+              <div className="text-sm font-medium text-gray-900">{preOpp.job.jobName}</div>
+            </div>
+            {preOpp.job.jobType && (
+              <div>
+                <div className="text-sm text-gray-500">Job Type</div>
+                <div className="text-sm text-gray-900">{preOpp.job.jobType}</div>
+              </div>
+            )}
+            {preOpp.job.status?.name && (
+              <div>
+                <div className="text-sm text-gray-500">Job Status</div>
+                <div className="inline-flex px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                  {preOpp.job.status.name}
+                </div>
+              </div>
+            )}
+            {preOpp.job.description && (
+              <div>
+                <div className="text-sm text-gray-500">Description</div>
+                <div className="text-sm text-gray-900">{preOpp.job.description}</div>
+              </div>
+            )}
+            <div className="pt-2 border-t border-gray-100">
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {preOpp.job.startDate && (
+                  <div>
+                    <span className="text-gray-400">Start:</span>
+                    <span className="ml-1 text-gray-600">{formatDate(preOpp.job.startDate)}</span>
+                  </div>
+                )}
+                {preOpp.job.endDate && (
+                  <div>
+                    <span className="text-gray-400">End:</span>
+                    <span className="ml-1 text-gray-600">{formatDate(preOpp.job.endDate)}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* References Card */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">References</h3>

@@ -7,6 +7,7 @@ import Link from 'next/link';
 import type { PreOpportunityLandingPage } from '../types';
 import { formatCurrency, formatDate, getStatusLabel, getStageColor } from '../utils';
 import { useDeleteCRMPreOpportunity } from '../../hooks/useCRMApi';
+import { preOpportunityToasts } from '../../lib/toast';
 
 interface ListViewProps {
   preOpps: PreOpportunityLandingPage[];
@@ -23,10 +24,11 @@ export function ListView({ preOpps, onRefresh }: ListViewProps) {
 
     try {
       await deleteMutation.mutateAsync(id);
+      preOpportunityToasts.deleteSuccess(entityNumber);
       onRefresh();
     } catch (error) {
       console.error('Failed to delete:', error);
-      alert('Failed to delete pre-opportunity');
+      preOpportunityToasts.deleteError(error instanceof Error ? error.message : undefined);
     }
   };
 

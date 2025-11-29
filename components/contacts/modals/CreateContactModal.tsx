@@ -8,6 +8,7 @@ import React, { useState } from 'react';
 import { useCreateCRMContact, useCRMCompanyLandingPages } from '../../hooks/useCRMApi';
 import { CONTACT_ROLES } from '../constants';
 import type { ContactInput } from '../../lib/crm-graphql';
+import { contactToasts } from '../../lib/toast';
 
 interface CreateContactModalProps {
   isOpen: boolean;
@@ -38,6 +39,7 @@ export default function CreateContactModal({ isOpen, onClose, onSuccess }: Creat
     
     try {
       await createContactMutation.mutateAsync(formData);
+      contactToasts.createSuccess(`${formData.firstName} ${formData.lastName}`);
       onSuccess();
       onClose();
       setFormData({
@@ -53,6 +55,7 @@ export default function CreateContactModal({ isOpen, onClose, onSuccess }: Creat
       });
     } catch (error) {
       console.error('Failed to create contact:', error);
+      contactToasts.createError(error instanceof Error ? error.message : undefined);
     }
   };
 

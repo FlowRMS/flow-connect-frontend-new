@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useCreateCRMCompany, useCRMCompanyLandingPages } from './hooks/useCRMApi';
 import { hasCRMTokens } from './lib/crm-auth';
 import type { CompanyInput, CompanySourceType } from './lib/crm-graphql';
+import { companyToasts } from './lib/toast';
 
 interface CreateCompanyModalProps {
   isOpen: boolean;
@@ -82,10 +83,12 @@ export default function CreateCompanyModal({ isOpen, onClose, onSuccess }: Creat
 
     try {
       await createCompanyMutation.mutateAsync(input);
+      companyToasts.createSuccess(formData.name.trim());
       resetForm();
       onSuccess?.();
       onClose();
     } catch (err) {
+      companyToasts.createError(err instanceof Error ? err.message : undefined);
       setError(err instanceof Error ? err.message : 'Failed to create company');
     }
   };

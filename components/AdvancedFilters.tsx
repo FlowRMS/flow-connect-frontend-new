@@ -172,11 +172,11 @@ export default function AdvancedFilters({
         )}
       </button>
 
-      {/* Expanded Filter Panel - Fixed positioning */}
+      {/* Expanded Filter Panel - Fixed positioning with full height */}
       {isExpanded && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4 pointer-events-none">
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-10 px-4 pointer-events-none">
           <div 
-            className="w-full max-w-4xl bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl p-6 shadow-2xl pointer-events-auto max-h-[80vh] overflow-y-auto"
+            className="w-full max-w-4xl bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl p-6 shadow-2xl pointer-events-auto overflow-visible"
           >
             {/* Header */}
             <div className="flex items-start justify-between mb-6">
@@ -271,11 +271,11 @@ export default function AdvancedFilters({
                       )}
                     </button>
 
-                    {/* Inline Dropdown for filter value */}
+                    {/* Inline Dropdown for filter value - expanded to show all options */}
                     {expandedFilterId === option.id && option.available !== false && (
                       <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-xl z-10 overflow-hidden">
-                        {/* Multi-select Dropdown - Always show for fields with options */}
-                        <div className="flex flex-col max-h-64">
+                        {/* Multi-select Dropdown - Show all options without scrolling */}
+                        <div className="flex flex-col">
                             <div className="p-3 border-b border-gray-100">
                               <input
                                 type="text"
@@ -286,7 +286,7 @@ export default function AdvancedFilters({
                                 autoFocus
                               />
                             </div>
-                            <div className="overflow-y-auto flex-1 p-2">
+                            <div className="p-2 max-h-80 overflow-y-auto">
                               {(option.options || [])
                                 .filter(opt => opt.toLowerCase().includes(filterValue.toLowerCase()))
                                 .map((opt) => (

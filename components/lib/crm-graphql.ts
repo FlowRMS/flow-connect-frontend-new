@@ -178,6 +178,46 @@ export interface PreOpportunityProduct {
   factoryPartNumber: string;
 }
 
+// Job Search Result for Pre-Opportunity
+export interface JobSearchResult {
+  id: string;
+  jobName: string;
+  jobType: string;
+  description: string;
+  additionalInformation: string;
+  structuralInformation: string;
+  structuralDetails: string;
+  startDate: string;
+  endDate: string;
+  requesterId: string;
+  createdBy: string;
+  createdAt: string;
+  status: {
+    id: string;
+    name: string;
+  };
+}
+
+// Job data embedded in PreOpportunity
+export interface PreOpportunityJob {
+  id: string;
+  jobName: string;
+  jobType: string;
+  description: string;
+  additionalInformation: string;
+  structuralInformation: string;
+  structuralDetails: string;
+  startDate: string;
+  endDate: string;
+  requesterId: string;
+  createdBy: string;
+  createdAt: string;
+  status: {
+    id: string;
+    name: string;
+  };
+}
+
 export interface PreOpportunityDetail {
   id: string;
   preOpportunityId: string;
@@ -205,6 +245,7 @@ export interface PreOpportunity {
   soldToCustomerAddressId?: string;
   billToCustomerAddressId?: string;
   jobId?: string;
+  job?: PreOpportunityJob;
   expDate?: string;
   acceptDate?: string;
   reviseDate?: string;
@@ -756,6 +797,24 @@ const GET_PRE_OPPORTUNITY = `
       soldToCustomerAddressId
       billToCustomerAddressId
       jobId
+      job {
+        id
+        jobName
+        jobType
+        description
+        additionalInformation
+        structuralInformation
+        structuralDetails
+        startDate
+        endDate
+        requesterId
+        createdBy
+        createdAt
+        status {
+          id
+          name
+        }
+      }
       expDate
       acceptDate
       reviseDate
@@ -930,6 +989,29 @@ const SEARCH_CUSTOMERS = `
   }
 `;
 
+const SEARCH_JOBS = `
+  query SearchJobs($searchTerm: String!) {
+    jobSearch(searchTerm: $searchTerm) {
+      id
+      jobName
+      jobType
+      description
+      additionalInformation
+      structuralInformation
+      structuralDetails
+      startDate
+      endDate
+      requesterId
+      createdBy
+      createdAt
+      status {
+        id
+        name
+      }
+    }
+  }
+`;
+
 const CREATE_PRE_OPPORTUNITY = `
   mutation CreatePreOpportunity($input: PreOpportunityInput!) {
     createPreOpportunity(input: $input) {
@@ -942,6 +1024,24 @@ const CREATE_PRE_OPPORTUNITY = `
       soldToCustomerAddressId
       billToCustomerAddressId
       jobId
+      job {
+        id
+        jobName
+        jobType
+        description
+        additionalInformation
+        structuralInformation
+        structuralDetails
+        startDate
+        endDate
+        requesterId
+        createdBy
+        createdAt
+        status {
+          id
+          name
+        }
+      }
       expDate
       acceptDate
       reviseDate
@@ -994,6 +1094,24 @@ const UPDATE_PRE_OPPORTUNITY = `
       soldToCustomerAddressId
       billToCustomerAddressId
       jobId
+      job {
+        id
+        jobName
+        jobType
+        description
+        additionalInformation
+        structuralInformation
+        structuralDetails
+        startDate
+        endDate
+        requesterId
+        createdBy
+        createdAt
+        status {
+          id
+          name
+        }
+      }
       expDate
       acceptDate
       reviseDate
@@ -1567,6 +1685,19 @@ export async function searchCustomers(searchTerm: string, published?: boolean): 
   }
 
   return response.data?.customerSearch || [];
+}
+
+export async function searchJobs(searchTerm: string): Promise<JobSearchResult[]> {
+  const response = await crmGraphQLRequest<{ jobSearch: JobSearchResult[] }>({
+    query: SEARCH_JOBS,
+    variables: { searchTerm },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search jobs');
+  }
+
+  return response.data?.jobSearch || [];
 }
 
 export async function createPreOpportunity(input: CreatePreOpportunityInput): Promise<PreOpportunity> {

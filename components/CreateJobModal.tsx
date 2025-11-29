@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useCRMJobStatuses, useCreateCRMJob } from './hooks/useCRMApi';
 import { hasCRMTokens } from './lib/crm-auth';
 import type { JobInput } from './lib/crm-graphql';
+import { jobToasts } from './lib/toast';
 
 interface CreateJobModalProps {
   isOpen: boolean;
@@ -90,10 +91,12 @@ export default function CreateJobModal({ isOpen, onClose, onSuccess }: CreateJob
 
     try {
       await createJobMutation.mutateAsync(buildJobInput());
+      jobToasts.createSuccess(formData.jobName);
       resetForm();
       onSuccess?.();
       onClose();
     } catch (err) {
+      jobToasts.createError(err instanceof Error ? err.message : undefined);
       setError(err instanceof Error ? err.message : 'Failed to create job');
     }
   };

@@ -12,6 +12,7 @@ import SortButton from '../SortButton';
 import CreateJobModal from '../CreateJobModal';
 import { useCRMJobLandingPages, useCRMJobStatuses, useUpdateCRMJob } from '../hooks/useCRMApi';
 import { hasCRMTokens } from '../lib/crm-auth';
+import { jobToasts } from '../lib/toast';
 import { useJobsState } from './hooks/useJobsState';
 import { getJobFilterOptions, getJobSortOptions } from './config/filterConfig';
 import { JobDetailView } from './detail/JobDetailView';
@@ -117,9 +118,11 @@ export default function JobsContent() {
       });
       
       // Update local state
+      const updatedName = editFormData.name || selectedJob.name;
+      jobToasts.updateSuccess(updatedName);
       setSelectedJob({
         ...selectedJob,
-        name: editFormData.name || selectedJob.name,
+        name: updatedName,
         type: editFormData.type || selectedJob.type,
         startDate: editFormData.startDate || selectedJob.startDate,
         endDate: editFormData.endDate || selectedJob.endDate,
@@ -131,6 +134,7 @@ export default function JobsContent() {
       refetchJobs();
     } catch (err) {
       console.error('Failed to update job:', err);
+      jobToasts.updateError(err instanceof Error ? err.message : undefined);
     }
   };
 

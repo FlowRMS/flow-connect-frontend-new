@@ -1,14 +1,95 @@
 /**
- * Custom Hook for Pre-Opportunities State Management with API Integration
+ * Custom Hook for Pre-Opportunities State Management with Client-Side Filtering
  */
 
 import { useState, useMemo } from 'react';
-import type { ViewMode, PreOpportunityStatus } from '../types';
+import type { ViewMode, PreOpportunityStatus, PreOpportunityLandingPage } from '../types';
 import type { ActiveFilter } from '../../AdvancedFilters';
-import { convertToLandingPageFilter, sortPreOpps, getUniqueValues, getPreOppsByStatus } from '../utils';
+import { sortPreOpps, getUniqueValues, getPreOppsByStatus } from '../utils';
 import { DEFAULT_STAGES } from '../constants';
 import { useCRMPreOpportunityLandingPages } from '../../hooks/useCRMApi';
-import type { LandingPageFilter, LandingPageOrderBy } from '../../lib/crm-graphql';
+
+// ============================================================================
+// Client-Side Filter Logic
+// ============================================================================
+
+/**
+ * Apply a single filter to a pre-opportunity
+ */
+function matchesFilter(preOpp: PreOpportunityLandingPage, filter: ActiveFilter): boolean {
+  const columnName = filter.columnName;
+  
+  // Map filter column names to actual object properties
+  const propertyMap: Record<string, keyof PreOpportunityLandingPage> = {
+    'entity-number': 'entityNumber',
+    'entityNumber': 'entityNumber',
+    'status': 'status',
+    'created-by': 'createdBy',
+    'createdBy': 'createdBy',
+    'total': 'total',
+    'entityDate': 'entityDate',
+    'expDate': 'expDate',
+    'createdAt': 'createdAt',
+  };
+  
+  const propertyKey = propertyMap[columnName] || columnName as keyof PreOpportunityLandingPage;
+  const fieldValue = preOpp[propertyKey];
+  const stringValue = String(fieldValue || '').toLowerCase();
+  
+  // Handle IN operator (multi-select)
+  if (filter.operator === 'IN' && filter.values && filter.values.length > 0) {
+    return filter.values.some(v => 
+      String(v).toLowerCase() === stringValue
+    );
+  }
+  
+  // Handle single value filters
+  const filterValue = String(filter.value || '').toLowerCase();
+  
+  switch (filter.operator) {
+    case 'EQ':
+      return stringValue === filterValue;
+    case 'NE':
+      return stringValue !== filterValue;
+    case 'ILIKE':
+    case 'LIKE':
+      return stringValue.includes(filterValue);
+    case 'BEGINS_WITH':
+      return stringValue.startsWith(filterValue);
+    case 'ENDS_WITH':
+      return stringValue.endsWith(filterValue);
+    case 'IS_NULL':
+      return !fieldValue || stringValue === '';
+    case 'IS_NOT_NULL':
+      return !!fieldValue && stringValue !== '';
+    case 'GT':
+      return Number(fieldValue) > Number(filter.value);
+    case 'GTE':
+      return Number(fieldValue) >= Number(filter.value);
+    case 'LT':
+      return Number(fieldValue) < Number(filter.value);
+    case 'LTE':
+      return Number(fieldValue) <= Number(filter.value);
+    default:
+      return true;
+  }
+}
+
+/**
+ * Apply all filters to pre-opportunities array (client-side)
+ */
+function applyClientSideFilter(
+  preOpps: PreOpportunityLandingPage[],
+  filter: ActiveFilter | undefined
+): PreOpportunityLandingPage[] {
+  if (!filter) return preOpps;
+  
+  return preOpps.filter(preOpp => matchesFilter(preOpp, filter));
+}
+
+// ============================================================================
+// Main Hook
+// ============================================================================
 
 export function usePreOppsState() {
   // View mode
@@ -17,40 +98,39 @@ export function usePreOppsState() {
   // Drag and drop
   const [activeId, setActiveId] = useState<string | null>(null);
 
-  // Filtering and sorting
+  // Filtering and sorting (client-side only)
   const [activeFilter, setActiveFilter] = useState<ActiveFilter | undefined>(undefined);
   const [clientSortColumn, setClientSortColumn] = useState<string | undefined>(undefined);
   const [clientSortDirection, setClientSortDirection] = useState<'ASC' | 'DESC'>('ASC');
 
-  // Convert activeFilter to API filter format
-  const apiFilters: LandingPageFilter[] | undefined = useMemo(() => {
-    if (!activeFilter) return undefined;
-    return [convertToLandingPageFilter(activeFilter)];
-  }, [activeFilter]);
-
-  // Build orderBy for API
-  const apiOrderBy: LandingPageOrderBy[] | undefined = useMemo(() => {
-    if (!clientSortColumn) return undefined;
-    return [{ columnName: clientSortColumn, direction: clientSortDirection }];
-  }, [clientSortColumn, clientSortDirection]);
-
-  // Fetch pre-opportunities from API
+  // Fetch ALL pre-opportunities from API (no server-side filtering)
   const {
-    data: preOpps = [],
+    data: rawPreOpps = [],
     isLoading,
     error,
     refetch,
-  } = useCRMPreOpportunityLandingPages(apiFilters, apiOrderBy);
+  } = useCRMPreOpportunityLandingPages(undefined, undefined);
+
+  // Get unique values from ALL data (before filtering) for filter options
+  const uniqueEntityNumbers = useMemo(() => getUniqueValues(rawPreOpps, 'entityNumber'), [rawPreOpps]);
+  const uniqueStatuses = useMemo(() => getUniqueValues(rawPreOpps, 'status'), [rawPreOpps]);
+  const uniqueCreatedBy = useMemo(() => getUniqueValues(rawPreOpps, 'createdBy'), [rawPreOpps]);
+
+  // Apply client-side filtering
+  const filteredPreOpps = useMemo(() => {
+    return applyClientSideFilter(rawPreOpps, activeFilter);
+  }, [rawPreOpps, activeFilter]);
+
+  // Apply client-side sorting if specified
+  const preOpps = useMemo(() => {
+    if (!clientSortColumn) return filteredPreOpps;
+    return sortPreOpps(filteredPreOpps, clientSortColumn, clientSortDirection);
+  }, [filteredPreOpps, clientSortColumn, clientSortDirection]);
 
   // Get stages
   const stages = DEFAULT_STAGES;
 
-  // Calculate unique values for filters
-  const uniqueEntityNumbers = useMemo(() => getUniqueValues(preOpps, 'entityNumber'), [preOpps]);
-  const uniqueStatuses = useMemo(() => getUniqueValues(preOpps, 'status'), [preOpps]);
-  const uniqueCreatedBy = useMemo(() => getUniqueValues(preOpps, 'createdBy'), [preOpps]);
-
-  // Get counts by status
+  // Get counts by status (from filtered data)
   const statusCounts = useMemo(() => {
     const counts: Record<PreOpportunityStatus, number> = {
       DRAFT: 0,
@@ -72,13 +152,17 @@ export function usePreOppsState() {
     viewMode,
     setViewMode,
     
-    // Pre-opp state
+    // Pre-opp state (filtered)
     preOpps,
     isLoading,
     error,
     refetch,
     stages,
     statusCounts,
+    
+    // Raw data count for UI
+    totalCount: rawPreOpps.length,
+    filteredCount: preOpps.length,
     
     // Drag and drop
     activeId,
@@ -92,10 +176,9 @@ export function usePreOppsState() {
     clientSortDirection,
     setClientSortDirection,
     
-    // Unique values for filters
+    // Unique values for filters (from ALL data)
     uniqueEntityNumbers,
     uniqueStatuses,
     uniqueCreatedBy,
   };
 }
-

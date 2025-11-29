@@ -10,6 +10,7 @@ import Sidebar from '@/components/Sidebar';
 import TopBar from '@/components/TopBar';
 import { useCRMPreOpportunity, useUpdateCRMPreOpportunity, useDeleteCRMPreOpportunity } from '@/components/hooks/useCRMApi';
 import { PreOpportunityDetailView } from '@/components/pre-opportunities/detail';
+import { preOpportunityToasts } from '@/components/lib/toast';
 import type { EditFormData } from '@/components/pre-opportunities/detail/PreOpportunityDetailsForm';
 
 interface PageProps {
@@ -28,9 +29,13 @@ export default function PreOpportunityDetailPage({ params }: PageProps) {
   const [editFormData, setEditFormData] = useState<EditFormData>({
     status: 'DRAFT',
     expDate: '',
+    reviseDate: '',
+    acceptDate: '',
     customerRef: '',
     paymentTerms: '',
     freightTerms: '',
+    jobId: '',
+    jobName: '',
   });
 
   // Sync form data when preOpp loads
@@ -39,9 +44,13 @@ export default function PreOpportunityDetailPage({ params }: PageProps) {
       setEditFormData({
         status: preOpp.status,
         expDate: preOpp.expDate || '',
+        reviseDate: preOpp.reviseDate || '',
+        acceptDate: preOpp.acceptDate || '',
         customerRef: preOpp.customerRef || '',
         paymentTerms: preOpp.paymentTerms || '',
         freightTerms: preOpp.freightTerms || '',
+        jobId: preOpp.jobId || '',
+        jobName: preOpp.job?.jobName || '',
       });
     }
   }, [preOpp]);
@@ -67,9 +76,12 @@ export default function PreOpportunityDetailPage({ params }: PageProps) {
         // Editable fields
         status: editFormData.status,
         expDate: editFormData.expDate || undefined,
+        reviseDate: editFormData.reviseDate || undefined,
+        acceptDate: editFormData.acceptDate || undefined,
         customerRef: editFormData.customerRef || undefined,
         paymentTerms: editFormData.paymentTerms || undefined,
         freightTerms: editFormData.freightTerms || undefined,
+        jobId: editFormData.jobId || undefined,
         // Include existing details to avoid losing them
         details: preOpp.details?.map(d => ({
           id: d.id,
@@ -83,11 +95,12 @@ export default function PreOpportunityDetailPage({ params }: PageProps) {
           endUserId: d.endUserId || preOpp.soldToCustomerId,
         })),
       });
+      preOpportunityToasts.updateSuccess(preOpp.entityNumber);
       setIsEditing(false);
       refetch();
     } catch (error) {
       console.error('Failed to update:', error);
-      alert('Failed to update pre-opportunity');
+      preOpportunityToasts.updateError(error instanceof Error ? error.message : undefined);
     }
   };
 
@@ -100,10 +113,11 @@ export default function PreOpportunityDetailPage({ params }: PageProps) {
 
     try {
       await deleteMutation.mutateAsync(preOpp.id);
+      preOpportunityToasts.deleteSuccess(preOpp.entityNumber);
       router.push('/pre-opportunities');
     } catch (error) {
       console.error('Failed to delete:', error);
-      alert('Failed to delete pre-opportunity');
+      preOpportunityToasts.deleteError(error instanceof Error ? error.message : undefined);
     }
   };
 

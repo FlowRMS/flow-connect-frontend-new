@@ -27,6 +27,7 @@ import {
   type ProductSearchResult,
   type FactorySearchResult,
   type CustomerSearchResult,
+  type JobSearchResult,
   type LandingPageFilter,
   type LandingPageOrderBy,
   // Job functions
@@ -61,6 +62,7 @@ import {
   searchProducts,
   searchFactories,
   searchCustomers,
+  searchJobs,
   createPreOpportunity,
   updatePreOpportunity,
   deletePreOpportunity,
@@ -109,6 +111,8 @@ export const crmQueryKeys = {
     [...crmQueryKeys.all, 'factorySearch', { searchTerm, published }] as const,
   customerSearch: (searchTerm: string, published?: boolean) => 
     [...crmQueryKeys.all, 'customerSearch', { searchTerm, published }] as const,
+  jobSearch: (searchTerm: string) => 
+    [...crmQueryKeys.all, 'jobSearch', { searchTerm }] as const,
 };
 
 // ============================================================================
@@ -501,6 +505,18 @@ export function useCRMCustomerSearch(searchTerm: string, published?: boolean) {
   return useQuery<CustomerSearchResult[], Error>({
     queryKey: crmQueryKeys.customerSearch(searchTerm, published),
     queryFn: () => searchCustomers(searchTerm, published),
+    enabled: hasCRMTokens() && searchTerm.length > 0,
+    staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * Search for jobs
+ */
+export function useCRMJobSearch(searchTerm: string) {
+  return useQuery<JobSearchResult[], Error>({
+    queryKey: crmQueryKeys.jobSearch(searchTerm),
+    queryFn: () => searchJobs(searchTerm),
     enabled: hasCRMTokens() && searchTerm.length > 0,
     staleTime: 60 * 1000,
   });
