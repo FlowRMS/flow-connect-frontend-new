@@ -5,6 +5,7 @@
 import { ASSIGNEE_COLORS, PRIORITY_COLORS } from './constants';
 import type { Task, TaskPriority } from './types';
 import type { ActiveFilter } from '../AdvancedFilters';
+import { formatLocalDate } from '../lib/date-utils';
 
 /**
  * Get initials from a name
@@ -184,7 +185,7 @@ export function generateCalendarDays(year: number, month: number) {
  * Get tasks for a specific date
  */
 export function getTasksForDate(tasks: Task[], date: Date): Task[] {
-  const dateStr = date.toISOString().split('T')[0];
+  const dateStr = formatLocalDate(date);
   return tasks.filter(task => task.dueDate === dateStr);
 }
 

@@ -2,7 +2,7 @@
  * Job Types and Interfaces
  */
 
-import type { JobLandingPage, JobStatus } from '../lib/crm-graphql';
+import type { Job as APIJob, JobLandingPage, JobStatus } from '../lib/crm-graphql';
 
 // UI Job type (display format)
 export interface Job {
@@ -20,6 +20,11 @@ export interface Job {
   tags: string[];
   createdBy: string;
   createdAt: string;
+  // Additional fields from GetJob endpoint
+  additionalInformation: string;
+  structuralInformation: string;
+  structuralDetails: string;
+  requesterId: string;
 }
 
 // Job Stage for Kanban
@@ -147,5 +152,38 @@ export function mapLandingPageToUIJob(landingPage: JobLandingPage): Job {
     tags: jobType !== 'General' ? [jobType] : [],
     createdBy: landingPage.createdBy || '',
     createdAt: landingPage.createdAt || '',
+    // Landing page doesn't have these fields, so use defaults
+    additionalInformation: '',
+    structuralInformation: '',
+    structuralDetails: '',
+    requesterId: '',
+  };
+}
+
+/**
+ * Mapper function to convert full API Job to UI format
+ */
+export function mapAPIJobToUIJob(apiJob: APIJob): Job {
+  const jobType = apiJob.jobType || 'General';
+  return {
+    id: apiJob.id,
+    name: apiJob.jobName,
+    status: apiJob.status?.name || 'Backlog',
+    type: jobType,
+    value: '-',
+    startDate: apiJob.startDate || '-',
+    endDate: apiJob.endDate || '-',
+    gc: '-',
+    ec: '-',
+    owner: apiJob.createdBy || 'Unknown',
+    description: apiJob.description || '',
+    tags: jobType !== 'General' ? [jobType] : [],
+    createdBy: apiJob.createdBy || '',
+    createdAt: apiJob.createdAt || '',
+    // Additional fields from GetJob endpoint
+    additionalInformation: apiJob.additionalInformation || '',
+    structuralInformation: apiJob.structuralInformation || '',
+    structuralDetails: apiJob.structuralDetails || '',
+    requesterId: apiJob.requesterId || '',
   };
 }

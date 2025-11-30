@@ -9,6 +9,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   useCRMCompanyLandingPages,
   useCRMJobLandingPages,
+  useCRMJobsByContact,
+  useCRMCompany,
   useCreateCRMLink,
 } from '../../hooks/useCRMApi';
 import type { EntityType } from '../../lib/crm-graphql';
@@ -18,6 +20,7 @@ type LinkEntityType = 'COMPANY' | 'JOB';
 interface AddLinkModalProps {
   isOpen: boolean;
   contactId: string;
+  currentCompanyId?: string; // The contact's current associated company
   initialEntityType?: LinkEntityType;
   onClose: () => void;
   onSuccess: () => void;
@@ -25,7 +28,8 @@ interface AddLinkModalProps {
 
 export function AddLinkModal({ 
   isOpen, 
-  contactId, 
+  contactId,
+  currentCompanyId,
   initialEntityType = 'COMPANY', 
   onClose, 
   onSuccess 
@@ -46,24 +50,34 @@ export function AddLinkModal({
   // Fetch companies and jobs from landing pages
   const { data: companies, isLoading: companiesLoading } = useCRMCompanyLandingPages();
   const { data: jobs, isLoading: jobsLoading } = useCRMJobLandingPages();
+  
+  // Fetch already linked jobs for this contact
+  const { data: linkedJobs = [] } = useCRMJobsByContact(contactId);
 
   // Create link mutation
   const createLinkMutation = useCreateCRMLink();
 
-  // Filter entities based on search term
+  // Get IDs of already linked entities
+  const linkedJobIds = useMemo(() => new Set(linkedJobs.map(j => j.id)), [linkedJobs]);
+
+  // Filter entities based on search term AND exclude already linked
   const filteredEntities = useMemo(() => {
     if (entityType === 'COMPANY') {
       if (!companies) return [];
-      return companies.filter(company => 
-        company.name.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      return companies.filter(company => {
+        // Exclude the currently associated company
+        if (currentCompanyId && company.id === currentCompanyId) return false;
+        return company.name.toLowerCase().includes(searchTerm.toLowerCase());
+      });
     } else {
       if (!jobs) return [];
-      return jobs.filter(job => 
-        job.jobName.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      return jobs.filter(job => {
+        // Exclude already linked jobs
+        if (linkedJobIds.has(job.id)) return false;
+        return job.jobName.toLowerCase().includes(searchTerm.toLowerCase());
+      });
     }
-  }, [entityType, companies, jobs, searchTerm]);
+  }, [entityType, companies, jobs, searchTerm, currentCompanyId, linkedJobIds]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

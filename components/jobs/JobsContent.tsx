@@ -5,15 +5,16 @@
 
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
+import type { DragEndEvent, DragStartEvent, DragOverEvent } from '@dnd-kit/core';
 import AdvancedFilters, { ActiveFilter, ActiveSort } from '../AdvancedFilters';
 import SortButton from '../SortButton';
 import CreateJobModal from '../CreateJobModal';
-import { useCRMJobLandingPages, useCRMJobStatuses, useUpdateCRMJob } from '../hooks/useCRMApi';
+import { useCRMJobLandingPages, useCRMJobStatuses, useUpdateCRMJob, useCRMJob, useDeleteCRMJob } from '../hooks/useCRMApi';
 import { hasCRMTokens } from '../lib/crm-auth';
 import { jobToasts } from '../lib/toast';
+import { parseApiError } from '../lib/error-utils';
 import { useJobsState } from './hooks/useJobsState';
 import { getJobFilterOptions, getJobSortOptions } from './config/filterConfig';
 import { JobDetailView } from './detail/JobDetailView';
@@ -22,6 +23,7 @@ import { KanbanView } from './views/KanbanView';
 import { ListView } from './views/ListView';
 import { getCompanyDetails } from './mockData';
 import type { Job } from './types';
+import { mapAPIJobToUIJob } from './types';
 import type { Company, Contact } from '../lib/crm-graphql';
 
 export default function JobsContent() {
@@ -29,11 +31,19 @@ export default function JobsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
+  // Hydration-safe mounted state
+  const [isMounted, setIsMounted] = useState(false);
+  
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+  
   // CRM API hooks
-  const isConnected = hasCRMTokens();
+  const isConnected = isMounted ? hasCRMTokens() : false;
   const { data: landingPageJobs, isLoading: jobsLoading, error: jobsError, refetch: refetchJobs } = useCRMJobLandingPages();
   const { data: apiStatuses, isLoading: statusesLoading } = useCRMJobStatuses();
   const updateJobMutation = useUpdateCRMJob();
+  const deleteJobMutation = useDeleteCRMJob();
 
   // State management
   const {
@@ -44,7 +54,9 @@ export default function JobsContent() {
     editFormData, setEditFormData,
     selectedCompany, setSelectedCompany,
     activeId, setActiveId,
+    overId, setOverId,
     showCreateJobModal, setShowCreateJobModal,
+    createJobDefaultStatus, setCreateJobDefaultStatus,
     showDedupeModal, setShowDedupeModal,
     showRepTypeModal, setShowRepTypeModal,
     mergeStrategy, setMergeStrategy,
@@ -60,6 +72,17 @@ export default function JobsContent() {
     clientSortDirection, setClientSortDirection,
     uniqueJobNames, uniqueStatuses, uniqueTypes, uniqueCreators,
   } = useJobsState(landingPageJobs, apiStatuses);
+
+  // Fetch full job details when a job is selected (uses GET_JOB endpoint)
+  const { data: fullJobData, isLoading: jobDetailLoading } = useCRMJob(selectedJob?.id || '');
+
+  // Map the full job data to UI format when available
+  const detailedJob = useMemo(() => {
+    if (fullJobData) {
+      return mapAPIJobToUIJob(fullJobData);
+    }
+    return selectedJob;
+  }, [fullJobData, selectedJob]);
 
   // Check for ID in query params to auto-select a job
   useEffect(() => {
@@ -83,14 +106,130 @@ export default function JobsContent() {
     setActiveId(event.active.id as string);
   };
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    // Drag-drop status change would require updateJob API mutation
-    // For now, just cancel the drag operation
+  const handleDragOver = (event: DragOverEvent) => {
+    const { over } = event;
+    if (over) {
+      setOverId(over.id as string);
+    } else {
+      setOverId(null);
+    }
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    
     setActiveId(null);
+    setOverId(null);
+    
+    // If no drop target, cancel
+    if (!over) return;
+    
+    // Extract the target status from the column ID (format: "stage-StatusName")
+    const overId = over.id as string;
+    if (!overId.startsWith('stage-')) return;
+    
+    const targetStatusName = overId.replace('stage-', '');
+    const draggedJobId = active.id as string;
+    
+    // Find the dragged job
+    const draggedJob = jobs.find(j => j.id === draggedJobId);
+    if (!draggedJob) return;
+    
+    // If same status, no update needed
+    if (draggedJob.status === targetStatusName) return;
+    
+    // Find the target status ID from apiStatuses
+    const targetStatus = apiStatuses?.find(s => s.name === targetStatusName);
+    if (!targetStatus) {
+      console.error('Target status not found:', targetStatusName);
+      jobToasts.updateError('Unable to find target status');
+      return;
+    }
+    
+    try {
+      await updateJobMutation.mutateAsync({
+        id: draggedJobId,
+        input: {
+          jobName: draggedJob.name,
+          statusId: targetStatus.id,
+          jobType: draggedJob.type,
+          startDate: draggedJob.startDate !== '-' ? draggedJob.startDate : undefined,
+          endDate: draggedJob.endDate !== '-' ? draggedJob.endDate : undefined,
+          description: draggedJob.description,
+        },
+      });
+      
+      jobToasts.updateSuccess(`${draggedJob.name} moved to ${targetStatusName}`);
+      refetchJobs();
+    } catch (err) {
+      console.error('Failed to update job status:', err);
+      jobToasts.updateError(err instanceof Error ? err.message : undefined);
+    }
   };
 
   const handleDragCancel = () => {
     setActiveId(null);
+    setOverId(null);
+  };
+
+  // Handle opening create job modal with optional default status
+  const handleOpenCreateJobModal = (statusName?: string) => {
+    setCreateJobDefaultStatus(statusName);
+    setShowCreateJobModal(true);
+  };
+
+  // Handle closing create job modal
+  const handleCloseCreateJobModal = () => {
+    setShowCreateJobModal(false);
+    setCreateJobDefaultStatus(undefined);
+  };
+
+  // Handle checkbox change to mark job as complete
+  const handleJobCheckboxChange = async (jobId: string, checked: boolean) => {
+    // Find the job
+    const job = jobs.find(j => j.id === jobId);
+    if (!job) return;
+
+    // Helper to find status by name variations (case-insensitive)
+    const findStatus = (variations: string[]) => {
+      return apiStatuses?.find(s => 
+        variations.some(v => s.name.toLowerCase() === v.toLowerCase())
+      );
+    };
+
+    // Determine target status based on checkbox state
+    // Try multiple variations for "complete" statuses
+    const targetStatus = checked 
+      ? findStatus(['Complete', 'Completed', 'Won', 'Done', 'Closed'])
+      : findStatus(['Active', 'In Progress', 'Open', 'Backlog']);
+    
+    const targetStatusName = targetStatus?.name || (checked ? 'Complete' : 'Active');
+    
+    if (!targetStatus) {
+      console.warn(`No suitable status found. Available statuses:`, apiStatuses?.map(s => s.name));
+      jobToasts.updateError(`Unable to find a suitable status. Please check available statuses.`);
+      return;
+    }
+
+    try {
+      await updateJobMutation.mutateAsync({
+        id: jobId,
+        input: {
+          jobName: job.name,
+          statusId: targetStatus.id,
+          jobType: job.type,
+          startDate: job.startDate !== '-' ? job.startDate : undefined,
+          endDate: job.endDate !== '-' ? job.endDate : undefined,
+          description: job.description,
+        },
+      });
+      
+      jobToasts.updateSuccess(checked ? `${job.name} marked as ${targetStatusName}` : `${job.name} moved to ${targetStatusName}`);
+      refetchJobs();
+    } catch (err) {
+      console.error('Failed to update job status:', err);
+      jobToasts.updateError(parseApiError(err));
+    }
   };
 
   const handleFilterChange = (filter: ActiveFilter | undefined) => {
@@ -134,46 +273,66 @@ export default function JobsContent() {
   };
 
   const handleStartEdit = () => {
-    if (selectedJob) {
+    // Use detailedJob (from GET_JOB endpoint) if available, otherwise fallback to selectedJob
+    const jobToEdit = detailedJob || selectedJob;
+    if (jobToEdit) {
       setEditFormData({
-        name: selectedJob.name,
-        type: selectedJob.type,
-        startDate: selectedJob.startDate,
-        endDate: selectedJob.endDate,
-        description: selectedJob.description,
-        gc: selectedJob.gc,
-        ec: selectedJob.ec,
-        value: selectedJob.value,
+        name: jobToEdit.name,
+        type: jobToEdit.type,
+        startDate: jobToEdit.startDate,
+        endDate: jobToEdit.endDate,
+        description: jobToEdit.description,
+        gc: jobToEdit.gc,
+        ec: jobToEdit.ec,
+        value: jobToEdit.value,
+        additionalInformation: jobToEdit.additionalInformation,
+        structuralInformation: jobToEdit.structuralInformation,
+        structuralDetails: jobToEdit.structuralDetails,
       });
       setIsEditing(true);
     }
   };
 
   const handleSaveEdit = async () => {
-    if (!selectedJob) return;
+    // Use detailedJob if available, otherwise fallback to selectedJob
+    const currentJob = detailedJob || selectedJob;
+    if (!currentJob) return;
     
     try {
+      // Find the statusId from the job's current status name
+      const currentStatus = apiStatuses?.find(s => s.name === currentJob.status);
+      if (!currentStatus) {
+        throw new Error('Unable to find status ID for the current job status');
+      }
+
       await updateJobMutation.mutateAsync({
-        id: selectedJob.id,
+        id: currentJob.id,
         input: {
           jobName: editFormData.name,
+          statusId: currentStatus.id, // Required field for JobInput
           jobType: editFormData.type,
           startDate: editFormData.startDate !== '-' ? editFormData.startDate : undefined,
           endDate: editFormData.endDate !== '-' ? editFormData.endDate : undefined,
           description: editFormData.description,
+          additionalInformation: editFormData.additionalInformation,
+          structuralInformation: editFormData.structuralInformation,
+          structuralDetails: editFormData.structuralDetails,
         },
       });
       
       // Update local state
-      const updatedName = editFormData.name || selectedJob.name;
+      const updatedName = editFormData.name || currentJob.name;
       jobToasts.updateSuccess(updatedName);
       setSelectedJob({
-        ...selectedJob,
+        ...currentJob,
         name: updatedName,
-        type: editFormData.type || selectedJob.type,
-        startDate: editFormData.startDate || selectedJob.startDate,
-        endDate: editFormData.endDate || selectedJob.endDate,
-        description: editFormData.description || selectedJob.description,
+        type: editFormData.type || currentJob.type,
+        startDate: editFormData.startDate || currentJob.startDate,
+        endDate: editFormData.endDate || currentJob.endDate,
+        description: editFormData.description || currentJob.description,
+        additionalInformation: editFormData.additionalInformation || currentJob.additionalInformation,
+        structuralInformation: editFormData.structuralInformation || currentJob.structuralInformation,
+        structuralDetails: editFormData.structuralDetails || currentJob.structuralDetails,
         tags: editFormData.type && editFormData.type !== 'General' ? [editFormData.type] : [],
       });
       
@@ -193,6 +352,42 @@ export default function JobsContent() {
   const handleEditChange = (field: keyof Job, value: string) => {
     setEditFormData(prev => ({ ...prev, [field]: value }));
   };
+
+  // Handle delete job
+  const handleDeleteJob = async () => {
+    const currentJob = detailedJob || selectedJob;
+    if (!currentJob) return;
+    
+    try {
+      await deleteJobMutation.mutateAsync(currentJob.id);
+      jobToasts.deleteSuccess(currentJob.name);
+      setSelectedJob(null);
+      refetchJobs();
+    } catch (err) {
+      console.error('Failed to delete job:', err);
+      jobToasts.deleteError(parseApiError(err));
+    }
+  };
+
+  // Show loading state until client is mounted (prevents hydration mismatch)
+  if (!isMounted || jobsLoading || statusesLoading) {
+    return (
+      <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
+        <div className="mb-6">
+          <h1 className="text-2xl font-semibold text-[var(--foreground)]">Jobs</h1>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <div className="flex items-center gap-3 text-[var(--muted-foreground)]">
+            <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+            </svg>
+            <span>Loading jobs...</span>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   // Show connection required message if not connected
   if (!isConnected) {
@@ -227,27 +422,7 @@ export default function JobsContent() {
     );
   }
 
-  // Show loading state
-  if (jobsLoading || statusesLoading) {
-    return (
-      <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-[var(--foreground)]">Jobs</h1>
-        </div>
-        <div className="flex items-center justify-center py-12">
-          <div className="flex items-center gap-3 text-[var(--muted-foreground)]">
-            <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-            </svg>
-            <span>Loading jobs from CRM...</span>
-          </div>
-        </div>
-      </main>
-    );
-  }
-
-  // Show error state
+  // Show error state with user-friendly message
   if (jobsError) {
     return (
       <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
@@ -261,7 +436,7 @@ export default function JobsContent() {
             </svg>
             <div>
               <h3 className="text-lg font-medium text-red-800">Failed to Load Jobs</h3>
-              <p className="text-sm text-red-700 mt-1">{jobsError.message}</p>
+              <p className="text-sm text-red-700 mt-1">{parseApiError(jobsError)}</p>
               <button
                 onClick={() => refetchJobs()}
                 className="inline-flex items-center gap-2 mt-3 px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"
@@ -294,11 +469,44 @@ export default function JobsContent() {
 
   // Job detail view
   if (selectedJob) {
+    // Show loading state while fetching full job details
+    if (jobDetailLoading) {
+      return (
+        <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
+          <div className="mb-6">
+            <button 
+              onClick={() => setSelectedJob(null)}
+              className="flex items-center gap-2 text-[var(--muted-foreground)] hover:text-[var(--foreground)] mb-4"
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M15 10H5M5 10l4-4M5 10l4 4" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Back to Jobs
+            </button>
+            <h1 className="text-2xl font-semibold text-[var(--foreground)]">Loading Job Details...</h1>
+          </div>
+          <div className="flex items-center justify-center py-12">
+            <div className="flex items-center gap-3 text-[var(--muted-foreground)]">
+              <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+              </svg>
+              <span>Fetching job details...</span>
+            </div>
+          </div>
+        </main>
+      );
+    }
+
+    // Use the full job data if available, otherwise fallback to selectedJob
+    const jobToDisplay = detailedJob || selectedJob;
+
     return (
       <JobDetailView
-        job={selectedJob}
+        job={jobToDisplay}
         isEditing={isEditing}
         isSaving={updateJobMutation.isPending}
+        isDeleting={deleteJobMutation.isPending}
         editFormData={editFormData}
         repType={repType}
         showRepTypeModal={showRepTypeModal}
@@ -307,6 +515,7 @@ export default function JobsContent() {
         onStartEdit={handleStartEdit}
         onSaveEdit={handleSaveEdit}
         onCancelEdit={handleCancelEdit}
+        onDelete={handleDeleteJob}
         onRepTypeChange={setRepType}
         onToggleRepTypeModal={setShowRepTypeModal}
         onCompanyClick={(company: Company) => setSelectedCompany(company)}
@@ -393,8 +602,9 @@ export default function JobsContent() {
 
       <CreateJobModal 
         isOpen={showCreateJobModal} 
-        onClose={() => setShowCreateJobModal(false)}
+        onClose={handleCloseCreateJobModal}
         onSuccess={() => refetchJobs()}
+        defaultStatusName={createJobDefaultStatus}
       />
 
       {/* Empty State */}
@@ -430,16 +640,20 @@ export default function JobsContent() {
               jobs={jobs}
               stages={stages}
               activeId={activeId}
+              overId={overId}
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
+              onDragOver={handleDragOver}
               onDragCancel={handleDragCancel}
               onJobClick={setSelectedJob}
-              onCreateJobClick={() => setShowCreateJobModal(true)}
+              onCreateJobClick={handleOpenCreateJobModal}
+              onJobCheckboxChange={handleJobCheckboxChange}
             />
           ) : (
             <ListView
               jobs={jobs}
               onJobClick={setSelectedJob}
+              onJobCheckboxChange={handleJobCheckboxChange}
             />
           )}
         </>

@@ -11,6 +11,7 @@ import { useReportSchedulerState } from './hooks/useReportSchedulerState';
 import { ReportListView } from './views/ReportListView';
 import { CreateReportView } from './views/CreateReportView';
 import { ReportPreviewModal } from './modals/ReportPreviewModal';
+import ComingSoonOverlay from '../ComingSoonOverlay';
 
 export default function ReportSchedulerContent() {
   // State management
@@ -72,7 +73,13 @@ export default function ReportSchedulerContent() {
   };
 
   return (
-    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
+    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6 relative">
+      {/* Coming Soon Overlay */}
+      <ComingSoonOverlay 
+        title="Report Scheduler Coming Soon"
+        description="Automated report generation and scheduling is being developed. Beautiful insights delivered to your inbox!"
+      />
+      
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">

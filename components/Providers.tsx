@@ -34,6 +34,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
           duration: 4000,
         }}
       />
+      {/* Portal containers for date pickers and dropdowns */}
+      <div id="datepicker-portal" />
+      <div id="dropdown-portal" />
     </QueryClientProvider>
   );
 }

@@ -1,5 +1,6 @@
 /**
  * Kanban View for Jobs
+ * Enhanced with better drag-drop, visual feedback, and column styling
  */
 
 import React from 'react';
@@ -8,36 +9,90 @@ import {
   DragEndEvent,
   DragOverlay,
   DragStartEvent,
+  DragOverEvent,
   PointerSensor,
   useSensor,
   useSensors,
-  closestCorners,
+  pointerWithin,
+  rectIntersection,
+  useDroppable,
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { SortableJobCard } from '../SortableJobCard';
 import { JobCard } from '../JobCard';
 import type { Job, JobStage } from '../types';
 
+// Column status indicator colors (dots)
+const COLUMN_STATUS_COLORS: Record<string, string> = {
+  'Backlog': 'bg-gray-400',
+  'Bidding': 'bg-blue-500',
+  'Active': 'bg-amber-500',
+  'On Hold': 'bg-purple-500',
+  'Won': 'bg-green-500',
+};
+
+// Droppable Column Component
+function DroppableColumn({ 
+  stage, 
+  children, 
+  isOver 
+}: { 
+  stage: JobStage; 
+  children: React.ReactNode;
+  isOver: boolean;
+}) {
+  const { setNodeRef, isOver: isDroppableOver } = useDroppable({
+    id: `stage-${stage.name}`,
+    data: {
+      type: 'column',
+      stageName: stage.name,
+    },
+  });
+
+  const showHighlight = isOver || isDroppableOver;
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`
+        min-h-[400px] rounded-lg p-2 transition-all duration-200 flex-1
+        ${showHighlight 
+          ? 'bg-blue-50 ring-2 ring-blue-300 ring-opacity-50' 
+          : 'bg-gray-50/50'
+        }
+      `}
+    >
+      {children}
+    </div>
+  );
+}
+
 interface KanbanViewProps {
   jobs: Job[];
   stages: JobStage[];
   activeId: string | null;
+  overId?: string | null;
   onDragStart: (event: DragStartEvent) => void;
   onDragEnd: (event: DragEndEvent) => void;
+  onDragOver?: (event: DragOverEvent) => void;
   onDragCancel: () => void;
   onJobClick: (job: Job) => void;
-  onCreateJobClick: () => void;
+  onCreateJobClick: (statusName?: string) => void;
+  onJobCheckboxChange?: (jobId: string, checked: boolean) => void;
 }
 
 export function KanbanView({
   jobs,
   stages,
   activeId,
+  overId,
   onDragStart,
   onDragEnd,
+  onDragOver,
   onDragCancel,
   onJobClick,
   onCreateJobClick,
+  onJobCheckboxChange,
 }: KanbanViewProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -53,75 +108,113 @@ export function KanbanView({
 
   const activeJob = activeId ? jobs.find((job) => job.id === activeId) : null;
 
+  // Custom collision detection that prioritizes droppable columns
+  const customCollisionDetection = (args: Parameters<typeof pointerWithin>[0]) => {
+    // First check for column intersections
+    const pointerCollisions = pointerWithin(args);
+    
+    // If we have collisions, prioritize stage columns
+    if (pointerCollisions.length > 0) {
+      const columnCollision = pointerCollisions.find(c => 
+        String(c.id).startsWith('stage-')
+      );
+      if (columnCollision) {
+        return [columnCollision];
+      }
+    }
+    
+    // Fall back to rect intersection for edge cases
+    return rectIntersection(args);
+  };
+
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCorners}
+      collisionDetection={customCollisionDetection}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
+      onDragOver={onDragOver}
       onDragCancel={onDragCancel}
     >
       <div className="grid grid-cols-5 gap-4">
         {stages.map((stage) => {
           const stageJobs = getJobsByStatus(stage.name);
+          const isOverColumn = overId === `stage-${stage.name}`;
+          const statusColor = COLUMN_STATUS_COLORS[stage.name] || 'bg-gray-400';
 
           return (
-            <SortableContext
-              key={stage.name}
-              id={`stage-${stage.name}`}
-              items={stageJobs.map(job => job.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              <div className="flex flex-col">
-                {/* Column Header */}
-                <div className="flex items-center justify-between px-3 py-2 mb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-700 font-medium">
-                      {stage.name}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button className="p-1 hover:bg-gray-100 rounded transition-colors">
-                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M4 6h12M4 10h12M4 14h12" strokeLinecap="round"/>
-                      </svg>
-                    </button>
-                    <button className="p-1 hover:bg-gray-100 rounded transition-colors">
-                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M10 6v8M6 10h8" strokeLinecap="round"/>
-                      </svg>
-                    </button>
-                  </div>
+            <div key={stage.name} className="flex flex-col">
+              {/* Column Header - Minimal */}
+              <div className="flex items-center justify-between px-2 py-2 mb-2">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${statusColor}`}></span>
+                  <span className="text-sm text-gray-700 font-medium">
+                    {stage.name}
+                  </span>
+                  <span className="text-xs text-gray-400 font-medium">
+                    {stageJobs.length}
+                  </span>
                 </div>
-
-                {/* Drop Zone */}
-                <div
-                  id={`stage-${stage.name}`}
-                  className="min-h-[500px]"
-                >
-                  {stageJobs.map((job) => (
-                    <SortableJobCard key={job.id} job={job} onClick={() => onJobClick(job)} />
-                  ))}
-                </div>
-
-                {/* Add Card Button */}
                 <button 
-                  onClick={onCreateJobClick}
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-md transition-colors mt-2"
+                  onClick={() => onCreateJobClick(stage.name)}
+                  className="p-1 hover:bg-gray-100 rounded transition-colors text-gray-400 hover:text-gray-600"
+                  title={`Add job to ${stage.name}`}
                 >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M10 6v8M6 10h8" strokeLinecap="round"/>
                   </svg>
-                  New
                 </button>
               </div>
-            </SortableContext>
+
+              {/* Drop Zone */}
+              <SortableContext
+                id={`stage-${stage.name}`}
+                items={stageJobs.map(job => job.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <DroppableColumn stage={stage} isOver={isOverColumn}>
+                  {stageJobs.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-32 text-gray-400">
+                      <svg className="w-8 h-8 mb-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                      </svg>
+                      <span className="text-xs">No jobs</span>
+                    </div>
+                  ) : (
+                    stageJobs.map((job) => (
+                      <SortableJobCard 
+                        key={job.id} 
+                        job={job} 
+                        onClick={() => onJobClick(job)}
+                        onCheckboxChange={onJobCheckboxChange}
+                      />
+                    ))
+                  )}
+                </DroppableColumn>
+              </SortableContext>
+
+              {/* Add Card Button - Minimal */}
+              <button 
+                onClick={() => onCreateJobClick(stage.name)}
+                className="flex items-center justify-center gap-1.5 py-2 text-xs text-gray-400 
+                         hover:text-gray-600 hover:bg-gray-50 rounded transition-colors mt-1"
+              >
+                <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M10 6v8M6 10h8" strokeLinecap="round"/>
+                </svg>
+                Add
+              </button>
+            </div>
           );
         })}
       </div>
 
-      <DragOverlay>
-        {activeJob ? <JobCard job={activeJob} /> : null}
+      <DragOverlay dropAnimation={null}>
+        {activeJob ? (
+          <div className="opacity-90">
+            <JobCard job={activeJob} isDragging />
+          </div>
+        ) : null}
       </DragOverlay>
     </DndContext>
   );

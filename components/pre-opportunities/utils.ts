@@ -71,15 +71,19 @@ export function getStageColor(status: PreOpportunityStatus): string {
 }
 
 /**
- * Format currency value
+ * Format currency value - handles NaN and invalid values
  */
 export function formatCurrency(value: number): string {
+  const numValue = Number(value);
+  if (isNaN(numValue) || !isFinite(numValue)) {
+    return '$0';
+  }
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(value);
+  }).format(numValue);
 }
 
 /**

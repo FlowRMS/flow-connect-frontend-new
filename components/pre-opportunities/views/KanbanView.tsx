@@ -1,5 +1,6 @@
 /**
- * Kanban View for Pre-Opportunities with Drag-and-Drop Support
+ * Kanban View for Pre-Opportunities
+ * Enhanced with Jobs-style drag-drop, visual feedback, and column styling
  */
 
 'use client';
@@ -9,13 +10,15 @@ import Link from 'next/link';
 import {
   DndContext,
   DragOverlay,
-  closestCorners,
+  pointerWithin,
+  rectIntersection,
   KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
   DragStartEvent,
   DragEndEvent,
+  DragOverEvent,
   useDroppable,
 } from '@dnd-kit/core';
 import {
@@ -31,7 +34,15 @@ import { useUpdateCRMPreOpportunity, useDeleteCRMPreOpportunity } from '../../ho
 import { fetchPreOpportunity } from '../../lib/crm-graphql';
 import { CreatePreOpportunityModal } from '../modals/CreatePreOpportunityModal';
 import { preOpportunityToasts } from '../../lib/toast';
-import { CloseIcon, PlusIcon, DragIndicator } from '../components/icons';
+
+// Column status indicator colors (dots) - matching Jobs style
+const COLUMN_STATUS_COLORS: Record<PreOpportunityStatus, string> = {
+  'DRAFT': 'bg-gray-400',
+  'PENDING': 'bg-blue-500',
+  'APPROVED': 'bg-green-500',
+  'REJECTED': 'bg-red-500',
+  'CONVERTED': 'bg-purple-500',
+};
 
 // ============================================================================
 // Types
@@ -45,37 +56,31 @@ interface KanbanViewProps {
   onRefresh: () => void;
 }
 
-interface KanbanCardProps {
-  preOpp: PreOpportunityLandingPage;
-  onDelete: (id: string) => void;
-  isDragging?: boolean;
-}
-
-interface DroppableColumnProps {
-  stage: PreOppStage;
-  preOpps: PreOpportunityLandingPage[];
-  onNewClick: (status: PreOpportunityStatus) => void;
-  onDelete: (id: string) => void;
-}
-
 // ============================================================================
-// Draggable Card Component
+// Draggable Card Component - Jobs Style
 // ============================================================================
 
-function KanbanCard({ preOpp, onDelete, isDragging }: KanbanCardProps) {
+function KanbanCard({ preOpp, onDelete }: { preOpp: PreOpportunityLandingPage; onDelete: (id: string) => void }) {
   const {
     attributes,
     listeners,
     setNodeRef,
     transform,
     transition,
-    isDragging: isSortableDragging,
+    isDragging,
   } = useSortable({ id: preOpp.id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isSortableDragging ? 0.5 : 1,
+  };
+
+  const statusColor = COLUMN_STATUS_COLORS[preOpp.status] || 'bg-gray-400';
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onDelete(preOpp.id);
   };
 
   return (
@@ -84,58 +89,75 @@ function KanbanCard({ preOpp, onDelete, isDragging }: KanbanCardProps) {
       style={style}
       {...attributes}
       {...listeners}
-      className={`bg-white border border-gray-200 rounded-lg p-3 hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing ${
-        isDragging ? 'shadow-lg ring-2 ring-blue-500' : ''
-      }`}
+      className={`
+        group bg-white border rounded-lg p-4 mb-3 
+        transition-all duration-200 cursor-pointer relative
+        ${isDragging 
+          ? 'opacity-60 shadow-lg scale-[1.02] rotate-1 border-blue-300' 
+          : 'hover:shadow-md hover:border-gray-300 border-gray-200'
+        }
+      `}
     >
-      <div className="space-y-2">
-        {/* Header */}
-        <div className="flex items-start justify-between">
-          <Link href={`/pre-opportunities/${preOpp.id}`} className="flex-1">
-            <div className="font-semibold text-sm text-gray-900 hover:text-blue-600 transition-colors">
+      {/* Header Row */}
+      <div className="flex items-start gap-3 mb-3">
+        <div className="flex-1 min-w-0">
+          <Link href={`/pre-opportunities/${preOpp.id}`}>
+            <h4 className="text-sm font-semibold text-gray-900 leading-tight truncate hover:text-blue-600 transition-colors">
               {preOpp.entityNumber}
-            </div>
-            <div className="text-xs text-gray-500 mt-1">
-              {formatDate(preOpp.entityDate)}
-            </div>
+            </h4>
           </Link>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onDelete(preOpp.id);
-              }}
-              onPointerDown={(e) => e.stopPropagation()}
-              className="p-1 hover:bg-red-50 rounded text-red-600 transition-colors"
-              title="Delete"
-            >
-              <CloseIcon />
-            </button>
-          </div>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {formatDate(preOpp.entityDate)}
+          </p>
         </div>
+        <button
+          onClick={handleDeleteClick}
+          onPointerDown={(e) => e.stopPropagation()}
+          className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-red-50 rounded text-gray-400 hover:text-red-600 transition-all"
+          title="Delete"
+        >
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+          </svg>
+        </button>
+      </div>
 
-        {/* Value */}
-        <div className="text-lg font-bold text-blue-600">
-          {formatCurrency(preOpp.total)}
+      {/* Value - Highlighted */}
+      <div className="text-lg font-bold text-blue-600 mb-3">
+        {formatCurrency(preOpp.total)}
+      </div>
+
+      {/* Status Badge */}
+      <div className="flex items-center gap-2 mb-3">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100">
+          <span className={`w-2 h-2 rounded-full ${statusColor}`}></span>
+          {getStatusLabel(preOpp.status)}
+        </span>
+      </div>
+
+      {/* Expiration Date */}
+      {preOpp.expDate && (
+        <div className="flex items-center gap-2 mb-3 pt-3 border-t border-gray-100 text-xs text-gray-500">
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          <span>Exp: {formatDate(preOpp.expDate)}</span>
         </div>
+      )}
 
-        {/* Expiration */}
-        {preOpp.expDate && (
-          <div className="text-xs text-gray-600">
-            Exp: {formatDate(preOpp.expDate)}
-          </div>
-        )}
-
-        {/* Created By */}
-        <div className="text-xs text-gray-500 pt-2 border-t border-gray-100">
-          By: {preOpp.createdBy}
+      {/* Created By */}
+      <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-xs font-semibold shadow-sm">
+          {preOpp.createdBy?.charAt(0)?.toUpperCase() || '?'}
         </div>
+        <span className="text-xs text-gray-500 truncate">{preOpp.createdBy}</span>
+      </div>
 
-        {/* Drag indicator */}
-        <div className="flex items-center justify-center pt-1">
-          <DragIndicator />
-        </div>
+      {/* Drag Handle Indicator - visible on hover */}
+      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-40 transition-opacity pointer-events-none">
+        <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M7 2a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 2zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 8zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 14zm6-8a2 2 0 1 0-.001-4.001A2 2 0 0 0 13 6zm0 2a2 2 0 1 0 .001 4.001A2 2 0 0 0 13 8zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 13 14z"/>
+        </svg>
       </div>
     </div>
   );
@@ -146,68 +168,96 @@ function KanbanCard({ preOpp, onDelete, isDragging }: KanbanCardProps) {
 // ============================================================================
 
 function CardOverlay({ preOpp }: { preOpp: PreOpportunityLandingPage }) {
+  const statusColor = COLUMN_STATUS_COLORS[preOpp.status] || 'bg-gray-400';
+  
   return (
-    <div className="bg-white border-2 border-blue-500 rounded-lg p-3 shadow-xl cursor-grabbing w-64">
-      <div className="space-y-2">
-        <div className="font-semibold text-sm text-gray-900">
-          {preOpp.entityNumber}
-        </div>
-        <div className="text-xs text-gray-500">
-          {formatDate(preOpp.entityDate)}
-        </div>
-        <div className="text-lg font-bold text-blue-600">
-          {formatCurrency(preOpp.total)}
+    <div className="bg-white border-2 border-blue-300 rounded-lg p-4 shadow-xl cursor-grabbing w-64 opacity-90">
+      <div className="flex items-start gap-3 mb-3">
+        <div className="flex-1 min-w-0">
+          <h4 className="text-sm font-semibold text-gray-900 leading-tight truncate">
+            {preOpp.entityNumber}
+          </h4>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {formatDate(preOpp.entityDate)}
+          </p>
         </div>
       </div>
+      <div className="text-lg font-bold text-blue-600 mb-2">
+        {formatCurrency(preOpp.total)}
+      </div>
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100">
+        <span className={`w-2 h-2 rounded-full ${statusColor}`}></span>
+        {getStatusLabel(preOpp.status)}
+      </span>
     </div>
   );
 }
 
 // ============================================================================
-// Droppable Column Component
+// Droppable Column Component - Jobs Style
 // ============================================================================
 
-function DroppableColumn({ stage, preOpps, onNewClick, onDelete }: DroppableColumnProps) {
-  const { setNodeRef, isOver } = useDroppable({
+function DroppableColumn({ 
+  stage, 
+  preOpps, 
+  onNewClick, 
+  onDelete,
+  isOver 
+}: { 
+  stage: PreOppStage;
+  preOpps: PreOpportunityLandingPage[];
+  onNewClick: (status: PreOpportunityStatus) => void;
+  onDelete: (id: string) => void;
+  isOver: boolean;
+}) {
+  const { setNodeRef } = useDroppable({
     id: stage.name,
   });
 
+  const statusColor = COLUMN_STATUS_COLORS[stage.name] || 'bg-gray-400';
+
   return (
     <div className="flex flex-col">
-      {/* Column Header */}
-      <div className="flex items-center justify-between px-3 py-2 mb-3">
+      {/* Column Header - Minimal like Jobs */}
+      <div className="flex items-center justify-between px-2 py-2 mb-2">
         <div className="flex items-center gap-2">
+          <span className={`w-2 h-2 rounded-full ${statusColor}`}></span>
           <span className="text-sm text-gray-700 font-medium">
             {stage.displayName}
           </span>
-          <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+          <span className="text-xs text-gray-400 font-medium">
             {preOpps.length}
           </span>
         </div>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => onNewClick(stage.name)}
-            className="p-1 hover:bg-gray-100 rounded transition-colors"
-            title={`Add new ${stage.displayName}`}
-          >
-            <PlusIcon />
-          </button>
-        </div>
+        <button 
+          onClick={() => onNewClick(stage.name)}
+          className="p-1 hover:bg-gray-100 rounded transition-colors text-gray-400 hover:text-gray-600"
+          title={`Add pre-opportunity to ${stage.displayName}`}
+        >
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M10 6v8M6 10h8" strokeLinecap="round"/>
+          </svg>
+        </button>
       </div>
 
-      {/* Cards Container */}
-      <div
-        ref={setNodeRef}
-        className={`space-y-2 min-h-[500px] p-2 rounded-lg transition-colors ${
-          isOver ? 'bg-blue-50 border-2 border-blue-300 border-dashed' : 'bg-gray-50/50'
-        }`}
-      >
-        <SortableContext items={preOpps.map(p => p.id)} strategy={verticalListSortingStrategy}>
+      {/* Drop Zone */}
+      <SortableContext items={preOpps.map(p => p.id)} strategy={verticalListSortingStrategy}>
+        <div
+          ref={setNodeRef}
+          className={`
+            min-h-[400px] rounded-lg p-2 transition-all duration-200
+            ${isOver 
+              ? 'bg-blue-50 ring-2 ring-blue-300 ring-opacity-50' 
+              : 'bg-gray-50/50'
+            }
+          `}
+        >
           {preOpps.length === 0 ? (
-            <div className={`p-4 text-center text-sm text-gray-400 border-2 border-dashed rounded-lg transition-colors ${
-              isOver ? 'border-blue-300 bg-blue-100/50' : 'border-gray-200'
-            }`}>
-              {isOver ? 'Drop here' : `No ${stage.displayName.toLowerCase()} opportunities`}
+            <div className="flex flex-col items-center justify-center h-32 text-gray-400">
+              <svg className="w-8 h-8 mb-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+              <span className="text-xs">No pre-opportunities</span>
             </div>
           ) : (
             preOpps.map((preOpp) => (
@@ -218,16 +268,19 @@ function DroppableColumn({ stage, preOpps, onNewClick, onDelete }: DroppableColu
               />
             ))
           )}
-        </SortableContext>
-      </div>
+        </div>
+      </SortableContext>
 
-      {/* Add Card Button */}
-      <button
+      {/* Add Card Button - Minimal */}
+      <button 
         onClick={() => onNewClick(stage.name)}
-        className="flex items-center justify-center gap-2 px-3 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-md transition-colors mt-2 border-2 border-dashed border-gray-200"
+        className="flex items-center justify-center gap-1.5 py-2 text-xs text-gray-400 
+                 hover:text-gray-600 hover:bg-gray-50 rounded transition-colors mt-1"
       >
-        <PlusIcon />
-        New
+        <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <path d="M10 6v8M6 10h8" strokeLinecap="round"/>
+        </svg>
+        Add
       </button>
     </div>
   );
@@ -251,14 +304,15 @@ export function KanbanView({
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [createModalInitialStatus, setCreateModalInitialStatus] = useState<PreOpportunityStatus>('DRAFT');
   
-  // Active dragging item
+  // Active dragging item and over state
   const [activeDragItem, setActiveDragItem] = useState<PreOpportunityLandingPage | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
 
   // Sensors for drag detection
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8, // 8px movement required to start dragging
+        distance: 8,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -276,33 +330,39 @@ export function KanbanView({
     }
   }, [preOpps, setActiveId]);
 
+  // Handle drag over
+  const handleDragOver = useCallback((event: DragOverEvent) => {
+    setOverId(event.over?.id as string || null);
+  }, []);
+
   // Handle drag end
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
     const { active, over } = event;
     
     setActiveDragItem(null);
     setActiveId(null);
+    setOverId(null);
     
     if (!over) return;
 
-    const activeId = active.id as string;
-    const overId = over.id as string;
+    const activePreOppId = active.id as string;
+    const overIdValue = over.id as string;
     
     // Find the item being dragged
-    const draggedItem = preOpps.find(p => p.id === activeId);
+    const draggedItem = preOpps.find(p => p.id === activePreOppId);
     if (!draggedItem) return;
     
     // Determine the target status
     let targetStatus: PreOpportunityStatus;
     
     // Check if we're dropping on a column (stage name) or on another card
-    const isColumn = stages.some(s => s.name === overId);
+    const isColumn = stages.some(s => s.name === overIdValue);
     
     if (isColumn) {
-      targetStatus = overId as PreOpportunityStatus;
+      targetStatus = overIdValue as PreOpportunityStatus;
     } else {
       // Dropping on another card - find which column that card is in
-      const targetCard = preOpps.find(p => p.id === overId);
+      const targetCard = preOpps.find(p => p.id === overIdValue);
       if (!targetCard) return;
       targetStatus = targetCard.status;
     }
@@ -311,14 +371,14 @@ export function KanbanView({
     if (draggedItem.status !== targetStatus) {
       try {
         // Fetch full pre-opportunity data to get all required fields
-        const fullPreOpp = await fetchPreOpportunity(activeId);
+        const fullPreOpp = await fetchPreOpportunity(activePreOppId);
         if (!fullPreOpp) {
           throw new Error('Failed to fetch pre-opportunity data');
         }
 
         // Build the update payload with all required fields
         await updateMutation.mutateAsync({
-          id: activeId,
+          id: activePreOppId,
           entityNumber: fullPreOpp.entityNumber,
           entityDate: fullPreOpp.entityDate,
           status: targetStatus,
@@ -377,17 +437,38 @@ export function KanbanView({
     setIsCreateModalOpen(true);
   };
 
+  // Custom collision detection that prioritizes droppable columns
+  const customCollisionDetection = (args: Parameters<typeof pointerWithin>[0]) => {
+    // First check for pointer collisions
+    const pointerCollisions = pointerWithin(args);
+    
+    // If we have collisions, prioritize stage columns
+    if (pointerCollisions.length > 0) {
+      const columnCollision = pointerCollisions.find(c => 
+        ['DRAFT', 'PENDING', 'APPROVED', 'REJECTED', 'CONVERTED'].includes(String(c.id))
+      );
+      if (columnCollision) {
+        return [columnCollision];
+      }
+    }
+    
+    // Fall back to rect intersection for edge cases
+    return rectIntersection(args);
+  };
+
   return (
     <>
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCorners}
+        collisionDetection={customCollisionDetection}
         onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
         <div className="grid grid-cols-5 gap-4">
           {stages.map((stage) => {
             const stagePreOpps = getPreOppsByStatus(preOpps, stage.name);
+            const isOverColumn = overId === stage.name;
 
             return (
               <DroppableColumn
@@ -396,6 +477,7 @@ export function KanbanView({
                 preOpps={stagePreOpps}
                 onNewClick={handleNewClick}
                 onDelete={handleDelete}
+                isOver={isOverColumn}
               />
             );
           })}

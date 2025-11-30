@@ -110,9 +110,20 @@ export default function CompaniesContent() {
     }
   };
 
+  // Helper to normalize company source type
+  const normalizeCompanySourceType = (value: string | CompanySourceType | undefined): CompanySourceType => {
+    if (value === '2' || value === 2 as unknown as string) return 'MANUFACTURER';
+    if (value === '1' || value === 1 as unknown as string) return 'CUSTOMER';
+    if (value === 'MANUFACTURER') return 'MANUFACTURER';
+    return 'CUSTOMER';
+  };
+
   // Handle save edit
   const handleSaveEdit = async () => {
     if (!selectedCompany) return;
+    
+    // Ensure companySourceType is a valid enum value
+    const normalizedSourceType = normalizeCompanySourceType(editFormData.companySourceType);
     
     try {
       await updateCompanyMutation.mutateAsync({
@@ -121,7 +132,7 @@ export default function CompaniesContent() {
           name: editFormData.name,
           phone: editFormData.phone,
           website: editFormData.website,
-          companySourceType: editFormData.companySourceType,
+          companySourceType: normalizedSourceType,
         },
       });
       
@@ -133,8 +144,8 @@ export default function CompaniesContent() {
         name: updatedName,
         phone: editFormData.phone || selectedCompany.phone,
         website: editFormData.website || selectedCompany.website,
-        companySourceType: editFormData.companySourceType || selectedCompany.companySourceType,
-        type: editFormData.companySourceType === 'MANUFACTURER' ? ['Manufacturer'] : ['Customer'],
+        companySourceType: normalizedSourceType,
+        type: normalizedSourceType === 'MANUFACTURER' ? ['Manufacturer'] : ['Customer'],
       });
       
       setIsEditing(false);

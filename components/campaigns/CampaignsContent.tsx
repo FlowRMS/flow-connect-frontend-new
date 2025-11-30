@@ -14,6 +14,7 @@ import RulesListView from './views/RulesListView';
 import NewCampaignView from './views/NewCampaignView';
 import NewRuleView from './views/NewRuleView';
 import AIModal from './modals/AIModal';
+import ComingSoonOverlay from '../ComingSoonOverlay';
 import type { TabType } from './types';
 
 export default function CampaignsContent() {
@@ -39,7 +40,13 @@ export default function CampaignsContent() {
   };
 
   return (
-    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
+    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6 relative">
+      {/* Coming Soon Overlay */}
+      <ComingSoonOverlay 
+        title="Email Flow Coming Soon"
+        description="Powerful email campaigns and automation rules are being built. Stay tuned for an amazing experience!"
+      />
+      
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">

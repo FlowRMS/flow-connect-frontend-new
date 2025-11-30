@@ -286,15 +286,6 @@ export default function ContactRelatedEntities({
         <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] mb-6">
           <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
             <h2 className="text-lg font-semibold text-[var(--foreground)]">Associated Company</h2>
-            <button 
-              onClick={() => openAddLinkModal('COMPANY')}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
-            >
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-              </svg>
-              Link Company
-            </button>
           </div>
           <div className="p-6">
             <CompanyInfoCard 
@@ -306,30 +297,15 @@ export default function ContactRelatedEntities({
         </div>
       )}
 
-      {/* No company linked - show add company button */}
+      {/* No company linked */}
       {!contact.companyId && (
         <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] mb-6">
           <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
             <h2 className="text-lg font-semibold text-[var(--foreground)]">Associated Company</h2>
-            <button 
-              onClick={() => openAddLinkModal('COMPANY')}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
-            >
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-              </svg>
-              Link Company
-            </button>
           </div>
           <div className="p-6">
             <div className="text-center py-4 text-[var(--muted-foreground)]">
               <p className="text-sm">No company linked</p>
-              <button
-                onClick={() => openAddLinkModal('COMPANY')}
-                className="mt-2 text-sm text-[var(--primary)] hover:underline"
-              >
-                + Add a company
-              </button>
             </div>
           </div>
         </div>
@@ -399,6 +375,7 @@ export default function ContactRelatedEntities({
       <AddLinkModal
         isOpen={showAddLinkModal}
         contactId={contact.id}
+        currentCompanyId={contact.companyId}
         initialEntityType={addLinkEntityType}
         onClose={() => setShowAddLinkModal(false)}
         onSuccess={handleLinkSuccess}

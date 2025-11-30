@@ -245,19 +245,19 @@ export default function AdvancedFilters({
       {isExpanded && (
         <div className="fixed inset-0 z-50 flex items-start justify-center pt-10 px-4 pointer-events-none">
           <div 
-            className="w-full max-w-4xl bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl p-6 shadow-2xl pointer-events-auto overflow-visible"
+            className="w-full max-w-4xl bg-white rounded-xl p-6 shadow-2xl pointer-events-auto overflow-visible border border-gray-200"
           >
             {/* Header */}
-            <div className="flex items-start justify-between mb-6">
+            <div className="flex items-start justify-between mb-6 pb-4 border-b border-gray-100">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-white/20 rounded-lg">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                <div className="p-2.5 bg-blue-50 rounded-lg">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2">
                     <path d="M3 6h18M7 12h10M11 18h2" strokeLinecap="round"/>
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-white">Advanced Filters</h3>
-                  <p className="text-sm text-white/80">{filterOptions.filter(f => f.available !== false).length} available filters</p>
+                  <h3 className="text-lg font-semibold text-gray-900">Advanced Filters</h3>
+                  <p className="text-sm text-gray-500">{filterOptions.filter(f => f.available !== false).length} available filters</p>
                 </div>
               </div>
               <button
@@ -265,9 +265,9 @@ export default function AdvancedFilters({
                   setIsExpanded(false);
                   setExpandedFilterId(null);
                 }}
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-500 hover:text-gray-700"
               >
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="white" strokeWidth="2">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </button>
@@ -275,23 +275,23 @@ export default function AdvancedFilters({
 
             {/* Active Filters Display */}
             {localFilters.length > 0 && (
-              <div className="mb-6 bg-white/10 rounded-lg p-4">
+              <div className="mb-6 bg-blue-50 rounded-lg p-4 border border-blue-100">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-medium text-white/80">Active:</span>
+                  <span className="text-sm font-medium text-blue-700">Active:</span>
                   {localFilters.map((filter, index) => {
                     const option = filterOptions.find(o => o.columnName === filter.columnName);
                     const label = option?.label || filter.columnName;
                     return (
-                      <span key={index} className="px-3 py-1.5 bg-white/20 text-white rounded-lg text-sm flex items-center gap-2">
-                        <span className="font-medium">{label}:</span>
-                        <span className="text-white/90">
+                      <span key={index} className="px-3 py-1.5 bg-white text-gray-700 rounded-lg text-sm flex items-center gap-2 border border-gray-200 shadow-sm">
+                        <span className="font-medium text-gray-900">{label}:</span>
+                        <span className="text-gray-600">
                           {filter.operator === 'IN' && filter.values 
                             ? filter.values.join(', ') 
                             : filter.value}
                         </span>
                         <button 
                           onClick={() => handleClearFilter(filter.columnName)} 
-                          className="ml-1 p-0.5 hover:bg-white/20 rounded transition-colors"
+                          className="ml-1 p-0.5 hover:bg-gray-100 rounded transition-colors text-gray-400 hover:text-red-500"
                         >
                           <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                             <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
@@ -305,12 +305,12 @@ export default function AdvancedFilters({
             )}
 
             {/* Filter By Field - With inline dropdowns */}
-            <div className="bg-white/10 rounded-lg p-4">
+            <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
               <div className="flex items-center gap-2 mb-4">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2">
                   <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46" />
                 </svg>
-                <h4 className="text-sm font-semibold text-white">Filter By Field</h4>
+                <h4 className="text-sm font-semibold text-gray-700">Filter By Field</h4>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {filterOptions.map((option) => (
@@ -320,18 +320,18 @@ export default function AdvancedFilters({
                       disabled={option.available === false}
                       className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition-all ${
                         option.available === false
-                          ? 'bg-white/5 text-white/40 cursor-not-allowed'
+                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
                           : expandedFilterId === option.id
-                            ? 'bg-white text-blue-600 shadow-lg'
+                            ? 'bg-blue-600 text-white shadow-lg border border-blue-600'
                             : localFilters.some(f => f.columnName === option.columnName)
-                              ? 'bg-white/90 text-blue-600 shadow-md'
-                              : 'bg-white/20 hover:bg-white/30 text-white'
+                              ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-sm'
+                              : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 hover:border-gray-300'
                       }`}
                     >
                       <span className="flex items-center gap-2">
                         {option.label}
                         {option.available === false && (
-                          <span className="px-1.5 py-0.5 bg-yellow-500/40 text-yellow-100 text-xs rounded font-normal">Soon</span>
+                          <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-xs rounded font-normal">Soon</span>
                         )}
                       </span>
                       {option.available !== false && (
@@ -404,12 +404,12 @@ export default function AdvancedFilters({
 
             {/* Clear All Button */}
             {localFilters.length > 0 && (
-              <div className="flex justify-end mt-6">
+              <div className="flex justify-end mt-6 pt-4 border-t border-gray-100">
                 <button
                   onClick={() => {
                     handleClearFilter();
                   }}
-                  className="px-4 py-2 bg-red-500/30 hover:bg-red-500/40 text-white rounded-lg text-sm font-medium transition-colors"
+                  className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-sm font-medium transition-colors border border-red-200"
                 >
                   Clear All Filters
                 </button>

@@ -467,7 +467,7 @@ const CREATE_JOB = `
 `;
 
 const UPDATE_JOB = `
-  mutation UpdateJob($id: UUID!, $input: UpdateJobInput!) {
+  mutation UpdateJob($id: UUID!, $input: JobInput!) {
     updateJob(id: $id, input: $input) {
       id
       jobName
@@ -486,6 +486,12 @@ const UPDATE_JOB = `
         name
       }
     }
+  }
+`;
+
+const DELETE_JOB = `
+  mutation DeleteJob($id: UUID!) {
+    deleteJob(id: $id)
   }
 `;
 
@@ -554,7 +560,7 @@ const CREATE_COMPANY = `
 `;
 
 const UPDATE_COMPANY = `
-  mutation UpdateCompany($id: UUID!, $input: UpdateCompanyInput!) {
+  mutation UpdateCompany($id: UUID!, $input: CompanyInput!) {
     updateCompany(id: $id, input: $input) {
       id
       name
@@ -698,7 +704,7 @@ const CREATE_CONTACT = `
 `;
 
 const UPDATE_CONTACT = `
-  mutation UpdateContact($id: UUID!, $input: UpdateContactInput!) {
+  mutation UpdateContact($id: UUID!, $input: ContactInput!) {
     updateContact(id: $id, input: $input) {
       id
       firstName
@@ -1363,6 +1369,19 @@ export async function updateJob(id: string, input: UpdateJobInput): Promise<Job>
   }
 
   return response.data.updateJob;
+}
+
+export async function deleteJob(id: string): Promise<boolean> {
+  const response = await crmGraphQLRequest<{ deleteJob: boolean }>({
+    query: DELETE_JOB,
+    variables: { id },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to delete job');
+  }
+
+  return response.data?.deleteJob || false;
 }
 
 export async function fetchJobsByIds(ids: string[]): Promise<Job[]> {

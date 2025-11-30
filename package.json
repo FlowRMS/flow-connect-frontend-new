@@ -13,8 +13,10 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@tanstack/react-query": "^5.90.11",
+    "@types/react-datepicker": "^6.2.0",
     "next": "16.0.3",
     "react": "19.2.0",
+    "react-datepicker": "^8.10.0",
     "react-dom": "19.2.0",
     "sonner": "^2.0.7"
   },

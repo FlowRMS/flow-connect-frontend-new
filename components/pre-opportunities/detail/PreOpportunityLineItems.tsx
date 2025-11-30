@@ -192,18 +192,21 @@ export function PreOpportunityLineItems({ preOpp, isEditing = false, onLineItems
   };
 
   const calculateLineTotal = (item: EditableLineItem) => {
-    const subtotal = item.quantity * item.unitPrice;
-    return subtotal * (1 - item.discountRate / 100);
+    const quantity = Number(item.quantity) || 0;
+    const unitPrice = Number(item.unitPrice) || 0;
+    const discountRate = Number(item.discountRate) || 0;
+    const subtotal = quantity * unitPrice;
+    return subtotal * (1 - discountRate / 100);
   };
 
-  // View mode calculations
-  const totalSubtotal = preOpp.details.reduce((sum, detail) => sum + detail.subtotal, 0);
-  const totalDiscount = preOpp.details.reduce((sum, detail) => sum + detail.discount, 0);
-  const grandTotal = preOpp.balance?.total || totalSubtotal - totalDiscount;
+  // View mode calculations - ensure proper number handling to avoid NaN
+  const totalSubtotal = preOpp.details.reduce((sum, detail) => sum + (Number(detail.subtotal) || 0), 0);
+  const totalDiscount = preOpp.details.reduce((sum, detail) => sum + (Number(detail.discount) || 0), 0);
+  const grandTotal = Number(preOpp.balance?.total) || (totalSubtotal - totalDiscount);
 
-  // Edit mode calculations
-  const editTotalSubtotal = editableItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
-  const editGrandTotal = editableItems.reduce((sum, item) => sum + calculateLineTotal(item), 0);
+  // Edit mode calculations - ensure proper number handling
+  const editTotalSubtotal = editableItems.reduce((sum, item) => sum + ((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)), 0);
+  const editGrandTotal = editableItems.reduce((sum, item) => sum + (Number(calculateLineTotal(item)) || 0), 0);
 
   // Render edit mode
   if (isEditing) {
@@ -529,20 +532,20 @@ export function PreOpportunityLineItems({ preOpp, isEditing = false, onLineItems
                       <div className="text-xs text-green-600">End User: {detail.endUserId.slice(0, 8)}...</div>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-sm text-right text-gray-900">{Math.round(detail.quantity)}</td>
-                  <td className="px-4 py-3 text-sm text-right text-gray-900">{formatCurrency(detail.unitPrice)}</td>
-                  <td className="px-4 py-3 text-sm text-right text-gray-900">{formatCurrency(detail.subtotal)}</td>
+                  <td className="px-4 py-3 text-sm text-right text-gray-900">{Math.round(Number(detail.quantity) || 0)}</td>
+                  <td className="px-4 py-3 text-sm text-right text-gray-900">{formatCurrency(Number(detail.unitPrice) || 0)}</td>
+                  <td className="px-4 py-3 text-sm text-right text-gray-900">{formatCurrency(Number(detail.subtotal) || 0)}</td>
                   <td className="px-4 py-3 text-sm text-right text-gray-900">
-                    {detail.discount > 0 ? (
+                    {(Number(detail.discount) || 0) > 0 ? (
                         <span className="text-red-600">
-                        -{formatCurrency(detail.discount)} ({Number(detail.discountRate).toFixed(0)}%)
+                        -{formatCurrency(Number(detail.discount) || 0)} ({Number(detail.discountRate || 0).toFixed(0)}%)
                       </span>
                     ) : (
                       '-'
                     )}
                   </td>
                   <td className="px-4 py-3 text-sm text-right font-semibold text-gray-900">
-                    {formatCurrency(detail.total)}
+                    {formatCurrency(Number(detail.total) || 0)}
                   </td>
                 </tr>
               ))

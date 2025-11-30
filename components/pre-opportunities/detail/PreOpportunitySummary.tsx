@@ -11,10 +11,10 @@ interface PreOpportunitySummaryProps {
 }
 
 export function PreOpportunitySummary({ preOpp }: PreOpportunitySummaryProps) {
-  const totalSubtotal = preOpp.details.reduce((sum, detail) => sum + detail.subtotal, 0);
-  const totalDiscount = preOpp.details.reduce((sum, detail) => sum + detail.discount, 0);
+  const totalSubtotal = preOpp.details.reduce((sum, detail) => sum + (Number(detail.subtotal) || 0), 0);
+  const totalDiscount = preOpp.details.reduce((sum, detail) => sum + (Number(detail.discount) || 0), 0);
   const grandTotal = preOpp.balance?.total || totalSubtotal - totalDiscount;
-  const totalQuantity = preOpp.details.reduce((sum, detail) => sum + detail.quantity, 0);
+  const totalQuantity = preOpp.details.reduce((sum, detail) => sum + (Number(detail.quantity) || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -33,7 +33,7 @@ export function PreOpportunitySummary({ preOpp }: PreOpportunitySummaryProps) {
             </div>
             <div>
               <div className="text-sm text-gray-500">Total Qty</div>
-              <div className="text-lg font-semibold text-gray-900">{Math.round(totalQuantity)}</div>
+              <div className="text-lg font-semibold text-gray-900">{isNaN(totalQuantity) ? 0 : Math.round(totalQuantity)}</div>
             </div>
           </div>
           {totalDiscount > 0 && (

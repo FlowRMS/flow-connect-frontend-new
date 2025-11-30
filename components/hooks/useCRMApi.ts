@@ -39,6 +39,7 @@ import {
   fetchJob,
   createJob,
   updateJob,
+  deleteJob,
   fetchJobsByIds,
   getStoredJobIds,
   fetchJobLandingPages,
@@ -214,6 +215,21 @@ export function useUpdateCRMJob() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: crmQueryKeys.jobs() });
       queryClient.invalidateQueries({ queryKey: crmQueryKeys.job(data.id) });
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.jobLandingPages() });
+    },
+  });
+}
+
+/**
+ * Delete job mutation
+ */
+export function useDeleteCRMJob() {
+  const queryClient = useQueryClient();
+
+  return useMutation<boolean, Error, string>({
+    mutationFn: deleteJob,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.jobs() });
       queryClient.invalidateQueries({ queryKey: crmQueryKeys.jobLandingPages() });
     },
   });

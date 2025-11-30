@@ -2,11 +2,12 @@
  * Job Detail View Component
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { JobDetailHeader } from './JobDetailHeader';
 import { JobDetailsForm } from './JobDetailsForm';
 import { ConnectedEntitiesSection } from './ConnectedEntitiesSection';
 import { RepTypeModal } from '../modals/RepTypeModal';
+import { DeleteJobConfirmModal } from '../modals/DeleteJobConfirmModal';
 import type { Job, RepType } from '../types';
 import type { Company, Contact } from '../../lib/crm-graphql';
 
@@ -14,6 +15,7 @@ interface JobDetailViewProps {
   job: Job;
   isEditing: boolean;
   isSaving: boolean;
+  isDeleting?: boolean;
   editFormData: Partial<Job>;
   repType: RepType;
   showRepTypeModal: boolean;
@@ -22,6 +24,7 @@ interface JobDetailViewProps {
   onStartEdit: () => void;
   onSaveEdit: () => void;
   onCancelEdit: () => void;
+  onDelete?: () => void;
   onRepTypeChange: (type: RepType) => void;
   onToggleRepTypeModal: (show: boolean) => void;
   onCompanyClick?: (company: Company) => void;
@@ -32,6 +35,7 @@ export function JobDetailView({
   job,
   isEditing,
   isSaving,
+  isDeleting = false,
   editFormData,
   repType,
   showRepTypeModal,
@@ -40,11 +44,23 @@ export function JobDetailView({
   onStartEdit,
   onSaveEdit,
   onCancelEdit,
+  onDelete,
   onRepTypeChange,
   onToggleRepTypeModal,
   onCompanyClick,
   onContactClick,
 }: JobDetailViewProps) {
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const handleDeleteClick = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    onDelete?.();
+    setShowDeleteConfirm(false);
+  };
+
   return (
     <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
       <JobDetailHeader
@@ -57,6 +73,7 @@ export function JobDetailView({
         onEditClick={onStartEdit}
         onSave={onSaveEdit}
         onCancel={onCancelEdit}
+        onDelete={onDelete ? handleDeleteClick : undefined}
       />
 
       <JobDetailsForm
@@ -81,6 +98,15 @@ export function JobDetailView({
           onToggleRepTypeModal(false);
         }}
       />
+
+      {showDeleteConfirm && (
+        <DeleteJobConfirmModal
+          jobName={job.name}
+          isDeleting={isDeleting}
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setShowDeleteConfirm(false)}
+        />
+      )}
     </main>
   );
 }

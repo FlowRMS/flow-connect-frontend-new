@@ -2,9 +2,10 @@
  * Contacts State Management Hook
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
   useCRMContactLandingPages, 
+  useCRMContact,
   useCreateCRMContact, 
   useUpdateCRMContact, 
   useDeleteCRMContact 
@@ -20,6 +21,7 @@ export function useContactsState() {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [selectedType, setSelectedType] = useState<string>('All');
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   
   // Modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -38,9 +40,29 @@ export function useContactsState() {
   // CRM API hooks
   const isConnected = hasCRMTokens();
   const { data: landingPageContacts, isLoading, error, refetch } = useCRMContactLandingPages();
+  const { data: fullContactData } = useCRMContact(selectedContactId || '');
   const createContactMutation = useCreateCRMContact();
   const updateContactMutation = useUpdateCRMContact();
   const deleteContactMutation = useDeleteCRMContact();
+
+  // Update selectedContact with full contact data (including companyId) when fetched
+  useEffect(() => {
+    if (fullContactData && selectedContact && selectedContactId === selectedContact.id) {
+      // Update the selectedContact with companyId from the full contact data
+      if (fullContactData.companyId && !selectedContact.companyId) {
+        setSelectedContact(prev => prev ? {
+          ...prev,
+          companyId: fullContactData.companyId || '',
+        } : null);
+      }
+    }
+  }, [fullContactData, selectedContact, selectedContactId]);
+
+  // Custom setSelectedContact that also triggers full contact fetch
+  const handleSelectContact = useCallback((contact: Contact | null) => {
+    setSelectedContact(contact);
+    setSelectedContactId(contact?.id || null);
+  }, []);
 
   // Map and filter contacts
   const contacts = useMemo(() => {
@@ -178,7 +200,7 @@ export function useContactsState() {
       contactToasts.deleteSuccess(contact?.name || 'Contact');
       setDeleteConfirmId(null);
       if (selectedContact?.id === id) {
-        setSelectedContact(null);
+        handleSelectContact(null);
       }
     } catch (err) {
       console.error('Failed to delete contact:', err);
@@ -193,7 +215,7 @@ export function useContactsState() {
     selectedType,
     setSelectedType,
     selectedContact,
-    setSelectedContact,
+    setSelectedContact: handleSelectContact,
     showCreateModal,
     setShowCreateModal,
     showDedupeModal,

@@ -27,9 +27,11 @@ export function useJobsState(
 
   // Drag and drop
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
 
   // Modals
   const [showCreateJobModal, setShowCreateJobModal] = useState(false);
+  const [createJobDefaultStatus, setCreateJobDefaultStatus] = useState<string | undefined>(undefined);
   const [showDedupeModal, setShowDedupeModal] = useState(false);
   const [showRepTypeModal, setShowRepTypeModal] = useState(false);
 
@@ -124,10 +126,14 @@ export function useJobsState(
     // Drag and drop
     activeId,
     setActiveId,
+    overId,
+    setOverId,
     
     // Modals
     showCreateJobModal,
     setShowCreateJobModal,
+    createJobDefaultStatus,
+    setCreateJobDefaultStatus,
     showDedupeModal,
     setShowDedupeModal,
     showRepTypeModal,

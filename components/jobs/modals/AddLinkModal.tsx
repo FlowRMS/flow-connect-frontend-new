@@ -9,6 +9,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   useCRMCompanyLandingPages,
   useCRMContactLandingPages,
+  useCRMJobRelatedEntities,
   useCreateCRMLink,
 } from '../../hooks/useCRMApi';
 import type { EntityType } from '../../lib/crm-graphql';
@@ -40,26 +41,43 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
   // Fetch companies and contacts from landing pages
   const { data: companies, isLoading: companiesLoading } = useCRMCompanyLandingPages();
   const { data: contacts, isLoading: contactsLoading } = useCRMContactLandingPages();
+  
+  // Fetch already linked entities for this job
+  const { data: relatedEntities } = useCRMJobRelatedEntities(jobId);
 
   // Create link mutation
   const createLinkMutation = useCreateCRMLink();
 
-  // Filter entities based on search term
+  // Get IDs of already linked entities
+  const linkedCompanyIds = useMemo(
+    () => new Set(relatedEntities?.companies?.map(c => c.id) || []),
+    [relatedEntities]
+  );
+  const linkedContactIds = useMemo(
+    () => new Set(relatedEntities?.contacts?.map(c => c.id) || []),
+    [relatedEntities]
+  );
+
+  // Filter entities based on search term AND exclude already linked
   const filteredEntities = useMemo(() => {
     if (entityType === 'COMPANY') {
       if (!companies) return [];
-      return companies.filter(company => 
-        company.name.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      return companies.filter(company => {
+        // Exclude already linked companies
+        if (linkedCompanyIds.has(company.id)) return false;
+        return company.name.toLowerCase().includes(searchTerm.toLowerCase());
+      });
     } else {
       if (!contacts) return [];
       return contacts.filter(contact => {
+        // Exclude already linked contacts
+        if (linkedContactIds.has(contact.id)) return false;
         const fullName = `${contact.firstName} ${contact.lastName}`.toLowerCase();
         return fullName.includes(searchTerm.toLowerCase()) ||
           (contact.email?.toLowerCase().includes(searchTerm.toLowerCase()));
       });
     }
-  }, [entityType, companies, contacts, searchTerm]);
+  }, [entityType, companies, contacts, searchTerm, linkedCompanyIds, linkedContactIds]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

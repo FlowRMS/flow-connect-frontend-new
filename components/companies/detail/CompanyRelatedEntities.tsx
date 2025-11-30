@@ -36,64 +36,43 @@ type LinkEntityType = 'CONTACT' | 'JOB';
  */
 function ContactCard({ 
   contact,
-  onUnlink,
-  isUnlinking,
   onClick 
 }: { 
   contact: APIContact;
-  onUnlink: () => void;
-  isUnlinking: boolean;
   onClick?: () => void;
 }) {
   const fullName = `${contact.firstName} ${contact.lastName}`.trim();
   const initials = `${contact.firstName?.[0] || ''}${contact.lastName?.[0] || ''}`.toUpperCase();
   
   return (
-    <div className="flex items-center justify-between p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]/30 transition-colors group">
-      <div 
-        className={`flex-1 flex items-start gap-3 ${onClick ? 'cursor-pointer' : ''}`}
-        onClick={onClick}
-      >
-        {/* Avatar */}
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-medium text-sm flex-shrink-0">
-          {initials || '?'}
+    <div 
+      className={`flex items-center p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]/30 transition-colors ${onClick ? 'cursor-pointer' : ''}`}
+      onClick={onClick}
+    >
+      {/* Avatar */}
+      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-medium text-sm flex-shrink-0">
+        {initials || '?'}
+      </div>
+      
+      <div className="flex-1 min-w-0 ml-3">
+        {/* Name & Role */}
+        <div className="flex items-center gap-2">
+          <h4 className="font-medium text-[var(--foreground)] truncate">
+            {fullName || 'Unknown Contact'}
+          </h4>
+          {contact.role && (
+            <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded-full">
+              {contact.role}
+            </span>
+          )}
         </div>
         
-        <div className="flex-1 min-w-0">
-          {/* Name & Role */}
-          <div className="flex items-center gap-2">
-            <h4 className="font-medium text-[var(--foreground)] truncate">
-              {fullName || 'Unknown Contact'}
-            </h4>
-            {contact.role && (
-              <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded-full">
-                {contact.role}
-              </span>
-            )}
-          </div>
-          
-          {/* Contact Details */}
-          <div className="flex items-center gap-4 text-sm text-[var(--muted-foreground)]">
-            {contact.email && <span className="truncate">{contact.email}</span>}
-            {contact.phone && <span>• {contact.phone}</span>}
-          </div>
+        {/* Contact Details */}
+        <div className="flex items-center gap-4 text-sm text-[var(--muted-foreground)]">
+          {contact.email && <span className="truncate">{contact.email}</span>}
+          {contact.phone && <span>• {contact.phone}</span>}
         </div>
       </div>
-
-      {/* Unlink Button */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onUnlink();
-        }}
-        disabled={isUnlinking}
-        className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
-        title="Unlink contact"
-      >
-        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
-        </svg>
-      </button>
     </div>
   );
 }
@@ -263,15 +242,6 @@ export default function CompanyRelatedEntities({
               </span>
             )}
           </div>
-          <button 
-            onClick={() => openAddLinkModal('CONTACT')}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
-          >
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-            </svg>
-            Link Contact
-          </button>
         </div>
         <div className="p-6">
           {contactsLoading ? (
@@ -289,12 +259,6 @@ export default function CompanyRelatedEntities({
           ) : contacts.length === 0 ? (
             <div className="text-center py-4 text-[var(--muted-foreground)]">
               <p className="text-sm">No contacts linked</p>
-              <button
-                onClick={() => openAddLinkModal('CONTACT')}
-                className="mt-2 text-sm text-[var(--primary)] hover:underline"
-              >
-                + Add a contact
-              </button>
             </div>
           ) : (
             <div className="space-y-3">
@@ -302,8 +266,6 @@ export default function CompanyRelatedEntities({
                 <ContactCard 
                   key={contact.id} 
                   contact={contact}
-                  onUnlink={() => handleUnlink('CONTACT', contact.id)}
-                  isUnlinking={deleteLinkMutation.isPending}
                   onClick={onContactClick ? () => onContactClick(contact) : undefined}
                 />
               ))}

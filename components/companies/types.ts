@@ -27,11 +27,31 @@ export interface Company {
 export type ViewMode = 'grid' | 'list';
 
 /**
+ * Normalize company source type to ensure it's a valid enum value
+ */
+function normalizeCompanySourceType(value: string | CompanySourceType | undefined): CompanySourceType {
+  // Handle numeric values that might come from API
+  if (value === '2' || value === 2 as unknown as string) {
+    return 'MANUFACTURER';
+  }
+  if (value === '1' || value === 1 as unknown as string) {
+    return 'CUSTOMER';
+  }
+  // Handle string enum values
+  if (value === 'MANUFACTURER') {
+    return 'MANUFACTURER';
+  }
+  // Default to CUSTOMER
+  return 'CUSTOMER';
+}
+
+/**
  * Mapper function to convert API data to UI format
  */
 export function mapLandingPageToUICompany(landingPage: CompanyLandingPage): Company {
-  // Map companySourceType to display type
-  const type = landingPage.companySourceType === 'MANUFACTURER' 
+  // Normalize and map companySourceType
+  const normalizedSourceType = normalizeCompanySourceType(landingPage.companySourceType);
+  const type = normalizedSourceType === 'MANUFACTURER' 
     ? ['Manufacturer'] 
     : ['Customer'];
 
@@ -49,7 +69,7 @@ export function mapLandingPageToUICompany(landingPage: CompanyLandingPage): Comp
     jobCount: 0, // Job count not in API yet
     lastActivity: landingPage.createdAt || new Date().toISOString(),
     followers: [], // Followers not in API yet
-    companySourceType: landingPage.companySourceType,
+    companySourceType: normalizedSourceType,
     createdBy: landingPage.createdBy || '',
   };
 }

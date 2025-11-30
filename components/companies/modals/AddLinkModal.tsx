@@ -9,6 +9,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   useCRMContactLandingPages,
   useCRMJobLandingPages,
+  useCRMContactsByCompany,
+  useCRMJobsByCompany,
   useCreateCRMLink,
 } from '../../hooks/useCRMApi';
 import type { EntityType } from '../../lib/crm-graphql';
@@ -46,26 +48,38 @@ export function AddLinkModal({
   // Fetch contacts and jobs from landing pages
   const { data: contacts, isLoading: contactsLoading } = useCRMContactLandingPages();
   const { data: jobs, isLoading: jobsLoading } = useCRMJobLandingPages();
+  
+  // Fetch already linked contacts and jobs for this company
+  const { data: linkedContacts = [] } = useCRMContactsByCompany(companyId);
+  const { data: linkedJobs = [] } = useCRMJobsByCompany(companyId);
 
   // Create link mutation
   const createLinkMutation = useCreateCRMLink();
 
-  // Filter entities based on search term
+  // Get IDs of already linked entities
+  const linkedContactIds = useMemo(() => new Set(linkedContacts.map(c => c.id)), [linkedContacts]);
+  const linkedJobIds = useMemo(() => new Set(linkedJobs.map(j => j.id)), [linkedJobs]);
+
+  // Filter entities based on search term AND exclude already linked
   const filteredEntities = useMemo(() => {
     if (entityType === 'CONTACT') {
       if (!contacts) return [];
       return contacts.filter(contact => {
+        // Exclude already linked contacts
+        if (linkedContactIds.has(contact.id)) return false;
         const fullName = `${contact.firstName} ${contact.lastName}`.toLowerCase();
         return fullName.includes(searchTerm.toLowerCase()) ||
           (contact.email?.toLowerCase().includes(searchTerm.toLowerCase()));
       });
     } else {
       if (!jobs) return [];
-      return jobs.filter(job => 
-        job.jobName.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      return jobs.filter(job => {
+        // Exclude already linked jobs
+        if (linkedJobIds.has(job.id)) return false;
+        return job.jobName.toLowerCase().includes(searchTerm.toLowerCase());
+      });
     }
-  }, [entityType, contacts, jobs, searchTerm]);
+  }, [entityType, contacts, jobs, searchTerm, linkedContactIds, linkedJobIds]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

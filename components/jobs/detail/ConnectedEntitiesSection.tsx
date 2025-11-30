@@ -249,45 +249,76 @@ export function ConnectedEntitiesSection({
                 </div>
                 <div className="p-4 space-y-3">
                   {relatedEntities?.contacts && relatedEntities.contacts.length > 0 ? (
-                    relatedEntities.contacts.map((contact: Contact) => (
-                      <div
-                        key={contact.id}
-                        className="flex items-center justify-between p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]/30 transition-colors group"
-                      >
-                        <div 
-                          className="flex-1 cursor-pointer"
-                          onClick={() => onContactClick?.(contact)}
+                    relatedEntities.contacts.map((contact: Contact) => {
+                      // Generate initials and color for contact avatar
+                      const initials = `${contact.firstName?.[0] || ''}${contact.lastName?.[0] || ''}`.toUpperCase() || '?';
+                      const colors = [
+                        'bg-blue-500', 'bg-green-500', 'bg-purple-500', 
+                        'bg-orange-500', 'bg-pink-500', 'bg-teal-500'
+                      ];
+                      const colorIndex = Math.abs(contact.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % colors.length;
+                      const avatarColor = colors[colorIndex];
+
+                      return (
+                        <div
+                          key={contact.id}
+                          className="flex items-center justify-between p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]/30 transition-colors group"
                         >
-                          <div className="flex items-center gap-3 mb-1">
-                            <h4 className="font-medium text-[var(--foreground)]">
-                              {contact.firstName} {contact.lastName}
-                            </h4>
-                            {contact.role && (
-                              <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">
-                                {contact.role}
-                              </span>
-                            )}
+                          <div 
+                            className="flex items-center gap-3 flex-1 cursor-pointer"
+                            onClick={() => onContactClick?.(contact)}
+                          >
+                            {/* Contact Avatar */}
+                            <div className={`w-10 h-10 rounded-lg ${avatarColor} flex items-center justify-center text-white text-sm font-semibold shadow-sm flex-shrink-0`}>
+                              {initials}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <h4 className="font-medium text-[var(--foreground)] truncate">
+                                  {contact.firstName} {contact.lastName}
+                                </h4>
+                                {contact.role && (
+                                  <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium flex-shrink-0">
+                                    {contact.role}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-3 text-sm text-[var(--muted-foreground)]">
+                                {contact.email && (
+                                  <span className="flex items-center gap-1 truncate">
+                                    <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                    </svg>
+                                    {contact.email}
+                                  </span>
+                                )}
+                                {contact.phone && (
+                                  <span className="flex items-center gap-1 flex-shrink-0">
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                                    </svg>
+                                    {contact.phone}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-4 text-sm text-[var(--muted-foreground)]">
-                            {contact.email && <span>{contact.email}</span>}
-                            {contact.phone && <span>• {contact.phone}</span>}
-                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleUnlink('CONTACT', contact.id);
+                            }}
+                            disabled={deleteLinkMutation.isPending}
+                            className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all flex-shrink-0 ml-2"
+                            title="Unlink contact"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                            </svg>
+                          </button>
                         </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleUnlink('CONTACT', contact.id);
-                          }}
-                          disabled={deleteLinkMutation.isPending}
-                          className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                          title="Unlink contact"
-                        >
-                          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
-                          </svg>
-                        </button>
-                      </div>
-                    ))
+                      );
+                    })
                   ) : (
                     <div className="text-center py-4 text-[var(--muted-foreground)]">
                       <p className="text-sm">No contacts linked</p>

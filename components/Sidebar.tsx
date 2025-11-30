@@ -146,7 +146,7 @@ export default function Sidebar() {
           <div className="w-8 h-8 rounded-full bg-[var(--primary)] flex items-center justify-center flex-shrink-0">
             <div className="w-4 h-4 rounded-full border-2 border-white"></div>
           </div>
-          {!isCollapsed && <span className="text-lg font-semibold text-[var(--foreground)]">FlowConnect</span>}
+          {!isCollapsed && <span className="text-lg font-semibold text-[var(--foreground)]">FlowCRM</span>}
         </div>
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
