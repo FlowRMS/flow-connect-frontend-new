@@ -7,10 +7,10 @@
 import React from 'react';
 import { DATE_RANGES, SUMMARY_TYPES, AVAILABLE_TAGS, ENTITY_TYPES } from '../constants';
 import { getAllCreators } from '../utils';
-import type { Note } from '../types';
+import type { ParsedNote } from '../types';
 
 interface SummarizeModalProps {
-  notes: Note[];
+  notes: ParsedNote[];
   filteredNotesCount: number;
   onClose: () => void;
 }

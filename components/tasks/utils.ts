@@ -2,22 +2,223 @@
  * Task Utility Functions
  */
 
-import { ASSIGNEE_COLORS, PRIORITY_COLORS } from './constants';
-import type { Task, TaskPriority } from './types';
+import { ASSIGNEE_COLORS, PRIORITY_COLORS, API_PRIORITY_COLORS } from './constants';
+import type { 
+  Task, 
+  TaskPriority, 
+  TaskStatus,
+  TaskStatusAPI,
+  TaskPriorityAPI,
+  CRMTask,
+  API_STATUS_TO_UI,
+  API_PRIORITY_TO_UI,
+  UI_STATUS_TO_API,
+  UI_PRIORITY_TO_API
+} from './types';
 import type { ActiveFilter } from '../AdvancedFilters';
 import { formatLocalDate } from '../lib/date-utils';
+import type { Job, Contact, Company, TaskRelation, TaskLandingPage } from '../lib/crm-graphql';
+
+// Status mappings
+const apiStatusToUI: Record<TaskStatusAPI, TaskStatus> = {
+  'TODO': 'Today',
+  'IN_PROGRESS': 'Upcoming',
+  'COMPLETED': 'Completed',
+  'CANCELLED': 'Waiting',
+};
+
+const uiStatusToAPI: Record<TaskStatus, TaskStatusAPI> = {
+  'Today': 'TODO',
+  'Overdue': 'TODO',
+  'Upcoming': 'IN_PROGRESS',
+  'Completed': 'COMPLETED',
+  'Waiting': 'CANCELLED',
+};
+
+// Priority mappings
+const apiPriorityToUI: Record<TaskPriorityAPI, TaskPriority> = {
+  'LOW': 'No priority',
+  'NORMAL': 'Normal',
+  'URGENT': 'Urgent',
+  'CRITICAL': 'Critical',
+};
+
+const uiPriorityToAPI: Record<TaskPriority, TaskPriorityAPI> = {
+  'No priority': 'LOW',
+  'Normal': 'NORMAL',
+  'Urgent': 'URGENT',
+  'Critical': 'CRITICAL',
+};
+
+/**
+ * Convert API status to UI status
+ */
+export function convertAPIStatusToUI(apiStatus: TaskStatusAPI, dueDate?: string): TaskStatus {
+  // Check if overdue
+  if (apiStatus === 'TODO' && dueDate) {
+    const due = new Date(dueDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    due.setHours(0, 0, 0, 0);
+    if (due < today) {
+      return 'Overdue';
+    }
+    // Check if today
+    if (due.getTime() === today.getTime()) {
+      return 'Today';
+    }
+  }
+  return apiStatusToUI[apiStatus] || 'Today';
+}
+
+/**
+ * Convert UI status to API status
+ */
+export function convertUIStatusToAPI(uiStatus: TaskStatus): TaskStatusAPI {
+  return uiStatusToAPI[uiStatus] || 'TODO';
+}
+
+/**
+ * Convert API priority to UI priority
+ */
+export function convertAPIPriorityToUI(apiPriority: TaskPriorityAPI): TaskPriority {
+  return apiPriorityToUI[apiPriority] || 'No priority';
+}
+
+/**
+ * Convert UI priority to API priority
+ */
+export function convertUIPriorityToAPI(uiPriority: TaskPriority): TaskPriorityAPI {
+  return uiPriorityToAPI[uiPriority] || 'LOW';
+}
+
+/**
+ * Parse tags string to array
+ */
+export function parseTagsString(tags: string | string[] | null | undefined): string[] {
+  if (!tags) return [];
+  // If already an array, return it filtered
+  if (Array.isArray(tags)) {
+    return tags.map(t => String(t).trim()).filter(Boolean);
+  }
+  // If not a string, return empty
+  if (typeof tags !== 'string') return [];
+  return tags.split(',').map(t => t.trim()).filter(Boolean);
+}
+
+/**
+ * Convert tags array to string
+ */
+export function tagsToString(tags: string[]): string {
+  return tags.join(',');
+}
+
+/**
+ * Convert CRM Task to UI Task
+ */
+export function convertCRMTaskToUI(
+  crmTask: CRMTask,
+  relations?: TaskRelation[],
+  relatedJobs?: Job[],
+  relatedContacts?: Contact[],
+  relatedCompanies?: Company[]
+): Task {
+  const tags = parseTagsString(crmTask.tags);
+  const uiStatus = convertAPIStatusToUI(crmTask.status, crmTask.dueDate);
+  const uiPriority = convertAPIPriorityToUI(crmTask.priority);
+
+  // Build entities from relations
+  const jobRelations = relations?.filter(r => r.relatedType === 'JOB') || [];
+  const contactRelations = relations?.filter(r => r.relatedType === 'CONTACT') || [];
+  const companyRelations = relations?.filter(r => r.relatedType === 'COMPANY') || [];
+
+  const entities = {
+    jobs: jobRelations.map(r => {
+      const job = relatedJobs?.find(j => j.id === r.relatedId);
+      return { id: r.relatedId, name: job?.jobName || 'Unknown Job' };
+    }),
+    contacts: contactRelations.map(r => {
+      const contact = relatedContacts?.find(c => c.id === r.relatedId);
+      return { 
+        id: r.relatedId, 
+        name: contact ? `${contact.firstName} ${contact.lastName}` : 'Unknown Contact' 
+      };
+    }),
+    companies: companyRelations.map(r => {
+      const company = relatedCompanies?.find(c => c.id === r.relatedId);
+      return { id: r.relatedId, name: company?.name || 'Unknown Company' };
+    }),
+  };
+
+  return {
+    id: crmTask.id,
+    title: crmTask.title || '',
+    description: crmTask.description || '',
+    dueDate: crmTask.dueDate || '',
+    assignedTo: crmTask.assignedToId || 'Unassigned',
+    assignedToId: crmTask.assignedToId,
+    taskType: 'General', // Default, can be derived from tags if needed
+    status: uiStatus,
+    apiStatus: crmTask.status,
+    tags,
+    entities: (entities.jobs?.length || entities.contacts?.length || entities.companies?.length) ? entities : undefined,
+    priority: uiPriority,
+    apiPriority: crmTask.priority,
+    completed: crmTask.status === 'COMPLETED',
+    comments: 0,
+    createdBy: crmTask.createdBy,
+    createdAt: crmTask.createdAt,
+    relationIds: {
+      jobs: jobRelations.map(r => r.relatedId),
+      contacts: contactRelations.map(r => r.relatedId),
+      companies: companyRelations.map(r => r.relatedId),
+    },
+  };
+}
+
+/**
+ * Convert TaskLandingPage to UI Task
+ * Used for list views where we get data from findLandingPages query
+ */
+export function convertTaskLandingPageToUI(taskLanding: TaskLandingPage): Task {
+  const uiStatus = convertAPIStatusToUI(taskLanding.status, taskLanding.dueDate);
+  const uiPriority = convertAPIPriorityToUI(taskLanding.priority);
+
+  return {
+    id: taskLanding.id,
+    title: taskLanding.title || '',
+    description: taskLanding.description || '',
+    dueDate: taskLanding.dueDate || '',
+    assignedTo: taskLanding.assignedTo || 'Unassigned',
+    assignedToId: undefined, // Not available in landing page
+    taskType: 'General',
+    status: uiStatus,
+    apiStatus: taskLanding.status,
+    tags: [], // Tags not available in landing page, fetch from detail if needed
+    entities: undefined,
+    priority: uiPriority,
+    apiPriority: taskLanding.priority,
+    completed: taskLanding.status === 'COMPLETED',
+    comments: 0,
+    createdBy: taskLanding.createdBy,
+    createdAt: taskLanding.createdAt,
+    relationIds: undefined,
+  };
+}
 
 /**
  * Get initials from a name
  */
 export function getInitials(name: string): string {
-  return name.split(' ').map(n => n[0]).join('');
+  if (!name || name === 'Unassigned') return 'U';
+  return name.split(' ').map(n => n[0]).join('').toUpperCase();
 }
 
 /**
  * Get color for assignee badge based on name
  */
 export function getAvatarColor(name: string): string {
+  if (!name || name === 'Unassigned') return 'bg-gray-400';
   const index = name.charCodeAt(0) % ASSIGNEE_COLORS.length;
   return ASSIGNEE_COLORS[index];
 }
@@ -26,29 +227,48 @@ export function getAvatarColor(name: string): string {
  * Get priority badge color
  */
 export function getPriorityColor(priority: TaskPriority): string {
-  return PRIORITY_COLORS[priority];
+  return PRIORITY_COLORS[priority] || PRIORITY_COLORS['No priority'];
+}
+
+/**
+ * Get API priority badge color
+ */
+export function getAPIPriorityColor(priority: TaskPriorityAPI): string {
+  return API_PRIORITY_COLORS[priority] || API_PRIORITY_COLORS['LOW'];
 }
 
 /**
  * Get priority icon type
  */
-export function getPriorityIconType(priority: TaskPriority): 'urgent' | 'none' {
-  return priority === 'Urgent' ? 'urgent' : 'none';
+export function getPriorityIconType(priority: TaskPriority): 'urgent' | 'critical' | 'normal' | 'none' {
+  switch (priority) {
+    case 'Critical': return 'critical';
+    case 'Urgent': return 'urgent';
+    case 'Normal': return 'normal';
+    default: return 'none';
+  }
 }
 
 /**
  * Format task date for display
  */
 export function formatTaskDate(dateString: string): string {
+  if (!dateString) return 'No date';
   const date = new Date(dateString);
   const today = new Date();
-  const diffTime = Math.abs(today.getTime() - date.getTime());
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  today.setHours(0, 0, 0, 0);
+  
+  const taskDate = new Date(date);
+  taskDate.setHours(0, 0, 0, 0);
+  
+  const diffTime = taskDate.getTime() - today.getTime();
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
   if (diffDays === 0) return 'Today';
   if (diffDays === 1) return 'Tomorrow';
   if (diffDays === -1) return 'Yesterday';
-  if (diffDays < 7) return `${diffDays} days`;
+  if (diffDays > 0 && diffDays < 7) return `${diffDays} days`;
+  if (diffDays < 0) return `${Math.abs(diffDays)} days ago`;
   return date.toLocaleDateString();
 }
 
@@ -56,6 +276,7 @@ export function formatTaskDate(dateString: string): string {
  * Format date to readable string
  */
 export function formatDate(dateString: string): string {
+  if (!dateString) return 'No date';
   const date = new Date(dateString);
   return date.toLocaleDateString('en-US', { 
     month: 'short', 
@@ -68,6 +289,7 @@ export function formatDate(dateString: string): string {
  * Get days until due date
  */
 export function getDaysUntilDue(dateString: string): string {
+  if (!dateString) return 'No date';
   const date = new Date(dateString);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -113,6 +335,15 @@ export function getStatusColor(status: string): string {
       return 'bg-yellow-100 text-yellow-700 border-yellow-200';
     case 'Completed':
       return 'bg-gray-100 text-gray-700 border-gray-200';
+    // API statuses
+    case 'TODO':
+      return 'bg-blue-100 text-blue-700 border-blue-200';
+    case 'IN_PROGRESS':
+      return 'bg-green-100 text-green-700 border-green-200';
+    case 'COMPLETED':
+      return 'bg-gray-100 text-gray-700 border-gray-200';
+    case 'CANCELLED':
+      return 'bg-yellow-100 text-yellow-700 border-yellow-200';
     default:
       return 'bg-gray-100 text-gray-700 border-gray-200';
   }
@@ -123,8 +354,12 @@ export function getStatusColor(status: string): string {
  */
 export function getPriorityBorderColor(priority: TaskPriority): string {
   switch (priority) {
+    case 'Critical':
+      return 'border-l-purple-500';
     case 'Urgent':
       return 'border-l-red-500';
+    case 'Normal':
+      return 'border-l-blue-500';
     case 'No priority':
       return 'border-l-gray-300';
     default:
@@ -194,7 +429,8 @@ export function getTasksForDate(tasks: Task[], date: Date): Task[] {
  */
 export function applyTaskFilter(task: Task, filter: ActiveFilter): boolean {
   const field = filter.columnName;
-  const value = String((task as any)[field] || '').toLowerCase();
+  const taskAny = task as unknown as Record<string, unknown>;
+  const value = String(taskAny[field] || '').toLowerCase();
   const filterValue = String(filter.value || '').toLowerCase();
 
   if (filter.operator === 'IN' && filter.values) {
@@ -229,4 +465,33 @@ export function getUniqueValues(tasks: Task[], field: keyof Task): string[] {
   return Array.from(new Set(tasks.map(t => String(t[field] || ''))))
     .filter(Boolean)
     .sort();
+}
+
+/**
+ * Format date for API (YYYY-MM-DD)
+ */
+export function formatDateForAPI(date: Date): string {
+  return date.toISOString().split('T')[0];
+}
+
+/**
+ * Check if a task is overdue
+ */
+export function isTaskOverdue(dueDate: string): boolean {
+  if (!dueDate) return false;
+  const due = new Date(dueDate);
+  const today = new Date();
+  due.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
+  return due < today;
+}
+
+/**
+ * Check if a task is due today
+ */
+export function isTaskDueToday(dueDate: string): boolean {
+  if (!dueDate) return false;
+  const due = new Date(dueDate);
+  const today = new Date();
+  return due.toDateString() === today.toDateString();
 }

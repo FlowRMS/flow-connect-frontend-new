@@ -7,7 +7,6 @@
 
 import React from 'react';
 import SettingsButton from '../SettingsButton';
-import ComingSoonOverlay from '../ComingSoonOverlay';
 import { useEmailsState } from './hooks/useEmailsState';
 import { CardView } from './views/CardView';
 import { SpreadsheetView } from './views/SpreadsheetView';
@@ -34,12 +33,6 @@ export default function EmailIngestionContent() {
 
   return (
     <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6 relative">
-      {/* Coming Soon Overlay */}
-      <ComingSoonOverlay 
-        title="Email Ingestion Coming Soon"
-        description="Smart email processing with AI-powered entity detection is on the way. Get ready for streamlined communication!"
-      />
-      
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">

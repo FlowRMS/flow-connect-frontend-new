@@ -5,17 +5,27 @@
 
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import AdvancedFilters from '../AdvancedFilters';
+import SortButton from '../SortButton';
 import { useNotesState } from './hooks/useNotesState';
-import { getNoteFilterOptions } from './config/filterConfig';
+import { getNoteFilterOptions, getNoteSortOptions } from './config/filterConfig';
 import { GridView } from './views/GridView';
 import { ListView } from './views/ListView';
 import { ReadView } from './views/ReadView';
 import { NoteModal } from './modals/NoteModal';
 import { SummarizeModal } from './modals/SummarizeModal';
+import { CreateNoteModal } from './modals/CreateNoteModal';
+import { EditNoteModal } from './modals/EditNoteModal';
 
 export default function NotesContent() {
+  // Track if component is mounted to avoid hydration mismatch
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   // State management
   const {
     viewMode,
@@ -27,11 +37,33 @@ export default function NotesContent() {
     setSelectedNote,
     showSummarizeModal,
     setShowSummarizeModal,
+    showCreateModal,
+    setShowCreateModal,
+    showEditModal,
+    setShowEditModal,
+    noteToEdit,
+    setNoteToEdit,
     notes,
+    isLoading,
+    error,
+    refetch,
+    handleEditNote,
+    handleNoteDeleted,
+    // Filter and sort state
+    uniqueTitles,
+    uniqueTags,
+    uniqueCreators,
+    activeFilter,
+    activeFilters,
+    handleFilterChange,
+    handleFiltersChange,
+    activeSort,
+    handleSortChange,
   } = useNotesState();
 
-  // Filter configuration
-  const noteFilterOptions = getNoteFilterOptions();
+  // Filter and sort configuration with dynamic options
+  const noteFilterOptions = getNoteFilterOptions(uniqueTitles, uniqueTags, uniqueCreators);
+  const noteSortOptions = getNoteSortOptions();
 
   return (
     <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
@@ -82,14 +114,19 @@ export default function NotesContent() {
               </button>
             </div>
 
-            <AdvancedFilters filterOptions={noteFilterOptions} />
-            
-            <button className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors">
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M3 4h14M6 8h11M9 12h8M12 16h5" strokeLinecap="round"/>
-              </svg>
-              Sort
-            </button>
+            <SortButton 
+              sortOptions={noteSortOptions}
+              onSortChange={handleSortChange}
+              activeSort={activeSort}
+            />
+
+            <AdvancedFilters 
+              filterOptions={noteFilterOptions}
+              onFilterChange={handleFilterChange}
+              onFiltersChange={handleFiltersChange}
+              activeFilter={activeFilter}
+              activeFilters={activeFilters}
+            />
             
             <button
               onClick={() => setShowSummarizeModal(true)}
@@ -103,7 +140,10 @@ export default function NotesContent() {
               Summarize with FlowChat
             </button>
             
-            <button className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors">
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"
+            >
               <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="10" cy="10" r="7"/>
                 <path d="M10 7v6M7 10h6" strokeLinecap="round"/>
@@ -129,21 +169,51 @@ export default function NotesContent() {
         </div>
       </div>
 
+      {/* Loading State - show during SSR and initial client load */}
+      {(!isMounted || isLoading) && (
+        <div className="flex items-center justify-center py-20">
+          <div className="flex flex-col items-center gap-4">
+            <svg className="animate-spin h-10 w-10 text-[var(--primary)]" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+            </svg>
+            <p className="text-[var(--muted-foreground)]">Loading notes...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Error State */}
+      {isMounted && error && !isLoading && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+          <svg className="mx-auto mb-4 w-12 h-12 text-red-500" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <h3 className="text-lg font-medium text-red-800 mb-2">Failed to load notes</h3>
+          <p className="text-sm text-red-600 mb-4">{error instanceof Error ? error.message : 'An unexpected error occurred'}</p>
+          <button
+            onClick={() => refetch()}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      )}
+
       {/* Views */}
-      {viewMode === 'grid' && (
+      {isMounted && !isLoading && !error && viewMode === 'grid' && (
         <GridView notes={filteredNotes} onNoteClick={setSelectedNote} />
       )}
 
-      {viewMode === 'list' && (
+      {isMounted && !isLoading && !error && viewMode === 'list' && (
         <ListView notes={filteredNotes} onNoteClick={setSelectedNote} />
       )}
 
-      {viewMode === 'read' && (
+      {isMounted && !isLoading && !error && viewMode === 'read' && (
         <ReadView notes={filteredNotes} />
       )}
 
       {/* Empty State */}
-      {filteredNotes.length === 0 && (
+      {isMounted && !isLoading && !error && filteredNotes.length === 0 && (
         <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-12 text-center">
           <svg className="mx-auto mb-4 w-16 h-16 text-[var(--muted-foreground)]" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
             <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" strokeLinecap="round" strokeLinejoin="round"/>
@@ -158,6 +228,26 @@ export default function NotesContent() {
         <NoteModal
           note={selectedNote}
           onClose={() => setSelectedNote(null)}
+          onEdit={() => handleEditNote(selectedNote)}
+          onDelete={handleNoteDeleted}
+        />
+      )}
+
+      <CreateNoteModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSuccess={() => refetch()}
+      />
+
+      {noteToEdit && (
+        <EditNoteModal
+          isOpen={showEditModal}
+          note={noteToEdit}
+          onClose={() => {
+            setShowEditModal(false);
+            setNoteToEdit(null);
+          }}
+          onSuccess={() => refetch()}
         />
       )}
 

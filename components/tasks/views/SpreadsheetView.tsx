@@ -3,8 +3,9 @@
  */
 
 import React from 'react';
-import type { Task } from '../types';
-import { AVAILABLE_ASSIGNEES, AVAILABLE_PRIORITIES, AVAILABLE_TASK_TYPES } from '../constants';
+import type { Task, TaskStatusAPI, TaskPriorityAPI } from '../types';
+import { AVAILABLE_ASSIGNEES, API_STATUS_OPTIONS, API_PRIORITY_OPTIONS } from '../constants';
+import { convertAPIStatusToUI, convertAPIPriorityToUI } from '../utils';
 
 interface SpreadsheetViewProps {
   tasks: Task[];
@@ -14,6 +15,22 @@ interface SpreadsheetViewProps {
   onSelectTask: (taskId: string, selected: boolean) => void;
   onSelectAll: (selected: boolean) => void;
 }
+
+// Status display labels
+const statusLabels: Record<TaskStatusAPI, string> = {
+  'TODO': 'To Do',
+  'IN_PROGRESS': 'In Progress',
+  'COMPLETED': 'Completed',
+  'CANCELLED': 'Cancelled'
+};
+
+// Priority display labels
+const priorityLabels: Record<TaskPriorityAPI, string> = {
+  'LOW': 'Low',
+  'NORMAL': 'Normal',
+  'URGENT': 'Urgent',
+  'CRITICAL': 'Critical'
+};
 
 export default function SpreadsheetView({
   tasks,
@@ -44,8 +61,8 @@ export default function SpreadsheetView({
               <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Priority</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Assignee</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Due Date</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Type</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Tags</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Entities</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--border)]">
@@ -63,12 +80,12 @@ export default function SpreadsheetView({
                   <button
                     onClick={() => onToggleComplete(task.id)}
                     className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
-                      task.status === 'Completed'
+                      task.apiStatus === 'COMPLETED'
                         ? 'bg-green-500 border-green-500'
                         : 'bg-white border-gray-300 hover:border-green-500'
                     }`}
                   >
-                    {task.status === 'Completed' && (
+                    {task.apiStatus === 'COMPLETED' && (
                       <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="white" strokeWidth="3">
                         <path d="M5 10l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
@@ -83,38 +100,40 @@ export default function SpreadsheetView({
                 </td>
                 <td className="px-4 py-3">
                   <select
-                    value={task.status}
-                    onChange={(e) => onUpdateTask(task.id, { status: e.target.value as Task['status'] })}
+                    value={task.apiStatus}
+                    onChange={(e) => {
+                      const newStatus = e.target.value as TaskStatusAPI;
+                      onUpdateTask(task.id, { 
+                        status: convertAPIStatusToUI(newStatus, task.dueDate),
+                        apiStatus: newStatus
+                      });
+                    }}
                     className="px-2 py-1 text-sm border border-[var(--border)] rounded focus:outline-none focus:border-[var(--primary)]"
                   >
-                    <option value="Today">Today</option>
-                    <option value="Overdue">Overdue</option>
-                    <option value="Upcoming">Upcoming</option>
-                    <option value="Waiting">Waiting</option>
-                    <option value="Completed">Completed</option>
-                  </select>
-                </td>
-                <td className="px-4 py-3">
-                  <select
-                    value={task.priority}
-                    onChange={(e) => onUpdateTask(task.id, { priority: e.target.value as Task['priority'] })}
-                    className="px-2 py-1 text-sm border border-[var(--border)] rounded focus:outline-none focus:border-[var(--primary)]"
-                  >
-                    {AVAILABLE_PRIORITIES.map(p => (
-                      <option key={p} value={p}>{p}</option>
+                    {API_STATUS_OPTIONS.map(s => (
+                      <option key={s} value={s}>{statusLabels[s]}</option>
                     ))}
                   </select>
                 </td>
                 <td className="px-4 py-3">
                   <select
-                    value={task.assignedTo}
-                    onChange={(e) => onUpdateTask(task.id, { assignedTo: e.target.value })}
+                    value={task.apiPriority}
+                    onChange={(e) => {
+                      const newPriority = e.target.value as TaskPriorityAPI;
+                      onUpdateTask(task.id, { 
+                        priority: convertAPIPriorityToUI(newPriority),
+                        apiPriority: newPriority
+                      });
+                    }}
                     className="px-2 py-1 text-sm border border-[var(--border)] rounded focus:outline-none focus:border-[var(--primary)]"
                   >
-                    {AVAILABLE_ASSIGNEES.map(assignee => (
-                      <option key={assignee} value={assignee}>{assignee}</option>
+                    {API_PRIORITY_OPTIONS.map(p => (
+                      <option key={p} value={p}>{priorityLabels[p]}</option>
                     ))}
                   </select>
+                </td>
+                <td className="px-4 py-3">
+                  <div className="text-sm text-[var(--muted-foreground)]">{task.assignedTo}</div>
                 </td>
                 <td className="px-4 py-3">
                   <input
@@ -123,17 +142,6 @@ export default function SpreadsheetView({
                     onChange={(e) => onUpdateTask(task.id, { dueDate: e.target.value })}
                     className="px-2 py-1 text-sm border border-[var(--border)] rounded focus:outline-none focus:border-[var(--primary)]"
                   />
-                </td>
-                <td className="px-4 py-3">
-                  <select
-                    value={task.taskType}
-                    onChange={(e) => onUpdateTask(task.id, { taskType: e.target.value })}
-                    className="px-2 py-1 text-sm border border-[var(--border)] rounded focus:outline-none focus:border-[var(--primary)]"
-                  >
-                    {AVAILABLE_TASK_TYPES.map(type => (
-                      <option key={type} value={type}>{type}</option>
-                    ))}
-                  </select>
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex gap-1 flex-wrap">
@@ -145,6 +153,28 @@ export default function SpreadsheetView({
                         {tag}
                       </span>
                     ))}
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex gap-1 flex-wrap">
+                    {task.entities?.jobs?.map((job) => (
+                      <span key={job.id} className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs">
+                        {job.name}
+                      </span>
+                    ))}
+                    {task.entities?.contacts?.map((contact) => (
+                      <span key={contact.id} className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded text-xs">
+                        {contact.name}
+                      </span>
+                    ))}
+                    {task.entities?.companies?.map((company) => (
+                      <span key={company.id} className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs">
+                        {company.name}
+                      </span>
+                    ))}
+                    {!task.entities?.jobs?.length && !task.entities?.contacts?.length && !task.entities?.companies?.length && (
+                      <span className="text-xs text-[var(--muted-foreground)]">-</span>
+                    )}
                   </div>
                 </td>
               </tr>

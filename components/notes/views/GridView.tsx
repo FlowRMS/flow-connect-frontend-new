@@ -2,111 +2,184 @@
  * Grid View Component for Notes
  */
 
-import React from 'react';
-import type { Note } from '../types';
-import { formatDate, getInitials, getAvatarColor } from '../utils';
+'use client';
+
+import React, { useState, useEffect, useMemo } from 'react';
+import type { ParsedNote } from '../types';
+import { formatTimestamp, getInitials, getAvatarColor } from '../utils';
+import { useContactSearch, useNoteRelatedEntities, type EntityType } from '../api';
+
+// Helper to get entity type colors
+const getEntityTypeColor = (type: EntityType) => {
+  switch (type) {
+    case 'JOB': return 'bg-blue-100 text-blue-700';
+    case 'COMPANY': return 'bg-purple-100 text-purple-700';
+    case 'CONTACT': return 'bg-green-100 text-green-700';
+    case 'TASK': return 'bg-orange-100 text-orange-700';
+    default: return 'bg-gray-100 text-gray-700';
+  }
+};
+
+// Individual Note Card with its own data fetching
+function NoteGridCard({ 
+  note, 
+  onNoteClick, 
+  contacts,
+  isMounted 
+}: { 
+  note: ParsedNote; 
+  onNoteClick: (note: ParsedNote) => void;
+  contacts: Array<{ id: string; firstName: string; lastName: string }>;
+  isMounted: boolean;
+}) {
+  // Fetch related entities for this specific note
+  const { data: relatedEntities } = useNoteRelatedEntities(note.id);
+
+  // Resolve mentions to names
+  const mentionNames = useMemo(() => {
+    return note.mentions.map(mentionId => {
+      const contact = contacts.find(c => c.id === mentionId);
+      return contact ? `${contact.firstName} ${contact.lastName}` : null;
+    }).filter(Boolean);
+  }, [note.mentions, contacts]);
+
+  // Build related entities list
+  const entityLinks = useMemo(() => {
+    if (!relatedEntities) return [];
+    const links: Array<{ type: EntityType; name: string }> = [];
+    relatedEntities.companies?.forEach(c => links.push({ type: 'COMPANY', name: c.name }));
+    relatedEntities.contacts?.forEach(c => links.push({ type: 'CONTACT', name: `${c.firstName} ${c.lastName}` }));
+    relatedEntities.jobs?.forEach(j => links.push({ type: 'JOB', name: j.jobName }));
+    relatedEntities.tasks?.forEach(t => links.push({ type: 'TASK', name: t.title }));
+    return links;
+  }, [relatedEntities]);
+
+  return (
+    <div
+      onClick={() => onNoteClick(note)}
+      className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-5 hover:shadow-lg transition-all cursor-pointer"
+    >
+      {/* Note Header */}
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex items-center gap-2 flex-1">
+          <h3 className="font-semibold text-[var(--foreground)] text-base">{note.title}</h3>
+        </div>
+        <button className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+            <circle cx="10" cy="4" r="1.5"/>
+            <circle cx="10" cy="10" r="1.5"/>
+            <circle cx="10" cy="16" r="1.5"/>
+          </svg>
+        </button>
+      </div>
+
+      {/* Note Content */}
+      <p className="text-sm text-[var(--muted-foreground)] mb-4 line-clamp-3">
+        {note.content}
+      </p>
+
+      {/* Tags */}
+      {note.tags.length > 0 && (
+        <div className="flex gap-1.5 mb-3 flex-wrap">
+          {note.tags.map((tag, idx) => (
+            <span
+              key={idx}
+              className="px-2 py-1 bg-[var(--secondary)] text-[var(--secondary-foreground)] rounded text-xs font-medium"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Mentions - Display as contact names */}
+      {mentionNames.length > 0 && (
+        <div className="flex gap-1.5 mb-3 flex-wrap">
+          {mentionNames.map((name, idx) => (
+            <span key={idx} className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium">
+              @{name}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Related Entities */}
+      {entityLinks.length > 0 && (
+        <div className="flex gap-1.5 mb-3 flex-wrap">
+          {entityLinks.slice(0, 3).map((link, idx) => (
+            <span 
+              key={idx} 
+              className={`px-2 py-1 rounded text-xs font-medium ${getEntityTypeColor(link.type)}`}
+            >
+              {link.name}
+            </span>
+          ))}
+          {entityLinks.length > 3 && (
+            <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-medium">
+              +{entityLinks.length - 3} more
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Note Footer */}
+      <div className="flex items-center justify-between pt-3 border-t border-[var(--border)]">
+        <div className="flex items-center gap-2">
+          <div className={`w-6 h-6 rounded-full ${getAvatarColor(note.createdBy)} flex items-center justify-center text-white text-xs font-semibold`}>
+            {getInitials(note.createdBy)}
+          </div>
+          <div className="text-xs text-[var(--muted-foreground)]">
+            {note.createdBy} · {isMounted ? formatTimestamp(note.createdAt) : ''}
+          </div>
+        </div>
+        <div className="flex items-center gap-3 text-xs text-[var(--muted-foreground)]">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onNoteClick(note);
+            }}
+            className="flex items-center gap-1.5 hover:text-[var(--primary)] transition-colors"
+            title="View comments"
+          >
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M2 4c0-1 1-2 2-2h12c1 0 2 1 2 2v10c0 1-1 2-2 2H6l-4 3V4z" strokeLinecap="round"/>
+            </svg>
+            {note.conversationCount !== undefined && note.conversationCount > 0 && (
+              <span className="font-medium">{note.conversationCount}</span>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface GridViewProps {
-  notes: Note[];
-  onNoteClick: (note: Note) => void;
+  notes: ParsedNote[];
+  onNoteClick: (note: ParsedNote) => void;
 }
 
 export function GridView({ notes, onNoteClick }: GridViewProps) {
+  // Track if component is mounted (client-side) to avoid hydration issues with dates
+  const [isMounted, setIsMounted] = useState(false);
+  
+  // Fetch all contacts once for mention resolution
+  const { data: contacts = [] } = useContactSearch('');
+  
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {notes.map((note) => (
-        <div
+        <NoteGridCard
           key={note.id}
-          onClick={() => onNoteClick(note)}
-          className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-5 hover:shadow-lg transition-all cursor-pointer"
-        >
-          {/* Note Header */}
-          <div className="flex items-start justify-between mb-3">
-            <div className="flex items-center gap-2 flex-1">
-              <h3 className="font-semibold text-[var(--foreground)] text-base">{note.title}</h3>
-            </div>
-            <button className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-                <circle cx="10" cy="4" r="1.5"/>
-                <circle cx="10" cy="10" r="1.5"/>
-                <circle cx="10" cy="16" r="1.5"/>
-              </svg>
-            </button>
-          </div>
-
-          {/* Note Content */}
-          <p className="text-sm text-[var(--muted-foreground)] mb-4 line-clamp-3">
-            {note.content}
-          </p>
-
-          {/* Entity Link */}
-          {note.entityType && note.entityName && (
-            <div className="mb-3 flex items-center gap-2 text-xs">
-              <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded font-medium">
-                {note.entityType}
-              </span>
-              <span className="text-[var(--muted-foreground)]">{note.entityName}</span>
-            </div>
-          )}
-
-          {/* Tags */}
-          <div className="flex gap-1.5 mb-4 flex-wrap">
-            {note.tags.map((tag, idx) => (
-              <span
-                key={idx}
-                className="px-2 py-1 bg-[var(--secondary)] text-[var(--secondary-foreground)] rounded text-xs font-medium"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
-
-          {/* Mentions */}
-          {note.mentions.length > 0 && (
-            <div className="mb-3 text-xs text-[var(--muted-foreground)]">
-              {note.mentions.map((mention, idx) => (
-                <span key={idx} className="text-[var(--primary)] mr-2">{mention}</span>
-              ))}
-            </div>
-          )}
-
-          {/* Note Footer */}
-          <div className="flex items-center justify-between pt-3 border-t border-[var(--border)]">
-            <div className="flex items-center gap-2">
-              <div className={`w-6 h-6 rounded-full ${getAvatarColor(note.createdBy)} flex items-center justify-center text-white text-xs font-semibold`}>
-                {getInitials(note.createdBy)}
-              </div>
-              <div className="text-xs text-[var(--muted-foreground)]">
-                {note.createdBy} · {formatDate(note.createdDate)}
-              </div>
-            </div>
-            <div className="flex items-center gap-3 text-xs text-[var(--muted-foreground)]">
-              {note.attachments > 0 && (
-                <div className="flex items-center gap-1">
-                  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M14 2l-8 8-4-4" strokeLinecap="round"/>
-                    <path d="M3 10l6 6 11-11" strokeLinecap="round"/>
-                  </svg>
-                  {note.attachments}
-                </div>
-              )}
-              {note.comments > 0 && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onNoteClick(note);
-                  }}
-                  className="flex items-center gap-1 hover:text-[var(--primary)] transition-colors"
-                >
-                  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M2 4c0-1 1-2 2-2h12c1 0 2 1 2 2v10c0 1-1 2-2 2H6l-4 3V4z" strokeLinecap="round"/>
-                  </svg>
-                  {note.comments}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
+          note={note}
+          onNoteClick={onNoteClick}
+          contacts={contacts}
+          isMounted={isMounted}
+        />
       ))}
     </div>
   );

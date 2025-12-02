@@ -262,6 +262,16 @@ export const taskToasts = {
     showSuccessToast('Task Completed', {
       description: `"${title}" marked as complete`,
     }),
+  
+  commentAdded: () =>
+    showSuccessToast('Comment Added', {
+      description: 'Your comment has been posted',
+    }),
+  
+  commentError: (error?: string) =>
+    showErrorToast('Failed to Add Comment', {
+      description: error || 'Please try again or contact support',
+    }),
 };
 
 // Note Toasts

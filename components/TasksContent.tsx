@@ -1,24 +1,32 @@
 /**
  * Tasks Content Component - Main Container
- * Refactored to use modular, clean architecture
+ * Refactored to use modular, clean architecture with API integration
  */
 
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useTasksState } from './tasks/hooks/useTasksState';
 import { getTaskFilterOptions } from './tasks/config/filterConfig';
-import { TASK_CATEGORIES, AVAILABLE_ASSIGNEES, AVAILABLE_PRIORITIES, AVAILABLE_TAGS } from './tasks/constants';
+import { TASK_CATEGORIES, AVAILABLE_ASSIGNEES, AVAILABLE_PRIORITIES, AVAILABLE_TAGS, API_STATUS_OPTIONS, API_PRIORITY_OPTIONS } from './tasks/constants';
 import GridView from './tasks/views/GridView';
 import ListView from './tasks/views/ListView';
 import KanbanView from './tasks/views/KanbanView';
 import SpreadsheetView from './tasks/views/SpreadsheetView';
 import CalendarView from './tasks/views/CalendarView';
 import TaskModal from './tasks/modals/TaskModal';
+import { CreateTaskModal } from './tasks/modals';
 import AdvancedFilters from './AdvancedFilters';
+import type { TaskStatusAPI } from './tasks/types';
 
 export default function TasksContent() {
   const {
+    // Loading states
+    isLoading,
+    error,
+    refetch,
+    isUpdating,
+    
     // View state
     viewMode,
     setViewMode,
@@ -32,6 +40,12 @@ export default function TasksContent() {
     setSelectedCategory,
     searchQuery,
     setSearchQuery,
+    
+    // Sorting
+    sortField,
+    setSortField,
+    sortDirection,
+    setSortDirection,
     
     // Editing
     editState,
@@ -55,6 +69,8 @@ export default function TasksContent() {
     setShowBulkActionsDropdown,
     showSummarizeModal,
     setShowSummarizeModal,
+    showCreateTaskModal,
+    setShowCreateTaskModal,
     taskDetailModal,
     setTaskDetailModal,
     expandedText,
@@ -69,15 +85,22 @@ export default function TasksContent() {
     handleDragStart,
     handleDrop,
     handleDragEnd,
+    handleKanbanDrop,
     
     // Task operations
     updateTask,
+    deleteTask,
     toggleTaskComplete,
     addTag,
     removeTag,
     toggleTag,
+    bulkUpdateTasks,
+    bulkDeleteTasks,
     getTasksByStatus,
   } = useTasksState();
+
+  // Sort dropdown state
+  const [showSortDropdown, setShowSortDropdown] = useState(false);
 
   const taskFilterOptions = getTaskFilterOptions();
 
@@ -85,13 +108,34 @@ export default function TasksContent() {
     e.preventDefault();
   };
 
-  const handleKanbanDrop = (e: React.DragEvent, targetTaskId: string, status: any) => {
-    e.preventDefault();
-    handleDrop(targetTaskId);
-    if (draggedTaskId) {
-      updateTask(draggedTaskId, { status });
-    }
-  };
+  // Loading state
+  if (isLoading) {
+    return (
+      <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary)]"></div>
+          <span className="ml-3 text-[var(--muted-foreground)]">Loading tasks...</span>
+        </div>
+      </main>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
+        <div className="flex flex-col items-center justify-center h-64">
+          <p className="text-red-500 mb-4">Failed to load tasks</p>
+          <button
+            onClick={() => refetch()}
+            className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg"
+          >
+            Retry
+          </button>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
@@ -169,12 +213,78 @@ export default function TasksContent() {
 
             {/* Filters and Actions */}
             <AdvancedFilters filterOptions={taskFilterOptions} />
-            <button className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors">
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M3 4h14M6 8h11M9 12h8M12 16h5" strokeLinecap="round"/>
-              </svg>
-              Sort
-            </button>
+            
+            {/* Sort Dropdown */}
+            <div className="relative">
+              <button 
+                onClick={() => setShowSortDropdown(!showSortDropdown)}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors"
+              >
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 4h14M6 8h11M9 12h8M12 16h5" strokeLinecap="round"/>
+                </svg>
+                Sort
+                {sortField !== 'dueDate' && (
+                  <span className="ml-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">
+                    {sortField}
+                  </span>
+                )}
+              </button>
+              {showSortDropdown && (
+                <div className="absolute top-full right-0 mt-1 bg-white border border-[var(--border)] rounded-lg shadow-lg z-10 min-w-[180px]">
+                  <div className="p-2 space-y-1">
+                    {[
+                      { field: 'dueDate', label: 'Due Date' },
+                      { field: 'priority', label: 'Priority' },
+                      { field: 'title', label: 'Title' },
+                      { field: 'status', label: 'Status' }
+                    ].map(option => (
+                      <button
+                        key={option.field}
+                        onClick={() => {
+                          if (sortField === option.field) {
+                            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                          } else {
+                            setSortField(option.field);
+                            setSortDirection('asc');
+                          }
+                        }}
+                        className={`w-full flex items-center justify-between px-3 py-2 text-sm rounded hover:bg-[var(--muted)] ${
+                          sortField === option.field ? 'bg-[var(--muted)] font-medium' : ''
+                        }`}
+                      >
+                        {option.label}
+                        {sortField === option.field && (
+                          <svg 
+                            width="14" 
+                            height="14" 
+                            viewBox="0 0 20 20" 
+                            fill="none" 
+                            stroke="currentColor" 
+                            strokeWidth="2"
+                            className={sortDirection === 'desc' ? 'rotate-180' : ''}
+                          >
+                            <path d="M5 12l5-5 5 5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="border-t border-[var(--border)] p-2">
+                    <button
+                      onClick={() => {
+                        setSortField('dueDate');
+                        setSortDirection('asc');
+                        setShowSortDropdown(false);
+                      }}
+                      className="w-full px-3 py-2 text-sm text-[var(--muted-foreground)] hover:bg-[var(--muted)] rounded"
+                    >
+                      Reset Sort
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
             <div className="relative">
               <button
                 onClick={() => setShowBulkActionsDropdown(!showBulkActionsDropdown)}
@@ -297,7 +407,10 @@ export default function TasksContent() {
               </svg>
               Summarize with FlowChat
             </button>
-            <button className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors">
+            <button 
+              onClick={() => setShowCreateTaskModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"
+            >
               <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="10" cy="10" r="7"/>
                 <path d="M10 7v6M7 10h6" strokeLinecap="round"/>
@@ -409,7 +522,7 @@ export default function TasksContent() {
           draggedTaskId={draggedTaskId}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
-          onDrop={handleKanbanDrop}
+          onKanbanDrop={handleKanbanDrop}
         />
       )}
       
@@ -449,6 +562,18 @@ export default function TasksContent() {
           task={selectedTask}
           onClose={() => setSelectedTask(null)}
           onToggleComplete={toggleTaskComplete}
+        />
+      )}
+
+      {/* Create Task Modal */}
+      {showCreateTaskModal && (
+        <CreateTaskModal
+          isOpen={showCreateTaskModal}
+          onClose={() => setShowCreateTaskModal(false)}
+          onSuccess={() => {
+            setShowCreateTaskModal(false);
+            refetch();
+          }}
         />
       )}
     </main>

@@ -3,9 +3,10 @@
  */
 
 import React from 'react';
-import type { Task, TaskDropdownState } from '../types';
-import { AVAILABLE_ASSIGNEES, AVAILABLE_TASK_TYPES, AVAILABLE_PRIORITIES, AVAILABLE_TAGS } from '../constants';
-import { getInitials, getAvatarColor, formatTaskDate } from '../utils';
+import type { Task, TaskDropdownState, TaskPriority } from '../types';
+import { AVAILABLE_ASSIGNEES, AVAILABLE_TASK_TYPES, AVAILABLE_PRIORITIES, AVAILABLE_TAGS, API_STATUS_OPTIONS, API_PRIORITY_OPTIONS } from '../constants';
+import { getInitials, getAvatarColor, formatTaskDate, getStatusColor, getPriorityColor } from '../utils';
+import type { TaskStatusAPI, TaskPriorityAPI } from '../types';
 
 interface GridViewProps {
   tasks: Task[];
@@ -21,6 +22,20 @@ interface GridViewProps {
   onSelectTask: (task: Task) => void;
   setEditValue: (value: string) => void;
 }
+
+// Priority display helper
+const getPriorityBadgeClass = (priority: TaskPriority): string => {
+  switch (priority) {
+    case 'Critical':
+      return 'bg-purple-100 text-purple-700';
+    case 'Urgent':
+      return 'bg-red-100 text-red-700';
+    case 'Normal':
+      return 'bg-blue-100 text-blue-700';
+    default:
+      return 'bg-gray-100 text-gray-600';
+  }
+};
 
 export default function GridView({
   tasks,
@@ -99,25 +114,15 @@ export default function GridView({
                   <option key={p} value={p}>{p}</option>
                 ))}
               </select>
-            ) : task.priority === 'Urgent' ? (
-              <span
-                className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-medium cursor-pointer hover:bg-red-200"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSetDropdown('priority', task.id);
-                }}
-              >
-                Urgent
-              </span>
             ) : (
               <span
-                className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium cursor-pointer hover:bg-gray-200"
+                className={`px-2 py-1 ${getPriorityBadgeClass(task.priority)} rounded text-xs font-medium cursor-pointer hover:opacity-80`}
                 onClick={(e) => {
                   e.stopPropagation();
                   onSetDropdown('priority', task.id);
                 }}
               >
-                No priority
+                {task.priority}
               </span>
             )}
           </div>
@@ -152,72 +157,73 @@ export default function GridView({
           {/* Task Metadata */}
           <div className="mb-3">
             <div className="flex items-center gap-2 text-xs text-[var(--muted-foreground)] mb-2 flex-wrap">
-              {dropdowns.taskType === task.id ? (
-                <select
-                  value={task.taskType}
-                  onChange={(e) => {
-                    onUpdateTask(task.id, { taskType: e.target.value });
-                    onSetDropdown('taskType', null);
-                  }}
-                  onBlur={() => onSetDropdown('taskType', null)}
-                  autoFocus
-                  className="px-2 py-1 bg-gray-100 text-gray-700 rounded font-medium border border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                >
-                  {AVAILABLE_TASK_TYPES.map(type => (
-                    <option key={type} value={type}>{type}</option>
-                  ))}
-                </select>
-              ) : (
-                <span
-                  className="px-2 py-1 bg-gray-100 text-gray-700 rounded font-medium cursor-pointer hover:bg-gray-200"
-                  onClick={() => onSetDropdown('taskType', task.id)}
-                >
-                  {task.taskType}
-                </span>
-              )}
-              <span>Due:</span>
-              {dropdowns.dueDate === task.id ? (
-                <input
-                  type="date"
-                  value={task.dueDate}
-                  onChange={(e) => {
-                    onUpdateTask(task.id, { dueDate: e.target.value });
-                    onSetDropdown('dueDate', null);
-                  }}
-                  onBlur={() => onSetDropdown('dueDate', null)}
-                  autoFocus
-                  className="px-2 py-1 border border-[var(--primary)] rounded focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                />
-              ) : (
-                <span
-                  className="cursor-pointer hover:bg-[var(--muted)] px-2 py-1 rounded"
-                  onClick={() => onSetDropdown('dueDate', task.id)}
-                >
-                  {formatTaskDate(task.dueDate)}
-                </span>
-              )}
+              {/* Status Badge */}
+              <span className={`px-2 py-1 rounded font-medium ${getStatusColor(task.status)}`}>
+                {task.status}
+              </span>
+              
+              {/* Due Date */}
+              <span className="flex items-center gap-1">
+                <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="4" width="14" height="14" rx="2"/>
+                  <path d="M3 8h14M7 2v4M13 2v4" strokeLinecap="round"/>
+                </svg>
+                {dropdowns.dueDate === task.id ? (
+                  <input
+                    type="date"
+                    value={task.dueDate}
+                    onChange={(e) => {
+                      onUpdateTask(task.id, { dueDate: e.target.value });
+                      onSetDropdown('dueDate', null);
+                    }}
+                    onBlur={() => onSetDropdown('dueDate', null)}
+                    onClick={(e) => e.stopPropagation()}
+                    autoFocus
+                    className="px-2 py-1 border border-[var(--primary)] rounded focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-xs"
+                  />
+                ) : (
+                  <span
+                    className="cursor-pointer hover:text-[var(--primary)] transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSetDropdown('dueDate', task.id);
+                    }}
+                  >
+                    {formatTaskDate(task.dueDate)}
+                  </span>
+                )}
+              </span>
             </div>
 
             {/* Entity Links */}
-            {task.entities && (
+            {task.entities && (task.entities.jobs?.length || task.entities.contacts?.length || task.entities.companies?.length) ? (
               <div className="flex gap-1.5 flex-wrap text-xs">
-                {task.entities.jobs?.map((job, idx) => (
-                  <span key={idx} className="px-2 py-1 bg-gray-100 text-gray-700 rounded">
-                    Job: {job}
+                {task.entities.jobs?.map((job) => (
+                  <span key={job.id} className="px-2 py-1 bg-green-100 text-green-700 rounded flex items-center gap-1">
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    {job.name}
                   </span>
                 ))}
-                {task.entities.contacts?.map((contact, idx) => (
-                  <span key={idx} className="px-2 py-1 bg-gray-100 text-gray-700 rounded">
-                    {contact}
+                {task.entities.contacts?.map((contact) => (
+                  <span key={contact.id} className="px-2 py-1 bg-orange-100 text-orange-700 rounded flex items-center gap-1">
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    {contact.name}
                   </span>
                 ))}
-                {task.entities.companies?.map((company, idx) => (
-                  <span key={idx} className="px-2 py-1 bg-gray-100 text-gray-700 rounded">
-                    {company}
+                {task.entities.companies?.map((company) => (
+                  <span key={company.id} className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded flex items-center gap-1">
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                    {company.name}
                   </span>
                 ))}
               </div>
-            )}
+            ) : null}
           </div>
 
           {/* Tags */}

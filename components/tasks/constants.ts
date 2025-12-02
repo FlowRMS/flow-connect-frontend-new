@@ -2,7 +2,7 @@
  * Task Constants and Configurations
  */
 
-import type { TaskStatus, TaskPriority, TaskStage } from './types';
+import type { TaskStatus, TaskPriority, TaskStage, TaskStatusAPI, TaskPriorityAPI } from './types';
 
 // Assignee color palette
 export const ASSIGNEE_COLORS = [
@@ -14,7 +14,7 @@ export const ASSIGNEE_COLORS = [
   'bg-pink-500'
 ] as const;
 
-// Task status categories
+// Task status categories for UI filtering
 export const TASK_CATEGORIES = [
   'All',
   'Today',
@@ -24,16 +24,31 @@ export const TASK_CATEGORIES = [
   'Completed'
 ] as const;
 
-// Task stages for Kanban view
+// API Status options
+export const API_STATUS_OPTIONS: TaskStatusAPI[] = [
+  'TODO',
+  'IN_PROGRESS',
+  'COMPLETED',
+  'CANCELLED'
+];
+
+// API Priority options
+export const API_PRIORITY_OPTIONS: TaskPriorityAPI[] = [
+  'LOW',
+  'NORMAL',
+  'URGENT',
+  'CRITICAL'
+];
+
+// Task stages for Kanban view - using API statuses
 export const TASK_STAGES: TaskStage[] = [
-  { name: 'Today', label: 'Today' },
-  { name: 'Overdue', label: 'Overdue' },
-  { name: 'Upcoming', label: 'Upcoming' },
-  { name: 'Waiting', label: 'Waiting' },
-  { name: 'Completed', label: 'Completed' }
+  { name: 'TODO', label: 'To Do', uiStatus: 'Today' },
+  { name: 'IN_PROGRESS', label: 'In Progress', uiStatus: 'Upcoming' },
+  { name: 'COMPLETED', label: 'Completed', uiStatus: 'Completed' },
+  { name: 'CANCELLED', label: 'Cancelled', uiStatus: 'Waiting' }
 ] as const;
 
-// Available assignees
+// Available assignees (these would ideally come from API)
 export const AVAILABLE_ASSIGNEES = [
   'Sarah Johnson',
   'Marcus Chen',
@@ -75,50 +90,22 @@ export const AVAILABLE_TASK_TYPES = [
   'Waiting'
 ] as const;
 
-// Available priorities
+// Available priorities - updated for new API
 export const AVAILABLE_PRIORITIES: TaskPriority[] = [
   'No priority',
-  'Urgent'
+  'Normal',
+  'Urgent',
+  'Critical'
 ] as const;
 
 // Available entity types for linking
 export const AVAILABLE_ENTITY_TYPES = [
   'Job',
   'Contact',
-  'Company',
-  'Pre-Opportunity'
+  'Company'
 ] as const;
 
-// Sample entities (would come from API in real app)
-export const ALL_ENTITIES = {
-  Job: [
-    'Downtown Plaza Renovation',
-    'Riverside Medical Center',
-    'TechCorp HQ Expansion',
-    'Harbor View Apartments',
-    'University Lab Building'
-  ],
-  Contact: [
-    'Jennifer Walsh',
-    'Michael Rodriguez',
-    'David Chen',
-    'Rachel Kim'
-  ],
-  Company: [
-    'Turner Construction',
-    'Miller Electric',
-    'McCarthy Building',
-    'Skanska USA',
-    'Prime Electric'
-  ],
-  'Pre-Opportunity': [
-    'TechCorp HVAC Controls',
-    'LED Retrofit - Hospital',
-    'Controls Upgrade'
-  ]
-} as const;
-
-// Status color mapping for Kanban view
+// Status color mapping for UI display
 export const STATUS_COLORS: Record<TaskStatus, string> = {
   'Today': 'bg-blue-100 border-blue-300',
   'Overdue': 'bg-red-100 border-red-300',
@@ -127,10 +114,28 @@ export const STATUS_COLORS: Record<TaskStatus, string> = {
   'Completed': 'bg-gray-100 border-gray-300'
 } as const;
 
+// API Status color mapping for Kanban
+export const API_STATUS_COLORS: Record<TaskStatusAPI, string> = {
+  'TODO': 'bg-blue-100 border-blue-300',
+  'IN_PROGRESS': 'bg-green-100 border-green-300',
+  'COMPLETED': 'bg-gray-100 border-gray-300',
+  'CANCELLED': 'bg-yellow-100 border-yellow-300'
+} as const;
+
 // Priority color mapping
 export const PRIORITY_COLORS: Record<TaskPriority, string> = {
   'Urgent': 'bg-red-100 text-red-700 border-red-200',
+  'Critical': 'bg-purple-100 text-purple-700 border-purple-200',
+  'Normal': 'bg-blue-100 text-blue-700 border-blue-200',
   'No priority': 'bg-gray-100 text-gray-700 border-gray-200'
+} as const;
+
+// API Priority color mapping
+export const API_PRIORITY_COLORS: Record<TaskPriorityAPI, string> = {
+  'CRITICAL': 'bg-purple-100 text-purple-700 border-purple-200',
+  'URGENT': 'bg-red-100 text-red-700 border-red-200',
+  'NORMAL': 'bg-blue-100 text-blue-700 border-blue-200',
+  'LOW': 'bg-gray-100 text-gray-700 border-gray-200'
 } as const;
 
 // Days of the week for calendar

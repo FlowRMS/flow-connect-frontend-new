@@ -4,3 +4,4 @@
  */
 
 export { default as TaskModal } from './TaskModal';
+export { CreateTaskModal } from './CreateTaskModal';

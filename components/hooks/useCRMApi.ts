@@ -34,6 +34,22 @@ import {
   type CreateLinkInput,
   type DeleteLinkByEntitiesInput,
   type JobRelatedEntities,
+  type Note,
+  type NoteConversation,
+  type NoteLandingPage,
+  type CreateNoteInput,
+  type UpdateNoteInput,
+  type AddNoteConversationInput,
+  type UpdateNoteConversationInput,
+  // Task types
+  type CRMTask,
+  type TaskLandingPage,
+  type TaskConversation,
+  type CreateTaskInput,
+  type UpdateTaskInput,
+  type TaskRelation,
+  type AddTaskRelationInput,
+  type AddTaskConversationInput,
   // Job functions
   fetchJobStatuses,
   fetchJob,
@@ -78,6 +94,33 @@ import {
   deleteLink,
   deleteLinkByEntities,
   fetchJobRelatedEntities,
+  fetchLinksBySource,
+  fetchNotesByEntity,
+  type NoteLink,
+  type EntityType,
+  // Note functions
+  fetchNotes,
+  fetchNoteLandingPages,
+  fetchNote,
+  fetchNoteConversations,
+  createNote,
+  updateNote,
+  deleteNote,
+  addNoteConversation,
+  updateNoteConversation,
+  deleteNoteConversations,
+  // Task functions
+  fetchTaskLandingPages,
+  fetchTask,
+  fetchTaskConversations,
+  createTask,
+  updateTask as updateTaskApi,
+  deleteTask,
+  addTaskConversation,
+  updateTaskConversation,
+  addTaskRelation,
+  fetchTaskRelations,
+  deleteTaskRelation,
 } from '../lib/crm-graphql';
 
 // ============================================================================
@@ -131,6 +174,23 @@ export const crmQueryKeys = {
   // Entity Links
   jobRelatedEntities: (jobId: string) => 
     [...crmQueryKeys.all, 'jobRelatedEntities', jobId] as const,
+  
+  // Notes
+  notes: () => [...crmQueryKeys.all, 'notes'] as const,
+  noteLandingPages: (filters?: LandingPageFilter[], orderBy?: LandingPageOrderBy[]) => 
+    [...crmQueryKeys.all, 'noteLandingPages', { filters, orderBy }] as const,
+  note: (id: string) => [...crmQueryKeys.notes(), id] as const,
+  noteConversations: (noteId: string) => [...crmQueryKeys.notes(), 'conversations', noteId] as const,
+  noteLinks: (noteId: string) => [...crmQueryKeys.notes(), 'links', noteId] as const,
+  notesByEntity: (entityId: string, entityType: string) => 
+    [...crmQueryKeys.notes(), 'byEntity', entityId, entityType] as const,
+  
+  // Tasks
+  tasks: () => [...crmQueryKeys.all, 'tasks'] as const,
+  taskLandingPages: () => [...crmQueryKeys.all, 'taskLandingPages'] as const,
+  task: (id: string) => [...crmQueryKeys.tasks(), id] as const,
+  taskConversations: (taskId: string) => [...crmQueryKeys.tasks(), 'conversations', taskId] as const,
+  taskRelations: (taskId: string) => [...crmQueryKeys.tasks(), 'relations', taskId] as const,
 };
 
 // ============================================================================
@@ -768,3 +828,357 @@ export function useDeleteCRMLinkByEntities() {
   });
 }
 
+// ============================================================================
+// Note Hooks
+// ============================================================================
+
+/**
+ * Fetch all notes
+ */
+export function useCRMNotes() {
+  return useQuery<Note[], Error>({
+    queryKey: crmQueryKeys.notes(),
+    queryFn: fetchNotes,
+    enabled: hasCRMTokens(),
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Fetch note landing pages with filtering/sorting
+ */
+export function useCRMNoteLandingPages(
+  filters?: LandingPageFilter[],
+  orderBy?: LandingPageOrderBy[]
+) {
+  return useQuery<NoteLandingPage[], Error>({
+    queryKey: crmQueryKeys.noteLandingPages(filters, orderBy),
+    queryFn: () => fetchNoteLandingPages(filters, orderBy),
+    enabled: hasCRMTokens(),
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Fetch single note by ID
+ */
+export function useCRMNote(id: string) {
+  return useQuery<Note | null, Error>({
+    queryKey: crmQueryKeys.note(id),
+    queryFn: () => fetchNote(id),
+    enabled: hasCRMTokens() && !!id,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Fetch conversations for a note
+ */
+export function useCRMNoteConversations(noteId: string) {
+  return useQuery<NoteConversation[], Error>({
+    queryKey: crmQueryKeys.noteConversations(noteId),
+    queryFn: () => fetchNoteConversations(noteId),
+    enabled: hasCRMTokens() && !!noteId,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Create new note mutation
+ */
+export function useCreateCRMNote() {
+  const queryClient = useQueryClient();
+
+  return useMutation<Note, Error, CreateNoteInput>({
+    mutationFn: createNote,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.notes() });
+    },
+  });
+}
+
+/**
+ * Update existing note mutation
+ */
+export function useUpdateCRMNote() {
+  const queryClient = useQueryClient();
+
+  return useMutation<Note, Error, { id: string; input: UpdateNoteInput }>({
+    mutationFn: ({ id, input }) => updateNote(id, input),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.notes() });
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.note(data.id) });
+    },
+  });
+}
+
+/**
+ * Delete note mutation
+ */
+export function useDeleteCRMNote() {
+  const queryClient = useQueryClient();
+
+  return useMutation<boolean, Error, string>({
+    mutationFn: deleteNote,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.notes() });
+    },
+  });
+}
+
+/**
+ * Add conversation to a note
+ */
+export function useAddCRMNoteConversation() {
+  const queryClient = useQueryClient();
+
+  return useMutation<NoteConversation, Error, AddNoteConversationInput>({
+    mutationFn: addNoteConversation,
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.notes() });
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.note(variables.noteId) });
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.noteConversations(variables.noteId) });
+    },
+  });
+}
+
+/**
+ * Update conversation in a note
+ */
+export function useUpdateCRMNoteConversation() {
+  const queryClient = useQueryClient();
+
+  return useMutation<NoteConversation, Error, UpdateNoteConversationInput>({
+    mutationFn: updateNoteConversation,
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.notes() });
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.note(variables.noteId) });
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.noteConversations(variables.noteId) });
+    },
+  });
+}
+
+/**
+ * Delete all conversations from a note
+ */
+export function useDeleteCRMNoteConversations() {
+  const queryClient = useQueryClient();
+
+  return useMutation<boolean, Error, string>({
+    mutationFn: deleteNoteConversations,
+    onSuccess: (_, noteId) => {
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.notes() });
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.note(noteId) });
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.noteConversations(noteId) });
+    },
+  });
+}
+
+/**
+ * Fetch links for a note
+ */
+export function useCRMNoteLinks(noteId: string) {
+  return useQuery<NoteLink[], Error>({
+    queryKey: crmQueryKeys.noteLinks(noteId),
+    queryFn: () => fetchLinksBySource('NOTE', noteId),
+    enabled: hasCRMTokens() && !!noteId,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Fetch notes linked to an entity
+ */
+export function useCRMNotesByEntity(entityId: string, entityType: EntityType) {
+  return useQuery<Note[], Error>({
+    queryKey: crmQueryKeys.notesByEntity(entityId, entityType),
+    queryFn: () => fetchNotesByEntity(entityId, entityType),
+    enabled: hasCRMTokens() && !!entityId && !!entityType,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Create note link mutation
+ */
+export function useCreateCRMNoteLink() {
+  const queryClient = useQueryClient();
+
+  return useMutation<EntityLink, Error, CreateLinkInput>({
+    mutationFn: createLink,
+    onSuccess: (_, variables) => {
+      // Invalidate note links when a new link is created
+      if (variables.sourceEntityType === 'NOTE') {
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.noteLinks(variables.sourceEntityId) 
+        });
+      }
+      // Also invalidate notes by entity if needed
+      if (variables.targetEntityType !== 'NOTE') {
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.notesByEntity(variables.targetEntityId, variables.targetEntityType as EntityType) 
+        });
+      }
+    },
+  });
+}
+
+// ============================================================================
+// Task Hooks
+// ============================================================================
+
+/**
+ * Fetch all tasks using landing pages endpoint
+ */
+export function useCRMTasks() {
+  return useQuery<TaskLandingPage[], Error>({
+    queryKey: crmQueryKeys.taskLandingPages(),
+    queryFn: fetchTaskLandingPages,
+    enabled: hasCRMTokens(),
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Fetch single task by ID
+ */
+export function useCRMTask(id: string) {
+  return useQuery<CRMTask | null, Error>({
+    queryKey: crmQueryKeys.task(id),
+    queryFn: () => fetchTask(id),
+    enabled: hasCRMTokens() && !!id,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Fetch task conversations
+ */
+export function useCRMTaskConversations(taskId: string) {
+  return useQuery<TaskConversation[], Error>({
+    queryKey: crmQueryKeys.taskConversations(taskId),
+    queryFn: () => fetchTaskConversations(taskId),
+    enabled: hasCRMTokens() && !!taskId,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Fetch task relations
+ */
+export function useCRMTaskRelations(taskId: string) {
+  return useQuery<TaskRelation[], Error>({
+    queryKey: crmQueryKeys.taskRelations(taskId),
+    queryFn: () => fetchTaskRelations(taskId),
+    enabled: hasCRMTokens() && !!taskId,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Create new task mutation
+ */
+export function useCreateCRMTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation<CRMTask, Error, CreateTaskInput>({
+    mutationFn: createTask,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.tasks() });
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.taskLandingPages() });
+    },
+  });
+}
+
+/**
+ * Update existing task mutation
+ */
+export function useUpdateCRMTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation<CRMTask, Error, { id: string; input: UpdateTaskInput }>({
+    mutationFn: ({ id, input }) => updateTaskApi(id, input),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.tasks() });
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.taskLandingPages() });
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.task(data.id) });
+    },
+  });
+}
+
+/**
+ * Delete task mutation
+ */
+export function useDeleteCRMTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation<boolean, Error, string>({
+    mutationFn: deleteTask,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.tasks() });
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.taskLandingPages() });
+    },
+  });
+}
+
+/**
+ * Add task conversation mutation
+ */
+export function useAddCRMTaskConversation() {
+  const queryClient = useQueryClient();
+
+  return useMutation<TaskConversation, Error, AddTaskConversationInput>({
+    mutationFn: addTaskConversation,
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.taskConversations(variables.taskId) });
+    },
+  });
+}
+
+/**
+ * Update task conversation mutation
+ */
+export function useUpdateCRMTaskConversation() {
+  const queryClient = useQueryClient();
+
+  return useMutation<TaskConversation, Error, { id: string; input: AddTaskConversationInput }>({
+    mutationFn: ({ id, input }) => updateTaskConversation(id, input),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.taskConversations(variables.input.taskId) });
+    },
+  });
+}
+
+/**
+ * Add task relation mutation
+ */
+export function useAddCRMTaskRelation() {
+  const queryClient = useQueryClient();
+
+  return useMutation<TaskRelation, Error, AddTaskRelationInput>({
+    mutationFn: addTaskRelation,
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.tasks() });
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.taskLandingPages() });
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.task(variables.taskId) });
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.taskRelations(variables.taskId) });
+    },
+  });
+}
+
+/**
+ * Delete task relation mutation
+ */
+export function useDeleteCRMTaskRelation() {
+  const queryClient = useQueryClient();
+
+  return useMutation<boolean, Error, { id: string; taskId: string }>({
+    mutationFn: ({ id }) => deleteTaskRelation(id),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.tasks() });
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.taskLandingPages() });
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.task(variables.taskId) });
+      queryClient.invalidateQueries({ queryKey: crmQueryKeys.taskRelations(variables.taskId) });
+    },
+  });
+}

@@ -1842,7 +1842,7 @@ export async function deletePreOpportunity(id: string): Promise<boolean> {
 // Entity Link Types
 // ============================================================================
 
-export type EntityType = 'JOB' | 'COMPANY' | 'CONTACT';
+export type EntityType = 'JOB' | 'COMPANY' | 'CONTACT' | 'TASK' | 'NOTE';
 
 export interface EntityLink {
   id: string;
@@ -2043,5 +2043,826 @@ export async function fetchJobRelatedEntities(jobId: string): Promise<JobRelated
   }
 
   return response.data?.jobRelatedEntities || { companies: [], contacts: [], preOpportunities: [] };
+}
+
+// ============================================================================
+// Note Link Types and Queries
+// ============================================================================
+
+export interface NoteLink {
+  id: string;
+  sourceEntityType: EntityType;
+  sourceEntityId: string;
+  targetEntityType: EntityType;
+  targetEntityId: string;
+  createdAt: string;
+  createdBy: string;
+}
+
+const GET_LINKS_BY_SOURCE = `
+  query GetLinksBySource($sourceEntityType: EntityType!, $sourceEntityId: UUID!) {
+    linksBySource(sourceEntityType: $sourceEntityType, sourceEntityId: $sourceEntityId) {
+      id
+      sourceEntityType
+      sourceEntityId
+      targetEntityType
+      targetEntityId
+      createdAt
+      createdBy
+    }
+  }
+`;
+
+const GET_NOTES_BY_ENTITY = `
+  query GetNotesByEntity($entityId: UUID!, $entityType: EntityType!) {
+    notesByEntity(entityId: $entityId, entityType: $entityType) {
+      id
+      title
+      content
+      mentions
+      tags
+      createdBy
+      createdAt
+    }
+  }
+`;
+
+export async function fetchLinksBySource(sourceEntityType: EntityType, sourceEntityId: string): Promise<NoteLink[]> {
+  const response = await crmGraphQLRequest<{ linksBySource: NoteLink[] }>({
+    query: GET_LINKS_BY_SOURCE,
+    variables: { sourceEntityType, sourceEntityId },
+  });
+
+  if (response.errors) {
+    // If the query doesn't exist, return empty array
+    console.warn('Failed to fetch links by source:', response.errors[0]?.message);
+    return [];
+  }
+
+  return response.data?.linksBySource || [];
+}
+
+export async function fetchNotesByEntity(entityId: string, entityType: EntityType): Promise<Note[]> {
+  const response = await crmGraphQLRequest<{ notesByEntity: Note[] }>({
+    query: GET_NOTES_BY_ENTITY,
+    variables: { entityId, entityType },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch notes by entity');
+  }
+
+  return response.data?.notesByEntity || [];
+}
+
+// ============================================================================
+// Note Types
+// ============================================================================
+
+export interface NoteConversation {
+  id: string;
+  noteId: string;
+  content: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface Note {
+  id: string;
+  title: string;
+  content: string;
+  mentions: string;
+  tags: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface NoteLandingPage {
+  id: string;
+  title: string;
+  content: string;
+  tags: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface CreateNoteInput {
+  title: string;
+  content: string;
+  mentions?: string[];
+  tags?: string;
+}
+
+export interface UpdateNoteInput {
+  title?: string;
+  content?: string;
+  mentions?: string[];
+  tags?: string;
+}
+
+export interface AddNoteConversationInput {
+  noteId: string;
+  content: string;
+}
+
+export interface UpdateNoteConversationInput {
+  noteId: string;
+  content: string;
+}
+
+// ============================================================================
+// Note GraphQL Queries and Mutations
+// ============================================================================
+
+const GET_NOTES = `
+  query GetNotes {
+    notes {
+      id
+      title
+      content
+      mentions
+      tags
+      createdBy
+      createdAt
+    }
+  }
+`;
+
+const GET_NOTE = `
+  query GetNote($id: UUID!) {
+    note(id: $id) {
+      id
+      title
+      content
+      mentions
+      tags
+      createdBy
+      createdAt
+    }
+  }
+`;
+
+const GET_NOTE_CONVERSATIONS = `
+  query GetNoteConversations($noteId: UUID!) {
+    noteConversations(noteId: $noteId) {
+      id
+      noteId
+      content
+      createdBy
+      createdAt
+    }
+  }
+`;
+
+const CREATE_NOTE = `
+  mutation CreateNote($input: NoteInput!) {
+    createNote(input: $input) {
+      id
+      title
+      content
+      mentions
+      tags
+      createdBy
+      createdAt
+    }
+  }
+`;
+
+const UPDATE_NOTE = `
+  mutation UpdateNote($id: UUID!, $input: NoteInput!) {
+    updateNote(id: $id, input: $input) {
+      id
+      title
+      content
+      mentions
+      tags
+      createdBy
+      createdAt
+    }
+  }
+`;
+
+const DELETE_NOTE = `
+  mutation DeleteNote($id: UUID!) {
+    deleteNote(id: $id)
+  }
+`;
+
+const ADD_NOTE_CONVERSATION = `
+  mutation AddNoteConversation($input: NoteConversationInput!) {
+    addNoteConversation(input: $input) {
+      id
+      noteId
+      content
+      createdBy
+      createdAt
+    }
+  }
+`;
+
+const UPDATE_NOTE_CONVERSATION = `
+  mutation UpdateNoteConversation($input: NoteConversationInput!) {
+    updateNoteConversation(input: $input) {
+      id
+      noteId
+      content
+      createdBy
+      createdAt
+    }
+  }
+`;
+
+const DELETE_NOTE_CONVERSATIONS = `
+  mutation DeleteNoteConversations($noteId: UUID!) {
+    deleteNoteConversations(noteId: $noteId)
+  }
+`;
+
+const FIND_NOTE_LANDING_PAGES = `
+  query FindNoteLandingPages(
+    $filters: [Filter!]
+    $orderBy: [OrderBy!]
+  ) {
+    findLandingPages(
+      sourceType: NOTES
+      filters: $filters
+      orderBy: $orderBy
+    ) {
+      records {
+        ... on NoteLandingPage {
+          id
+          title
+          content
+          tags
+          createdBy
+          createdAt
+        }
+      }
+      total
+    }
+  }
+`;
+
+// ============================================================================
+// Note API Functions
+// ============================================================================
+
+export async function fetchNotes(): Promise<Note[]> {
+  const response = await crmGraphQLRequest<{ notes: Note[] }>({
+    query: GET_NOTES,
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch notes');
+  }
+
+  return response.data?.notes || [];
+}
+
+export async function fetchNoteLandingPages(
+  filters?: LandingPageFilter[],
+  orderBy?: LandingPageOrderBy[]
+): Promise<NoteLandingPage[]> {
+  const response = await crmGraphQLRequest<{
+    findLandingPages: { records: NoteLandingPage[]; total: number }
+  }>({
+    query: FIND_NOTE_LANDING_PAGES,
+    variables: { filters, orderBy },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch note landing pages');
+  }
+
+  return response.data?.findLandingPages?.records || [];
+}
+
+export async function fetchNote(id: string): Promise<Note | null> {
+  const response = await crmGraphQLRequest<{ note: Note }>({
+    query: GET_NOTE,
+    variables: { id },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch note');
+  }
+
+  return response.data?.note || null;
+}
+
+export async function fetchNoteConversations(noteId: string): Promise<NoteConversation[]> {
+  const response = await crmGraphQLRequest<{ noteConversations: NoteConversation[] }>({
+    query: GET_NOTE_CONVERSATIONS,
+    variables: { noteId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch note conversations');
+  }
+
+  return response.data?.noteConversations || [];
+}
+
+export async function createNote(input: CreateNoteInput): Promise<Note> {
+  const response = await crmGraphQLRequest<{ createNote: Note }>({
+    query: CREATE_NOTE,
+    variables: { input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to create note');
+  }
+
+  if (!response.data?.createNote) {
+    throw new Error('No note returned from create mutation');
+  }
+
+  return response.data.createNote;
+}
+
+export async function updateNote(id: string, input: UpdateNoteInput): Promise<Note> {
+  const response = await crmGraphQLRequest<{ updateNote: Note }>({
+    query: UPDATE_NOTE,
+    variables: { id, input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to update note');
+  }
+
+  if (!response.data?.updateNote) {
+    throw new Error('No note returned from update mutation');
+  }
+
+  return response.data.updateNote;
+}
+
+export async function deleteNote(id: string): Promise<boolean> {
+  const response = await crmGraphQLRequest<{ deleteNote: boolean }>({
+    query: DELETE_NOTE,
+    variables: { id },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to delete note');
+  }
+
+  return response.data?.deleteNote || false;
+}
+
+export async function addNoteConversation(input: AddNoteConversationInput): Promise<NoteConversation> {
+  const response = await crmGraphQLRequest<{ addNoteConversation: NoteConversation }>({
+    query: ADD_NOTE_CONVERSATION,
+    variables: { input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to add conversation');
+  }
+
+  if (!response.data?.addNoteConversation) {
+    throw new Error('No conversation returned from add mutation');
+  }
+
+  return response.data.addNoteConversation;
+}
+
+export async function updateNoteConversation(input: UpdateNoteConversationInput): Promise<NoteConversation> {
+  const response = await crmGraphQLRequest<{ updateNoteConversation: NoteConversation }>({
+    query: UPDATE_NOTE_CONVERSATION,
+    variables: { input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to update conversation');
+  }
+
+  if (!response.data?.updateNoteConversation) {
+    throw new Error('No conversation returned from update mutation');
+  }
+
+  return response.data.updateNoteConversation;
+}
+
+export async function deleteNoteConversations(noteId: string): Promise<boolean> {
+  const response = await crmGraphQLRequest<{ deleteNoteConversations: boolean }>({
+    query: DELETE_NOTE_CONVERSATIONS,
+    variables: { noteId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to delete conversations');
+  }
+
+  return response.data?.deleteNoteConversations || false;
+}
+
+// ============================================================================
+// Task Types
+// ============================================================================
+
+export type TaskPriorityAPI = 'LOW' | 'NORMAL' | 'URGENT' | 'CRITICAL';
+export type TaskStatusAPI = 'TODO' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+export type TaskRelatedType = 'JOB' | 'CONTACT' | 'COMPANY';
+
+export interface CRMTask {
+  id: string;
+  title: string;
+  description: string;
+  status: TaskStatusAPI;
+  priority: TaskPriorityAPI;
+  dueDate: string;
+  tags: string;
+  assignedToId: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+// Task Landing Page for list view (from findLandingPages with sourceType: TASKS)
+export interface TaskLandingPage {
+  id: string;
+  title: string;
+  description: string;
+  status: TaskStatusAPI;
+  priority: TaskPriorityAPI;
+  dueDate: string;
+  assignedTo: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+// Task Conversation type
+export interface TaskConversation {
+  id: string;
+  taskId: string;
+  content: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface TaskRelation {
+  id: string;
+  taskId: string;
+  relatedType: TaskRelatedType;
+  relatedId: string;
+}
+
+export interface CreateTaskInput {
+  title: string;
+  status: TaskStatusAPI;
+  priority: TaskPriorityAPI;
+  description?: string;
+  dueDate?: string;
+  tags?: string;
+  assignedToId?: string;
+}
+
+export interface UpdateTaskInput {
+  title?: string;
+  status?: TaskStatusAPI;
+  priority?: TaskPriorityAPI;
+  description?: string;
+  dueDate?: string;
+  tags?: string;
+  assignedToId?: string;
+}
+
+export interface AddTaskRelationInput {
+  taskId: string;
+  relatedType: TaskRelatedType;
+  relatedId: string;
+}
+
+export interface AddTaskConversationInput {
+  taskId: string;
+  content: string;
+}
+
+export interface UpdateTaskConversationInput {
+  id: string;
+  taskId: string;
+  content: string;
+}
+
+// Task with relations for full display
+export interface CRMTaskWithRelations extends CRMTask {
+  relations?: TaskRelation[];
+  relatedJobs?: Job[];
+  relatedContacts?: Contact[];
+  relatedCompanies?: Company[];
+}
+
+// ============================================================================
+// Task GraphQL Queries and Mutations
+// ============================================================================
+
+const FIND_TASK_LANDING_PAGES = `
+  query FindTaskLandingPages {
+    findLandingPages(sourceType: TASKS) {
+      records {
+        ... on TaskLandingPage {
+          id
+          assignedTo
+          createdAt
+          createdBy
+          description
+          dueDate
+          priority
+          status
+          title
+        }
+      }
+      total
+    }
+  }
+`;
+
+const GET_TASK = `
+  query GetTask($id: UUID!) {
+    task(id: $id) {
+      assignedToId
+      createdAt
+      createdBy
+      description
+      dueDate
+      id
+      priority
+      status
+      tags
+      title
+    }
+  }
+`;
+
+const GET_TASK_CONVERSATIONS = `
+  query GetTaskConversations($taskId: UUID!) {
+    taskConversations(taskId: $taskId) {
+      content
+      createdAt
+      createdBy
+      taskId
+      id
+    }
+  }
+`;
+
+const CREATE_TASK = `
+  mutation CreateTask($input: TaskInput!) {
+    createTask(input: $input) {
+      assignedToId
+      createdAt
+      createdBy
+      description
+      dueDate
+      id
+      priority
+      status
+      tags
+      title
+    }
+  }
+`;
+
+const UPDATE_TASK = `
+  mutation UpdateTask($id: UUID!, $input: TaskInput!) {
+    updateTask(id: $id, input: $input) {
+      assignedToId
+      createdAt
+      createdBy
+      description
+      dueDate
+      id
+      priority
+      status
+      tags
+      title
+    }
+  }
+`;
+
+const DELETE_TASK = `
+  mutation DeleteTask($id: UUID!) {
+    deleteTask(id: $id)
+  }
+`;
+
+const ADD_TASK_CONVERSATION = `
+  mutation AddTaskConversation($input: TaskConversationInput!) {
+    addTaskConversation(input: $input) {
+      content
+      createdAt
+      createdBy
+      id
+      taskId
+    }
+  }
+`;
+
+const UPDATE_TASK_CONVERSATION = `
+  mutation UpdateTaskConversation($id: UUID!, $input: TaskConversationInput!) {
+    updateTaskConversation(id: $id, input: $input) {
+      content
+      createdAt
+      createdBy
+      id
+      taskId
+    }
+  }
+`;
+
+const ADD_TASK_RELATION = `
+  mutation AddTaskRelation($input: TaskRelationInput!) {
+    addTaskRelation(input: $input) {
+      id
+      taskId
+      relatedType
+      relatedId
+    }
+  }
+`;
+
+const GET_TASK_RELATIONS = `
+  query GetTaskRelations($taskId: UUID!) {
+    taskRelations(taskId: $taskId) {
+      id
+      taskId
+      relatedType
+      relatedId
+    }
+  }
+`;
+
+const DELETE_TASK_RELATION = `
+  mutation DeleteTaskRelation($id: UUID!) {
+    deleteTaskRelation(id: $id)
+  }
+`;
+
+// ============================================================================
+// Task API Functions
+// ============================================================================
+
+export async function fetchTaskLandingPages(): Promise<TaskLandingPage[]> {
+  const response = await crmGraphQLRequest<{
+    findLandingPages: { records: TaskLandingPage[]; total: number }
+  }>({
+    query: FIND_TASK_LANDING_PAGES,
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch task landing pages');
+  }
+
+  return response.data?.findLandingPages?.records || [];
+}
+
+export async function fetchTask(id: string): Promise<CRMTask | null> {
+  const response = await crmGraphQLRequest<{ task: CRMTask }>({
+    query: GET_TASK,
+    variables: { id },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch task');
+  }
+
+  return response.data?.task || null;
+}
+
+export async function fetchTaskConversations(taskId: string): Promise<TaskConversation[]> {
+  const response = await crmGraphQLRequest<{ taskConversations: TaskConversation[] }>({
+    query: GET_TASK_CONVERSATIONS,
+    variables: { taskId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch task conversations');
+  }
+
+  return response.data?.taskConversations || [];
+}
+
+export async function createTask(input: CreateTaskInput): Promise<CRMTask> {
+  const response = await crmGraphQLRequest<{ createTask: CRMTask }>({
+    query: CREATE_TASK,
+    variables: { input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to create task');
+  }
+
+  if (!response.data?.createTask) {
+    throw new Error('No task returned from create mutation');
+  }
+
+  return response.data.createTask;
+}
+
+export async function updateTask(id: string, input: UpdateTaskInput): Promise<CRMTask> {
+  const response = await crmGraphQLRequest<{ updateTask: CRMTask }>({
+    query: UPDATE_TASK,
+    variables: { id, input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to update task');
+  }
+
+  if (!response.data?.updateTask) {
+    throw new Error('No task returned from update mutation');
+  }
+
+  return response.data.updateTask;
+}
+
+export async function deleteTask(id: string): Promise<boolean> {
+  const response = await crmGraphQLRequest<{ deleteTask: boolean }>({
+    query: DELETE_TASK,
+    variables: { id },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to delete task');
+  }
+
+  return response.data?.deleteTask || false;
+}
+
+export async function addTaskConversation(input: AddTaskConversationInput): Promise<TaskConversation> {
+  const response = await crmGraphQLRequest<{ addTaskConversation: TaskConversation }>({
+    query: ADD_TASK_CONVERSATION,
+    variables: { input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to add task conversation');
+  }
+
+  if (!response.data?.addTaskConversation) {
+    throw new Error('No conversation returned from add mutation');
+  }
+
+  return response.data.addTaskConversation;
+}
+
+export async function updateTaskConversation(id: string, input: AddTaskConversationInput): Promise<TaskConversation> {
+  const response = await crmGraphQLRequest<{ updateTaskConversation: TaskConversation }>({
+    query: UPDATE_TASK_CONVERSATION,
+    variables: { id, input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to update task conversation');
+  }
+
+  if (!response.data?.updateTaskConversation) {
+    throw new Error('No conversation returned from update mutation');
+  }
+
+  return response.data.updateTaskConversation;
+}
+
+export async function addTaskRelation(input: AddTaskRelationInput): Promise<TaskRelation> {
+  const response = await crmGraphQLRequest<{ addTaskRelation: TaskRelation }>({
+    query: ADD_TASK_RELATION,
+    variables: { input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to add task relation');
+  }
+
+  if (!response.data?.addTaskRelation) {
+    throw new Error('No relation returned from add mutation');
+  }
+
+  return response.data.addTaskRelation;
+}
+
+export async function fetchTaskRelations(taskId: string): Promise<TaskRelation[]> {
+  const response = await crmGraphQLRequest<{ taskRelations: TaskRelation[] }>({
+    query: GET_TASK_RELATIONS,
+    variables: { taskId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch task relations');
+  }
+
+  return response.data?.taskRelations || [];
+}
+
+export async function deleteTaskRelation(id: string): Promise<boolean> {
+  const response = await crmGraphQLRequest<{ deleteTaskRelation: boolean }>({
+    query: DELETE_TASK_RELATION,
+    variables: { id },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to delete task relation');
+  }
+
+  return response.data?.deleteTaskRelation || false;
 }
 
