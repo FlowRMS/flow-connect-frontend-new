@@ -105,7 +105,28 @@ export default function CalendarView({ tasks, onToggleComplete }: CalendarViewPr
                       title={task.title}
                     >
                       <div className="font-medium text-[var(--foreground)] truncate">{task.title}</div>
-                      <div className="text-[var(--muted-foreground)] truncate">{task.assignedTo}</div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-[var(--muted-foreground)] truncate">{task.assignedTo}</span>
+                        {(task.entities?.jobs?.length || task.entities?.contacts?.length || task.entities?.companies?.length) ? (
+                          <span className="flex items-center gap-0.5 ml-auto">
+                            {task.entities?.jobs?.length ? (
+                              <span className="w-3 h-3 bg-green-100 rounded-full flex items-center justify-center" title={`${task.entities.jobs.length} job(s)`}>
+                                <span className="text-[8px] text-green-600">{task.entities.jobs.length}</span>
+                              </span>
+                            ) : null}
+                            {task.entities?.contacts?.length ? (
+                              <span className="w-3 h-3 bg-orange-100 rounded-full flex items-center justify-center" title={`${task.entities.contacts.length} contact(s)`}>
+                                <span className="text-[8px] text-orange-600">{task.entities.contacts.length}</span>
+                              </span>
+                            ) : null}
+                            {task.entities?.companies?.length ? (
+                              <span className="w-3 h-3 bg-indigo-100 rounded-full flex items-center justify-center" title={`${task.entities.companies.length} company(ies)`}>
+                                <span className="text-[8px] text-indigo-600">{task.entities.companies.length}</span>
+                              </span>
+                            ) : null}
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
                   ))}
                   {dayTasks.length > 3 && (

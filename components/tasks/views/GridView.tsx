@@ -6,6 +6,7 @@ import React from 'react';
 import type { Task, TaskDropdownState, TaskPriority } from '../types';
 import { AVAILABLE_ASSIGNEES, AVAILABLE_TASK_TYPES, AVAILABLE_PRIORITIES, AVAILABLE_TAGS, API_STATUS_OPTIONS, API_PRIORITY_OPTIONS } from '../constants';
 import { getInitials, getAvatarColor, formatTaskDate, getStatusColor, getPriorityColor } from '../utils';
+import { EntityBadges } from '../components';
 import type { TaskStatusAPI, TaskPriorityAPI } from '../types';
 
 interface GridViewProps {
@@ -13,6 +14,7 @@ interface GridViewProps {
   editState: { taskId: string | null; field: 'title' | 'description' | null; value: string };
   dropdowns: TaskDropdownState;
   onUpdateTask: (taskId: string, updates: Partial<Task>) => void;
+  onToggleComplete: (taskId: string) => void;
   onStartEditing: (taskId: string, field: 'title' | 'description', value: string) => void;
   onSaveEdit: () => void;
   onCancelEdit: () => void;
@@ -42,6 +44,7 @@ export default function GridView({
   editState,
   dropdowns,
   onUpdateTask,
+  onToggleComplete,
   onStartEditing,
   onSaveEdit,
   onCancelEdit,
@@ -67,10 +70,10 @@ export default function GridView({
                 checked={task.completed}
                 onChange={(e) => {
                   e.stopPropagation();
-                  onUpdateTask(task.id, { completed: !task.completed });
+                  onToggleComplete(task.id);
                 }}
                 onClick={(e) => e.stopPropagation()}
-                className="w-5 h-5 accent-[var(--primary)] rounded flex-shrink-0"
+                className="w-5 h-5 accent-[var(--primary)] rounded flex-shrink-0 cursor-pointer"
               />
               {editState.taskId === task.id && editState.field === 'title' ? (
                 <input
@@ -195,35 +198,10 @@ export default function GridView({
               </span>
             </div>
 
-            {/* Entity Links */}
-            {task.entities && (task.entities.jobs?.length || task.entities.contacts?.length || task.entities.companies?.length) ? (
-              <div className="flex gap-1.5 flex-wrap text-xs">
-                {task.entities.jobs?.map((job) => (
-                  <span key={job.id} className="px-2 py-1 bg-green-100 text-green-700 rounded flex items-center gap-1">
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                    {job.name}
-                  </span>
-                ))}
-                {task.entities.contacts?.map((contact) => (
-                  <span key={contact.id} className="px-2 py-1 bg-orange-100 text-orange-700 rounded flex items-center gap-1">
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                    {contact.name}
-                  </span>
-                ))}
-                {task.entities.companies?.map((company) => (
-                  <span key={company.id} className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded flex items-center gap-1">
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                    </svg>
-                    {company.name}
-                  </span>
-                ))}
-              </div>
-            ) : null}
+            {/* Entity Links - fetched via API */}
+            <div className="mb-2">
+              <EntityBadges taskId={task.id} compact maxItems={3} />
+            </div>
           </div>
 
           {/* Tags */}

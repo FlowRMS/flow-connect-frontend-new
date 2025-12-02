@@ -6,6 +6,8 @@ import React from 'react';
 import type { Task, TaskStatusAPI, TaskPriorityAPI } from '../types';
 import { AVAILABLE_ASSIGNEES, API_STATUS_OPTIONS, API_PRIORITY_OPTIONS } from '../constants';
 import { convertAPIStatusToUI, convertAPIPriorityToUI } from '../utils';
+import { CustomSelect, EntityBadges } from '../components';
+import { StyledDatePicker, parseDateString, formatDateToString } from '../components';
 
 interface SpreadsheetViewProps {
   tasks: Task[];
@@ -31,6 +33,19 @@ const priorityLabels: Record<TaskPriorityAPI, string> = {
   'URGENT': 'Urgent',
   'CRITICAL': 'Critical'
 };
+
+// Status options for CustomSelect
+const statusOptions = API_STATUS_OPTIONS.map(s => ({
+  value: s,
+  label: statusLabels[s],
+}));
+
+// Priority options for CustomSelect  
+const priorityOptions = API_PRIORITY_OPTIONS.map(p => ({
+  value: p,
+  label: priorityLabels[p],
+  color: p === 'CRITICAL' ? '#9333ea' : p === 'URGENT' ? '#ef4444' : p === 'NORMAL' ? '#3b82f6' : '#9ca3af',
+}));
 
 export default function SpreadsheetView({
   tasks,
@@ -99,48 +114,37 @@ export default function SpreadsheetView({
                   <div className="text-xs text-[var(--muted-foreground)] line-clamp-3">{task.description}</div>
                 </td>
                 <td className="px-4 py-3">
-                  <select
+                  <CustomSelect
                     value={task.apiStatus}
-                    onChange={(e) => {
-                      const newStatus = e.target.value as TaskStatusAPI;
+                    options={statusOptions}
+                    onChange={(newStatus) => {
                       onUpdateTask(task.id, { 
                         status: convertAPIStatusToUI(newStatus, task.dueDate),
                         apiStatus: newStatus
                       });
                     }}
-                    className="px-2 py-1 text-sm border border-[var(--border)] rounded focus:outline-none focus:border-[var(--primary)]"
-                  >
-                    {API_STATUS_OPTIONS.map(s => (
-                      <option key={s} value={s}>{statusLabels[s]}</option>
-                    ))}
-                  </select>
+                  />
                 </td>
                 <td className="px-4 py-3">
-                  <select
+                  <CustomSelect
                     value={task.apiPriority}
-                    onChange={(e) => {
-                      const newPriority = e.target.value as TaskPriorityAPI;
+                    options={priorityOptions}
+                    onChange={(newPriority) => {
                       onUpdateTask(task.id, { 
                         priority: convertAPIPriorityToUI(newPriority),
                         apiPriority: newPriority
                       });
                     }}
-                    className="px-2 py-1 text-sm border border-[var(--border)] rounded focus:outline-none focus:border-[var(--primary)]"
-                  >
-                    {API_PRIORITY_OPTIONS.map(p => (
-                      <option key={p} value={p}>{priorityLabels[p]}</option>
-                    ))}
-                  </select>
+                  />
                 </td>
                 <td className="px-4 py-3">
                   <div className="text-sm text-[var(--muted-foreground)]">{task.assignedTo}</div>
                 </td>
                 <td className="px-4 py-3">
-                  <input
-                    type="date"
-                    value={task.dueDate}
-                    onChange={(e) => onUpdateTask(task.id, { dueDate: e.target.value })}
-                    className="px-2 py-1 text-sm border border-[var(--border)] rounded focus:outline-none focus:border-[var(--primary)]"
+                  <StyledDatePicker
+                    selected={parseDateString(task.dueDate)}
+                    onChange={(date) => onUpdateTask(task.id, { dueDate: formatDateToString(date) })}
+                    placeholderText="Select date..."
                   />
                 </td>
                 <td className="px-4 py-3">
@@ -156,26 +160,7 @@ export default function SpreadsheetView({
                   </div>
                 </td>
                 <td className="px-4 py-3">
-                  <div className="flex gap-1 flex-wrap">
-                    {task.entities?.jobs?.map((job) => (
-                      <span key={job.id} className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs">
-                        {job.name}
-                      </span>
-                    ))}
-                    {task.entities?.contacts?.map((contact) => (
-                      <span key={contact.id} className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded text-xs">
-                        {contact.name}
-                      </span>
-                    ))}
-                    {task.entities?.companies?.map((company) => (
-                      <span key={company.id} className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs">
-                        {company.name}
-                      </span>
-                    ))}
-                    {!task.entities?.jobs?.length && !task.entities?.contacts?.length && !task.entities?.companies?.length && (
-                      <span className="text-xs text-[var(--muted-foreground)]">-</span>
-                    )}
-                  </div>
+                  <EntityBadges taskId={task.id} compact maxItems={3} />
                 </td>
               </tr>
             ))}

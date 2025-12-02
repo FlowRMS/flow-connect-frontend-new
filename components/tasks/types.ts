@@ -1,21 +1,41 @@
 /**
  * Task Types and Interfaces
+ * These types match the GraphQL API schema and provide UI display mappings
  */
 
+// Import API types from the new tasks API module
 import type { 
-  CRMTask, 
-  TaskPriorityAPI, 
-  TaskStatusAPI, 
-  TaskRelation,
-  TaskLandingPage,
+  Task as APITask, 
+  TaskLandingPage, 
   TaskConversation,
-  Job,
-  Contact,
-  Company 
-} from '../lib/crm-graphql';
+  TaskRelatedEntities,
+  TaskPriority as TaskPriorityAPI, 
+  TaskStatus as TaskStatusAPI,
+  CreateTaskInput,
+  UpdateTaskInput,
+  EntityType,
+  CompanySearchResult,
+  ContactSearchResult,
+  JobSearchResult,
+  NoteSearchResult,
+} from './api';
 
-// Re-export API types
-export type { CRMTask, TaskPriorityAPI, TaskStatusAPI, TaskRelation, TaskLandingPage, TaskConversation };
+// Re-export API types for backward compatibility
+export type { 
+  APITask,
+  TaskLandingPage, 
+  TaskConversation,
+  TaskRelatedEntities,
+  TaskPriorityAPI, 
+  TaskStatusAPI,
+  CreateTaskInput,
+  UpdateTaskInput,
+  EntityType,
+  CompanySearchResult,
+  ContactSearchResult,
+  JobSearchResult,
+  NoteSearchResult,
+};
 
 // Task status types for UI display
 export type TaskStatus = 'Today' | 'Overdue' | 'Upcoming' | 'Waiting' | 'Completed';
@@ -79,12 +99,6 @@ export interface Task {
   comments?: number;
   createdBy?: string;
   createdAt?: string;
-  // Relation IDs for API calls
-  relationIds?: {
-    jobs?: string[];
-    contacts?: string[];
-    companies?: string[];
-  };
 }
 
 // Connected entities for tasks
@@ -92,9 +106,10 @@ export interface TaskEntities {
   jobs?: Array<{ id: string; name: string }>;
   contacts?: Array<{ id: string; name: string }>;
   companies?: Array<{ id: string; name: string }>;
+  notes?: Array<{ id: string; name: string }>;
 }
 
-// Comment type for task conversations
+// Comment type for task conversations (legacy format)
 export interface TaskComment {
   id: string;
   author: string;
@@ -153,5 +168,24 @@ export interface TaskStage {
 export interface SelectedRelation {
   id: string;
   name: string;
-  type: 'job' | 'contact' | 'company';
+  type: 'job' | 'contact' | 'company' | 'note';
+}
+
+// Parsed task for easier UI handling
+export interface ParsedTask {
+  id: string;
+  title: string;
+  description: string;
+  dueDate: string;
+  reminderDate: string;
+  assignedTo: string;
+  assignedToId: string;
+  status: TaskStatus;
+  apiStatus: TaskStatusAPI;
+  priority: TaskPriority;
+  apiPriority: TaskPriorityAPI;
+  tags: string[];
+  completed: boolean;
+  createdBy: string;
+  createdAt: string;
 }

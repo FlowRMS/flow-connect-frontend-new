@@ -265,16 +265,52 @@ export function useCreateCRMJob() {
 }
 
 /**
- * Update existing job mutation
+ * Update existing job mutation with optimistic updates support
  */
 export function useUpdateCRMJob() {
   const queryClient = useQueryClient();
 
-  return useMutation<Job, Error, { id: string; input: UpdateJobInput }>({
+  return useMutation<
+    Job,
+    Error,
+    { id: string; input: UpdateJobInput; optimisticStatusName?: string },
+    { previousJobs: JobLandingPage[] | undefined }
+  >({
     mutationFn: ({ id, input }) => updateJob(id, input),
-    onSuccess: (data) => {
+    onMutate: async (variables) => {
+      // Cancel any outgoing refetches so they don't overwrite optimistic update
+      await queryClient.cancelQueries({ queryKey: crmQueryKeys.jobLandingPages() });
+
+      // Snapshot the previous value
+      const previousJobs = queryClient.getQueryData<JobLandingPage[]>(crmQueryKeys.jobLandingPages());
+
+      // Optimistically update the cache
+      if (previousJobs && variables.optimisticStatusName) {
+        queryClient.setQueryData<JobLandingPage[]>(
+          crmQueryKeys.jobLandingPages(),
+          previousJobs.map(job =>
+            job.id === variables.id
+              ? { ...job, statusName: variables.optimisticStatusName }
+              : job
+          )
+        );
+      }
+
+      // Return context object with the snapshotted value
+      return { previousJobs };
+    },
+    onError: (_err, _variables, context) => {
+      // Roll back to the previous value on error
+      if (context?.previousJobs) {
+        queryClient.setQueryData(crmQueryKeys.jobLandingPages(), context.previousJobs);
+      }
+    },
+    onSettled: (data) => {
+      // Invalidate to refetch with actual server data
       queryClient.invalidateQueries({ queryKey: crmQueryKeys.jobs() });
-      queryClient.invalidateQueries({ queryKey: crmQueryKeys.job(data.id) });
+      if (data) {
+        queryClient.invalidateQueries({ queryKey: crmQueryKeys.job(data.id) });
+      }
       queryClient.invalidateQueries({ queryKey: crmQueryKeys.jobLandingPages() });
     },
   });
@@ -659,16 +695,58 @@ export function useCreateCRMPreOpportunity() {
 }
 
 /**
- * Update pre-opportunity mutation
+ * Update pre-opportunity mutation with optimistic updates support
  */
 export function useUpdateCRMPreOpportunity() {
   const queryClient = useQueryClient();
 
-  return useMutation<PreOpportunity, Error, UpdatePreOpportunityInput>({
-    mutationFn: updatePreOpportunity,
-    onSuccess: (data) => {
+  return useMutation<
+    PreOpportunity,
+    Error,
+    UpdatePreOpportunityInput & { optimisticStatus?: string },
+    { previousPreOpps: PreOpportunityLandingPage[] | undefined }
+  >({
+    mutationFn: (input) => {
+      // Remove optimisticStatus from the API call since it's only for optimistic updates
+      const { optimisticStatus: _, ...apiInput } = input;
+      return updatePreOpportunity(apiInput);
+    },
+    onMutate: async (variables) => {
+      // Cancel any outgoing refetches so they don't overwrite optimistic update
+      await queryClient.cancelQueries({ queryKey: crmQueryKeys.preOpportunityLandingPages() });
+
+      // Snapshot the previous value
+      const previousPreOpps = queryClient.getQueryData<PreOpportunityLandingPage[]>(
+        crmQueryKeys.preOpportunityLandingPages()
+      );
+
+      // Optimistically update the cache
+      if (previousPreOpps && variables.optimisticStatus) {
+        queryClient.setQueryData<PreOpportunityLandingPage[]>(
+          crmQueryKeys.preOpportunityLandingPages(),
+          previousPreOpps.map(preOpp =>
+            preOpp.id === variables.id
+              ? { ...preOpp, status: variables.optimisticStatus as PreOpportunityLandingPage['status'] }
+              : preOpp
+          )
+        );
+      }
+
+      // Return context object with the snapshotted value
+      return { previousPreOpps };
+    },
+    onError: (_err, _variables, context) => {
+      // Roll back to the previous value on error
+      if (context?.previousPreOpps) {
+        queryClient.setQueryData(crmQueryKeys.preOpportunityLandingPages(), context.previousPreOpps);
+      }
+    },
+    onSettled: (data) => {
+      // Invalidate to refetch with actual server data
       queryClient.invalidateQueries({ queryKey: crmQueryKeys.preOpportunities() });
-      queryClient.invalidateQueries({ queryKey: crmQueryKeys.preOpportunity(data.id) });
+      if (data) {
+        queryClient.invalidateQueries({ queryKey: crmQueryKeys.preOpportunity(data.id) });
+      }
       queryClient.invalidateQueries({ queryKey: crmQueryKeys.preOpportunityLandingPages() });
     },
   });

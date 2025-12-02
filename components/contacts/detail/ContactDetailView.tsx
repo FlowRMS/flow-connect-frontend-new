@@ -6,6 +6,7 @@ import React from 'react';
 import ContactDetailHeader from './ContactDetailHeader';
 import ContactInfoForm from './ContactInfoForm';
 import ContactRelatedEntities from './ContactRelatedEntities';
+import ConnectedNotesSection from '../../notes/ConnectedNotesSection';
 import DeleteConfirmModal from './DeleteConfirmModal';
 import type { Contact } from '../types';
 import type { Job as APIJob, Company as APICompany } from '../../lib/crm-graphql';
@@ -70,6 +71,13 @@ export default function ContactDetailView({
         contact={contact}
         onJobClick={onJobClick}
         onCompanyClick={onCompanyClick}
+      />
+
+      {/* Connected Notes */}
+      <ConnectedNotesSection
+        entityId={contact.id}
+        entityType="CONTACT"
+        title="Connected Notes"
       />
 
       {/* Delete Confirmation Modal */}

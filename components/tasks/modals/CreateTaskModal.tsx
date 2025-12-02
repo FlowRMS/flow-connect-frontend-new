@@ -5,19 +5,22 @@
 
 'use client';
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { 
-  useCreateCRMTask, 
-  useAddCRMTaskRelation,
-  useCRMJobLandingPages,
-  useCRMContactLandingPages,
-  useCRMCompanyLandingPages
-} from '../../hooks/useCRMApi';
+  useCreateTask, 
+  useCreateTaskLink,
+  useJobSearch,
+  useContactSearch,
+  useCompanySearch,
+  useNoteSearch
+} from '../api';
 import { taskToasts } from '../../lib/toast';
 import { AVAILABLE_TAGS, API_PRIORITY_OPTIONS, API_STATUS_OPTIONS } from '../constants';
 import type { TaskPriorityAPI, TaskStatusAPI } from '../types';
 import type { SelectedRelation } from '../types';
+import { StyledDatePicker, parseDateString, formatDateToString } from '../components';
+import { CustomSelect } from '../components';
 
 interface CreateTaskModalProps {
   isOpen: boolean;
@@ -32,8 +35,16 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
   const [status, setStatus] = useState<TaskStatusAPI>('TODO');
   const [priority, setPriority] = useState<TaskPriorityAPI>('NORMAL');
   const [dueDate, setDueDate] = useState('');
+  const [reminderDate, setReminderDate] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [customTag, setCustomTag] = useState('');
+  
+  // Assignee state
+  const [assigneeSearch, setAssigneeSearch] = useState('');
+  const [selectedAssignee, setSelectedAssignee] = useState<{ id: string; name: string } | null>(null);
+  const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
+  const assigneeInputRef = useRef<HTMLInputElement>(null);
+  const assigneeDropdownRef = useRef<HTMLDivElement>(null);
   
   // Relations state
   const [selectedJobs, setSelectedJobs] = useState<SelectedRelation[]>([]);
@@ -57,15 +68,18 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
   const companyDropdownRef = useRef<HTMLDivElement>(null);
   const [isMounted, setIsMounted] = useState(false);
 
-  // Fetch entities for selection - using landing pages endpoints
-  // These are cached by React Query and only fetch when modal is open
-  const { data: jobs = [], isLoading: isLoadingJobs } = useCRMJobLandingPages();
-  const { data: contacts = [], isLoading: isLoadingContacts } = useCRMContactLandingPages();
-  const { data: companies = [], isLoading: isLoadingCompanies } = useCRMCompanyLandingPages();
+  // Fetch entities for selection - using search endpoints
+  // Empty string returns all results
+  const { data: jobs = [], isLoading: isLoadingJobs } = useJobSearch(jobSearch, isOpen);
+  const { data: contacts = [], isLoading: isLoadingContacts } = useContactSearch(contactSearch, isOpen);
+  const { data: companies = [], isLoading: isLoadingCompanies } = useCompanySearch(companySearch, isOpen);
+  
+  // Also use contact search for assignee selection
+  const { data: assigneeContacts = [], isLoading: isLoadingAssignees } = useContactSearch(assigneeSearch, isOpen);
 
   // Mutations
-  const createMutation = useCreateCRMTask();
-  const addRelationMutation = useAddCRMTaskRelation();
+  const createMutation = useCreateTask();
+  const createLinkMutation = useCreateTaskLink();
 
   // Mount check for portal
   useEffect(() => {
@@ -89,6 +103,10 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
           companyDropdownRef.current && !companyDropdownRef.current.contains(target)) {
         setShowCompanyDropdown(false);
       }
+      if (assigneeInputRef.current && !assigneeInputRef.current.contains(target) && 
+          assigneeDropdownRef.current && !assigneeDropdownRef.current.contains(target)) {
+        setShowAssigneeDropdown(false);
+      }
     };
     
     document.addEventListener('mousedown', handleClickOutside);
@@ -97,22 +115,18 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
 
   if (!isOpen) return null;
 
-  // Filter jobs based on search
+  // Filter jobs based on selection (search is already handled by the API)
   const filteredJobs = jobs.filter(job => 
-    job.jobName?.toLowerCase().includes(jobSearch.toLowerCase()) &&
     !selectedJobs.find(s => s.id === job.id)
   );
 
-  // Filter contacts based on search
-  const filteredContacts = contacts.filter(contact => {
-    const fullName = `${contact.firstName || ''} ${contact.lastName || ''}`.toLowerCase();
-    return fullName.includes(contactSearch.toLowerCase()) &&
-      !selectedContacts.find(s => s.id === contact.id);
-  });
+  // Filter contacts based on selection
+  const filteredContacts = contacts.filter(contact => 
+    !selectedContacts.find(s => s.id === contact.id)
+  );
 
-  // Filter companies based on search
+  // Filter companies based on selection
   const filteredCompanies = companies.filter(company => 
-    company.name?.toLowerCase().includes(companySearch.toLowerCase()) &&
     !selectedCompanies.find(s => s.id === company.id)
   );
 
@@ -155,6 +169,13 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
     setShowCompanyDropdown(false);
   };
 
+  const handleSelectAssignee = (contact: { id: string; firstName?: string | null; lastName?: string | null }) => {
+    const name = `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || 'Unknown';
+    setSelectedAssignee({ id: contact.id, name });
+    setAssigneeSearch('');
+    setShowAssigneeDropdown(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -163,40 +184,45 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
     }
 
     try {
-      // Create the task
+      // Create the task with all fields
       const task = await createMutation.mutateAsync({
         title: title.trim(),
-        description: description.trim(),
+        description: description.trim() || undefined,
         status,
         priority,
         dueDate: dueDate || undefined,
-        tags: selectedTags.join(','),
+        reminderDate: reminderDate || undefined,
+        tags: selectedTags.length > 0 ? selectedTags.join(',') : undefined,
+        assignedToId: selectedAssignee?.id || undefined,
       });
 
-      // Create relations for jobs
+      // Create links for jobs using createLink with TASK as source
       for (const job of selectedJobs) {
-        await addRelationMutation.mutateAsync({
-          taskId: task.id,
-          relatedType: 'JOB',
-          relatedId: job.id,
+        await createLinkMutation.mutateAsync({
+          sourceEntityType: 'TASK',
+          sourceEntityId: task.id,
+          targetEntityType: 'JOB',
+          targetEntityId: job.id,
         });
       }
 
-      // Create relations for contacts
+      // Create links for contacts
       for (const contact of selectedContacts) {
-        await addRelationMutation.mutateAsync({
-          taskId: task.id,
-          relatedType: 'CONTACT',
-          relatedId: contact.id,
+        await createLinkMutation.mutateAsync({
+          sourceEntityType: 'TASK',
+          sourceEntityId: task.id,
+          targetEntityType: 'CONTACT',
+          targetEntityId: contact.id,
         });
       }
 
-      // Create relations for companies
+      // Create links for companies
       for (const company of selectedCompanies) {
-        await addRelationMutation.mutateAsync({
-          taskId: task.id,
-          relatedType: 'COMPANY',
-          relatedId: company.id,
+        await createLinkMutation.mutateAsync({
+          sourceEntityType: 'TASK',
+          sourceEntityId: task.id,
+          targetEntityType: 'COMPANY',
+          targetEntityId: company.id,
         });
       }
 
@@ -216,11 +242,14 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
     setStatus('TODO');
     setPriority('NORMAL');
     setDueDate('');
+    setReminderDate('');
     setSelectedTags([]);
     setSelectedJobs([]);
     setSelectedContacts([]);
     setSelectedCompanies([]);
+    setSelectedAssignee(null);
     setCustomTag('');
+    setAssigneeSearch('');
   };
 
   const handleClose = () => {
@@ -228,7 +257,7 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
     onClose();
   };
 
-  const isPending = createMutation.isPending || addRelationMutation.isPending;
+  const isPending = createMutation.isPending || createLinkMutation.isPending;
 
   const labelClass = "flex items-center gap-2 text-sm font-medium text-gray-700 mb-2";
   const inputClass = "w-full px-4 py-3 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400";
@@ -333,15 +362,14 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
                     </svg>
                     Status
                   </label>
-                  <select
+                  <CustomSelect
                     value={status}
-                    onChange={(e) => setStatus(e.target.value as TaskStatusAPI)}
-                    className={selectClass}
-                  >
-                    {API_STATUS_OPTIONS.map(s => (
-                      <option key={s} value={s}>{statusLabels[s]}</option>
-                    ))}
-                  </select>
+                    onChange={(val) => setStatus(val)}
+                    options={API_STATUS_OPTIONS.map(s => ({
+                      value: s,
+                      label: statusLabels[s],
+                    }))}
+                  />
                 </div>
                 <div>
                   <label className={labelClass}>
@@ -350,32 +378,139 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
                     </svg>
                     Priority
                   </label>
-                  <select
+                  <CustomSelect
                     value={priority}
-                    onChange={(e) => setPriority(e.target.value as TaskPriorityAPI)}
-                    className={selectClass}
-                  >
-                    {API_PRIORITY_OPTIONS.map(p => (
-                      <option key={p} value={p}>{priorityLabels[p]}</option>
-                    ))}
-                  </select>
+                    onChange={(val) => setPriority(val)}
+                    options={API_PRIORITY_OPTIONS.map(p => ({
+                      value: p,
+                      label: priorityLabels[p],
+                      color: p === 'CRITICAL' ? '#9333ea' : p === 'URGENT' ? '#ef4444' : p === 'NORMAL' ? '#3b82f6' : '#9ca3af',
+                    }))}
+                  />
                 </div>
               </div>
 
-              {/* Due Date */}
-              <div>
+              {/* Due Date and Reminder Date Row */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>
+                    <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    Due Date
+                  </label>
+                  <StyledDatePicker
+                    selected={parseDateString(dueDate)}
+                    onChange={(date) => setDueDate(formatDateToString(date))}
+                    placeholderText="Select due date..."
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>
+                    <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                    Reminder Date
+                  </label>
+                  <StyledDatePicker
+                    selected={parseDateString(reminderDate)}
+                    onChange={(date) => setReminderDate(formatDateToString(date))}
+                    placeholderText="Select reminder date..."
+                  />
+                </div>
+              </div>
+
+              {/* Assigned To */}
+              <div className="relative">
                 <label className={labelClass}>
                   <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
-                  Due Date
+                  Assigned To
                 </label>
-                <input
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  className={inputClass}
-                />
+                {selectedAssignee && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm flex items-center gap-2">
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      {selectedAssignee.name}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedAssignee(null)}
+                        className="hover:text-blue-900"
+                      >
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </span>
+                  </div>
+                )}
+                {!selectedAssignee && (
+                  <>
+                    <input
+                      ref={assigneeInputRef}
+                      type="text"
+                      value={assigneeSearch}
+                      onChange={(e) => {
+                        setAssigneeSearch(e.target.value);
+                        setShowAssigneeDropdown(true);
+                      }}
+                      onFocus={() => setShowAssigneeDropdown(true)}
+                      className={inputClass}
+                      placeholder={isLoadingAssignees ? "Loading contacts..." : "Search contacts to assign..."}
+                      disabled={isLoadingAssignees}
+                    />
+                    {showAssigneeDropdown && isMounted && createPortal(
+                      <div 
+                        ref={assigneeDropdownRef}
+                        style={{
+                          position: 'fixed',
+                          top: assigneeInputRef.current ? assigneeInputRef.current.getBoundingClientRect().bottom + 4 : 0,
+                          left: assigneeInputRef.current ? assigneeInputRef.current.getBoundingClientRect().left : 0,
+                          width: assigneeInputRef.current ? assigneeInputRef.current.offsetWidth : 'auto',
+                          zIndex: 9999,
+                        }}
+                        className="bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
+                      >
+                        {isLoadingAssignees ? (
+                          <div className="px-4 py-6 text-center">
+                            <svg className="animate-spin w-5 h-5 text-blue-500 mx-auto mb-2" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                            </svg>
+                            <p className="text-sm text-gray-500">Loading contacts...</p>
+                          </div>
+                        ) : assigneeContacts.length > 0 ? (
+                          assigneeContacts.slice(0, 10).map(contact => (
+                            <button
+                              key={contact.id}
+                              type="button"
+                              onClick={() => handleSelectAssignee(contact)}
+                              className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-gray-50 transition-colors"
+                            >
+                              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                                <svg className="w-4 h-4 text-blue-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-gray-900 truncate">{contact.firstName} {contact.lastName}</p>
+                                {contact.email && <p className="text-xs text-gray-500 truncate">{contact.email}</p>}
+                              </div>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="px-4 py-6 text-center text-sm text-gray-500">
+                            {assigneeSearch ? 'No contacts found' : 'Type to search contacts'}
+                          </div>
+                        )}
+                      </div>,
+                      document.body
+                    )}
+                  </>
+                )}
               </div>
             </div>
 

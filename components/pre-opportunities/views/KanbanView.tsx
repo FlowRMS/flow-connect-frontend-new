@@ -7,6 +7,7 @@
 
 import React, { useState, useCallback } from 'react';
 import Link from 'next/link';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   DndContext,
   DragOverlay,
@@ -30,8 +31,9 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { getPreOppsByStatus, formatCurrency, formatDate, getStatusLabel } from '../utils';
 import type { PreOpportunityLandingPage, PreOppStage, PreOpportunityStatus } from '../types';
-import { useUpdateCRMPreOpportunity, useDeleteCRMPreOpportunity } from '../../hooks/useCRMApi';
+import { useUpdateCRMPreOpportunity, useDeleteCRMPreOpportunity, crmQueryKeys } from '../../hooks/useCRMApi';
 import { fetchPreOpportunity } from '../../lib/crm-graphql';
+import type { PreOpportunityLandingPage as APIPreOppLandingPage } from '../../lib/crm-graphql';
 import { CreatePreOpportunityModal } from '../modals/CreatePreOpportunityModal';
 import { preOpportunityToasts } from '../../lib/toast';
 
@@ -297,6 +299,7 @@ export function KanbanView({
   setActiveId,
   onRefresh,
 }: KanbanViewProps) {
+  const queryClient = useQueryClient();
   const updateMutation = useUpdateCRMPreOpportunity();
   const deleteMutation = useDeleteCRMPreOpportunity();
   
@@ -369,14 +372,35 @@ export function KanbanView({
     
     // Only update if status changed
     if (draggedItem.status !== targetStatus) {
+      // Apply immediate optimistic update to cache BEFORE fetching
+      const previousPreOpps = queryClient.getQueryData<APIPreOppLandingPage[]>(
+        crmQueryKeys.preOpportunityLandingPages()
+      );
+      
+      if (previousPreOpps) {
+        queryClient.setQueryData<APIPreOppLandingPage[]>(
+          crmQueryKeys.preOpportunityLandingPages(),
+          previousPreOpps.map(preOpp =>
+            preOpp.id === activePreOppId
+              ? { ...preOpp, status: targetStatus as APIPreOppLandingPage['status'] }
+              : preOpp
+          )
+        );
+      }
+      
       try {
         // Fetch full pre-opportunity data to get all required fields
         const fullPreOpp = await fetchPreOpportunity(activePreOppId);
         if (!fullPreOpp) {
+          // Rollback on error
+          if (previousPreOpps) {
+            queryClient.setQueryData(crmQueryKeys.preOpportunityLandingPages(), previousPreOpps);
+          }
           throw new Error('Failed to fetch pre-opportunity data');
         }
 
         // Build the update payload with all required fields
+        // Include optimisticStatus for mutation-level optimistic update
         await updateMutation.mutateAsync({
           id: activePreOppId,
           entityNumber: fullPreOpp.entityNumber,
@@ -404,15 +428,19 @@ export function KanbanView({
             leadTime: d.leadTime,
             endUserId: d.endUserId,
           })) || [],
+          optimisticStatus: targetStatus,
         });
         preOpportunityToasts.statusChanged(draggedItem.entityNumber, getStatusLabel(targetStatus));
-        onRefresh();
       } catch (error) {
+        // Rollback optimistic update on error
+        if (previousPreOpps) {
+          queryClient.setQueryData(crmQueryKeys.preOpportunityLandingPages(), previousPreOpps);
+        }
         console.error('Failed to update status:', error);
         preOpportunityToasts.updateError(error instanceof Error ? error.message : 'Failed to update status');
       }
     }
-  }, [preOpps, stages, updateMutation, onRefresh, setActiveId]);
+  }, [preOpps, stages, updateMutation, setActiveId, queryClient]);
 
   // Handle delete
   const handleDelete = async (preOppId: string) => {

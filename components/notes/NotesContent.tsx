@@ -6,6 +6,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import AdvancedFilters from '../AdvancedFilters';
 import SortButton from '../SortButton';
 import { useNotesState } from './hooks/useNotesState';
@@ -21,6 +22,8 @@ import { EditNoteModal } from './modals/EditNoteModal';
 export default function NotesContent() {
   // Track if component is mounted to avoid hydration mismatch
   const [isMounted, setIsMounted] = useState(false);
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     setIsMounted(true);
@@ -33,6 +36,7 @@ export default function NotesContent() {
     searchQuery,
     setSearchQuery,
     filteredNotes,
+    notes,
     selectedNote,
     setSelectedNote,
     showSummarizeModal,
@@ -43,7 +47,6 @@ export default function NotesContent() {
     setShowEditModal,
     noteToEdit,
     setNoteToEdit,
-    notes,
     isLoading,
     error,
     refetch,
@@ -60,6 +63,19 @@ export default function NotesContent() {
     activeSort,
     handleSortChange,
   } = useNotesState();
+
+  // Check for note ID in query params to auto-select
+  useEffect(() => {
+    const noteId = searchParams.get('id');
+    if (noteId && notes.length > 0 && !selectedNote) {
+      const note = notes.find(n => n.id === noteId);
+      if (note) {
+        setSelectedNote(note);
+        // Clear the query param after selecting
+        router.replace('/notes', { scroll: false });
+      }
+    }
+  }, [searchParams, notes, selectedNote, setSelectedNote, router]);
 
   // Filter and sort configuration with dynamic options
   const noteFilterOptions = getNoteFilterOptions(uniqueTitles, uniqueTags, uniqueCreators);

@@ -5,7 +5,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTasksState } from './tasks/hooks/useTasksState';
 import { getTaskFilterOptions } from './tasks/config/filterConfig';
 import { TASK_CATEGORIES, AVAILABLE_ASSIGNEES, AVAILABLE_PRIORITIES, AVAILABLE_TAGS, API_STATUS_OPTIONS, API_PRIORITY_OPTIONS } from './tasks/constants';
@@ -20,6 +20,13 @@ import AdvancedFilters from './AdvancedFilters';
 import type { TaskStatusAPI } from './tasks/types';
 
 export default function TasksContent() {
+  // Track if component is mounted to prevent hydration mismatch
+  const [isMounted, setIsMounted] = useState(false);
+  
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const {
     // Loading states
     isLoading,
@@ -108,8 +115,9 @@ export default function TasksContent() {
     e.preventDefault();
   };
 
-  // Loading state
-  if (isLoading) {
+  // Show consistent loading state during SSR and initial client render
+  // This prevents hydration mismatch caused by localStorage-dependent query enabling
+  if (!isMounted || isLoading) {
     return (
       <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
         <div className="flex items-center justify-center h-64">
@@ -495,6 +503,7 @@ export default function TasksContent() {
           editState={editState}
           dropdowns={dropdowns}
           onUpdateTask={updateTask}
+          onToggleComplete={toggleTaskComplete}
           onStartEditing={startEditing}
           onSaveEdit={saveEdit}
           onCancelEdit={cancelEdit}
@@ -510,6 +519,7 @@ export default function TasksContent() {
         <ListView
           tasks={filteredTasks}
           onUpdateTask={updateTask}
+          onToggleComplete={toggleTaskComplete}
           onSelectTask={setSelectedTask}
         />
       )}

@@ -9,15 +9,12 @@ import type {
   TaskStatus,
   TaskStatusAPI,
   TaskPriorityAPI,
-  CRMTask,
-  API_STATUS_TO_UI,
-  API_PRIORITY_TO_UI,
-  UI_STATUS_TO_API,
-  UI_PRIORITY_TO_API
+  TaskLandingPage,
+  ParsedTask,
+  TaskRelatedEntities,
 } from './types';
 import type { ActiveFilter } from '../AdvancedFilters';
 import { formatLocalDate } from '../lib/date-utils';
-import type { Job, Contact, Company, TaskRelation, TaskLandingPage } from '../lib/crm-graphql';
 
 // Status mappings
 const apiStatusToUI: Record<TaskStatusAPI, TaskStatus> = {
@@ -114,87 +111,26 @@ export function tagsToString(tags: string[]): string {
 }
 
 /**
- * Convert CRM Task to UI Task
- */
-export function convertCRMTaskToUI(
-  crmTask: CRMTask,
-  relations?: TaskRelation[],
-  relatedJobs?: Job[],
-  relatedContacts?: Contact[],
-  relatedCompanies?: Company[]
-): Task {
-  const tags = parseTagsString(crmTask.tags);
-  const uiStatus = convertAPIStatusToUI(crmTask.status, crmTask.dueDate);
-  const uiPriority = convertAPIPriorityToUI(crmTask.priority);
-
-  // Build entities from relations
-  const jobRelations = relations?.filter(r => r.relatedType === 'JOB') || [];
-  const contactRelations = relations?.filter(r => r.relatedType === 'CONTACT') || [];
-  const companyRelations = relations?.filter(r => r.relatedType === 'COMPANY') || [];
-
-  const entities = {
-    jobs: jobRelations.map(r => {
-      const job = relatedJobs?.find(j => j.id === r.relatedId);
-      return { id: r.relatedId, name: job?.jobName || 'Unknown Job' };
-    }),
-    contacts: contactRelations.map(r => {
-      const contact = relatedContacts?.find(c => c.id === r.relatedId);
-      return { 
-        id: r.relatedId, 
-        name: contact ? `${contact.firstName} ${contact.lastName}` : 'Unknown Contact' 
-      };
-    }),
-    companies: companyRelations.map(r => {
-      const company = relatedCompanies?.find(c => c.id === r.relatedId);
-      return { id: r.relatedId, name: company?.name || 'Unknown Company' };
-    }),
-  };
-
-  return {
-    id: crmTask.id,
-    title: crmTask.title || '',
-    description: crmTask.description || '',
-    dueDate: crmTask.dueDate || '',
-    assignedTo: crmTask.assignedToId || 'Unassigned',
-    assignedToId: crmTask.assignedToId,
-    taskType: 'General', // Default, can be derived from tags if needed
-    status: uiStatus,
-    apiStatus: crmTask.status,
-    tags,
-    entities: (entities.jobs?.length || entities.contacts?.length || entities.companies?.length) ? entities : undefined,
-    priority: uiPriority,
-    apiPriority: crmTask.priority,
-    completed: crmTask.status === 'COMPLETED',
-    comments: 0,
-    createdBy: crmTask.createdBy,
-    createdAt: crmTask.createdAt,
-    relationIds: {
-      jobs: jobRelations.map(r => r.relatedId),
-      contacts: contactRelations.map(r => r.relatedId),
-      companies: companyRelations.map(r => r.relatedId),
-    },
-  };
-}
-
-/**
  * Convert TaskLandingPage to UI Task
  * Used for list views where we get data from findLandingPages query
  */
 export function convertTaskLandingPageToUI(taskLanding: TaskLandingPage): Task {
   const uiStatus = convertAPIStatusToUI(taskLanding.status, taskLanding.dueDate);
   const uiPriority = convertAPIPriorityToUI(taskLanding.priority);
+  const tags = parseTagsString(taskLanding.tags);
 
   return {
     id: taskLanding.id,
     title: taskLanding.title || '',
     description: taskLanding.description || '',
     dueDate: taskLanding.dueDate || '',
+    reminderDate: taskLanding.reminderDate || '',
     assignedTo: taskLanding.assignedTo || 'Unassigned',
-    assignedToId: undefined, // Not available in landing page
+    assignedToId: undefined,
     taskType: 'General',
     status: uiStatus,
     apiStatus: taskLanding.status,
-    tags: [], // Tags not available in landing page, fetch from detail if needed
+    tags,
     entities: undefined,
     priority: uiPriority,
     apiPriority: taskLanding.priority,
@@ -202,7 +138,30 @@ export function convertTaskLandingPageToUI(taskLanding: TaskLandingPage): Task {
     comments: 0,
     createdBy: taskLanding.createdBy,
     createdAt: taskLanding.createdAt,
-    relationIds: undefined,
+  };
+}
+
+/**
+ * Convert TaskRelatedEntities to TaskEntities UI format
+ */
+export function convertRelatedEntitiesToUI(relatedEntities: TaskRelatedEntities) {
+  return {
+    jobs: relatedEntities.jobs?.map(job => ({
+      id: job.id,
+      name: job.jobName || 'Unknown Job',
+    })) || [],
+    contacts: relatedEntities.contacts?.map(contact => ({
+      id: contact.id,
+      name: `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || 'Unknown Contact',
+    })) || [],
+    companies: relatedEntities.companies?.map(company => ({
+      id: company.id,
+      name: company.name || 'Unknown Company',
+    })) || [],
+    notes: relatedEntities.notes?.map(note => ({
+      id: note.id,
+      name: note.title || 'Untitled Note',
+    })) || [],
   };
 }
 

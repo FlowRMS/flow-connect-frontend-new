@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { JobDetailHeader } from './JobDetailHeader';
 import { JobDetailsForm } from './JobDetailsForm';
 import { ConnectedEntitiesSection } from './ConnectedEntitiesSection';
+import ConnectedNotesSection from '../../notes/ConnectedNotesSection';
 import { RepTypeModal } from '../modals/RepTypeModal';
 import { DeleteJobConfirmModal } from '../modals/DeleteJobConfirmModal';
 import type { Job, RepType } from '../types';
@@ -87,6 +88,13 @@ export function JobDetailView({
         jobId={job.id}
         onCompanyClick={onCompanyClick}
         onContactClick={onContactClick}
+      />
+
+      {/* Connected Notes */}
+      <ConnectedNotesSection
+        entityId={job.id}
+        entityType="JOB"
+        title="Connected Notes"
       />
 
       <RepTypeModal

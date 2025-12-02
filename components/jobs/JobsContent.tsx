@@ -147,6 +147,7 @@ export default function JobsContent() {
     }
     
     try {
+      // Use optimistic update - UI updates immediately
       await updateJobMutation.mutateAsync({
         id: draggedJobId,
         input: {
@@ -157,10 +158,10 @@ export default function JobsContent() {
           endDate: draggedJob.endDate !== '-' ? draggedJob.endDate : undefined,
           description: draggedJob.description,
         },
+        optimisticStatusName: targetStatusName,
       });
       
       jobToasts.updateSuccess(`${draggedJob.name} moved to ${targetStatusName}`);
-      refetchJobs();
     } catch (err) {
       console.error('Failed to update job status:', err);
       jobToasts.updateError(err instanceof Error ? err.message : undefined);
@@ -212,6 +213,7 @@ export default function JobsContent() {
     }
 
     try {
+      // Use optimistic update - UI updates immediately
       await updateJobMutation.mutateAsync({
         id: jobId,
         input: {
@@ -222,10 +224,10 @@ export default function JobsContent() {
           endDate: job.endDate !== '-' ? job.endDate : undefined,
           description: job.description,
         },
+        optimisticStatusName: targetStatusName,
       });
       
       jobToasts.updateSuccess(checked ? `${job.name} marked as ${targetStatusName}` : `${job.name} moved to ${targetStatusName}`);
-      refetchJobs();
     } catch (err) {
       console.error('Failed to update job status:', err);
       jobToasts.updateError(parseApiError(err));

@@ -8,6 +8,7 @@ import type { CompanySourceType, Contact as APIContact, Job as APIJob } from '..
 import CompanyDetailHeader from './CompanyDetailHeader';
 import CompanyInfoForm from './CompanyInfoForm';
 import CompanyRelatedEntities from './CompanyRelatedEntities';
+import ConnectedNotesSection from '../../notes/ConnectedNotesSection';
 import DeleteConfirmModal from './DeleteConfirmModal';
 
 interface CompanyDetailViewProps {
@@ -71,6 +72,13 @@ export default function CompanyDetailView({
         company={company}
         onContactClick={onContactClick}
         onJobClick={onJobClick}
+      />
+
+      {/* Connected Notes */}
+      <ConnectedNotesSection
+        entityId={company.id}
+        entityType="COMPANY"
+        title="Connected Notes"
       />
 
       {deleteConfirmId && (

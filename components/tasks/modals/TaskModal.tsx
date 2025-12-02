@@ -4,22 +4,29 @@
  */
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Task, TaskComment, TaskStatusAPI, TaskPriorityAPI } from '../types';
-import { getInitials, getAvatarColor, getStatusColor, getPriorityColor, formatDate, parseTagsString } from '../utils';
+import { getInitials, getAvatarColor, getStatusColor, getPriorityColor, formatDate, parseTagsString, convertRelatedEntitiesToUI } from '../utils';
 import { 
-  useCRMTaskConversations, 
-  useAddCRMTaskConversation,
-  useCRMTask,
-  useUpdateCRMTask,
-  useDeleteCRMTask,
-  useCRMTaskRelations,
-  useDeleteCRMTaskRelation,
-  crmQueryKeys
-} from '../../hooks/useCRMApi';
+  useTaskConversations, 
+  useAddTaskConversation,
+  useTask,
+  useUpdateTask,
+  useDeleteTask,
+  useTaskRelatedEntities,
+  useDeleteTaskLinkByEntities,
+  useCreateTaskLink,
+  useJobSearch,
+  useContactSearch,
+  useCompanySearch,
+  useNoteSearch,
+  tasksQueryKeys
+} from '../api';
 import { useQueryClient } from '@tanstack/react-query';
 import { taskToasts } from '../../lib/toast';
 import { API_STATUS_OPTIONS, API_PRIORITY_OPTIONS, AVAILABLE_TAGS } from '../constants';
+import { StyledDatePicker, parseDateString, formatDateToString, CustomSelect } from '../components';
 
 interface TaskModalProps {
   task: Task;
@@ -45,8 +52,25 @@ export default function TaskModal({
   const [editStatus, setEditStatus] = useState<TaskStatusAPI>(task.apiStatus);
   const [editPriority, setEditPriority] = useState<TaskPriorityAPI>(task.apiPriority);
   const [editDueDate, setEditDueDate] = useState(task.dueDate);
+  const [editReminderDate, setEditReminderDate] = useState(task.reminderDate || '');
   const [editTags, setEditTags] = useState<string[]>(task.tags || []);
   const [customTag, setCustomTag] = useState('');
+  
+  // Assignee editing state
+  const [editAssigneeName, setEditAssigneeName] = useState(task.assignedTo || 'Unassigned');
+  const [editAssigneeId, setEditAssigneeId] = useState(task.assignedToId || '');
+  const [assigneeSearch, setAssigneeSearch] = useState('');
+  const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
+  const assigneeInputRef = useRef<HTMLInputElement>(null);
+  const assigneeDropdownRef = useRef<HTMLDivElement>(null);
+  
+  // Entity linking state
+  const [showAddEntityDropdown, setShowAddEntityDropdown] = useState(false);
+  const [addEntityType, setAddEntityType] = useState<'JOB' | 'CONTACT' | 'COMPANY' | 'NOTE' | null>(null);
+  const [entitySearch, setEntitySearch] = useState('');
+  const entitySearchRef = useRef<HTMLInputElement>(null);
+  const entityDropdownRef = useRef<HTMLDivElement>(null);
+  const [isMounted, setIsMounted] = useState(false);
   
   // New comment state
   const [newComment, setNewComment] = useState('');
@@ -55,26 +79,64 @@ export default function TaskModal({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   
   // Fetch full task details (includes tags)
-  const { data: fullTask } = useCRMTask(task.id);
+  const { data: fullTask } = useTask(task.id);
   
   // Fetch conversations from API
-  const { data: apiConversations = [], isLoading: isLoadingConversations } = useCRMTaskConversations(task.id);
+  const { data: apiConversations = [], isLoading: isLoadingConversations } = useTaskConversations(task.id);
   
-  // Fetch task relations
-  const { data: taskRelations = [] } = useCRMTaskRelations(task.id);
+  // Fetch task related entities
+  const { data: relatedEntities } = useTaskRelatedEntities(task.id);
+  
+  // Entity search queries
+  const { data: searchedJobs = [], isLoading: isLoadingJobs } = useJobSearch(entitySearch, isEditMode && addEntityType === 'JOB');
+  const { data: searchedContacts = [], isLoading: isLoadingContacts } = useContactSearch(entitySearch, isEditMode && addEntityType === 'CONTACT');
+  const { data: searchedCompanies = [], isLoading: isLoadingCompanies } = useCompanySearch(entitySearch, isEditMode && addEntityType === 'COMPANY');
+  const { data: searchedNotes = [], isLoading: isLoadingNotes } = useNoteSearch(entitySearch, isEditMode && addEntityType === 'NOTE');
+  
+  // Assignee search (uses contact search)
+  const { data: assigneeContacts = [], isLoading: isLoadingAssignees } = useContactSearch(assigneeSearch, isEditMode && showAssigneeDropdown);
   
   // Mutations
-  const addConversationMutation = useAddCRMTaskConversation();
-  const updateTaskMutation = useUpdateCRMTask();
-  const deleteTaskMutation = useDeleteCRMTask();
-  const deleteRelationMutation = useDeleteCRMTaskRelation();
+  const addConversationMutation = useAddTaskConversation();
+  const updateTaskMutation = useUpdateTask();
+  const deleteTaskMutation = useDeleteTask();
+  const deleteLinkMutation = useDeleteTaskLinkByEntities();
+  const createLinkMutation = useCreateTaskLink();
 
-  // Update edit state when full task loads (for tags)
+  // Mount check for portal
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Update edit state when full task loads (for tags and reminderDate)
   useEffect(() => {
     if (fullTask?.tags) {
       setEditTags(parseTagsString(fullTask.tags));
     }
+    if (fullTask?.reminderDate) {
+      setEditReminderDate(fullTask.reminderDate);
+    }
   }, [fullTask]);
+
+  // Close entity dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (entitySearchRef.current && !entitySearchRef.current.contains(target) && 
+          entityDropdownRef.current && !entityDropdownRef.current.contains(target)) {
+        setAddEntityType(null);
+        setEntitySearch('');
+      }
+      // Also handle assignee dropdown
+      if (assigneeInputRef.current && !assigneeInputRef.current.contains(target) && 
+          assigneeDropdownRef.current && !assigneeDropdownRef.current.contains(target)) {
+        setShowAssigneeDropdown(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Convert API conversations to TaskComment format
   const conversation: TaskComment[] = apiConversations.map(conv => ({
@@ -124,13 +186,14 @@ export default function TaskModal({
           status: editStatus,
           priority: editPriority,
           dueDate: editDueDate || undefined,
+          reminderDate: editReminderDate || undefined,
           tags: editTags.join(','),
+          assignedToId: editAssigneeId || undefined,
         }
       });
       
-      queryClient.invalidateQueries({ queryKey: crmQueryKeys.tasks() });
-      queryClient.invalidateQueries({ queryKey: crmQueryKeys.taskLandingPages() });
-      queryClient.invalidateQueries({ queryKey: crmQueryKeys.task(task.id) });
+      queryClient.invalidateQueries({ queryKey: tasksQueryKeys.list() });
+      queryClient.invalidateQueries({ queryKey: tasksQueryKeys.detail(task.id) });
       
       setIsEditMode(false);
       taskToasts.updateSuccess(editTitle);
@@ -147,15 +210,19 @@ export default function TaskModal({
     setEditStatus(task.apiStatus);
     setEditPriority(task.apiPriority);
     setEditDueDate(task.dueDate);
+    setEditReminderDate(task.reminderDate || '');
     setEditTags(fullTask?.tags ? parseTagsString(fullTask.tags) : task.tags);
+    setEditAssigneeName(task.assignedTo || 'Unassigned');
+    setEditAssigneeId(task.assignedToId || '');
     setIsEditMode(false);
+    setAddEntityType(null);
+    setEntitySearch('');
   };
 
   const handleDeleteTask = async () => {
     try {
       await deleteTaskMutation.mutateAsync(task.id);
-      queryClient.invalidateQueries({ queryKey: crmQueryKeys.tasks() });
-      queryClient.invalidateQueries({ queryKey: crmQueryKeys.taskLandingPages() });
+      queryClient.invalidateQueries({ queryKey: tasksQueryKeys.list() });
       taskToasts.deleteSuccess();
       onTaskDeleted?.();
       onClose();
@@ -182,11 +249,76 @@ export default function TaskModal({
     }
   };
 
-  const handleDeleteRelation = async (relationId: string) => {
+  const handleDeleteRelation = async (entityType: 'JOB' | 'CONTACT' | 'COMPANY' | 'NOTE', entityId: string) => {
     try {
-      await deleteRelationMutation.mutateAsync({ id: relationId, taskId: task.id });
+      await deleteLinkMutation.mutateAsync({ 
+        sourceEntityType: 'TASK',
+        sourceEntityId: task.id,
+        targetEntityType: entityType,
+        targetEntityId: entityId
+      });
+      // Invalidate related entities cache
+      queryClient.invalidateQueries({ queryKey: tasksQueryKeys.relatedEntities(task.id) });
     } catch (error) {
       console.error('Failed to delete relation:', error);
+    }
+  };
+
+  const handleAddEntity = async (entityType: 'JOB' | 'CONTACT' | 'COMPANY' | 'NOTE', entityId: string) => {
+    try {
+      await createLinkMutation.mutateAsync({
+        sourceEntityType: 'TASK',
+        sourceEntityId: task.id,
+        targetEntityType: entityType,
+        targetEntityId: entityId
+      });
+      // Invalidate related entities cache
+      queryClient.invalidateQueries({ queryKey: tasksQueryKeys.relatedEntities(task.id) });
+      setAddEntityType(null);
+      setEntitySearch('');
+    } catch (error) {
+      console.error('Failed to add relation:', error);
+    }
+  };
+
+  // Convert related entities to UI format
+  const linkedEntities = relatedEntities ? convertRelatedEntitiesToUI(relatedEntities) : null;
+  const hasLinkedEntities = linkedEntities && (
+    linkedEntities.jobs.length > 0 || 
+    linkedEntities.contacts.length > 0 || 
+    linkedEntities.companies.length > 0 ||
+    linkedEntities.notes.length > 0
+  );
+
+  // Get current entity search results based on type
+  const getEntitySearchResults = () => {
+    switch (addEntityType) {
+      case 'JOB':
+        return { 
+          data: searchedJobs.filter(j => !linkedEntities?.jobs.some(lj => lj.id === j.id)), 
+          isLoading: isLoadingJobs,
+          getName: (item: typeof searchedJobs[0]) => item.jobName || 'Unnamed Job'
+        };
+      case 'CONTACT':
+        return { 
+          data: searchedContacts.filter(c => !linkedEntities?.contacts.some(lc => lc.id === c.id)), 
+          isLoading: isLoadingContacts,
+          getName: (item: typeof searchedContacts[0]) => `${item.firstName || ''} ${item.lastName || ''}`.trim() || 'Unnamed Contact'
+        };
+      case 'COMPANY':
+        return { 
+          data: searchedCompanies.filter(c => !linkedEntities?.companies.some(lc => lc.id === c.id)), 
+          isLoading: isLoadingCompanies,
+          getName: (item: typeof searchedCompanies[0]) => item.name || 'Unnamed Company'
+        };
+      case 'NOTE':
+        return { 
+          data: searchedNotes.filter(n => !linkedEntities?.notes.some(ln => ln.id === n.id)), 
+          isLoading: isLoadingNotes,
+          getName: (item: typeof searchedNotes[0]) => item.title || 'Untitled Note'
+        };
+      default:
+        return { data: [], isLoading: false, getName: () => '' };
     }
   };
 
@@ -205,6 +337,19 @@ export default function TaskModal({
     'COMPLETED': 'Completed',
     'CANCELLED': 'Cancelled'
   };
+  
+  // CustomSelect options for status
+  const statusOptions = API_STATUS_OPTIONS.map(s => ({
+    value: s,
+    label: statusLabels[s],
+  }));
+  
+  // CustomSelect options for priority
+  const priorityOptions = API_PRIORITY_OPTIONS.map(p => ({
+    value: p,
+    label: priorityLabels[p],
+    color: p === 'CRITICAL' ? '#9333ea' : p === 'URGENT' ? '#ef4444' : p === 'NORMAL' ? '#3b82f6' : '#9ca3af',
+  }));
 
   const inputClass = "w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]";
   const selectClass = "px-3 py-2 border border-[var(--border)] rounded-lg text-sm bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]";
@@ -250,24 +395,16 @@ export default function TaskModal({
                 
                 {isEditMode ? (
                   <div className="flex items-center gap-2 flex-wrap">
-                    <select
+                    <CustomSelect
                       value={editStatus}
-                      onChange={(e) => setEditStatus(e.target.value as TaskStatusAPI)}
-                      className={selectClass}
-                    >
-                      {API_STATUS_OPTIONS.map(s => (
-                        <option key={s} value={s}>{statusLabels[s]}</option>
-                      ))}
-                    </select>
-                    <select
+                      options={statusOptions}
+                      onChange={(val) => setEditStatus(val as TaskStatusAPI)}
+                    />
+                    <CustomSelect
                       value={editPriority}
-                      onChange={(e) => setEditPriority(e.target.value as TaskPriorityAPI)}
-                      className={selectClass}
-                    >
-                      {API_PRIORITY_OPTIONS.map(p => (
-                        <option key={p} value={p}>{priorityLabels[p]}</option>
-                      ))}
-                    </select>
+                      options={priorityOptions}
+                      onChange={(val) => setEditPriority(val as TaskPriorityAPI)}
+                    />
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 flex-wrap">
@@ -332,28 +469,122 @@ export default function TaskModal({
                   <h3 className="text-sm font-semibold text-[var(--foreground)] mb-2 uppercase tracking-wider">
                     Assigned To
                   </h3>
-                  <div className="flex items-center gap-2">
-                    <div className={`w-8 h-8 rounded-full ${getAvatarColor(task.assignedTo)} flex items-center justify-center text-white text-xs font-semibold`}>
-                      {getInitials(task.assignedTo)}
+                  {isEditMode ? (
+                    <div className="relative">
+                      <input
+                        ref={assigneeInputRef}
+                        type="text"
+                        value={assigneeSearch || editAssigneeName}
+                        onChange={(e) => {
+                          setAssigneeSearch(e.target.value);
+                          setShowAssigneeDropdown(true);
+                        }}
+                        onFocus={() => setShowAssigneeDropdown(true)}
+                        placeholder="Search contacts..."
+                        className={inputClass}
+                      />
+                      {showAssigneeDropdown && isMounted && createPortal(
+                        <div
+                          ref={assigneeDropdownRef}
+                          style={{
+                            position: 'fixed',
+                            top: assigneeInputRef.current ? assigneeInputRef.current.getBoundingClientRect().bottom + 4 : 0,
+                            left: assigneeInputRef.current ? assigneeInputRef.current.getBoundingClientRect().left : 0,
+                            width: assigneeInputRef.current ? assigneeInputRef.current.offsetWidth : 'auto',
+                            zIndex: 9999,
+                          }}
+                          className="bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
+                        >
+                          {isLoadingAssignees ? (
+                            <div className="px-4 py-3 text-center text-sm text-gray-500">Loading...</div>
+                          ) : assigneeContacts.length === 0 ? (
+                            <div className="px-4 py-3 text-center text-sm text-gray-500">
+                              {assigneeSearch ? 'No contacts found' : 'Type to search contacts'}
+                            </div>
+                          ) : (
+                            assigneeContacts.slice(0, 10).map((contact) => {
+                              const contactName = `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || 'Unnamed Contact';
+                              return (
+                                <button
+                                  key={contact.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setEditAssigneeName(contactName);
+                                    setEditAssigneeId(contact.id);
+                                    setAssigneeSearch('');
+                                    setShowAssigneeDropdown(false);
+                                  }}
+                                  className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 transition-colors flex items-center gap-2"
+                                >
+                                  <div className={`w-6 h-6 rounded-full ${getAvatarColor(contactName)} flex items-center justify-center text-white text-xs font-semibold`}>
+                                    {getInitials(contactName)}
+                                  </div>
+                                  <span>{contactName}</span>
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>,
+                        document.body
+                      )}
+                      {editAssigneeName && editAssigneeName !== 'Unassigned' && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditAssigneeName('Unassigned');
+                            setEditAssigneeId('');
+                            setAssigneeSearch('');
+                          }}
+                          className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      )}
                     </div>
-                    <span className="text-sm text-[var(--foreground)]">{task.assignedTo}</span>
-                  </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <div className={`w-8 h-8 rounded-full ${getAvatarColor(task.assignedTo)} flex items-center justify-center text-white text-xs font-semibold`}>
+                        {getInitials(task.assignedTo)}
+                      </div>
+                      <span className="text-sm text-[var(--foreground)]">{task.assignedTo}</span>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold text-[var(--foreground)] mb-2 uppercase tracking-wider">
                     Due Date
                   </h3>
                   {isEditMode ? (
-                    <input
-                      type="date"
-                      value={editDueDate}
-                      onChange={(e) => setEditDueDate(e.target.value)}
-                      className={inputClass}
+                    <StyledDatePicker
+                      selected={parseDateString(editDueDate)}
+                      onChange={(date) => setEditDueDate(formatDateToString(date))}
+                      placeholderText="Select due date..."
                     />
                   ) : (
                     <p className="text-sm text-[var(--foreground)]">{formatDate(task.dueDate)}</p>
                   )}
                 </div>
+              </div>
+
+              {/* Reminder Date */}
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <h3 className="text-sm font-semibold text-[var(--foreground)] mb-2 uppercase tracking-wider">
+                    Reminder Date
+                  </h3>
+                  {isEditMode ? (
+                    <StyledDatePicker
+                      selected={parseDateString(editReminderDate)}
+                      onChange={(date) => setEditReminderDate(formatDateToString(date))}
+                      placeholderText="Select reminder date..."
+                    />
+                  ) : (
+                    <p className="text-sm text-[var(--foreground)]">{task.reminderDate ? formatDate(task.reminderDate) : 'Not set'}</p>
+                  )}
+                </div>
+                <div />
               </div>
 
               {/* Description */}
@@ -379,155 +610,243 @@ export default function TaskModal({
               </div>
 
               {/* Related Entities from API */}
-              {taskRelations.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-semibold text-[var(--foreground)] mb-2 uppercase tracking-wider">
-                    Linked Entities
-                  </h3>
-                  <div className="space-y-2">
-                    {taskRelations.filter(r => r.relatedType === 'JOB').length > 0 && (
-                      <div className="flex items-start gap-2">
-                        <span className="text-xs text-[var(--muted-foreground)] min-w-[80px]">Jobs:</span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {taskRelations.filter(r => r.relatedType === 'JOB').map((rel) => (
-                            <span
-                              key={rel.id}
-                              className="px-2.5 py-1 bg-green-100 text-green-700 rounded text-xs font-medium flex items-center gap-1 group"
-                            >
-                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                              </svg>
-                              Job
-                              {isEditMode && (
-                                <button
-                                  onClick={() => handleDeleteRelation(rel.id)}
-                                  className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
-                                >
-                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                  </svg>
-                                </button>
-                              )}
-                            </span>
-                          ))}
-                        </div>
+              <div>
+                <h3 className="text-sm font-semibold text-[var(--foreground)] mb-2 uppercase tracking-wider">
+                  Linked Entities
+                </h3>
+                <div className="space-y-2">
+                  {linkedEntities?.jobs && linkedEntities.jobs.length > 0 && (
+                    <div className="flex items-start gap-2">
+                      <span className="text-xs text-[var(--muted-foreground)] min-w-[80px]">Jobs:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {linkedEntities.jobs.map((job) => (
+                          <span
+                            key={job.id}
+                            className="px-2.5 py-1 bg-green-100 text-green-700 rounded text-xs font-medium flex items-center gap-1 group"
+                          >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                            {job.name}
+                            {isEditMode && (
+                              <button
+                                onClick={() => handleDeleteRelation('JOB', job.id)}
+                                className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
+                              >
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </span>
+                        ))}
                       </div>
-                    )}
-                    {taskRelations.filter(r => r.relatedType === 'CONTACT').length > 0 && (
-                      <div className="flex items-start gap-2">
-                        <span className="text-xs text-[var(--muted-foreground)] min-w-[80px]">Contacts:</span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {taskRelations.filter(r => r.relatedType === 'CONTACT').map((rel) => (
-                            <span
-                              key={rel.id}
-                              className="px-2.5 py-1 bg-orange-100 text-orange-700 rounded text-xs font-medium flex items-center gap-1 group"
-                            >
-                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                              </svg>
-                              Contact
-                              {isEditMode && (
-                                <button
-                                  onClick={() => handleDeleteRelation(rel.id)}
-                                  className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
-                                >
-                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                  </svg>
-                                </button>
-                              )}
-                            </span>
-                          ))}
-                        </div>
+                    </div>
+                  )}
+                  {linkedEntities?.contacts && linkedEntities.contacts.length > 0 && (
+                    <div className="flex items-start gap-2">
+                      <span className="text-xs text-[var(--muted-foreground)] min-w-[80px]">Contacts:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {linkedEntities.contacts.map((contact) => (
+                          <span
+                            key={contact.id}
+                            className="px-2.5 py-1 bg-orange-100 text-orange-700 rounded text-xs font-medium flex items-center gap-1 group"
+                          >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                            {contact.name}
+                            {isEditMode && (
+                              <button
+                                onClick={() => handleDeleteRelation('CONTACT', contact.id)}
+                                className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
+                              >
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </span>
+                        ))}
                       </div>
-                    )}
-                    {taskRelations.filter(r => r.relatedType === 'COMPANY').length > 0 && (
-                      <div className="flex items-start gap-2">
-                        <span className="text-xs text-[var(--muted-foreground)] min-w-[80px]">Companies:</span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {taskRelations.filter(r => r.relatedType === 'COMPANY').map((rel) => (
-                            <span
-                              key={rel.id}
-                              className="px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded text-xs font-medium flex items-center gap-1 group"
-                            >
-                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                              </svg>
-                              Company
-                              {isEditMode && (
-                                <button
-                                  onClick={() => handleDeleteRelation(rel.id)}
-                                  className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
-                                >
-                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                  </svg>
-                                </button>
-                              )}
-                            </span>
-                          ))}
-                        </div>
+                    </div>
+                  )}
+                  {linkedEntities?.companies && linkedEntities.companies.length > 0 && (
+                    <div className="flex items-start gap-2">
+                      <span className="text-xs text-[var(--muted-foreground)] min-w-[80px]">Companies:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {linkedEntities.companies.map((company) => (
+                          <span
+                            key={company.id}
+                            className="px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded text-xs font-medium flex items-center gap-1 group"
+                          >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                            </svg>
+                            {company.name}
+                            {isEditMode && (
+                              <button
+                                onClick={() => handleDeleteRelation('COMPANY', company.id)}
+                                className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
+                              >
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </span>
+                        ))}
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
+                  {linkedEntities?.notes && linkedEntities.notes.length > 0 && (
+                    <div className="flex items-start gap-2">
+                      <span className="text-xs text-[var(--muted-foreground)] min-w-[80px]">Notes:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {linkedEntities.notes.map((note) => (
+                          <span
+                            key={note.id}
+                            className="px-2.5 py-1 bg-yellow-100 text-yellow-700 rounded text-xs font-medium flex items-center gap-1 group"
+                          >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            {note.name}
+                            {isEditMode && (
+                              <button
+                                onClick={() => handleDeleteRelation('NOTE', note.id)}
+                                className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
+                              >
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Add entity button - only in edit mode */}
+                  {isEditMode && (
+                    <div className="relative mt-3">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setAddEntityType('JOB')}
+                          className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                            addEntityType === 'JOB' 
+                              ? 'bg-green-100 border-green-300 text-green-700' 
+                              : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          + Job
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAddEntityType('CONTACT')}
+                          className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                            addEntityType === 'CONTACT' 
+                              ? 'bg-orange-100 border-orange-300 text-orange-700' 
+                              : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          + Contact
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAddEntityType('COMPANY')}
+                          className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                            addEntityType === 'COMPANY' 
+                              ? 'bg-indigo-100 border-indigo-300 text-indigo-700' 
+                              : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          + Company
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAddEntityType('NOTE')}
+                          className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                            addEntityType === 'NOTE' 
+                              ? 'bg-yellow-100 border-yellow-300 text-yellow-700' 
+                              : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          + Note
+                        </button>
+                      </div>
+                      
+                      {/* Entity search dropdown */}
+                      {addEntityType && (
+                        <div className="mt-2">
+                          <input
+                            ref={entitySearchRef}
+                            type="text"
+                            value={entitySearch}
+                            onChange={(e) => setEntitySearch(e.target.value)}
+                            placeholder={`Search ${addEntityType.toLowerCase()}s...`}
+                            className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                            autoFocus
+                          />
+                          {isMounted && createPortal(
+                            <div 
+                              ref={entityDropdownRef}
+                              style={{
+                                position: 'fixed',
+                                top: entitySearchRef.current ? entitySearchRef.current.getBoundingClientRect().bottom + 4 : 0,
+                                left: entitySearchRef.current ? entitySearchRef.current.getBoundingClientRect().left : 0,
+                                width: entitySearchRef.current ? entitySearchRef.current.offsetWidth : 'auto',
+                                zIndex: 9999,
+                              }}
+                              className="bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
+                            >
+                              {(() => {
+                                const { data, isLoading, getName } = getEntitySearchResults();
+                                if (isLoading) {
+                                  return (
+                                    <div className="px-4 py-6 text-center">
+                                      <svg className="animate-spin w-5 h-5 text-blue-500 mx-auto mb-2" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                                      </svg>
+                                      <p className="text-sm text-gray-500">Loading...</p>
+                                    </div>
+                                  );
+                                }
+                                if (data.length === 0) {
+                                  return (
+                                    <div className="px-4 py-6 text-center text-sm text-gray-500">
+                                      {entitySearch ? 'No results found' : 'Type to search'}
+                                    </div>
+                                  );
+                                }
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                return data.slice(0, 10).map((item: any) => (
+                                  <button
+                                    key={item.id}
+                                    type="button"
+                                    onClick={() => handleAddEntity(addEntityType, item.id)}
+                                    className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 transition-colors"
+                                  >
+                                    {getName(item)}
+                                  </button>
+                                ));
+                              })()}
+                            </div>,
+                            document.body
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {!hasLinkedEntities && !isEditMode && (
+                    <p className="text-sm text-[var(--muted-foreground)]">No linked entities</p>
+                  )}
                 </div>
-              )}
-
-              {/* Legacy Related Entities (from landing page) */}
-              {!taskRelations.length && task.entities && (task.entities.jobs?.length || task.entities.contacts?.length || task.entities.companies?.length) && (
-                <div>
-                  <h3 className="text-sm font-semibold text-[var(--foreground)] mb-2 uppercase tracking-wider">
-                    Related To
-                  </h3>
-                  <div className="space-y-2">
-                    {task.entities.jobs && task.entities.jobs.length > 0 && (
-                      <div className="flex items-start gap-2">
-                        <span className="text-xs text-[var(--muted-foreground)] min-w-[80px]">Jobs:</span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {task.entities.jobs.map((job) => (
-                            <span
-                              key={job.id}
-                              className="px-2.5 py-1 bg-green-100 text-green-700 rounded text-xs font-medium"
-                            >
-                              {job.name}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {task.entities.contacts && task.entities.contacts.length > 0 && (
-                      <div className="flex items-start gap-2">
-                        <span className="text-xs text-[var(--muted-foreground)] min-w-[80px]">Contacts:</span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {task.entities.contacts.map((contact) => (
-                            <span
-                              key={contact.id}
-                              className="px-2.5 py-1 bg-orange-100 text-orange-700 rounded text-xs font-medium"
-                            >
-                              {contact.name}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {task.entities.companies && task.entities.companies.length > 0 && (
-                      <div className="flex items-start gap-2">
-                        <span className="text-xs text-[var(--muted-foreground)] min-w-[80px]">Companies:</span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {task.entities.companies.map((company) => (
-                            <span
-                              key={company.id}
-                              className="px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded text-xs font-medium"
-                            >
-                              {company.name}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
+              </div>
 
               {/* Tags */}
               <div>

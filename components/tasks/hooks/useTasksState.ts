@@ -1,6 +1,6 @@
 /**
  * Custom Hook for Tasks State Management
- * Integrated with CRM API
+ * Integrated with Tasks API (following notes pattern)
  */
 
 import { useState, useMemo, useCallback } from 'react';
@@ -16,29 +16,60 @@ import type {
   TaskPriority
 } from '../types';
 import { 
-  useCRMTasks, 
-  useUpdateCRMTask, 
-  useDeleteCRMTask,
-  crmQueryKeys
-} from '../../hooks/useCRMApi';
+  useTasks, 
+  useUpdateTask, 
+  useDeleteTask,
+  useContactsMap,
+  tasksQueryKeys
+} from '../api';
 import { convertTaskLandingPageToUI, convertUIStatusToAPI, convertUIPriorityToAPI, getUniqueValues, tagsToString } from '../utils';
 import { useQueryClient } from '@tanstack/react-query';
+import { taskToasts } from '../../lib/toast';
 
 export function useTasksState() {
   const queryClient = useQueryClient();
   
   // API data fetching - only fetch tasks, related entities are fetched lazily in modals
-  const { data: apiTasks = [], isLoading: isLoadingTasks, error: tasksError, refetch: refetchTasks } = useCRMTasks();
+  const { data: apiTasks = [], isLoading: isLoadingTasks, error: tasksError, refetch: refetchTasks } = useTasks();
+  
+  // Extract unique assignedTo values that look like UUIDs (for contact lookup)
+  const assignedToIds = useMemo(() => {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const ids = apiTasks
+      .map(task => task.assignedTo)
+      .filter((id): id is string => !!id && uuidRegex.test(id));
+    return [...new Set(ids)];
+  }, [apiTasks]);
+  
+  // Fetch contact names for assigned IDs
+  const { data: contactsMap = new Map<string, string>() } = useContactsMap(assignedToIds);
   
   // Mutations
-  const updateTaskMutation = useUpdateCRMTask();
-  const deleteTaskMutation = useDeleteCRMTask();
+  const updateTaskMutation = useUpdateTask();
+  const deleteTaskMutation = useDeleteTask();
   
-  // Convert API tasks to UI format
+  // Convert API tasks to UI format, resolving assignedTo IDs to names
   // Using the new landing pages endpoint which returns TaskLandingPage type
   const tasks: Task[] = useMemo(() => {
-    return apiTasks.map(task => convertTaskLandingPageToUI(task));
-  }, [apiTasks]);
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return apiTasks.map((task) => {
+      const uiTask = convertTaskLandingPageToUI(task);
+      
+      // If assignedTo is a UUID, look up the contact name
+      if (task.assignedTo && uuidRegex.test(task.assignedTo)) {
+        const contactName = contactsMap.get(task.assignedTo);
+        if (contactName) {
+          uiTask.assignedTo = contactName;
+          uiTask.assignedToId = task.assignedTo;
+        } else {
+          // Keep it as "Unassigned" until the contact is loaded
+          uiTask.assignedToId = task.assignedTo;
+        }
+      }
+      
+      return uiTask;
+    });
+  }, [apiTasks, contactsMap]);
   
   // View mode
   const [viewMode, setViewMode] = useState<TaskViewMode>('grid');
@@ -153,41 +184,44 @@ export function useTasksState() {
     return filtered;
   }, [tasks, searchQuery, selectedCategory, filters, sortField, sortDirection]);
 
-  // Task update function with API
+  // Task update function with API - ALWAYS sends complete data to prevent field nullification
   const updateTask = useCallback(async (taskId: string, updates: Partial<Task>) => {
     // Find the task to get its original data
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
     
-    // Build the API update payload - ALWAYS include required field 'title'
-    const apiUpdates: Record<string, unknown> = {
-      // Required field - must always include title
+    // Find the original API task to get all fields
+    const apiTask = apiTasks.find(t => t.id === taskId);
+    
+    // Build the COMPLETE API update payload - always include ALL fields
+    const apiUpdates = {
+      // Required fields - must always include these
       title: updates.title !== undefined ? updates.title : task.title,
-      // Status and priority - use updated values or current values
       status: updates.status !== undefined 
         ? convertUIStatusToAPI(updates.status) 
         : task.apiStatus,
       priority: updates.priority !== undefined 
         ? convertUIPriorityToAPI(updates.priority) 
         : task.apiPriority,
+      // ALWAYS include all optional fields to prevent them from being nulled
+      description: updates.description !== undefined 
+        ? updates.description 
+        : (task.description || ''),
+      dueDate: updates.dueDate !== undefined 
+        ? updates.dueDate 
+        : (task.dueDate || undefined),
+      reminderDate: updates.reminderDate !== undefined 
+        ? updates.reminderDate 
+        : (task.reminderDate || undefined),
+      // Always include tags - either updated or existing
+      tags: updates.tags !== undefined 
+        ? tagsToString(updates.tags) 
+        : (apiTask?.tags || tagsToString(task.tags) || ''),
+      // Always include assignedToId if it exists
+      assignedToId: updates.assignedToId !== undefined 
+        ? updates.assignedToId 
+        : (task.assignedToId || apiTask?.assignedTo || undefined),
     };
-    
-    // Optional fields - include if provided or keep existing value
-    if (updates.description !== undefined) {
-      apiUpdates.description = updates.description;
-    } else if (task.description) {
-      apiUpdates.description = task.description;
-    }
-    
-    if (updates.dueDate !== undefined) {
-      apiUpdates.dueDate = updates.dueDate;
-    } else if (task.dueDate) {
-      apiUpdates.dueDate = task.dueDate;
-    }
-    
-    if (updates.tags !== undefined) {
-      apiUpdates.tags = tagsToString(updates.tags);
-    }
     
     try {
       await updateTaskMutation.mutateAsync({
@@ -195,35 +229,50 @@ export function useTasksState() {
         input: apiUpdates
       });
       
-      // Invalidate and refetch
-      queryClient.invalidateQueries({ queryKey: crmQueryKeys.tasks() });
+      taskToasts.updateSuccess(task.title);
     } catch (error) {
       console.error('Failed to update task:', error);
+      taskToasts.updateError();
     }
-  }, [tasks, updateTaskMutation, queryClient]);
+  }, [tasks, apiTasks, updateTaskMutation]);
 
-  // Toggle task completion (using API status)
+  // Toggle task completion (using API status) - sends complete data
   const toggleTaskComplete = useCallback(async (taskId: string) => {
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
     
+    // Find the original API task to get all fields
+    const apiTask = apiTasks.find(t => t.id === taskId);
+    
     const newStatus: TaskStatusAPI = task.apiStatus === 'COMPLETED' ? 'TODO' : 'COMPLETED';
+    const isCompleting = newStatus === 'COMPLETED';
     
     try {
+      // Send COMPLETE data - not just status
       await updateTaskMutation.mutateAsync({
         id: taskId,
         input: { 
-          title: task.title, // Required field
+          title: task.title,
           status: newStatus,
-          priority: task.apiPriority
+          priority: task.apiPriority,
+          description: task.description || '',
+          dueDate: task.dueDate || undefined,
+          reminderDate: task.reminderDate || undefined,
+          tags: apiTask?.tags || tagsToString(task.tags) || '',
+          assignedToId: task.assignedToId || apiTask?.assignedTo || undefined,
         }
       });
       
-      queryClient.invalidateQueries({ queryKey: crmQueryKeys.tasks() });
+      if (isCompleting) {
+        taskToasts.completedSuccess(task.title);
+      } else {
+        taskToasts.updateSuccess(task.title);
+      }
     } catch (error) {
       console.error('Failed to toggle task completion:', error);
+      taskToasts.updateError();
     }
-  }, [tasks, updateTaskMutation, queryClient]);
+  }, [tasks, apiTasks, updateTaskMutation]);
 
   // Inline editing
   const startEditing = (taskId: string, field: 'title' | 'description', currentValue: string) => {
@@ -271,9 +320,11 @@ export function useTasksState() {
   const deleteTask = useCallback(async (taskId: string) => {
     try {
       await deleteTaskMutation.mutateAsync(taskId);
-      queryClient.invalidateQueries({ queryKey: crmQueryKeys.tasks() });
+      queryClient.invalidateQueries({ queryKey: tasksQueryKeys.list() });
+      taskToasts.deleteSuccess();
     } catch (error) {
       console.error('Failed to delete task:', error);
+      taskToasts.deleteError();
     }
   }, [deleteTaskMutation, queryClient]);
 
@@ -295,7 +346,7 @@ export function useTasksState() {
     setDropdowns(prev => ({ ...prev, [type]: value }));
   };
 
-  // Drag and drop with API update for Kanban
+  // Drag and drop with API update for Kanban - sends complete data
   const handleDragStart = (taskId: string) => {
     setDraggedTaskId(taskId);
   };
@@ -303,30 +354,39 @@ export function useTasksState() {
   const handleKanbanDrop = useCallback(async (targetStatus: TaskStatusAPI) => {
     if (!draggedTaskId) return;
     
-    // Find the task to get its priority and title
+    // Find the task to get all its data
     const task = tasks.find(t => t.id === draggedTaskId);
     if (!task) {
       setDraggedTaskId(null);
       return;
     }
     
+    // Find the original API task to get all fields
+    const apiTask = apiTasks.find(t => t.id === draggedTaskId);
+    
+    // Clear dragged state immediately for instant feedback (optimistic update handles the rest)
+    setDraggedTaskId(null);
+    
     try {
+      // Send COMPLETE data - not just status
       await updateTaskMutation.mutateAsync({
         id: draggedTaskId,
         input: { 
-          title: task.title, // Required field
+          title: task.title,
           status: targetStatus,
-          priority: task.apiPriority
+          priority: task.apiPriority,
+          description: task.description || '',
+          dueDate: task.dueDate || undefined,
+          reminderDate: task.reminderDate || undefined,
+          tags: apiTask?.tags || tagsToString(task.tags) || '',
+          assignedToId: task.assignedToId || apiTask?.assignedTo || undefined,
         }
       });
-      
-      queryClient.invalidateQueries({ queryKey: crmQueryKeys.tasks() });
     } catch (error) {
       console.error('Failed to update task status via drag-drop:', error);
+      taskToasts.updateError();
     }
-    
-    setDraggedTaskId(null);
-  }, [draggedTaskId, tasks, updateTaskMutation, queryClient]);
+  }, [draggedTaskId, tasks, apiTasks, updateTaskMutation]);
 
   const handleDrop = (targetTaskId: string) => {
     if (!draggedTaskId || draggedTaskId === targetTaskId) return;
