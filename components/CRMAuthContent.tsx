@@ -159,7 +159,7 @@ export default function CRMAuthContent() {
               </h3>
               <p className={`text-sm ${isConnected ? 'text-green-700' : 'text-yellow-700'}`}>
                 {isConnected 
-                  ? `Using ${authMode === 'token-server' ? 'Token Server' : 'Manual Tokens'} authentication`
+                  ? `Using ${authMode === 'token-server' ? 'Token Server' : authMode === 'sso' ? 'SSO (FlowRMS)' : 'Manual Tokens'} authentication`
                   : 'Configure your tokens below to connect to the CRM API'
                 }
               </p>
