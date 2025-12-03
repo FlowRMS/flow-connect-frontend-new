@@ -7,6 +7,7 @@ import { getCRMAccessToken } from './crm-auth';
 import { isTokenServerEnabled, tokenServerClient } from './crm-token-server';
 import {
   getStoredAccessToken as getSSOAccessToken,
+  getStoredRefreshToken,
   getValidAccessToken as getValidSSOToken,
   clearTokens as clearSSOTokens,
 } from './auth';
@@ -1400,13 +1401,24 @@ export async function crmGraphQLRequest<T = unknown>(
   }
 
   const endpoint = getGraphQLEndpoint();
+  
+  // Get refresh token for the header
+  const refreshToken = getStoredRefreshToken();
+  
+  // Build headers with refresh token if available
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Authorization: authHeader,
+  };
+  
+  // Always include refresh token in headers if available
+  if (refreshToken) {
+    headers['X-Refresh-Token'] = refreshToken;
+  }
 
   let response = await fetch(endpoint, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: authHeader,
-    },
+    headers,
     body: JSON.stringify({
       query: options.query,
       variables: options.variables,
@@ -1421,12 +1433,16 @@ export async function crmGraphQLRequest<T = unknown>(
       const newToken = await getValidSSOToken();
       if (newToken) {
         authHeader = `Bearer ${newToken}`;
+        // Update headers with new token
+        headers['Authorization'] = authHeader;
+        // Get fresh refresh token after token refresh
+        const freshRefreshToken = getStoredRefreshToken();
+        if (freshRefreshToken) {
+          headers['X-Refresh-Token'] = freshRefreshToken;
+        }
         response = await fetch(endpoint, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: authHeader,
-          },
+          headers,
           body: JSON.stringify({
             query: options.query,
             variables: options.variables,
@@ -1446,13 +1462,11 @@ export async function crmGraphQLRequest<T = unknown>(
     else if (isTokenServerEnabled()) {
       try {
         authHeader = await tokenServerClient.getAuthorizationHeader(true); // Force refresh
+        headers['Authorization'] = authHeader;
 
         response = await fetch(endpoint, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: authHeader,
-          },
+          headers,
           body: JSON.stringify({
             query: options.query,
             variables: options.variables,

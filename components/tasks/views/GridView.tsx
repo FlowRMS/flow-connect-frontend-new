@@ -4,7 +4,7 @@
 
 import React from 'react';
 import type { Task, TaskDropdownState, TaskPriority } from '../types';
-import { AVAILABLE_ASSIGNEES, AVAILABLE_TASK_TYPES, AVAILABLE_PRIORITIES, AVAILABLE_TAGS, API_STATUS_OPTIONS, API_PRIORITY_OPTIONS } from '../constants';
+import { AVAILABLE_TASK_TYPES, AVAILABLE_PRIORITIES, AVAILABLE_TAGS, API_STATUS_OPTIONS, API_PRIORITY_OPTIONS } from '../constants';
 import { getInitials, getAvatarColor, formatTaskDate, getStatusColor, getPriorityColor, getReminderStatus, getReminderStatusColor, formatReminderDate } from '../utils';
 import { EntityBadges } from '../components';
 import type { TaskStatusAPI, TaskPriorityAPI } from '../types';
@@ -277,37 +277,18 @@ export default function GridView({
 
           {/* Task Footer */}
           <div className="flex items-center justify-between pt-3 border-t border-[var(--border)]">
-            {dropdowns.assignee === task.id ? (
-              <select
-                value={task.assignedTo}
-                onChange={(e) => {
-                  onUpdateTask(task.id, { assignedTo: e.target.value });
-                  onSetDropdown('assignee', null);
-                }}
-                onBlur={() => onSetDropdown('assignee', null)}
-                autoFocus
-                className="flex items-center gap-2 px-2 py-1 border border-[var(--primary)] rounded text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-              >
-                {AVAILABLE_ASSIGNEES.map(assignee => (
-                  <option key={assignee} value={assignee}>{assignee}</option>
-                ))}
-              </select>
-            ) : (
-              <div
-                className="flex items-center gap-2 cursor-pointer hover:bg-[var(--muted)] px-2 py-1 rounded"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSetDropdown('assignee', task.id);
-                }}
-              >
-                <div className={`w-6 h-6 rounded-full ${getAvatarColor(task.assignedTo)} flex items-center justify-center text-white text-xs font-semibold`}>
-                  {getInitials(task.assignedTo)}
-                </div>
-                <div className="text-xs text-[var(--muted-foreground)]">
-                  {task.assignedTo}
-                </div>
+            {/* Assignee display - click on task card to edit in modal */}
+            <div
+              className="flex items-center gap-2 cursor-pointer hover:bg-[var(--muted)] px-2 py-1 rounded"
+              title="Click task to edit assignee"
+            >
+              <div className={`w-6 h-6 rounded-full ${getAvatarColor(task.assignedTo)} flex items-center justify-center text-white text-xs font-semibold`}>
+                {getInitials(task.assignedTo)}
               </div>
-            )}
+              <div className="text-xs text-[var(--muted-foreground)]">
+                {task.assignedTo}
+              </div>
+            </div>
             <div className="flex items-center gap-3 text-xs text-[var(--muted-foreground)]">
               {(task.comments ?? 0) > 0 && (
                 <button

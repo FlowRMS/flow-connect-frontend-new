@@ -22,6 +22,7 @@ import {
   useContactsMap,
   tasksQueryKeys
 } from '../api';
+import { fetchTask as fetchTaskApi } from '../api/tasksApi';
 import { convertTaskLandingPageToUI, convertUIStatusToAPI, convertUIPriorityToAPI, getUniqueValues, tagsToString } from '../utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { taskToasts } from '../../lib/toast';
@@ -236,45 +237,55 @@ export function useTasksState() {
   }, [tasks, searchQuery, selectedCategory, filters, sortField, sortDirection]);
 
   // Task update function with API - ALWAYS sends complete data to prevent field nullification
+  // CRITICAL: We fetch the full task first to get assignedToId since landing pages only have assignedTo (name)
   const updateTask = useCallback(async (taskId: string, updates: Partial<Task>) => {
     // Find the task to get its original data
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
     
-    // Find the original API task to get all fields
-    const apiTask = apiTasks.find(t => t.id === taskId);
-    
-    // Build the COMPLETE API update payload - always include ALL fields
-    const apiUpdates = {
-      // Required fields - must always include these
-      title: updates.title !== undefined ? updates.title : task.title,
-      status: updates.status !== undefined 
-        ? convertUIStatusToAPI(updates.status) 
-        : task.apiStatus,
-      priority: updates.priority !== undefined 
-        ? convertUIPriorityToAPI(updates.priority) 
-        : task.apiPriority,
-      // ALWAYS include all optional fields to prevent them from being nulled
-      description: updates.description !== undefined 
-        ? updates.description 
-        : (task.description || ''),
-      dueDate: updates.dueDate !== undefined 
-        ? updates.dueDate 
-        : (task.dueDate || undefined),
-      reminderDate: updates.reminderDate !== undefined 
-        ? updates.reminderDate 
-        : (task.reminderDate || undefined),
-      // Always include tags - either updated or existing
-      tags: updates.tags !== undefined 
-        ? tagsToString(updates.tags) 
-        : (apiTask?.tags || tagsToString(task.tags) || ''),
-      // Always include assignedToId if it exists
-      assignedToId: updates.assignedToId !== undefined 
-        ? updates.assignedToId 
-        : (task.assignedToId || apiTask?.assignedTo || undefined),
-    };
-    
     try {
+      // CRITICAL: Fetch the full task to get assignedToId (GetTask API has it, landing pages don't)
+      const fullTask = await fetchTaskApi(taskId);
+      
+      // Determine the correct assignedToId
+      // Priority: 1) explicit update, 2) fullTask.assignedToId from GetTask API
+      let assignedToIdValue: string | undefined = undefined;
+      if (updates.assignedToId !== undefined) {
+        // Explicit update - use it if provided
+        assignedToIdValue = updates.assignedToId || undefined;
+      } else if (fullTask?.assignedToId) {
+        // Use assignedToId from the full task (GetTask API)
+        assignedToIdValue = fullTask.assignedToId;
+      }
+      
+      // Build the COMPLETE API update payload - always include ALL fields
+      const apiUpdates = {
+        // Required fields - must always include these
+        title: updates.title !== undefined ? updates.title : task.title,
+        status: updates.status !== undefined 
+          ? convertUIStatusToAPI(updates.status) 
+          : task.apiStatus,
+        priority: updates.priority !== undefined 
+          ? convertUIPriorityToAPI(updates.priority) 
+          : task.apiPriority,
+        // ALWAYS include all optional fields to prevent them from being nulled
+        description: updates.description !== undefined 
+          ? updates.description 
+          : (task.description || ''),
+        dueDate: updates.dueDate !== undefined 
+          ? updates.dueDate 
+          : (task.dueDate || undefined),
+        reminderDate: updates.reminderDate !== undefined 
+          ? updates.reminderDate 
+          : (task.reminderDate || undefined),
+        // Always include tags - either updated or existing (use fullTask.tags for accuracy)
+        tags: updates.tags !== undefined 
+          ? tagsToString(updates.tags) 
+          : (fullTask?.tags || tagsToString(task.tags) || ''),
+        // Always include assignedToId from the fetched full task
+        assignedToId: assignedToIdValue,
+      };
+      
       await updateTaskMutation.mutateAsync({
         id: taskId,
         input: apiUpdates
@@ -285,21 +296,22 @@ export function useTasksState() {
       console.error('Failed to update task:', error);
       taskToasts.updateError();
     }
-  }, [tasks, apiTasks, updateTaskMutation]);
+  }, [tasks, updateTaskMutation]);
 
   // Toggle task completion (using API status) - sends complete data
+  // CRITICAL: We fetch the full task first to get assignedToId
   const toggleTaskComplete = useCallback(async (taskId: string) => {
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
-    
-    // Find the original API task to get all fields
-    const apiTask = apiTasks.find(t => t.id === taskId);
     
     const newStatus: TaskStatusAPI = task.apiStatus === 'COMPLETED' ? 'TODO' : 'COMPLETED';
     const isCompleting = newStatus === 'COMPLETED';
     
     try {
-      // Send COMPLETE data - not just status
+      // CRITICAL: Fetch the full task to get assignedToId (GetTask API has it)
+      const fullTask = await fetchTaskApi(taskId);
+      
+      // Send COMPLETE data - including assignedToId from the fetched full task
       await updateTaskMutation.mutateAsync({
         id: taskId,
         input: { 
@@ -309,8 +321,8 @@ export function useTasksState() {
           description: task.description || '',
           dueDate: task.dueDate || undefined,
           reminderDate: task.reminderDate || undefined,
-          tags: apiTask?.tags || tagsToString(task.tags) || '',
-          assignedToId: task.assignedToId || apiTask?.assignedTo || undefined,
+          tags: fullTask?.tags || tagsToString(task.tags) || '',
+          assignedToId: fullTask?.assignedToId || undefined,
         }
       });
       
@@ -323,7 +335,7 @@ export function useTasksState() {
       console.error('Failed to toggle task completion:', error);
       taskToasts.updateError();
     }
-  }, [tasks, apiTasks, updateTaskMutation]);
+  }, [tasks, updateTaskMutation]);
 
   // Inline editing
   const startEditing = (taskId: string, field: 'title' | 'description', currentValue: string) => {
@@ -412,16 +424,37 @@ export function useTasksState() {
       return;
     }
     
-    // Find the original API task to get all fields
-    const apiTask = apiTasks.find(t => t.id === draggedTaskId);
+    const taskIdToUpdate = draggedTaskId;
     
-    // Clear dragged state immediately for instant feedback (optimistic update handles the rest)
+    // Clear dragged state immediately
     setDraggedTaskId(null);
     
+    // OPTIMISTIC UPDATE: Immediately update the cache for instant visual feedback
+    // This is done BEFORE the API call, so the card moves immediately
+    const previousTasks = queryClient.getQueryData<import('../api/tasksApi').TaskLandingPage[]>(tasksQueryKeys.list());
+    
+    if (previousTasks) {
+      queryClient.setQueryData<import('../api/tasksApi').TaskLandingPage[]>(tasksQueryKeys.list(), (old) => {
+        if (!old) return old;
+        return old.map(t => {
+          if (t.id === taskIdToUpdate) {
+            return {
+              ...t,
+              status: targetStatus, // Update status immediately
+            };
+          }
+          return t;
+        });
+      });
+    }
+    
     try {
-      // Send COMPLETE data - not just status
+      // Fetch full task to get assignedToId (GetTask API has it)
+      const fullTask = await fetchTaskApi(taskIdToUpdate);
+      
+      // Send COMPLETE data - including assignedToId from the fetched full task
       await updateTaskMutation.mutateAsync({
-        id: draggedTaskId,
+        id: taskIdToUpdate,
         input: { 
           title: task.title,
           status: targetStatus,
@@ -429,15 +462,22 @@ export function useTasksState() {
           description: task.description || '',
           dueDate: task.dueDate || undefined,
           reminderDate: task.reminderDate || undefined,
-          tags: apiTask?.tags || tagsToString(task.tags) || '',
-          assignedToId: task.assignedToId || apiTask?.assignedTo || undefined,
+          tags: fullTask?.tags || tagsToString(task.tags) || '',
+          assignedToId: fullTask?.assignedToId || undefined,
         }
       });
+      
+      // Show success toast after API update
+      taskToasts.updateSuccess(task.title);
     } catch (error) {
       console.error('Failed to update task status via drag-drop:', error);
+      // ROLLBACK: Restore previous state on error
+      if (previousTasks) {
+        queryClient.setQueryData(tasksQueryKeys.list(), previousTasks);
+      }
       taskToasts.updateError();
     }
-  }, [draggedTaskId, tasks, apiTasks, updateTaskMutation]);
+  }, [draggedTaskId, tasks, updateTaskMutation, queryClient]);
 
   const handleDrop = (targetTaskId: string) => {
     if (!draggedTaskId || draggedTaskId === targetTaskId) return;

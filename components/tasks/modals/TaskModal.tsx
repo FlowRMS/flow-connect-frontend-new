@@ -84,14 +84,14 @@ export default function TaskModal({
   // Delete confirmation state
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   
-  // Fetch full task details (includes tags)
-  const { data: fullTask, refetch: refetchTask } = useTask(task.id);
+  // Fetch full task details (includes tags and assignedToId)
+  const { data: fullTask } = useTask(task.id);
   
   // Fetch conversations from API
   const { data: apiConversations = [], isLoading: isLoadingConversations } = useTaskConversations(task.id);
   
   // Fetch task related entities
-  const { data: relatedEntities, refetch: refetchRelatedEntities } = useTaskRelatedEntities(task.id);
+  const { data: relatedEntities } = useTaskRelatedEntities(task.id);
   
   // Entity search queries
   const { data: searchedJobs = [], isLoading: isLoadingJobs } = useJobSearch(entitySearch, isEditMode && addEntityType === 'JOB');
@@ -115,13 +115,21 @@ export default function TaskModal({
     setIsMounted(true);
   }, []);
 
-  // Update edit state when full task loads (for tags and reminderDate)
+  // Update edit state when full task loads (for tags, reminderDate, and assignedToId)
+  // CRITICAL: fullTask from useTask has assignedToId (UUID), while the landing page task
+  // only has assignedTo (name string). We must use fullTask.assignedToId for API updates.
   useEffect(() => {
-    if (fullTask?.tags) {
-      setEditTags(parseTagsString(fullTask.tags));
-    }
-    if (fullTask?.reminderDate) {
-      setEditReminderDate(fullTask.reminderDate);
+    if (fullTask) {
+      if (fullTask.tags) {
+        setEditTags(parseTagsString(fullTask.tags));
+      }
+      if (fullTask.reminderDate) {
+        setEditReminderDate(fullTask.reminderDate);
+      }
+      // CRITICAL: Update assignedToId from fullTask - this is the actual UUID
+      if (fullTask.assignedToId) {
+        setEditAssigneeId(fullTask.assignedToId);
+      }
     }
   }, [fullTask]);
 
@@ -219,7 +227,21 @@ export default function TaskModal({
 
   const handleSaveEdit = async () => {
     try {
-      const result = await updateTaskMutation.mutateAsync({
+      // CRITICAL: Determine the correct assignedToId to send
+      // Priority: 1) User's edited value if they changed it, 2) fullTask.assignedToId from GetTask API
+      // We MUST send assignedToId to preserve the assignment, otherwise it gets unassigned
+      let finalAssignedToId: string | undefined = undefined;
+      
+      if (editAssigneeId && editAssigneeId.trim() !== '') {
+        // User has set/edited an assignee
+        finalAssignedToId = editAssigneeId;
+      } else if (fullTask?.assignedToId) {
+        // Preserve existing assignment from the full task data (GetTask API has assignedToId)
+        finalAssignedToId = fullTask.assignedToId;
+      }
+      // If both are empty, finalAssignedToId stays undefined (truly unassigned)
+      
+      await updateTaskMutation.mutateAsync({
         id: task.id,
         input: {
           title: editTitle,
@@ -229,21 +251,12 @@ export default function TaskModal({
           dueDate: editDueDate || undefined,
           reminderDate: editReminderDate || undefined,
           tags: editTags.join(','),
-          assignedToId: editAssigneeId || undefined,
+          assignedToId: finalAssignedToId,
         }
       });
       
-      // Immediately invalidate and refetch queries
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: tasksQueryKeys.list() }),
-        queryClient.invalidateQueries({ queryKey: tasksQueryKeys.detail(task.id) }),
-      ]);
-      
-      // Also refetch the task and related entities to update the modal view immediately
-      await Promise.all([
-        refetchTask(),
-        refetchRelatedEntities(),
-      ]);
+      // Note: useUpdateTask already handles cache invalidation in onSettled
+      // No need to manually invalidate or refetch here - it causes duplicate API calls
       
       setIsEditMode(false);
       taskToasts.updateSuccess(editTitle);
@@ -260,10 +273,11 @@ export default function TaskModal({
     setEditStatus(task.apiStatus);
     setEditPriority(task.apiPriority);
     setEditDueDate(task.dueDate);
-    setEditReminderDate(task.reminderDate || '');
+    setEditReminderDate(fullTask?.reminderDate || task.reminderDate || '');
     setEditTags(fullTask?.tags ? parseTagsString(fullTask.tags) : task.tags);
     setEditAssigneeName(task.assignedTo || 'Unassigned');
-    setEditAssigneeId(task.assignedToId || '');
+    // CRITICAL: Use fullTask.assignedToId (UUID) when available, fallback to task.assignedToId
+    setEditAssigneeId(fullTask?.assignedToId || task.assignedToId || '');
     setIsEditMode(false);
     setAddEntityType(null);
     setEntitySearch('');
@@ -272,7 +286,7 @@ export default function TaskModal({
   const handleDeleteTask = async () => {
     try {
       await deleteTaskMutation.mutateAsync(task.id);
-      queryClient.invalidateQueries({ queryKey: tasksQueryKeys.list() });
+      // Note: useDeleteTask already handles cache invalidation in onSuccess
       taskToasts.deleteSuccess();
       onTaskDeleted?.();
       onClose();
@@ -620,10 +634,10 @@ export default function TaskModal({
                     </div>
                   ) : (
                     <div className="flex items-center gap-2">
-                      <div className={`w-8 h-8 rounded-full ${getAvatarColor(task.assignedTo)} flex items-center justify-center text-white text-xs font-semibold`}>
-                        {getInitials(task.assignedTo)}
+                      <div className={`w-8 h-8 rounded-full ${getAvatarColor(editAssigneeName)} flex items-center justify-center text-white text-xs font-semibold`}>
+                        {getInitials(editAssigneeName)}
                       </div>
-                      <span className="text-sm text-[var(--foreground)]">{task.assignedTo}</span>
+                      <span className="text-sm text-[var(--foreground)]">{editAssigneeName}</span>
                     </div>
                   )}
                 </div>

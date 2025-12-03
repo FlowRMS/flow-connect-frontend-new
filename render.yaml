@@ -15,7 +15,11 @@ projects:
       envVars:
       - key: PORT
         sync: false
+      - key: NODE_ENV
+        value: production
+      - key: NODE_OPTIONS
+        value: "--max-old-space-size=384"
       region: ohio
       buildCommand: npm install; npm run build
-      startCommand: npm run dev
+      startCommand: npm run start
       autoDeployTrigger: commit

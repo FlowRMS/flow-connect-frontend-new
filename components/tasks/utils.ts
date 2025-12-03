@@ -91,15 +91,32 @@ export function convertUIPriorityToAPI(uiPriority: TaskPriority): TaskPriorityAP
 
 /**
  * Parse tags string to array
+ * Handles various formats:
+ * - String: "tag1,tag2,tag3" -> ["tag1", "tag2", "tag3"]
+ * - Array of strings: ["tag1", "tag2"] -> ["tag1", "tag2"]
+ * - Array with comma-separated string: ["tag1,tag2"] -> ["tag1", "tag2"]
+ * - null/undefined -> []
  */
 export function parseTagsString(tags: string | string[] | null | undefined): string[] {
   if (!tags) return [];
-  // If already an array, return it filtered
+  
+  // If it's an array
   if (Array.isArray(tags)) {
-    return tags.map(t => String(t).trim()).filter(Boolean);
+    // First, flatten any comma-separated strings within the array
+    // This handles cases like ["Healthcare,Monitor"] -> ["Healthcare", "Monitor"]
+    const flattened = tags.flatMap(tag => {
+      if (typeof tag === 'string' && tag.includes(',')) {
+        return tag.split(',').map(t => t.trim());
+      }
+      return String(tag).trim();
+    });
+    return flattened.filter(Boolean);
   }
+  
   // If not a string, return empty
   if (typeof tags !== 'string') return [];
+  
+  // Split by comma and trim each tag
   return tags.split(',').map(t => t.trim()).filter(Boolean);
 }
 
@@ -118,6 +135,10 @@ export function convertTaskLandingPageToUI(taskLanding: TaskLandingPage): Task {
   const uiStatus = convertAPIStatusToUI(taskLanding.status, taskLanding.dueDate);
   const uiPriority = convertAPIPriorityToUI(taskLanding.priority);
   const tags = parseTagsString(taskLanding.tags);
+  
+  // Check if assignedTo is a UUID - if so, it's the assignedToId
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const isUUID = taskLanding.assignedTo && uuidRegex.test(taskLanding.assignedTo);
 
   return {
     id: taskLanding.id,
@@ -125,8 +146,10 @@ export function convertTaskLandingPageToUI(taskLanding: TaskLandingPage): Task {
     description: taskLanding.description || '',
     dueDate: taskLanding.dueDate || '',
     reminderDate: taskLanding.reminderDate || '',
-    assignedTo: taskLanding.assignedTo || 'Unassigned',
-    assignedToId: undefined,
+    // If assignedTo is a UUID, display as "Loading..." until name is resolved
+    assignedTo: isUUID ? 'Loading...' : (taskLanding.assignedTo || 'Unassigned'),
+    // Store the UUID in assignedToId for API calls
+    assignedToId: isUUID ? taskLanding.assignedTo : undefined,
     taskType: 'General',
     status: uiStatus,
     apiStatus: taskLanding.status,
