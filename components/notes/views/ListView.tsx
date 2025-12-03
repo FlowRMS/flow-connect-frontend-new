@@ -16,6 +16,7 @@ const getEntityTypeColor = (type: EntityType) => {
     case 'COMPANY': return 'bg-purple-100 text-purple-700';
     case 'CONTACT': return 'bg-green-100 text-green-700';
     case 'TASK': return 'bg-orange-100 text-orange-700';
+    case 'PRE_OPPORTUNITY': return 'bg-teal-100 text-teal-700';
     default: return 'bg-gray-100 text-gray-700';
   }
 };
@@ -51,6 +52,7 @@ function NoteListItem({
     relatedEntities.contacts?.forEach(c => links.push({ type: 'CONTACT', name: `${c.firstName} ${c.lastName}` }));
     relatedEntities.jobs?.forEach(j => links.push({ type: 'JOB', name: j.jobName }));
     relatedEntities.tasks?.forEach(t => links.push({ type: 'TASK', name: t.title }));
+    relatedEntities.preOpportunities?.forEach(p => links.push({ type: 'PRE_OPPORTUNITY', name: p.entityNumber || 'Unknown Pre-Opp' }));
     return links;
   }, [relatedEntities]);
 

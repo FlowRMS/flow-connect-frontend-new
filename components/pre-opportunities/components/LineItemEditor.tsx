@@ -324,33 +324,48 @@ export function LineItemEditor({
                         <div>
                           <label className="block text-xs font-medium text-gray-600 mb-1">Quantity</label>
                           <input
-                            type="number"
-                            value={item.quantity}
-                            onChange={(e) => handleUpdateItem(item.id, 'quantity', parseInt(e.target.value) || 0)}
-                            min="1"
+                            type="text"
+                            inputMode="numeric"
+                            value={item.quantity || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === '' || /^\d*$/.test(val)) {
+                                handleUpdateItem(item.id, 'quantity', val === '' ? 0 : parseInt(val, 10));
+                              }
+                            }}
                             className="w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           />
                         </div>
                         <div>
                           <label className="block text-xs font-medium text-gray-600 mb-1">Unit Price ($)</label>
                           <input
-                            type="number"
-                            value={item.unitPrice}
-                            onChange={(e) => handleUpdateItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
-                            min="0"
-                            step="0.01"
+                            type="text"
+                            inputMode="decimal"
+                            value={item.unitPrice || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                                handleUpdateItem(item.id, 'unitPrice', val === '' ? 0 : parseFloat(val));
+                              }
+                            }}
                             className="w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           />
                         </div>
                         <div>
                           <label className="block text-xs font-medium text-gray-600 mb-1">Discount %</label>
                           <input
-                            type="number"
-                            value={item.discountRate}
-                            onChange={(e) => handleUpdateItem(item.id, 'discountRate', parseFloat(e.target.value) || 0)}
-                            min="0"
-                            max="100"
-                            step="0.1"
+                            type="text"
+                            inputMode="decimal"
+                            value={item.discountRate || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                                const numVal = val === '' ? 0 : parseFloat(val);
+                                if (numVal <= 100) {
+                                  handleUpdateItem(item.id, 'discountRate', numVal);
+                                }
+                              }
+                            }}
                             className="w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           />
                         </div>

@@ -3,7 +3,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import { useCRMJobStatuses, useCreateCRMJob } from './hooks/useCRMApi';
+import { 
+  useCRMJobStatuses, 
+  useCreateCRMJob,
+} from './hooks/useCRMApi';
 import { hasCRMTokens } from './lib/crm-auth';
 import type { JobInput } from './lib/crm-graphql';
 import { jobToasts } from './lib/toast';
@@ -245,7 +248,7 @@ function StyledDatePicker({ selected, onChange, placeholder }: StyledDatePickerP
 interface CreateJobModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess?: () => void;
+  onSuccess?: (jobId?: string) => void;
   defaultStatusName?: string;
 }
 
@@ -264,7 +267,7 @@ export default function CreateJobModal({ isOpen, onClose, onSuccess, defaultStat
     additionalInformation: '',
   });
   const [error, setError] = useState<string | null>(null);
-  const [activeSection, setActiveSection] = useState<'basic' | 'details' | 'additional'>('basic');
+  const [activeSection, setActiveSection] = useState<'basic' | 'details' | 'additional' | 'connect'>('basic');
 
   const isConnected = hasCRMTokens();
   const { data: statuses, isLoading: statusesLoading, error: statusesError } = useCRMJobStatuses();
@@ -378,6 +381,11 @@ export default function CreateJobModal({ isOpen, onClose, onSuccess, defaultStat
     { id: 'additional', label: 'Additional', icon: (
       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+      </svg>
+    )},
+    { id: 'connect', label: 'Connect', icon: (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
       </svg>
     )},
   ] as const;
@@ -673,6 +681,62 @@ export default function CreateJobModal({ isOpen, onClose, onSuccess, defaultStat
                         <p className="text-sm text-blue-700 mt-1">
                           You can always add more details to the job after creation from the job detail view.
                         </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Connect Entities Section */}
+              {activeSection === 'connect' && (
+                <div className="space-y-5">
+                  <div className="text-center py-8">
+                    <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
+                      <svg className="w-8 h-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">Connect Entities</h3>
+                    <p className="text-sm text-[var(--muted-foreground)] max-w-md mx-auto mb-6">
+                      After creating the job, you&apos;ll be able to link it to other entities like companies, contacts, tasks, notes, quotes, orders, invoices, and checks.
+                    </p>
+                    
+                    {/* Entity Types Grid Preview */}
+                    <div className="grid grid-cols-3 gap-3 max-w-lg mx-auto">
+                      {[
+                        { name: 'Companies', icon: '🏢', color: 'bg-blue-100 text-blue-600' },
+                        { name: 'Contacts', icon: '👤', color: 'bg-green-100 text-green-600' },
+                        { name: 'Tasks', icon: '✓', color: 'bg-orange-100 text-orange-600' },
+                        { name: 'Notes', icon: '📝', color: 'bg-yellow-100 text-yellow-600' },
+                        { name: 'Pre-Opps', icon: '💡', color: 'bg-purple-100 text-purple-600' },
+                        { name: 'Quotes', icon: '📄', color: 'bg-indigo-100 text-indigo-600' },
+                        { name: 'Orders', icon: '🛒', color: 'bg-cyan-100 text-cyan-600' },
+                        { name: 'Invoices', icon: '💳', color: 'bg-emerald-100 text-emerald-600' },
+                        { name: 'Checks', icon: '✉️', color: 'bg-rose-100 text-rose-600' },
+                      ].map((entity) => (
+                        <div
+                          key={entity.name}
+                          className={`${entity.color} rounded-lg p-3 text-center`}
+                        >
+                          <span className="text-xl mb-1 block">{entity.icon}</span>
+                          <span className="text-xs font-medium">{entity.name}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mt-6 bg-amber-50 border border-amber-200 rounded-lg p-4 text-left max-w-lg mx-auto">
+                      <div className="flex items-start gap-3">
+                        <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div>
+                          <h4 className="text-sm font-medium text-amber-800">How to Connect Entities</h4>
+                          <p className="text-sm text-amber-700 mt-1">
+                            1. Create the job by clicking &quot;Create Job&quot;<br />
+                            2. Open the job details page<br />
+                            3. Use the &quot;Add Link&quot; button to connect entities
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>

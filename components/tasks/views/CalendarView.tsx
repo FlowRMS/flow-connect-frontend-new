@@ -5,7 +5,7 @@
 import React, { useState } from 'react';
 import type { Task } from '../types';
 import { DAYS_OF_WEEK, MONTH_NAMES } from '../constants';
-import { generateCalendarDays, getTasksForDate, isToday, getPriorityBorderColor } from '../utils';
+import { generateCalendarDays, getTasksForDate, isToday, getPriorityBorderColor, getReminderStatus, getReminderStatusColor, formatReminderDate } from '../utils';
 
 interface CalendarViewProps {
   tasks: Task[];
@@ -107,6 +107,20 @@ export default function CalendarView({ tasks, onToggleComplete }: CalendarViewPr
                       <div className="font-medium text-[var(--foreground)] truncate">{task.title}</div>
                       <div className="flex items-center gap-1">
                         <span className="text-[var(--muted-foreground)] truncate">{task.assignedTo}</span>
+                        {/* Reminder indicator - show when task is positioned by reminder */}
+                        {task.reminderDate && (() => {
+                          const status = getReminderStatus(task.reminderDate);
+                          return (
+                            <span 
+                              className={`px-1 py-0.5 rounded text-[8px] font-medium ${status ? getReminderStatusColor(status) : 'bg-blue-50 text-blue-600'}`}
+                              title={`Reminder: ${formatReminderDate(task.reminderDate)}${task.dueDate ? ` (Due: ${task.dueDate})` : ''}`}
+                            >
+                              <svg className="w-2.5 h-2.5 inline" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth="2">
+                                <path d="M10 2a6 6 0 016 6v4l2 2H2l2-2V8a6 6 0 016-6zM10 18a2 2 0 002-2H8a2 2 0 002 2z" strokeLinecap="round"/>
+                              </svg>
+                            </span>
+                          );
+                        })()}
                         {(task.entities?.jobs?.length || task.entities?.contacts?.length || task.entities?.companies?.length) ? (
                           <span className="flex items-center gap-0.5 ml-auto">
                             {task.entities?.jobs?.length ? (

@@ -14,11 +14,13 @@ import {
   useCompanySearch, 
   useContactSearch, 
   useTaskSearch,
+  usePreOpportunitySearch,
   type EntityType,
   type JobSearchResult,
   type CompanySearchResult,
   type ContactSearchResult,
   type TaskSearchResult,
+  type PreOpportunitySearchResult,
 } from '../api';
 
 export interface SelectedLink {
@@ -34,7 +36,7 @@ interface LinkSelectorProps {
   className?: string;
 }
 
-type TabType = 'JOB' | 'COMPANY' | 'CONTACT' | 'TASK';
+type TabType = 'JOB' | 'COMPANY' | 'CONTACT' | 'TASK' | 'PRE_OPPORTUNITY';
 
 const TABS: { id: TabType; label: string; icon: React.ReactNode }[] = [
   {
@@ -73,6 +75,15 @@ const TABS: { id: TabType; label: string; icon: React.ReactNode }[] = [
       </svg>
     ),
   },
+  {
+    id: 'PRE_OPPORTUNITY',
+    label: 'Pre-Opps',
+    icon: (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    ),
+  },
 ];
 
 export function LinkSelector({
@@ -101,6 +112,7 @@ export function LinkSelector({
   const { data: companies = [], isLoading: isLoadingCompanies } = useCompanySearch(searchQuery, hasOpened);
   const { data: contacts = [], isLoading: isLoadingContacts } = useContactSearch(searchQuery, hasOpened);
   const { data: tasks = [], isLoading: isLoadingTasks } = useTaskSearch(searchQuery, hasOpened);
+  const { data: preOpportunities = [], isLoading: isLoadingPreOpportunities } = usePreOpportunitySearch(searchQuery, hasOpened);
 
   // Mark as mounted for portal
   useEffect(() => {
@@ -207,6 +219,19 @@ export function LinkSelector({
             subtitle: task.status,
           }));
 
+      case 'PRE_OPPORTUNITY':
+        return (preOpportunities as PreOpportunitySearchResult[])
+          .filter((preOpp: PreOpportunitySearchResult) => {
+            const entityNumber = preOpp.entityNumber?.toLowerCase() || '';
+            return entityNumber.includes(query) && !alreadySelectedIds.has(preOpp.id);
+          })
+          .slice(0, 10)
+          .map((preOpp: PreOpportunitySearchResult) => ({
+            id: preOpp.id,
+            name: preOpp.entityNumber || 'Unknown Pre-Opportunity',
+            subtitle: preOpp.status || undefined,
+          }));
+
       default:
         return [];
     }
@@ -245,6 +270,8 @@ export function LinkSelector({
         return 'bg-green-100 text-green-700';
       case 'TASK':
         return 'bg-orange-100 text-orange-700';
+      case 'PRE_OPPORTUNITY':
+        return 'bg-teal-100 text-teal-700';
       default:
         return 'bg-gray-100 text-gray-700';
     }
@@ -259,6 +286,7 @@ export function LinkSelector({
       case 'COMPANY': return isLoadingCompanies;
       case 'CONTACT': return isLoadingContacts;
       case 'TASK': return isLoadingTasks;
+      case 'PRE_OPPORTUNITY': return isLoadingPreOpportunities;
       default: return false;
     }
   };
@@ -382,7 +410,7 @@ export function LinkSelector({
             setShowDropdown(true);
           }}
           onFocus={() => setShowDropdown(true)}
-          placeholder={selectedLinks.length > 0 ? 'Add more links...' : 'Search to link jobs, companies, contacts, or tasks...'}
+          placeholder={selectedLinks.length > 0 ? 'Add more links...' : 'Search to link jobs, companies, contacts, tasks, or pre-opportunities...'}
           className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400"
         />
       )}

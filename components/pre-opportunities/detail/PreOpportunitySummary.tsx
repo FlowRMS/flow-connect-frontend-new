@@ -2,9 +2,12 @@
  * Pre-Opportunity Summary Sidebar Component
  */
 
+'use client';
+
 import React from 'react';
 import type { PreOpportunity } from '../types';
 import { formatCurrency, formatDate } from '../utils';
+import { useCRMCustomerSearch, useCRMJobSearch } from '../../hooks/useCRMApi';
 
 interface PreOpportunitySummaryProps {
   preOpp: PreOpportunity;
@@ -15,6 +18,29 @@ export function PreOpportunitySummary({ preOpp }: PreOpportunitySummaryProps) {
   const totalDiscount = preOpp.details.reduce((sum, detail) => sum + (Number(detail.discount) || 0), 0);
   const grandTotal = preOpp.balance?.total || totalSubtotal - totalDiscount;
   const totalQuantity = preOpp.details.reduce((sum, detail) => sum + (Number(detail.quantity) || 0), 0);
+
+  // Fetch customers to look up names
+  const { data: customers = [] } = useCRMCustomerSearch('', undefined, true);
+  
+  // Fetch jobs to look up names (in case job object is not populated)
+  const { data: jobs = [] } = useCRMJobSearch('');
+
+  // Helper to get customer name by ID
+  const getCustomerName = (customerId: string | undefined): string => {
+    if (!customerId) return '-';
+    const customer = customers.find(c => c.id === customerId);
+    return customer?.companyName || customerId;
+  };
+
+  // Helper to get job name by ID
+  const getJobName = (jobId: string | undefined): string => {
+    if (!jobId) return '-';
+    // First check if we have job data embedded
+    if (preOpp.job?.jobName) return preOpp.job.jobName;
+    // Otherwise look it up
+    const job = jobs.find(j => j.id === jobId);
+    return job?.jobName || jobId;
+  };
 
   return (
     <div className="space-y-6">
@@ -99,30 +125,30 @@ export function PreOpportunitySummary({ preOpp }: PreOpportunitySummaryProps) {
         <h3 className="text-lg font-semibold text-gray-900 mb-4">References</h3>
         <div className="space-y-3">
           <div>
-            <div className="text-sm text-gray-500">Pre-Opportunity ID</div>
-            <div className="text-xs font-mono text-gray-900 break-all bg-gray-50 p-2 rounded mt-1">
-              {preOpp.id}
+            <div className="text-sm text-gray-500">Pre-Opportunity</div>
+            <div className="text-sm font-medium text-gray-900 bg-gray-50 p-2 rounded mt-1">
+              {preOpp.entityNumber}
             </div>
           </div>
           <div>
-            <div className="text-sm text-gray-500">Sold To Customer ID</div>
-            <div className="text-xs font-mono text-gray-900 break-all bg-gray-50 p-2 rounded mt-1">
-              {preOpp.soldToCustomerId}
+            <div className="text-sm text-gray-500">Sold To Customer</div>
+            <div className="text-sm font-medium text-gray-900 bg-gray-50 p-2 rounded mt-1">
+              {getCustomerName(preOpp.soldToCustomerId)}
             </div>
           </div>
           {preOpp.billToCustomerId && (
             <div>
-              <div className="text-sm text-gray-500">Bill To Customer ID</div>
-              <div className="text-xs font-mono text-gray-900 break-all bg-gray-50 p-2 rounded mt-1">
-                {preOpp.billToCustomerId}
+              <div className="text-sm text-gray-500">Bill To Customer</div>
+              <div className="text-sm font-medium text-gray-900 bg-gray-50 p-2 rounded mt-1">
+                {getCustomerName(preOpp.billToCustomerId)}
               </div>
             </div>
           )}
           {preOpp.jobId && (
             <div>
-              <div className="text-sm text-gray-500">Job ID</div>
-              <div className="text-xs font-mono text-gray-900 break-all bg-gray-50 p-2 rounded mt-1">
-                {preOpp.jobId}
+              <div className="text-sm text-gray-500">Job</div>
+              <div className="text-sm font-medium text-gray-900 bg-gray-50 p-2 rounded mt-1">
+                {getJobName(preOpp.jobId)}
               </div>
             </div>
           )}

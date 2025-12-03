@@ -13,7 +13,9 @@ import {
   useJobSearch,
   useContactSearch,
   useCompanySearch,
-  useNoteSearch
+  useNoteSearch,
+  usePreOpportunitySearch,
+  useUserSearch
 } from '../api';
 import { taskToasts } from '../../lib/toast';
 import { AVAILABLE_TAGS, API_PRIORITY_OPTIONS, API_STATUS_OPTIONS } from '../constants';
@@ -50,22 +52,27 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
   const [selectedJobs, setSelectedJobs] = useState<SelectedRelation[]>([]);
   const [selectedContacts, setSelectedContacts] = useState<SelectedRelation[]>([]);
   const [selectedCompanies, setSelectedCompanies] = useState<SelectedRelation[]>([]);
+  const [selectedPreOpportunities, setSelectedPreOpportunities] = useState<SelectedRelation[]>([]);
   
   // Search state
   const [jobSearch, setJobSearch] = useState('');
   const [contactSearch, setContactSearch] = useState('');
   const [companySearch, setCompanySearch] = useState('');
+  const [preOpportunitySearch, setPreOpportunitySearch] = useState('');
   const [showJobDropdown, setShowJobDropdown] = useState(false);
   const [showContactDropdown, setShowContactDropdown] = useState(false);
   const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
+  const [showPreOpportunityDropdown, setShowPreOpportunityDropdown] = useState(false);
 
   // Dropdown refs for portal positioning
   const jobInputRef = useRef<HTMLInputElement>(null);
   const contactInputRef = useRef<HTMLInputElement>(null);
   const companyInputRef = useRef<HTMLInputElement>(null);
+  const preOpportunityInputRef = useRef<HTMLInputElement>(null);
   const jobDropdownRef = useRef<HTMLDivElement>(null);
   const contactDropdownRef = useRef<HTMLDivElement>(null);
   const companyDropdownRef = useRef<HTMLDivElement>(null);
+  const preOpportunityDropdownRef = useRef<HTMLDivElement>(null);
   const [isMounted, setIsMounted] = useState(false);
 
   // Fetch entities for selection - using search endpoints
@@ -73,9 +80,10 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
   const { data: jobs = [], isLoading: isLoadingJobs } = useJobSearch(jobSearch, isOpen);
   const { data: contacts = [], isLoading: isLoadingContacts } = useContactSearch(contactSearch, isOpen);
   const { data: companies = [], isLoading: isLoadingCompanies } = useCompanySearch(companySearch, isOpen);
+  const { data: preOpportunities = [], isLoading: isLoadingPreOpportunities } = usePreOpportunitySearch(preOpportunitySearch, isOpen);
   
-  // Also use contact search for assignee selection
-  const { data: assigneeContacts = [], isLoading: isLoadingAssignees } = useContactSearch(assigneeSearch, isOpen);
+  // Also use user search for assignee selection
+  const { data: assigneeUsers = [], isLoading: isLoadingAssignees } = useUserSearch(assigneeSearch, isOpen && showAssigneeDropdown);
 
   // Mutations
   const createMutation = useCreateTask();
@@ -103,6 +111,10 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
           companyDropdownRef.current && !companyDropdownRef.current.contains(target)) {
         setShowCompanyDropdown(false);
       }
+      if (preOpportunityInputRef.current && !preOpportunityInputRef.current.contains(target) && 
+          preOpportunityDropdownRef.current && !preOpportunityDropdownRef.current.contains(target)) {
+        setShowPreOpportunityDropdown(false);
+      }
       if (assigneeInputRef.current && !assigneeInputRef.current.contains(target) && 
           assigneeDropdownRef.current && !assigneeDropdownRef.current.contains(target)) {
         setShowAssigneeDropdown(false);
@@ -128,6 +140,11 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
   // Filter companies based on selection
   const filteredCompanies = companies.filter(company => 
     !selectedCompanies.find(s => s.id === company.id)
+  );
+
+  // Filter pre-opportunities based on selection
+  const filteredPreOpportunities = preOpportunities.filter(preOpp => 
+    !selectedPreOpportunities.find(s => s.id === preOpp.id)
   );
 
   const handleAddTag = (tag: string) => {
@@ -167,6 +184,12 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
     setSelectedCompanies([...selectedCompanies, { id: company.id, name: company.name || 'Unnamed Company', type: 'company' }]);
     setCompanySearch('');
     setShowCompanyDropdown(false);
+  };
+
+  const handleSelectPreOpportunity = (preOpp: { id: string; entityNumber?: string | null }) => {
+    setSelectedPreOpportunities([...selectedPreOpportunities, { id: preOpp.id, name: preOpp.entityNumber || 'Unnamed Pre-Opportunity', type: 'preOpportunity' as 'job' }]);
+    setPreOpportunitySearch('');
+    setShowPreOpportunityDropdown(false);
   };
 
   const handleSelectAssignee = (contact: { id: string; firstName?: string | null; lastName?: string | null }) => {
@@ -226,6 +249,16 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
         });
       }
 
+      // Create links for pre-opportunities
+      for (const preOpp of selectedPreOpportunities) {
+        await createLinkMutation.mutateAsync({
+          sourceEntityType: 'TASK',
+          sourceEntityId: task.id,
+          targetEntityType: 'PRE_OPPORTUNITY',
+          targetEntityId: preOpp.id,
+        });
+      }
+
       taskToasts.createSuccess(title);
       resetForm();
       onSuccess();
@@ -247,9 +280,11 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
     setSelectedJobs([]);
     setSelectedContacts([]);
     setSelectedCompanies([]);
+    setSelectedPreOpportunities([]);
     setSelectedAssignee(null);
     setCustomTag('');
     setAssigneeSearch('');
+    setPreOpportunitySearch('');
   };
 
   const handleClose = () => {
@@ -480,14 +515,14 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
                               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
                             </svg>
-                            <p className="text-sm text-gray-500">Loading contacts...</p>
+                            <p className="text-sm text-gray-500">Loading users...</p>
                           </div>
-                        ) : assigneeContacts.length > 0 ? (
-                          assigneeContacts.slice(0, 10).map(contact => (
+                        ) : assigneeUsers.length > 0 ? (
+                          assigneeUsers.slice(0, 10).map(user => (
                             <button
-                              key={contact.id}
+                              key={user.id}
                               type="button"
-                              onClick={() => handleSelectAssignee(contact)}
+                              onClick={() => handleSelectAssignee({ id: user.id, firstName: user.firstName, lastName: user.lastName })}
                               className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-gray-50 transition-colors"
                             >
                               <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
@@ -496,14 +531,14 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
                                 </svg>
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="font-medium text-gray-900 truncate">{contact.firstName} {contact.lastName}</p>
-                                {contact.email && <p className="text-xs text-gray-500 truncate">{contact.email}</p>}
+                                <p className="font-medium text-gray-900 truncate">{user.fullName || `${user.firstName} ${user.lastName}`}</p>
+                                {user.email && <p className="text-xs text-gray-500 truncate">{user.email}</p>}
                               </div>
                             </button>
                           ))
                         ) : (
                           <div className="px-4 py-6 text-center text-sm text-gray-500">
-                            {assigneeSearch ? 'No contacts found' : 'Type to search contacts'}
+                            {assigneeSearch ? 'No users found' : 'Type to search users'}
                           </div>
                         )}
                       </div>,
@@ -797,6 +832,100 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
                     ) : (
                       <div className="px-4 py-6 text-center text-sm text-gray-500">
                         {companySearch ? 'No companies found' : 'No companies available'}
+                      </div>
+                    )}
+                  </div>,
+                  document.body
+                )}
+              </div>
+
+              {/* Pre-Opportunities */}
+              <div className="relative">
+                <label className={labelClass}>
+                  <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Pre-Opportunities
+                </label>
+                {selectedPreOpportunities.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {selectedPreOpportunities.map(preOpp => (
+                      <span
+                        key={preOpp.id}
+                        className="px-3 py-1 bg-teal-100 text-teal-700 rounded-full text-sm flex items-center gap-2"
+                      >
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        {preOpp.name}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPreOpportunities(selectedPreOpportunities.filter(p => p.id !== preOpp.id))}
+                          className="hover:text-teal-900"
+                        >
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <input
+                  ref={preOpportunityInputRef}
+                  type="text"
+                  value={preOpportunitySearch}
+                  onChange={(e) => {
+                    setPreOpportunitySearch(e.target.value);
+                    setShowPreOpportunityDropdown(true);
+                  }}
+                  onFocus={() => setShowPreOpportunityDropdown(true)}
+                  className={inputClass}
+                  placeholder={isLoadingPreOpportunities ? "Loading pre-opportunities..." : selectedPreOpportunities.length > 0 ? "Add more pre-opportunities..." : "Search pre-opportunities..."}
+                  disabled={isLoadingPreOpportunities}
+                />
+                {showPreOpportunityDropdown && isMounted && createPortal(
+                  <div 
+                    ref={preOpportunityDropdownRef}
+                    style={{
+                      position: 'fixed',
+                      top: preOpportunityInputRef.current ? preOpportunityInputRef.current.getBoundingClientRect().bottom + 4 : 0,
+                      left: preOpportunityInputRef.current ? preOpportunityInputRef.current.getBoundingClientRect().left : 0,
+                      width: preOpportunityInputRef.current ? preOpportunityInputRef.current.offsetWidth : 'auto',
+                      zIndex: 9999,
+                    }}
+                    className="bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
+                  >
+                    {isLoadingPreOpportunities ? (
+                      <div className="px-4 py-6 text-center">
+                        <svg className="animate-spin w-5 h-5 text-teal-500 mx-auto mb-2" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                        </svg>
+                        <p className="text-sm text-gray-500">Loading pre-opportunities...</p>
+                      </div>
+                    ) : filteredPreOpportunities.length > 0 ? (
+                      filteredPreOpportunities.slice(0, 10).map(preOpp => (
+                        <button
+                          key={preOpp.id}
+                          type="button"
+                          onClick={() => handleSelectPreOpportunity(preOpp)}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-gray-50 transition-colors"
+                        >
+                          <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center">
+                            <svg className="w-4 h-4 text-teal-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-gray-900 truncate">{preOpp.entityNumber || 'Unknown'}</p>
+                            {preOpp.status && <p className="text-xs text-gray-500 truncate">{preOpp.status}</p>}
+                          </div>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-4 py-6 text-center text-sm text-gray-500">
+                        {preOpportunitySearch ? 'No pre-opportunities found' : 'No pre-opportunities available'}
                       </div>
                     )}
                   </div>,

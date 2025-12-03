@@ -93,6 +93,15 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
         entityId: task.id,
       });
     });
+
+    relatedEntities.preOpportunities?.forEach(preOpp => {
+      links.push({
+        id: preOpp.id,
+        type: 'PRE_OPPORTUNITY',
+        name: preOpp.entityNumber || 'Unknown Pre-Opportunity',
+        entityId: preOpp.id,
+      });
+    });
     
     return links;
   }, [relatedEntities]);
@@ -108,6 +117,8 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
         return 'bg-green-100 text-green-700';
       case 'TASK':
         return 'bg-orange-100 text-orange-700';
+      case 'PRE_OPPORTUNITY':
+        return 'bg-teal-100 text-teal-700';
       default:
         return 'bg-gray-100 text-gray-700';
     }
@@ -138,6 +149,12 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
         return (
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+          </svg>
+        );
+      case 'PRE_OPPORTUNITY':
+        return (
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         );
       default:
@@ -231,9 +248,11 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
   };
 
   // Check if user can edit/delete a comment (simplified check)
-  const canEditComment = (conversation: NoteConversation) => {
+  // Note: createdBy is not available from API, so allow editing for now
+  const canEditComment = (_conversation: NoteConversation) => {
     // In a real app, compare with actual current user ID
-    return currentUserId ? conversation.createdBy === currentUserId : true;
+    // Since createdBy is not available, allow all users to edit for now
+    return true;
   };
 
   return (
@@ -402,8 +421,8 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
                   ) : (
                     conversations.map((conversation) => (
                       <div key={conversation.id} className="flex gap-3 group">
-                        <div className={`w-8 h-8 rounded-full ${getAvatarColor(conversation.createdBy)} flex items-center justify-center text-white text-xs font-semibold flex-shrink-0`}>
-                          {getInitials(conversation.createdBy)}
+                        <div className={`w-8 h-8 rounded-full ${getAvatarColor('User')} flex items-center justify-center text-white text-xs font-semibold flex-shrink-0`}>
+                          {getInitials('User')}
                         </div>
                         <div className="flex-1">
                           {editingCommentId === conversation.id ? (
@@ -446,7 +465,7 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
                               <div className="flex items-center justify-between mb-1">
                                 <div className="flex items-center gap-2">
                                   <span className="text-sm font-semibold text-[var(--foreground)]">
-                                    {conversation.createdBy}
+                                    User
                                   </span>
                                   <span className="text-xs text-[var(--muted-foreground)]">
                                     {formatTimeAgo(conversation.createdAt)}

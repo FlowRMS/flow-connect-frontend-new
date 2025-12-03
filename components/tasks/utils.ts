@@ -162,6 +162,10 @@ export function convertRelatedEntitiesToUI(relatedEntities: TaskRelatedEntities)
       id: note.id,
       name: note.title || 'Untitled Note',
     })) || [],
+    preOpportunities: relatedEntities.preOpportunities?.map(preOpp => ({
+      id: preOpp.id,
+      name: preOpp.entityNumber || 'Unknown Pre-Opp',
+    })) || [],
   };
 }
 
@@ -229,6 +233,55 @@ export function formatTaskDate(dateString: string): string {
   if (diffDays > 0 && diffDays < 7) return `${diffDays} days`;
   if (diffDays < 0) return `${Math.abs(diffDays)} days ago`;
   return date.toLocaleDateString();
+}
+
+/**
+ * Get reminder date status: 'Waiting' (future), 'Tomorrow', 'Today', 'Passed' (past)
+ */
+export type ReminderStatus = 'Waiting' | 'Tomorrow' | 'Today' | 'Passed';
+
+export function getReminderStatus(dateString: string | null | undefined): ReminderStatus | null {
+  if (!dateString) return null;
+  
+  const date = new Date(dateString);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const reminderDate = new Date(date);
+  reminderDate.setHours(0, 0, 0, 0);
+  
+  const diffTime = reminderDate.getTime() - today.getTime();
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) return 'Passed';
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Tomorrow';
+  return 'Waiting';
+}
+
+/**
+ * Get reminder status color class
+ */
+export function getReminderStatusColor(status: ReminderStatus): string {
+  switch (status) {
+    case 'Passed': return 'text-red-600 bg-red-50';
+    case 'Today': return 'text-green-600 bg-green-50';
+    case 'Tomorrow': return 'text-orange-600 bg-orange-50';
+    case 'Waiting': return 'text-blue-600 bg-blue-50';
+    default: return 'text-gray-600 bg-gray-50';
+  }
+}
+
+/**
+ * Format reminder date for display with formatted date
+ */
+export function formatReminderDate(dateString: string | null | undefined): string {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', { 
+    month: 'short', 
+    day: 'numeric'
+  });
 }
 
 /**
@@ -377,10 +430,18 @@ export function generateCalendarDays(year: number, month: number) {
 
 /**
  * Get tasks for a specific date
+ * Uses reminderDate when available, otherwise falls back to dueDate
  */
 export function getTasksForDate(tasks: Task[], date: Date): Task[] {
   const dateStr = formatLocalDate(date);
-  return tasks.filter(task => task.dueDate === dateStr);
+  return tasks.filter(task => {
+    // If task has a reminderDate, use that for calendar positioning
+    if (task.reminderDate) {
+      return task.reminderDate === dateStr;
+    }
+    // Otherwise, use dueDate
+    return task.dueDate === dateStr;
+  });
 }
 
 /**

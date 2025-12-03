@@ -8,7 +8,6 @@ export interface NoteConversation {
   id: string;
   noteId: string;
   content: string;
-  createdBy: string;
   createdAt: string;
 }
 

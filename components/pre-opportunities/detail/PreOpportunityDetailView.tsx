@@ -3,11 +3,14 @@
  * Combines all detail components into a single view
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { PreOpportunityDetailHeader } from './PreOpportunityDetailHeader';
 import { PreOpportunityDetailsForm, type EditFormData } from './PreOpportunityDetailsForm';
 import { PreOpportunityLineItems } from './PreOpportunityLineItems';
 import { PreOpportunitySummary } from './PreOpportunitySummary';
+import ConnectedTasksSection from '../../tasks/ConnectedTasksSection';
+import ConnectedNotesSection from '../../notes/ConnectedNotesSection';
+import { AddLinkModal } from '../modals/AddLinkModal';
 import type { PreOpportunity, PreOpportunityDetailInput } from '../types';
 
 interface PreOpportunityDetailViewProps {
@@ -39,6 +42,27 @@ export function PreOpportunityDetailView({
   onEditChange,
   onLineItemsChange,
 }: PreOpportunityDetailViewProps) {
+  // Modal states
+  const [showAddLinkModal, setShowAddLinkModal] = useState(false);
+  const [addLinkEntityType, setAddLinkEntityType] = useState<'TASK' | 'NOTE'>('TASK');
+  const [tasksSectionKey, setTasksSectionKey] = useState(0);
+  const [notesSectionKey, setNotesSectionKey] = useState(0);
+
+  // Handle link success - trigger refetch via key change
+  const handleLinkSuccess = () => {
+    if (addLinkEntityType === 'TASK') {
+      setTasksSectionKey(prev => prev + 1);
+    } else {
+      setNotesSectionKey(prev => prev + 1);
+    }
+  };
+
+  // Open add link modal for specific entity type
+  const openAddLinkModal = (entityType: 'TASK' | 'NOTE') => {
+    setAddLinkEntityType(entityType);
+    setShowAddLinkModal(true);
+  };
+
   return (
     <main className="flex-1 overflow-y-auto bg-gray-50 p-6">
       <PreOpportunityDetailHeader
@@ -67,6 +91,24 @@ export function PreOpportunityDetailView({
             isEditing={isEditing}
             onLineItemsChange={onLineItemsChange}
           />
+          
+          {/* Connected Tasks */}
+          <ConnectedTasksSection
+            key={`tasks-${tasksSectionKey}`}
+            entityId={preOpp.id}
+            entityType="PRE_OPPORTUNITY"
+            title="Connected Tasks"
+            onAddClick={() => openAddLinkModal('TASK')}
+          />
+          
+          {/* Connected Notes */}
+          <ConnectedNotesSection
+            key={`notes-${notesSectionKey}`}
+            entityId={preOpp.id}
+            entityType="PRE_OPPORTUNITY"
+            title="Connected Notes"
+            onAddClick={() => openAddLinkModal('NOTE')}
+          />
         </div>
 
         {/* Sidebar - 1 column */}
@@ -74,6 +116,15 @@ export function PreOpportunityDetailView({
           <PreOpportunitySummary preOpp={preOpp} />
         </div>
       </div>
+
+      {/* Add Link Modal */}
+      <AddLinkModal
+        isOpen={showAddLinkModal}
+        preOpportunityId={preOpp.id}
+        initialEntityType={addLinkEntityType}
+        onClose={() => setShowAddLinkModal(false)}
+        onSuccess={handleLinkSuccess}
+      />
     </main>
   );
 }

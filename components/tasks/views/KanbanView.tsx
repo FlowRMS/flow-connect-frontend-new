@@ -6,7 +6,7 @@
 import React from 'react';
 import type { Task, TaskStatusAPI, TaskStage } from '../types';
 import { TASK_STAGES } from '../constants';
-import { formatDate, getAPIPriorityColor } from '../utils';
+import { formatDate, getAPIPriorityColor, getReminderStatus, getReminderStatusColor, formatReminderDate } from '../utils';
 
 interface KanbanViewProps {
   tasks: Task[];
@@ -89,14 +89,30 @@ export default function KanbanView({
                   </button>
                 </div>
                 <p className="text-xs text-[var(--muted-foreground)] mb-2 line-clamp-2">{task.description}</p>
-                <div className="flex items-center gap-2 text-xs text-[var(--muted-foreground)] mb-2">
+                <div className="flex flex-col gap-1 text-xs text-[var(--muted-foreground)] mb-2">
                   <span className="flex items-center gap-1">
+                    <span className="text-gray-400 text-[10px] font-medium">Due:</span>
                     <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                       <rect x="3" y="4" width="14" height="14" rx="2"/>
                       <path d="M3 8h14M7 2v4M13 2v4" strokeLinecap="round"/>
                     </svg>
                     {formatDate(task.dueDate)}
                   </span>
+                  
+                  {/* Reminder Date */}
+                  {task.reminderDate && (() => {
+                    const status = getReminderStatus(task.reminderDate);
+                    return (
+                      <span className={`flex items-center gap-1 px-2 py-0.5 rounded w-fit ${status ? getReminderStatusColor(status) : 'bg-blue-50 text-blue-600'}`}>
+                        <span className="text-[10px] font-medium">Reminder:</span>
+                        <svg width="10" height="10" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M10 2a6 6 0 016 6v4l2 2H2l2-2V8a6 6 0 016-6zM10 18a2 2 0 002-2H8a2 2 0 002 2z" strokeLinecap="round"/>
+                        </svg>
+                        <span className="font-medium">{formatReminderDate(task.reminderDate)}</span>
+                        {status && <span className="text-[10px] opacity-75">({status})</span>}
+                      </span>
+                    );
+                  })()}
                 </div>
                 <div className="flex items-center gap-1 flex-wrap">
                   {task.tags.slice(0, 2).map((tag, idx) => (

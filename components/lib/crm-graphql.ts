@@ -37,6 +37,33 @@ export interface GraphQLResponse<T = unknown> {
   }>;
 }
 
+type CreatedByResponse =
+  | string
+  | null
+  | undefined
+  | {
+      email?: string | null;
+      firstName?: string | null;
+      fullName?: string | null;
+      id?: string | null;
+      lastName?: string | null;
+    };
+
+const formatCreatedBy = (value: CreatedByResponse): string => {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  const fullName = value.fullName || [value.firstName, value.lastName].filter(Boolean).join(' ').trim();
+  return fullName || value.email || value.id || '';
+};
+
+const withFormattedCreatedBy = <T extends { createdBy?: CreatedByResponse }>(item: T): T => ({
+  ...item,
+  createdBy: formatCreatedBy(item.createdBy),
+});
+
+const mapFormattedCreatedBy = <T extends { createdBy?: CreatedByResponse }>(items?: T[]): T[] =>
+  (items || []).map(withFormattedCreatedBy);
+
 // Job Types
 export interface JobStatus {
   id: string;
@@ -255,7 +282,9 @@ export interface PreOpportunity {
   balance?: PreOpportunityBalance;
   details: PreOpportunityDetail[];
   createdBy: string;
+  createdById?: string;
   createdAt: string;
+  tags?: string;
 }
 
 export interface PreOpportunityLandingPage {
@@ -425,7 +454,13 @@ const GET_JOB = `
     job(id: $id) {
       additionalInformation
       createdAt
-      createdBy
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
       description
       endDate
       id
@@ -459,7 +494,13 @@ const CREATE_JOB = `
       id
       endDate
       description
-      createdBy
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
       createdAt
       additionalInformation
     }
@@ -479,7 +520,13 @@ const UPDATE_JOB = `
       startDate
       endDate
       requesterId
-      createdBy
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
       createdAt
       status {
         id
@@ -505,7 +552,13 @@ const GET_COMPANIES = `
       phone
       website
       tags
-      createdBy
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
       createdAt
     }
   }
@@ -521,7 +574,13 @@ const GET_COMPANY = `
       phone
       website
       tags
-      createdBy
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
       createdAt
     }
   }
@@ -537,7 +596,13 @@ const GET_COMPANIES_BY_JOB_ID = `
       phone
       website
       tags
-      createdBy
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
       createdAt
     }
   }
@@ -553,7 +618,13 @@ const CREATE_COMPANY = `
       phone
       website
       tags
-      createdBy
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
       createdAt
     }
   }
@@ -569,7 +640,13 @@ const UPDATE_COMPANY = `
       phone
       website
       tags
-      createdBy
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
       createdAt
     }
   }
@@ -594,7 +671,6 @@ const GET_CONTACTS = `
       notes
       tags
       territory
-      createdBy
       createdAt
     }
   }
@@ -613,7 +689,6 @@ const GET_CONTACT = `
       notes
       tags
       territory
-      createdBy
       createdAt
     }
   }
@@ -632,7 +707,6 @@ const GET_CONTACTS_BY_COMPANY = `
       notes
       tags
       territory
-      createdBy
       createdAt
     }
   }
@@ -651,7 +725,13 @@ const GET_JOBS_BY_COMPANY = `
       startDate
       endDate
       requesterId
-      createdBy
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
       createdAt
       status {
         id
@@ -674,7 +754,13 @@ const GET_JOBS_BY_CONTACT = `
       startDate
       endDate
       requesterId
-      createdBy
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
       createdAt
       status {
         id
@@ -697,7 +783,6 @@ const CREATE_CONTACT = `
       notes
       tags
       territory
-      createdBy
       createdAt
     }
   }
@@ -716,7 +801,6 @@ const UPDATE_CONTACT = `
       notes
       tags
       territory
-      createdBy
       createdAt
     }
   }
@@ -824,14 +908,14 @@ const FIND_PRE_OPPORTUNITY_LANDING_PAGES = `
         ... on PreOpportunityLandingPage {
           id
           total
-          status
-          expDate
-          entityNumber
-          entityDate
-          createdBy
-          createdAt
-        }
+        status
+        expDate
+        entityNumber
+        entityDate
+        createdBy
+        createdAt
       }
+    }
       total
     }
   }
@@ -855,17 +939,23 @@ const GET_PRE_OPPORTUNITY = `
         jobType
         description
         additionalInformation
-        structuralInformation
-        structuralDetails
-        startDate
-        endDate
-        requesterId
-        createdBy
-        createdAt
-        status {
-          id
-          name
-        }
+      structuralInformation
+      structuralDetails
+      startDate
+      endDate
+      requesterId
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
+      createdAt
+      status {
+        id
+        name
+      }
       }
       expDate
       acceptDate
@@ -901,7 +991,13 @@ const GET_PRE_OPPORTUNITY = `
         leadTime
         endUserId
       }
-      createdBy
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
       createdAt
     }
   }
@@ -953,7 +1049,6 @@ const GET_PRE_OPPORTUNITIES_BY_JOB = `
         leadTime
         endUserId
       }
-      createdBy
       createdAt
     }
   }
@@ -1005,7 +1100,6 @@ const GET_PRE_OPPORTUNITIES_BY_CUSTOMER = `
         leadTime
         endUserId
       }
-      createdBy
       createdAt
     }
   }
@@ -1054,7 +1148,13 @@ const SEARCH_JOBS = `
       startDate
       endDate
       requesterId
-      createdBy
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
       createdAt
       status {
         id
@@ -1082,17 +1182,23 @@ const CREATE_PRE_OPPORTUNITY = `
         jobType
         description
         additionalInformation
-        structuralInformation
-        structuralDetails
-        startDate
-        endDate
-        requesterId
-        createdBy
-        createdAt
-        status {
-          id
-          name
-        }
+      structuralInformation
+      structuralDetails
+      startDate
+      endDate
+      requesterId
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
+      createdAt
+      status {
+        id
+        name
+      }
       }
       expDate
       acceptDate
@@ -1128,7 +1234,13 @@ const CREATE_PRE_OPPORTUNITY = `
         leadTime
         endUserId
       }
-      createdBy
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
       createdAt
     }
   }
@@ -1152,17 +1264,23 @@ const UPDATE_PRE_OPPORTUNITY = `
         jobType
         description
         additionalInformation
-        structuralInformation
-        structuralDetails
-        startDate
-        endDate
-        requesterId
-        createdBy
-        createdAt
-        status {
-          id
-          name
-        }
+      structuralInformation
+      structuralDetails
+      startDate
+      endDate
+      requesterId
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
+      createdAt
+      status {
+        id
+        name
+      }
       }
       expDate
       acceptDate
@@ -1198,7 +1316,13 @@ const UPDATE_PRE_OPPORTUNITY = `
         leadTime
         endUserId
       }
-      createdBy
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
       createdAt
     }
   }
@@ -1331,7 +1455,9 @@ export async function fetchJob(id: string): Promise<Job | null> {
     throw new Error(response.errors[0]?.message || 'Failed to fetch job');
   }
 
-  return response.data?.job || null;
+  const job = response.data?.job;
+
+  return job ? { ...job, createdBy: formatCreatedBy(job.createdBy) } : null;
 }
 
 export async function createJob(input: JobInput): Promise<Job> {
@@ -1351,7 +1477,8 @@ export async function createJob(input: JobInput): Promise<Job> {
   // Store the job ID for later retrieval
   addStoredJobId(response.data.createJob.id);
 
-  return response.data.createJob;
+  const createdJob = response.data.createJob;
+  return { ...createdJob, createdBy: formatCreatedBy(createdJob.createdBy) };
 }
 
 export async function updateJob(id: string, input: UpdateJobInput): Promise<Job> {
@@ -1368,7 +1495,8 @@ export async function updateJob(id: string, input: UpdateJobInput): Promise<Job>
     throw new Error('No job returned from update mutation');
   }
 
-  return response.data.updateJob;
+  const updatedJob = response.data.updateJob;
+  return { ...updatedJob, createdBy: formatCreatedBy(updatedJob.createdBy) };
 }
 
 export async function deleteJob(id: string): Promise<boolean> {
@@ -1433,7 +1561,7 @@ export async function fetchCompanies(): Promise<Company[]> {
     throw new Error(response.errors[0]?.message || 'Failed to fetch companies');
   }
 
-  return response.data?.companies || [];
+  return mapFormattedCreatedBy(response.data?.companies);
 }
 
 export async function fetchCompany(id: string): Promise<Company | null> {
@@ -1446,7 +1574,8 @@ export async function fetchCompany(id: string): Promise<Company | null> {
     throw new Error(response.errors[0]?.message || 'Failed to fetch company');
   }
 
-  return response.data?.company || null;
+  const company = response.data?.company;
+  return company ? withFormattedCreatedBy(company) : null;
 }
 
 export async function fetchCompaniesByJobId(jobId: string): Promise<Company[]> {
@@ -1459,7 +1588,7 @@ export async function fetchCompaniesByJobId(jobId: string): Promise<Company[]> {
     throw new Error(response.errors[0]?.message || 'Failed to fetch companies by job');
   }
 
-  return response.data?.companiesByJobId || [];
+  return mapFormattedCreatedBy(response.data?.companiesByJobId);
 }
 
 export async function createCompany(input: CompanyInput): Promise<Company> {
@@ -1476,7 +1605,7 @@ export async function createCompany(input: CompanyInput): Promise<Company> {
     throw new Error('No company returned from create mutation');
   }
 
-  return response.data.createCompany;
+  return withFormattedCreatedBy(response.data.createCompany);
 }
 
 export async function updateCompany(id: string, input: UpdateCompanyInput): Promise<Company> {
@@ -1493,7 +1622,7 @@ export async function updateCompany(id: string, input: UpdateCompanyInput): Prom
     throw new Error('No company returned from update mutation');
   }
 
-  return response.data.updateCompany;
+  return withFormattedCreatedBy(response.data.updateCompany);
 }
 
 export async function deleteCompany(id: string): Promise<boolean> {
@@ -1579,7 +1708,7 @@ export async function fetchJobsByCompanyId(companyId: string): Promise<Job[]> {
     throw new Error(response.errors[0]?.message || 'Failed to fetch jobs by company');
   }
 
-  return response.data?.jobsByCompany || [];
+  return mapFormattedCreatedBy(response.data?.jobsByCompany);
 }
 
 export async function fetchJobsByContactId(contactId: string): Promise<Job[]> {
@@ -1592,7 +1721,7 @@ export async function fetchJobsByContactId(contactId: string): Promise<Job[]> {
     throw new Error(response.errors[0]?.message || 'Failed to fetch jobs by contact');
   }
 
-  return response.data?.jobsByContact || [];
+  return mapFormattedCreatedBy(response.data?.jobsByContact);
 }
 
 export async function createContact(input: ContactInput): Promise<Contact> {
@@ -1702,7 +1831,18 @@ export async function fetchPreOpportunity(id: string): Promise<PreOpportunity | 
 
   const preOpp = response.data?.preOpportunity;
   // Normalize status value (convert numeric to string)
-  return preOpp ? normalizePreOpportunityStatus(preOpp) : null;
+  if (!preOpp) {
+    return null;
+  }
+
+  const normalized = normalizePreOpportunityStatus(preOpp);
+  return {
+    ...normalized,
+    createdBy: formatCreatedBy((normalized as any).createdBy),
+    job: normalized.job
+      ? { ...normalized.job, createdBy: formatCreatedBy((normalized.job as any).createdBy) }
+      : normalized.job,
+  };
 }
 
 export async function fetchPreOpportunitiesByJob(jobId: string): Promise<PreOpportunity[]> {
@@ -1788,7 +1928,7 @@ export async function searchJobs(searchTerm: string): Promise<JobSearchResult[]>
     throw new Error(response.errors[0]?.message || 'Failed to search jobs');
   }
 
-  return response.data?.jobSearch || [];
+  return mapFormattedCreatedBy(response.data?.jobSearch);
 }
 
 export async function createPreOpportunity(input: CreatePreOpportunityInput): Promise<PreOpportunity> {
@@ -1805,7 +1945,12 @@ export async function createPreOpportunity(input: CreatePreOpportunityInput): Pr
     throw new Error('No pre-opportunity returned from create mutation');
   }
 
-  return response.data.createPreOpportunity;
+  const preOpp = response.data.createPreOpportunity;
+  return {
+    ...preOpp,
+    createdBy: formatCreatedBy((preOpp as any).createdBy),
+    job: preOpp.job ? { ...preOpp.job, createdBy: formatCreatedBy((preOpp.job as any).createdBy) } : preOpp.job,
+  };
 }
 
 export async function updatePreOpportunity(input: UpdatePreOpportunityInput): Promise<PreOpportunity> {
@@ -1822,7 +1967,12 @@ export async function updatePreOpportunity(input: UpdatePreOpportunityInput): Pr
     throw new Error('No pre-opportunity returned from update mutation');
   }
 
-  return response.data.updatePreOpportunity;
+  const preOpp = response.data.updatePreOpportunity;
+  return {
+    ...preOpp,
+    createdBy: formatCreatedBy((preOpp as any).createdBy),
+    job: preOpp.job ? { ...preOpp.job, createdBy: formatCreatedBy((preOpp.job as any).createdBy) } : preOpp.job,
+  };
 }
 
 export async function deletePreOpportunity(id: string): Promise<boolean> {
@@ -1842,7 +1992,7 @@ export async function deletePreOpportunity(id: string): Promise<boolean> {
 // Entity Link Types
 // ============================================================================
 
-export type EntityType = 'JOB' | 'COMPANY' | 'CONTACT' | 'TASK' | 'NOTE';
+export type EntityType = 'JOB' | 'COMPANY' | 'CONTACT' | 'TASK' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK';
 
 export interface EntityLink {
   id: string;
@@ -1868,10 +2018,101 @@ export interface DeleteLinkByEntitiesInput {
   targetEntityId: string;
 }
 
+// Search result types for linking
+export interface QuoteSearchResult {
+  id: string;
+  quoteNumber: string;
+  jobName: string;
+  entityDate: string;
+  entryDate: string;
+  expDate: string;
+  billToCustomerId: string;
+  soldToCustomerId: string;
+  blanket: boolean;
+  createdBy: string;
+  userOwnerIds: string[];
+}
+
+export interface OrderSearchResult {
+  id: string;
+  orderNumber: string;
+  jobName: string;
+  entityDate: string;
+  entryDate: string;
+  dueDate: string;
+  shipDate: string;
+  status: string;
+  billToCustomerId: string;
+  soldToCustomerId: string;
+  factoryId: string;
+  quoteId: string;
+  balanceId: string;
+  factSoNumber: string;
+  userOwnerIds: string[];
+}
+
+export interface InvoiceSearchResult {
+  id: string;
+  invoiceNumber: string;
+  entityDate: string;
+  entryDate: string;
+  dueDate: string;
+  status: string;
+  factoryId: string;
+  orderId: string;
+  balanceId: string;
+  locked: boolean;
+  published: boolean;
+  creationType: string;
+  createdBy: string;
+  userOwnerIds: string[];
+}
+
+export interface CheckSearchResult {
+  id: string;
+  checkNumber: string;
+  entityDate: string;
+  entryDate: string;
+  postDate: string;
+  status: string;
+  factoryId: string;
+  commission: number;
+  commissionMonth: string;
+  creationType: string;
+  createdBy: string;
+  userOwnerIds: string[];
+}
+
+export interface TaskSearchResult {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  priority: string;
+  dueDate: string;
+  assignedToId: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface NoteSearchResult {
+  id: string;
+  title: string;
+  content: string;
+  tags: string;
+  mentions: string;
+  createdBy: string;
+  createdAt: string;
+}
+
 export interface JobRelatedEntities {
   companies: Company[];
   contacts: Contact[];
   preOpportunities: PreOpportunity[];
+  quotes: QuoteSearchResult[];
+  orders: OrderSearchResult[];
+  invoices: InvoiceSearchResult[];
+  checks: CheckSearchResult[];
 }
 
 // ============================================================================
@@ -1897,7 +2138,6 @@ const CREATE_LINK = `
       targetEntityType
       targetEntityId
       createdAt
-      createdBy
     }
   }
 `;
@@ -1927,50 +2167,238 @@ const DELETE_LINK_BY_ENTITIES = `
 const GET_JOB_RELATED_ENTITIES = `
   query GetJobRelatedEntities($jobId: UUID!) {
     jobRelatedEntities(jobId: $jobId) {
+      checks {
+        checkNumber
+        commission
+        commissionMonth
+        createdBy
+        creationType
+        entityDate
+        entryDate
+        factoryId
+        id
+        postDate
+        status
+        userOwnerIds
+      }
       companies {
+        companySourceType
+        createdAt
+        createdBy {
+          email
+          firstName
+          fullName
+          id
+          lastName
+        }
         id
         name
-        companySourceType
-        phone
-        website
-        tags
-        createdAt
-        createdBy
         parentCompanyId
+        phone
+        tags
+        website
       }
       contacts {
+        territory
+        tags
+        role
+        phone
+        notes
+        lastName
         id
         firstName
-        lastName
         email
-        phone
-        role
-        companyId
-        notes
-        tags
-        territory
         createdAt
+        companyId
+      }
+      invoices {
+        balanceId
         createdBy
+        creationType
+        dueDate
+        entityDate
+        factoryId
+        entryDate
+        id
+        invoiceNumber
+        locked
+        orderId
+        published
+        status
+        userOwnerIds
+      }
+      orders {
+        balanceId
+        billToCustomerId
+        dueDate
+        entityDate
+        entryDate
+        factSoNumber
+        factoryId
+        id
+        jobName
+        orderNumber
+        shipDate
+        soldToCustomerId
+        status
+        userOwnerIds
       }
       preOpportunities {
-        id
-        entityNumber
-        entityDate
-        status
-        soldToCustomerId
-        billToCustomerId
-        soldToCustomerAddressId
-        billToCustomerAddressId
-        jobId
-        expDate
         acceptDate
-        reviseDate
-        customerRef
-        paymentTerms
-        freightTerms
+        billToCustomerAddressId
+        billToCustomerId
         createdAt
-        createdBy
+        createdById
+        customerRef
+        entityDate
+        entityNumber
+        expDate
+        freightTerms
+        id
+        jobId
+        paymentTerms
+        reviseDate
+        soldToCustomerAddressId
+        soldToCustomerId
+        status
+        tags
       }
+      quotes {
+        billToCustomerId
+        createdBy
+        blanket
+        entityDate
+        entryDate
+        expDate
+        id
+        jobName
+        quoteNumber
+        soldToCustomerId
+        userOwnerIds
+      }
+    }
+  }
+`;
+
+// Search queries for linking entities
+const TASK_SEARCH = `
+  query TaskSearch($searchTerm: String!) {
+    taskSearch(searchTerm: $searchTerm) {
+      id
+      title
+      description
+      status
+      priority
+      dueDate
+      assignedToId
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
+      createdAt
+    }
+  }
+`;
+
+const NOTE_SEARCH = `
+  query NoteSearch($searchTerm: String!) {
+    noteSearch(searchTerm: $searchTerm) {
+      id
+      title
+      content
+      tags
+      mentions
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
+      createdAt
+    }
+  }
+`;
+
+const QUOTE_SEARCH = `
+  query QuoteSearch($searchTerm: String!) {
+    quoteSearch(searchTerm: $searchTerm) {
+      id
+      quoteNumber
+      jobName
+      entityDate
+      entryDate
+      expDate
+      billToCustomerId
+      soldToCustomerId
+      blanket
+      createdBy
+      userOwnerIds
+    }
+  }
+`;
+
+const ORDER_SEARCH = `
+  query OrderSearch($searchTerm: String!) {
+    orderSearch(searchTerm: $searchTerm) {
+      id
+      orderNumber
+      jobName
+      entityDate
+      entryDate
+      dueDate
+      shipDate
+      status
+      billToCustomerId
+      soldToCustomerId
+      factoryId
+      quoteId
+      balanceId
+      factSoNumber
+      userOwnerIds
+    }
+  }
+`;
+
+const INVOICE_SEARCH = `
+  query InvoiceSearch($searchTerm: String!) {
+    invoiceSearch(searchTerm: $searchTerm) {
+      id
+      invoiceNumber
+      entityDate
+      entryDate
+      dueDate
+      status
+      factoryId
+      orderId
+      balanceId
+      locked
+      published
+      creationType
+      createdBy
+      userOwnerIds
+    }
+  }
+`;
+
+const CHECK_SEARCH = `
+  query CheckSearch($searchTerm: String!) {
+    checkSearch(searchTerm: $searchTerm) {
+      id
+      checkNumber
+      entityDate
+      entryDate
+      postDate
+      status
+      factoryId
+      commission
+      commissionMonth
+      creationType
+      createdBy
+      userOwnerIds
     }
   }
 `;
@@ -2042,7 +2470,104 @@ export async function fetchJobRelatedEntities(jobId: string): Promise<JobRelated
     throw new Error(response.errors[0]?.message || 'Failed to fetch job related entities');
   }
 
-  return response.data?.jobRelatedEntities || { companies: [], contacts: [], preOpportunities: [] };
+  const data = response.data?.jobRelatedEntities || { 
+    companies: [], 
+    contacts: [], 
+    preOpportunities: [],
+    quotes: [],
+    orders: [],
+    invoices: [],
+    checks: [],
+  };
+  
+  return {
+    companies: mapFormattedCreatedBy(data.companies) as Company[],
+    contacts: mapFormattedCreatedBy(data.contacts) as Contact[],
+    preOpportunities: mapFormattedCreatedBy(data.preOpportunities) as PreOpportunity[],
+    quotes: data.quotes || [],
+    orders: data.orders || [],
+    invoices: data.invoices || [],
+    checks: data.checks || [],
+  };
+}
+
+// Search functions for linking entities
+export async function searchTasks(searchTerm: string): Promise<TaskSearchResult[]> {
+  const response = await crmGraphQLRequest<{ taskSearch: TaskSearchResult[] }>({
+    query: TASK_SEARCH,
+    variables: { searchTerm },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search tasks');
+  }
+
+  return mapFormattedCreatedBy(response.data?.taskSearch) as TaskSearchResult[];
+}
+
+export async function searchNotes(searchTerm: string): Promise<NoteSearchResult[]> {
+  const response = await crmGraphQLRequest<{ noteSearch: NoteSearchResult[] }>({
+    query: NOTE_SEARCH,
+    variables: { searchTerm },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search notes');
+  }
+
+  return mapFormattedCreatedBy(response.data?.noteSearch) as NoteSearchResult[];
+}
+
+export async function searchQuotes(searchTerm: string): Promise<QuoteSearchResult[]> {
+  const response = await crmGraphQLRequest<{ quoteSearch: QuoteSearchResult[] }>({
+    query: QUOTE_SEARCH,
+    variables: { searchTerm },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search quotes');
+  }
+
+  return response.data?.quoteSearch || [];
+}
+
+export async function searchOrders(searchTerm: string): Promise<OrderSearchResult[]> {
+  const response = await crmGraphQLRequest<{ orderSearch: OrderSearchResult[] }>({
+    query: ORDER_SEARCH,
+    variables: { searchTerm },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search orders');
+  }
+
+  return response.data?.orderSearch || [];
+}
+
+export async function searchInvoices(searchTerm: string): Promise<InvoiceSearchResult[]> {
+  const response = await crmGraphQLRequest<{ invoiceSearch: InvoiceSearchResult[] }>({
+    query: INVOICE_SEARCH,
+    variables: { searchTerm },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search invoices');
+  }
+
+  return response.data?.invoiceSearch || [];
+}
+
+export async function searchChecks(searchTerm: string): Promise<CheckSearchResult[]> {
+  const response = await crmGraphQLRequest<{ checkSearch: CheckSearchResult[] }>({
+    query: CHECK_SEARCH,
+    variables: { searchTerm },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search checks');
+  }
+
+  return response.data?.checkSearch || [];
 }
 
 // ============================================================================
@@ -2081,7 +2606,13 @@ const GET_NOTES_BY_ENTITY = `
       content
       mentions
       tags
-      createdBy
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
       createdAt
     }
   }
@@ -2112,7 +2643,7 @@ export async function fetchNotesByEntity(entityId: string, entityType: EntityTyp
     throw new Error(response.errors[0]?.message || 'Failed to fetch notes by entity');
   }
 
-  return response.data?.notesByEntity || [];
+  return mapFormattedCreatedBy(response.data?.notesByEntity);
 }
 
 // ============================================================================
@@ -2123,7 +2654,6 @@ export interface NoteConversation {
   id: string;
   noteId: string;
   content: string;
-  createdBy: string;
   createdAt: string;
 }
 
@@ -2182,7 +2712,13 @@ const GET_NOTES = `
       content
       mentions
       tags
-      createdBy
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
       createdAt
     }
   }
@@ -2196,7 +2732,13 @@ const GET_NOTE = `
       content
       mentions
       tags
-      createdBy
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
       createdAt
     }
   }
@@ -2208,7 +2750,6 @@ const GET_NOTE_CONVERSATIONS = `
       id
       noteId
       content
-      createdBy
       createdAt
     }
   }
@@ -2222,7 +2763,13 @@ const CREATE_NOTE = `
       content
       mentions
       tags
-      createdBy
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
       createdAt
     }
   }
@@ -2236,7 +2783,13 @@ const UPDATE_NOTE = `
       content
       mentions
       tags
-      createdBy
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
       createdAt
     }
   }
@@ -2254,7 +2807,6 @@ const ADD_NOTE_CONVERSATION = `
       id
       noteId
       content
-      createdBy
       createdAt
     }
   }
@@ -2266,7 +2818,6 @@ const UPDATE_NOTE_CONVERSATION = `
       id
       noteId
       content
-      createdBy
       createdAt
     }
   }
@@ -2316,7 +2867,7 @@ export async function fetchNotes(): Promise<Note[]> {
     throw new Error(response.errors[0]?.message || 'Failed to fetch notes');
   }
 
-  return response.data?.notes || [];
+  return mapFormattedCreatedBy(response.data?.notes);
 }
 
 export async function fetchNoteLandingPages(
@@ -2347,7 +2898,8 @@ export async function fetchNote(id: string): Promise<Note | null> {
     throw new Error(response.errors[0]?.message || 'Failed to fetch note');
   }
 
-  return response.data?.note || null;
+  const note = response.data?.note;
+  return note ? withFormattedCreatedBy(note) : null;
 }
 
 export async function fetchNoteConversations(noteId: string): Promise<NoteConversation[]> {
@@ -2377,7 +2929,7 @@ export async function createNote(input: CreateNoteInput): Promise<Note> {
     throw new Error('No note returned from create mutation');
   }
 
-  return response.data.createNote;
+  return withFormattedCreatedBy(response.data.createNote);
 }
 
 export async function updateNote(id: string, input: UpdateNoteInput): Promise<Note> {
@@ -2394,7 +2946,7 @@ export async function updateNote(id: string, input: UpdateNoteInput): Promise<No
     throw new Error('No note returned from update mutation');
   }
 
-  return response.data.updateNote;
+  return withFormattedCreatedBy(response.data.updateNote);
 }
 
 export async function deleteNote(id: string): Promise<boolean> {
@@ -2464,6 +3016,9 @@ export async function deleteNoteConversations(noteId: string): Promise<boolean> 
 export type TaskPriorityAPI = 'LOW' | 'NORMAL' | 'URGENT' | 'CRITICAL';
 export type TaskStatusAPI = 'TODO' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 export type TaskRelatedType = 'JOB' | 'CONTACT' | 'COMPANY';
+
+// Entity types for tasksByEntity query
+export type TaskEntityType = 'JOB' | 'CONTACT' | 'COMPANY' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK';
 
 export interface CRMTask {
   id: string;
@@ -2552,6 +3107,21 @@ export interface CRMTaskWithRelations extends CRMTask {
   relatedCompanies?: Company[];
 }
 
+// Task returned by tasksByEntity query
+export interface TaskByEntity {
+  id: string;
+  title: string;
+  description: string;
+  status: TaskStatusAPI;
+  priority: TaskPriorityAPI;
+  dueDate: string;
+  reminderDate?: string;
+  tags: string;
+  assignedToId: string;
+  createdBy: string;
+  createdAt: string;
+}
+
 // ============================================================================
 // Task GraphQL Queries and Mutations
 // ============================================================================
@@ -2582,7 +3152,13 @@ const GET_TASK = `
     task(id: $id) {
       assignedToId
       createdAt
-      createdBy
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
       description
       dueDate
       id
@@ -2599,7 +3175,6 @@ const GET_TASK_CONVERSATIONS = `
     taskConversations(taskId: $taskId) {
       content
       createdAt
-      createdBy
       taskId
       id
     }
@@ -2611,7 +3186,13 @@ const CREATE_TASK = `
     createTask(input: $input) {
       assignedToId
       createdAt
-      createdBy
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
       description
       dueDate
       id
@@ -2628,7 +3209,13 @@ const UPDATE_TASK = `
     updateTask(id: $id, input: $input) {
       assignedToId
       createdAt
-      createdBy
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
       description
       dueDate
       id
@@ -2651,7 +3238,6 @@ const ADD_TASK_CONVERSATION = `
     addTaskConversation(input: $input) {
       content
       createdAt
-      createdBy
       id
       taskId
     }
@@ -2663,7 +3249,6 @@ const UPDATE_TASK_CONVERSATION = `
     updateTaskConversation(id: $id, input: $input) {
       content
       createdAt
-      createdBy
       id
       taskId
     }
@@ -2698,6 +3283,30 @@ const DELETE_TASK_RELATION = `
   }
 `;
 
+const GET_TASKS_BY_ENTITY = `
+  query GetTasksByEntity($entityId: UUID!, $entityType: EntityType!) {
+    tasksByEntity(entityId: $entityId, entityType: $entityType) {
+      assignedToId
+      createdAt
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
+      description
+      dueDate
+      id
+      priority
+      reminderDate
+      status
+      tags
+      title
+    }
+  }
+`;
+
 // ============================================================================
 // Task API Functions
 // ============================================================================
@@ -2726,7 +3335,8 @@ export async function fetchTask(id: string): Promise<CRMTask | null> {
     throw new Error(response.errors[0]?.message || 'Failed to fetch task');
   }
 
-  return response.data?.task || null;
+  const task = response.data?.task;
+  return task ? withFormattedCreatedBy(task) : null;
 }
 
 export async function fetchTaskConversations(taskId: string): Promise<TaskConversation[]> {
@@ -2756,7 +3366,7 @@ export async function createTask(input: CreateTaskInput): Promise<CRMTask> {
     throw new Error('No task returned from create mutation');
   }
 
-  return response.data.createTask;
+  return withFormattedCreatedBy(response.data.createTask);
 }
 
 export async function updateTask(id: string, input: UpdateTaskInput): Promise<CRMTask> {
@@ -2773,7 +3383,7 @@ export async function updateTask(id: string, input: UpdateTaskInput): Promise<CR
     throw new Error('No task returned from update mutation');
   }
 
-  return response.data.updateTask;
+  return withFormattedCreatedBy(response.data.updateTask);
 }
 
 export async function deleteTask(id: string): Promise<boolean> {
@@ -2864,5 +3474,18 @@ export async function deleteTaskRelation(id: string): Promise<boolean> {
   }
 
   return response.data?.deleteTaskRelation || false;
+}
+
+export async function fetchTasksByEntity(entityId: string, entityType: TaskEntityType): Promise<TaskByEntity[]> {
+  const response = await crmGraphQLRequest<{ tasksByEntity: TaskByEntity[] }>({
+    query: GET_TASKS_BY_ENTITY,
+    variables: { entityId, entityType },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch tasks by entity');
+  }
+
+  return mapFormattedCreatedBy(response.data?.tasksByEntity);
 }
 

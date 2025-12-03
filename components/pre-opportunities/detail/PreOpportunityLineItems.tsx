@@ -5,10 +5,10 @@
 
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import type { PreOpportunity, PreOpportunityDetail, PreOpportunityDetailInput, CustomerSearchResult, ProductSearchResult } from '../types';
 import { formatCurrency } from '../utils';
-import { useCRMCustomerSearch, useCRMProductSearch } from '../../hooks/useCRMApi';
+import { useCRMCustomerSearch, useCRMProductSearch, useCRMFactorySearch } from '../../hooks/useCRMApi';
 import { useDebounce } from '../hooks/useDebounce';
 
 interface EditableLineItem {
@@ -66,6 +66,34 @@ export function PreOpportunityLineItems({ preOpp, isEditing = false, onLineItems
     customerSearchEnabled
   );
 
+  // Fetch all factories and customers for name lookups (view mode)
+  const { data: allFactories = [] } = useCRMFactorySearch('', undefined, !isEditing);
+  const { data: allCustomers = [] } = useCRMCustomerSearch('', undefined, !isEditing);
+
+  // Create lookup maps for factory and customer names
+  const factoryNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    allFactories.forEach(f => map.set(f.id, f.title));
+    return map;
+  }, [allFactories]);
+
+  const customerNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    allCustomers.forEach(c => map.set(c.id, c.companyName));
+    // Also include the customers from search results
+    customers.forEach(c => map.set(c.id, c.companyName));
+    return map;
+  }, [allCustomers, customers]);
+
+  // Helper functions to get names
+  const getFactoryName = (factoryId: string): string => {
+    return factoryNameMap.get(factoryId) || factoryId;
+  };
+
+  const getCustomerName = (customerId: string): string => {
+    return customerNameMap.get(customerId) || customerId;
+  };
+
   // Initialize editable items when preOpp changes or edit mode starts
   useEffect(() => {
     if (isEditing) {
@@ -81,10 +109,10 @@ export function PreOpportunityLineItems({ preOpp, isEditing = false, onLineItems
         discountRate: d.discountRate,
         leadTime: d.leadTime || '',
         endUserId: d.endUserId || '',
-        endUserName: '', // Will need to fetch or pass this
+        endUserName: d.endUserId ? getCustomerName(d.endUserId) : '',
       })));
     }
-  }, [isEditing, preOpp.details]);
+  }, [isEditing, preOpp.details, customerNameMap]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -353,33 +381,39 @@ export function PreOpportunityLineItems({ preOpp, isEditing = false, onLineItems
                           <div>
                             <label className="block text-xs font-medium text-gray-600 mb-1">Quantity</label>
                             <input
-                              type="number"
-                              value={item.quantity}
-                              onChange={(e) => handleUpdateItem(item.id, 'quantity', parseInt(e.target.value) || 0)}
-                              min="1"
+                              type="text"
+                              inputMode="numeric"
+                              value={item.quantity === 0 ? '' : item.quantity}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/^0+(?=\d)/, '');
+                                handleUpdateItem(item.id, 'quantity', val === '' ? 0 : parseInt(val) || 0);
+                              }}
                               className="w-full px-2 py-1.5 bg-white text-gray-900 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
                             />
                           </div>
                           <div>
                             <label className="block text-xs font-medium text-gray-600 mb-1">Unit Price ($)</label>
                             <input
-                              type="number"
-                              value={item.unitPrice}
-                              onChange={(e) => handleUpdateItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
-                              min="0"
-                              step="0.01"
+                              type="text"
+                              inputMode="decimal"
+                              value={item.unitPrice === 0 ? '' : item.unitPrice}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/^0+(?=\d)/, '');
+                                handleUpdateItem(item.id, 'unitPrice', val === '' ? 0 : parseFloat(val) || 0);
+                              }}
                               className="w-full px-2 py-1.5 bg-white text-gray-900 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
                             />
                           </div>
                           <div>
                             <label className="block text-xs font-medium text-gray-600 mb-1">Discount %</label>
                             <input
-                              type="number"
-                              value={item.discountRate}
-                              onChange={(e) => handleUpdateItem(item.id, 'discountRate', parseFloat(e.target.value) || 0)}
-                              min="0"
-                              max="100"
-                              step="0.1"
+                              type="text"
+                              inputMode="decimal"
+                              value={item.discountRate === 0 ? '' : item.discountRate}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/^0+(?=\d)/, '');
+                                handleUpdateItem(item.id, 'discountRate', val === '' ? 0 : parseFloat(val) || 0);
+                              }}
                               className="w-full px-2 py-1.5 bg-white text-gray-900 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
                             />
                           </div>
@@ -524,12 +558,12 @@ export function PreOpportunityLineItems({ preOpp, isEditing = false, onLineItems
                   <td className="px-4 py-3 text-sm text-gray-900">{detail.itemNumber}</td>
                   <td className="px-4 py-3">
                     <div className="text-sm font-medium text-gray-900">{detail.product.factoryPartNumber}</div>
-                    <div className="text-xs text-gray-500">Factory: {detail.product.factoryId}</div>
+                    <div className="text-xs text-gray-500">Factory: {getFactoryName(detail.product.factoryId)}</div>
                     {detail.leadTime && (
                       <div className="text-xs text-blue-600">Lead Time: {detail.leadTime}</div>
                     )}
                     {detail.endUserId && (
-                      <div className="text-xs text-green-600">End User: {detail.endUserId.slice(0, 8)}...</div>
+                      <div className="text-xs text-green-600">End User: {getCustomerName(detail.endUserId)}</div>
                     )}
                   </td>
                   <td className="px-4 py-3 text-sm text-right text-gray-900">{Math.round(Number(detail.quantity) || 0)}</td>

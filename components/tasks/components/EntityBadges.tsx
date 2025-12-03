@@ -40,6 +40,12 @@ const NoteIcon = () => (
   </svg>
 );
 
+const PreOpportunityIcon = () => (
+  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+);
+
 export function EntityBadges({ taskId, compact = false, maxItems = 6 }: EntityBadgesProps) {
   const { data: relatedEntities, isLoading } = useTaskRelatedEntities(taskId);
   
@@ -63,7 +69,8 @@ export function EntityBadges({ taskId, compact = false, maxItems = 6 }: EntityBa
     (entities.jobs?.length ?? 0) > 0 || 
     (entities.contacts?.length ?? 0) > 0 || 
     (entities.companies?.length ?? 0) > 0 || 
-    (entities.notes?.length ?? 0) > 0;
+    (entities.notes?.length ?? 0) > 0 ||
+    (entities.preOpportunities?.length ?? 0) > 0;
   
   if (!hasEntities) {
     return compact ? null : (
@@ -72,12 +79,13 @@ export function EntityBadges({ taskId, compact = false, maxItems = 6 }: EntityBa
   }
   
   // Flatten all entities with their types
-  const allEntities: Array<{ id: string; name: string; type: 'job' | 'contact' | 'company' | 'note' }> = [];
+  const allEntities: Array<{ id: string; name: string; type: 'job' | 'contact' | 'company' | 'note' | 'preOpportunity' }> = [];
   
   entities.jobs?.forEach(job => allEntities.push({ ...job, type: 'job' }));
   entities.contacts?.forEach(contact => allEntities.push({ ...contact, type: 'contact' }));
   entities.companies?.forEach(company => allEntities.push({ ...company, type: 'company' }));
   entities.notes?.forEach(note => allEntities.push({ ...note, type: 'note' }));
+  entities.preOpportunities?.forEach(preOpp => allEntities.push({ ...preOpp, type: 'preOpportunity' }));
   
   const visibleEntities = allEntities.slice(0, maxItems);
   const remainingCount = allEntities.length - visibleEntities.length;
@@ -87,14 +95,16 @@ export function EntityBadges({ taskId, compact = false, maxItems = 6 }: EntityBa
     contact: 'bg-orange-100 text-orange-700',
     company: 'bg-indigo-100 text-indigo-700',
     note: 'bg-yellow-100 text-yellow-700',
+    preOpportunity: 'bg-teal-100 text-teal-700',
   };
   
-  const getIcon = (type: 'job' | 'contact' | 'company' | 'note') => {
+  const getIcon = (type: 'job' | 'contact' | 'company' | 'note' | 'preOpportunity') => {
     switch (type) {
       case 'job': return <JobIcon />;
       case 'contact': return <ContactIcon />;
       case 'company': return <CompanyIcon />;
       case 'note': return <NoteIcon />;
+      case 'preOpportunity': return <PreOpportunityIcon />;
     }
   };
   

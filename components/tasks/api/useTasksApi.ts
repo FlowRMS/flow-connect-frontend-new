@@ -20,6 +20,8 @@ import {
   searchContacts,
   searchJobs,
   searchNotes,
+  searchPreOpportunities,
+  searchUsers,
   createTaskLink,
   deleteTaskLinkByEntities,
   fetchContactById,
@@ -31,6 +33,8 @@ import {
   type ContactSearchResult,
   type JobSearchResult,
   type NoteSearchResult,
+  type PreOpportunitySearchResult,
+  type UserSearchResult,
   type EntityLink,
   type EntityType,
   type CreateTaskInput,
@@ -54,6 +58,8 @@ export const tasksQueryKeys = {
     contacts: (term: string) => ['search', 'contacts', term] as const,
     jobs: (term: string) => ['search', 'jobs', term] as const,
     notes: (term: string) => ['search', 'notes', term] as const,
+    preOpportunities: (term: string) => ['search', 'preOpportunities', term] as const,
+    users: (term: string) => ['search', 'users', term] as const,
   },
 };
 
@@ -312,6 +318,32 @@ export function useNoteSearch(searchTerm: string, enabled = true) {
   });
 }
 
+/**
+ * Search for pre-opportunities
+ * Returns all pre-opportunities when empty string is passed
+ */
+export function usePreOpportunitySearch(searchTerm: string, enabled = true) {
+  return useQuery<PreOpportunitySearchResult[], Error>({
+    queryKey: tasksQueryKeys.search.preOpportunities(searchTerm),
+    queryFn: () => searchPreOpportunities(searchTerm),
+    enabled: hasCRMTokens() && enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * Search for users (for assignee selection)
+ * Returns users matching the search term
+ */
+export function useUserSearch(searchTerm: string, enabled = true) {
+  return useQuery<UserSearchResult[], Error>({
+    queryKey: tasksQueryKeys.search.users(searchTerm),
+    queryFn: () => searchUsers(searchTerm),
+    enabled: hasCRMTokens() && enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
 // ============================================================================
 // Link Hooks
 // ============================================================================
@@ -382,6 +414,8 @@ export type {
   ContactSearchResult,
   JobSearchResult,
   NoteSearchResult,
+  PreOpportunitySearchResult,
+  UserSearchResult,
   EntityLink,
   EntityType,
   CreateTaskInput,

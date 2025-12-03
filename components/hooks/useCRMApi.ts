@@ -50,6 +50,8 @@ import {
   type TaskRelation,
   type AddTaskRelationInput,
   type AddTaskConversationInput,
+  type TaskByEntity,
+  type TaskEntityType,
   // Job functions
   fetchJobStatuses,
   fetchJob,
@@ -121,6 +123,21 @@ import {
   addTaskRelation,
   fetchTaskRelations,
   deleteTaskRelation,
+  fetchTasksByEntity,
+  // Search functions for linking
+  searchTasks,
+  searchNotes,
+  searchQuotes,
+  searchOrders,
+  searchInvoices,
+  searchChecks,
+  // Search result types
+  type TaskSearchResult,
+  type NoteSearchResult,
+  type QuoteSearchResult,
+  type OrderSearchResult,
+  type InvoiceSearchResult,
+  type CheckSearchResult,
 } from '../lib/crm-graphql';
 
 // ============================================================================
@@ -170,6 +187,18 @@ export const crmQueryKeys = {
     [...crmQueryKeys.all, 'customerSearch', { searchTerm, published }] as const,
   jobSearch: (searchTerm: string) => 
     [...crmQueryKeys.all, 'jobSearch', { searchTerm }] as const,
+  taskSearch: (searchTerm: string) => 
+    [...crmQueryKeys.all, 'taskSearch', { searchTerm }] as const,
+  noteSearch: (searchTerm: string) => 
+    [...crmQueryKeys.all, 'noteSearch', { searchTerm }] as const,
+  quoteSearch: (searchTerm: string) => 
+    [...crmQueryKeys.all, 'quoteSearch', { searchTerm }] as const,
+  orderSearch: (searchTerm: string) => 
+    [...crmQueryKeys.all, 'orderSearch', { searchTerm }] as const,
+  invoiceSearch: (searchTerm: string) => 
+    [...crmQueryKeys.all, 'invoiceSearch', { searchTerm }] as const,
+  checkSearch: (searchTerm: string) => 
+    [...crmQueryKeys.all, 'checkSearch', { searchTerm }] as const,
   
   // Entity Links
   jobRelatedEntities: (jobId: string) => 
@@ -191,6 +220,8 @@ export const crmQueryKeys = {
   task: (id: string) => [...crmQueryKeys.tasks(), id] as const,
   taskConversations: (taskId: string) => [...crmQueryKeys.tasks(), 'conversations', taskId] as const,
   taskRelations: (taskId: string) => [...crmQueryKeys.tasks(), 'relations', taskId] as const,
+  tasksByEntity: (entityId: string, entityType: string) => 
+    [...crmQueryKeys.tasks(), 'byEntity', entityId, entityType] as const,
 };
 
 // ============================================================================
@@ -1258,5 +1289,93 @@ export function useDeleteCRMTaskRelation() {
       queryClient.invalidateQueries({ queryKey: crmQueryKeys.task(variables.taskId) });
       queryClient.invalidateQueries({ queryKey: crmQueryKeys.taskRelations(variables.taskId) });
     },
+  });
+}
+
+/**
+ * Fetch tasks linked to an entity (job, contact, company, pre-opportunity, etc.)
+ */
+export function useCRMTasksByEntity(entityId: string, entityType: TaskEntityType) {
+  return useQuery<TaskByEntity[], Error>({
+    queryKey: crmQueryKeys.tasksByEntity(entityId, entityType),
+    queryFn: () => fetchTasksByEntity(entityId, entityType),
+    enabled: hasCRMTokens() && !!entityId && !!entityType,
+    staleTime: 30 * 1000,
+  });
+}
+
+// ============================================================================
+// Entity Search Hooks for Linking
+// ============================================================================
+
+/**
+ * Search tasks for linking
+ */
+export function useCRMTaskSearch(searchTerm: string) {
+  return useQuery<TaskSearchResult[], Error>({
+    queryKey: crmQueryKeys.taskSearch(searchTerm),
+    queryFn: () => searchTasks(searchTerm),
+    enabled: hasCRMTokens() && searchTerm.length >= 0,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Search notes for linking
+ */
+export function useCRMNoteSearch(searchTerm: string) {
+  return useQuery<NoteSearchResult[], Error>({
+    queryKey: crmQueryKeys.noteSearch(searchTerm),
+    queryFn: () => searchNotes(searchTerm),
+    enabled: hasCRMTokens() && searchTerm.length >= 0,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Search quotes for linking
+ */
+export function useCRMQuoteSearch(searchTerm: string) {
+  return useQuery<QuoteSearchResult[], Error>({
+    queryKey: crmQueryKeys.quoteSearch(searchTerm),
+    queryFn: () => searchQuotes(searchTerm),
+    enabled: hasCRMTokens() && searchTerm.length >= 0,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Search orders for linking
+ */
+export function useCRMOrderSearch(searchTerm: string) {
+  return useQuery<OrderSearchResult[], Error>({
+    queryKey: crmQueryKeys.orderSearch(searchTerm),
+    queryFn: () => searchOrders(searchTerm),
+    enabled: hasCRMTokens() && searchTerm.length >= 0,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Search invoices for linking
+ */
+export function useCRMInvoiceSearch(searchTerm: string) {
+  return useQuery<InvoiceSearchResult[], Error>({
+    queryKey: crmQueryKeys.invoiceSearch(searchTerm),
+    queryFn: () => searchInvoices(searchTerm),
+    enabled: hasCRMTokens() && searchTerm.length >= 0,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Search checks for linking
+ */
+export function useCRMCheckSearch(searchTerm: string) {
+  return useQuery<CheckSearchResult[], Error>({
+    queryKey: crmQueryKeys.checkSearch(searchTerm),
+    queryFn: () => searchChecks(searchTerm),
+    enabled: hasCRMTokens() && searchTerm.length >= 0,
+    staleTime: 30 * 1000,
   });
 }

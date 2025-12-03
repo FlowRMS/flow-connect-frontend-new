@@ -4,7 +4,7 @@
  */
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Task, TaskComment, TaskStatusAPI, TaskPriorityAPI } from '../types';
 import { getInitials, getAvatarColor, getStatusColor, getPriorityColor, formatDate, parseTagsString, convertRelatedEntitiesToUI } from '../utils';
@@ -21,6 +21,8 @@ import {
   useContactSearch,
   useCompanySearch,
   useNoteSearch,
+  usePreOpportunitySearch,
+  useUserSearch,
   tasksQueryKeys
 } from '../api';
 import { useQueryClient } from '@tanstack/react-query';
@@ -66,11 +68,15 @@ export default function TaskModal({
   
   // Entity linking state
   const [showAddEntityDropdown, setShowAddEntityDropdown] = useState(false);
-  const [addEntityType, setAddEntityType] = useState<'JOB' | 'CONTACT' | 'COMPANY' | 'NOTE' | null>(null);
+  const [addEntityType, setAddEntityType] = useState<'JOB' | 'CONTACT' | 'COMPANY' | 'NOTE' | 'PRE_OPPORTUNITY' | null>(null);
   const [entitySearch, setEntitySearch] = useState('');
   const entitySearchRef = useRef<HTMLInputElement>(null);
   const entityDropdownRef = useRef<HTMLDivElement>(null);
   const [isMounted, setIsMounted] = useState(false);
+  
+  // Dropdown position state for proper portal positioning
+  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [assigneeDropdownPosition, setAssigneeDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   
   // New comment state
   const [newComment, setNewComment] = useState('');
@@ -79,22 +85,23 @@ export default function TaskModal({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   
   // Fetch full task details (includes tags)
-  const { data: fullTask } = useTask(task.id);
+  const { data: fullTask, refetch: refetchTask } = useTask(task.id);
   
   // Fetch conversations from API
   const { data: apiConversations = [], isLoading: isLoadingConversations } = useTaskConversations(task.id);
   
   // Fetch task related entities
-  const { data: relatedEntities } = useTaskRelatedEntities(task.id);
+  const { data: relatedEntities, refetch: refetchRelatedEntities } = useTaskRelatedEntities(task.id);
   
   // Entity search queries
   const { data: searchedJobs = [], isLoading: isLoadingJobs } = useJobSearch(entitySearch, isEditMode && addEntityType === 'JOB');
   const { data: searchedContacts = [], isLoading: isLoadingContacts } = useContactSearch(entitySearch, isEditMode && addEntityType === 'CONTACT');
   const { data: searchedCompanies = [], isLoading: isLoadingCompanies } = useCompanySearch(entitySearch, isEditMode && addEntityType === 'COMPANY');
   const { data: searchedNotes = [], isLoading: isLoadingNotes } = useNoteSearch(entitySearch, isEditMode && addEntityType === 'NOTE');
+  const { data: searchedPreOpportunities = [], isLoading: isLoadingPreOpportunities } = usePreOpportunitySearch(entitySearch, isEditMode && addEntityType === 'PRE_OPPORTUNITY');
   
-  // Assignee search (uses contact search)
-  const { data: assigneeContacts = [], isLoading: isLoadingAssignees } = useContactSearch(assigneeSearch, isEditMode && showAssigneeDropdown);
+  // Assignee search (uses userSearch for better results)
+  const { data: assigneeUsers = [], isLoading: isLoadingAssignees } = useUserSearch(assigneeSearch, isEditMode && showAssigneeDropdown);
   
   // Mutations
   const addConversationMutation = useAddTaskConversation();
@@ -118,6 +125,38 @@ export default function TaskModal({
     }
   }, [fullTask]);
 
+  // Update dropdown positions when showing dropdowns
+  const updateDropdownPosition = useCallback(() => {
+    if (entitySearchRef.current && addEntityType) {
+      const rect = entitySearchRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width,
+      });
+    }
+  }, [addEntityType]);
+
+  const updateAssigneeDropdownPosition = useCallback(() => {
+    if (assigneeInputRef.current && showAssigneeDropdown) {
+      const rect = assigneeInputRef.current.getBoundingClientRect();
+      setAssigneeDropdownPosition({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width,
+      });
+    }
+  }, [showAssigneeDropdown]);
+
+  // Update positions when dropdown is shown
+  useEffect(() => {
+    updateDropdownPosition();
+  }, [addEntityType, updateDropdownPosition]);
+
+  useEffect(() => {
+    updateAssigneeDropdownPosition();
+  }, [showAssigneeDropdown, updateAssigneeDropdownPosition]);
+
   // Close entity dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -126,11 +165,13 @@ export default function TaskModal({
           entityDropdownRef.current && !entityDropdownRef.current.contains(target)) {
         setAddEntityType(null);
         setEntitySearch('');
+        setDropdownPosition(null);
       }
       // Also handle assignee dropdown
       if (assigneeInputRef.current && !assigneeInputRef.current.contains(target) && 
           assigneeDropdownRef.current && !assigneeDropdownRef.current.contains(target)) {
         setShowAssigneeDropdown(false);
+        setAssigneeDropdownPosition(null);
       }
     };
     
@@ -178,7 +219,7 @@ export default function TaskModal({
 
   const handleSaveEdit = async () => {
     try {
-      await updateTaskMutation.mutateAsync({
+      const result = await updateTaskMutation.mutateAsync({
         id: task.id,
         input: {
           title: editTitle,
@@ -192,8 +233,17 @@ export default function TaskModal({
         }
       });
       
-      queryClient.invalidateQueries({ queryKey: tasksQueryKeys.list() });
-      queryClient.invalidateQueries({ queryKey: tasksQueryKeys.detail(task.id) });
+      // Immediately invalidate and refetch queries
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: tasksQueryKeys.list() }),
+        queryClient.invalidateQueries({ queryKey: tasksQueryKeys.detail(task.id) }),
+      ]);
+      
+      // Also refetch the task and related entities to update the modal view immediately
+      await Promise.all([
+        refetchTask(),
+        refetchRelatedEntities(),
+      ]);
       
       setIsEditMode(false);
       taskToasts.updateSuccess(editTitle);
@@ -249,7 +299,7 @@ export default function TaskModal({
     }
   };
 
-  const handleDeleteRelation = async (entityType: 'JOB' | 'CONTACT' | 'COMPANY' | 'NOTE', entityId: string) => {
+  const handleDeleteRelation = async (entityType: 'JOB' | 'CONTACT' | 'COMPANY' | 'NOTE' | 'PRE_OPPORTUNITY', entityId: string) => {
     try {
       await deleteLinkMutation.mutateAsync({ 
         sourceEntityType: 'TASK',
@@ -264,7 +314,7 @@ export default function TaskModal({
     }
   };
 
-  const handleAddEntity = async (entityType: 'JOB' | 'CONTACT' | 'COMPANY' | 'NOTE', entityId: string) => {
+  const handleAddEntity = async (entityType: 'JOB' | 'CONTACT' | 'COMPANY' | 'NOTE' | 'PRE_OPPORTUNITY', entityId: string) => {
     try {
       await createLinkMutation.mutateAsync({
         sourceEntityType: 'TASK',
@@ -276,6 +326,7 @@ export default function TaskModal({
       queryClient.invalidateQueries({ queryKey: tasksQueryKeys.relatedEntities(task.id) });
       setAddEntityType(null);
       setEntitySearch('');
+      setDropdownPosition(null);
     } catch (error) {
       console.error('Failed to add relation:', error);
     }
@@ -287,7 +338,8 @@ export default function TaskModal({
     linkedEntities.jobs.length > 0 || 
     linkedEntities.contacts.length > 0 || 
     linkedEntities.companies.length > 0 ||
-    linkedEntities.notes.length > 0
+    linkedEntities.notes.length > 0 ||
+    linkedEntities.preOpportunities.length > 0
   );
 
   // Get current entity search results based on type
@@ -316,6 +368,12 @@ export default function TaskModal({
           data: searchedNotes.filter(n => !linkedEntities?.notes.some(ln => ln.id === n.id)), 
           isLoading: isLoadingNotes,
           getName: (item: typeof searchedNotes[0]) => item.title || 'Untitled Note'
+        };
+      case 'PRE_OPPORTUNITY':
+        return { 
+          data: searchedPreOpportunities.filter(p => !linkedEntities?.preOpportunities.some(lp => lp.id === p.id)), 
+          isLoading: isLoadingPreOpportunities,
+          getName: (item: typeof searchedPreOpportunities[0]) => item.entityNumber || 'Unknown Pre-Opportunity'
         };
       default:
         return { data: [], isLoading: false, getName: () => '' };
@@ -479,47 +537,64 @@ export default function TaskModal({
                           setAssigneeSearch(e.target.value);
                           setShowAssigneeDropdown(true);
                         }}
-                        onFocus={() => setShowAssigneeDropdown(true)}
-                        placeholder="Search contacts..."
+                        onFocus={() => {
+                          setShowAssigneeDropdown(true);
+                          // Update position when focused
+                          setTimeout(() => {
+                            if (assigneeInputRef.current) {
+                              const rect = assigneeInputRef.current.getBoundingClientRect();
+                              setAssigneeDropdownPosition({
+                                top: rect.bottom + 4,
+                                left: rect.left,
+                                width: rect.width,
+                              });
+                            }
+                          }, 0);
+                        }}
+                        placeholder="Search users..."
                         className={inputClass}
                       />
-                      {showAssigneeDropdown && isMounted && createPortal(
+                      {showAssigneeDropdown && isMounted && assigneeDropdownPosition && createPortal(
                         <div
                           ref={assigneeDropdownRef}
                           style={{
                             position: 'fixed',
-                            top: assigneeInputRef.current ? assigneeInputRef.current.getBoundingClientRect().bottom + 4 : 0,
-                            left: assigneeInputRef.current ? assigneeInputRef.current.getBoundingClientRect().left : 0,
-                            width: assigneeInputRef.current ? assigneeInputRef.current.offsetWidth : 'auto',
+                            top: assigneeDropdownPosition.top,
+                            left: assigneeDropdownPosition.left,
+                            width: assigneeDropdownPosition.width,
                             zIndex: 9999,
                           }}
                           className="bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
                         >
                           {isLoadingAssignees ? (
                             <div className="px-4 py-3 text-center text-sm text-gray-500">Loading...</div>
-                          ) : assigneeContacts.length === 0 ? (
+                          ) : assigneeUsers.length === 0 ? (
                             <div className="px-4 py-3 text-center text-sm text-gray-500">
-                              {assigneeSearch ? 'No contacts found' : 'Type to search contacts'}
+                              {assigneeSearch ? 'No users found' : 'Type to search users'}
                             </div>
                           ) : (
-                            assigneeContacts.slice(0, 10).map((contact) => {
-                              const contactName = `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || 'Unnamed Contact';
+                            assigneeUsers.slice(0, 10).map((user) => {
+                              const userName = user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Unknown User';
                               return (
                                 <button
-                                  key={contact.id}
+                                  key={user.id}
                                   type="button"
                                   onClick={() => {
-                                    setEditAssigneeName(contactName);
-                                    setEditAssigneeId(contact.id);
+                                    setEditAssigneeName(userName);
+                                    setEditAssigneeId(user.id);
                                     setAssigneeSearch('');
                                     setShowAssigneeDropdown(false);
+                                    setAssigneeDropdownPosition(null);
                                   }}
                                   className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 transition-colors flex items-center gap-2"
                                 >
-                                  <div className={`w-6 h-6 rounded-full ${getAvatarColor(contactName)} flex items-center justify-center text-white text-xs font-semibold`}>
-                                    {getInitials(contactName)}
+                                  <div className={`w-6 h-6 rounded-full ${getAvatarColor(userName)} flex items-center justify-center text-white text-xs font-semibold`}>
+                                    {getInitials(userName)}
                                   </div>
-                                  <span>{contactName}</span>
+                                  <div className="flex flex-col">
+                                    <span>{userName}</span>
+                                    {user.email && <span className="text-xs text-gray-400">{user.email}</span>}
+                                  </div>
                                 </button>
                               );
                             })
@@ -727,6 +802,34 @@ export default function TaskModal({
                       </div>
                     </div>
                   )}
+                  {linkedEntities?.preOpportunities && linkedEntities.preOpportunities.length > 0 && (
+                    <div className="flex items-start gap-2">
+                      <span className="text-xs text-[var(--muted-foreground)] min-w-[80px]">Pre-Opps:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {linkedEntities.preOpportunities.map((preOpp) => (
+                          <span
+                            key={preOpp.id}
+                            className="px-2.5 py-1 bg-purple-100 text-purple-700 rounded text-xs font-medium flex items-center gap-1 group"
+                          >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                            {preOpp.name}
+                            {isEditMode && (
+                              <button
+                                onClick={() => handleDeleteRelation('PRE_OPPORTUNITY', preOpp.id)}
+                                className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
+                              >
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   
                   {/* Add entity button - only in edit mode */}
                   {isEditMode && (
@@ -775,6 +878,17 @@ export default function TaskModal({
                           }`}
                         >
                           + Note
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAddEntityType('PRE_OPPORTUNITY')}
+                          className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                            addEntityType === 'PRE_OPPORTUNITY' 
+                              ? 'bg-purple-100 border-purple-300 text-purple-700' 
+                              : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          + Pre-Opp
                         </button>
                       </div>
                       

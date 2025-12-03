@@ -12,9 +12,10 @@ import type { Note, EntityType } from '../lib/crm-graphql';
 
 interface ConnectedNotesSectionProps {
   entityId: string;
-  entityType: 'JOB' | 'CONTACT' | 'COMPANY';
+  entityType: 'JOB' | 'CONTACT' | 'COMPANY' | 'PRE_OPPORTUNITY';
   title?: string;
   onNoteClick?: (note: Note) => void;
+  onAddClick?: () => void;
 }
 
 /**
@@ -158,6 +159,7 @@ export default function ConnectedNotesSection({
   entityType,
   title = 'Connected Notes',
   onNoteClick,
+  onAddClick,
 }: ConnectedNotesSectionProps) {
   const router = useRouter();
   const {
@@ -187,16 +189,30 @@ export default function ConnectedNotesSection({
             </span>
           )}
         </div>
-        {/* Refresh button */}
-        <button
-          onClick={() => refetch()}
-          className="p-2 text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)] rounded-lg transition-colors"
-          title="Refresh notes"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-        </button>
+        {/* Action buttons */}
+        <div className="flex items-center gap-2">
+          {onAddClick && (
+            <button
+              onClick={onAddClick}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+              title="Link note"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              </svg>
+              Link Note
+            </button>
+          )}
+          <button
+            onClick={() => refetch()}
+            className="p-2 text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)] rounded-lg transition-colors"
+            title="Refresh notes"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
+        </div>
       </div>
       <div className="p-6">
         {isLoading ? (

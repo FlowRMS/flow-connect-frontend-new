@@ -138,9 +138,60 @@ export function useTasksState() {
       );
     }
 
-    // Apply category filter (using API status)
+    // Apply category filter (based on due date and status)
     if (selectedCategory !== 'All') {
-      filtered = filtered.filter(task => task.status === selectedCategory);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      switch (selectedCategory) {
+        case 'Completed':
+          filtered = filtered.filter(task => task.apiStatus === 'COMPLETED');
+          break;
+        case 'Today':
+          filtered = filtered.filter(task => {
+            if (task.apiStatus === 'COMPLETED') return false;
+            if (!task.dueDate) return false;
+            const dueDate = new Date(task.dueDate);
+            dueDate.setHours(0, 0, 0, 0);
+            return dueDate.getTime() === today.getTime();
+          });
+          break;
+        case 'Overdue':
+          filtered = filtered.filter(task => {
+            if (task.apiStatus === 'COMPLETED') return false;
+            if (!task.dueDate) return false;
+            const dueDate = new Date(task.dueDate);
+            dueDate.setHours(0, 0, 0, 0);
+            return dueDate.getTime() < today.getTime();
+          });
+          break;
+        case 'Upcoming':
+          filtered = filtered.filter(task => {
+            if (task.apiStatus === 'COMPLETED') return false;
+            if (!task.dueDate) return false;
+            const dueDate = new Date(task.dueDate);
+            dueDate.setHours(0, 0, 0, 0);
+            // Upcoming: tomorrow or within next 7 days
+            return dueDate.getTime() >= tomorrow.getTime() && 
+                   dueDate.getTime() <= today.getTime() + (7 * 24 * 60 * 60 * 1000);
+          });
+          break;
+        case 'Waiting':
+          filtered = filtered.filter(task => {
+            if (task.apiStatus === 'COMPLETED') return false;
+            if (!task.dueDate) return false;
+            const dueDate = new Date(task.dueDate);
+            dueDate.setHours(0, 0, 0, 0);
+            // Waiting: more than 7 days in the future
+            return dueDate.getTime() > today.getTime() + (7 * 24 * 60 * 60 * 1000);
+          });
+          break;
+        default:
+          filtered = filtered.filter(task => task.status === selectedCategory);
+      }
     }
 
     // Apply additional filters
@@ -404,10 +455,58 @@ export function useTasksState() {
     setDraggedTaskId(null);
   };
 
-  // Calculate task counts by status
-  const getTasksByStatus = (status: string) => {
-    return tasks.filter(task => task.status === status).length;
-  };
+  // Calculate task counts by category (based on due date and status)
+  const getTasksByStatus = useCallback((category: string) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    switch (category) {
+      case 'All':
+        return tasks.length;
+      case 'Completed':
+        return tasks.filter(task => task.apiStatus === 'COMPLETED').length;
+      case 'Today':
+        return tasks.filter(task => {
+          if (task.apiStatus === 'COMPLETED') return false;
+          if (!task.dueDate) return false;
+          const dueDate = new Date(task.dueDate);
+          dueDate.setHours(0, 0, 0, 0);
+          return dueDate.getTime() === today.getTime();
+        }).length;
+      case 'Overdue':
+        return tasks.filter(task => {
+          if (task.apiStatus === 'COMPLETED') return false;
+          if (!task.dueDate) return false;
+          const dueDate = new Date(task.dueDate);
+          dueDate.setHours(0, 0, 0, 0);
+          return dueDate.getTime() < today.getTime();
+        }).length;
+      case 'Upcoming':
+        return tasks.filter(task => {
+          if (task.apiStatus === 'COMPLETED') return false;
+          if (!task.dueDate) return false;
+          const dueDate = new Date(task.dueDate);
+          dueDate.setHours(0, 0, 0, 0);
+          // Upcoming: tomorrow or within next 7 days
+          return dueDate.getTime() >= tomorrow.getTime() && 
+                 dueDate.getTime() <= today.getTime() + (7 * 24 * 60 * 60 * 1000);
+        }).length;
+      case 'Waiting':
+        return tasks.filter(task => {
+          if (task.apiStatus === 'COMPLETED') return false;
+          if (!task.dueDate) return false;
+          const dueDate = new Date(task.dueDate);
+          dueDate.setHours(0, 0, 0, 0);
+          // Waiting: more than 7 days in the future
+          return dueDate.getTime() > today.getTime() + (7 * 24 * 60 * 60 * 1000);
+        }).length;
+      default:
+        return tasks.filter(task => task.status === category).length;
+    }
+  }, [tasks]);
 
   // Get unique values for filters
   const uniqueAssignees = useMemo(() => getUniqueValues(tasks, 'assignedTo'), [tasks]);

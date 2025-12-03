@@ -90,6 +90,15 @@ export function EditNoteModal({ isOpen, onClose, onSuccess, note }: EditNoteModa
         });
       }
       
+      // Parse pre-opportunities
+      if (relatedEntitiesData.preOpportunities) {
+        relatedEntitiesData.preOpportunities.forEach((preOpp) => {
+          const link: SelectedLink = { type: 'PRE_OPPORTUNITY', id: preOpp.id, name: preOpp.entityNumber || 'Unknown Pre-Opp' };
+          parsed.push(link);
+          originalMap.set(getLinkKey(link), link);
+        });
+      }
+      
       setSelectedLinks(parsed);
       originalLinksRef.current = originalMap;
       linksInitializedRef.current = true;
@@ -384,7 +393,7 @@ export function EditNoteModal({ isOpen, onClose, onSuccess, note }: EditNoteModa
                   onLinksChange={setSelectedLinks}
                 />
                 <p className="text-xs text-gray-500 mt-1.5">
-                  Link this note to jobs, companies, contacts, or tasks
+                  Link this note to jobs, companies, contacts, tasks, or pre-opportunities
                 </p>
               </div>
             </div>

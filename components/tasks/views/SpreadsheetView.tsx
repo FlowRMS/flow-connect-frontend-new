@@ -5,7 +5,7 @@
 import React from 'react';
 import type { Task, TaskStatusAPI, TaskPriorityAPI } from '../types';
 import { AVAILABLE_ASSIGNEES, API_STATUS_OPTIONS, API_PRIORITY_OPTIONS } from '../constants';
-import { convertAPIStatusToUI, convertAPIPriorityToUI } from '../utils';
+import { convertAPIStatusToUI, convertAPIPriorityToUI, getReminderStatus, getReminderStatusColor, formatReminderDate } from '../utils';
 import { CustomSelect, EntityBadges } from '../components';
 import { StyledDatePicker, parseDateString, formatDateToString } from '../components';
 
@@ -76,6 +76,7 @@ export default function SpreadsheetView({
               <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Priority</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Assignee</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Due Date</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Reminder</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Tags</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Entities</th>
             </tr>
@@ -146,6 +147,20 @@ export default function SpreadsheetView({
                     onChange={(date) => onUpdateTask(task.id, { dueDate: formatDateToString(date) })}
                     placeholderText="Select date..."
                   />
+                </td>
+                <td className="px-4 py-3">
+                  {task.reminderDate ? (() => {
+                    const status = getReminderStatus(task.reminderDate);
+                    return (
+                      <span className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${status ? getReminderStatusColor(status) : 'bg-gray-50 text-gray-600'}`}>
+                        <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M10 2a6 6 0 016 6v4l2 2H2l2-2V8a6 6 0 016-6zM10 18a2 2 0 002-2H8a2 2 0 002 2z" strokeLinecap="round"/>
+                        </svg>
+                        <span className="font-medium">{formatReminderDate(task.reminderDate)}</span>
+                        {status && <span className="opacity-75">({status})</span>}
+                      </span>
+                    );
+                  })() : <span className="text-xs text-gray-400">-</span>}
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex gap-1 flex-wrap">

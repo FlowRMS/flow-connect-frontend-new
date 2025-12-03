@@ -256,7 +256,7 @@ export function CreateNoteModal({ isOpen, onClose, onSuccess }: CreateNoteModalP
                   onLinksChange={setSelectedLinks}
                 />
                 <p className="text-xs text-gray-500 mt-1.5">
-                  Link this note to jobs, companies, contacts, or tasks
+                  Link this note to jobs, companies, contacts, tasks, or pre-opportunities
                 </p>
               </div>
             </div>

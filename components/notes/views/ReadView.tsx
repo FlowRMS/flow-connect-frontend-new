@@ -16,6 +16,7 @@ const getEntityTypeColor = (type: EntityType) => {
     case 'COMPANY': return 'bg-purple-100 text-purple-700';
     case 'CONTACT': return 'bg-green-100 text-green-700';
     case 'TASK': return 'bg-orange-100 text-orange-700';
+    case 'PRE_OPPORTUNITY': return 'bg-teal-100 text-teal-700';
     default: return 'bg-gray-100 text-gray-700';
   }
 };
@@ -47,6 +48,7 @@ function NoteCard({ note, isLast, isMounted, contacts }: NoteCardProps) {
     relatedEntities.contacts?.forEach(c => links.push({ type: 'CONTACT', name: `${c.firstName} ${c.lastName}` }));
     relatedEntities.jobs?.forEach(j => links.push({ type: 'JOB', name: j.jobName }));
     relatedEntities.tasks?.forEach(t => links.push({ type: 'TASK', name: t.title }));
+    relatedEntities.preOpportunities?.forEach(p => links.push({ type: 'PRE_OPPORTUNITY', name: p.entityNumber || 'Unknown Pre-Opp' }));
     return links;
   }, [relatedEntities]);
 
@@ -147,13 +149,13 @@ function NoteCard({ note, isLast, isMounted, contacts }: NoteCardProps) {
           <div className="space-y-4">
             {conversations.map((conversation) => (
               <div key={conversation.id} className="flex gap-3">
-                <div className={`w-7 h-7 rounded-full ${getAvatarColor(conversation.createdBy)} flex items-center justify-center text-white text-xs font-semibold flex-shrink-0`}>
-                  {getInitials(conversation.createdBy)}
+                <div className={`w-7 h-7 rounded-full ${getAvatarColor('User')} flex items-center justify-center text-white text-xs font-semibold flex-shrink-0`}>
+                  {getInitials('User')}
                 </div>
                 <div className="flex-1">
                   <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-medium text-[var(--foreground)]">{conversation.createdBy}</span>
+                      <span className="text-sm font-medium text-[var(--foreground)]">User</span>
                       <span className="text-xs text-[var(--muted-foreground)]">{isMounted ? formatTimeAgo(conversation.createdAt) : ''}</span>
                     </div>
                     <p className="text-sm text-[var(--foreground)]">

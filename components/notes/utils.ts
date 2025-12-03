@@ -290,7 +290,7 @@ export function sortNotes(
 export function conversationToComment(conversation: NoteConversation): { id: string; author: string; content: string; timestamp: string } {
   return {
     id: conversation.id,
-    author: conversation.createdBy,
+    author: 'Unknown', // createdBy not available from API
     content: conversation.content,
     timestamp: conversation.createdAt,
   };

@@ -5,7 +5,7 @@
 import React from 'react';
 import type { Task, TaskDropdownState, TaskPriority } from '../types';
 import { AVAILABLE_ASSIGNEES, AVAILABLE_TASK_TYPES, AVAILABLE_PRIORITIES, AVAILABLE_TAGS, API_STATUS_OPTIONS, API_PRIORITY_OPTIONS } from '../constants';
-import { getInitials, getAvatarColor, formatTaskDate, getStatusColor, getPriorityColor } from '../utils';
+import { getInitials, getAvatarColor, formatTaskDate, getStatusColor, getPriorityColor, getReminderStatus, getReminderStatusColor, formatReminderDate } from '../utils';
 import { EntityBadges } from '../components';
 import type { TaskStatusAPI, TaskPriorityAPI } from '../types';
 
@@ -167,6 +167,7 @@ export default function GridView({
               
               {/* Due Date */}
               <span className="flex items-center gap-1">
+                <span className="text-gray-400 text-[10px] font-medium">Due:</span>
                 <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                   <rect x="3" y="4" width="14" height="14" rx="2"/>
                   <path d="M3 8h14M7 2v4M13 2v4" strokeLinecap="round"/>
@@ -196,6 +197,21 @@ export default function GridView({
                   </span>
                 )}
               </span>
+              
+              {/* Reminder Date */}
+              {task.reminderDate && (() => {
+                const status = getReminderStatus(task.reminderDate);
+                return status ? (
+                  <span className={`flex items-center gap-1 px-2 py-0.5 rounded ${getReminderStatusColor(status)}`}>
+                    <span className="text-[10px] font-medium">Reminder:</span>
+                    <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M10 2a6 6 0 016 6v4l2 2H2l2-2V8a6 6 0 016-6zM10 18a2 2 0 002-2H8a2 2 0 002 2z" strokeLinecap="round"/>
+                    </svg>
+                    <span className="font-medium">{status}</span>
+                    <span className="opacity-75">({formatReminderDate(task.reminderDate)})</span>
+                  </span>
+                ) : null;
+              })()}
             </div>
 
             {/* Entity Links - fetched via API */}
@@ -236,6 +252,8 @@ export default function GridView({
                   }
                 }}
                 onBlur={() => onSetDropdown('tags', null)}
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
                 autoFocus
                 className="px-2 py-1 border border-[var(--primary)] rounded text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
               >

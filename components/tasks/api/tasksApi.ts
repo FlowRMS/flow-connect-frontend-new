@@ -6,13 +6,40 @@
 
 import { crmGraphQLRequest } from '../../lib/crm-graphql';
 
+type CreatedByResponse =
+  | string
+  | null
+  | undefined
+  | {
+      email?: string | null;
+      firstName?: string | null;
+      fullName?: string | null;
+      id?: string | null;
+      lastName?: string | null;
+    };
+
+const formatCreatedBy = (value: CreatedByResponse): string => {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  const fullName = value.fullName || [value.firstName, value.lastName].filter(Boolean).join(' ').trim();
+  return fullName || value.email || value.id || '';
+};
+
+const withFormattedCreatedBy = <T extends { createdBy?: CreatedByResponse }>(item: T): T => ({
+  ...item,
+  createdBy: formatCreatedBy(item.createdBy),
+});
+
+const mapFormattedCreatedBy = <T extends { createdBy?: CreatedByResponse }>(items?: T[]): T[] =>
+  (items || []).map(withFormattedCreatedBy);
+
 // ============================================================================
 // Types
 // ============================================================================
 
 export type TaskPriority = 'LOW' | 'NORMAL' | 'URGENT' | 'CRITICAL';
 export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
-export type EntityType = 'TASK' | 'JOB' | 'COMPANY' | 'CONTACT' | 'NOTE';
+export type EntityType = 'TASK' | 'JOB' | 'COMPANY' | 'CONTACT' | 'NOTE' | 'PRE_OPPORTUNITY';
 
 export interface Task {
   id: string;
@@ -101,6 +128,16 @@ export interface TaskRelatedEntities {
     createdAt: string;
     createdBy: string;
   }>;
+  preOpportunities: Array<{
+    id: string;
+    entityNumber: string;
+    entityDate: string;
+    status: string;
+    soldToCustomerId: string;
+    expDate: string;
+    createdAt: string;
+    createdById: string;
+  }>;
 }
 
 // Search result types
@@ -114,6 +151,14 @@ export interface CompanySearchResult {
   phone: string;
   tags: string;
   website: string;
+}
+
+export interface UserSearchResult {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
 }
 
 export interface ContactSearchResult {
@@ -156,6 +201,17 @@ export interface NoteSearchResult {
   tags: string;
   createdAt: string;
   createdBy: string;
+}
+
+export interface PreOpportunitySearchResult {
+  id: string;
+  entityNumber: string;
+  entityDate: string;
+  status: string;
+  soldToCustomerId: string;
+  expDate: string;
+  createdAt: string;
+  createdById: string;
 }
 
 export interface EntityLink {
@@ -223,7 +279,13 @@ const GET_TASK = `
     task(id: $id) {
       assignedToId
       createdAt
-      createdBy
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
       description
       dueDate
       id
@@ -241,7 +303,13 @@ const CREATE_TASK = `
     createTask(input: $input) {
       assignedToId
       createdAt
-      createdBy
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
       description
       dueDate
       id
@@ -259,7 +327,13 @@ const UPDATE_TASK = `
     updateTask(id: $id, input: $input) {
       assignedToId
       createdAt
-      createdBy
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
       description
       dueDate
       id
@@ -285,7 +359,6 @@ const ADD_TASK_CONVERSATION = `
       createdAt
       id
       taskId
-      createdBy
     }
   }
 `;
@@ -301,7 +374,6 @@ const GET_TASK_CONVERSATIONS = `
     taskConversations(taskId: $taskId) {
       content
       createdAt
-      createdBy
       id
       taskId
     }
@@ -314,7 +386,13 @@ const GET_TASK_RELATED_ENTITIES = `
       companies {
         companySourceType
         createdAt
-        createdBy
+        createdBy {
+          email
+          firstName
+          fullName
+          id
+          lastName
+        }
         id
         name
         parentCompanyId
@@ -332,7 +410,6 @@ const GET_TASK_RELATED_ENTITIES = `
         id
         firstName
         email
-        createdBy
         createdAt
         companyId
       }
@@ -351,18 +428,40 @@ const GET_TASK_RELATED_ENTITIES = `
         id
         endDate
         description
-        createdBy
+        createdBy {
+          email
+          firstName
+          fullName
+          id
+          lastName
+        }
         createdAt
         additionalInformation
       }
       notes {
         content
         createdAt
-        createdBy
+        createdBy {
+          email
+          firstName
+          fullName
+          id
+          lastName
+        }
         id
         mentions
         tags
         title
+      }
+      preOpportunities {
+        id
+        entityNumber
+        entityDate
+        status
+        soldToCustomerId
+        expDate
+        createdAt
+        createdById
       }
     }
   }
@@ -374,7 +473,13 @@ const COMPANY_SEARCH = `
     companySearch(searchTerm: $searchTerm) {
       companySourceType
       createdAt
-      createdBy
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
       id
       name
       parentCompanyId
@@ -390,7 +495,6 @@ const CONTACT_SEARCH = `
     contactSearch(searchTerm: $searchTerm) {
       companyId
       createdAt
-      createdBy
       email
       id
       firstName
@@ -418,7 +522,6 @@ const GET_CONTACT = `
       tags
       companyId
       createdAt
-      createdBy
     }
   }
 `;
@@ -428,7 +531,13 @@ const JOB_SEARCH = `
     jobSearch(searchTerm: $searchTerm) {
       additionalInformation
       createdAt
-      createdBy
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
       description
       endDate
       jobName
@@ -452,11 +561,44 @@ const NOTE_SEARCH = `
     noteSearch(searchTerm: $searchTerm) {
       content
       createdAt
-      createdBy
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
       id
       mentions
       tags
       title
+    }
+  }
+`;
+
+const PRE_OPPORTUNITY_SEARCH = `
+  query PreOpportunitySearch($searchTerm: String!) {
+    preOpportunitySearch(searchTerm: $searchTerm) {
+      id
+      entityNumber
+      entityDate
+      status
+      soldToCustomerId
+      expDate
+      createdAt
+      createdById
+    }
+  }
+`;
+
+const USER_SEARCH = `
+  query UserSearch($searchTerm: String!) {
+    userSearch(searchTerm: $searchTerm) {
+      email
+      firstName
+      fullName
+      id
+      lastName
     }
   }
 `;
@@ -481,7 +623,6 @@ const CREATE_LINK = `
       targetEntityType
       targetEntityId
       createdAt
-      createdBy
     }
   }
 `;
@@ -520,7 +661,7 @@ export async function fetchTasks(): Promise<TaskLandingPage[]> {
     throw new Error(response.errors[0]?.message || 'Failed to fetch tasks');
   }
 
-  return response.data?.findLandingPages?.records || [];
+  return mapFormattedCreatedBy(response.data?.findLandingPages?.records);
 }
 
 /**
@@ -536,7 +677,8 @@ export async function fetchTask(id: string): Promise<Task | null> {
     throw new Error(response.errors[0]?.message || 'Failed to fetch task');
   }
 
-  return response.data?.task || null;
+  const task = response.data?.task;
+  return task ? withFormattedCreatedBy(task) : null;
 }
 
 /**
@@ -556,7 +698,7 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
     throw new Error('No task returned from create mutation');
   }
 
-  return response.data.createTask;
+  return withFormattedCreatedBy(response.data.createTask);
 }
 
 /**
@@ -576,7 +718,7 @@ export async function updateTask(id: string, input: UpdateTaskInput): Promise<Ta
     throw new Error('No task returned from update mutation');
   }
 
-  return response.data.updateTask;
+  return withFormattedCreatedBy(response.data.updateTask);
 }
 
 /**
@@ -672,11 +814,18 @@ export async function fetchTaskRelatedEntities(taskId: string): Promise<TaskRela
   }
 
   return (
-    response.data?.taskRelatedEntities || {
+    (response.data?.taskRelatedEntities && {
+      companies: mapFormattedCreatedBy(response.data.taskRelatedEntities.companies),
+      contacts: mapFormattedCreatedBy(response.data.taskRelatedEntities.contacts),
+      jobs: mapFormattedCreatedBy(response.data.taskRelatedEntities.jobs),
+      notes: mapFormattedCreatedBy(response.data.taskRelatedEntities.notes),
+      preOpportunities: response.data.taskRelatedEntities.preOpportunities || [],
+    }) || {
       companies: [],
       contacts: [],
       jobs: [],
       notes: [],
+      preOpportunities: [],
     }
   );
 }
@@ -699,7 +848,7 @@ export async function searchCompanies(searchTerm: string): Promise<CompanySearch
     throw new Error(response.errors[0]?.message || 'Failed to search companies');
   }
 
-  return response.data?.companySearch || [];
+  return mapFormattedCreatedBy(response.data?.companySearch);
 }
 
 /**
@@ -716,7 +865,7 @@ export async function searchContacts(searchTerm: string): Promise<ContactSearchR
     throw new Error(response.errors[0]?.message || 'Failed to search contacts');
   }
 
-  return response.data?.contactSearch || [];
+  return mapFormattedCreatedBy(response.data?.contactSearch);
 }
 
 /**
@@ -751,7 +900,7 @@ export async function searchJobs(searchTerm: string): Promise<JobSearchResult[]>
     throw new Error(response.errors[0]?.message || 'Failed to search jobs');
   }
 
-  return response.data?.jobSearch || [];
+  return mapFormattedCreatedBy(response.data?.jobSearch);
 }
 
 /**
@@ -768,7 +917,41 @@ export async function searchNotes(searchTerm: string): Promise<NoteSearchResult[
     throw new Error(response.errors[0]?.message || 'Failed to search notes');
   }
 
-  return response.data?.noteSearch || [];
+  return mapFormattedCreatedBy(response.data?.noteSearch);
+}
+
+/**
+ * Search for pre-opportunities
+ * Returns all pre-opportunities when empty string is passed
+ */
+export async function searchPreOpportunities(searchTerm: string): Promise<PreOpportunitySearchResult[]> {
+  const response = await crmGraphQLRequest<{ preOpportunitySearch: PreOpportunitySearchResult[] }>({
+    query: PRE_OPPORTUNITY_SEARCH,
+    variables: { searchTerm },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search pre-opportunities');
+  }
+
+  return response.data?.preOpportunitySearch || [];
+}
+
+/**
+ * Search for users (for assignee selection)
+ * Returns users matching the search term
+ */
+export async function searchUsers(searchTerm: string): Promise<UserSearchResult[]> {
+  const response = await crmGraphQLRequest<{ userSearch: UserSearchResult[] }>({
+    query: USER_SEARCH,
+    variables: { searchTerm },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search users');
+  }
+
+  return response.data?.userSearch || [];
 }
 
 // ============================================================================

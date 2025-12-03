@@ -6,6 +6,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useTasksState } from './tasks/hooks/useTasksState';
 import { getTaskFilterOptions } from './tasks/config/filterConfig';
 import { TASK_CATEGORIES, AVAILABLE_ASSIGNEES, AVAILABLE_PRIORITIES, AVAILABLE_TAGS, API_STATUS_OPTIONS, API_PRIORITY_OPTIONS } from './tasks/constants';
@@ -22,6 +23,8 @@ import type { TaskStatusAPI } from './tasks/types';
 export default function TasksContent() {
   // Track if component is mounted to prevent hydration mismatch
   const [isMounted, setIsMounted] = useState(false);
+  const router = useRouter();
+  const searchParams = useSearchParams();
   
   useEffect(() => {
     setIsMounted(true);
@@ -110,6 +113,19 @@ export default function TasksContent() {
   const [showSortDropdown, setShowSortDropdown] = useState(false);
 
   const taskFilterOptions = getTaskFilterOptions();
+
+  // Check for task ID in query params to auto-select and open the task pane
+  useEffect(() => {
+    const taskId = searchParams.get('id');
+    if (taskId && tasks.length > 0 && !selectedTask) {
+      const task = tasks.find(t => t.id === taskId);
+      if (task) {
+        setSelectedTask(task);
+        // Clear the query param after selecting
+        router.replace('/tasks', { scroll: false });
+      }
+    }
+  }, [searchParams, tasks, selectedTask, setSelectedTask, router]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();

@@ -19,6 +19,7 @@ import {
   searchContacts,
   searchTasks,
   searchJobs,
+  searchPreOpportunities,
   createLink,
   deleteLink,
   deleteLinkByEntities,
@@ -29,6 +30,7 @@ import {
   type ContactSearchResult,
   type TaskSearchResult,
   type JobSearchResult,
+  type PreOpportunitySearchResult,
   type EntityLink,
   type EntityType,
 } from './notesApi';
@@ -48,6 +50,7 @@ export const notesQueryKeys = {
     contacts: (term: string) => ['search', 'contacts', term] as const,
     tasks: (term: string) => ['search', 'tasks', term] as const,
     jobs: (term: string) => ['search', 'jobs', term] as const,
+    preOpportunities: (term: string) => ['search', 'preOpportunities', term] as const,
   },
 };
 
@@ -251,6 +254,19 @@ export function useJobSearch(searchTerm: string, enabled = true) {
   });
 }
 
+/**
+ * Search for pre-opportunities
+ * Returns all pre-opportunities when empty string is passed
+ */
+export function usePreOpportunitySearch(searchTerm: string, enabled = true) {
+  return useQuery<PreOpportunitySearchResult[], Error>({
+    queryKey: notesQueryKeys.search.preOpportunities(searchTerm),
+    queryFn: () => searchPreOpportunities(searchTerm),
+    enabled: hasCRMTokens() && enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
 // ============================================================================
 // Link Hooks
 // ============================================================================
@@ -337,6 +353,7 @@ export type {
   ContactSearchResult,
   TaskSearchResult,
   JobSearchResult,
+  PreOpportunitySearchResult,
   EntityLink,
   EntityType,
 };

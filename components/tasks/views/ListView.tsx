@@ -5,7 +5,7 @@
 
 import React from 'react';
 import type { Task, TaskPriority } from '../types';
-import { getInitials, getAvatarColor, formatTaskDate, getStatusColor } from '../utils';
+import { getInitials, getAvatarColor, formatTaskDate, getStatusColor, getReminderStatus, getReminderStatusColor, formatReminderDate } from '../utils';
 import { EntityBadges } from '../components';
 
 interface ListViewProps {
@@ -73,14 +73,31 @@ export default function ListView({ tasks, onUpdateTask, onToggleComplete, onSele
                 )}
                 
                 {/* Due date and assignee */}
-                <div className="flex items-center gap-4 mb-2 text-xs text-[var(--muted-foreground)]">
+                <div className="flex items-center gap-4 mb-2 text-xs text-[var(--muted-foreground)] flex-wrap">
                   <span className="flex items-center gap-1">
+                    <span className="text-gray-400 text-[10px] font-medium">Due:</span>
                     <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                       <rect x="3" y="4" width="14" height="14" rx="2"/>
                       <path d="M3 8h14M7 2v4M13 2v4" strokeLinecap="round"/>
                     </svg>
                     {formatTaskDate(task.dueDate)}
                   </span>
+                  
+                  {/* Reminder Date */}
+                  {task.reminderDate && (() => {
+                    const status = getReminderStatus(task.reminderDate);
+                    return status ? (
+                      <span className={`flex items-center gap-1 px-2 py-0.5 rounded ${getReminderStatusColor(status)}`}>
+                        <span className="text-[10px] font-medium">Reminder:</span>
+                        <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M10 2a6 6 0 016 6v4l2 2H2l2-2V8a6 6 0 016-6zM10 18a2 2 0 002-2H8a2 2 0 002 2z" strokeLinecap="round"/>
+                        </svg>
+                        <span className="font-medium">{status}</span>
+                        <span className="opacity-75">({formatReminderDate(task.reminderDate)})</span>
+                      </span>
+                    ) : null;
+                  })()}
+                  
                   <span className="flex items-center gap-1">
                     <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                       <circle cx="10" cy="6" r="3"/>
