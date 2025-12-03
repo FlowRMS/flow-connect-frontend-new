@@ -5,6 +5,12 @@
 
 import { getCRMAccessToken } from './crm-auth';
 import { isTokenServerEnabled, tokenServerClient } from './crm-token-server';
+import {
+  getStoredAccessToken as getSSOAccessToken,
+  getValidAccessToken as getValidSSOToken,
+  clearTokens as clearSSOTokens,
+} from './auth';
+import { redirectToLogin } from './redirect';
 
 // ============================================================================
 // Configuration
@@ -1339,16 +1345,41 @@ const DELETE_PRE_OPPORTUNITY = `
 // ============================================================================
 
 /**
+ * Check if SSO auth tokens are available (from FlowRMS redirect)
+ */
+function hasSSOTokens(): boolean {
+  if (typeof window === 'undefined') return false;
+  return !!getSSOAccessToken();
+}
+
+/**
  * Execute a GraphQL query/mutation against the CRM API
- * Automatically handles token refresh when using Token Server
+ * Automatically handles token refresh for both SSO and Token Server modes
+ * Priority: SSO tokens > Token Server > Manual tokens
  */
 export async function crmGraphQLRequest<T = unknown>(
   options: GraphQLRequestOptions
 ): Promise<GraphQLResponse<T>> {
   let authHeader: string;
-  
-  // Get authorization header based on current mode
-  if (isTokenServerEnabled()) {
+  let usingSSOAuth = false;
+
+  // Priority 1: Check for SSO tokens (from FlowRMS redirect)
+  if (hasSSOTokens()) {
+    const ssoToken = await getValidSSOToken();
+    if (ssoToken) {
+      authHeader = `Bearer ${ssoToken}`;
+      usingSSOAuth = true;
+    } else {
+      // SSO token refresh failed, redirect to login
+      if (typeof window !== 'undefined') {
+        clearSSOTokens();
+        redirectToLogin();
+      }
+      throw new Error('Authentication expired. Redirecting to login...');
+    }
+  }
+  // Priority 2: Token Server mode
+  else if (isTokenServerEnabled()) {
     try {
       authHeader = await tokenServerClient.getAuthorizationHeader();
     } catch (error) {
@@ -1356,10 +1387,14 @@ export async function crmGraphQLRequest<T = unknown>(
         `Token Server error: ${error instanceof Error ? error.message : 'Failed to get token'}`
       );
     }
-  } else {
+  }
+  // Priority 3: Manual tokens
+  else {
     const accessToken = getCRMAccessToken();
     if (!accessToken) {
-      throw new Error('CRM access token not configured. Please set your tokens in FlowCRM Auth settings.');
+      throw new Error(
+        'CRM access token not configured. Please set your tokens in FlowCRM Auth settings.'
+      );
     }
     authHeader = `Bearer ${accessToken}`;
   }
@@ -1370,7 +1405,7 @@ export async function crmGraphQLRequest<T = unknown>(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': authHeader,
+      Authorization: authHeader,
     },
     body: JSON.stringify({
       query: options.query,
@@ -1379,25 +1414,54 @@ export async function crmGraphQLRequest<T = unknown>(
     }),
   });
 
-  // If using Token Server and we get 401, try refreshing the token
-  if (response.status === 401 && isTokenServerEnabled()) {
-    try {
-      authHeader = await tokenServerClient.getAuthorizationHeader(true); // Force refresh
-      
-      response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': authHeader,
-        },
-        body: JSON.stringify({
-          query: options.query,
-          variables: options.variables,
-          operationName: options.operationName,
-        }),
-      });
-    } catch {
-      throw new Error('Authentication failed. Please check your Token Server configuration.');
+  // Handle 401/403 responses
+  if (response.status === 401 || response.status === 403) {
+    // If using SSO auth, try to refresh token
+    if (usingSSOAuth) {
+      const newToken = await getValidSSOToken();
+      if (newToken) {
+        authHeader = `Bearer ${newToken}`;
+        response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: authHeader,
+          },
+          body: JSON.stringify({
+            query: options.query,
+            variables: options.variables,
+            operationName: options.operationName,
+          }),
+        });
+      } else {
+        // Refresh failed, redirect to login
+        if (typeof window !== 'undefined') {
+          clearSSOTokens();
+          redirectToLogin();
+        }
+        throw new Error('Authentication expired. Redirecting to login...');
+      }
+    }
+    // If using Token Server, try refreshing
+    else if (isTokenServerEnabled()) {
+      try {
+        authHeader = await tokenServerClient.getAuthorizationHeader(true); // Force refresh
+
+        response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: authHeader,
+          },
+          body: JSON.stringify({
+            query: options.query,
+            variables: options.variables,
+            operationName: options.operationName,
+          }),
+        });
+      } catch {
+        throw new Error('Authentication failed. Please check your Token Server configuration.');
+      }
     }
   }
 

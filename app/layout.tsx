@@ -16,6 +16,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "FlowCRM",
   description: "FlowCRM - Customer Relationship Management",
+  icons: {
+    icon: "/flow-logo.png",
+    shortcut: "/flow-logo.png",
+    apple: "/flow-logo.png",
+  },
 };
 
 export default function RootLayout({

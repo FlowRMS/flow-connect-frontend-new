@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 
 export default function Sidebar() {
@@ -143,9 +144,13 @@ export default function Sidebar() {
       {/* Logo & Toggle */}
       <div className="p-4 border-b border-[var(--border)] flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <div className="w-8 h-8 rounded-full bg-[var(--primary)] flex items-center justify-center flex-shrink-0">
-            <div className="w-4 h-4 rounded-full border-2 border-white"></div>
-          </div>
+          <Image
+            src="/flow-logo.png"
+            alt="FlowCRM"
+            width={32}
+            height={32}
+            className="flex-shrink-0"
+          />
           {!isCollapsed && <span className="text-lg font-semibold text-[var(--foreground)]">FlowCRM</span>}
         </div>
         <button
