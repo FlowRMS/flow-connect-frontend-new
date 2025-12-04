@@ -18,7 +18,7 @@ projects:
       - key: NODE_ENV
         value: production
       - key: NODE_OPTIONS
-        value: "--max-old-space-size=384"
+        value: "--max-old-space-size=2048"
       region: ohio
       buildCommand: npm install; npm run build
       startCommand: npm run start

@@ -1808,6 +1808,9 @@ export async function createContact(input: ContactInput): Promise<Contact> {
   if (cleanInput.companyId === '') {
     delete cleanInput.companyId;
   }
+  if (cleanInput.role === '') {
+    delete cleanInput.role;
+  }
   
   const response = await crmGraphQLRequest<{ createContact: Contact }>({
     query: CREATE_CONTACT,
