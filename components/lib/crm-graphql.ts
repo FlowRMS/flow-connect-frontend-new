@@ -1803,9 +1803,15 @@ export async function fetchJobsByContactId(contactId: string): Promise<Job[]> {
 }
 
 export async function createContact(input: ContactInput): Promise<Contact> {
+  // Filter out empty string values that would cause UUID validation errors
+  const cleanInput = { ...input };
+  if (cleanInput.companyId === '') {
+    delete cleanInput.companyId;
+  }
+  
   const response = await crmGraphQLRequest<{ createContact: Contact }>({
     query: CREATE_CONTACT,
-    variables: { input },
+    variables: { input: cleanInput },
   });
 
   if (response.errors) {
@@ -2070,7 +2076,7 @@ export async function deletePreOpportunity(id: string): Promise<boolean> {
 // Entity Link Types
 // ============================================================================
 
-export type EntityType = 'JOB' | 'COMPANY' | 'CONTACT' | 'TASK' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK';
+export type EntityType = 'JOB' | 'COMPANY' | 'CONTACT' | 'TASK' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'FACTORY' | 'CUSTOMER' | 'PRODUCT';
 
 export interface EntityLink {
   id: string;
@@ -3096,7 +3102,7 @@ export type TaskStatusAPI = 'TODO' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 export type TaskRelatedType = 'JOB' | 'CONTACT' | 'COMPANY';
 
 // Entity types for tasksByEntity query
-export type TaskEntityType = 'JOB' | 'CONTACT' | 'COMPANY' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK';
+export type TaskEntityType = 'JOB' | 'CONTACT' | 'COMPANY' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'FACTORY' | 'CUSTOMER' | 'PRODUCT';
 
 export interface CRMTask {
   id: string;

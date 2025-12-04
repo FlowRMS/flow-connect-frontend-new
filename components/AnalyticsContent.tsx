@@ -6,6 +6,7 @@ import BarChart from './charts/BarChart';
 import PieChart from './charts/PieChart';
 import FunnelChart from './charts/FunnelChart';
 import DataTable from './charts/DataTable';
+import ComingSoonOverlay from './ComingSoonOverlay';
 
 type TabId = 'activity' | 'pipeline' | 'sales' | 'contacts' | 'forecast' | 'performance';
 
@@ -1119,7 +1120,13 @@ export default function AnalyticsContent() {
   };
 
   return (
-    <main className="flex-1 overflow-y-auto bg-[var(--background)]">
+    <main className="flex-1 overflow-y-auto bg-[var(--background)] relative">
+      {/* Coming Soon Overlay */}
+      <ComingSoonOverlay 
+        title="Analytics Coming Soon"
+        description="Comprehensive analytics and reporting dashboards are being developed. Get actionable insights from your data!"
+      />
+      
       {/* Sticky Header with Tabs */}
       <div className="sticky top-0 bg-[var(--background)] border-b border-[var(--border)] z-10">
         <div className="px-6 pt-6 pb-4">

@@ -216,6 +216,62 @@ export default function NewCampaignView({ campaignState, availableContacts }: Ne
             />
           </div>
 
+          {/* Schedule Section */}
+          <div className="mb-6 p-4 border border-[var(--border)] rounded-lg bg-[var(--muted)]/20">
+            <label className="block text-sm font-medium text-[var(--foreground)] mb-3">
+              When to Send
+            </label>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <button
+                className="px-4 py-2.5 text-sm rounded-lg border-2 border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)] font-medium transition-all"
+              >
+                Send Immediately
+              </button>
+              <button
+                className="px-4 py-2.5 text-sm rounded-lg border-2 border-[var(--border)] text-[var(--foreground)] hover:border-[var(--primary)]/50 transition-all"
+              >
+                Schedule for Later
+              </button>
+            </div>
+            {/* Schedule inputs - shown when "Schedule for Later" is selected */}
+            <div className="grid grid-cols-2 gap-3 opacity-50">
+              <div>
+                <label className="block text-xs text-[var(--muted-foreground)] mb-1">Date</label>
+                <input
+                  type="date"
+                  disabled
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm bg-[var(--background)]"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-[var(--muted-foreground)] mb-1">Time</label>
+                <input
+                  type="time"
+                  disabled
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm bg-[var(--background)]"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Preview & Test Section */}
+          <div className="mb-6 flex gap-3">
+            <button className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+              Preview Email
+            </button>
+            <button className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M22 2L11 13" />
+                <path d="M22 2l-7 20-4-9-9-4 20-7z" />
+              </svg>
+              Send Test Email
+            </button>
+          </div>
+
           {/* Action Buttons */}
           <div className="flex gap-3">
             <button className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors">

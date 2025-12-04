@@ -23,6 +23,26 @@ export default function Sidebar() {
       )
     },
     {
+      name: 'Tasks',
+      href: '/tasks',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M9 11l3 3L22 4"/>
+          <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+        </svg>
+      )
+    },
+    {
+      name: 'Notes',
+      href: '/notes',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+          <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>
+        </svg>
+      )
+    },
+    {
       name: 'Jobs',
       href: '/jobs',
       icon: (
@@ -50,26 +70,6 @@ export default function Sidebar() {
           <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
           <path d="M14 2v6h6"/>
           <path d="M12 18v-6M9 15l3-3 3 3"/>
-        </svg>
-      )
-    },
-    {
-      name: 'Tasks',
-      href: '/tasks',
-      icon: (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M9 11l3 3L22 4"/>
-          <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
-        </svg>
-      )
-    },
-    {
-      name: 'Notes',
-      href: '/notes',
-      icon: (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-          <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>
         </svg>
       )
     },
@@ -135,16 +135,6 @@ export default function Sidebar() {
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M3 3v18h18"/>
           <path d="M18 17V9M13 17V5M8 17v-3"/>
-        </svg>
-      )
-    },
-    {
-      name: 'CRM Auth',
-      href: '/crm-auth',
-      icon: (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-          <path d="M7 11V7a5 5 0 0110 0v4"/>
         </svg>
       )
     },

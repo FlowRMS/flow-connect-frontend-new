@@ -22,6 +22,13 @@ import {
   searchNotes,
   searchPreOpportunities,
   searchUsers,
+  searchQuotes,
+  searchOrders,
+  searchInvoices,
+  searchChecks,
+  searchFactories,
+  searchCustomers,
+  searchProducts,
   createTaskLink,
   deleteTaskLinkByEntities,
   fetchContactById,
@@ -35,6 +42,13 @@ import {
   type NoteSearchResult,
   type PreOpportunitySearchResult,
   type UserSearchResult,
+  type QuoteSearchResult,
+  type OrderSearchResult,
+  type InvoiceSearchResult,
+  type CheckSearchResult,
+  type FactorySearchResult,
+  type CustomerSearchResult,
+  type ProductSearchResult,
   type EntityLink,
   type EntityType,
   type CreateTaskInput,
@@ -60,6 +74,13 @@ export const tasksQueryKeys = {
     notes: (term: string) => ['search', 'notes', term] as const,
     preOpportunities: (term: string) => ['search', 'preOpportunities', term] as const,
     users: (term: string) => ['search', 'users', term] as const,
+    quotes: (term: string) => ['search', 'quotes', term] as const,
+    orders: (term: string) => ['search', 'orders', term] as const,
+    invoices: (term: string) => ['search', 'invoices', term] as const,
+    checks: (term: string) => ['search', 'checks', term] as const,
+    factories: (term: string) => ['search', 'factories', term] as const,
+    customers: (term: string) => ['search', 'customers', term] as const,
+    products: (term: string) => ['search', 'products', term] as const,
   },
 };
 
@@ -339,6 +360,90 @@ export function useUserSearch(searchTerm: string, enabled = true) {
   return useQuery<UserSearchResult[], Error>({
     queryKey: tasksQueryKeys.search.users(searchTerm),
     queryFn: () => searchUsers(searchTerm),
+    enabled: hasCRMTokens() && enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * Search for quotes
+ */
+export function useQuoteSearch(searchTerm: string, enabled = true) {
+  return useQuery<QuoteSearchResult[], Error>({
+    queryKey: tasksQueryKeys.search.quotes(searchTerm),
+    queryFn: () => searchQuotes(searchTerm),
+    enabled: hasCRMTokens() && enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * Search for orders
+ */
+export function useOrderSearch(searchTerm: string, enabled = true) {
+  return useQuery<OrderSearchResult[], Error>({
+    queryKey: tasksQueryKeys.search.orders(searchTerm),
+    queryFn: () => searchOrders(searchTerm),
+    enabled: hasCRMTokens() && enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * Search for invoices
+ */
+export function useInvoiceSearch(searchTerm: string, enabled = true) {
+  return useQuery<InvoiceSearchResult[], Error>({
+    queryKey: tasksQueryKeys.search.invoices(searchTerm),
+    queryFn: () => searchInvoices(searchTerm),
+    enabled: hasCRMTokens() && enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * Search for checks
+ */
+export function useCheckSearch(searchTerm: string, enabled = true) {
+  return useQuery<CheckSearchResult[], Error>({
+    queryKey: tasksQueryKeys.search.checks(searchTerm),
+    queryFn: () => searchChecks(searchTerm),
+    enabled: hasCRMTokens() && enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * Search for factories
+ */
+export function useFactorySearch(searchTerm: string, enabled = true) {
+  return useQuery<FactorySearchResult[], Error>({
+    queryKey: tasksQueryKeys.search.factories(searchTerm),
+    queryFn: () => searchFactories(searchTerm),
+    enabled: hasCRMTokens() && enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * Search for customers
+ */
+export function useCustomerSearch(searchTerm: string, enabled = true) {
+  return useQuery<CustomerSearchResult[], Error>({
+    queryKey: tasksQueryKeys.search.customers(searchTerm),
+    queryFn: () => searchCustomers(searchTerm),
+    enabled: hasCRMTokens() && enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * Search for products
+ */
+export function useProductSearch(searchTerm: string, enabled = true) {
+  return useQuery<ProductSearchResult[], Error>({
+    queryKey: tasksQueryKeys.search.products(searchTerm),
+    queryFn: () => searchProducts(searchTerm),
     enabled: hasCRMTokens() && enabled,
     staleTime: 60 * 1000,
   });

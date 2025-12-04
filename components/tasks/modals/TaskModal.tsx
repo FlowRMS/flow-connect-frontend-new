@@ -23,6 +23,13 @@ import {
   useNoteSearch,
   usePreOpportunitySearch,
   useUserSearch,
+  useQuoteSearch,
+  useOrderSearch,
+  useInvoiceSearch,
+  useCheckSearch,
+  useFactorySearch,
+  useCustomerSearch,
+  useProductSearch,
   tasksQueryKeys
 } from '../api';
 import { useQueryClient } from '@tanstack/react-query';
@@ -68,7 +75,7 @@ export default function TaskModal({
   
   // Entity linking state
   const [showAddEntityDropdown, setShowAddEntityDropdown] = useState(false);
-  const [addEntityType, setAddEntityType] = useState<'JOB' | 'CONTACT' | 'COMPANY' | 'NOTE' | 'PRE_OPPORTUNITY' | null>(null);
+  const [addEntityType, setAddEntityType] = useState<'JOB' | 'CONTACT' | 'COMPANY' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'FACTORY' | 'CUSTOMER' | 'PRODUCT' | null>(null);
   const [entitySearch, setEntitySearch] = useState('');
   const entitySearchRef = useRef<HTMLInputElement>(null);
   const entityDropdownRef = useRef<HTMLDivElement>(null);
@@ -99,6 +106,13 @@ export default function TaskModal({
   const { data: searchedCompanies = [], isLoading: isLoadingCompanies } = useCompanySearch(entitySearch, isEditMode && addEntityType === 'COMPANY');
   const { data: searchedNotes = [], isLoading: isLoadingNotes } = useNoteSearch(entitySearch, isEditMode && addEntityType === 'NOTE');
   const { data: searchedPreOpportunities = [], isLoading: isLoadingPreOpportunities } = usePreOpportunitySearch(entitySearch, isEditMode && addEntityType === 'PRE_OPPORTUNITY');
+  const { data: searchedQuotes = [], isLoading: isLoadingQuotes } = useQuoteSearch(entitySearch, isEditMode && addEntityType === 'QUOTE');
+  const { data: searchedOrders = [], isLoading: isLoadingOrders } = useOrderSearch(entitySearch, isEditMode && addEntityType === 'ORDER');
+  const { data: searchedInvoices = [], isLoading: isLoadingInvoices } = useInvoiceSearch(entitySearch, isEditMode && addEntityType === 'INVOICE');
+  const { data: searchedChecks = [], isLoading: isLoadingChecks } = useCheckSearch(entitySearch, isEditMode && addEntityType === 'CHECK');
+  const { data: searchedFactories = [], isLoading: isLoadingFactories } = useFactorySearch(entitySearch, isEditMode && addEntityType === 'FACTORY');
+  const { data: searchedCustomers = [], isLoading: isLoadingCustomers } = useCustomerSearch(entitySearch, isEditMode && addEntityType === 'CUSTOMER');
+  const { data: searchedProducts = [], isLoading: isLoadingProducts } = useProductSearch(entitySearch, isEditMode && addEntityType === 'PRODUCT');
   
   // Assignee search (uses userSearch for better results)
   const { data: assigneeUsers = [], isLoading: isLoadingAssignees } = useUserSearch(assigneeSearch, isEditMode && showAssigneeDropdown);
@@ -313,7 +327,7 @@ export default function TaskModal({
     }
   };
 
-  const handleDeleteRelation = async (entityType: 'JOB' | 'CONTACT' | 'COMPANY' | 'NOTE' | 'PRE_OPPORTUNITY', entityId: string) => {
+  const handleDeleteRelation = async (entityType: 'JOB' | 'CONTACT' | 'COMPANY' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'FACTORY' | 'CUSTOMER' | 'PRODUCT', entityId: string) => {
     try {
       await deleteLinkMutation.mutateAsync({ 
         sourceEntityType: 'TASK',
@@ -328,7 +342,7 @@ export default function TaskModal({
     }
   };
 
-  const handleAddEntity = async (entityType: 'JOB' | 'CONTACT' | 'COMPANY' | 'NOTE' | 'PRE_OPPORTUNITY', entityId: string) => {
+  const handleAddEntity = async (entityType: 'JOB' | 'CONTACT' | 'COMPANY' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'FACTORY' | 'CUSTOMER' | 'PRODUCT', entityId: string) => {
     try {
       await createLinkMutation.mutateAsync({
         sourceEntityType: 'TASK',
@@ -388,6 +402,48 @@ export default function TaskModal({
           data: searchedPreOpportunities.filter(p => !linkedEntities?.preOpportunities.some(lp => lp.id === p.id)), 
           isLoading: isLoadingPreOpportunities,
           getName: (item: typeof searchedPreOpportunities[0]) => item.entityNumber || 'Unknown Pre-Opportunity'
+        };
+      case 'QUOTE':
+        return { 
+          data: searchedQuotes, 
+          isLoading: isLoadingQuotes,
+          getName: (item: typeof searchedQuotes[0]) => item.jobName || item.quoteNumber || 'Unknown Quote'
+        };
+      case 'ORDER':
+        return { 
+          data: searchedOrders, 
+          isLoading: isLoadingOrders,
+          getName: (item: typeof searchedOrders[0]) => item.jobName || item.orderNumber || 'Unknown Order'
+        };
+      case 'INVOICE':
+        return { 
+          data: searchedInvoices, 
+          isLoading: isLoadingInvoices,
+          getName: (item: typeof searchedInvoices[0]) => item.invoiceNumber || 'Unknown Invoice'
+        };
+      case 'CHECK':
+        return { 
+          data: searchedChecks, 
+          isLoading: isLoadingChecks,
+          getName: (item: typeof searchedChecks[0]) => item.checkNumber || 'Unknown Check'
+        };
+      case 'FACTORY':
+        return { 
+          data: searchedFactories, 
+          isLoading: isLoadingFactories,
+          getName: (item: typeof searchedFactories[0]) => item.title || 'Unknown Factory'
+        };
+      case 'CUSTOMER':
+        return { 
+          data: searchedCustomers, 
+          isLoading: isLoadingCustomers,
+          getName: (item: typeof searchedCustomers[0]) => item.companyName || 'Unknown Customer'
+        };
+      case 'PRODUCT':
+        return { 
+          data: searchedProducts, 
+          isLoading: isLoadingProducts,
+          getName: (item: typeof searchedProducts[0]) => item.factoryPartNumber || 'Unknown Product'
         };
       default:
         return { data: [], isLoading: false, getName: () => '' };
@@ -848,7 +904,7 @@ export default function TaskModal({
                   {/* Add entity button - only in edit mode */}
                   {isEditMode && (
                     <div className="relative mt-3">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <button
                           type="button"
                           onClick={() => setAddEntityType('JOB')}
@@ -903,6 +959,83 @@ export default function TaskModal({
                           }`}
                         >
                           + Pre-Opp
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAddEntityType('QUOTE')}
+                          className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                            addEntityType === 'QUOTE' 
+                              ? 'bg-cyan-100 border-cyan-300 text-cyan-700' 
+                              : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          + Quote
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAddEntityType('ORDER')}
+                          className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                            addEntityType === 'ORDER' 
+                              ? 'bg-teal-100 border-teal-300 text-teal-700' 
+                              : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          + Order
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAddEntityType('INVOICE')}
+                          className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                            addEntityType === 'INVOICE' 
+                              ? 'bg-rose-100 border-rose-300 text-rose-700' 
+                              : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          + Invoice
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAddEntityType('CHECK')}
+                          className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                            addEntityType === 'CHECK' 
+                              ? 'bg-emerald-100 border-emerald-300 text-emerald-700' 
+                              : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          + Check
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAddEntityType('FACTORY')}
+                          className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                            addEntityType === 'FACTORY' 
+                              ? 'bg-slate-100 border-slate-300 text-slate-700' 
+                              : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          + Factory
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAddEntityType('CUSTOMER')}
+                          className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                            addEntityType === 'CUSTOMER' 
+                              ? 'bg-amber-100 border-amber-300 text-amber-700' 
+                              : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          + Customer
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAddEntityType('PRODUCT')}
+                          className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                            addEntityType === 'PRODUCT' 
+                              ? 'bg-lime-100 border-lime-300 text-lime-700' 
+                              : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          + Product
                         </button>
                       </div>
                       

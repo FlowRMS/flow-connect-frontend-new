@@ -39,7 +39,7 @@ const mapFormattedCreatedBy = <T extends { createdBy?: CreatedByResponse }>(item
 
 export type TaskPriority = 'LOW' | 'NORMAL' | 'URGENT' | 'CRITICAL';
 export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
-export type EntityType = 'TASK' | 'JOB' | 'COMPANY' | 'CONTACT' | 'NOTE' | 'PRE_OPPORTUNITY';
+export type EntityType = 'TASK' | 'JOB' | 'COMPANY' | 'CONTACT' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'FACTORY' | 'CUSTOMER' | 'PRODUCT';
 
 export interface Task {
   id: string;
@@ -212,6 +212,85 @@ export interface PreOpportunitySearchResult {
   expDate: string;
   createdAt: string;
   createdById: string;
+}
+
+export interface QuoteSearchResult {
+  id: string;
+  quoteNumber: string;
+  jobName: string;
+  entityDate: string;
+  entryDate: string;
+  expDate: string;
+  billToCustomerId: string;
+  soldToCustomerId: string;
+  blanket: boolean;
+  createdBy: string;
+  userOwnerIds: string[];
+}
+
+export interface OrderSearchResult {
+  id: string;
+  orderNumber: string;
+  jobName: string;
+  entityDate: string;
+  entryDate: string;
+  dueDate: string;
+  shipDate: string;
+  status: string;
+  billToCustomerId: string;
+  soldToCustomerId: string;
+  factoryId: string;
+  quoteId: string;
+  balanceId: string;
+  factSoNumber: string;
+  userOwnerIds: string[];
+}
+
+export interface InvoiceSearchResult {
+  id: string;
+  invoiceNumber: string;
+  entityDate: string;
+  entryDate: string;
+  dueDate: string;
+  status: string;
+  factoryId: string;
+  orderId: string;
+  balanceId: string;
+  locked: boolean;
+  published: boolean;
+  creationType: string;
+  createdBy: string;
+  userOwnerIds: string[];
+}
+
+export interface CheckSearchResult {
+  id: string;
+  checkNumber: string;
+  entityDate: string;
+  entryDate: string;
+  postDate: string;
+  status: string;
+  factoryId: string;
+  commission: number;
+  commissionMonth: string;
+  creationType: string;
+  createdBy: string;
+  userOwnerIds: string[];
+}
+
+export interface FactorySearchResult {
+  id: string;
+  title: string;
+}
+
+export interface CustomerSearchResult {
+  id: string;
+  companyName: string;
+}
+
+export interface ProductSearchResult {
+  id: string;
+  factoryPartNumber: string;
 }
 
 export interface EntityLink {
@@ -603,6 +682,113 @@ const USER_SEARCH = `
   }
 `;
 
+const QUOTE_SEARCH = `
+  query QuoteSearch($searchTerm: String!) {
+    quoteSearch(searchTerm: $searchTerm) {
+      id
+      quoteNumber
+      jobName
+      entityDate
+      entryDate
+      expDate
+      billToCustomerId
+      soldToCustomerId
+      blanket
+      createdBy
+      userOwnerIds
+    }
+  }
+`;
+
+const ORDER_SEARCH = `
+  query OrderSearch($searchTerm: String!) {
+    orderSearch(searchTerm: $searchTerm) {
+      id
+      orderNumber
+      jobName
+      entityDate
+      entryDate
+      dueDate
+      shipDate
+      status
+      billToCustomerId
+      soldToCustomerId
+      factoryId
+      quoteId
+      balanceId
+      factSoNumber
+      userOwnerIds
+    }
+  }
+`;
+
+const INVOICE_SEARCH = `
+  query InvoiceSearch($searchTerm: String!) {
+    invoiceSearch(searchTerm: $searchTerm) {
+      id
+      invoiceNumber
+      entityDate
+      entryDate
+      dueDate
+      status
+      factoryId
+      orderId
+      balanceId
+      locked
+      published
+      creationType
+      createdBy
+      userOwnerIds
+    }
+  }
+`;
+
+const CHECK_SEARCH = `
+  query CheckSearch($searchTerm: String!) {
+    checkSearch(searchTerm: $searchTerm) {
+      id
+      checkNumber
+      entityDate
+      entryDate
+      postDate
+      status
+      factoryId
+      commission
+      commissionMonth
+      creationType
+      createdBy
+      userOwnerIds
+    }
+  }
+`;
+
+const FACTORY_SEARCH = `
+  query FactorySearch($searchTerm: String!, $published: Boolean) {
+    factorySearch(searchTerm: $searchTerm, published: $published) {
+      id
+      title
+    }
+  }
+`;
+
+const CUSTOMER_SEARCH = `
+  query CustomerSearch($searchTerm: String!, $published: Boolean) {
+    customerSearch(searchTerm: $searchTerm, published: $published) {
+      id
+      companyName
+    }
+  }
+`;
+
+const PRODUCT_SEARCH = `
+  query ProductSearch($searchTerm: String!) {
+    productSearch(searchTerm: $searchTerm) {
+      id
+      factoryPartNumber
+    }
+  }
+`;
+
 // Link mutations
 const CREATE_LINK = `
   mutation CreateLink(
@@ -952,6 +1138,125 @@ export async function searchUsers(searchTerm: string): Promise<UserSearchResult[
   }
 
   return response.data?.userSearch || [];
+}
+
+/**
+ * Search for quotes
+ * Returns all quotes when empty string is passed
+ */
+export async function searchQuotes(searchTerm: string): Promise<QuoteSearchResult[]> {
+  const response = await crmGraphQLRequest<{ quoteSearch: QuoteSearchResult[] }>({
+    query: QUOTE_SEARCH,
+    variables: { searchTerm },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search quotes');
+  }
+
+  return response.data?.quoteSearch || [];
+}
+
+/**
+ * Search for orders
+ * Returns all orders when empty string is passed
+ */
+export async function searchOrders(searchTerm: string): Promise<OrderSearchResult[]> {
+  const response = await crmGraphQLRequest<{ orderSearch: OrderSearchResult[] }>({
+    query: ORDER_SEARCH,
+    variables: { searchTerm },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search orders');
+  }
+
+  return response.data?.orderSearch || [];
+}
+
+/**
+ * Search for invoices
+ * Returns all invoices when empty string is passed
+ */
+export async function searchInvoices(searchTerm: string): Promise<InvoiceSearchResult[]> {
+  const response = await crmGraphQLRequest<{ invoiceSearch: InvoiceSearchResult[] }>({
+    query: INVOICE_SEARCH,
+    variables: { searchTerm },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search invoices');
+  }
+
+  return response.data?.invoiceSearch || [];
+}
+
+/**
+ * Search for checks
+ * Returns all checks when empty string is passed
+ */
+export async function searchChecks(searchTerm: string): Promise<CheckSearchResult[]> {
+  const response = await crmGraphQLRequest<{ checkSearch: CheckSearchResult[] }>({
+    query: CHECK_SEARCH,
+    variables: { searchTerm },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search checks');
+  }
+
+  return response.data?.checkSearch || [];
+}
+
+/**
+ * Search for factories
+ * Returns all factories when empty string is passed
+ */
+export async function searchFactories(searchTerm: string): Promise<FactorySearchResult[]> {
+  const response = await crmGraphQLRequest<{ factorySearch: FactorySearchResult[] }>({
+    query: FACTORY_SEARCH,
+    variables: { searchTerm, published: true },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search factories');
+  }
+
+  return response.data?.factorySearch || [];
+}
+
+/**
+ * Search for customers
+ * Returns all customers when empty string is passed
+ */
+export async function searchCustomers(searchTerm: string): Promise<CustomerSearchResult[]> {
+  const response = await crmGraphQLRequest<{ customerSearch: CustomerSearchResult[] }>({
+    query: CUSTOMER_SEARCH,
+    variables: { searchTerm, published: true },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search customers');
+  }
+
+  return response.data?.customerSearch || [];
+}
+
+/**
+ * Search for products
+ * Returns all products when empty string is passed
+ */
+export async function searchProducts(searchTerm: string): Promise<ProductSearchResult[]> {
+  const response = await crmGraphQLRequest<{ productSearch: ProductSearchResult[] }>({
+    query: PRODUCT_SEARCH,
+    variables: { searchTerm },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search products');
+  }
+
+  return response.data?.productSearch || [];
 }
 
 // ============================================================================

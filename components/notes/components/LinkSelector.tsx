@@ -1,6 +1,6 @@
 /**
  * Link Selector Component
- * Allows selecting entities (Jobs, Companies, Tasks, Contacts) to link to a note
+ * Allows selecting entities (Jobs, Companies, Tasks, Contacts, Pre-Opps, Quotes, Orders, Invoices, Checks) to link to a note
  * Uses Portal to render dropdown outside of overflow-hidden containers
  * Uses lazy loading - only fetches data when dropdown is opened
  */
@@ -15,12 +15,26 @@ import {
   useContactSearch, 
   useTaskSearch,
   usePreOpportunitySearch,
+  useQuoteSearch,
+  useOrderSearch,
+  useInvoiceSearch,
+  useCheckSearch,
+  useFactorySearch,
+  useCustomerSearch,
+  useProductSearch,
   type EntityType,
   type JobSearchResult,
   type CompanySearchResult,
   type ContactSearchResult,
   type TaskSearchResult,
   type PreOpportunitySearchResult,
+  type QuoteSearchResult,
+  type OrderSearchResult,
+  type InvoiceSearchResult,
+  type CheckSearchResult,
+  type FactorySearchResult,
+  type CustomerSearchResult,
+  type ProductSearchResult,
 } from '../api';
 
 export interface SelectedLink {
@@ -36,7 +50,7 @@ interface LinkSelectorProps {
   className?: string;
 }
 
-type TabType = 'JOB' | 'COMPANY' | 'CONTACT' | 'TASK' | 'PRE_OPPORTUNITY';
+type TabType = 'JOB' | 'COMPANY' | 'CONTACT' | 'TASK' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'FACTORY' | 'CUSTOMER' | 'PRODUCT';
 
 const TABS: { id: TabType; label: string; icon: React.ReactNode }[] = [
   {
@@ -49,11 +63,11 @@ const TABS: { id: TabType; label: string; icon: React.ReactNode }[] = [
     ),
   },
   {
-    id: 'COMPANY',
-    label: 'Companies',
+    id: 'PRE_OPPORTUNITY',
+    label: 'Pre-Opps',
     icon: (
       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
     ),
   },
@@ -67,6 +81,15 @@ const TABS: { id: TabType; label: string; icon: React.ReactNode }[] = [
     ),
   },
   {
+    id: 'COMPANY',
+    label: 'Companies',
+    icon: (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+      </svg>
+    ),
+  },
+  {
     id: 'TASK',
     label: 'Tasks',
     icon: (
@@ -76,11 +99,65 @@ const TABS: { id: TabType; label: string; icon: React.ReactNode }[] = [
     ),
   },
   {
-    id: 'PRE_OPPORTUNITY',
-    label: 'Pre-Opps',
+    id: 'QUOTE',
+    label: 'Quotes',
     icon: (
       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'ORDER',
+    label: 'Orders',
+    icon: (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'INVOICE',
+    label: 'Invoices',
+    icon: (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'CHECK',
+    label: 'Checks',
+    icon: (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'FACTORY',
+    label: 'Factories',
+    icon: (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M12 7v.01M12 11v.01M12 15v.01" />
+      </svg>
+    ),
+  },
+  {
+    id: 'CUSTOMER',
+    label: 'Customers',
+    icon: (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'PRODUCT',
+    label: 'Products',
+    icon: (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
       </svg>
     ),
   },
@@ -113,6 +190,13 @@ export function LinkSelector({
   const { data: contacts = [], isLoading: isLoadingContacts } = useContactSearch(searchQuery, hasOpened);
   const { data: tasks = [], isLoading: isLoadingTasks } = useTaskSearch(searchQuery, hasOpened);
   const { data: preOpportunities = [], isLoading: isLoadingPreOpportunities } = usePreOpportunitySearch(searchQuery, hasOpened);
+  const { data: quotes = [], isLoading: isLoadingQuotes } = useQuoteSearch(searchQuery, hasOpened);
+  const { data: orders = [], isLoading: isLoadingOrders } = useOrderSearch(searchQuery, hasOpened);
+  const { data: invoices = [], isLoading: isLoadingInvoices } = useInvoiceSearch(searchQuery, hasOpened);
+  const { data: checks = [], isLoading: isLoadingChecks } = useCheckSearch(searchQuery, hasOpened);
+  const { data: factories = [], isLoading: isLoadingFactories } = useFactorySearch(searchQuery, hasOpened);
+  const { data: customers = [], isLoading: isLoadingCustomers } = useCustomerSearch(searchQuery, hasOpened);
+  const { data: products = [], isLoading: isLoadingProducts } = useProductSearch(searchQuery, hasOpened);
 
   // Mark as mounted for portal
   useEffect(() => {
@@ -232,6 +316,96 @@ export function LinkSelector({
             subtitle: preOpp.status || undefined,
           }));
 
+      case 'QUOTE':
+        return (quotes as QuoteSearchResult[])
+          .filter((quote: QuoteSearchResult) => {
+            const quoteNumber = quote.quoteNumber?.toLowerCase() || '';
+            const jobName = quote.jobName?.toLowerCase() || '';
+            return (quoteNumber.includes(query) || jobName.includes(query)) && !alreadySelectedIds.has(quote.id);
+          })
+          .slice(0, 10)
+          .map((quote: QuoteSearchResult) => ({
+            id: quote.id,
+            name: quote.quoteNumber || 'Unknown Quote',
+            subtitle: quote.jobName || undefined,
+          }));
+
+      case 'ORDER':
+        return (orders as OrderSearchResult[])
+          .filter((order: OrderSearchResult) => {
+            const orderNumber = order.orderNumber?.toLowerCase() || '';
+            const jobName = order.jobName?.toLowerCase() || '';
+            return (orderNumber.includes(query) || jobName.includes(query)) && !alreadySelectedIds.has(order.id);
+          })
+          .slice(0, 10)
+          .map((order: OrderSearchResult) => ({
+            id: order.id,
+            name: order.orderNumber || 'Unknown Order',
+            subtitle: order.jobName || order.status || undefined,
+          }));
+
+      case 'INVOICE':
+        return (invoices as InvoiceSearchResult[])
+          .filter((invoice: InvoiceSearchResult) => {
+            const invoiceNumber = invoice.invoiceNumber?.toLowerCase() || '';
+            return invoiceNumber.includes(query) && !alreadySelectedIds.has(invoice.id);
+          })
+          .slice(0, 10)
+          .map((invoice: InvoiceSearchResult) => ({
+            id: invoice.id,
+            name: invoice.invoiceNumber || 'Unknown Invoice',
+            subtitle: invoice.status || undefined,
+          }));
+
+      case 'CHECK':
+        return (checks as CheckSearchResult[])
+          .filter((check: CheckSearchResult) => {
+            const checkNumber = check.checkNumber?.toLowerCase() || '';
+            return checkNumber.includes(query) && !alreadySelectedIds.has(check.id);
+          })
+          .slice(0, 10)
+          .map((check: CheckSearchResult) => ({
+            id: check.id,
+            name: check.checkNumber || 'Unknown Check',
+            subtitle: check.status || undefined,
+          }));
+
+      case 'FACTORY':
+        return (factories as FactorySearchResult[])
+          .filter((factory: FactorySearchResult) => {
+            const title = factory.title?.toLowerCase() || '';
+            return title.includes(query) && !alreadySelectedIds.has(factory.id);
+          })
+          .slice(0, 10)
+          .map((factory: FactorySearchResult) => ({
+            id: factory.id,
+            name: factory.title || 'Unknown Factory',
+          }));
+
+      case 'CUSTOMER':
+        return (customers as CustomerSearchResult[])
+          .filter((customer: CustomerSearchResult) => {
+            const companyName = customer.companyName?.toLowerCase() || '';
+            return companyName.includes(query) && !alreadySelectedIds.has(customer.id);
+          })
+          .slice(0, 10)
+          .map((customer: CustomerSearchResult) => ({
+            id: customer.id,
+            name: customer.companyName || 'Unknown Customer',
+          }));
+
+      case 'PRODUCT':
+        return (products as ProductSearchResult[])
+          .filter((product: ProductSearchResult) => {
+            const partNumber = product.factoryPartNumber?.toLowerCase() || '';
+            return partNumber.includes(query) && !alreadySelectedIds.has(product.id);
+          })
+          .slice(0, 10)
+          .map((product: ProductSearchResult) => ({
+            id: product.id,
+            name: product.factoryPartNumber || 'Unknown Product',
+          }));
+
       default:
         return [];
     }
@@ -272,6 +446,20 @@ export function LinkSelector({
         return 'bg-orange-100 text-orange-700';
       case 'PRE_OPPORTUNITY':
         return 'bg-teal-100 text-teal-700';
+      case 'QUOTE':
+        return 'bg-indigo-100 text-indigo-700';
+      case 'ORDER':
+        return 'bg-cyan-100 text-cyan-700';
+      case 'INVOICE':
+        return 'bg-amber-100 text-amber-700';
+      case 'CHECK':
+        return 'bg-emerald-100 text-emerald-700';
+      case 'FACTORY':
+        return 'bg-rose-100 text-rose-700';
+      case 'CUSTOMER':
+        return 'bg-fuchsia-100 text-fuchsia-700';
+      case 'PRODUCT':
+        return 'bg-sky-100 text-sky-700';
       default:
         return 'bg-gray-100 text-gray-700';
     }
@@ -287,6 +475,13 @@ export function LinkSelector({
       case 'CONTACT': return isLoadingContacts;
       case 'TASK': return isLoadingTasks;
       case 'PRE_OPPORTUNITY': return isLoadingPreOpportunities;
+      case 'QUOTE': return isLoadingQuotes;
+      case 'ORDER': return isLoadingOrders;
+      case 'INVOICE': return isLoadingInvoices;
+      case 'CHECK': return isLoadingChecks;
+      case 'FACTORY': return isLoadingFactories;
+      case 'CUSTOMER': return isLoadingCustomers;
+      case 'PRODUCT': return isLoadingProducts;
       default: return false;
     }
   };
@@ -306,8 +501,8 @@ export function LinkSelector({
       }}
       className="bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden flex flex-col"
     >
-      {/* Tabs */}
-      <div className="flex border-b border-gray-200 bg-gray-50">
+      {/* Tabs - scrollable container */}
+      <div className="flex border-b border-gray-200 bg-gray-50 overflow-x-auto scrollbar-hide">
         {TABS.map((tab) => (
           <button
             key={tab.id}
@@ -316,7 +511,7 @@ export function LinkSelector({
               setActiveTab(tab.id);
               setSearchQuery('');
             }}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${
+            className={`flex-shrink-0 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors whitespace-nowrap ${
               activeTab === tab.id
                 ? 'text-blue-600 border-b-2 border-blue-600 bg-white'
                 : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'

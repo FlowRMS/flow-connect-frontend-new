@@ -2,9 +2,9 @@
  * Mock Data for Email Ingestion
  */
 
-import type { Email } from './types';
+import type { MockEmail } from './types';
 
-export const initialEmails: Email[] = [
+export const initialEmails: MockEmail[] = [
   {
     id: 'E-001',
     sender: 'Marcus Chen',

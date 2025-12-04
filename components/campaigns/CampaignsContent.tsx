@@ -6,6 +6,7 @@
 'use client';
 
 import React from 'react';
+import ComingSoonOverlay from '../ComingSoonOverlay';
 import { useCampaignState } from './hooks/useCampaignState';
 import { useRuleState } from './hooks/useRuleState';
 import { campaigns as mockCampaigns, rules as mockRules, availableContacts } from './mockData';
@@ -40,6 +41,12 @@ export default function CampaignsContent() {
 
   return (
     <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6 relative">
+      {/* Coming Soon Overlay */}
+      <ComingSoonOverlay 
+        title="Campaigns & Rules Coming Soon"
+        description="Email campaign management and automated rules engine is being developed. Powerful automation is on the way!"
+      />
+      
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">

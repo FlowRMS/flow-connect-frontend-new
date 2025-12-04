@@ -10,19 +10,14 @@ import { createPortal } from 'react-dom';
 import { 
   useCreateTask, 
   useCreateTaskLink,
-  useJobSearch,
-  useContactSearch,
-  useCompanySearch,
-  useNoteSearch,
-  usePreOpportunitySearch,
   useUserSearch
 } from '../api';
 import { taskToasts } from '../../lib/toast';
 import { AVAILABLE_TAGS, API_PRIORITY_OPTIONS, API_STATUS_OPTIONS } from '../constants';
 import type { TaskPriorityAPI, TaskStatusAPI } from '../types';
-import type { SelectedRelation } from '../types';
 import { StyledDatePicker, parseDateString, formatDateToString } from '../components';
 import { CustomSelect } from '../components';
+import { LinkSelector, type SelectedLink } from '../../notes/components/LinkSelector';
 
 interface CreateTaskModalProps {
   isOpen: boolean;
@@ -48,41 +43,12 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
   const assigneeInputRef = useRef<HTMLInputElement>(null);
   const assigneeDropdownRef = useRef<HTMLDivElement>(null);
   
-  // Relations state
-  const [selectedJobs, setSelectedJobs] = useState<SelectedRelation[]>([]);
-  const [selectedContacts, setSelectedContacts] = useState<SelectedRelation[]>([]);
-  const [selectedCompanies, setSelectedCompanies] = useState<SelectedRelation[]>([]);
-  const [selectedPreOpportunities, setSelectedPreOpportunities] = useState<SelectedRelation[]>([]);
+  // Entity links state - unified using LinkSelector
+  const [selectedLinks, setSelectedLinks] = useState<SelectedLink[]>([]);
   
-  // Search state
-  const [jobSearch, setJobSearch] = useState('');
-  const [contactSearch, setContactSearch] = useState('');
-  const [companySearch, setCompanySearch] = useState('');
-  const [preOpportunitySearch, setPreOpportunitySearch] = useState('');
-  const [showJobDropdown, setShowJobDropdown] = useState(false);
-  const [showContactDropdown, setShowContactDropdown] = useState(false);
-  const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
-  const [showPreOpportunityDropdown, setShowPreOpportunityDropdown] = useState(false);
-
-  // Dropdown refs for portal positioning
-  const jobInputRef = useRef<HTMLInputElement>(null);
-  const contactInputRef = useRef<HTMLInputElement>(null);
-  const companyInputRef = useRef<HTMLInputElement>(null);
-  const preOpportunityInputRef = useRef<HTMLInputElement>(null);
-  const jobDropdownRef = useRef<HTMLDivElement>(null);
-  const contactDropdownRef = useRef<HTMLDivElement>(null);
-  const companyDropdownRef = useRef<HTMLDivElement>(null);
-  const preOpportunityDropdownRef = useRef<HTMLDivElement>(null);
   const [isMounted, setIsMounted] = useState(false);
-
-  // Fetch entities for selection - using search endpoints
-  // Empty string returns all results
-  const { data: jobs = [], isLoading: isLoadingJobs } = useJobSearch(jobSearch, isOpen);
-  const { data: contacts = [], isLoading: isLoadingContacts } = useContactSearch(contactSearch, isOpen);
-  const { data: companies = [], isLoading: isLoadingCompanies } = useCompanySearch(companySearch, isOpen);
-  const { data: preOpportunities = [], isLoading: isLoadingPreOpportunities } = usePreOpportunitySearch(preOpportunitySearch, isOpen);
   
-  // Also use user search for assignee selection
+  // User search for assignee selection
   const { data: assigneeUsers = [], isLoading: isLoadingAssignees } = useUserSearch(assigneeSearch, isOpen && showAssigneeDropdown);
 
   // Mutations
@@ -94,27 +60,10 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
     setIsMounted(true);
   }, []);
 
-  // Close dropdowns when clicking outside
+  // Close assignee dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as Node;
-      
-      if (jobInputRef.current && !jobInputRef.current.contains(target) && 
-          jobDropdownRef.current && !jobDropdownRef.current.contains(target)) {
-        setShowJobDropdown(false);
-      }
-      if (contactInputRef.current && !contactInputRef.current.contains(target) && 
-          contactDropdownRef.current && !contactDropdownRef.current.contains(target)) {
-        setShowContactDropdown(false);
-      }
-      if (companyInputRef.current && !companyInputRef.current.contains(target) && 
-          companyDropdownRef.current && !companyDropdownRef.current.contains(target)) {
-        setShowCompanyDropdown(false);
-      }
-      if (preOpportunityInputRef.current && !preOpportunityInputRef.current.contains(target) && 
-          preOpportunityDropdownRef.current && !preOpportunityDropdownRef.current.contains(target)) {
-        setShowPreOpportunityDropdown(false);
-      }
       if (assigneeInputRef.current && !assigneeInputRef.current.contains(target) && 
           assigneeDropdownRef.current && !assigneeDropdownRef.current.contains(target)) {
         setShowAssigneeDropdown(false);
@@ -126,26 +75,6 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
   }, []);
 
   if (!isOpen) return null;
-
-  // Filter jobs based on selection (search is already handled by the API)
-  const filteredJobs = jobs.filter(job => 
-    !selectedJobs.find(s => s.id === job.id)
-  );
-
-  // Filter contacts based on selection
-  const filteredContacts = contacts.filter(contact => 
-    !selectedContacts.find(s => s.id === contact.id)
-  );
-
-  // Filter companies based on selection
-  const filteredCompanies = companies.filter(company => 
-    !selectedCompanies.find(s => s.id === company.id)
-  );
-
-  // Filter pre-opportunities based on selection
-  const filteredPreOpportunities = preOpportunities.filter(preOpp => 
-    !selectedPreOpportunities.find(s => s.id === preOpp.id)
-  );
 
   const handleAddTag = (tag: string) => {
     if (!selectedTags.includes(tag)) {
@@ -162,34 +91,6 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
       setSelectedTags([...selectedTags, customTag.trim()]);
       setCustomTag('');
     }
-  };
-
-  const handleSelectJob = (job: { id: string; jobName?: string | null }) => {
-    setSelectedJobs([...selectedJobs, { id: job.id, name: job.jobName || 'Unnamed Job', type: 'job' }]);
-    setJobSearch('');
-    setShowJobDropdown(false);
-  };
-
-  const handleSelectContact = (contact: { id: string; firstName?: string | null; lastName?: string | null }) => {
-    setSelectedContacts([...selectedContacts, { 
-      id: contact.id, 
-      name: `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || 'Unnamed Contact', 
-      type: 'contact' 
-    }]);
-    setContactSearch('');
-    setShowContactDropdown(false);
-  };
-
-  const handleSelectCompany = (company: { id: string; name?: string | null }) => {
-    setSelectedCompanies([...selectedCompanies, { id: company.id, name: company.name || 'Unnamed Company', type: 'company' }]);
-    setCompanySearch('');
-    setShowCompanyDropdown(false);
-  };
-
-  const handleSelectPreOpportunity = (preOpp: { id: string; entityNumber?: string | null }) => {
-    setSelectedPreOpportunities([...selectedPreOpportunities, { id: preOpp.id, name: preOpp.entityNumber || 'Unnamed Pre-Opportunity', type: 'preOpportunity' as 'job' }]);
-    setPreOpportunitySearch('');
-    setShowPreOpportunityDropdown(false);
   };
 
   const handleSelectAssignee = (contact: { id: string; firstName?: string | null; lastName?: string | null }) => {
@@ -219,43 +120,13 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
         assignedToId: selectedAssignee?.id || undefined,
       });
 
-      // Create links for jobs using createLink with TASK as source
-      for (const job of selectedJobs) {
+      // Create links for all selected entities
+      for (const link of selectedLinks) {
         await createLinkMutation.mutateAsync({
           sourceEntityType: 'TASK',
           sourceEntityId: task.id,
-          targetEntityType: 'JOB',
-          targetEntityId: job.id,
-        });
-      }
-
-      // Create links for contacts
-      for (const contact of selectedContacts) {
-        await createLinkMutation.mutateAsync({
-          sourceEntityType: 'TASK',
-          sourceEntityId: task.id,
-          targetEntityType: 'CONTACT',
-          targetEntityId: contact.id,
-        });
-      }
-
-      // Create links for companies
-      for (const company of selectedCompanies) {
-        await createLinkMutation.mutateAsync({
-          sourceEntityType: 'TASK',
-          sourceEntityId: task.id,
-          targetEntityType: 'COMPANY',
-          targetEntityId: company.id,
-        });
-      }
-
-      // Create links for pre-opportunities
-      for (const preOpp of selectedPreOpportunities) {
-        await createLinkMutation.mutateAsync({
-          sourceEntityType: 'TASK',
-          sourceEntityId: task.id,
-          targetEntityType: 'PRE_OPPORTUNITY',
-          targetEntityId: preOpp.id,
+          targetEntityType: link.type,
+          targetEntityId: link.id,
         });
       }
 
@@ -277,14 +148,10 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
     setDueDate('');
     setReminderDate('');
     setSelectedTags([]);
-    setSelectedJobs([]);
-    setSelectedContacts([]);
-    setSelectedCompanies([]);
-    setSelectedPreOpportunities([]);
+    setSelectedLinks([]);
     setSelectedAssignee(null);
     setCustomTag('');
     setAssigneeSearch('');
-    setPreOpportunitySearch('');
   };
 
   const handleClose = () => {
@@ -296,7 +163,6 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
 
   const labelClass = "flex items-center gap-2 text-sm font-medium text-gray-700 mb-2";
   const inputClass = "w-full px-4 py-3 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400";
-  const selectClass = "w-full px-4 py-3 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all";
 
   // Priority display names
   const priorityLabels: Record<TaskPriorityAPI, string> = {
@@ -557,381 +423,12 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
                 </svg>
                 Link to Entities
               </h3>
-
-              {/* Jobs */}
-              <div className="relative">
-                <label className={labelClass}>
-                  <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
-                  Jobs
-                </label>
-                {selectedJobs.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {selectedJobs.map(job => (
-                      <span
-                        key={job.id}
-                        className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm flex items-center gap-2"
-                      >
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                        </svg>
-                        {job.name}
-                        <button
-                          type="button"
-                          onClick={() => setSelectedJobs(selectedJobs.filter(j => j.id !== job.id))}
-                          className="hover:text-green-900"
-                        >
-                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-                <input
-                  ref={jobInputRef}
-                  type="text"
-                  value={jobSearch}
-                  onChange={(e) => {
-                    setJobSearch(e.target.value);
-                    setShowJobDropdown(true);
-                  }}
-                  onFocus={() => setShowJobDropdown(true)}
-                  className={inputClass}
-                  placeholder={isLoadingJobs ? "Loading jobs..." : selectedJobs.length > 0 ? "Add more jobs..." : "Search jobs..."}
-                  disabled={isLoadingJobs}
-                />
-                {showJobDropdown && isMounted && createPortal(
-                  <div 
-                    ref={jobDropdownRef}
-                    style={{
-                      position: 'fixed',
-                      top: jobInputRef.current ? jobInputRef.current.getBoundingClientRect().bottom + 4 : 0,
-                      left: jobInputRef.current ? jobInputRef.current.getBoundingClientRect().left : 0,
-                      width: jobInputRef.current ? jobInputRef.current.offsetWidth : 'auto',
-                      zIndex: 9999,
-                    }}
-                    className="bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
-                  >
-                    {isLoadingJobs ? (
-                      <div className="px-4 py-6 text-center">
-                        <svg className="animate-spin w-5 h-5 text-green-500 mx-auto mb-2" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                        </svg>
-                        <p className="text-sm text-gray-500">Loading jobs...</p>
-                      </div>
-                    ) : filteredJobs.length > 0 ? (
-                      filteredJobs.slice(0, 10).map(job => (
-                        <button
-                          key={job.id}
-                          type="button"
-                          onClick={() => handleSelectJob(job)}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-gray-50 transition-colors"
-                        >
-                          <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
-                            <svg className="w-4 h-4 text-green-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                            </svg>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-gray-900 truncate">{job.jobName}</p>
-                            {job.jobType && <p className="text-xs text-gray-500 truncate">{job.jobType}</p>}
-                          </div>
-                        </button>
-                      ))
-                    ) : (
-                      <div className="px-4 py-6 text-center text-sm text-gray-500">
-                        {jobSearch ? 'No jobs found' : 'No jobs available'}
-                      </div>
-                    )}
-                  </div>,
-                  document.body
-                )}
-              </div>
-
-              {/* Contacts */}
-              <div className="relative">
-                <label className={labelClass}>
-                  <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                  Contacts
-                </label>
-                {selectedContacts.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {selectedContacts.map(contact => (
-                      <span
-                        key={contact.id}
-                        className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-sm flex items-center gap-2"
-                      >
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                        </svg>
-                        {contact.name}
-                        <button
-                          type="button"
-                          onClick={() => setSelectedContacts(selectedContacts.filter(c => c.id !== contact.id))}
-                          className="hover:text-orange-900"
-                        >
-                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-                <input
-                  ref={contactInputRef}
-                  type="text"
-                  value={contactSearch}
-                  onChange={(e) => {
-                    setContactSearch(e.target.value);
-                    setShowContactDropdown(true);
-                  }}
-                  onFocus={() => setShowContactDropdown(true)}
-                  className={inputClass}
-                  placeholder={isLoadingContacts ? "Loading contacts..." : selectedContacts.length > 0 ? "Add more contacts..." : "Search contacts..."}
-                  disabled={isLoadingContacts}
-                />
-                {showContactDropdown && isMounted && createPortal(
-                  <div 
-                    ref={contactDropdownRef}
-                    style={{
-                      position: 'fixed',
-                      top: contactInputRef.current ? contactInputRef.current.getBoundingClientRect().bottom + 4 : 0,
-                      left: contactInputRef.current ? contactInputRef.current.getBoundingClientRect().left : 0,
-                      width: contactInputRef.current ? contactInputRef.current.offsetWidth : 'auto',
-                      zIndex: 9999,
-                    }}
-                    className="bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
-                  >
-                    {isLoadingContacts ? (
-                      <div className="px-4 py-6 text-center">
-                        <svg className="animate-spin w-5 h-5 text-orange-500 mx-auto mb-2" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                        </svg>
-                        <p className="text-sm text-gray-500">Loading contacts...</p>
-                      </div>
-                    ) : filteredContacts.length > 0 ? (
-                      filteredContacts.slice(0, 10).map(contact => (
-                        <button
-                          key={contact.id}
-                          type="button"
-                          onClick={() => handleSelectContact(contact)}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-gray-50 transition-colors"
-                        >
-                          <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center">
-                            <svg className="w-4 h-4 text-orange-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                            </svg>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-gray-900 truncate">{contact.firstName} {contact.lastName}</p>
-                            {contact.email && <p className="text-xs text-gray-500 truncate">{contact.email}</p>}
-                          </div>
-                        </button>
-                      ))
-                    ) : (
-                      <div className="px-4 py-6 text-center text-sm text-gray-500">
-                        {contactSearch ? 'No contacts found' : 'No contacts available'}
-                      </div>
-                    )}
-                  </div>,
-                  document.body
-                )}
-              </div>
-
-              {/* Companies */}
-              <div className="relative">
-                <label className={labelClass}>
-                  <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                  </svg>
-                  Companies
-                </label>
-                {selectedCompanies.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {selectedCompanies.map(company => (
-                      <span
-                        key={company.id}
-                        className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm flex items-center gap-2"
-                      >
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                        </svg>
-                        {company.name}
-                        <button
-                          type="button"
-                          onClick={() => setSelectedCompanies(selectedCompanies.filter(c => c.id !== company.id))}
-                          className="hover:text-indigo-900"
-                        >
-                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-                <input
-                  ref={companyInputRef}
-                  type="text"
-                  value={companySearch}
-                  onChange={(e) => {
-                    setCompanySearch(e.target.value);
-                    setShowCompanyDropdown(true);
-                  }}
-                  onFocus={() => setShowCompanyDropdown(true)}
-                  className={inputClass}
-                  placeholder={isLoadingCompanies ? "Loading companies..." : selectedCompanies.length > 0 ? "Add more companies..." : "Search companies..."}
-                  disabled={isLoadingCompanies}
-                />
-                {showCompanyDropdown && isMounted && createPortal(
-                  <div 
-                    ref={companyDropdownRef}
-                    style={{
-                      position: 'fixed',
-                      top: companyInputRef.current ? companyInputRef.current.getBoundingClientRect().bottom + 4 : 0,
-                      left: companyInputRef.current ? companyInputRef.current.getBoundingClientRect().left : 0,
-                      width: companyInputRef.current ? companyInputRef.current.offsetWidth : 'auto',
-                      zIndex: 9999,
-                    }}
-                    className="bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
-                  >
-                    {isLoadingCompanies ? (
-                      <div className="px-4 py-6 text-center">
-                        <svg className="animate-spin w-5 h-5 text-indigo-500 mx-auto mb-2" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                        </svg>
-                        <p className="text-sm text-gray-500">Loading companies...</p>
-                      </div>
-                    ) : filteredCompanies.length > 0 ? (
-                      filteredCompanies.slice(0, 10).map(company => (
-                        <button
-                          key={company.id}
-                          type="button"
-                          onClick={() => handleSelectCompany(company)}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-gray-50 transition-colors"
-                        >
-                          <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
-                            <svg className="w-4 h-4 text-indigo-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                            </svg>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-gray-900 truncate">{company.name}</p>
-                          </div>
-                        </button>
-                      ))
-                    ) : (
-                      <div className="px-4 py-6 text-center text-sm text-gray-500">
-                        {companySearch ? 'No companies found' : 'No companies available'}
-                      </div>
-                    )}
-                  </div>,
-                  document.body
-                )}
-              </div>
-
-              {/* Pre-Opportunities */}
-              <div className="relative">
-                <label className={labelClass}>
-                  <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  Pre-Opportunities
-                </label>
-                {selectedPreOpportunities.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {selectedPreOpportunities.map(preOpp => (
-                      <span
-                        key={preOpp.id}
-                        className="px-3 py-1 bg-teal-100 text-teal-700 rounded-full text-sm flex items-center gap-2"
-                      >
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        {preOpp.name}
-                        <button
-                          type="button"
-                          onClick={() => setSelectedPreOpportunities(selectedPreOpportunities.filter(p => p.id !== preOpp.id))}
-                          className="hover:text-teal-900"
-                        >
-                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-                <input
-                  ref={preOpportunityInputRef}
-                  type="text"
-                  value={preOpportunitySearch}
-                  onChange={(e) => {
-                    setPreOpportunitySearch(e.target.value);
-                    setShowPreOpportunityDropdown(true);
-                  }}
-                  onFocus={() => setShowPreOpportunityDropdown(true)}
-                  className={inputClass}
-                  placeholder={isLoadingPreOpportunities ? "Loading pre-opportunities..." : selectedPreOpportunities.length > 0 ? "Add more pre-opportunities..." : "Search pre-opportunities..."}
-                  disabled={isLoadingPreOpportunities}
-                />
-                {showPreOpportunityDropdown && isMounted && createPortal(
-                  <div 
-                    ref={preOpportunityDropdownRef}
-                    style={{
-                      position: 'fixed',
-                      top: preOpportunityInputRef.current ? preOpportunityInputRef.current.getBoundingClientRect().bottom + 4 : 0,
-                      left: preOpportunityInputRef.current ? preOpportunityInputRef.current.getBoundingClientRect().left : 0,
-                      width: preOpportunityInputRef.current ? preOpportunityInputRef.current.offsetWidth : 'auto',
-                      zIndex: 9999,
-                    }}
-                    className="bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
-                  >
-                    {isLoadingPreOpportunities ? (
-                      <div className="px-4 py-6 text-center">
-                        <svg className="animate-spin w-5 h-5 text-teal-500 mx-auto mb-2" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                        </svg>
-                        <p className="text-sm text-gray-500">Loading pre-opportunities...</p>
-                      </div>
-                    ) : filteredPreOpportunities.length > 0 ? (
-                      filteredPreOpportunities.slice(0, 10).map(preOpp => (
-                        <button
-                          key={preOpp.id}
-                          type="button"
-                          onClick={() => handleSelectPreOpportunity(preOpp)}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-gray-50 transition-colors"
-                        >
-                          <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center">
-                            <svg className="w-4 h-4 text-teal-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-gray-900 truncate">{preOpp.entityNumber || 'Unknown'}</p>
-                            {preOpp.status && <p className="text-xs text-gray-500 truncate">{preOpp.status}</p>}
-                          </div>
-                        </button>
-                      ))
-                    ) : (
-                      <div className="px-4 py-6 text-center text-sm text-gray-500">
-                        {preOpportunitySearch ? 'No pre-opportunities found' : 'No pre-opportunities available'}
-                      </div>
-                    )}
-                  </div>,
-                  document.body
-                )}
-              </div>
+              
+              <LinkSelector
+                selectedLinks={selectedLinks}
+                onLinksChange={setSelectedLinks}
+                disabled={isPending}
+              />
             </div>
 
             {/* Tags Section */}

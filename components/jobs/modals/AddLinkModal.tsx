@@ -19,11 +19,14 @@ import {
   useCRMInvoiceSearch,
   useCRMCheckSearch,
   useCRMPreOpportunityLandingPages,
+  useCRMFactorySearch,
+  useCRMCustomerSearch,
+  useCRMProductSearch,
 } from '../../hooks/useCRMApi';
-import type { EntityType } from '../../lib/crm-graphql';
+import type { EntityType, FactorySearchResult, CustomerSearchResult, ProductSearchResult } from '../../lib/crm-graphql';
 
 // All linkable entity types
-type LinkEntityType = 'COMPANY' | 'CONTACT' | 'TASK' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK';
+type LinkEntityType = 'COMPANY' | 'CONTACT' | 'TASK' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'FACTORY' | 'CUSTOMER' | 'PRODUCT';
 
 // Entity type configuration for display
 const ENTITY_TYPE_CONFIG: Record<LinkEntityType, { label: string; plural: string; color: string; icon: React.ReactNode }> = {
@@ -117,6 +120,36 @@ const ENTITY_TYPE_CONFIG: Record<LinkEntityType, { label: string; plural: string
       </svg>
     ),
   },
+  FACTORY: {
+    label: 'Factory',
+    plural: 'Factories',
+    color: 'bg-slate-500',
+    icon: (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+      </svg>
+    ),
+  },
+  CUSTOMER: {
+    label: 'Customer',
+    plural: 'Customers',
+    color: 'bg-lime-500',
+    icon: (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+      </svg>
+    ),
+  },
+  PRODUCT: {
+    label: 'Product',
+    plural: 'Products',
+    color: 'bg-fuchsia-500',
+    icon: (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+      </svg>
+    ),
+  },
 };
 
 const ALL_ENTITY_TYPES: LinkEntityType[] = [
@@ -129,6 +162,9 @@ const ALL_ENTITY_TYPES: LinkEntityType[] = [
   'ORDER',
   'INVOICE',
   'CHECK',
+  'FACTORY',
+  'CUSTOMER',
+  'PRODUCT',
 ];
 
 interface AddLinkModalProps {
@@ -165,6 +201,9 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
   const { data: orders, isLoading: ordersLoading } = useCRMOrderSearch('');
   const { data: invoices, isLoading: invoicesLoading } = useCRMInvoiceSearch('');
   const { data: checks, isLoading: checksLoading } = useCRMCheckSearch('');
+  const { data: factories, isLoading: factoriesLoading } = useCRMFactorySearch('', undefined, true);
+  const { data: customers, isLoading: customersLoading } = useCRMCustomerSearch('', undefined, true);
+  const { data: products, isLoading: productsLoading } = useCRMProductSearch('', undefined, true);
   
   // Fetch already linked entities for this job
   const { data: relatedEntities } = useCRMJobRelatedEntities(jobId);
@@ -183,6 +222,9 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
     orders: new Set(relatedEntities?.orders?.map(o => o.id) || []),
     invoices: new Set(relatedEntities?.invoices?.map(i => i.id) || []),
     checks: new Set(relatedEntities?.checks?.map(c => c.id) || []),
+    factories: new Set<string>(),
+    customers: new Set<string>(),
+    products: new Set<string>(),
   }), [relatedEntities]);
 
   // Get display info for an entity
@@ -206,6 +248,12 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
         return { name: entity.invoiceNumber || entity.id, subtitle: entity.status || '' };
       case 'CHECK':
         return { name: entity.checkNumber || entity.id, subtitle: entity.status || '' };
+      case 'FACTORY':
+        return { name: entity.title || entity.id, subtitle: 'Factory' };
+      case 'CUSTOMER':
+        return { name: entity.companyName || entity.id, subtitle: 'Customer' };
+      case 'PRODUCT':
+        return { name: entity.factoryPartNumber || entity.id, subtitle: 'Product' };
       default:
         return { name: entity.id, subtitle: '' };
     }
@@ -298,6 +346,33 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
           }),
           isLoading: checksLoading,
         };
+      case 'FACTORY':
+        return {
+          entities: (factories || []).filter((f: FactorySearchResult) => {
+            if (linkedIds.factories.has(f.id)) return false;
+            if (!searchTerm) return true;
+            return f.title?.toLowerCase().includes(searchTerm.toLowerCase());
+          }),
+          isLoading: factoriesLoading,
+        };
+      case 'CUSTOMER':
+        return {
+          entities: (customers || []).filter((c: CustomerSearchResult) => {
+            if (linkedIds.customers.has(c.id)) return false;
+            if (!searchTerm) return true;
+            return c.companyName?.toLowerCase().includes(searchTerm.toLowerCase());
+          }),
+          isLoading: customersLoading,
+        };
+      case 'PRODUCT':
+        return {
+          entities: (products || []).filter((p: ProductSearchResult) => {
+            if (linkedIds.products.has(p.id)) return false;
+            if (!searchTerm) return true;
+            return p.factoryPartNumber?.toLowerCase().includes(searchTerm.toLowerCase());
+          }),
+          isLoading: productsLoading,
+        };
       default:
         return { entities: [], isLoading: false };
     }
@@ -312,6 +387,9 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
     orders, ordersLoading,
     invoices, invoicesLoading,
     checks, checksLoading,
+    factories, factoriesLoading,
+    customers, customersLoading,
+    products, productsLoading,
     linkedIds,
   ]);
 

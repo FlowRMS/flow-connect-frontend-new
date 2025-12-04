@@ -6,6 +6,7 @@
 'use client';
 
 import React from 'react';
+import ComingSoonOverlay from '../ComingSoonOverlay';
 import { useTakeoffsState } from './hooks/useTakeoffsState';
 import { TakeoffListView } from './views/TakeoffListView';
 import { TakeoffDetailView } from './views/TakeoffDetailView';
@@ -55,7 +56,13 @@ export function TakeoffsContent() {
   } = state;
 
   return (
-    <div className="p-6">
+    <div className="p-6 relative">
+      {/* Coming Soon Overlay */}
+      <ComingSoonOverlay 
+        title="Take-Offs Coming Soon"
+        description="Document parsing and takeoff management is being developed. Smart document processing is on the way!"
+      />
+      
       {/* Header - only show on list view */}
       {viewMode === 'list' && (
         <>

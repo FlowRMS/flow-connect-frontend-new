@@ -20,6 +20,13 @@ import {
   searchTasks,
   searchJobs,
   searchPreOpportunities,
+  searchQuotes,
+  searchOrders,
+  searchInvoices,
+  searchChecks,
+  searchFactories,
+  searchCustomers,
+  searchProducts,
   createLink,
   deleteLink,
   deleteLinkByEntities,
@@ -31,6 +38,13 @@ import {
   type TaskSearchResult,
   type JobSearchResult,
   type PreOpportunitySearchResult,
+  type QuoteSearchResult,
+  type OrderSearchResult,
+  type InvoiceSearchResult,
+  type CheckSearchResult,
+  type FactorySearchResult,
+  type CustomerSearchResult,
+  type ProductSearchResult,
   type EntityLink,
   type EntityType,
 } from './notesApi';
@@ -51,6 +65,13 @@ export const notesQueryKeys = {
     tasks: (term: string) => ['search', 'tasks', term] as const,
     jobs: (term: string) => ['search', 'jobs', term] as const,
     preOpportunities: (term: string) => ['search', 'preOpportunities', term] as const,
+    quotes: (term: string) => ['search', 'quotes', term] as const,
+    orders: (term: string) => ['search', 'orders', term] as const,
+    invoices: (term: string) => ['search', 'invoices', term] as const,
+    checks: (term: string) => ['search', 'checks', term] as const,
+    factories: (term: string) => ['search', 'factories', term] as const,
+    customers: (term: string) => ['search', 'customers', term] as const,
+    products: (term: string) => ['search', 'products', term] as const,
   },
 };
 
@@ -267,6 +288,97 @@ export function usePreOpportunitySearch(searchTerm: string, enabled = true) {
   });
 }
 
+/**
+ * Search for quotes
+ * Returns all quotes when empty string is passed
+ */
+export function useQuoteSearch(searchTerm: string, enabled = true) {
+  return useQuery<QuoteSearchResult[], Error>({
+    queryKey: notesQueryKeys.search.quotes(searchTerm),
+    queryFn: () => searchQuotes(searchTerm),
+    enabled: hasCRMTokens() && enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * Search for orders
+ * Returns all orders when empty string is passed
+ */
+export function useOrderSearch(searchTerm: string, enabled = true) {
+  return useQuery<OrderSearchResult[], Error>({
+    queryKey: notesQueryKeys.search.orders(searchTerm),
+    queryFn: () => searchOrders(searchTerm),
+    enabled: hasCRMTokens() && enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * Search for invoices
+ * Returns all invoices when empty string is passed
+ */
+export function useInvoiceSearch(searchTerm: string, enabled = true) {
+  return useQuery<InvoiceSearchResult[], Error>({
+    queryKey: notesQueryKeys.search.invoices(searchTerm),
+    queryFn: () => searchInvoices(searchTerm),
+    enabled: hasCRMTokens() && enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * Search for checks
+ * Returns all checks when empty string is passed
+ */
+export function useCheckSearch(searchTerm: string, enabled = true) {
+  return useQuery<CheckSearchResult[], Error>({
+    queryKey: notesQueryKeys.search.checks(searchTerm),
+    queryFn: () => searchChecks(searchTerm),
+    enabled: hasCRMTokens() && enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * Search for factories
+ * Returns all factories when empty string is passed
+ */
+export function useFactorySearch(searchTerm: string, enabled = true) {
+  return useQuery<FactorySearchResult[], Error>({
+    queryKey: notesQueryKeys.search.factories(searchTerm),
+    queryFn: () => searchFactories(searchTerm),
+    enabled: hasCRMTokens() && enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * Search for customers
+ * Returns all customers when empty string is passed
+ */
+export function useCustomerSearch(searchTerm: string, enabled = true) {
+  return useQuery<CustomerSearchResult[], Error>({
+    queryKey: notesQueryKeys.search.customers(searchTerm),
+    queryFn: () => searchCustomers(searchTerm),
+    enabled: hasCRMTokens() && enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * Search for products
+ * Returns all products when empty string is passed
+ */
+export function useProductSearch(searchTerm: string, enabled = true) {
+  return useQuery<ProductSearchResult[], Error>({
+    queryKey: notesQueryKeys.search.products(searchTerm),
+    queryFn: () => searchProducts(searchTerm),
+    enabled: hasCRMTokens() && enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
 // ============================================================================
 // Link Hooks
 // ============================================================================
@@ -354,6 +466,10 @@ export type {
   TaskSearchResult,
   JobSearchResult,
   PreOpportunitySearchResult,
+  QuoteSearchResult,
+  OrderSearchResult,
+  InvoiceSearchResult,
+  CheckSearchResult,
   EntityLink,
   EntityType,
 };

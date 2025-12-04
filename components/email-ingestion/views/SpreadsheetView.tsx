@@ -5,8 +5,14 @@
 'use client';
 
 import React from 'react';
-import { getStatusColor, getDocumentTypeColor, formatDate } from '../utils';
-import { ENTITY_COLORS } from '../constants';
+import {
+  getStatusColor,
+  getDocumentTypeColor,
+  formatDate,
+  parseExtractedEntities,
+  getStatusDisplayName,
+  emailNeedsAttention,
+} from '../utils';
 import type { Email } from '../types';
 
 interface SpreadsheetViewProps {
@@ -64,109 +70,112 @@ export function SpreadsheetView({ emails, onEmailClick, onProcessEmail }: Spread
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--border)]">
-            {emails.map((email) => (
-              <tr
-                key={email.id}
-                className="hover:bg-[var(--muted)]/20 transition-colors cursor-pointer"
-                onClick={() => onEmailClick(email.id)}
-              >
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <span className={`px-2.5 py-1 rounded text-xs font-medium ${getStatusColor(email.status)}`}>
-                    {email.status}
-                  </span>
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-[var(--foreground)]">
-                  {formatDate(email.date)}
-                </td>
-                <td className="px-4 py-3 text-sm text-[var(--foreground)]">
-                  <div className="max-w-[150px] truncate">{email.sender}</div>
-                </td>
-                <td className="px-4 py-3 text-sm text-[var(--foreground)]">
-                  <div className="max-w-[150px] truncate">{email.recipient}</div>
-                </td>
-                <td className="px-4 py-3 text-sm text-[var(--foreground)]">
-                  <div className="max-w-[300px] font-medium">{email.subject}</div>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex flex-wrap gap-1">
-                    {email.documentTypes.length > 0 ? (
-                      email.documentTypes.map((type, idx) => (
+            {emails.map((email) => {
+              const entities = parseExtractedEntities(email.extractedEntities);
+              const attachments = email.attachments || [];
+              const actions = email.suggestedActions || [];
+
+              return (
+                <tr
+                  key={email.id}
+                  className="hover:bg-[var(--muted)]/20 transition-colors cursor-pointer"
+                  onClick={() => onEmailClick(email.id)}
+                >
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <span className={`px-2.5 py-1 rounded text-xs font-medium ${getStatusColor(email.status)}`}>
+                      {getStatusDisplayName(email.status)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-[var(--foreground)]">
+                    {formatDate(email.createdAt)}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-[var(--foreground)]">
+                    <div className="max-w-[150px] truncate">{email.fromEmail}</div>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-[var(--foreground)]">
+                    <div className="max-w-[150px] truncate">{email.toEmail}</div>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-[var(--foreground)]">
+                    <div className="max-w-[300px] font-medium">{email.subject}</div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-1">
+                      {attachments.length > 0 ? (
+                        attachments.map((attachment) => (
+                          attachment.documentType && (
+                            <span
+                              key={attachment.id}
+                              className={`px-2 py-0.5 rounded text-xs font-medium ${getDocumentTypeColor(attachment.documentType)}`}
+                            >
+                              {attachment.documentType.replace(/_/g, ' ')}
+                            </span>
+                          )
+                        ))
+                      ) : (
+                        <span className="text-xs text-[var(--muted-foreground)]">—</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-1 max-w-[250px]">
+                      {entities.contacts?.map((contact, idx) => (
                         <span
-                          key={idx}
-                          className={`px-2 py-0.5 rounded text-xs font-medium ${getDocumentTypeColor(type)}`}
+                          key={`contact-${idx}`}
+                          className="px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-700"
                         >
-                          {type}
+                          {contact}
                         </span>
-                      ))
+                      ))}
+                      {entities.companies?.map((company, idx) => (
+                        <span
+                          key={`company-${idx}`}
+                          className="px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-700"
+                        >
+                          {company}
+                        </span>
+                      ))}
+                      {entities.jobs?.map((job, idx) => (
+                        <span
+                          key={`job-${idx}`}
+                          className="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700"
+                        >
+                          {job}
+                        </span>
+                      ))}
+                      {!entities.contacts?.length && !entities.companies?.length && !entities.jobs?.length && (
+                        <span className="text-xs text-[var(--muted-foreground)]">—</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="text-xs text-[var(--foreground)]">
+                      {actions.length > 0 ? (
+                        <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded font-medium">
+                          {actions.length} action{actions.length !== 1 ? 's' : ''}
+                        </span>
+                      ) : (
+                        <span className="text-[var(--muted-foreground)]">—</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                    {emailNeedsAttention(email.status) ? (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onProcessEmail(email.id);
+                        }}
+                        className="px-3 py-1.5 bg-[var(--primary)] text-white rounded text-xs font-medium hover:bg-[var(--primary-hover)] transition-colors"
+                      >
+                        Process
+                      </button>
                     ) : (
-                      <span className="text-xs text-[var(--muted-foreground)]">—</span>
+                      <span className="text-xs text-[var(--muted-foreground)]">Processed</span>
                     )}
-                  </div>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex flex-wrap gap-1 max-w-[250px]">
-                    {email.connections.contacts?.map((contact, idx) => (
-                      <span
-                        key={`contact-${idx}`}
-                        className={`px-2 py-0.5 rounded text-xs font-medium ${ENTITY_COLORS.contacts}`}
-                      >
-                        {contact}
-                      </span>
-                    ))}
-                    {email.connections.companies?.map((company, idx) => (
-                      <span
-                        key={`company-${idx}`}
-                        className={`px-2 py-0.5 rounded text-xs font-medium ${ENTITY_COLORS.companies}`}
-                      >
-                        {company}
-                      </span>
-                    ))}
-                    {email.connections.jobs?.map((job, idx) => (
-                      <span
-                        key={`job-${idx}`}
-                        className={`px-2 py-0.5 rounded text-xs font-medium ${ENTITY_COLORS.jobs}`}
-                      >
-                        {job}
-                      </span>
-                    ))}
-                    {email.connections.preOpportunities?.map((preOpp, idx) => (
-                      <span
-                        key={`preopp-${idx}`}
-                        className={`px-2 py-0.5 rounded text-xs font-medium ${ENTITY_COLORS.preOpportunities}`}
-                      >
-                        {preOpp}
-                      </span>
-                    ))}
-                  </div>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="text-xs text-[var(--foreground)]">
-                    {email.suggestedTasks.length > 0 ? (
-                      <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded font-medium">
-                        {email.suggestedTasks.length} task{email.suggestedTasks.length !== 1 ? 's' : ''}
-                      </span>
-                    ) : (
-                      <span className="text-[var(--muted-foreground)]">—</span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                  {email.status === 'Needs Attention' ? (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onProcessEmail(email.id);
-                      }}
-                      className="px-3 py-1.5 bg-[var(--primary)] text-white rounded text-xs font-medium hover:bg-[var(--primary-hover)] transition-colors"
-                    >
-                      Process
-                    </button>
-                  ) : (
-                    <span className="text-xs text-[var(--muted-foreground)]">Processed</span>
-                  )}
-                </td>
-              </tr>
-            ))}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
