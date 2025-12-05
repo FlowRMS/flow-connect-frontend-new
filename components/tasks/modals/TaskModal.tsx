@@ -367,7 +367,14 @@ export default function TaskModal({
     linkedEntities.contacts.length > 0 || 
     linkedEntities.companies.length > 0 ||
     linkedEntities.notes.length > 0 ||
-    linkedEntities.preOpportunities.length > 0
+    linkedEntities.preOpportunities.length > 0 ||
+    linkedEntities.quotes.length > 0 ||
+    linkedEntities.orders.length > 0 ||
+    linkedEntities.invoices.length > 0 ||
+    linkedEntities.checks.length > 0 ||
+    linkedEntities.factories.length > 0 ||
+    linkedEntities.customers.length > 0 ||
+    linkedEntities.products.length > 0
   );
 
   // Get current entity search results based on type
@@ -405,43 +412,43 @@ export default function TaskModal({
         };
       case 'QUOTE':
         return { 
-          data: searchedQuotes, 
+          data: searchedQuotes.filter(q => !linkedEntities?.quotes.some(lq => lq.id === q.id)), 
           isLoading: isLoadingQuotes,
-          getName: (item: typeof searchedQuotes[0]) => item.jobName || item.quoteNumber || 'Unknown Quote'
+          getName: (item: typeof searchedQuotes[0]) => item.quoteNumber || item.jobName || 'Unknown Quote'
         };
       case 'ORDER':
         return { 
-          data: searchedOrders, 
+          data: searchedOrders.filter(o => !linkedEntities?.orders.some(lo => lo.id === o.id)), 
           isLoading: isLoadingOrders,
-          getName: (item: typeof searchedOrders[0]) => item.jobName || item.orderNumber || 'Unknown Order'
+          getName: (item: typeof searchedOrders[0]) => item.orderNumber || item.jobName || 'Unknown Order'
         };
       case 'INVOICE':
         return { 
-          data: searchedInvoices, 
+          data: searchedInvoices.filter(i => !linkedEntities?.invoices.some(li => li.id === i.id)), 
           isLoading: isLoadingInvoices,
           getName: (item: typeof searchedInvoices[0]) => item.invoiceNumber || 'Unknown Invoice'
         };
       case 'CHECK':
         return { 
-          data: searchedChecks, 
+          data: searchedChecks.filter(c => !linkedEntities?.checks.some(lc => lc.id === c.id)), 
           isLoading: isLoadingChecks,
           getName: (item: typeof searchedChecks[0]) => item.checkNumber || 'Unknown Check'
         };
       case 'FACTORY':
         return { 
-          data: searchedFactories, 
+          data: searchedFactories.filter(f => !linkedEntities?.factories.some(lf => lf.id === f.id)), 
           isLoading: isLoadingFactories,
           getName: (item: typeof searchedFactories[0]) => item.title || 'Unknown Factory'
         };
       case 'CUSTOMER':
         return { 
-          data: searchedCustomers, 
+          data: searchedCustomers.filter(c => !linkedEntities?.customers.some(lc => lc.id === c.id)), 
           isLoading: isLoadingCustomers,
           getName: (item: typeof searchedCustomers[0]) => item.companyName || 'Unknown Customer'
         };
       case 'PRODUCT':
         return { 
-          data: searchedProducts, 
+          data: searchedProducts.filter(p => !linkedEntities?.products.some(lp => lp.id === p.id)), 
           isLoading: isLoadingProducts,
           getName: (item: typeof searchedProducts[0]) => item.factoryPartNumber || 'Unknown Product'
         };
@@ -888,6 +895,202 @@ export default function TaskModal({
                             {isEditMode && (
                               <button
                                 onClick={() => handleDeleteRelation('PRE_OPPORTUNITY', preOpp.id)}
+                                className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
+                              >
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {linkedEntities?.quotes && linkedEntities.quotes.length > 0 && (
+                    <div className="flex items-start gap-2">
+                      <span className="text-xs text-[var(--muted-foreground)] min-w-[80px]">Quotes:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {linkedEntities.quotes.map((quote) => (
+                          <span
+                            key={quote.id}
+                            className="px-2.5 py-1 bg-cyan-100 text-cyan-700 rounded text-xs font-medium flex items-center gap-1 group"
+                          >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                            </svg>
+                            {quote.name}
+                            {isEditMode && (
+                              <button
+                                onClick={() => handleDeleteRelation('QUOTE', quote.id)}
+                                className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
+                              >
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {linkedEntities?.orders && linkedEntities.orders.length > 0 && (
+                    <div className="flex items-start gap-2">
+                      <span className="text-xs text-[var(--muted-foreground)] min-w-[80px]">Orders:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {linkedEntities.orders.map((order) => (
+                          <span
+                            key={order.id}
+                            className="px-2.5 py-1 bg-teal-100 text-teal-700 rounded text-xs font-medium flex items-center gap-1 group"
+                          >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                            </svg>
+                            {order.name}
+                            {isEditMode && (
+                              <button
+                                onClick={() => handleDeleteRelation('ORDER', order.id)}
+                                className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
+                              >
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {linkedEntities?.invoices && linkedEntities.invoices.length > 0 && (
+                    <div className="flex items-start gap-2">
+                      <span className="text-xs text-[var(--muted-foreground)] min-w-[80px]">Invoices:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {linkedEntities.invoices.map((invoice) => (
+                          <span
+                            key={invoice.id}
+                            className="px-2.5 py-1 bg-rose-100 text-rose-700 rounded text-xs font-medium flex items-center gap-1 group"
+                          >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
+                            </svg>
+                            {invoice.name}
+                            {isEditMode && (
+                              <button
+                                onClick={() => handleDeleteRelation('INVOICE', invoice.id)}
+                                className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
+                              >
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {linkedEntities?.checks && linkedEntities.checks.length > 0 && (
+                    <div className="flex items-start gap-2">
+                      <span className="text-xs text-[var(--muted-foreground)] min-w-[80px]">Checks:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {linkedEntities.checks.map((check) => (
+                          <span
+                            key={check.id}
+                            className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded text-xs font-medium flex items-center gap-1 group"
+                          >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                            </svg>
+                            {check.name}
+                            {isEditMode && (
+                              <button
+                                onClick={() => handleDeleteRelation('CHECK', check.id)}
+                                className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
+                              >
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {linkedEntities?.factories && linkedEntities.factories.length > 0 && (
+                    <div className="flex items-start gap-2">
+                      <span className="text-xs text-[var(--muted-foreground)] min-w-[80px]">Factories:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {linkedEntities.factories.map((factory) => (
+                          <span
+                            key={factory.id}
+                            className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded text-xs font-medium flex items-center gap-1 group"
+                          >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                            </svg>
+                            {factory.name}
+                            {isEditMode && (
+                              <button
+                                onClick={() => handleDeleteRelation('FACTORY', factory.id)}
+                                className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
+                              >
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {linkedEntities?.customers && linkedEntities.customers.length > 0 && (
+                    <div className="flex items-start gap-2">
+                      <span className="text-xs text-[var(--muted-foreground)] min-w-[80px]">Customers:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {linkedEntities.customers.map((customer) => (
+                          <span
+                            key={customer.id}
+                            className="px-2.5 py-1 bg-amber-100 text-amber-700 rounded text-xs font-medium flex items-center gap-1 group"
+                          >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                            </svg>
+                            {customer.name}
+                            {isEditMode && (
+                              <button
+                                onClick={() => handleDeleteRelation('CUSTOMER', customer.id)}
+                                className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
+                              >
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {linkedEntities?.products && linkedEntities.products.length > 0 && (
+                    <div className="flex items-start gap-2">
+                      <span className="text-xs text-[var(--muted-foreground)] min-w-[80px]">Products:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {linkedEntities.products.map((product) => (
+                          <span
+                            key={product.id}
+                            className="px-2.5 py-1 bg-lime-100 text-lime-700 rounded text-xs font-medium flex items-center gap-1 group"
+                          >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                            </svg>
+                            {product.name}
+                            {isEditMode && (
+                              <button
+                                onClick={() => handleDeleteRelation('PRODUCT', product.id)}
                                 className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
                               >
                                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">

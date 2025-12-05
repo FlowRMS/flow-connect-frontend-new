@@ -169,25 +169,53 @@ export function convertTaskLandingPageToUI(taskLanding: TaskLandingPage): Task {
  */
 export function convertRelatedEntitiesToUI(relatedEntities: TaskRelatedEntities) {
   return {
-    jobs: relatedEntities.jobs?.map(job => ({
-      id: job.id,
-      name: job.jobName || 'Unknown Job',
-    })) || [],
-    contacts: relatedEntities.contacts?.map(contact => ({
-      id: contact.id,
-      name: `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || 'Unknown Contact',
+    checks: relatedEntities.checks?.map(check => ({
+      id: check.id,
+      name: check.checkNumber || 'Unknown Check',
     })) || [],
     companies: relatedEntities.companies?.map(company => ({
       id: company.id,
       name: company.name || 'Unknown Company',
     })) || [],
+    contacts: relatedEntities.contacts?.map(contact => ({
+      id: contact.id,
+      name: `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || 'Unknown Contact',
+    })) || [],
+    customers: relatedEntities.customers?.map(customer => ({
+      id: customer.id,
+      name: customer.companyName || 'Unknown Customer',
+    })) || [],
+    factories: relatedEntities.factories?.map(factory => ({
+      id: factory.id,
+      name: factory.title || 'Unknown Factory',
+    })) || [],
+    invoices: relatedEntities.invoices?.map(invoice => ({
+      id: invoice.id,
+      name: invoice.invoiceNumber || 'Unknown Invoice',
+    })) || [],
+    jobs: relatedEntities.jobs?.map(job => ({
+      id: job.id,
+      name: job.jobName || 'Unknown Job',
+    })) || [],
     notes: relatedEntities.notes?.map(note => ({
       id: note.id,
       name: note.title || 'Untitled Note',
     })) || [],
+    orders: relatedEntities.orders?.map(order => ({
+      id: order.id,
+      name: order.orderNumber || order.jobName || 'Unknown Order',
+    })) || [],
     preOpportunities: relatedEntities.preOpportunities?.map(preOpp => ({
       id: preOpp.id,
       name: preOpp.entityNumber || 'Unknown Pre-Opp',
+    })) || [],
+    products: relatedEntities.products?.map(product => ({
+      id: product.id,
+      name: product.factoryPartNumber || 'Unknown Product',
+    })) || [],
+    quotes: relatedEntities.quotes?.map(quote => ({
+      id: quote.id,
+      name: quote.quoteNumber || quote.jobName || 'Unknown Quote',
     })) || [],
   };
 }

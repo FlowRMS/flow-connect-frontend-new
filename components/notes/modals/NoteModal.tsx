@@ -102,6 +102,78 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
         entityId: preOpp.id,
       });
     });
+
+    relatedEntities.quotes?.forEach(quote => {
+      links.push({
+        id: quote.id,
+        type: 'QUOTE',
+        name: quote.quoteNumber || quote.jobName || 'Unknown Quote',
+        entityId: quote.id,
+      });
+    });
+
+    relatedEntities.orders?.forEach(order => {
+      links.push({
+        id: order.id,
+        type: 'ORDER',
+        name: order.orderNumber || order.jobName || 'Unknown Order',
+        entityId: order.id,
+      });
+    });
+
+    relatedEntities.invoices?.forEach(invoice => {
+      links.push({
+        id: invoice.id,
+        type: 'INVOICE',
+        name: invoice.invoiceNumber || 'Unknown Invoice',
+        entityId: invoice.id,
+      });
+    });
+
+    relatedEntities.checks?.forEach(check => {
+      links.push({
+        id: check.id,
+        type: 'CHECK',
+        name: check.checkNumber || 'Unknown Check',
+        entityId: check.id,
+      });
+    });
+
+    relatedEntities.factories?.forEach(factory => {
+      links.push({
+        id: factory.id,
+        type: 'FACTORY',
+        name: factory.title || 'Unknown Factory',
+        entityId: factory.id,
+      });
+    });
+
+    relatedEntities.customers?.forEach(customer => {
+      links.push({
+        id: customer.id,
+        type: 'CUSTOMER',
+        name: customer.companyName || 'Unknown Customer',
+        entityId: customer.id,
+      });
+    });
+
+    relatedEntities.products?.forEach(product => {
+      links.push({
+        id: product.id,
+        type: 'PRODUCT',
+        name: product.factoryPartNumber || 'Unknown Product',
+        entityId: product.id,
+      });
+    });
+
+    relatedEntities.notes?.forEach(linkedNote => {
+      links.push({
+        id: linkedNote.id,
+        type: 'NOTE',
+        name: linkedNote.title || 'Untitled Note',
+        entityId: linkedNote.id,
+      });
+    });
     
     return links;
   }, [relatedEntities]);
@@ -119,6 +191,22 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
         return 'bg-orange-100 text-orange-700';
       case 'PRE_OPPORTUNITY':
         return 'bg-teal-100 text-teal-700';
+      case 'QUOTE':
+        return 'bg-cyan-100 text-cyan-700';
+      case 'ORDER':
+        return 'bg-indigo-100 text-indigo-700';
+      case 'INVOICE':
+        return 'bg-rose-100 text-rose-700';
+      case 'CHECK':
+        return 'bg-emerald-100 text-emerald-700';
+      case 'FACTORY':
+        return 'bg-slate-100 text-slate-700';
+      case 'CUSTOMER':
+        return 'bg-amber-100 text-amber-700';
+      case 'PRODUCT':
+        return 'bg-lime-100 text-lime-700';
+      case 'NOTE':
+        return 'bg-yellow-100 text-yellow-700';
       default:
         return 'bg-gray-100 text-gray-700';
     }
@@ -154,7 +242,55 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
       case 'PRE_OPPORTUNITY':
         return (
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        );
+      case 'QUOTE':
+        return (
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+          </svg>
+        );
+      case 'ORDER':
+        return (
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+          </svg>
+        );
+      case 'INVOICE':
+        return (
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
+          </svg>
+        );
+      case 'CHECK':
+        return (
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+          </svg>
+        );
+      case 'FACTORY':
+        return (
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+          </svg>
+        );
+      case 'CUSTOMER':
+        return (
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+        );
+      case 'PRODUCT':
+        return (
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+          </svg>
+        );
+      case 'NOTE':
+        return (
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
         );
       default:

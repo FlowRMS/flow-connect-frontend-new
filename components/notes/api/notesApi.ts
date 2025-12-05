@@ -54,6 +54,20 @@ export interface NoteConversation {
 }
 
 export interface NoteRelatedEntities {
+  checks: Array<{
+    id: string;
+    checkNumber: string;
+    commission: number;
+    commissionMonth: string;
+    createdBy: string;
+    creationType: string;
+    entityDate: string;
+    entryDate: string;
+    factoryId: string;
+    postDate: string;
+    status: string;
+    userOwnerIds: string[];
+  }>;
   companies: Array<{
     id: string;
     name: string;
@@ -78,6 +92,32 @@ export interface NoteRelatedEntities {
     companyId: string;
     createdAt: string;
   }>;
+  customers: Array<{
+    id: string;
+    companyName: string;
+    insideRepId: string;
+    parentId: string;
+  }>;
+  factories: Array<{
+    id: string;
+    title: string;
+  }>;
+  invoices: Array<{
+    id: string;
+    invoiceNumber: string;
+    balanceId: string;
+    createdBy: string;
+    creationType: string;
+    dueDate: string;
+    entityDate: string;
+    entryDate: string;
+    factoryId: string;
+    locked: boolean;
+    orderId: string;
+    published: boolean;
+    status: string;
+    userOwnerIds: string[];
+  }>;
   jobs: Array<{
     id: string;
     jobName: string;
@@ -94,18 +134,31 @@ export interface NoteRelatedEntities {
     createdAt: string;
     createdBy: string;
   }>;
-  tasks: Array<{
+  notes: Array<{
     id: string;
     title: string;
-    description: string;
-    status: string;
-    priority: string;
-    dueDate: string;
-    reminderDate: string;
-    assignedToId: string;
+    content: string;
+    mentions: string;
     tags: string;
     createdAt: string;
     createdBy: string;
+  }>;
+  orders: Array<{
+    id: string;
+    orderNumber: string;
+    balanceId: string;
+    billToCustomerId: string;
+    dueDate: string;
+    entityDate: string;
+    entryDate: string;
+    factoryId: string;
+    factSoNumber: string;
+    jobName: string;
+    quoteId: string;
+    shipDate: string;
+    soldToCustomerId: string;
+    status: string;
+    userOwnerIds: string[];
   }>;
   preOpportunities: Array<{
     id: string;
@@ -126,6 +179,37 @@ export interface NoteRelatedEntities {
     soldToCustomerAddressId: string;
     soldToCustomerId: string;
     tags: string;
+  }>;
+  products: Array<{
+    id: string;
+    factoryId: string;
+    factoryPartNumber: string;
+  }>;
+  quotes: Array<{
+    id: string;
+    quoteNumber: string;
+    billToCustomerId: string;
+    blanket: boolean;
+    createdBy: string;
+    entityDate: string;
+    entryDate: string;
+    expDate: string;
+    jobName: string;
+    soldToCustomerId: string;
+    userOwnerIds: string[];
+  }>;
+  tasks: Array<{
+    id: string;
+    title: string;
+    description: string;
+    status: string;
+    priority: string;
+    dueDate: string;
+    reminderDate: string;
+    assignedToId: string;
+    tags: string;
+    createdAt: string;
+    createdBy: string;
   }>;
 }
 
@@ -400,22 +484,36 @@ const GET_NOTE_CONVERSATIONS = `
 const GET_NOTE_RELATED_ENTITIES = `
   query GetNoteRelatedEntities($noteId: UUID!) {
     noteRelatedEntities(noteId: $noteId) {
-      companies {
-        website
-        tags
-        phone
-        parentCompanyId
-        name
+      checks {
+        checkNumber
+        commission
+        commissionMonth
+        createdBy
+        creationType
+        entityDate
+        entryDate
+        factoryId
         id
-        createdBy {
-          lastName
-          id
-          fullName
-          firstName
-          email
-        }
-        createdAt
+        postDate
+        status
+        userOwnerIds
+      }
+      companies {
         companySourceType
+        createdAt
+        createdBy {
+          email
+          firstName
+          fullName
+          id
+          lastName
+        }
+        id
+        name
+        parentCompanyId
+        phone
+        tags
+        website
       }
       contacts {
         companyId
@@ -429,6 +527,32 @@ const GET_NOTE_RELATED_ENTITIES = `
         role
         tags
         territory
+      }
+      customers {
+        companyName
+        id
+        insideRepId
+        parentId
+      }
+      factories {
+        id
+        title
+      }
+      invoices {
+        balanceId
+        createdBy
+        creationType
+        dueDate
+        entityDate
+        entryDate
+        factoryId
+        id
+        invoiceNumber
+        locked
+        orderId
+        published
+        status
+        userOwnerIds
       }
       jobs {
         additionalInformation
@@ -455,6 +579,38 @@ const GET_NOTE_RELATED_ENTITIES = `
         structuralInformation
         tags
       }
+      notes {
+        content
+        createdAt
+        createdBy {
+          email
+          firstName
+          lastName
+          id
+          fullName
+        }
+        id
+        mentions
+        tags
+        title
+      }
+      orders {
+        balanceId
+        billToCustomerId
+        dueDate
+        entityDate
+        factSoNumber
+        entryDate
+        factoryId
+        id
+        jobName
+        orderNumber
+        quoteId
+        shipDate
+        soldToCustomerId
+        status
+        userOwnerIds
+      }
       preOpportunities {
         acceptDate
         billToCustomerAddressId
@@ -467,13 +623,31 @@ const GET_NOTE_RELATED_ENTITIES = `
         expDate
         freightTerms
         id
-        paymentTerms
         jobId
+        paymentTerms
         reviseDate
         soldToCustomerAddressId
         soldToCustomerId
         status
         tags
+      }
+      products {
+        factoryId
+        factoryPartNumber
+        id
+      }
+      quotes {
+        billToCustomerId
+        blanket
+        createdBy
+        entityDate
+        entryDate
+        expDate
+        id
+        jobName
+        quoteNumber
+        soldToCustomerId
+        userOwnerIds
       }
       tasks {
         assignedToId
@@ -950,7 +1124,7 @@ export async function fetchNoteConversations(noteId: string): Promise<NoteConver
 }
 
 /**
- * Fetch related entities (companies, contacts, jobs, tasks, preOpportunities) for a note
+ * Fetch related entities (companies, contacts, jobs, tasks, preOpportunities, checks, invoices, orders, quotes, etc.) for a note
  */
 export async function fetchNoteRelatedEntities(noteId: string): Promise<NoteRelatedEntities> {
   const response = await crmGraphQLRequest<{ noteRelatedEntities: NoteRelatedEntities }>({
@@ -964,17 +1138,33 @@ export async function fetchNoteRelatedEntities(noteId: string): Promise<NoteRela
 
   return (
     (response.data?.noteRelatedEntities && {
+      checks: response.data.noteRelatedEntities.checks || [],
       companies: mapFormattedCreatedBy(response.data.noteRelatedEntities.companies),
       contacts: response.data.noteRelatedEntities.contacts || [],
+      customers: response.data.noteRelatedEntities.customers || [],
+      factories: response.data.noteRelatedEntities.factories || [],
+      invoices: response.data.noteRelatedEntities.invoices || [],
       jobs: mapFormattedCreatedBy(response.data.noteRelatedEntities.jobs),
-      tasks: mapFormattedCreatedBy(response.data.noteRelatedEntities.tasks),
+      notes: mapFormattedCreatedBy(response.data.noteRelatedEntities.notes),
+      orders: response.data.noteRelatedEntities.orders || [],
       preOpportunities: response.data.noteRelatedEntities.preOpportunities || [],
+      products: response.data.noteRelatedEntities.products || [],
+      quotes: response.data.noteRelatedEntities.quotes || [],
+      tasks: mapFormattedCreatedBy(response.data.noteRelatedEntities.tasks),
     }) || {
+      checks: [],
       companies: [],
       contacts: [],
+      customers: [],
+      factories: [],
+      invoices: [],
       jobs: [],
-      tasks: [],
+      notes: [],
+      orders: [],
       preOpportunities: [],
+      products: [],
+      quotes: [],
+      tasks: [],
     }
   );
 }

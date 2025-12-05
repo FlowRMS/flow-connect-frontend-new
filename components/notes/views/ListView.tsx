@@ -17,6 +17,14 @@ const getEntityTypeColor = (type: EntityType) => {
     case 'CONTACT': return 'bg-green-100 text-green-700';
     case 'TASK': return 'bg-orange-100 text-orange-700';
     case 'PRE_OPPORTUNITY': return 'bg-teal-100 text-teal-700';
+    case 'QUOTE': return 'bg-cyan-100 text-cyan-700';
+    case 'ORDER': return 'bg-indigo-100 text-indigo-700';
+    case 'INVOICE': return 'bg-rose-100 text-rose-700';
+    case 'CHECK': return 'bg-emerald-100 text-emerald-700';
+    case 'FACTORY': return 'bg-slate-100 text-slate-700';
+    case 'CUSTOMER': return 'bg-amber-100 text-amber-700';
+    case 'PRODUCT': return 'bg-lime-100 text-lime-700';
+    case 'NOTE': return 'bg-yellow-100 text-yellow-700';
     default: return 'bg-gray-100 text-gray-700';
   }
 };
@@ -53,6 +61,14 @@ function NoteListItem({
     relatedEntities.jobs?.forEach(j => links.push({ type: 'JOB', name: j.jobName }));
     relatedEntities.tasks?.forEach(t => links.push({ type: 'TASK', name: t.title }));
     relatedEntities.preOpportunities?.forEach(p => links.push({ type: 'PRE_OPPORTUNITY', name: p.entityNumber || 'Unknown Pre-Opp' }));
+    relatedEntities.quotes?.forEach(q => links.push({ type: 'QUOTE', name: q.quoteNumber || q.jobName || 'Unknown Quote' }));
+    relatedEntities.orders?.forEach(o => links.push({ type: 'ORDER', name: o.orderNumber || o.jobName || 'Unknown Order' }));
+    relatedEntities.invoices?.forEach(i => links.push({ type: 'INVOICE', name: i.invoiceNumber || 'Unknown Invoice' }));
+    relatedEntities.checks?.forEach(c => links.push({ type: 'CHECK', name: c.checkNumber || 'Unknown Check' }));
+    relatedEntities.factories?.forEach(f => links.push({ type: 'FACTORY', name: f.title || 'Unknown Factory' }));
+    relatedEntities.customers?.forEach(c => links.push({ type: 'CUSTOMER', name: c.companyName || 'Unknown Customer' }));
+    relatedEntities.products?.forEach(p => links.push({ type: 'PRODUCT', name: p.factoryPartNumber || 'Unknown Product' }));
+    relatedEntities.notes?.forEach(n => links.push({ type: 'NOTE', name: n.title || 'Untitled Note' }));
     return links;
   }, [relatedEntities]);
 

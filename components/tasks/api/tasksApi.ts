@@ -78,6 +78,20 @@ export interface TaskConversation {
 }
 
 export interface TaskRelatedEntities {
+  checks: Array<{
+    id: string;
+    checkNumber: string;
+    commission: number;
+    commissionMonth: string;
+    createdBy: string;
+    creationType: string;
+    entityDate: string;
+    entryDate: string;
+    factoryId: string;
+    postDate: string;
+    status: string;
+    userOwnerIds: string[];
+  }>;
   companies: Array<{
     id: string;
     name: string;
@@ -101,7 +115,32 @@ export interface TaskRelatedEntities {
     tags: string;
     companyId: string;
     createdAt: string;
+  }>;
+  customers: Array<{
+    id: string;
+    companyName: string;
+    insideRepId: string;
+    parentId: string;
+  }>;
+  factories: Array<{
+    id: string;
+    title: string;
+  }>;
+  invoices: Array<{
+    id: string;
+    invoiceNumber: string;
+    balanceId: string;
     createdBy: string;
+    creationType: string;
+    dueDate: string;
+    entityDate: string;
+    entryDate: string;
+    factoryId: string;
+    locked: boolean;
+    orderId: string;
+    published: boolean;
+    status: string;
+    userOwnerIds: string[];
   }>;
   jobs: Array<{
     id: string;
@@ -128,15 +167,60 @@ export interface TaskRelatedEntities {
     createdAt: string;
     createdBy: string;
   }>;
+  orders: Array<{
+    id: string;
+    orderNumber: string;
+    balanceId: string;
+    billToCustomerId: string;
+    dueDate: string;
+    entityDate: string;
+    entryDate: string;
+    factoryId: string;
+    factSoNumber: string;
+    jobName: string;
+    quoteId: string;
+    shipDate: string;
+    soldToCustomerId: string;
+    status: string;
+    userOwnerIds: string[];
+  }>;
   preOpportunities: Array<{
     id: string;
     entityNumber: string;
     entityDate: string;
     status: string;
-    soldToCustomerId: string;
-    expDate: string;
+    acceptDate: string;
+    billToCustomerAddressId: string;
+    billToCustomerId: string;
     createdAt: string;
     createdById: string;
+    customerRef: string;
+    expDate: string;
+    freightTerms: string;
+    jobId: string;
+    paymentTerms: string;
+    reviseDate: string;
+    soldToCustomerAddressId: string;
+    soldToCustomerId: string;
+    tags: string;
+  }>;
+  products: Array<{
+    id: string;
+    factoryId: string;
+    factoryPartNumber: string;
+  }>;
+  quotes: Array<{
+    id: string;
+    quoteNumber: string;
+    billToCustomerId: string;
+    blanket: boolean;
+    createdBy: string;
+    entityDate: string;
+    entryDate: string;
+    expDate: string;
+    jobName: string;
+    soldToCustomerId: string;
+    userOwnerIds: string[];
   }>;
 }
 
@@ -462,6 +546,20 @@ const GET_TASK_CONVERSATIONS = `
 const GET_TASK_RELATED_ENTITIES = `
   query GetTaskRelatedEntities($taskId: UUID!) {
     taskRelatedEntities(taskId: $taskId) {
+      checks {
+        checkNumber
+        commission
+        commissionMonth
+        createdBy
+        creationType
+        entityDate
+        entryDate
+        factoryId
+        id
+        postDate
+        status
+        userOwnerIds
+      }
       companies {
         companySourceType
         createdAt
@@ -480,33 +578,47 @@ const GET_TASK_RELATED_ENTITIES = `
         website
       }
       contacts {
-        territory
-        tags
-        role
-        phone
-        notes
-        lastName
-        id
-        firstName
-        email
-        createdAt
         companyId
+        createdAt
+        email
+        firstName
+        id
+        lastName
+        notes
+        phone
+        role
+        tags
+        territory
+      }
+      customers {
+        companyName
+        id
+        insideRepId
+        parentId
+      }
+      factories {
+        id
+        title
+      }
+      invoices {
+        balanceId
+        createdBy
+        creationType
+        dueDate
+        entityDate
+        entryDate
+        factoryId
+        id
+        invoiceNumber
+        locked
+        orderId
+        published
+        status
+        userOwnerIds
       }
       jobs {
-        structuralInformation
-        tags
-        structuralDetails
-        status {
-          name
-          id
-        }
-        startDate
-        requesterId
-        jobType
-        jobName
-        id
-        endDate
-        description
+        additionalInformation
+        createdAt
         createdBy {
           email
           firstName
@@ -514,8 +626,20 @@ const GET_TASK_RELATED_ENTITIES = `
           id
           lastName
         }
-        createdAt
-        additionalInformation
+        description
+        endDate
+        id
+        jobName
+        jobType
+        requesterId
+        startDate
+        status {
+          id
+          name
+        }
+        structuralDetails
+        structuralInformation
+        tags
       }
       notes {
         content
@@ -523,24 +647,69 @@ const GET_TASK_RELATED_ENTITIES = `
         createdBy {
           email
           firstName
-          fullName
-          id
           lastName
+          id
+          fullName
         }
         id
         mentions
         tags
         title
       }
-      preOpportunities {
-        id
-        entityNumber
+      orders {
+        balanceId
+        billToCustomerId
+        dueDate
         entityDate
-        status
+        factSoNumber
+        entryDate
+        factoryId
+        id
+        jobName
+        orderNumber
+        quoteId
+        shipDate
         soldToCustomerId
-        expDate
+        status
+        userOwnerIds
+      }
+      preOpportunities {
+        acceptDate
+        billToCustomerAddressId
+        billToCustomerId
         createdAt
         createdById
+        customerRef
+        entityDate
+        entityNumber
+        expDate
+        freightTerms
+        id
+        jobId
+        paymentTerms
+        reviseDate
+        soldToCustomerAddressId
+        soldToCustomerId
+        status
+        tags
+      }
+      products {
+        factoryId
+        factoryPartNumber
+        id
+      }
+      quotes {
+        billToCustomerId
+        blanket
+        createdBy
+        entityDate
+        entryDate
+        expDate
+        id
+        jobName
+        quoteNumber
+        soldToCustomerId
+        userOwnerIds
       }
     }
   }
@@ -987,7 +1156,7 @@ export async function deleteTaskConversation(id: string): Promise<boolean> {
 // ============================================================================
 
 /**
- * Fetch related entities (companies, contacts, jobs, notes) for a task
+ * Fetch related entities (companies, contacts, jobs, notes, checks, invoices, orders, quotes, etc.) for a task
  */
 export async function fetchTaskRelatedEntities(taskId: string): Promise<TaskRelatedEntities> {
   const response = await crmGraphQLRequest<{ taskRelatedEntities: TaskRelatedEntities }>({
@@ -1001,17 +1170,31 @@ export async function fetchTaskRelatedEntities(taskId: string): Promise<TaskRela
 
   return (
     (response.data?.taskRelatedEntities && {
+      checks: response.data.taskRelatedEntities.checks || [],
       companies: mapFormattedCreatedBy(response.data.taskRelatedEntities.companies),
-      contacts: mapFormattedCreatedBy(response.data.taskRelatedEntities.contacts),
+      contacts: response.data.taskRelatedEntities.contacts || [],
+      customers: response.data.taskRelatedEntities.customers || [],
+      factories: response.data.taskRelatedEntities.factories || [],
+      invoices: response.data.taskRelatedEntities.invoices || [],
       jobs: mapFormattedCreatedBy(response.data.taskRelatedEntities.jobs),
       notes: mapFormattedCreatedBy(response.data.taskRelatedEntities.notes),
+      orders: response.data.taskRelatedEntities.orders || [],
       preOpportunities: response.data.taskRelatedEntities.preOpportunities || [],
+      products: response.data.taskRelatedEntities.products || [],
+      quotes: response.data.taskRelatedEntities.quotes || [],
     }) || {
+      checks: [],
       companies: [],
       contacts: [],
+      customers: [],
+      factories: [],
+      invoices: [],
       jobs: [],
       notes: [],
+      orders: [],
       preOpportunities: [],
+      products: [],
+      quotes: [],
     }
   );
 }

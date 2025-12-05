@@ -99,6 +99,78 @@ export function EditNoteModal({ isOpen, onClose, onSuccess, note }: EditNoteModa
         });
       }
       
+      // Parse quotes
+      if (relatedEntitiesData.quotes) {
+        relatedEntitiesData.quotes.forEach((quote) => {
+          const link: SelectedLink = { type: 'QUOTE', id: quote.id, name: quote.quoteNumber || 'Quote' };
+          parsed.push(link);
+          originalMap.set(getLinkKey(link), link);
+        });
+      }
+      
+      // Parse orders
+      if (relatedEntitiesData.orders) {
+        relatedEntitiesData.orders.forEach((order) => {
+          const link: SelectedLink = { type: 'ORDER', id: order.id, name: order.orderNumber || 'Order' };
+          parsed.push(link);
+          originalMap.set(getLinkKey(link), link);
+        });
+      }
+      
+      // Parse invoices
+      if (relatedEntitiesData.invoices) {
+        relatedEntitiesData.invoices.forEach((invoice) => {
+          const link: SelectedLink = { type: 'INVOICE', id: invoice.id, name: invoice.invoiceNumber || 'Invoice' };
+          parsed.push(link);
+          originalMap.set(getLinkKey(link), link);
+        });
+      }
+      
+      // Parse checks
+      if (relatedEntitiesData.checks) {
+        relatedEntitiesData.checks.forEach((check) => {
+          const link: SelectedLink = { type: 'CHECK', id: check.id, name: check.checkNumber || 'Check' };
+          parsed.push(link);
+          originalMap.set(getLinkKey(link), link);
+        });
+      }
+      
+      // Parse factories
+      if (relatedEntitiesData.factories) {
+        relatedEntitiesData.factories.forEach((factory) => {
+          const link: SelectedLink = { type: 'FACTORY', id: factory.id, name: factory.title || 'Factory' };
+          parsed.push(link);
+          originalMap.set(getLinkKey(link), link);
+        });
+      }
+      
+      // Parse customers
+      if (relatedEntitiesData.customers) {
+        relatedEntitiesData.customers.forEach((customer) => {
+          const link: SelectedLink = { type: 'CUSTOMER', id: customer.id, name: customer.companyName || 'Customer' };
+          parsed.push(link);
+          originalMap.set(getLinkKey(link), link);
+        });
+      }
+      
+      // Parse products
+      if (relatedEntitiesData.products) {
+        relatedEntitiesData.products.forEach((product) => {
+          const link: SelectedLink = { type: 'PRODUCT', id: product.id, name: product.factoryPartNumber || 'Product' };
+          parsed.push(link);
+          originalMap.set(getLinkKey(link), link);
+        });
+      }
+      
+      // Parse notes
+      if (relatedEntitiesData.notes) {
+        relatedEntitiesData.notes.forEach((linkedNote) => {
+          const link: SelectedLink = { type: 'NOTE', id: linkedNote.id, name: linkedNote.title || 'Note' };
+          parsed.push(link);
+          originalMap.set(getLinkKey(link), link);
+        });
+      }
+      
       setSelectedLinks(parsed);
       originalLinksRef.current = originalMap;
       linksInitializedRef.current = true;
