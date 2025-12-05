@@ -104,11 +104,6 @@ export function JobCard({ job, isDragging, isCompleted = false, onClick, onCheck
           `}>
             {job.name}
           </h4>
-          <p className={`text-xs text-gray-500 mt-0.5 font-mono
-            ${completed ? 'line-through' : ''}
-          `}>
-            {job.id}
-          </p>
         </div>
         <div 
           className={`w-7 h-7 rounded-full ${ownerColor} flex items-center justify-center 

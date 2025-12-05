@@ -2686,7 +2686,7 @@ const GET_LINKS_BY_SOURCE = `
 `;
 
 const GET_NOTES_BY_ENTITY = `
-  query GetNotesByEntity($entityId: UUID!, $entityType: EntityType!) {
+  query GetNotesByEntity($entityId: UUID!, $entityType: CRMEntityType!) {
     notesByEntity(entityId: $entityId, entityType: $entityType) {
       id
       title
@@ -3371,7 +3371,7 @@ const DELETE_TASK_RELATION = `
 `;
 
 const GET_TASKS_BY_ENTITY = `
-  query GetTasksByEntity($entityId: UUID!, $entityType: EntityType!) {
+  query GetTasksByEntity($entityId: UUID!, $entityType: CRMEntityType!) {
     tasksByEntity(entityId: $entityId, entityType: $entityType) {
       assignedToId
       createdAt
