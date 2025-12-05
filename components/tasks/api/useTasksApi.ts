@@ -50,7 +50,7 @@ import {
   type CustomerSearchResult,
   type ProductSearchResult,
   type EntityLink,
-  type EntityType,
+  type CRMEntityType,
   type CreateTaskInput,
   type UpdateTaskInput,
 } from './tasksApi';
@@ -463,9 +463,9 @@ export function useCreateTaskLink() {
     EntityLink,
     Error,
     {
-      sourceEntityType: EntityType;
+      sourceEntityType: CRMEntityType;
       sourceEntityId: string;
-      targetEntityType: EntityType;
+      targetEntityType: CRMEntityType;
       targetEntityId: string;
     }
   >({
@@ -491,9 +491,9 @@ export function useDeleteTaskLinkByEntities() {
     boolean,
     Error,
     {
-      sourceEntityType: EntityType;
+      sourceEntityType: CRMEntityType;
       sourceEntityId: string;
-      targetEntityType: EntityType;
+      targetEntityType: CRMEntityType;
       targetEntityId: string;
     }
   >({
@@ -522,7 +522,7 @@ export type {
   PreOpportunitySearchResult,
   UserSearchResult,
   EntityLink,
-  EntityType,
+  CRMEntityType,
   CreateTaskInput,
   UpdateTaskInput,
 };

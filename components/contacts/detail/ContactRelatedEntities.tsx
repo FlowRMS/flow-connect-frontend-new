@@ -12,7 +12,7 @@ import {
   useCRMCompany,
   useDeleteCRMLinkByEntities 
 } from '../../hooks/useCRMApi';
-import type { Job as APIJob, Company as APICompany, EntityType } from '../../lib/crm-graphql';
+import type { Job as APIJob, Company as APICompany, CRMEntityType } from '../../lib/crm-graphql';
 import { AddLinkModal } from '../modals/AddLinkModal';
 
 // ============================================================================
@@ -260,9 +260,9 @@ export default function ContactRelatedEntities({
   const handleUnlink = async (entityType: 'COMPANY' | 'JOB', entityId: string) => {
     try {
       await deleteLinkMutation.mutateAsync({
-        sourceEntityType: 'CONTACT' as EntityType,
+        sourceEntityType: 'CONTACT' as CRMEntityType,
         sourceEntityId: contact.id,
-        targetEntityType: entityType as EntityType,
+        targetEntityType: entityType as CRMEntityType,
         targetEntityId: entityId,
       });
       // Refetch to update the UI

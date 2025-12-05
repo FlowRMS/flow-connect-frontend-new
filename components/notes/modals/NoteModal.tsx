@@ -16,7 +16,7 @@ import {
   useDeleteNoteConversation,
   useDeleteNote,
   useContactSearch,
-  type EntityType 
+  type CRMEntityType 
 } from '../api';
 import { noteToasts, showSuccessToast, showErrorToast } from '../../lib/toast';
 
@@ -56,7 +56,7 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
   const resolvedLinks = useMemo(() => {
     if (!relatedEntities) return [];
     
-    const links: Array<{ id: string; type: EntityType; name: string; entityId: string }> = [];
+    const links: Array<{ id: string; type: CRMEntityType; name: string; entityId: string }> = [];
     
     relatedEntities.companies?.forEach(company => {
       links.push({
@@ -179,7 +179,7 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
   }, [relatedEntities]);
   
   // Helper function to get link type color
-  const getLinkTypeColor = (type: EntityType) => {
+  const getLinkTypeColor = (type: CRMEntityType) => {
     switch (type) {
       case 'JOB':
         return 'bg-blue-100 text-blue-700';
@@ -213,7 +213,7 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
   };
   
   // Helper function to get link type icon
-  const getLinkTypeIcon = (type: EntityType) => {
+  const getLinkTypeIcon = (type: CRMEntityType) => {
     switch (type) {
       case 'JOB':
         return (

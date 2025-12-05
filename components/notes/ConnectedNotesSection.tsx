@@ -8,7 +8,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCRMNotesByEntity } from '../hooks/useCRMApi';
-import type { Note, EntityType } from '../lib/crm-graphql';
+import type { Note, CRMEntityType } from '../lib/crm-graphql';
 
 interface ConnectedNotesSectionProps {
   entityId: string;
@@ -167,7 +167,7 @@ export default function ConnectedNotesSection({
     isLoading,
     error,
     refetch,
-  } = useCRMNotesByEntity(entityId, entityType as EntityType);
+  } = useCRMNotesByEntity(entityId, entityType as CRMEntityType);
 
   const handleNoteClick = (note: Note) => {
     if (onNoteClick) {

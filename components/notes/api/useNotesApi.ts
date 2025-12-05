@@ -46,7 +46,7 @@ import {
   type CustomerSearchResult,
   type ProductSearchResult,
   type EntityLink,
-  type EntityType,
+  type CRMEntityType,
 } from './notesApi';
 
 // ============================================================================
@@ -393,9 +393,9 @@ export function useCreateLink() {
     EntityLink,
     Error,
     {
-      sourceEntityType: EntityType;
+      sourceEntityType: CRMEntityType;
       sourceEntityId: string;
-      targetEntityType: EntityType;
+      targetEntityType: CRMEntityType;
       targetEntityId: string;
     }
   >({
@@ -438,9 +438,9 @@ export function useDeleteLinkByEntities() {
     boolean,
     Error,
     {
-      sourceEntityType: EntityType;
+      sourceEntityType: CRMEntityType;
       sourceEntityId: string;
-      targetEntityType: EntityType;
+      targetEntityType: CRMEntityType;
       targetEntityId: string;
     }
   >({
@@ -471,5 +471,5 @@ export type {
   InvoiceSearchResult,
   CheckSearchResult,
   EntityLink,
-  EntityType,
+  CRMEntityType,
 };

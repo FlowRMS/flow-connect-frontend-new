@@ -39,7 +39,7 @@ const mapFormattedCreatedBy = <T extends { createdBy?: CreatedByResponse }>(item
 
 export type TaskPriority = 'LOW' | 'NORMAL' | 'URGENT' | 'CRITICAL';
 export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
-export type EntityType = 'TASK' | 'JOB' | 'COMPANY' | 'CONTACT' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'FACTORY' | 'CUSTOMER' | 'PRODUCT';
+export type CRMEntityType = 'TASK' | 'JOB' | 'COMPANY' | 'CONTACT' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'FACTORY' | 'CUSTOMER' | 'PRODUCT';
 
 export interface Task {
   id: string;
@@ -961,9 +961,9 @@ const PRODUCT_SEARCH = `
 // Link mutations
 const CREATE_LINK = `
   mutation CreateLink(
-    $sourceEntityType: EntityType!
+    $sourceEntityType: CRMEntityType!
     $sourceEntityId: UUID!
-    $targetEntityType: EntityType!
+    $targetEntityType: CRMEntityType!
     $targetEntityId: UUID!
   ) {
     createLink(input: {
@@ -984,9 +984,9 @@ const CREATE_LINK = `
 
 const DELETE_LINK_BY_ENTITIES = `
   mutation DeleteLinkByEntities(
-    $sourceEntityType: EntityType!
+    $sourceEntityType: CRMEntityType!
     $sourceEntityId: UUID!
-    $targetEntityType: EntityType!
+    $targetEntityType: CRMEntityType!
     $targetEntityId: UUID!
   ) {
     deleteLinkByEntities(input: {
@@ -1450,9 +1450,9 @@ export async function searchProducts(searchTerm: string): Promise<ProductSearchR
  * Create a link between task and another entity
  */
 export async function createTaskLink(input: {
-  sourceEntityType: EntityType;
+  sourceEntityType: CRMEntityType;
   sourceEntityId: string;
-  targetEntityType: EntityType;
+  targetEntityType: CRMEntityType;
   targetEntityId: string;
 }): Promise<EntityLink> {
   const response = await crmGraphQLRequest<{ createLink: EntityLink }>({
@@ -1480,9 +1480,9 @@ export async function createTaskLink(input: {
  * Delete a link between task and another entity by entities
  */
 export async function deleteTaskLinkByEntities(input: {
-  sourceEntityType: EntityType;
+  sourceEntityType: CRMEntityType;
   sourceEntityId: string;
-  targetEntityType: EntityType;
+  targetEntityType: CRMEntityType;
   targetEntityId: string;
 }): Promise<boolean> {
   const response = await crmGraphQLRequest<{ deleteLinkByEntities: boolean }>({

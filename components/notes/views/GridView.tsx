@@ -7,10 +7,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { ParsedNote } from '../types';
 import { formatTimestamp, getInitials, getAvatarColor } from '../utils';
-import { useContactSearch, useNoteRelatedEntities, type EntityType } from '../api';
+import { useContactSearch, useNoteRelatedEntities, type CRMEntityType } from '../api';
 
 // Helper to get entity type colors
-const getEntityTypeColor = (type: EntityType) => {
+const getEntityTypeColor = (type: CRMEntityType) => {
   switch (type) {
     case 'JOB': return 'bg-blue-100 text-blue-700';
     case 'COMPANY': return 'bg-purple-100 text-purple-700';
@@ -55,7 +55,7 @@ function NoteGridCard({
   // Build related entities list
   const entityLinks = useMemo(() => {
     if (!relatedEntities) return [];
-    const links: Array<{ type: EntityType; name: string }> = [];
+    const links: Array<{ type: CRMEntityType; name: string }> = [];
     relatedEntities.companies?.forEach(c => links.push({ type: 'COMPANY', name: c.name }));
     relatedEntities.contacts?.forEach(c => links.push({ type: 'CONTACT', name: `${c.firstName} ${c.lastName}` }));
     relatedEntities.jobs?.forEach(j => links.push({ type: 'JOB', name: j.jobName }));

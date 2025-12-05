@@ -6,7 +6,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useCreateNote, useCreateLink, type EntityType } from '../api/useNotesApi';
+import { useCreateNote, useCreateLink, type CRMEntityType } from '../api/useNotesApi';
 import { noteToasts } from '../../lib/toast';
 import { MentionTextarea, MentionInput, type SelectedContact } from '../components/MentionTextarea';
 import { LinkSelector, type SelectedLink } from '../components/LinkSelector';
@@ -67,9 +67,9 @@ export function CreateNoteModal({ isOpen, onClose, onSuccess }: CreateNoteModalP
       if (selectedLinks.length > 0 && createdNote?.id) {
         const linkPromises = selectedLinks.map(link =>
           createLinkMutation.mutateAsync({
-            sourceEntityType: 'NOTE' as EntityType,
+            sourceEntityType: 'NOTE' as CRMEntityType,
             sourceEntityId: createdNote.id,
-            targetEntityType: link.type as EntityType,
+            targetEntityType: link.type as CRMEntityType,
             targetEntityId: link.id,
           })
         );

@@ -23,7 +23,7 @@ import {
   useCRMCustomerSearch,
   useCRMProductSearch,
 } from '../../hooks/useCRMApi';
-import type { EntityType, FactorySearchResult, CustomerSearchResult, ProductSearchResult } from '../../lib/crm-graphql';
+import type { CRMEntityType, FactorySearchResult, CustomerSearchResult, ProductSearchResult } from '../../lib/crm-graphql';
 
 // All linkable entity types
 type LinkEntityType = 'COMPANY' | 'CONTACT' | 'TASK' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'FACTORY' | 'CUSTOMER' | 'PRODUCT';
@@ -400,9 +400,9 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
 
     try {
       await createLinkMutation.mutateAsync({
-        sourceEntityType: 'JOB' as EntityType,
+        sourceEntityType: 'JOB' as CRMEntityType,
         sourceEntityId: jobId,
-        targetEntityType: entityType as EntityType,
+        targetEntityType: entityType as CRMEntityType,
         targetEntityId: selectedEntityId,
       });
       

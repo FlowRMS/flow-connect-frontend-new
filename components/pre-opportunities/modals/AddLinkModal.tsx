@@ -11,7 +11,7 @@ import {
   useCRMTaskSearch,
   useCRMNoteSearch,
 } from '../../hooks/useCRMApi';
-import type { EntityType } from '../../lib/crm-graphql';
+import type { CRMEntityType } from '../../lib/crm-graphql';
 
 // Linkable entity types for Pre-Opportunities
 type LinkEntityType = 'TASK' | 'NOTE';
@@ -119,9 +119,9 @@ export function AddLinkModal({ isOpen, preOpportunityId, initialEntityType = 'TA
 
     try {
       await createLinkMutation.mutateAsync({
-        sourceEntityType: 'PRE_OPPORTUNITY' as EntityType,
+        sourceEntityType: 'PRE_OPPORTUNITY' as CRMEntityType,
         sourceEntityId: preOpportunityId,
-        targetEntityType: entityType as EntityType,
+        targetEntityType: entityType as CRMEntityType,
         targetEntityId: selectedEntityId,
       });
       

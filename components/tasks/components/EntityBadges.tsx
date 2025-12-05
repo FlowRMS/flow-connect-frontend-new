@@ -88,7 +88,7 @@ const ProductIcon = () => (
   </svg>
 );
 
-type EntityType = 'job' | 'contact' | 'company' | 'note' | 'preOpportunity' | 'quote' | 'order' | 'invoice' | 'check' | 'factory' | 'customer' | 'product';
+type CRMEntityType = 'job' | 'contact' | 'company' | 'note' | 'preOpportunity' | 'quote' | 'order' | 'invoice' | 'check' | 'factory' | 'customer' | 'product';
 
 export function EntityBadges({ taskId, compact = false, maxItems = 6 }: EntityBadgesProps) {
   const { data: relatedEntities, isLoading } = useTaskRelatedEntities(taskId);
@@ -130,7 +130,7 @@ export function EntityBadges({ taskId, compact = false, maxItems = 6 }: EntityBa
   }
   
   // Flatten all entities with their types
-  const allEntities: Array<{ id: string; name: string; type: EntityType }> = [];
+  const allEntities: Array<{ id: string; name: string; type: CRMEntityType }> = [];
   
   entities.jobs?.forEach(job => allEntities.push({ ...job, type: 'job' }));
   entities.contacts?.forEach(contact => allEntities.push({ ...contact, type: 'contact' }));
@@ -148,7 +148,7 @@ export function EntityBadges({ taskId, compact = false, maxItems = 6 }: EntityBa
   const visibleEntities = allEntities.slice(0, maxItems);
   const remainingCount = allEntities.length - visibleEntities.length;
   
-  const badgeStyles: Record<EntityType, string> = {
+  const badgeStyles: Record<CRMEntityType, string> = {
     job: 'bg-green-100 text-green-700',
     contact: 'bg-orange-100 text-orange-700',
     company: 'bg-indigo-100 text-indigo-700',
@@ -163,7 +163,7 @@ export function EntityBadges({ taskId, compact = false, maxItems = 6 }: EntityBa
     product: 'bg-lime-100 text-lime-700',
   };
   
-  const getIcon = (type: EntityType) => {
+  const getIcon = (type: CRMEntityType) => {
     switch (type) {
       case 'job': return <JobIcon />;
       case 'contact': return <ContactIcon />;

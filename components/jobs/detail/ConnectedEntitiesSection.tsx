@@ -17,7 +17,7 @@ import type {
   Company, 
   Contact, 
   PreOpportunity, 
-  EntityType,
+  CRMEntityType,
   QuoteSearchResult,
   OrderSearchResult,
   InvoiceSearchResult,
@@ -101,7 +101,7 @@ export function ConnectedEntitiesSection({
     data: linkedNotes = [],
     isLoading: isLoadingNotes,
     refetch: refetchNotes,
-  } = useCRMNotesByEntity(jobId, 'JOB' as EntityType);
+  } = useCRMNotesByEntity(jobId, 'JOB' as CRMEntityType);
 
   // Delete link mutation
   const deleteLinkMutation = useDeleteCRMLinkByEntities();
@@ -153,9 +153,9 @@ export function ConnectedEntitiesSection({
   const handleUnlink = async (entityType: LinkEntityType, entityId: string) => {
     try {
       await deleteLinkMutation.mutateAsync({
-        sourceEntityType: 'JOB' as EntityType,
+        sourceEntityType: 'JOB' as CRMEntityType,
         sourceEntityId: jobId,
-        targetEntityType: entityType as EntityType,
+        targetEntityType: entityType as CRMEntityType,
         targetEntityId: entityId,
       });
       refetch();

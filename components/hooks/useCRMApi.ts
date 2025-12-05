@@ -99,7 +99,7 @@ import {
   fetchLinksBySource,
   fetchNotesByEntity,
   type NoteLink,
-  type EntityType,
+  type CRMEntityType,
   // Note functions
   fetchNotes,
   fetchNoteLandingPages,
@@ -1098,7 +1098,7 @@ export function useCRMNoteLinks(noteId: string) {
 /**
  * Fetch notes linked to an entity
  */
-export function useCRMNotesByEntity(entityId: string, entityType: EntityType) {
+export function useCRMNotesByEntity(entityId: string, entityType: CRMEntityType) {
   return useQuery<Note[], Error>({
     queryKey: crmQueryKeys.notesByEntity(entityId, entityType),
     queryFn: () => fetchNotesByEntity(entityId, entityType),
@@ -1125,7 +1125,7 @@ export function useCreateCRMNoteLink() {
       // Also invalidate notes by entity if needed
       if (variables.targetEntityType !== 'NOTE') {
         queryClient.invalidateQueries({ 
-          queryKey: crmQueryKeys.notesByEntity(variables.targetEntityId, variables.targetEntityType as EntityType) 
+          queryKey: crmQueryKeys.notesByEntity(variables.targetEntityId, variables.targetEntityType as CRMEntityType) 
         });
       }
     },

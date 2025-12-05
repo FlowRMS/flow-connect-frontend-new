@@ -13,7 +13,7 @@ import {
   useCRMCompany,
   useCreateCRMLink,
 } from '../../hooks/useCRMApi';
-import type { EntityType } from '../../lib/crm-graphql';
+import type { CRMEntityType } from '../../lib/crm-graphql';
 
 type LinkEntityType = 'COMPANY' | 'JOB';
 
@@ -86,9 +86,9 @@ export function AddLinkModal({
 
     try {
       await createLinkMutation.mutateAsync({
-        sourceEntityType: 'CONTACT' as EntityType,
+        sourceEntityType: 'CONTACT' as CRMEntityType,
         sourceEntityId: contactId,
-        targetEntityType: entityType as EntityType,
+        targetEntityType: entityType as CRMEntityType,
         targetEntityId: selectedEntityId,
       });
       

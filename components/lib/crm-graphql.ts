@@ -2079,29 +2079,29 @@ export async function deletePreOpportunity(id: string): Promise<boolean> {
 // Entity Link Types
 // ============================================================================
 
-export type EntityType = 'JOB' | 'COMPANY' | 'CONTACT' | 'TASK' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'FACTORY' | 'CUSTOMER' | 'PRODUCT';
+export type CRMEntityType = 'JOB' | 'COMPANY' | 'CONTACT' | 'TASK' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'FACTORY' | 'CUSTOMER' | 'PRODUCT';
 
 export interface EntityLink {
   id: string;
-  sourceEntityType: EntityType;
+  sourceEntityType: CRMEntityType;
   sourceEntityId: string;
-  targetEntityType: EntityType;
+  targetEntityType: CRMEntityType;
   targetEntityId: string;
   createdAt: string;
   createdBy: string;
 }
 
 export interface CreateLinkInput {
-  sourceEntityType: EntityType;
+  sourceEntityType: CRMEntityType;
   sourceEntityId: string;
-  targetEntityType: EntityType;
+  targetEntityType: CRMEntityType;
   targetEntityId: string;
 }
 
 export interface DeleteLinkByEntitiesInput {
-  sourceEntityType: EntityType;
+  sourceEntityType: CRMEntityType;
   sourceEntityId: string;
-  targetEntityType: EntityType;
+  targetEntityType: CRMEntityType;
   targetEntityId: string;
 }
 
@@ -2208,9 +2208,9 @@ export interface JobRelatedEntities {
 
 const CREATE_LINK = `
   mutation CreateLink(
-    $sourceEntityType: EntityType!
+    $sourceEntityType: CRMEntityType!
     $sourceEntityId: UUID!
-    $targetEntityType: EntityType!
+    $targetEntityType: CRMEntityType!
     $targetEntityId: UUID!
   ) {
     createLink(input: {
@@ -2237,9 +2237,9 @@ const DELETE_LINK = `
 
 const DELETE_LINK_BY_ENTITIES = `
   mutation DeleteLinkByEntities(
-    $sourceEntityType: EntityType!
+    $sourceEntityType: CRMEntityType!
     $sourceEntityId: UUID!
-    $targetEntityType: EntityType!
+    $targetEntityType: CRMEntityType!
     $targetEntityId: UUID!
   ) {
     deleteLinkByEntities(input: {
@@ -2663,16 +2663,16 @@ export async function searchChecks(searchTerm: string): Promise<CheckSearchResul
 
 export interface NoteLink {
   id: string;
-  sourceEntityType: EntityType;
+  sourceEntityType: CRMEntityType;
   sourceEntityId: string;
-  targetEntityType: EntityType;
+  targetEntityType: CRMEntityType;
   targetEntityId: string;
   createdAt: string;
   createdBy: string;
 }
 
 const GET_LINKS_BY_SOURCE = `
-  query GetLinksBySource($sourceEntityType: EntityType!, $sourceEntityId: UUID!) {
+  query GetLinksBySource($sourceEntityType: CRMEntityType!, $sourceEntityId: UUID!) {
     linksBySource(sourceEntityType: $sourceEntityType, sourceEntityId: $sourceEntityId) {
       id
       sourceEntityType
@@ -2705,7 +2705,7 @@ const GET_NOTES_BY_ENTITY = `
   }
 `;
 
-export async function fetchLinksBySource(sourceEntityType: EntityType, sourceEntityId: string): Promise<NoteLink[]> {
+export async function fetchLinksBySource(sourceEntityType: CRMEntityType, sourceEntityId: string): Promise<NoteLink[]> {
   const response = await crmGraphQLRequest<{ linksBySource: NoteLink[] }>({
     query: GET_LINKS_BY_SOURCE,
     variables: { sourceEntityType, sourceEntityId },
@@ -2720,7 +2720,7 @@ export async function fetchLinksBySource(sourceEntityType: EntityType, sourceEnt
   return response.data?.linksBySource || [];
 }
 
-export async function fetchNotesByEntity(entityId: string, entityType: EntityType): Promise<Note[]> {
+export async function fetchNotesByEntity(entityId: string, entityType: CRMEntityType): Promise<Note[]> {
   const response = await crmGraphQLRequest<{ notesByEntity: Note[] }>({
     query: GET_NOTES_BY_ENTITY,
     variables: { entityId, entityType },
