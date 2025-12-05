@@ -494,12 +494,11 @@ export default function TaskModal({
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/50 z-40"
-        onClick={onClose}
       />
 
       {/* Modal */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+        <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
           {/* Header */}
           <div className="p-6 border-b border-[var(--border)]">
             <div className="flex items-start justify-between">
