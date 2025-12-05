@@ -22,7 +22,7 @@ import {
   useFactorySearch,
   useCustomerSearch,
   useProductSearch,
-  type CRMEntityType,
+  type EntityType,
   type JobSearchResult,
   type CompanySearchResult,
   type ContactSearchResult,
@@ -39,7 +39,7 @@ import {
 
 export interface SelectedLink {
   id: string;
-  type: CRMEntityType;
+  type: EntityType;
   name: string;
 }
 
@@ -429,12 +429,12 @@ export function LinkSelector({
     onLinksChange(selectedLinks.filter(l => !(l.id === linkToRemove.id && l.type === linkToRemove.type)));
   };
 
-  const getTypeIcon = (type: CRMEntityType) => {
+  const getTypeIcon = (type: EntityType) => {
     const tab = TABS.find(t => t.id === type);
     return tab?.icon || null;
   };
 
-  const getTypeColor = (type: CRMEntityType) => {
+  const getTypeColor = (type: EntityType) => {
     switch (type) {
       case 'JOB':
         return 'bg-blue-100 text-blue-700';

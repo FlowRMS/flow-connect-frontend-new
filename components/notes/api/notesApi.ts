@@ -134,15 +134,6 @@ export interface NoteRelatedEntities {
     createdAt: string;
     createdBy: string;
   }>;
-  notes: Array<{
-    id: string;
-    title: string;
-    content: string;
-    mentions: string;
-    tags: string;
-    createdAt: string;
-    createdBy: string;
-  }>;
   orders: Array<{
     id: string;
     orderNumber: string;
@@ -371,7 +362,7 @@ export interface EntityLink {
   createdBy: string;
 }
 
-export type CRMEntityType = 'NOTE' | 'JOB' | 'COMPANY' | 'CONTACT' | 'TASK' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'FACTORY' | 'CUSTOMER' | 'PRODUCT';
+export type EntityType = 'NOTE' | 'JOB' | 'COMPANY' | 'CONTACT' | 'TASK' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'FACTORY' | 'CUSTOMER' | 'PRODUCT';
 
 // ============================================================================
 // GraphQL Queries
@@ -578,21 +569,6 @@ const GET_NOTE_RELATED_ENTITIES = `
         structuralDetails
         structuralInformation
         tags
-      }
-      notes {
-        content
-        createdAt
-        createdBy {
-          email
-          firstName
-          lastName
-          id
-          fullName
-        }
-        id
-        mentions
-        tags
-        title
       }
       orders {
         balanceId
@@ -889,9 +865,9 @@ const PRODUCT_SEARCH = `
 
 const CREATE_LINK = `
   mutation CreateLink(
-    $sourceEntityType: CRMEntityType!
+    $sourceEntityType: EntityType!
     $sourceEntityId: UUID!
-    $targetEntityType: CRMEntityType!
+    $targetEntityType: EntityType!
     $targetEntityId: UUID!
   ) {
     createLink(input: {
@@ -918,9 +894,9 @@ const DELETE_LINK = `
 
 const DELETE_LINK_BY_ENTITIES = `
   mutation DeleteLinkByEntities(
-    $sourceEntityType: CRMEntityType!
+    $sourceEntityType: EntityType!
     $sourceEntityId: UUID!
-    $targetEntityType: CRMEntityType!
+    $targetEntityType: EntityType!
     $targetEntityId: UUID!
   ) {
     deleteLinkByEntities(input: {
@@ -1145,7 +1121,6 @@ export async function fetchNoteRelatedEntities(noteId: string): Promise<NoteRela
       factories: response.data.noteRelatedEntities.factories || [],
       invoices: response.data.noteRelatedEntities.invoices || [],
       jobs: mapFormattedCreatedBy(response.data.noteRelatedEntities.jobs),
-      notes: mapFormattedCreatedBy(response.data.noteRelatedEntities.notes),
       orders: response.data.noteRelatedEntities.orders || [],
       preOpportunities: response.data.noteRelatedEntities.preOpportunities || [],
       products: response.data.noteRelatedEntities.products || [],
@@ -1159,7 +1134,6 @@ export async function fetchNoteRelatedEntities(noteId: string): Promise<NoteRela
       factories: [],
       invoices: [],
       jobs: [],
-      notes: [],
       orders: [],
       preOpportunities: [],
       products: [],
@@ -1365,9 +1339,9 @@ export async function searchProducts(searchTerm: string): Promise<ProductSearchR
  * Create a link between entities
  */
 export async function createLink(input: {
-  sourceEntityType: CRMEntityType;
+  sourceEntityType: EntityType;
   sourceEntityId: string;
-  targetEntityType: CRMEntityType;
+  targetEntityType: EntityType;
   targetEntityId: string;
 }): Promise<EntityLink> {
   const response = await crmGraphQLRequest<{ createLink: EntityLink }>({
@@ -1411,9 +1385,9 @@ export async function deleteLink(id: string): Promise<boolean> {
  * Delete a link by source and target entities
  */
 export async function deleteLinkByEntities(input: {
-  sourceEntityType: CRMEntityType;
+  sourceEntityType: EntityType;
   sourceEntityId: string;
-  targetEntityType: CRMEntityType;
+  targetEntityType: EntityType;
   targetEntityId: string;
 }): Promise<boolean> {
   const response = await crmGraphQLRequest<{ deleteLinkByEntities: boolean }>({

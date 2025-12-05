@@ -210,12 +210,7 @@ export function CreatePreOpportunityModal({ isOpen, onClose, onSuccess, initialS
       return;
     }
 
-    if (lineItems.length === 0) {
-      showWarningToast('Please add at least one line item', { description: 'At least one product is required to create a pre-opportunity' });
-      return;
-    }
-
-    // Map line items to API format
+    // Map line items to API format (optional)
     const details: PreOpportunityDetailInput[] = lineItems.map(item => ({
       itemNumber: item.itemNumber,
       productId: item.productId,
@@ -282,11 +277,11 @@ export function CreatePreOpportunityModal({ isOpen, onClose, onSuccess, initialS
 
   if (!isOpen) return null;
 
-  const isValid = !!soldToCustomerId && !!entityNumber && lineItems.length > 0;
+  const isValid = !!soldToCustomerId && !!entityNumber;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-[var(--card)] rounded-xl shadow-2xl max-w-5xl w-full max-h-[95vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={handleClose}>
+      <div className="bg-[var(--card)] rounded-xl shadow-2xl max-w-5xl w-full max-h-[95vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
         {/* Header - Jobs Style */}
         <div className="bg-gray-50 px-6 py-5 border-b border-[var(--border)] flex-shrink-0">
           <div className="flex items-center justify-between">
@@ -374,7 +369,7 @@ export function CreatePreOpportunityModal({ isOpen, onClose, onSuccess, initialS
                 <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                 </svg>
-                Products & Line Items <span className="text-red-500">*</span>
+                Products & Line Items <span className="text-gray-400 text-xs font-normal">(optional)</span>
               </h3>
               
               <FactorySelectionSection
@@ -410,11 +405,11 @@ export function CreatePreOpportunityModal({ isOpen, onClose, onSuccess, initialS
         <div className="border-t border-gray-200 px-6 py-4 bg-gray-50 flex items-center justify-between flex-shrink-0">
           <div className="text-sm text-gray-500">
             {lineItems.length === 0 ? (
-              <span className="text-amber-600 flex items-center gap-1">
+              <span className="text-gray-500 flex items-center gap-1">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Add at least one line item
+                No line items (optional)
               </span>
             ) : (
               <span className="text-green-600 flex items-center gap-1">

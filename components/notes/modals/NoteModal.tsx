@@ -16,7 +16,7 @@ import {
   useDeleteNoteConversation,
   useDeleteNote,
   useContactSearch,
-  type CRMEntityType 
+  type EntityType 
 } from '../api';
 import { noteToasts, showSuccessToast, showErrorToast } from '../../lib/toast';
 
@@ -56,7 +56,7 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
   const resolvedLinks = useMemo(() => {
     if (!relatedEntities) return [];
     
-    const links: Array<{ id: string; type: CRMEntityType; name: string; entityId: string }> = [];
+    const links: Array<{ id: string; type: EntityType; name: string; entityId: string }> = [];
     
     relatedEntities.companies?.forEach(company => {
       links.push({
@@ -165,21 +165,12 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
         entityId: product.id,
       });
     });
-
-    relatedEntities.notes?.forEach(linkedNote => {
-      links.push({
-        id: linkedNote.id,
-        type: 'NOTE',
-        name: linkedNote.title || 'Untitled Note',
-        entityId: linkedNote.id,
-      });
-    });
     
     return links;
   }, [relatedEntities]);
   
   // Helper function to get link type color
-  const getLinkTypeColor = (type: CRMEntityType) => {
+  const getLinkTypeColor = (type: EntityType) => {
     switch (type) {
       case 'JOB':
         return 'bg-blue-100 text-blue-700';
@@ -213,7 +204,7 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
   };
   
   // Helper function to get link type icon
-  const getLinkTypeIcon = (type: CRMEntityType) => {
+  const getLinkTypeIcon = (type: EntityType) => {
     switch (type) {
       case 'JOB':
         return (

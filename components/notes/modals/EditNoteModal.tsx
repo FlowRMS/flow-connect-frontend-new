@@ -6,7 +6,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useUpdateNote, useDeleteNote, useNoteRelatedEntities, useCreateLink, useDeleteLinkByEntities, useContactSearch, type CRMEntityType } from '../api/useNotesApi';
+import { useUpdateNote, useDeleteNote, useNoteRelatedEntities, useCreateLink, useDeleteLinkByEntities, useContactSearch, type EntityType } from '../api/useNotesApi';
 import { noteToasts } from '../../lib/toast';
 import { MentionTextarea, MentionInput, type SelectedContact } from '../components/MentionTextarea';
 import { LinkSelector, type SelectedLink } from '../components/LinkSelector';
@@ -162,15 +162,6 @@ export function EditNoteModal({ isOpen, onClose, onSuccess, note }: EditNoteModa
         });
       }
       
-      // Parse notes
-      if (relatedEntitiesData.notes) {
-        relatedEntitiesData.notes.forEach((linkedNote) => {
-          const link: SelectedLink = { type: 'NOTE', id: linkedNote.id, name: linkedNote.title || 'Note' };
-          parsed.push(link);
-          originalMap.set(getLinkKey(link), link);
-        });
-      }
-      
       setSelectedLinks(parsed);
       originalLinksRef.current = originalMap;
       linksInitializedRef.current = true;
@@ -263,9 +254,9 @@ export function EditNoteModal({ isOpen, onClose, onSuccess, note }: EditNoteModa
       for (const link of removedLinks) {
         try {
           await deleteLinkByEntitiesMutation.mutateAsync({
-            sourceEntityType: 'NOTE' as CRMEntityType,
+            sourceEntityType: 'NOTE' as EntityType,
             sourceEntityId: note.id,
-            targetEntityType: link.type as CRMEntityType,
+            targetEntityType: link.type as EntityType,
             targetEntityId: link.id,
           });
         } catch {
@@ -277,9 +268,9 @@ export function EditNoteModal({ isOpen, onClose, onSuccess, note }: EditNoteModa
       for (const link of addedLinks) {
         try {
           await createLinkMutation.mutateAsync({
-            sourceEntityType: 'NOTE' as CRMEntityType,
+            sourceEntityType: 'NOTE' as EntityType,
             sourceEntityId: note.id,
-            targetEntityType: link.type as CRMEntityType,
+            targetEntityType: link.type as EntityType,
             targetEntityId: link.id,
           });
         } catch {

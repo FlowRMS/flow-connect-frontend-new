@@ -5,8 +5,8 @@
 
 'use client';
 
-import React, { useState, useCallback } from 'react';
-import Link from 'next/link';
+import React, { useState, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   DndContext,
@@ -63,6 +63,10 @@ interface KanbanViewProps {
 // ============================================================================
 
 function KanbanCard({ preOpp, onDelete }: { preOpp: PreOpportunityLandingPage; onDelete: (id: string) => void }) {
+  const router = useRouter();
+  const dragStartPos = useRef<{ x: number; y: number } | null>(null);
+  const wasDragged = useRef(false);
+  
   const {
     attributes,
     listeners,
@@ -85,12 +89,45 @@ function KanbanCard({ preOpp, onDelete }: { preOpp: PreOpportunityLandingPage; o
     onDelete(preOpp.id);
   };
 
+  const handlePointerDown = (e: React.PointerEvent) => {
+    dragStartPos.current = { x: e.clientX, y: e.clientY };
+    wasDragged.current = false;
+    // Call the original listener
+    if (listeners?.onPointerDown) {
+      listeners.onPointerDown(e);
+    }
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (dragStartPos.current) {
+      const dx = Math.abs(e.clientX - dragStartPos.current.x);
+      const dy = Math.abs(e.clientY - dragStartPos.current.y);
+      // If moved more than 5px, consider it a drag
+      if (dx > 5 || dy > 5) {
+        wasDragged.current = true;
+      }
+    }
+  };
+
+  const handleClick = (e: React.MouseEvent) => {
+    // Only navigate if we didn't drag
+    if (!wasDragged.current && !isDragging) {
+      e.preventDefault();
+      router.push(`/pre-opportunities/${preOpp.id}`);
+    }
+    dragStartPos.current = null;
+    wasDragged.current = false;
+  };
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       {...attributes}
       {...listeners}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onClick={handleClick}
       className={`
         group bg-white border rounded-lg p-4 mb-3 
         transition-all duration-200 cursor-pointer relative
@@ -103,11 +140,9 @@ function KanbanCard({ preOpp, onDelete }: { preOpp: PreOpportunityLandingPage; o
       {/* Header Row */}
       <div className="flex items-start gap-3 mb-3">
         <div className="flex-1 min-w-0">
-          <Link href={`/pre-opportunities/${preOpp.id}`}>
-            <h4 className="text-sm font-semibold text-gray-900 leading-tight truncate hover:text-blue-600 transition-colors">
-              {preOpp.entityNumber}
-            </h4>
-          </Link>
+          <h4 className="text-sm font-semibold text-gray-900 leading-tight truncate hover:text-blue-600 transition-colors">
+            {preOpp.entityNumber}
+          </h4>
           <p className="text-xs text-gray-500 mt-0.5">
             {formatDate(preOpp.entityDate)}
           </p>

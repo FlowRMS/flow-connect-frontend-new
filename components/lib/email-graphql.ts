@@ -19,9 +19,9 @@ import type { Email, EmailAttachment, EmailStatusAPI } from '../email-ingestion/
 // ============================================================================
 
 const getGraphQLEndpoint = (): string => {
-  const endpoint = process.env.NEXT_PUBLIC_PYTHON_AI_GRAPHQL_URL;
+  const endpoint = process.env.NEXT_PUBLIC_FLOWCRM_GRAPHQL_URL;
   if (!endpoint) {
-    throw new Error('NEXT_PUBLIC_PYTHON_AI_GRAPHQL_URL environment variable is not set');
+    throw new Error('NEXT_PUBLIC_FLOWCRM_GRAPHQL_URL environment variable is not set');
   }
   return endpoint;
 };
