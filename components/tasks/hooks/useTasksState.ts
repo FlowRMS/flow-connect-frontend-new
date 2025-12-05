@@ -4,10 +4,10 @@
  */
 
 import { useState, useMemo, useCallback } from 'react';
-import type { 
-  Task, 
-  TaskViewMode, 
-  TaskFilterState, 
+import type {
+  Task,
+  TaskViewMode,
+  TaskFilterState,
   TaskEditState,
   TaskDropdownState,
   ExpandedTextState,
@@ -15,6 +15,8 @@ import type {
   TaskStatus,
   TaskPriority
 } from '../types';
+import type { ActiveFilter, ActiveSort } from '../../AdvancedFilters';
+import { applyFilter } from '../../lib/filter-utils';
 import { 
   useTasks, 
   useUpdateTask, 
@@ -120,7 +122,14 @@ export function useTasksState() {
   // Sorting
   const [sortField, setSortField] = useState<string>('dueDate');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  
+
+  // Advanced filtering and sorting state
+  const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
+  const [activeFilter, setActiveFilter] = useState<ActiveFilter | undefined>(undefined);
+  const [clientSortColumns, setClientSortColumns] = useState<ActiveSort[]>([]);
+  const [clientSortColumn, setClientSortColumn] = useState<string | undefined>(undefined);
+  const [clientSortDirection, setClientSortDirection] = useState<'ASC' | 'DESC'>('ASC');
+
   // Drag and drop
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
 
@@ -195,7 +204,7 @@ export function useTasksState() {
       }
     }
 
-    // Apply additional filters
+    // Apply additional filters (legacy)
     if (filters.assignees.length > 0) {
       filtered = filtered.filter(task => filters.assignees.includes(task.assignedTo));
     }
@@ -208,33 +217,70 @@ export function useTasksState() {
     if (filters.priorities.length > 0) {
       filtered = filtered.filter(task => filters.priorities.includes(task.priority));
     }
-    
-    // Apply sorting
-    filtered = [...filtered].sort((a, b) => {
-      let comparison = 0;
-      switch (sortField) {
-        case 'dueDate':
-          comparison = new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-          break;
-        case 'priority':
-          const priorityOrder = { 'Critical': 4, 'Urgent': 3, 'Normal': 2, 'Low': 1, 'No priority': 0 };
-          comparison = (priorityOrder[b.priority as keyof typeof priorityOrder] || 0) - 
-                      (priorityOrder[a.priority as keyof typeof priorityOrder] || 0);
-          break;
-        case 'title':
-          comparison = a.title.localeCompare(b.title);
-          break;
-        case 'status':
-          comparison = a.status.localeCompare(b.status);
-          break;
-        default:
-          comparison = 0;
-      }
-      return sortDirection === 'asc' ? comparison : -comparison;
-    });
+
+    // Apply advanced filters (multi-select from AdvancedFilters component)
+    if (activeFilters.length > 0) {
+      filtered = filtered.filter((task) =>
+        activeFilters.every((filter) => applyFilter(task as unknown as Record<string, unknown>, filter))
+      );
+    } else if (activeFilter) {
+      // Backward compatibility for single filter
+      filtered = filtered.filter((task) => applyFilter(task as unknown as Record<string, unknown>, activeFilter));
+    }
+
+    // Apply advanced sorting (multi-sort from SortButton component)
+    if (clientSortColumns.length > 0) {
+      filtered = [...filtered].sort((a, b) => {
+        for (const sort of clientSortColumns) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const aVal = String((a as any)[sort.columnName] || '');
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const bVal = String((b as any)[sort.columnName] || '');
+          const comparison = aVal.localeCompare(bVal);
+          if (comparison !== 0) {
+            return sort.direction === 'ASC' ? comparison : -comparison;
+          }
+        }
+        return 0;
+      });
+    } else if (clientSortColumn) {
+      // Single sort from SortButton
+      filtered = [...filtered].sort((a, b) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const aVal = String((a as any)[clientSortColumn] || '');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const bVal = String((b as any)[clientSortColumn] || '');
+        const comparison = aVal.localeCompare(bVal);
+        return clientSortDirection === 'ASC' ? comparison : -comparison;
+      });
+    } else {
+      // Apply legacy sorting (from custom sort dropdown)
+      filtered = [...filtered].sort((a, b) => {
+        let comparison = 0;
+        switch (sortField) {
+          case 'dueDate':
+            comparison = new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+            break;
+          case 'priority':
+            const priorityOrder = { 'Critical': 4, 'Urgent': 3, 'Normal': 2, 'Low': 1, 'No priority': 0 };
+            comparison = (priorityOrder[b.priority as keyof typeof priorityOrder] || 0) -
+                        (priorityOrder[a.priority as keyof typeof priorityOrder] || 0);
+            break;
+          case 'title':
+            comparison = a.title.localeCompare(b.title);
+            break;
+          case 'status':
+            comparison = a.status.localeCompare(b.status);
+            break;
+          default:
+            comparison = 0;
+        }
+        return sortDirection === 'asc' ? comparison : -comparison;
+      });
+    }
 
     return filtered;
-  }, [tasks, searchQuery, selectedCategory, filters, sortField, sortDirection]);
+  }, [tasks, searchQuery, selectedCategory, filters, sortField, sortDirection, activeFilters, activeFilter, clientSortColumns, clientSortColumn, clientSortDirection]);
 
   // Task update function with API - ALWAYS sends complete data to prevent field nullification
   // CRITICAL: We fetch the full task first to get assignedToId since landing pages only have assignedTo (name)
@@ -554,6 +600,48 @@ export function useTasksState() {
     return Array.from(new Set(tasks.flatMap(t => t.tags))).sort();
   }, [tasks]);
   const uniqueTaskTypes = useMemo(() => getUniqueValues(tasks, 'taskType'), [tasks]);
+  const uniqueTitles = useMemo(() => getUniqueValues(tasks, 'title'), [tasks]);
+  const uniqueStatuses = useMemo(() => getUniqueValues(tasks, 'status'), [tasks]);
+  const uniquePriorities = useMemo(() => getUniqueValues(tasks, 'priority'), [tasks]);
+
+  // Advanced filter handlers
+  const handleFilterChange = useCallback((filter: ActiveFilter | undefined) => {
+    setActiveFilter(filter);
+    if (filter) {
+      setActiveFilters([filter]);
+    } else {
+      setActiveFilters([]);
+    }
+  }, []);
+
+  const handleFiltersChange = useCallback((filters: ActiveFilter[]) => {
+    setActiveFilters(filters);
+    setActiveFilter(filters.length > 0 ? filters[0] : undefined);
+  }, []);
+
+  // Advanced sort handlers
+  const handleSortChange = useCallback((sort: ActiveSort | undefined) => {
+    if (sort) {
+      setClientSortColumn(sort.columnName);
+      setClientSortDirection(sort.direction);
+      setClientSortColumns([sort]);
+    } else {
+      setClientSortColumn(undefined);
+      setClientSortDirection('ASC');
+      setClientSortColumns([]);
+    }
+  }, []);
+
+  const handleMultiSortChange = useCallback((sorts: ActiveSort[]) => {
+    setClientSortColumns(sorts);
+    if (sorts.length > 0) {
+      setClientSortColumn(sorts[0].columnName);
+      setClientSortDirection(sorts[0].direction);
+    } else {
+      setClientSortColumn(undefined);
+      setClientSortDirection('ASC');
+    }
+  }, []);
 
   return {
     // Loading states
@@ -636,9 +724,30 @@ export function useTasksState() {
     bulkDeleteTasks,
     getTasksByStatus,
     
-    // Unique values
+    // Unique values for filter options
     uniqueAssignees,
     uniqueTags,
     uniqueTaskTypes,
+    uniqueTitles,
+    uniqueStatuses,
+    uniquePriorities,
+
+    // Advanced filtering
+    activeFilters,
+    setActiveFilters,
+    activeFilter,
+    setActiveFilter,
+    handleFilterChange,
+    handleFiltersChange,
+
+    // Advanced sorting
+    clientSortColumns,
+    setClientSortColumns,
+    clientSortColumn,
+    setClientSortColumn,
+    clientSortDirection,
+    setClientSortDirection,
+    handleSortChange,
+    handleMultiSortChange,
   };
 }

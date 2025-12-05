@@ -6,11 +6,12 @@
 'use client';
 
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
-import AdvancedFilters, { type ActiveFilter } from '../AdvancedFilters';
+import AdvancedFilters, { type ActiveFilter, type ActiveSort } from '../AdvancedFilters';
+import SortButton from '../SortButton';
 import { useDashboardFilters } from './hooks/useDashboardFilters';
 import { useActivityFeed } from './hooks/useActivityFeed';
 import { filterActivities, sortActivitiesByDate, transformToActivities } from './utils';
-import { activityFilterOptions } from './config/filterConfig';
+import { getActivityFilterOptions, getActivitySortOptions } from './config/filterConfig';
 import { ActivityCard } from './components/ActivityCard';
 import { ActivityFilterButtons } from './components/ActivityFilterButtons';
 import { StatusFilterButtons } from './components/StatusFilterButtons';
@@ -84,7 +85,12 @@ export default function DashboardContent() {
   
   // Advanced filters state
   const [advancedFilters, setAdvancedFilters] = useState<ActiveFilter[]>([]);
-  
+  const [activeSorts, setActiveSorts] = useState<ActiveSort[]>([]);
+
+  // Get filter and sort options
+  const activityFilterOptions = useMemo(() => getActivityFilterOptions(), []);
+  const activitySortOptions = useMemo(() => getActivitySortOptions(), []);
+
   const {
     activeFilters,
     statusFilters,
@@ -101,6 +107,11 @@ export default function DashboardContent() {
   // Handle advanced filter changes
   const handleAdvancedFiltersChange = useCallback((filters: ActiveFilter[]) => {
     setAdvancedFilters(filters);
+  }, []);
+
+  // Handle multi-sort changes
+  const handleMultiSortChange = useCallback((sorts: ActiveSort[]) => {
+    setActiveSorts(sorts);
   }, []);
 
   // Apply advanced filters to activities
@@ -178,8 +189,29 @@ export default function DashboardContent() {
   const filteredActivities = useMemo(() => {
     let filtered = filterActivities(activities, activeFilters, statusFilters);
     filtered = applyAdvancedFilters(filtered);
-    return sortActivitiesByDate(filtered);
-  }, [activities, activeFilters, statusFilters, applyAdvancedFilters]);
+
+    // Apply multi-sort if specified
+    if (activeSorts.length > 0) {
+      filtered = [...filtered].sort((a, b) => {
+        for (const sort of activeSorts) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const aVal = String((a as any)[sort.columnName] || '');
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const bVal = String((b as any)[sort.columnName] || '');
+          const comparison = aVal.localeCompare(bVal);
+          if (comparison !== 0) {
+            return sort.direction === 'ASC' ? comparison : -comparison;
+          }
+        }
+        return 0;
+      });
+    } else {
+      // Default sort by date
+      filtered = sortActivitiesByDate(filtered);
+    }
+
+    return filtered;
+  }, [activities, activeFilters, statusFilters, applyAdvancedFilters, activeSorts]);
 
   // Calculate counts for display
   const activityCounts = useMemo(() => ({

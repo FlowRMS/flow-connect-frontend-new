@@ -5,8 +5,8 @@
 
 'use client';
 
-import React, { useState, useCallback } from 'react';
-import AdvancedFilters, { ActiveFilter, ActiveSort } from './AdvancedFilters';
+import React, { useState, useCallback, useMemo } from 'react';
+import AdvancedFilters from './AdvancedFilters';
 import SortButton from './SortButton';
 import {
   usePreOppsState,
@@ -34,38 +34,22 @@ export default function PreOpportunitiesContent() {
     stages,
     activeId,
     setActiveId,
-    activeFilter,
-    setActiveFilter,
-    clientSortColumn,
-    setClientSortColumn,
-    clientSortDirection,
-    setClientSortDirection,
+    activeFilters,
+    clientSortColumns,
     uniqueEntityNumbers,
     uniqueStatuses,
     uniqueCreatedBy,
+    handleFiltersChange,
+    handleMultiSortChange,
   } = usePreOppsState();
 
-  const preOppFilterOptions = getPreOppFilterOptions(
+  const preOppFilterOptions = useMemo(() => getPreOppFilterOptions(
     uniqueEntityNumbers,
     uniqueStatuses,
     uniqueCreatedBy
-  );
+  ), [uniqueEntityNumbers, uniqueStatuses, uniqueCreatedBy]);
 
-  const preOppSortOptions = getPreOppSortOptions();
-
-  const handleFilterChange = useCallback((filter: ActiveFilter | undefined) => {
-    setActiveFilter(filter);
-  }, [setActiveFilter]);
-
-  const handleSortChange = useCallback((sort: ActiveSort | undefined) => {
-    if (sort) {
-      setClientSortColumn(sort.columnName);
-      setClientSortDirection(sort.direction);
-    } else {
-      setClientSortColumn(undefined);
-      setClientSortDirection('ASC');
-    }
-  }, [setClientSortColumn, setClientSortDirection]);
+  const preOppSortOptions = useMemo(() => getPreOppSortOptions(), []);
 
   const handleOpenCreateModal = useCallback(() => {
     setIsCreateModalOpen(true);
@@ -100,14 +84,14 @@ export default function PreOpportunitiesContent() {
 
             <SortButton
               sortOptions={preOppSortOptions}
-              onSortChange={handleSortChange}
-              activeSort={clientSortColumn ? { columnName: clientSortColumn, direction: clientSortDirection } : undefined}
+              onMultiSortChange={handleMultiSortChange}
+              activeSorts={clientSortColumns}
             />
 
             <AdvancedFilters
               filterOptions={preOppFilterOptions}
-              activeFilter={activeFilter}
-              onFilterChange={handleFilterChange}
+              activeFilters={activeFilters}
+              onFiltersChange={handleFiltersChange}
             />
 
             <button

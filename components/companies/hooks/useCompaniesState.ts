@@ -2,11 +2,11 @@
  * Custom Hook for Companies State Management
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import type { Company, ViewMode } from '../types';
 import type { ActiveFilter, ActiveSort } from '../../AdvancedFilters';
-import type { CompanySourceType } from '../../lib/crm-graphql';
-import { applyFilter, sortCompanies, getUniqueValues } from '../utils';
+import { applyFilter as applyFilterUtil } from '../../lib/filter-utils';
+import { sortCompanies, getUniqueValues } from '../utils';
 import { mapLandingPageToUICompany } from '../types';
 import type { CompanyLandingPage } from '../../lib/crm-graphql';
 
@@ -28,26 +28,48 @@ export function useCompaniesState(
 
   // Filtering and sorting
   const [activeFilter, setActiveFilter] = useState<ActiveFilter | undefined>(undefined);
+  const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
   const [clientSortColumn, setClientSortColumn] = useState<string | undefined>(undefined);
   const [clientSortDirection, setClientSortDirection] = useState<'ASC' | 'DESC'>('ASC');
+  const [clientSortColumns, setClientSortColumns] = useState<ActiveSort[]>([]);
 
   // Process companies with filtering and sorting
   const companies: Company[] = useMemo(() => {
     if (!landingPageCompanies) return [];
     let filtered = landingPageCompanies.map(mapLandingPageToUICompany);
 
-    // Apply client-side filter
-    if (activeFilter) {
-      filtered = filtered.filter((company) => applyFilter(company, activeFilter));
+    // Apply advanced filters (multi-select)
+    if (activeFilters.length > 0) {
+      filtered = filtered.filter((company) =>
+        activeFilters.every((filter) => applyFilterUtil(company as unknown as Record<string, unknown>, filter))
+      );
+    } else if (activeFilter) {
+      // Backward compatibility for single filter
+      filtered = filtered.filter((company) => applyFilterUtil(company as unknown as Record<string, unknown>, activeFilter));
     }
 
-    // Apply client-side sorting
-    if (clientSortColumn) {
+    // Apply advanced sorting (multi-sort)
+    if (clientSortColumns.length > 0) {
+      filtered = [...filtered].sort((a, b) => {
+        for (const sort of clientSortColumns) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const aVal = String((a as any)[sort.columnName] || '');
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const bVal = String((b as any)[sort.columnName] || '');
+          const comparison = aVal.localeCompare(bVal);
+          if (comparison !== 0) {
+            return sort.direction === 'ASC' ? comparison : -comparison;
+          }
+        }
+        return 0;
+      });
+    } else if (clientSortColumn) {
+      // Single sort fallback
       filtered = sortCompanies(filtered, clientSortColumn, clientSortDirection);
     }
 
     return filtered;
-  }, [landingPageCompanies, activeFilter, clientSortColumn, clientSortDirection]);
+  }, [landingPageCompanies, activeFilter, activeFilters, clientSortColumn, clientSortDirection, clientSortColumns]);
 
   // Filter by selected type
   const filteredCompanies = useMemo(() => {
@@ -61,21 +83,46 @@ export function useCompaniesState(
   const uniqueCompanyTypes = useMemo(() => getUniqueValues(companies, 'type'), [companies]);
   const uniqueCreatedBy = useMemo(() => getUniqueValues(companies, 'createdBy'), [companies]);
 
-  // Handle filter change from AdvancedFilters - client-side only
-  const handleFilterChange = (filter: ActiveFilter | undefined) => {
+  // Handle filter change (single - backward compatibility)
+  const handleFilterChange = useCallback((filter: ActiveFilter | undefined) => {
     setActiveFilter(filter);
-  };
+    if (filter) {
+      setActiveFilters([filter]);
+    } else {
+      setActiveFilters([]);
+    }
+  }, []);
 
-  // Handle sort change - client-side only
-  const handleSortChange = (sort: ActiveSort | undefined) => {
+  // Handle multi-filter change
+  const handleFiltersChange = useCallback((filters: ActiveFilter[]) => {
+    setActiveFilters(filters);
+    setActiveFilter(filters.length > 0 ? filters[0] : undefined);
+  }, []);
+
+  // Handle sort change (single - backward compatibility)
+  const handleSortChange = useCallback((sort: ActiveSort | undefined) => {
     if (sort) {
       setClientSortColumn(sort.columnName);
       setClientSortDirection(sort.direction);
+      setClientSortColumns([sort]);
+    } else {
+      setClientSortColumn(undefined);
+      setClientSortDirection('ASC');
+      setClientSortColumns([]);
+    }
+  }, []);
+
+  // Handle multi-sort change
+  const handleMultiSortChange = useCallback((sorts: ActiveSort[]) => {
+    setClientSortColumns(sorts);
+    if (sorts.length > 0) {
+      setClientSortColumn(sorts[0].columnName);
+      setClientSortDirection(sorts[0].direction);
     } else {
       setClientSortColumn(undefined);
       setClientSortDirection('ASC');
     }
-  };
+  }, []);
 
   // Handle starting edit mode
   const handleStartEdit = () => {
@@ -122,10 +169,14 @@ export function useCompaniesState(
     // Filtering and sorting
     activeFilter,
     setActiveFilter,
+    activeFilters,
+    setActiveFilters,
     clientSortColumn,
     setClientSortColumn,
     clientSortDirection,
     setClientSortDirection,
+    clientSortColumns,
+    setClientSortColumns,
 
     // Unique values for filters
     uniqueCompanyNames,
@@ -134,7 +185,9 @@ export function useCompaniesState(
 
     // Handlers
     handleFilterChange,
+    handleFiltersChange,
     handleSortChange,
+    handleMultiSortChange,
     handleStartEdit,
     handleCancelEdit,
   };

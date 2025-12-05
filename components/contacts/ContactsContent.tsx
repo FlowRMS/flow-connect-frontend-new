@@ -13,8 +13,8 @@ import ListView from './views/ListView';
 import GridView from './views/GridView';
 import CreateContactModal from './modals/CreateContactModal';
 import { useContactsState } from './hooks/useContactsState';
-import { getContactFilterOptions } from './config/filterConfig';
-import { CONTACT_TYPES, CONTACT_SORT_OPTIONS } from './constants';
+import { getContactFilterOptions, getContactSortOptions } from './config/filterConfig';
+import { CONTACT_TYPES } from './constants';
 import type { DuplicateGroup } from './types';
 import type { Job as APIJob, Company as APICompany } from '../lib/crm-graphql';
 
@@ -45,11 +45,13 @@ export default function ContactsContent() {
     router.push(`/companies?id=${company.id}`);
   };
 
-  // Generate filter options with current data
+  // Generate filter and sort options with current data
   const contactFilterOptions = useMemo(
     () => getContactFilterOptions(state.contacts),
     [state.contacts]
   );
+
+  const contactSortOptions = useMemo(() => getContactSortOptions(), []);
 
   // Mock duplicate groups (would come from API in the future)
   const duplicateGroups: DuplicateGroup[] = [];
@@ -219,16 +221,16 @@ export default function ContactsContent() {
               </button>
             </div>
 
-            <SortButton 
-              sortOptions={CONTACT_SORT_OPTIONS}
-              onSortChange={state.handleSortChange}
-              activeSort={state.clientSortColumn ? { columnName: state.clientSortColumn, direction: state.clientSortDirection } : undefined}
+            <SortButton
+              sortOptions={contactSortOptions}
+              onMultiSortChange={state.handleMultiSortChange}
+              activeSorts={state.clientSortColumns}
             />
 
-            <AdvancedFilters 
+            <AdvancedFilters
               filterOptions={contactFilterOptions}
-              onFilterChange={state.handleFilterChange}
-              activeFilter={state.activeFilter ? { columnName: state.activeFilter.columnName, operator: state.activeFilter.operator as any, value: state.activeFilter.value, values: state.activeFilter.values } : undefined}
+              onFiltersChange={state.handleFiltersChange}
+              activeFilters={state.activeFilters}
             />
             <button 
               onClick={() => state.setShowCreateModal(true)}

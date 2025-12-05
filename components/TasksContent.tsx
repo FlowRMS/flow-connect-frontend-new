@@ -5,11 +5,11 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTasksState } from './tasks/hooks/useTasksState';
-import { getTaskFilterOptions } from './tasks/config/filterConfig';
-import { TASK_CATEGORIES, AVAILABLE_ASSIGNEES, AVAILABLE_PRIORITIES, AVAILABLE_TAGS, API_STATUS_OPTIONS, API_PRIORITY_OPTIONS } from './tasks/constants';
+import { getTaskFilterOptions, getTaskSortOptions } from './tasks/config/filterConfig';
+import { TASK_CATEGORIES, AVAILABLE_ASSIGNEES, AVAILABLE_PRIORITIES, AVAILABLE_TAGS } from './tasks/constants';
 import GridView from './tasks/views/GridView';
 import ListView from './tasks/views/ListView';
 import KanbanView from './tasks/views/KanbanView';
@@ -18,7 +18,7 @@ import CalendarView from './tasks/views/CalendarView';
 import TaskModal from './tasks/modals/TaskModal';
 import { CreateTaskModal } from './tasks/modals';
 import AdvancedFilters from './AdvancedFilters';
-import type { TaskStatusAPI } from './tasks/types';
+import SortButton from './SortButton';
 
 export default function TasksContent() {
   // Track if component is mounted to prevent hydration mismatch
@@ -36,44 +36,38 @@ export default function TasksContent() {
     error,
     refetch,
     isUpdating,
-    
+
     // View state
     viewMode,
     setViewMode,
-    
+
     // Task data
     tasks,
     filteredTasks,
-    
+
     // Search and category
     selectedCategory,
     setSelectedCategory,
     searchQuery,
     setSearchQuery,
-    
-    // Sorting
-    sortField,
-    setSortField,
-    sortDirection,
-    setSortDirection,
-    
+
     // Editing
     editState,
     setEditState,
     startEditing,
     saveEdit,
     cancelEdit,
-    
+
     // Dropdowns
     dropdowns,
     setDropdown,
-    
+
     // Selection
     selectedTask,
     setSelectedTask,
     selectedTasks,
     setSelectedTasks,
-    
+
     // Modals
     showBulkActionsDropdown,
     setShowBulkActionsDropdown,
@@ -85,18 +79,18 @@ export default function TasksContent() {
     setTaskDetailModal,
     expandedText,
     setExpandedText,
-    
+
     // Filters
     filters,
     setFilters,
-    
+
     // Drag and drop
     draggedTaskId,
     handleDragStart,
     handleDrop,
     handleDragEnd,
     handleKanbanDrop,
-    
+
     // Task operations
     updateTask,
     deleteTask,
@@ -107,12 +101,35 @@ export default function TasksContent() {
     bulkUpdateTasks,
     bulkDeleteTasks,
     getTasksByStatus,
+
+    // Unique values for filter options
+    uniqueAssignees,
+    uniqueTags,
+    uniqueTaskTypes,
+    uniqueTitles,
+    uniqueStatuses,
+    uniquePriorities,
+
+    // Advanced filtering
+    activeFilters,
+    handleFiltersChange,
+
+    // Advanced sorting
+    clientSortColumns,
+    handleMultiSortChange,
   } = useTasksState();
 
-  // Sort dropdown state
-  const [showSortDropdown, setShowSortDropdown] = useState(false);
+  // Get filter and sort options with dynamic data
+  const taskFilterOptions = useMemo(() => getTaskFilterOptions(
+    uniqueTitles,
+    uniqueStatuses,
+    uniqueTaskTypes,
+    uniquePriorities,
+    uniqueAssignees,
+    uniqueTags
+  ), [uniqueTitles, uniqueStatuses, uniqueTaskTypes, uniquePriorities, uniqueAssignees, uniqueTags]);
 
-  const taskFilterOptions = getTaskFilterOptions();
+  const taskSortOptions = useMemo(() => getTaskSortOptions(), []);
 
   // Check for task ID in query params to auto-select and open the task pane
   useEffect(() => {
@@ -235,80 +252,19 @@ export default function TasksContent() {
               </button>
             </div>
 
-            {/* Filters and Actions */}
-            <AdvancedFilters filterOptions={taskFilterOptions} />
-            
-            {/* Sort Dropdown */}
-            <div className="relative">
-              <button 
-                onClick={() => setShowSortDropdown(!showSortDropdown)}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors"
-              >
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M3 4h14M6 8h11M9 12h8M12 16h5" strokeLinecap="round"/>
-                </svg>
-                Sort
-                {sortField !== 'dueDate' && (
-                  <span className="ml-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">
-                    {sortField}
-                  </span>
-                )}
-              </button>
-              {showSortDropdown && (
-                <div className="absolute top-full right-0 mt-1 bg-white border border-[var(--border)] rounded-lg shadow-lg z-10 min-w-[180px]">
-                  <div className="p-2 space-y-1">
-                    {[
-                      { field: 'dueDate', label: 'Due Date' },
-                      { field: 'priority', label: 'Priority' },
-                      { field: 'title', label: 'Title' },
-                      { field: 'status', label: 'Status' }
-                    ].map(option => (
-                      <button
-                        key={option.field}
-                        onClick={() => {
-                          if (sortField === option.field) {
-                            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-                          } else {
-                            setSortField(option.field);
-                            setSortDirection('asc');
-                          }
-                        }}
-                        className={`w-full flex items-center justify-between px-3 py-2 text-sm rounded hover:bg-[var(--muted)] ${
-                          sortField === option.field ? 'bg-[var(--muted)] font-medium' : ''
-                        }`}
-                      >
-                        {option.label}
-                        {sortField === option.field && (
-                          <svg 
-                            width="14" 
-                            height="14" 
-                            viewBox="0 0 20 20" 
-                            fill="none" 
-                            stroke="currentColor" 
-                            strokeWidth="2"
-                            className={sortDirection === 'desc' ? 'rotate-180' : ''}
-                          >
-                            <path d="M5 12l5-5 5 5" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="border-t border-[var(--border)] p-2">
-                    <button
-                      onClick={() => {
-                        setSortField('dueDate');
-                        setSortDirection('asc');
-                        setShowSortDropdown(false);
-                      }}
-                      className="w-full px-3 py-2 text-sm text-[var(--muted-foreground)] hover:bg-[var(--muted)] rounded"
-                    >
-                      Reset Sort
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+            {/* Sort Button */}
+            <SortButton
+              sortOptions={taskSortOptions}
+              onMultiSortChange={handleMultiSortChange}
+              activeSorts={clientSortColumns}
+            />
+
+            {/* Filters */}
+            <AdvancedFilters
+              filterOptions={taskFilterOptions}
+              activeFilters={activeFilters}
+              onFiltersChange={handleFiltersChange}
+            />
             <div className="relative">
               <button
                 onClick={() => setShowBulkActionsDropdown(!showBulkActionsDropdown)}

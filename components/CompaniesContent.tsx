@@ -17,8 +17,8 @@ import type { CompanySourceType, Contact as APIContact, Job as APIJob } from './
 
 // Modular imports
 import { useCompaniesState } from './companies/hooks/useCompaniesState';
-import { COMPANY_TYPES, COMPANY_SORT_OPTIONS } from './companies/constants';
-import { getCompanyFilterOptions } from './companies/config/filterConfig';
+import { COMPANY_TYPES } from './companies/constants';
+import { getCompanyFilterOptions, getCompanySortOptions } from './companies/config/filterConfig';
 import CompanyDetailView from './companies/detail/CompanyDetailView';
 import GridView from './companies/views/GridView';
 import ListView from './companies/views/ListView';
@@ -52,14 +52,13 @@ export default function CompaniesContent() {
     setShowCreateModal,
     deleteConfirmId,
     setDeleteConfirmId,
-    activeFilter,
-    clientSortColumn,
-    clientSortDirection,
+    activeFilters,
+    clientSortColumns,
     uniqueCompanyNames,
     uniqueCompanyTypes,
     uniqueCreatedBy,
-    handleFilterChange,
-    handleSortChange,
+    handleFiltersChange,
+    handleMultiSortChange,
     handleStartEdit,
     handleCancelEdit,
   } = useCompaniesState(landingPageCompanies);
@@ -88,11 +87,13 @@ export default function CompaniesContent() {
     router.push(`/jobs?id=${job.id}`);
   };
 
-  // Filter options with unique values
+  // Filter and sort options with unique values
   const companyFilterOptions = useMemo(
     () => getCompanyFilterOptions(uniqueCompanyNames, uniqueCompanyTypes, uniqueCreatedBy),
     [uniqueCompanyNames, uniqueCompanyTypes, uniqueCreatedBy]
   );
+
+  const companySortOptions = useMemo(() => getCompanySortOptions(), []);
 
   // Handle delete company
   const handleDeleteCompany = async (id: string) => {
@@ -326,16 +327,16 @@ export default function CompaniesContent() {
               </button>
             </div>
 
-            <SortButton 
-              sortOptions={COMPANY_SORT_OPTIONS}
-              onSortChange={handleSortChange}
-              activeSort={clientSortColumn ? { columnName: clientSortColumn, direction: clientSortDirection } : undefined}
+            <SortButton
+              sortOptions={companySortOptions}
+              onMultiSortChange={handleMultiSortChange}
+              activeSorts={clientSortColumns}
             />
 
-            <AdvancedFilters 
+            <AdvancedFilters
               filterOptions={companyFilterOptions}
-              onFilterChange={handleFilterChange}
-              activeFilter={activeFilter ? { columnName: activeFilter.columnName, operator: activeFilter.operator, value: activeFilter.value, values: activeFilter.values } : undefined}
+              onFiltersChange={handleFiltersChange}
+              activeFilters={activeFilters}
             />
             
             <button

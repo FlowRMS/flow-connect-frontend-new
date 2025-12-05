@@ -26,7 +26,7 @@ export { StatusFilterButtons } from './components/StatusFilterButtons';
 export { DashboardActionButtons } from './components/DashboardActionButtons';
 
 // Config
-export { activityFilterOptions } from './config/filterConfig';
+export { getActivityFilterOptions, getActivitySortOptions } from './config/filterConfig';
 
 // Mock Data
 export { mockActivities } from './mockData';

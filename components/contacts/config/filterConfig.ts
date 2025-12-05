@@ -4,20 +4,12 @@
  */
 
 import type { Contact } from '../types';
-
-export interface ContactFilterOption {
-  id: string;
-  label: string;
-  type: 'text' | 'dropdown' | 'date';
-  columnName?: string;
-  available: boolean;
-  options?: string[];
-}
+import type { FilterOption, SortOption } from '../../lib/filter-utils';
 
 /**
  * Generate filter options with dynamic unique values
  */
-export function getContactFilterOptions(contacts: Contact[]): ContactFilterOption[] {
+export function getContactFilterOptions(contacts: Contact[]): FilterOption[] {
   const uniqueFirstNames = Array.from(new Set(contacts.map(c => c.firstName).filter(Boolean))).sort();
   const uniqueLastNames = Array.from(new Set(contacts.map(c => c.lastName).filter(Boolean))).sort();
   const uniqueEmails = Array.from(new Set(contacts.map(c => c.email).filter(Boolean))).sort();
@@ -111,11 +103,25 @@ export function getContactFilterOptions(contacts: Contact[]): ContactFilterOptio
       type: 'dropdown', 
       available: false 
     },
-    { 
-      id: 'last-activity', 
-      label: 'Last Activity', 
-      type: 'date', 
-      available: false 
+    {
+      id: 'last-activity',
+      label: 'Last Activity',
+      type: 'date',
+      available: false
     },
+  ];
+}
+
+/**
+ * Get sort options for contacts
+ */
+export function getContactSortOptions(): SortOption[] {
+  return [
+    { columnName: 'firstName', label: 'First Name' },
+    { columnName: 'lastName', label: 'Last Name' },
+    { columnName: 'email', label: 'Email' },
+    { columnName: 'company', label: 'Company' },
+    { columnName: 'role', label: 'Role' },
+    { columnName: 'createdAt', label: 'Created Date' },
   ];
 }

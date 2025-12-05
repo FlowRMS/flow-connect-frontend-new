@@ -56,12 +56,10 @@ export default function NotesContent() {
     uniqueTitles,
     uniqueTags,
     uniqueCreators,
-    activeFilter,
     activeFilters,
-    handleFilterChange,
     handleFiltersChange,
-    activeSort,
-    handleSortChange,
+    activeSorts,
+    handleMultiSortChange,
   } = useNotesState();
 
   // Check for note ID in query params to auto-select
@@ -130,17 +128,15 @@ export default function NotesContent() {
               </button>
             </div>
 
-            <SortButton 
+            <SortButton
               sortOptions={noteSortOptions}
-              onSortChange={handleSortChange}
-              activeSort={activeSort}
+              onMultiSortChange={handleMultiSortChange}
+              activeSorts={activeSorts}
             />
 
-            <AdvancedFilters 
+            <AdvancedFilters
               filterOptions={noteFilterOptions}
-              onFilterChange={handleFilterChange}
               onFiltersChange={handleFiltersChange}
-              activeFilter={activeFilter}
               activeFilters={activeFilters}
             />
             

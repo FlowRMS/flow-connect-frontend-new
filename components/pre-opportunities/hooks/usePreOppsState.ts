@@ -2,90 +2,13 @@
  * Custom Hook for Pre-Opportunities State Management with Client-Side Filtering
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import type { ViewMode, PreOpportunityStatus, PreOpportunityLandingPage } from '../types';
-import type { ActiveFilter } from '../../AdvancedFilters';
-import { sortPreOpps, getUniqueValues, getPreOppsByStatus } from '../utils';
+import type { ActiveFilter, ActiveSort } from '../../AdvancedFilters';
+import { applyFilter } from '../../lib/filter-utils';
+import { sortPreOpps, getUniqueValues } from '../utils';
 import { DEFAULT_STAGES } from '../constants';
 import { useCRMPreOpportunityLandingPages } from '../../hooks/useCRMApi';
-
-// ============================================================================
-// Client-Side Filter Logic
-// ============================================================================
-
-/**
- * Apply a single filter to a pre-opportunity
- */
-function matchesFilter(preOpp: PreOpportunityLandingPage, filter: ActiveFilter): boolean {
-  const columnName = filter.columnName;
-  
-  // Map filter column names to actual object properties
-  const propertyMap: Record<string, keyof PreOpportunityLandingPage> = {
-    'entity-number': 'entityNumber',
-    'entityNumber': 'entityNumber',
-    'status': 'status',
-    'created-by': 'createdBy',
-    'createdBy': 'createdBy',
-    'total': 'total',
-    'entityDate': 'entityDate',
-    'expDate': 'expDate',
-    'createdAt': 'createdAt',
-  };
-  
-  const propertyKey = propertyMap[columnName] || columnName as keyof PreOpportunityLandingPage;
-  const fieldValue = preOpp[propertyKey];
-  const stringValue = String(fieldValue || '').toLowerCase();
-  
-  // Handle IN operator (multi-select)
-  if (filter.operator === 'IN' && filter.values && filter.values.length > 0) {
-    return filter.values.some(v => 
-      String(v).toLowerCase() === stringValue
-    );
-  }
-  
-  // Handle single value filters
-  const filterValue = String(filter.value || '').toLowerCase();
-  
-  switch (filter.operator) {
-    case 'EQ':
-      return stringValue === filterValue;
-    case 'NE':
-      return stringValue !== filterValue;
-    case 'ILIKE':
-    case 'LIKE':
-      return stringValue.includes(filterValue);
-    case 'BEGINS_WITH':
-      return stringValue.startsWith(filterValue);
-    case 'ENDS_WITH':
-      return stringValue.endsWith(filterValue);
-    case 'IS_NULL':
-      return !fieldValue || stringValue === '';
-    case 'IS_NOT_NULL':
-      return !!fieldValue && stringValue !== '';
-    case 'GT':
-      return Number(fieldValue) > Number(filter.value);
-    case 'GTE':
-      return Number(fieldValue) >= Number(filter.value);
-    case 'LT':
-      return Number(fieldValue) < Number(filter.value);
-    case 'LTE':
-      return Number(fieldValue) <= Number(filter.value);
-    default:
-      return true;
-  }
-}
-
-/**
- * Apply all filters to pre-opportunities array (client-side)
- */
-function applyClientSideFilter(
-  preOpps: PreOpportunityLandingPage[],
-  filter: ActiveFilter | undefined
-): PreOpportunityLandingPage[] {
-  if (!filter) return preOpps;
-  
-  return preOpps.filter(preOpp => matchesFilter(preOpp, filter));
-}
 
 // ============================================================================
 // Main Hook
@@ -100,8 +23,10 @@ export function usePreOppsState() {
 
   // Filtering and sorting (client-side only)
   const [activeFilter, setActiveFilter] = useState<ActiveFilter | undefined>(undefined);
+  const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
   const [clientSortColumn, setClientSortColumn] = useState<string | undefined>(undefined);
   const [clientSortDirection, setClientSortDirection] = useState<'ASC' | 'DESC'>('ASC');
+  const [clientSortColumns, setClientSortColumns] = useState<ActiveSort[]>([]);
 
   // Fetch ALL pre-opportunities from API (no server-side filtering)
   const {
@@ -118,14 +43,46 @@ export function usePreOppsState() {
 
   // Apply client-side filtering
   const filteredPreOpps = useMemo(() => {
-    return applyClientSideFilter(rawPreOpps, activeFilter);
-  }, [rawPreOpps, activeFilter]);
+    let filtered = rawPreOpps;
+
+    // Apply advanced filters (multi-select)
+    if (activeFilters.length > 0) {
+      filtered = filtered.filter((preOpp) =>
+        activeFilters.every((filter) => applyFilter(preOpp as unknown as Record<string, unknown>, filter))
+      );
+    } else if (activeFilter) {
+      // Backward compatibility for single filter
+      filtered = filtered.filter((preOpp) => applyFilter(preOpp as unknown as Record<string, unknown>, activeFilter));
+    }
+
+    return filtered;
+  }, [rawPreOpps, activeFilter, activeFilters]);
 
   // Apply client-side sorting if specified
   const preOpps = useMemo(() => {
-    if (!clientSortColumn) return filteredPreOpps;
-    return sortPreOpps(filteredPreOpps, clientSortColumn, clientSortDirection);
-  }, [filteredPreOpps, clientSortColumn, clientSortDirection]);
+    let sorted = filteredPreOpps;
+
+    // Apply advanced sorting (multi-sort)
+    if (clientSortColumns.length > 0) {
+      sorted = [...sorted].sort((a, b) => {
+        for (const sort of clientSortColumns) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const aVal = String((a as any)[sort.columnName] || '');
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const bVal = String((b as any)[sort.columnName] || '');
+          const comparison = aVal.localeCompare(bVal);
+          if (comparison !== 0) {
+            return sort.direction === 'ASC' ? comparison : -comparison;
+          }
+        }
+        return 0;
+      });
+    } else if (clientSortColumn) {
+      sorted = sortPreOpps(sorted, clientSortColumn, clientSortDirection);
+    }
+
+    return sorted;
+  }, [filteredPreOpps, clientSortColumn, clientSortDirection, clientSortColumns]);
 
   // Get stages
   const stages = DEFAULT_STAGES;
@@ -139,19 +96,60 @@ export function usePreOppsState() {
       REJECTED: 0,
       CONVERTED: 0,
     };
-    
+
     preOpps.forEach((preOpp) => {
       counts[preOpp.status] = (counts[preOpp.status] || 0) + 1;
     });
-    
+
     return counts;
   }, [preOpps]);
+
+  // Handle filter change (single - backward compatibility)
+  const handleFilterChange = useCallback((filter: ActiveFilter | undefined) => {
+    setActiveFilter(filter);
+    if (filter) {
+      setActiveFilters([filter]);
+    } else {
+      setActiveFilters([]);
+    }
+  }, []);
+
+  // Handle multi-filter change
+  const handleFiltersChange = useCallback((filters: ActiveFilter[]) => {
+    setActiveFilters(filters);
+    setActiveFilter(filters.length > 0 ? filters[0] : undefined);
+  }, []);
+
+  // Handle sort change (single - backward compatibility)
+  const handleSortChange = useCallback((sort: ActiveSort | undefined) => {
+    if (sort) {
+      setClientSortColumn(sort.columnName);
+      setClientSortDirection(sort.direction);
+      setClientSortColumns([sort]);
+    } else {
+      setClientSortColumn(undefined);
+      setClientSortDirection('ASC');
+      setClientSortColumns([]);
+    }
+  }, []);
+
+  // Handle multi-sort change
+  const handleMultiSortChange = useCallback((sorts: ActiveSort[]) => {
+    setClientSortColumns(sorts);
+    if (sorts.length > 0) {
+      setClientSortColumn(sorts[0].columnName);
+      setClientSortDirection(sorts[0].direction);
+    } else {
+      setClientSortColumn(undefined);
+      setClientSortDirection('ASC');
+    }
+  }, []);
 
   return {
     // View state
     viewMode,
     setViewMode,
-    
+
     // Pre-opp state (filtered)
     preOpps,
     isLoading,
@@ -159,23 +157,33 @@ export function usePreOppsState() {
     refetch,
     stages,
     statusCounts,
-    
+
     // Raw data count for UI
     totalCount: rawPreOpps.length,
     filteredCount: preOpps.length,
-    
+
     // Drag and drop
     activeId,
     setActiveId,
-    
+
     // Filtering and sorting
     activeFilter,
     setActiveFilter,
+    activeFilters,
+    setActiveFilters,
     clientSortColumn,
     setClientSortColumn,
     clientSortDirection,
     setClientSortDirection,
-    
+    clientSortColumns,
+    setClientSortColumns,
+
+    // Handlers
+    handleFilterChange,
+    handleFiltersChange,
+    handleSortChange,
+    handleMultiSortChange,
+
     // Unique values for filters (from ALL data)
     uniqueEntityNumbers,
     uniqueStatuses,

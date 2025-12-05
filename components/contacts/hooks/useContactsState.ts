@@ -13,6 +13,7 @@ import {
 import { hasCRMTokens } from '../../lib/crm-auth';
 import { mapLandingPageToUIContact } from '../types';
 import { contactToasts } from '../../lib/toast';
+import { applyFilter } from '../../lib/filter-utils';
 import type { Contact, ViewMode } from '../types';
 import type { ActiveFilter, ActiveSort } from '../../AdvancedFilters';
 
@@ -34,8 +35,10 @@ export function useContactsState() {
   
   // Filter and sort state (client-side)
   const [activeFilter, setActiveFilter] = useState<ActiveFilter | undefined>(undefined);
+  const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
   const [clientSortColumn, setClientSortColumn] = useState<string | undefined>(undefined);
   const [clientSortDirection, setClientSortDirection] = useState<'ASC' | 'DESC'>('ASC');
+  const [clientSortColumns, setClientSortColumns] = useState<ActiveSort[]>([]);
 
   // CRM API hooks
   const isConnected = hasCRMTokens();
@@ -69,42 +72,37 @@ export function useContactsState() {
     if (!landingPageContacts) return [];
     let filtered = landingPageContacts.map(mapLandingPageToUIContact);
 
-    // Apply client-side filter
-    if (activeFilter) {
-      filtered = filtered.filter((contact) => {
-        const value = String((contact as any)[activeFilter.columnName] || '').toLowerCase();
-        const filterValue = String(activeFilter.value || '').toLowerCase();
-
-        if (activeFilter.operator === 'IN' && activeFilter.values) {
-          return activeFilter.values.some(v => String(v).toLowerCase() === value);
-        }
-
-        switch (activeFilter.operator) {
-          case 'EQ':
-            return value === filterValue;
-          case 'NE':
-            return value !== filterValue;
-          case 'ILIKE':
-          case 'LIKE':
-            return value.includes(filterValue);
-          case 'BEGINS_WITH':
-            return value.startsWith(filterValue);
-          case 'ENDS_WITH':
-            return value.endsWith(filterValue);
-          case 'IS_NULL':
-            return !value || value === '';
-          case 'IS_NOT_NULL':
-            return value && value !== '';
-          default:
-            return true;
-        }
-      });
+    // Apply advanced filters (multi-select)
+    if (activeFilters.length > 0) {
+      filtered = filtered.filter((contact) =>
+        activeFilters.every((filter) => applyFilter(contact as unknown as Record<string, unknown>, filter))
+      );
+    } else if (activeFilter) {
+      // Backward compatibility for single filter
+      filtered = filtered.filter((contact) => applyFilter(contact as unknown as Record<string, unknown>, activeFilter));
     }
 
-    // Apply client-side sorting
-    if (clientSortColumn) {
-      filtered.sort((a, b) => {
+    // Apply advanced sorting (multi-sort)
+    if (clientSortColumns.length > 0) {
+      filtered = [...filtered].sort((a, b) => {
+        for (const sort of clientSortColumns) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const aVal = String((a as any)[sort.columnName] || '');
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const bVal = String((b as any)[sort.columnName] || '');
+          const comparison = aVal.localeCompare(bVal);
+          if (comparison !== 0) {
+            return sort.direction === 'ASC' ? comparison : -comparison;
+          }
+        }
+        return 0;
+      });
+    } else if (clientSortColumn) {
+      // Single sort fallback
+      filtered = [...filtered].sort((a, b) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const aVal = String((a as any)[clientSortColumn] || '');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const bVal = String((b as any)[clientSortColumn] || '');
         const comparison = aVal.localeCompare(bVal);
         return clientSortDirection === 'ASC' ? comparison : -comparison;
@@ -112,7 +110,7 @@ export function useContactsState() {
     }
 
     return filtered;
-  }, [landingPageContacts, activeFilter, clientSortColumn, clientSortDirection]);
+  }, [landingPageContacts, activeFilter, activeFilters, clientSortColumn, clientSortDirection, clientSortColumns]);
 
   // Filtered contacts by type
   const filteredContacts = useMemo(() => {
@@ -121,21 +119,46 @@ export function useContactsState() {
       : contacts.filter(contact => contact.contactType.includes(selectedType));
   }, [contacts, selectedType]);
 
-  // Handle filter change
-  const handleFilterChange = (filter: ActiveFilter | undefined) => {
+  // Handle filter change (single - backward compatibility)
+  const handleFilterChange = useCallback((filter: ActiveFilter | undefined) => {
     setActiveFilter(filter);
-  };
+    if (filter) {
+      setActiveFilters([filter]);
+    } else {
+      setActiveFilters([]);
+    }
+  }, []);
 
-  // Handle sort change
-  const handleSortChange = (sort: ActiveSort | undefined) => {
+  // Handle multi-filter change
+  const handleFiltersChange = useCallback((filters: ActiveFilter[]) => {
+    setActiveFilters(filters);
+    setActiveFilter(filters.length > 0 ? filters[0] : undefined);
+  }, []);
+
+  // Handle sort change (single - backward compatibility)
+  const handleSortChange = useCallback((sort: ActiveSort | undefined) => {
     if (sort) {
       setClientSortColumn(sort.columnName);
       setClientSortDirection(sort.direction);
+      setClientSortColumns([sort]);
+    } else {
+      setClientSortColumn(undefined);
+      setClientSortDirection('ASC');
+      setClientSortColumns([]);
+    }
+  }, []);
+
+  // Handle multi-sort change
+  const handleMultiSortChange = useCallback((sorts: ActiveSort[]) => {
+    setClientSortColumns(sorts);
+    if (sorts.length > 0) {
+      setClientSortColumn(sorts[0].columnName);
+      setClientSortDirection(sorts[0].direction);
     } else {
       setClientSortColumn(undefined);
       setClientSortDirection('ASC');
     }
-  };
+  }, []);
 
   // Handle edit
   const handleStartEdit = () => {
@@ -227,24 +250,28 @@ export function useContactsState() {
     deleteConfirmId,
     setDeleteConfirmId,
     activeFilter,
+    activeFilters,
     clientSortColumn,
     clientSortDirection,
-    
+    clientSortColumns,
+
     // Data
     isConnected,
     contacts,
     filteredContacts,
     isLoading,
     error,
-    
+
     // Mutations
     createContactMutation,
     updateContactMutation,
     deleteContactMutation,
-    
+
     // Handlers
     handleFilterChange,
+    handleFiltersChange,
     handleSortChange,
+    handleMultiSortChange,
     handleStartEdit,
     handleSaveEdit,
     handleCancelEdit,
