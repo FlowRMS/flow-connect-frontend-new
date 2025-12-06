@@ -69,17 +69,34 @@ export default function TaskModal({
   const [editAssigneeName, setEditAssigneeName] = useState(task.assignedTo || 'Unassigned');
   const [editAssigneeId, setEditAssigneeId] = useState(task.assignedToId || '');
   const [assigneeSearch, setAssigneeSearch] = useState('');
+  const [debouncedAssigneeSearch, setDebouncedAssigneeSearch] = useState('');
   const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
   const assigneeInputRef = useRef<HTMLInputElement>(null);
   const assigneeDropdownRef = useRef<HTMLDivElement>(null);
-  
+
   // Entity linking state
   const [showAddEntityDropdown, setShowAddEntityDropdown] = useState(false);
   const [addEntityType, setAddEntityType] = useState<'JOB' | 'CONTACT' | 'COMPANY' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'FACTORY' | 'CUSTOMER' | 'PRODUCT' | null>(null);
   const [entitySearch, setEntitySearch] = useState('');
+  const [debouncedEntitySearch, setDebouncedEntitySearch] = useState('');
   const entitySearchRef = useRef<HTMLInputElement>(null);
   const entityDropdownRef = useRef<HTMLDivElement>(null);
   const [isMounted, setIsMounted] = useState(false);
+
+  // Debounce search inputs to prevent focus loss
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedAssigneeSearch(assigneeSearch);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [assigneeSearch]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedEntitySearch(entitySearch);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [entitySearch]);
   
   // Dropdown position state for proper portal positioning
   const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null);
@@ -100,22 +117,22 @@ export default function TaskModal({
   // Fetch task related entities
   const { data: relatedEntities } = useTaskRelatedEntities(task.id);
   
-  // Entity search queries
-  const { data: searchedJobs = [], isLoading: isLoadingJobs } = useJobSearch(entitySearch, isEditMode && addEntityType === 'JOB');
-  const { data: searchedContacts = [], isLoading: isLoadingContacts } = useContactSearch(entitySearch, isEditMode && addEntityType === 'CONTACT');
-  const { data: searchedCompanies = [], isLoading: isLoadingCompanies } = useCompanySearch(entitySearch, isEditMode && addEntityType === 'COMPANY');
-  const { data: searchedNotes = [], isLoading: isLoadingNotes } = useNoteSearch(entitySearch, isEditMode && addEntityType === 'NOTE');
-  const { data: searchedPreOpportunities = [], isLoading: isLoadingPreOpportunities } = usePreOpportunitySearch(entitySearch, isEditMode && addEntityType === 'PRE_OPPORTUNITY');
-  const { data: searchedQuotes = [], isLoading: isLoadingQuotes } = useQuoteSearch(entitySearch, isEditMode && addEntityType === 'QUOTE');
-  const { data: searchedOrders = [], isLoading: isLoadingOrders } = useOrderSearch(entitySearch, isEditMode && addEntityType === 'ORDER');
-  const { data: searchedInvoices = [], isLoading: isLoadingInvoices } = useInvoiceSearch(entitySearch, isEditMode && addEntityType === 'INVOICE');
-  const { data: searchedChecks = [], isLoading: isLoadingChecks } = useCheckSearch(entitySearch, isEditMode && addEntityType === 'CHECK');
-  const { data: searchedFactories = [], isLoading: isLoadingFactories } = useFactorySearch(entitySearch, isEditMode && addEntityType === 'FACTORY');
-  const { data: searchedCustomers = [], isLoading: isLoadingCustomers } = useCustomerSearch(entitySearch, isEditMode && addEntityType === 'CUSTOMER');
-  const { data: searchedProducts = [], isLoading: isLoadingProducts } = useProductSearch(entitySearch, isEditMode && addEntityType === 'PRODUCT');
-  
-  // Assignee search (uses userSearch for better results)
-  const { data: assigneeUsers = [], isLoading: isLoadingAssignees } = useUserSearch(assigneeSearch, isEditMode && showAssigneeDropdown);
+  // Entity search queries - use debounced values to prevent focus loss
+  const { data: searchedJobs = [], isLoading: isLoadingJobs } = useJobSearch(debouncedEntitySearch, isEditMode && addEntityType === 'JOB');
+  const { data: searchedContacts = [], isLoading: isLoadingContacts } = useContactSearch(debouncedEntitySearch, isEditMode && addEntityType === 'CONTACT');
+  const { data: searchedCompanies = [], isLoading: isLoadingCompanies } = useCompanySearch(debouncedEntitySearch, isEditMode && addEntityType === 'COMPANY');
+  const { data: searchedNotes = [], isLoading: isLoadingNotes } = useNoteSearch(debouncedEntitySearch, isEditMode && addEntityType === 'NOTE');
+  const { data: searchedPreOpportunities = [], isLoading: isLoadingPreOpportunities } = usePreOpportunitySearch(debouncedEntitySearch, isEditMode && addEntityType === 'PRE_OPPORTUNITY');
+  const { data: searchedQuotes = [], isLoading: isLoadingQuotes } = useQuoteSearch(debouncedEntitySearch, isEditMode && addEntityType === 'QUOTE');
+  const { data: searchedOrders = [], isLoading: isLoadingOrders } = useOrderSearch(debouncedEntitySearch, isEditMode && addEntityType === 'ORDER');
+  const { data: searchedInvoices = [], isLoading: isLoadingInvoices } = useInvoiceSearch(debouncedEntitySearch, isEditMode && addEntityType === 'INVOICE');
+  const { data: searchedChecks = [], isLoading: isLoadingChecks } = useCheckSearch(debouncedEntitySearch, isEditMode && addEntityType === 'CHECK');
+  const { data: searchedFactories = [], isLoading: isLoadingFactories } = useFactorySearch(debouncedEntitySearch, isEditMode && addEntityType === 'FACTORY');
+  const { data: searchedCustomers = [], isLoading: isLoadingCustomers } = useCustomerSearch(debouncedEntitySearch, isEditMode && addEntityType === 'CUSTOMER');
+  const { data: searchedProducts = [], isLoading: isLoadingProducts } = useProductSearch(debouncedEntitySearch, isEditMode && addEntityType === 'PRODUCT');
+
+  // Assignee search - uses debounced value to prevent focus loss
+  const { data: assigneeUsers = [], isLoading: isLoadingAssignees } = useUserSearch(debouncedAssigneeSearch, isEditMode && showAssigneeDropdown);
   
   // Mutations
   const addConversationMutation = useAddTaskConversation();

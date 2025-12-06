@@ -17,6 +17,7 @@ import { ActivityFilterButtons } from './components/ActivityFilterButtons';
 import { StatusFilterButtons } from './components/StatusFilterButtons';
 import { DashboardActionButtons } from './components/DashboardActionButtons';
 import type { Activity } from './types';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 
 // Import Create Modals
 import CreateJobModal from '../CreateJobModal';
@@ -75,7 +76,14 @@ export default function DashboardContent() {
     setIsMounted(true);
   }, []);
 
-  const { data, isLoading, error, refetch } = useActivityFeed();
+  const { data, isLoading, error, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useActivityFeed();
+
+  // Infinite scroll
+  const { loadMoreRef } = useInfiniteScroll({
+    hasNextPage: hasNextPage ?? false,
+    isFetchingNextPage,
+    fetchNextPage,
+  });
   
   // Modal states
   const [showCreateJobModal, setShowCreateJobModal] = useState(false);
@@ -294,9 +302,32 @@ export default function DashboardContent() {
           ) : filteredActivities.length === 0 ? (
             <EmptyState />
           ) : (
-            filteredActivities.map((activity) => (
-              <ActivityCard key={`${activity.type}-${activity.id}`} activity={activity} />
-            ))
+            <>
+              {filteredActivities.map((activity) => (
+                <ActivityCard key={`${activity.type}-${activity.id}`} activity={activity} />
+              ))}
+
+              {/* Infinite scroll trigger */}
+              <div ref={loadMoreRef} className="h-4" />
+
+              {/* Loading more indicator */}
+              {isFetchingNextPage && (
+                <div className="flex items-center justify-center py-4">
+                  <svg className="animate-spin h-5 w-5 text-blue-500 mr-2" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  <span className="text-sm text-gray-500">Loading more activities...</span>
+                </div>
+              )}
+
+              {/* End of list indicator */}
+              {!hasNextPage && filteredActivities.length > 0 && (
+                <div className="text-center py-4 text-sm text-gray-400">
+                  All activities loaded
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

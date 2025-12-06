@@ -4,10 +4,11 @@
  * Following the same pattern as Notes API
  */
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import { hasCRMTokens } from '../../lib/crm-auth';
 import {
   fetchTasks,
+  fetchTasksWithPagination,
   fetchTask,
   createTask,
   updateTask,
@@ -53,6 +54,9 @@ import {
   type CRMEntityType,
   type CreateTaskInput,
   type UpdateTaskInput,
+  type PaginatedTasksResult,
+  type TaskLandingPageFilter,
+  type TaskLandingPageOrderBy,
 } from './tasksApi';
 
 // ============================================================================
@@ -61,7 +65,8 @@ import {
 
 export const tasksQueryKeys = {
   all: ['tasks'] as const,
-  list: () => [...tasksQueryKeys.all, 'list'] as const,
+  list: (filters?: TaskLandingPageFilter[], orderBy?: TaskLandingPageOrderBy[]) =>
+    [...tasksQueryKeys.all, 'list', { filters, orderBy }] as const,
   detail: (id: string) => [...tasksQueryKeys.all, 'detail', id] as const,
   conversations: (taskId: string) => [...tasksQueryKeys.all, 'conversations', taskId] as const,
   relatedEntities: (taskId: string) => [...tasksQueryKeys.all, 'relatedEntities', taskId] as const,
@@ -88,6 +93,8 @@ export const tasksQueryKeys = {
 // Task Hooks
 // ============================================================================
 
+const DEFAULT_PAGE_SIZE = 50;
+
 /**
  * Fetch all tasks using landing pages endpoint
  */
@@ -97,6 +104,30 @@ export function useTasks() {
     queryFn: fetchTasks,
     enabled: hasCRMTokens(),
     staleTime: 30 * 1000, // 30 seconds
+  });
+}
+
+/**
+ * Fetch tasks with infinite scroll pagination and optional server-side filters/sorting
+ */
+export function useTasksInfinite(
+  filters?: TaskLandingPageFilter[],
+  orderBy?: TaskLandingPageOrderBy[],
+  pageSize: number = DEFAULT_PAGE_SIZE
+) {
+  return useInfiniteQuery<PaginatedTasksResult, Error>({
+    queryKey: [...tasksQueryKeys.list(filters, orderBy), 'infinite'],
+    queryFn: async ({ pageParam = 0 }) => {
+      return fetchTasksWithPagination(filters, orderBy, { limit: pageSize, offset: pageParam as number });
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const totalFetched = allPages.reduce((acc, page) => acc + page.records.length, 0);
+      if (totalFetched >= lastPage.total) return undefined;
+      return totalFetched;
+    },
+    enabled: hasCRMTokens(),
+    staleTime: 30 * 1000,
   });
 }
 
@@ -525,4 +556,6 @@ export type {
   CRMEntityType,
   CreateTaskInput,
   UpdateTaskInput,
+  TaskLandingPageFilter,
+  TaskLandingPageOrderBy,
 };

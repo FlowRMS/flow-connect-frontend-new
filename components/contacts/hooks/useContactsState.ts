@@ -3,12 +3,12 @@
  */
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { 
-  useCRMContactLandingPages, 
+import {
+  useCRMContactLandingPagesInfinite,
   useCRMContact,
-  useCreateCRMContact, 
-  useUpdateCRMContact, 
-  useDeleteCRMContact 
+  useCreateCRMContact,
+  useUpdateCRMContact,
+  useDeleteCRMContact
 } from '../../hooks/useCRMApi';
 import { hasCRMTokens } from '../../lib/crm-auth';
 import { mapLandingPageToUIContact } from '../types';
@@ -16,37 +16,70 @@ import { contactToasts } from '../../lib/toast';
 import { applyFilter } from '../../lib/filter-utils';
 import type { Contact, ViewMode } from '../types';
 import type { ActiveFilter, ActiveSort } from '../../AdvancedFilters';
+import type { LandingPageFilter, LandingPageOrderBy } from '../../lib/crm-graphql';
 
 export function useContactsState() {
+  // Hydration-safe mounted state
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   // View state
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [selectedType, setSelectedType] = useState<string>('All');
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
-  
+
   // Modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDedupeModal, setShowDedupeModal] = useState(false);
-  
+
   // Edit state
   const [isEditing, setIsEditing] = useState(false);
   const [editFormData, setEditFormData] = useState<Partial<Contact>>({});
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  
-  // Filter and sort state (client-side)
+
+  // Filter and sort state (client-side for backward compatibility)
   const [activeFilter, setActiveFilter] = useState<ActiveFilter | undefined>(undefined);
   const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
   const [clientSortColumn, setClientSortColumn] = useState<string | undefined>(undefined);
   const [clientSortDirection, setClientSortDirection] = useState<'ASC' | 'DESC'>('ASC');
   const [clientSortColumns, setClientSortColumns] = useState<ActiveSort[]>([]);
 
-  // CRM API hooks
-  const isConnected = hasCRMTokens();
-  const { data: landingPageContacts, isLoading, error, refetch } = useCRMContactLandingPages();
+  // Server-side filters - defined BEFORE API hook so they can be passed to the query
+  const [serverFilters, setServerFilters] = useState<LandingPageFilter[]>([]);
+  const [serverOrderBy, setServerOrderBy] = useState<LandingPageOrderBy[]>([]);
+
+  // CRM API hooks with infinite scroll - now with server-side filters
+  const isConnected = isMounted ? hasCRMTokens() : false;
+  const {
+    data: contactsData,
+    isLoading,
+    error,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useCRMContactLandingPagesInfinite(serverFilters, serverOrderBy);
   const { data: fullContactData } = useCRMContact(selectedContactId || '');
   const createContactMutation = useCreateCRMContact();
   const updateContactMutation = useUpdateCRMContact();
   const deleteContactMutation = useDeleteCRMContact();
+
+  // Flatten paginated results with deduplication
+  const landingPageContacts = useMemo(() => {
+    if (!contactsData?.pages) return undefined;
+    const allRecords = contactsData.pages.flatMap(page => page.records);
+    // Deduplicate by ID
+    const seen = new Set<string>();
+    return allRecords.filter(record => {
+      if (seen.has(record.id)) return false;
+      seen.add(record.id);
+      return true;
+    });
+  }, [contactsData]);
 
   // Update selectedContact with full contact data (including companyId) when fetched
   useEffect(() => {
@@ -119,21 +152,42 @@ export function useContactsState() {
       : contacts.filter(contact => contact.contactType.includes(selectedType));
   }, [contacts, selectedType]);
 
+  // Convert ActiveFilter to LandingPageFilter for server-side filtering
+  const toServerFilters = useCallback((filters: ActiveFilter[]): LandingPageFilter[] => {
+    return filters.map(f => ({
+      operator: f.operator,
+      columnName: f.columnName,
+      value: f.value,
+      values: f.values,
+    }));
+  }, []);
+
+  // Convert ActiveSort to LandingPageOrderBy for server-side sorting
+  const toServerOrderBy = useCallback((sorts: ActiveSort[]): LandingPageOrderBy[] => {
+    return sorts.map(s => ({
+      columnName: s.columnName,
+      direction: s.direction,
+    }));
+  }, []);
+
   // Handle filter change (single - backward compatibility)
   const handleFilterChange = useCallback((filter: ActiveFilter | undefined) => {
     setActiveFilter(filter);
     if (filter) {
       setActiveFilters([filter]);
+      setServerFilters(toServerFilters([filter])); // Server-side filter
     } else {
       setActiveFilters([]);
+      setServerFilters([]); // Clear server-side filters
     }
-  }, []);
+  }, [toServerFilters]);
 
   // Handle multi-filter change
   const handleFiltersChange = useCallback((filters: ActiveFilter[]) => {
     setActiveFilters(filters);
     setActiveFilter(filters.length > 0 ? filters[0] : undefined);
-  }, []);
+    setServerFilters(toServerFilters(filters)); // Server-side filters
+  }, [toServerFilters]);
 
   // Handle sort change (single - backward compatibility)
   const handleSortChange = useCallback((sort: ActiveSort | undefined) => {
@@ -141,12 +195,14 @@ export function useContactsState() {
       setClientSortColumn(sort.columnName);
       setClientSortDirection(sort.direction);
       setClientSortColumns([sort]);
+      setServerOrderBy(toServerOrderBy([sort])); // Server-side sort
     } else {
       setClientSortColumn(undefined);
       setClientSortDirection('ASC');
       setClientSortColumns([]);
+      setServerOrderBy([]); // Clear server-side sort
     }
-  }, []);
+  }, [toServerOrderBy]);
 
   // Handle multi-sort change
   const handleMultiSortChange = useCallback((sorts: ActiveSort[]) => {
@@ -158,7 +214,8 @@ export function useContactsState() {
       setClientSortColumn(undefined);
       setClientSortDirection('ASC');
     }
-  }, []);
+    setServerOrderBy(toServerOrderBy(sorts)); // Server-side sort
+  }, [toServerOrderBy]);
 
   // Handle edit
   const handleStartEdit = () => {
@@ -257,10 +314,16 @@ export function useContactsState() {
 
     // Data
     isConnected,
+    isMounted,
     contacts,
     filteredContacts,
     isLoading,
     error,
+
+    // Pagination
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
 
     // Mutations
     createContactMutation,

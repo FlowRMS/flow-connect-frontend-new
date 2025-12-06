@@ -407,6 +407,16 @@ export interface LandingPageOrderBy {
   direction: SortDirection;
 }
 
+export interface PaginationParams {
+  limit?: number;
+  offset?: number;
+}
+
+export interface PaginatedResult<T> {
+  records: T[];
+  total: number;
+}
+
 export interface JobLandingPage {
   id: string;
   jobName: string;
@@ -823,11 +833,15 @@ const FIND_JOB_LANDING_PAGES = `
   query FindJobLandingPages(
     $filters: [Filter!]
     $orderBy: [OrderBy!]
+    $limit: Int
+    $offset: Int
   ) {
     findLandingPages(
       sourceType: JOBS
       filters: $filters
       orderBy: $orderBy
+      limit: $limit
+      offset: $offset
     ) {
       records {
         ... on JobLandingPage {
@@ -844,6 +858,7 @@ const FIND_JOB_LANDING_PAGES = `
           createdBy
         }
       }
+      total
     }
   }
 `;
@@ -852,11 +867,15 @@ const FIND_COMPANY_LANDING_PAGES = `
   query FindCompanyLandingPages(
     $filters: [Filter!]
     $orderBy: [OrderBy!]
+    $limit: Int
+    $offset: Int
   ) {
     findLandingPages(
       sourceType: COMPANIES
       filters: $filters
       orderBy: $orderBy
+      limit: $limit
+      offset: $offset
     ) {
       records {
         ... on CompanyLandingPage {
@@ -869,6 +888,7 @@ const FIND_COMPANY_LANDING_PAGES = `
           website
         }
       }
+      total
     }
   }
 `;
@@ -877,11 +897,15 @@ const FIND_CONTACT_LANDING_PAGES = `
   query FindContactLandingPages(
     $filters: [Filter!]
     $orderBy: [OrderBy!]
+    $limit: Int
+    $offset: Int
   ) {
     findLandingPages(
       sourceType: CONTACTS
       filters: $filters
       orderBy: $orderBy
+      limit: $limit
+      offset: $offset
     ) {
       records {
         ... on ContactLandingPage {
@@ -896,6 +920,7 @@ const FIND_CONTACT_LANDING_PAGES = `
           createdAt
         }
       }
+      total
     }
   }
 `;
@@ -905,24 +930,28 @@ const FIND_PRE_OPPORTUNITY_LANDING_PAGES = `
   query FindPreOpportunityLandingPages(
     $filters: [Filter!]
     $orderBy: [OrderBy!]
+    $limit: Int
+    $offset: Int
   ) {
     findLandingPages(
       sourceType: PRE_OPPORTUNITIES
       filters: $filters
       orderBy: $orderBy
+      limit: $limit
+      offset: $offset
     ) {
       records {
         ... on PreOpportunityLandingPage {
           id
           total
-        status
-        expDate
-        entityNumber
-        entityDate
-        createdBy
-        createdAt
+          status
+          expDate
+          entityNumber
+          entityDate
+          createdBy
+          createdAt
+        }
       }
-    }
       total
     }
   }
@@ -1610,20 +1639,24 @@ export async function fetchJobsByIds(ids: string[]): Promise<Job[]> {
 
 export async function fetchJobLandingPages(
   filters?: LandingPageFilter[],
-  orderBy?: LandingPageOrderBy[]
-): Promise<JobLandingPage[]> {
-  const response = await crmGraphQLRequest<{ 
-    findLandingPages: { records: JobLandingPage[] } 
+  orderBy?: LandingPageOrderBy[],
+  pagination?: PaginationParams
+): Promise<PaginatedResult<JobLandingPage>> {
+  const response = await crmGraphQLRequest<{
+    findLandingPages: { records: JobLandingPage[]; total: number }
   }>({
     query: FIND_JOB_LANDING_PAGES,
-    variables: { filters, orderBy },
+    variables: { filters, orderBy, limit: pagination?.limit, offset: pagination?.offset },
   });
 
   if (response.errors) {
     throw new Error(response.errors[0]?.message || 'Failed to fetch job landing pages');
   }
 
-  return response.data?.findLandingPages?.records || [];
+  return {
+    records: response.data?.findLandingPages?.records || [],
+    total: response.data?.findLandingPages?.total || 0,
+  };
 }
 
 // ============================================================================
@@ -1718,20 +1751,24 @@ export async function deleteCompany(id: string): Promise<boolean> {
 
 export async function fetchCompanyLandingPages(
   filters?: LandingPageFilter[],
-  orderBy?: LandingPageOrderBy[]
-): Promise<CompanyLandingPage[]> {
-  const response = await crmGraphQLRequest<{ 
-    findLandingPages: { records: CompanyLandingPage[] } 
+  orderBy?: LandingPageOrderBy[],
+  pagination?: PaginationParams
+): Promise<PaginatedResult<CompanyLandingPage>> {
+  const response = await crmGraphQLRequest<{
+    findLandingPages: { records: CompanyLandingPage[]; total: number }
   }>({
     query: FIND_COMPANY_LANDING_PAGES,
-    variables: { filters, orderBy },
+    variables: { filters, orderBy, limit: pagination?.limit, offset: pagination?.offset },
   });
 
   if (response.errors) {
     throw new Error(response.errors[0]?.message || 'Failed to fetch company landing pages');
   }
 
-  return response.data?.findLandingPages?.records || [];
+  return {
+    records: response.data?.findLandingPages?.records || [],
+    total: response.data?.findLandingPages?.total || 0,
+  };
 }
 
 // ============================================================================
@@ -1860,20 +1897,24 @@ export async function deleteContact(id: string): Promise<boolean> {
 
 export async function fetchContactLandingPages(
   filters?: LandingPageFilter[],
-  orderBy?: LandingPageOrderBy[]
-): Promise<ContactLandingPage[]> {
-  const response = await crmGraphQLRequest<{ 
-    findLandingPages: { records: ContactLandingPage[] } 
+  orderBy?: LandingPageOrderBy[],
+  pagination?: PaginationParams
+): Promise<PaginatedResult<ContactLandingPage>> {
+  const response = await crmGraphQLRequest<{
+    findLandingPages: { records: ContactLandingPage[]; total: number }
   }>({
     query: FIND_CONTACT_LANDING_PAGES,
-    variables: { filters, orderBy },
+    variables: { filters, orderBy, limit: pagination?.limit, offset: pagination?.offset },
   });
 
   if (response.errors) {
     throw new Error(response.errors[0]?.message || 'Failed to fetch contact landing pages');
   }
 
-  return response.data?.findLandingPages?.records || [];
+  return {
+    records: response.data?.findLandingPages?.records || [],
+    total: response.data?.findLandingPages?.total || 0,
+  };
 }
 
 // ============================================================================
@@ -1882,16 +1923,17 @@ export async function fetchContactLandingPages(
 
 export async function fetchPreOpportunityLandingPages(
   filters?: LandingPageFilter[],
-  orderBy?: LandingPageOrderBy[]
-): Promise<PreOpportunityLandingPage[]> {
+  orderBy?: LandingPageOrderBy[],
+  pagination?: PaginationParams
+): Promise<PaginatedResult<PreOpportunityLandingPage>> {
   // Import the normalization function
   const { normalizePreOpportunitiesStatus } = await import('../pre-opportunities/utils');
-  
+
   const response = await crmGraphQLRequest<{
     findLandingPages: { records: PreOpportunityLandingPage[]; total: number }
   }>({
     query: FIND_PRE_OPPORTUNITY_LANDING_PAGES,
-    variables: { filters, orderBy },
+    variables: { filters, orderBy, limit: pagination?.limit, offset: pagination?.offset },
   });
 
   if (response.errors) {
@@ -1900,7 +1942,10 @@ export async function fetchPreOpportunityLandingPages(
 
   const records = response.data?.findLandingPages?.records || [];
   // Normalize status values (convert numeric to string)
-  return normalizePreOpportunitiesStatus(records);
+  return {
+    records: normalizePreOpportunitiesStatus(records),
+    total: response.data?.findLandingPages?.total || 0,
+  };
 }
 
 export async function fetchPreOpportunity(id: string): Promise<PreOpportunity | null> {
@@ -2920,11 +2965,15 @@ const FIND_NOTE_LANDING_PAGES = `
   query FindNoteLandingPages(
     $filters: [Filter!]
     $orderBy: [OrderBy!]
+    $limit: Int
+    $offset: Int
   ) {
     findLandingPages(
       sourceType: NOTES
       filters: $filters
       orderBy: $orderBy
+      limit: $limit
+      offset: $offset
     ) {
       records {
         ... on NoteLandingPage {
@@ -2959,20 +3008,24 @@ export async function fetchNotes(): Promise<Note[]> {
 
 export async function fetchNoteLandingPages(
   filters?: LandingPageFilter[],
-  orderBy?: LandingPageOrderBy[]
-): Promise<NoteLandingPage[]> {
+  orderBy?: LandingPageOrderBy[],
+  pagination?: PaginationParams
+): Promise<PaginatedResult<NoteLandingPage>> {
   const response = await crmGraphQLRequest<{
     findLandingPages: { records: NoteLandingPage[]; total: number }
   }>({
     query: FIND_NOTE_LANDING_PAGES,
-    variables: { filters, orderBy },
+    variables: { filters, orderBy, limit: pagination?.limit, offset: pagination?.offset },
   });
 
   if (response.errors) {
     throw new Error(response.errors[0]?.message || 'Failed to fetch note landing pages');
   }
 
-  return response.data?.findLandingPages?.records || [];
+  return {
+    records: response.data?.findLandingPages?.records || [],
+    total: response.data?.findLandingPages?.total || 0,
+  };
 }
 
 export async function fetchNote(id: string): Promise<Note | null> {
@@ -3214,8 +3267,19 @@ export interface TaskByEntity {
 // ============================================================================
 
 const FIND_TASK_LANDING_PAGES = `
-  query FindTaskLandingPages {
-    findLandingPages(sourceType: TASKS) {
+  query FindTaskLandingPages(
+    $filters: [Filter!]
+    $orderBy: [OrderBy!]
+    $limit: Int
+    $offset: Int
+  ) {
+    findLandingPages(
+      sourceType: TASKS
+      filters: $filters
+      orderBy: $orderBy
+      limit: $limit
+      offset: $offset
+    ) {
       records {
         ... on TaskLandingPage {
           id
@@ -3398,18 +3462,26 @@ const GET_TASKS_BY_ENTITY = `
 // Task API Functions
 // ============================================================================
 
-export async function fetchTaskLandingPages(): Promise<TaskLandingPage[]> {
+export async function fetchTaskLandingPages(
+  filters?: LandingPageFilter[],
+  orderBy?: LandingPageOrderBy[],
+  pagination?: PaginationParams
+): Promise<PaginatedResult<TaskLandingPage>> {
   const response = await crmGraphQLRequest<{
     findLandingPages: { records: TaskLandingPage[]; total: number }
   }>({
     query: FIND_TASK_LANDING_PAGES,
+    variables: { filters, orderBy, limit: pagination?.limit, offset: pagination?.offset },
   });
 
   if (response.errors) {
     throw new Error(response.errors[0]?.message || 'Failed to fetch task landing pages');
   }
 
-  return response.data?.findLandingPages?.records || [];
+  return {
+    records: response.data?.findLandingPages?.records || [],
+    total: response.data?.findLandingPages?.total || 0,
+  };
 }
 
 export async function fetchTask(id: string): Promise<CRMTask | null> {

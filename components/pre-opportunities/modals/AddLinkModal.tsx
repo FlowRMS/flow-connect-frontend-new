@@ -6,11 +6,9 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
-import {
-  useCreateCRMLink,
-  useCRMTaskSearch,
-  useCRMNoteSearch,
-} from '../../hooks/useCRMApi';
+import { useCreateCRMLink } from '../../hooks/useCRMApi';
+import { useTaskSearch, type TaskSearchResult } from '../../notes/api';
+import { useNoteSearch, type NoteSearchResult } from '../../tasks/api';
 import type { CRMEntityType } from '../../lib/crm-graphql';
 
 // Linkable entity types for Pre-Opportunities
@@ -64,9 +62,9 @@ export function AddLinkModal({ isOpen, preOpportunityId, initialEntityType = 'TA
     }
   }, [isOpen, initialEntityType]);
 
-  // Search-based entity fetching - pass empty string to get all entities initially
-  const { data: tasks, isLoading: tasksLoading } = useCRMTaskSearch('');
-  const { data: notes, isLoading: notesLoading } = useCRMNoteSearch('');
+  // Search-based entity fetching - pass searchTerm to trigger API searches on typing
+  const { data: tasks = [], isLoading: tasksLoading } = useTaskSearch(searchTerm, isOpen);
+  const { data: notes = [], isLoading: notesLoading } = useNoteSearch(searchTerm, isOpen);
 
   // Create link mutation
   const createLinkMutation = useCreateCRMLink();
@@ -84,30 +82,24 @@ export function AddLinkModal({ isOpen, preOpportunityId, initialEntityType = 'TA
   };
 
   // Get entities and loading state based on current type
+  // API handles search, no client-side filtering needed
   const { entities, isLoading } = useMemo(() => {
     switch (entityType) {
       case 'TASK':
         return {
-          entities: (tasks || []).filter(t => {
-            if (!searchTerm) return true;
-            return t.title?.toLowerCase().includes(searchTerm.toLowerCase());
-          }),
+          entities: tasks as TaskSearchResult[],
           isLoading: tasksLoading,
         };
       case 'NOTE':
         return {
-          entities: (notes || []).filter(n => {
-            if (!searchTerm) return true;
-            return n.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              n.content?.toLowerCase().includes(searchTerm.toLowerCase());
-          }),
+          entities: notes as NoteSearchResult[],
           isLoading: notesLoading,
         };
       default:
         return { entities: [], isLoading: false };
     }
   }, [
-    entityType, searchTerm, 
+    entityType,
     tasks, tasksLoading,
     notes, notesLoading,
   ]);
@@ -268,7 +260,7 @@ export function AddLinkModal({ isOpen, preOpportunityId, initialEntityType = 'TA
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
+          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl">
             <button
               type="button"
               onClick={onClose}

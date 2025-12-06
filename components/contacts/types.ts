@@ -2,7 +2,7 @@
  * Contact Types and Interfaces
  */
 
-import type { ContactLandingPage } from '../lib/crm-graphql';
+import type { ContactLandingPage, Contact as APIContact } from '../lib/crm-graphql';
 
 // UI Contact type (display format)
 export interface Contact {
@@ -40,20 +40,27 @@ export type MergeStrategy = 'keep' | 'combine';
 /**
  * Mapper function to convert API data to UI format
  */
-export function mapLandingPageToUIContact(landingPage: ContactLandingPage): Contact {
-  // Predefined roles for matching
-  const CONTACT_ROLES = ['GC', 'EC', 'ARCHITECT', 'ENGINEER', 'DISTRIBUTOR', 'OWNER'] as const;
-  
-  // Extract role to determine contactType
-  const role = landingPage.role || '';
+// Predefined roles for matching
+const CONTACT_ROLES = ['GC', 'EC', 'ARCHITECT', 'ENGINEER', 'DISTRIBUTOR', 'OWNER'] as const;
+
+/**
+ * Helper to extract contact types from role
+ */
+function extractContactTypes(role: string): string[] {
   const contactType: string[] = [];
-  
-  // Match role to predefined types
   for (const roleType of CONTACT_ROLES) {
     if (role.toUpperCase().includes(roleType)) {
       contactType.push(roleType);
     }
   }
+  return contactType;
+}
+
+/**
+ * Mapper function to convert Landing Page data to UI format
+ */
+export function mapLandingPageToUIContact(landingPage: ContactLandingPage): Contact {
+  const role = landingPage.role || '';
 
   return {
     id: landingPage.id,
@@ -65,11 +72,39 @@ export function mapLandingPageToUIContact(landingPage: ContactLandingPage): Cont
     company: landingPage.companyName || '',
     companyId: '', // Not available in landing page
     role: landingPage.role || '',
-    contactType,
+    contactType: extractContactTypes(role),
     tags: [],
     lists: [],
     territory: '',
     lastActivity: landingPage.createdAt || new Date().toISOString(),
     createdBy: landingPage.createdBy || '',
+  };
+}
+
+/**
+ * Mapper function to convert full API Contact to UI format
+ */
+export function mapAPIContactToUIContact(apiContact: APIContact): Contact {
+  const role = apiContact.role || '';
+  const tags = Array.isArray(apiContact.tags)
+    ? apiContact.tags
+    : (typeof apiContact.tags === 'string' ? [apiContact.tags] : []);
+
+  return {
+    id: apiContact.id,
+    name: `${apiContact.firstName} ${apiContact.lastName}`,
+    firstName: apiContact.firstName,
+    lastName: apiContact.lastName,
+    email: apiContact.email || '',
+    phone: apiContact.phone || '',
+    company: '', // Will be fetched separately if needed
+    companyId: apiContact.companyId || '',
+    role: apiContact.role || '',
+    contactType: extractContactTypes(role),
+    tags: tags.filter(Boolean) as string[],
+    lists: [],
+    territory: apiContact.territory || '',
+    lastActivity: apiContact.createdAt || new Date().toISOString(),
+    createdBy: apiContact.createdBy || '',
   };
 }

@@ -8,22 +8,35 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-  useCRMCompanyLandingPages,
-  useCRMContactLandingPages,
   useCRMJobRelatedEntities,
   useCreateCRMLink,
-  useCRMTaskSearch,
-  useCRMNoteSearch,
-  useCRMQuoteSearch,
-  useCRMOrderSearch,
-  useCRMInvoiceSearch,
-  useCRMCheckSearch,
-  useCRMPreOpportunityLandingPages,
-  useCRMFactorySearch,
-  useCRMCustomerSearch,
-  useCRMProductSearch,
 } from '../../hooks/useCRMApi';
-import type { CRMEntityType, FactorySearchResult, CustomerSearchResult, ProductSearchResult } from '../../lib/crm-graphql';
+import {
+  useCompanySearch,
+  useContactSearch,
+  useTaskSearch,
+  usePreOpportunitySearch,
+  useQuoteSearch,
+  useOrderSearch,
+  useInvoiceSearch,
+  useCheckSearch,
+  useFactorySearch,
+  useCustomerSearch,
+  useProductSearch,
+  type CompanySearchResult,
+  type ContactSearchResult,
+  type TaskSearchResult,
+  type PreOpportunitySearchResult,
+  type QuoteSearchResult,
+  type OrderSearchResult,
+  type InvoiceSearchResult,
+  type CheckSearchResult,
+  type FactorySearchResult,
+  type CustomerSearchResult,
+  type ProductSearchResult,
+} from '../../notes/api';
+import { useNoteSearch, type NoteSearchResult } from '../../tasks/api';
+import type { CRMEntityType } from '../../lib/crm-graphql';
 
 // All linkable entity types
 type LinkEntityType = 'COMPANY' | 'CONTACT' | 'TASK' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'FACTORY' | 'CUSTOMER' | 'PRODUCT';
@@ -208,7 +221,7 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
 
   // Select all visible entities
   const selectAllEntities = () => {
-    const allIds = new Set(entities.map((e: { id: string }) => e.id));
+    const allIds = new Set<string>(entities.map((e: { id: string }) => e.id));
     setSelectedEntityIds(allIds);
   };
 
@@ -217,21 +230,19 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
     setSelectedEntityIds(new Set());
   };
 
-  // Fetch landing pages for companies, contacts, pre-opportunities
-  const { data: companies, isLoading: companiesLoading } = useCRMCompanyLandingPages();
-  const { data: contacts, isLoading: contactsLoading } = useCRMContactLandingPages();
-  const { data: preOpportunities, isLoading: preOpportunitiesLoading } = useCRMPreOpportunityLandingPages();
-  
-  // Search-based entity fetching - pass empty string to get all entities initially
-  const { data: tasks, isLoading: tasksLoading } = useCRMTaskSearch('');
-  const { data: notes, isLoading: notesLoading } = useCRMNoteSearch('');
-  const { data: quotes, isLoading: quotesLoading } = useCRMQuoteSearch('');
-  const { data: orders, isLoading: ordersLoading } = useCRMOrderSearch('');
-  const { data: invoices, isLoading: invoicesLoading } = useCRMInvoiceSearch('');
-  const { data: checks, isLoading: checksLoading } = useCRMCheckSearch('');
-  const { data: factories, isLoading: factoriesLoading } = useCRMFactorySearch('', undefined, true);
-  const { data: customers, isLoading: customersLoading } = useCRMCustomerSearch('', undefined, true);
-  const { data: products, isLoading: productsLoading } = useCRMProductSearch('', undefined, true);
+  // Search-based entity fetching - pass searchTerm to trigger API searches on typing
+  const { data: companies = [], isLoading: companiesLoading } = useCompanySearch(searchTerm, isOpen);
+  const { data: contacts = [], isLoading: contactsLoading } = useContactSearch(searchTerm, isOpen);
+  const { data: preOpportunities = [], isLoading: preOpportunitiesLoading } = usePreOpportunitySearch(searchTerm, isOpen);
+  const { data: tasks = [], isLoading: tasksLoading } = useTaskSearch(searchTerm, isOpen);
+  const { data: notes = [], isLoading: notesLoading } = useNoteSearch(searchTerm, isOpen);
+  const { data: quotes = [], isLoading: quotesLoading } = useQuoteSearch(searchTerm, isOpen);
+  const { data: orders = [], isLoading: ordersLoading } = useOrderSearch(searchTerm, isOpen);
+  const { data: invoices = [], isLoading: invoicesLoading } = useInvoiceSearch(searchTerm, isOpen);
+  const { data: checks = [], isLoading: checksLoading } = useCheckSearch(searchTerm, isOpen);
+  const { data: factories = [], isLoading: factoriesLoading } = useFactorySearch(searchTerm, isOpen);
+  const { data: customers = [], isLoading: customersLoading } = useCustomerSearch(searchTerm, isOpen);
+  const { data: products = [], isLoading: productsLoading } = useProductSearch(searchTerm, isOpen);
   
   // Fetch already linked entities for this job
   const { data: relatedEntities } = useCRMJobRelatedEntities(jobId);
@@ -288,124 +299,74 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
   };
 
   // Get entities and loading state based on current type
+  // API handles search, we only filter out already linked entities
   const { entities, isLoading } = useMemo(() => {
     switch (entityType) {
       case 'COMPANY':
         return {
-          entities: (companies || []).filter(c => 
-            !linkedIds.companies.has(c.id) && 
-            c.name.toLowerCase().includes(searchTerm.toLowerCase())
-          ),
+          entities: companies.filter((c: CompanySearchResult) => !linkedIds.companies.has(c.id)),
           isLoading: companiesLoading,
         };
       case 'CONTACT':
         return {
-          entities: (contacts || []).filter(c => {
-            if (linkedIds.contacts.has(c.id)) return false;
-            const fullName = `${c.firstName} ${c.lastName}`.toLowerCase();
-            return fullName.includes(searchTerm.toLowerCase()) ||
-              (c.email?.toLowerCase().includes(searchTerm.toLowerCase()));
-          }),
+          entities: contacts.filter((c: ContactSearchResult) => !linkedIds.contacts.has(c.id)),
           isLoading: contactsLoading,
         };
       case 'TASK':
         return {
-          entities: (tasks || []).filter(t => {
-            if (linkedIds.tasks.has(t.id)) return false;
-            if (!searchTerm) return true;
-            return t.title?.toLowerCase().includes(searchTerm.toLowerCase());
-          }),
+          entities: tasks.filter((t: TaskSearchResult) => !linkedIds.tasks.has(t.id)),
           isLoading: tasksLoading,
         };
       case 'NOTE':
         return {
-          entities: (notes || []).filter(n => {
-            if (linkedIds.notes.has(n.id)) return false;
-            if (!searchTerm) return true;
-            return n.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              n.content?.toLowerCase().includes(searchTerm.toLowerCase());
-          }),
+          entities: notes.filter((n: NoteSearchResult) => !linkedIds.notes.has(n.id)),
           isLoading: notesLoading,
         };
       case 'PRE_OPPORTUNITY':
         return {
-          entities: (preOpportunities || []).filter(p => 
-            !linkedIds.preOpportunities.has(p.id) &&
-            (p.entityNumber?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-             p.id.toLowerCase().includes(searchTerm.toLowerCase()))
-          ),
+          entities: preOpportunities.filter((p: PreOpportunitySearchResult) => !linkedIds.preOpportunities.has(p.id)),
           isLoading: preOpportunitiesLoading,
         };
       case 'QUOTE':
         return {
-          entities: (quotes || []).filter(q => {
-            if (linkedIds.quotes.has(q.id)) return false;
-            if (!searchTerm) return true;
-            return q.quoteNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              q.jobName?.toLowerCase().includes(searchTerm.toLowerCase());
-          }),
+          entities: quotes.filter((q: QuoteSearchResult) => !linkedIds.quotes.has(q.id)),
           isLoading: quotesLoading,
         };
       case 'ORDER':
         return {
-          entities: (orders || []).filter(o => {
-            if (linkedIds.orders.has(o.id)) return false;
-            if (!searchTerm) return true;
-            return o.orderNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              o.jobName?.toLowerCase().includes(searchTerm.toLowerCase());
-          }),
+          entities: orders.filter((o: OrderSearchResult) => !linkedIds.orders.has(o.id)),
           isLoading: ordersLoading,
         };
       case 'INVOICE':
         return {
-          entities: (invoices || []).filter(i => {
-            if (linkedIds.invoices.has(i.id)) return false;
-            if (!searchTerm) return true;
-            return i.invoiceNumber?.toLowerCase().includes(searchTerm.toLowerCase());
-          }),
+          entities: invoices.filter((i: InvoiceSearchResult) => !linkedIds.invoices.has(i.id)),
           isLoading: invoicesLoading,
         };
       case 'CHECK':
         return {
-          entities: (checks || []).filter(c => {
-            if (linkedIds.checks.has(c.id)) return false;
-            if (!searchTerm) return true;
-            return c.checkNumber?.toLowerCase().includes(searchTerm.toLowerCase());
-          }),
+          entities: checks.filter((c: CheckSearchResult) => !linkedIds.checks.has(c.id)),
           isLoading: checksLoading,
         };
       case 'FACTORY':
         return {
-          entities: (factories || []).filter((f: FactorySearchResult) => {
-            if (linkedIds.factories.has(f.id)) return false;
-            if (!searchTerm) return true;
-            return f.title?.toLowerCase().includes(searchTerm.toLowerCase());
-          }),
+          entities: factories.filter((f: FactorySearchResult) => !linkedIds.factories.has(f.id)),
           isLoading: factoriesLoading,
         };
       case 'CUSTOMER':
         return {
-          entities: (customers || []).filter((c: CustomerSearchResult) => {
-            if (linkedIds.customers.has(c.id)) return false;
-            if (!searchTerm) return true;
-            return c.companyName?.toLowerCase().includes(searchTerm.toLowerCase());
-          }),
+          entities: customers.filter((c: CustomerSearchResult) => !linkedIds.customers.has(c.id)),
           isLoading: customersLoading,
         };
       case 'PRODUCT':
         return {
-          entities: (products || []).filter((p: ProductSearchResult) => {
-            if (linkedIds.products.has(p.id)) return false;
-            if (!searchTerm) return true;
-            return p.factoryPartNumber?.toLowerCase().includes(searchTerm.toLowerCase());
-          }),
+          entities: products.filter((p: ProductSearchResult) => !linkedIds.products.has(p.id)),
           isLoading: productsLoading,
         };
       default:
         return { entities: [], isLoading: false };
     }
   }, [
-    entityType, searchTerm, 
+    entityType, 
     companies, companiesLoading,
     contacts, contactsLoading,
     tasks, tasksLoading,
@@ -471,12 +432,22 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
     setSearchTerm('');
   };
 
+  // Handle backdrop click to close modal
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget && !isLinking) {
+      onClose();
+    }
+  };
+
   if (!isOpen) return null;
 
   const config = ENTITY_TYPE_CONFIG[entityType];
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      onClick={handleBackdropClick}
+    >
       <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-2xl w-full max-h-[85vh] flex flex-col">
         {/* Header */}
         <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between flex-shrink-0">

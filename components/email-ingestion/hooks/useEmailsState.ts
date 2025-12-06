@@ -3,7 +3,7 @@
  */
 
 import { useState, useMemo } from 'react';
-import { useEmails, useUpdateEmailStatus } from '../../hooks/useEmailApi';
+import { useEmailsInfinite, useUpdateEmailStatus } from '../../hooks/useEmailApi';
 import { mapStatusToFilter, emailNeedsAttention } from '../utils';
 import type { FilterStatus, ViewMode } from '../types';
 
@@ -12,8 +12,16 @@ export function useEmailsState() {
   const [selectedStatus, setSelectedStatus] = useState<FilterStatus>('All');
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
 
-  // Fetch emails from API (no status filter - we'll filter client-side)
-  const { data: emails = [], isLoading, error } = useEmails();
+  // Fetch emails from API with infinite scroll (no status filter - we'll filter client-side)
+  const {
+    emails = [],
+    isLoading,
+    error,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useEmailsInfinite();
 
   // Mutation for updating email status
   const updateEmailStatusMutation = useUpdateEmailStatus();
@@ -65,5 +73,10 @@ export function useEmailsState() {
     handleProcessEmail,
     isLoading,
     error,
+    // Pagination
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
   };
 }

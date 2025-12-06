@@ -415,8 +415,19 @@ export interface UpdateTaskInput {
 // ============================================================================
 
 const FIND_TASKS_LANDING_PAGES = `
-  query FindTasksLandingPages {
-    findLandingPages(sourceType: TASKS) {
+  query FindTasksLandingPages(
+    $filters: [Filter!]
+    $orderBy: [OrderBy!]
+    $limit: Int
+    $offset: Int
+  ) {
+    findLandingPages(
+      sourceType: TASKS
+      filters: $filters
+      orderBy: $orderBy
+      limit: $limit
+      offset: $offset
+    ) {
       records {
         ... on TaskLandingPage {
           id
@@ -1002,21 +1013,83 @@ const DELETE_LINK_BY_ENTITIES = `
 // API Functions - Tasks
 // ============================================================================
 
+export interface PaginatedTasksResult {
+  records: TaskLandingPage[];
+  total: number;
+}
+
+export interface TaskPaginationParams {
+  limit?: number;
+  offset?: number;
+}
+
+// Filter and sort types (matching crm-graphql.ts)
+export type FilterOperator =
+  | 'EQ'
+  | 'NE'
+  | 'GT'
+  | 'GTE'
+  | 'LT'
+  | 'LTE'
+  | 'LIKE'
+  | 'ILIKE'
+  | 'BEGINS_WITH'
+  | 'ENDS_WITH'
+  | 'IN'
+  | 'NOT_IN'
+  | 'IS_NULL'
+  | 'IS_NOT_NULL';
+
+export type SortDirection = 'ASC' | 'DESC';
+
+export interface TaskLandingPageFilter {
+  operator: FilterOperator;
+  columnName: string;
+  value?: string;
+  values?: string[];
+}
+
+export interface TaskLandingPageOrderBy {
+  columnName: string;
+  direction: SortDirection;
+}
+
 /**
- * Fetch all tasks using findLandingPages endpoint
+ * Fetch all tasks using findLandingPages endpoint (backward compatible)
  */
 export async function fetchTasks(): Promise<TaskLandingPage[]> {
+  const result = await fetchTasksWithPagination();
+  return result.records;
+}
+
+/**
+ * Fetch tasks with pagination support and optional filters/sorting
+ */
+export async function fetchTasksWithPagination(
+  filters?: TaskLandingPageFilter[],
+  orderBy?: TaskLandingPageOrderBy[],
+  pagination?: TaskPaginationParams
+): Promise<PaginatedTasksResult> {
   const response = await crmGraphQLRequest<{
     findLandingPages: { records: TaskLandingPage[]; total: number };
   }>({
     query: FIND_TASKS_LANDING_PAGES,
+    variables: {
+      filters: filters && filters.length > 0 ? filters : undefined,
+      orderBy: orderBy && orderBy.length > 0 ? orderBy : undefined,
+      limit: pagination?.limit,
+      offset: pagination?.offset
+    },
   });
 
   if (response.errors) {
     throw new Error(response.errors[0]?.message || 'Failed to fetch tasks');
   }
 
-  return mapFormattedCreatedBy(response.data?.findLandingPages?.records);
+  return {
+    records: mapFormattedCreatedBy(response.data?.findLandingPages?.records),
+    total: response.data?.findLandingPages?.total || 0,
+  };
 }
 
 /**
