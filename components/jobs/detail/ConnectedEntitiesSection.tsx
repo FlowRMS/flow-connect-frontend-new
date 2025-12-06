@@ -56,6 +56,45 @@ const ALL_CATEGORIES: EntityCategory[] = [
   'checks',
 ];
 
+// Entity Grid Header Component - Shows "Link XX" button when entities exist
+interface EntityGridHeaderProps {
+  title: string;
+  entityType: LinkEntityType;
+  hasEntities: boolean;
+  onAddLink: (entityType: LinkEntityType) => void;
+}
+
+function EntityGridHeader({ title, entityType, hasEntities, onAddLink }: EntityGridHeaderProps) {
+  const entityLabels: Record<LinkEntityType, string> = {
+    COMPANY: 'Company',
+    CONTACT: 'Contact',
+    TASK: 'Task',
+    NOTE: 'Note',
+    PRE_OPPORTUNITY: 'Pre-Opp',
+    QUOTE: 'Quote',
+    ORDER: 'Order',
+    INVOICE: 'Invoice',
+    CHECK: 'Check',
+  };
+
+  return (
+    <div className="px-4 py-3 bg-[var(--muted)]/30 border-b border-[var(--border)] flex items-center justify-between">
+      <h3 className="font-semibold text-[var(--foreground)]">{title}</h3>
+      {hasEntities && (
+        <button
+          onClick={() => onAddLink(entityType)}
+          className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-[var(--primary)] hover:bg-[var(--primary)]/10 rounded transition-colors"
+        >
+          <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+          </svg>
+          Link {entityLabels[entityType]}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function ConnectedEntitiesSection({
   jobId,
   onCompanyClick,
@@ -410,9 +449,12 @@ export function ConnectedEntitiesSection({
             {/* Contacts */}
             {visibleCategories.includes('contacts') && (
               <div className="border border-[var(--border)] rounded-lg overflow-hidden">
-                <div className="px-4 py-3 bg-[var(--muted)]/30 border-b border-[var(--border)]">
-                  <h3 className="font-semibold text-[var(--foreground)]">Contacts</h3>
-                </div>
+                <EntityGridHeader
+                  title="Contacts"
+                  entityType="CONTACT"
+                  hasEntities={Boolean(relatedEntities?.contacts && relatedEntities.contacts.length > 0)}
+                  onAddLink={openAddLinkModal}
+                />
                 <div className="p-4 space-y-3">
                   {relatedEntities?.contacts && relatedEntities.contacts.length > 0 ? (
                     relatedEntities.contacts.map((contact: Contact) => {
@@ -508,9 +550,12 @@ export function ConnectedEntitiesSection({
             {/* Companies */}
             {visibleCategories.includes('companies') && (
               <div className="border border-[var(--border)] rounded-lg overflow-hidden">
-                <div className="px-4 py-3 bg-[var(--muted)]/30 border-b border-[var(--border)]">
-                  <h3 className="font-semibold text-[var(--foreground)]">Companies</h3>
-                </div>
+                <EntityGridHeader
+                  title="Companies"
+                  entityType="COMPANY"
+                  hasEntities={Boolean(relatedEntities?.companies && relatedEntities.companies.length > 0)}
+                  onAddLink={openAddLinkModal}
+                />
                 <div className="p-4 space-y-3">
                   {relatedEntities?.companies && relatedEntities.companies.length > 0 ? (
                     relatedEntities.companies.map((company: Company) => (
@@ -571,9 +616,12 @@ export function ConnectedEntitiesSection({
             {/* Pre-Opportunities */}
             {visibleCategories.includes('pre-opportunities') && (
               <div className="border border-[var(--border)] rounded-lg overflow-hidden">
-                <div className="px-4 py-3 bg-[var(--muted)]/30 border-b border-[var(--border)]">
-                  <h3 className="font-semibold text-[var(--foreground)]">Pre-Opportunities</h3>
-                </div>
+                <EntityGridHeader
+                  title="Pre-Opportunities"
+                  entityType="PRE_OPPORTUNITY"
+                  hasEntities={Boolean(relatedEntities?.preOpportunities && relatedEntities.preOpportunities.length > 0)}
+                  onAddLink={openAddLinkModal}
+                />
                 <div className="p-4 space-y-3">
                   {relatedEntities?.preOpportunities && relatedEntities.preOpportunities.length > 0 ? (
                     relatedEntities.preOpportunities.map((preOpp: PreOpportunity) => (
@@ -632,9 +680,12 @@ export function ConnectedEntitiesSection({
             {/* Tasks */}
             {visibleCategories.includes('tasks') && (
               <div className="border border-[var(--border)] rounded-lg overflow-hidden">
-                <div className="px-4 py-3 bg-[var(--muted)]/30 border-b border-[var(--border)]">
-                  <h3 className="font-semibold text-[var(--foreground)]">Tasks ({totals.tasks})</h3>
-                </div>
+                <EntityGridHeader
+                  title={`Tasks (${totals.tasks})`}
+                  entityType="TASK"
+                  hasEntities={Boolean(linkedTasks && linkedTasks.length > 0)}
+                  onAddLink={openAddLinkModal}
+                />
                 <div className="p-4 space-y-3">
                   {isLoadingTasks ? (
                     <div className="flex items-center justify-center py-4">
@@ -721,9 +772,12 @@ export function ConnectedEntitiesSection({
             {/* Notes */}
             {visibleCategories.includes('notes') && (
               <div className="border border-[var(--border)] rounded-lg overflow-hidden">
-                <div className="px-4 py-3 bg-[var(--muted)]/30 border-b border-[var(--border)]">
-                  <h3 className="font-semibold text-[var(--foreground)]">Notes ({totals.notes})</h3>
-                </div>
+                <EntityGridHeader
+                  title={`Notes (${totals.notes})`}
+                  entityType="NOTE"
+                  hasEntities={Boolean(linkedNotes && linkedNotes.length > 0)}
+                  onAddLink={openAddLinkModal}
+                />
                 <div className="p-4 space-y-3">
                   {isLoadingNotes ? (
                     <div className="flex items-center justify-center py-4">
@@ -792,9 +846,12 @@ export function ConnectedEntitiesSection({
             {/* Quotes */}
             {visibleCategories.includes('quotes') && (
               <div className="border border-[var(--border)] rounded-lg overflow-hidden">
-                <div className="px-4 py-3 bg-[var(--muted)]/30 border-b border-[var(--border)]">
-                  <h3 className="font-semibold text-[var(--foreground)]">Quotes</h3>
-                </div>
+                <EntityGridHeader
+                  title="Quotes"
+                  entityType="QUOTE"
+                  hasEntities={Boolean(relatedEntities?.quotes && relatedEntities.quotes.length > 0)}
+                  onAddLink={openAddLinkModal}
+                />
                 <div className="p-4 space-y-3">
                   {relatedEntities?.quotes && relatedEntities.quotes.length > 0 ? (
                     relatedEntities.quotes.map((quote: QuoteSearchResult) => (
@@ -859,9 +916,12 @@ export function ConnectedEntitiesSection({
             {/* Orders */}
             {visibleCategories.includes('orders') && (
               <div className="border border-[var(--border)] rounded-lg overflow-hidden">
-                <div className="px-4 py-3 bg-[var(--muted)]/30 border-b border-[var(--border)]">
-                  <h3 className="font-semibold text-[var(--foreground)]">Orders</h3>
-                </div>
+                <EntityGridHeader
+                  title="Orders"
+                  entityType="ORDER"
+                  hasEntities={Boolean(relatedEntities?.orders && relatedEntities.orders.length > 0)}
+                  onAddLink={openAddLinkModal}
+                />
                 <div className="p-4 space-y-3">
                   {relatedEntities?.orders && relatedEntities.orders.length > 0 ? (
                     relatedEntities.orders.map((order: OrderSearchResult) => (
@@ -931,9 +991,12 @@ export function ConnectedEntitiesSection({
             {/* Invoices */}
             {visibleCategories.includes('invoices') && (
               <div className="border border-[var(--border)] rounded-lg overflow-hidden">
-                <div className="px-4 py-3 bg-[var(--muted)]/30 border-b border-[var(--border)]">
-                  <h3 className="font-semibold text-[var(--foreground)]">Invoices</h3>
-                </div>
+                <EntityGridHeader
+                  title="Invoices"
+                  entityType="INVOICE"
+                  hasEntities={Boolean(relatedEntities?.invoices && relatedEntities.invoices.length > 0)}
+                  onAddLink={openAddLinkModal}
+                />
                 <div className="p-4 space-y-3">
                   {relatedEntities?.invoices && relatedEntities.invoices.length > 0 ? (
                     relatedEntities.invoices.map((invoice: InvoiceSearchResult) => (
@@ -1001,9 +1064,12 @@ export function ConnectedEntitiesSection({
             {/* Checks */}
             {visibleCategories.includes('checks') && (
               <div className="border border-[var(--border)] rounded-lg overflow-hidden">
-                <div className="px-4 py-3 bg-[var(--muted)]/30 border-b border-[var(--border)]">
-                  <h3 className="font-semibold text-[var(--foreground)]">Checks</h3>
-                </div>
+                <EntityGridHeader
+                  title="Checks"
+                  entityType="CHECK"
+                  hasEntities={Boolean(relatedEntities?.checks && relatedEntities.checks.length > 0)}
+                  onAddLink={openAddLinkModal}
+                />
                 <div className="p-4 space-y-3">
                   {relatedEntities?.checks && relatedEntities.checks.length > 0 ? (
                     relatedEntities.checks.map((check: CheckSearchResult) => (

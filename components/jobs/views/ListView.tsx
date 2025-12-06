@@ -86,16 +86,11 @@ export function ListView({ jobs, onJobClick, onJobCheckboxChange }: ListViewProp
 
               {/* Job Name */}
               <div className={`col-span-3 ${isCompleted ? 'opacity-60' : ''}`}>
-                <h3 className={`font-semibold text-[var(--foreground)] mb-1 group-hover:text-blue-600 transition-colors
+                <h3 className={`font-semibold text-[var(--foreground)] group-hover:text-blue-600 transition-colors
                   ${isCompleted ? 'line-through text-gray-500' : ''}
                 `}>
                   {job.name}
                 </h3>
-                <p className={`text-xs text-[var(--muted-foreground)] font-mono
-                  ${isCompleted ? 'line-through' : ''}
-                `}>
-                  {job.id}
-                </p>
               </div>
 
               {/* Status */}

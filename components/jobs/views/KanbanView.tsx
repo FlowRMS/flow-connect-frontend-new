@@ -55,10 +55,10 @@ function DroppableColumn({
     <div
       ref={setNodeRef}
       className={`
-        min-h-[400px] rounded-lg p-2 transition-all duration-200 flex-1
+        min-h-[500px] rounded-lg p-3 transition-all duration-200
         ${showHighlight 
-          ? 'bg-blue-50 ring-2 ring-blue-300 ring-opacity-50' 
-          : 'bg-gray-50/50'
+          ? 'bg-blue-50/80 ring-2 ring-blue-400/50' 
+          : 'bg-[var(--muted)]/30'
         }
       `}
     >
@@ -136,7 +136,7 @@ export function KanbanView({
       onDragOver={onDragOver}
       onDragCancel={onDragCancel}
     >
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-5 gap-6 min-w-full">
         {stages.map((stage) => {
           const stageJobs = getJobsByStatus(stage.name);
           const isOverColumn = overId === `stage-${stage.name}`;
@@ -144,20 +144,20 @@ export function KanbanView({
 
           return (
             <div key={stage.name} className="flex flex-col">
-              {/* Column Header - Minimal */}
-              <div className="flex items-center justify-between px-2 py-2 mb-2">
-                <div className="flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full ${statusColor}`}></span>
-                  <span className="text-sm text-gray-700 font-medium">
+              {/* Column Header */}
+              <div className="flex items-center justify-between px-3 py-3 mb-3 bg-[var(--card)] rounded-lg border border-[var(--border)]">
+                <div className="flex items-center gap-2.5">
+                  <span className={`w-2.5 h-2.5 rounded-full ${statusColor}`}></span>
+                  <span className="text-sm text-[var(--foreground)] font-semibold">
                     {stage.name}
                   </span>
-                  <span className="text-xs text-gray-400 font-medium">
+                  <span className="text-xs text-[var(--muted-foreground)] bg-[var(--muted)] px-2 py-0.5 rounded-full font-medium">
                     {stageJobs.length}
                   </span>
                 </div>
                 <button 
                   onClick={() => onCreateJobClick(stage.name)}
-                  className="p-1 hover:bg-gray-100 rounded transition-colors text-gray-400 hover:text-gray-600"
+                  className="p-1.5 hover:bg-[var(--muted)] rounded-md transition-colors text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
                   title={`Add job to ${stage.name}`}
                 >
                   <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
@@ -193,16 +193,16 @@ export function KanbanView({
                 </DroppableColumn>
               </SortableContext>
 
-              {/* Add Card Button - Minimal */}
+              {/* Add Card Button */}
               <button 
                 onClick={() => onCreateJobClick(stage.name)}
-                className="flex items-center justify-center gap-1.5 py-2 text-xs text-gray-400 
-                         hover:text-gray-600 hover:bg-gray-50 rounded transition-colors mt-1"
+                className="flex items-center justify-center gap-1.5 py-2.5 mt-2 text-xs text-[var(--muted-foreground)] 
+                         hover:text-[var(--foreground)] hover:bg-[var(--muted)]/50 rounded-lg transition-colors border border-dashed border-[var(--border)] hover:border-[var(--primary)]/50"
               >
                 <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <path d="M10 6v8M6 10h8" strokeLinecap="round"/>
                 </svg>
-                Add
+                Add Job
               </button>
             </div>
           );
