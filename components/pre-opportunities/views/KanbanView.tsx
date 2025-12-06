@@ -39,11 +39,12 @@ import { preOpportunityToasts } from '../../lib/toast';
 
 // Column status indicator colors (dots) - matching Jobs style
 const COLUMN_STATUS_COLORS: Record<PreOpportunityStatus, string> = {
-  'DRAFT': 'bg-gray-400',
-  'PENDING': 'bg-blue-500',
-  'APPROVED': 'bg-green-500',
-  'REJECTED': 'bg-red-500',
-  'CONVERTED': 'bg-purple-500',
+  'QUALIFIED': 'bg-blue-500',
+  'NEGOTIATION': 'bg-purple-500',
+  'FOLLOW_UP': 'bg-yellow-500',
+  'WAITING_ON_FACTORY': 'bg-orange-500',
+  'LOST': 'bg-red-500',
+  'WON': 'bg-green-500',
 };
 
 // ============================================================================
@@ -340,7 +341,7 @@ export function KanbanView({
   
   // Modal state for creating new pre-opportunities from column
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [createModalInitialStatus, setCreateModalInitialStatus] = useState<PreOpportunityStatus>('DRAFT');
+  const [createModalInitialStatus, setCreateModalInitialStatus] = useState<PreOpportunityStatus>('QUALIFIED');
   
   // Active dragging item and over state
   const [activeDragItem, setActiveDragItem] = useState<PreOpportunityLandingPage | null>(null);
@@ -508,7 +509,7 @@ export function KanbanView({
     // If we have collisions, prioritize stage columns
     if (pointerCollisions.length > 0) {
       const columnCollision = pointerCollisions.find(c => 
-        ['DRAFT', 'PENDING', 'APPROVED', 'REJECTED', 'CONVERTED'].includes(String(c.id))
+        ['QUALIFIED', 'NEGOTIATION', 'FOLLOW_UP', 'WAITING_ON_FACTORY', 'LOST', 'WON'].includes(String(c.id))
       );
       if (columnCollision) {
         return [columnCollision];
@@ -528,7 +529,7 @@ export function KanbanView({
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="grid grid-cols-5 gap-4">
+        <div className="grid grid-cols-6 gap-4">
           {stages.map((stage) => {
             const stagePreOpps = getPreOppsByStatus(preOpps, stage.name);
             const isOverColumn = overId === stage.name;

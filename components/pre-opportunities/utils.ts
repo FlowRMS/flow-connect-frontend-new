@@ -9,14 +9,15 @@ import type { LandingPageFilter, LandingPageOrderBy } from '../lib/crm-graphql';
 
 /**
  * Map numeric status to string status
- * API returns: 1=DRAFT, 2=PENDING, 3=APPROVED, 4=REJECTED, 5=CONVERTED
+ * API returns: 1=QUALIFIED, 2=NEGOTIATION, 3=FOLLOW_UP, 4=WAITING_ON_FACTORY, 5=LOST, 6=WON
  */
 const STATUS_NUMBER_MAP: Record<string, PreOpportunityStatus> = {
-  '1': 'DRAFT',
-  '2': 'PENDING',
-  '3': 'APPROVED',
-  '4': 'REJECTED',
-  '5': 'CONVERTED',
+  '1': 'QUALIFIED',
+  '2': 'NEGOTIATION',
+  '3': 'FOLLOW_UP',
+  '4': 'WAITING_ON_FACTORY',
+  '5': 'LOST',
+  '6': 'WON',
 };
 
 /**
@@ -24,7 +25,7 @@ const STATUS_NUMBER_MAP: Record<string, PreOpportunityStatus> = {
  */
 export function normalizeStatus(status: string | number | PreOpportunityStatus): PreOpportunityStatus {
   // If it's already a valid string status, return it
-  if (typeof status === 'string' && ['DRAFT', 'PENDING', 'APPROVED', 'REJECTED', 'CONVERTED'].includes(status)) {
+  if (typeof status === 'string' && ['QUALIFIED', 'NEGOTIATION', 'FOLLOW_UP', 'WAITING_ON_FACTORY', 'LOST', 'WON'].includes(status)) {
     return status as PreOpportunityStatus;
   }
   
@@ -35,8 +36,8 @@ export function normalizeStatus(status: string | number | PreOpportunityStatus):
     return mapped;
   }
   
-  // Default to DRAFT if unknown
-  return 'DRAFT';
+  // Default to QUALIFIED if unknown
+  return 'QUALIFIED';
 }
 
 /**
@@ -101,15 +102,22 @@ export function formatDate(dateString: string): string {
 
 /**
  * Convert ActiveFilter to LandingPageFilter
+ * Only include value OR values, not both - check which one exists
  */
 export function convertToLandingPageFilter(filter: ActiveFilter): LandingPageFilter {
   const columnName = FILTER_COLUMN_MAP[filter.columnName] || filter.columnName;
   
+  if (filter.values && filter.values.length > 0) {
+    return {
+      columnName,
+      operator: filter.operator,
+      values: filter.values,
+    };
+  }
   return {
     columnName,
     operator: filter.operator,
     value: filter.value,
-    values: filter.values,
   };
 }
 

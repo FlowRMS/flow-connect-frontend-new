@@ -32,10 +32,10 @@ function CheckboxIcon({ checked }: CheckboxIconProps) {
 
 export function ActivityFilterButtons({ activeFilters, onToggleFilter, onSelectAll }: ActivityFilterButtonsProps) {
   return (
-    <div className="flex flex-wrap gap-2 mb-6 pb-4 border-b border-[var(--border)]">
+    <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-4 sm:mb-6 pb-3 sm:pb-4 border-b border-[var(--border)] overflow-x-auto -mx-1 px-1 sm:mx-0 sm:px-0">
       <button
         onClick={onSelectAll}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors bg-[var(--primary)] text-white hover:opacity-90"
+        className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors bg-[var(--primary)] text-white hover:opacity-90 whitespace-nowrap flex-shrink-0"
       >
         Select All
       </button>
@@ -43,14 +43,15 @@ export function ActivityFilterButtons({ activeFilters, onToggleFilter, onSelectA
         <button
           key={type}
           onClick={() => onToggleFilter(type)}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+          className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
             activeFilters.includes(type)
               ? 'bg-[var(--primary)] text-white'
               : 'bg-[var(--muted)] text-[var(--muted-foreground)] hover:bg-[var(--secondary)]'
           }`}
         >
           <CheckboxIcon checked={activeFilters.includes(type)} />
-          {ACTIVITY_TYPE_LABELS[type]}
+          <span className="hidden xs:inline sm:inline">{ACTIVITY_TYPE_LABELS[type]}</span>
+          <span className="xs:hidden sm:hidden">{ACTIVITY_TYPE_LABELS[type].charAt(0)}</span>
         </button>
       ))}
     </div>

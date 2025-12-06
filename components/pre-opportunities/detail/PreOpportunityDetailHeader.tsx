@@ -9,19 +9,21 @@ import { formatDate, formatCurrency } from '../utils';
 
 // Status color mapping
 const STATUS_COLORS: Record<PreOpportunityStatus, { bg: string; text: string; dot: string }> = {
-  'DRAFT': { bg: 'bg-gray-100', text: 'text-gray-700', dot: 'bg-gray-400' },
-  'PENDING': { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500' },
-  'APPROVED': { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-500' },
-  'REJECTED': { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500' },
-  'CONVERTED': { bg: 'bg-purple-50', text: 'text-purple-700', dot: 'bg-purple-500' },
+  'QUALIFIED': { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500' },
+  'NEGOTIATION': { bg: 'bg-purple-50', text: 'text-purple-700', dot: 'bg-purple-500' },
+  'FOLLOW_UP': { bg: 'bg-yellow-50', text: 'text-yellow-700', dot: 'bg-yellow-500' },
+  'WAITING_ON_FACTORY': { bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-500' },
+  'LOST': { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500' },
+  'WON': { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-500' },
 };
 
 const STATUS_LABELS: Record<PreOpportunityStatus, string> = {
-  'DRAFT': 'Draft',
-  'PENDING': 'Pending',
-  'APPROVED': 'Approved',
-  'REJECTED': 'Rejected',
-  'CONVERTED': 'Converted',
+  'QUALIFIED': 'Qualified',
+  'NEGOTIATION': 'Negotiation',
+  'FOLLOW_UP': 'Follow Up',
+  'WAITING_ON_FACTORY': 'Waiting on Factory',
+  'LOST': 'Lost',
+  'WON': 'Won',
 };
 
 interface PreOpportunityDetailHeaderProps {
@@ -47,7 +49,7 @@ export function PreOpportunityDetailHeader({
   onCancel,
   onDelete,
 }: PreOpportunityDetailHeaderProps) {
-  const statusColors = STATUS_COLORS[preOpp.status] || STATUS_COLORS.DRAFT;
+  const statusColors = STATUS_COLORS[preOpp.status] || STATUS_COLORS.QUALIFIED;
 
   // Get owner initials and color
   const getOwnerInitials = (owner: string) => {

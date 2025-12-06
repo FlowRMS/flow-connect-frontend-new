@@ -7,7 +7,7 @@
 // GraphQL API Types
 // ============================================================================
 
-export type PreOpportunityStatus = 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'CONVERTED';
+export type PreOpportunityStatus = 'QUALIFIED' | 'NEGOTIATION' | 'FOLLOW_UP' | 'WAITING_ON_FACTORY' | 'LOST' | 'WON';
 
 export interface PreOpportunityBalance {
   id: string;

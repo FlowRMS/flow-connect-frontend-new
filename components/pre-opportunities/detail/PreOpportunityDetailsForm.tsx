@@ -50,19 +50,21 @@ export interface EditFormData {
 
 // Status options and colors
 const STATUS_OPTIONS: { value: PreOpportunityStatus; label: string }[] = [
-  { value: 'DRAFT', label: 'Draft' },
-  { value: 'PENDING', label: 'Pending' },
-  { value: 'APPROVED', label: 'Approved' },
-  { value: 'REJECTED', label: 'Rejected' },
-  { value: 'CONVERTED', label: 'Converted' },
+  { value: 'QUALIFIED', label: 'Qualified' },
+  { value: 'NEGOTIATION', label: 'Negotiation' },
+  { value: 'FOLLOW_UP', label: 'Follow Up' },
+  { value: 'WAITING_ON_FACTORY', label: 'Waiting on Factory' },
+  { value: 'LOST', label: 'Lost' },
+  { value: 'WON', label: 'Won' },
 ];
 
 const STATUS_COLORS: Record<PreOpportunityStatus, { bg: string; text: string; dot: string }> = {
-  'DRAFT': { bg: 'bg-gray-100', text: 'text-gray-700', dot: 'bg-gray-500' },
-  'PENDING': { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500' },
-  'APPROVED': { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-500' },
-  'REJECTED': { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500' },
-  'CONVERTED': { bg: 'bg-purple-50', text: 'text-purple-700', dot: 'bg-purple-500' },
+  'QUALIFIED': { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500' },
+  'NEGOTIATION': { bg: 'bg-purple-50', text: 'text-purple-700', dot: 'bg-purple-500' },
+  'FOLLOW_UP': { bg: 'bg-yellow-50', text: 'text-yellow-700', dot: 'bg-yellow-500' },
+  'WAITING_ON_FACTORY': { bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-500' },
+  'LOST': { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500' },
+  'WON': { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-500' },
 };
 
 // Styled Status Select with Portal

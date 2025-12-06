@@ -1,6 +1,6 @@
 /**
  * Dashboard Content Component (Refactored)
- * Activity feed dashboard with real CRM data
+ * Activity feed dashboard with real CRM data and server-side filtering
  */
 
 'use client';
@@ -17,6 +17,7 @@ import { ActivityFilterButtons } from './components/ActivityFilterButtons';
 import { StatusFilterButtons } from './components/StatusFilterButtons';
 import { DashboardActionButtons } from './components/DashboardActionButtons';
 import type { Activity } from './types';
+import type { LandingPageFilter, LandingPageOrderBy } from '../lib/crm-graphql';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 
 // Import Create Modals
@@ -76,7 +77,42 @@ export default function DashboardContent() {
     setIsMounted(true);
   }, []);
 
-  const { data, isLoading, error, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useActivityFeed();
+  // Advanced filters state
+  const [advancedFilters, setAdvancedFilters] = useState<ActiveFilter[]>([]);
+  const [activeSorts, setActiveSorts] = useState<ActiveSort[]>([]);
+  
+  // Server-side filter and sort state
+  const [serverFilters, setServerFilters] = useState<LandingPageFilter[]>([]);
+  const [serverOrderBy, setServerOrderBy] = useState<LandingPageOrderBy[]>([]);
+
+  // Convert ActiveFilter to LandingPageFilter for server-side filtering
+  const toServerFilters = useCallback((filters: ActiveFilter[]): LandingPageFilter[] => {
+    return filters.map(f => {
+      // Only include value OR values, not both - check which one exists
+      if (f.values && f.values.length > 0) {
+        return {
+          operator: f.operator,
+          columnName: f.columnName,
+          values: f.values,
+        };
+      }
+      return {
+        operator: f.operator,
+        columnName: f.columnName,
+        value: f.value,
+      };
+    });
+  }, []);
+
+  // Convert ActiveSort to LandingPageOrderBy for server-side sorting
+  const toServerOrderBy = useCallback((sorts: ActiveSort[]): LandingPageOrderBy[] => {
+    return sorts.map(s => ({
+      columnName: s.columnName,
+      direction: s.direction,
+    }));
+  }, []);
+
+  const { data, isLoading, error, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useActivityFeed(serverFilters, serverOrderBy);
 
   // Infinite scroll
   const { loadMoreRef } = useInfiniteScroll({
@@ -90,10 +126,6 @@ export default function DashboardContent() {
   const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
   const [showCreateNoteModal, setShowCreateNoteModal] = useState(false);
   const [showCreatePreOpportunityModal, setShowCreatePreOpportunityModal] = useState(false);
-  
-  // Advanced filters state
-  const [advancedFilters, setAdvancedFilters] = useState<ActiveFilter[]>([]);
-  const [activeSorts, setActiveSorts] = useState<ActiveSort[]>([]);
 
   // Get filter and sort options
   const activityFilterOptions = useMemo(() => getActivityFilterOptions(), []);
@@ -112,17 +144,19 @@ export default function DashboardContent() {
     refetch();
   }, [refetch]);
 
-  // Handle advanced filter changes
+  // Handle advanced filter changes - now with server-side
   const handleAdvancedFiltersChange = useCallback((filters: ActiveFilter[]) => {
     setAdvancedFilters(filters);
-  }, []);
+    setServerFilters(toServerFilters(filters));
+  }, [toServerFilters]);
 
-  // Handle multi-sort changes
+  // Handle multi-sort changes - now with server-side
   const handleMultiSortChange = useCallback((sorts: ActiveSort[]) => {
     setActiveSorts(sorts);
-  }, []);
+    setServerOrderBy(toServerOrderBy(sorts));
+  }, [toServerOrderBy]);
 
-  // Apply advanced filters to activities
+  // Apply advanced filters to activities (client-side fallback for activity-specific fields)
   const applyAdvancedFilters = useCallback((activities: Activity[]): Activity[] => {
     if (advancedFilters.length === 0) return activities;
     
@@ -234,22 +268,22 @@ export default function DashboardContent() {
   }), [activities, filteredActivities, data]);
 
   return (
-    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
+    <main className="flex-1 overflow-y-auto overflow-x-hidden bg-[var(--background)] p-3 sm:p-6">
       {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-2xl font-semibold text-[var(--foreground)] mb-1">Activity Feed</h1>
-            <p className="text-sm text-[var(--muted-foreground)]">
+      <div className="mb-4 sm:mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)] mb-1 truncate">Activity Feed</h1>
+            <p className="text-xs sm:text-sm text-[var(--muted-foreground)]">
               Your operational command center for manufacturing sales
               {activityCounts.total > 0 && (
-                <span className="ml-2 text-[var(--primary)]">
-                  ({activityCounts.filtered} of {activityCounts.total} activities)
+                <span className="ml-1 sm:ml-2 text-[var(--primary)]">
+                  ({activityCounts.filtered} of {activityCounts.total})
                 </span>
               )}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0 overflow-x-auto pb-1 sm:pb-0 -mx-1 px-1 sm:mx-0 sm:px-0">
             <StatusFilterButtons
               statusFilters={statusFilters}
               onToggleStatusFilter={toggleStatusFilter}
@@ -272,16 +306,28 @@ export default function DashboardContent() {
       />
 
       {/* Activity Feed */}
-      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M10 3v14M3 10h14" strokeLinecap="round"/>
-            <circle cx="10" cy="10" r="7"/>
-          </svg>
-          <h2 className="text-lg font-semibold text-[var(--foreground)]">Recent Activity</h2>
+      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-3 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-4">
+          <div className="flex items-center gap-2">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="flex-shrink-0">
+              <path d="M10 3v14M3 10h14" strokeLinecap="round"/>
+              <circle cx="10" cy="10" r="7"/>
+            </svg>
+            <h2 className="text-base sm:text-lg font-semibold text-[var(--foreground)]">Recent Activity</h2>
+          </div>
           {!isLoading && activityCounts.total > 0 && (
-            <span className="text-xs text-[var(--muted-foreground)] ml-2">
-              {activityCounts.jobs} Jobs • {activityCounts.companies} Companies • {activityCounts.contacts} Contacts • {activityCounts.preOpportunities} Pre-Opps • {activityCounts.notes} Notes • {activityCounts.tasks} Tasks
+            <span className="text-xs text-[var(--muted-foreground)] sm:ml-2 flex flex-wrap gap-1">
+              <span>{activityCounts.jobs} Jobs</span>
+              <span className="hidden sm:inline">•</span>
+              <span>{activityCounts.companies} Companies</span>
+              <span className="hidden sm:inline">•</span>
+              <span>{activityCounts.contacts} Contacts</span>
+              <span className="hidden sm:inline">•</span>
+              <span>{activityCounts.preOpportunities} Pre-Opps</span>
+              <span className="hidden sm:inline">•</span>
+              <span>{activityCounts.notes} Notes</span>
+              <span className="hidden sm:inline">•</span>
+              <span>{activityCounts.tasks} Tasks</span>
             </span>
           )}
         </div>

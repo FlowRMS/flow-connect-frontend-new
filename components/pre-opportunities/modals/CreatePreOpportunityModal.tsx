@@ -47,7 +47,7 @@ export function CreatePreOpportunityModal({ isOpen, onClose, onSuccess, initialS
   // Basic Info State
   const [entityNumber, setEntityNumber] = useState('');
   const [entityDate, setEntityDate] = useState(formatLocalDate(new Date()));
-  const [status, setStatus] = useState<PreOpportunityStatus>(initialStatus || 'DRAFT');
+  const [status, setStatus] = useState<PreOpportunityStatus>(initialStatus || 'QUALIFIED');
   const [expDate, setExpDate] = useState('');
   const [reviseDate, setReviseDate] = useState('');
   const [acceptDate, setAcceptDate] = useState('');
@@ -251,7 +251,7 @@ export function CreatePreOpportunityModal({ isOpen, onClose, onSuccess, initialS
   const resetForm = () => {
     setEntityNumber('');
     setEntityDate(formatLocalDate(new Date()));
-    setStatus(initialStatus || 'DRAFT');
+    setStatus(initialStatus || 'QUALIFIED');
     setExpDate('');
     setReviseDate('');
     setAcceptDate('');

@@ -167,7 +167,7 @@ export default function AdvancedFilters({
         columnName: option.columnName,
         operator: 'IN',
         values: selectedValues,
-        value: selectedValues.join(','),
+        // Note: Don't set value for IN operator - API expects only values array
       });
     }
     

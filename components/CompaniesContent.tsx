@@ -43,12 +43,21 @@ export default function CompaniesContent() {
 
   // Handler for server-side filter changes
   const handleServerFiltersChange = useCallback((filters: ActiveFilter[]) => {
-    const apiFilters: LandingPageFilter[] = filters.map(f => ({
-      operator: f.operator,
-      columnName: f.columnName,
-      value: f.value,
-      values: f.values,
-    }));
+    // Only include value OR values, not both - check which one exists
+    const apiFilters: LandingPageFilter[] = filters.map(f => {
+      if (f.values && f.values.length > 0) {
+        return {
+          operator: f.operator,
+          columnName: f.columnName,
+          values: f.values,
+        };
+      }
+      return {
+        operator: f.operator,
+        columnName: f.columnName,
+        value: f.value,
+      };
+    });
     setServerFilters(apiFilters);
   }, []);
 
