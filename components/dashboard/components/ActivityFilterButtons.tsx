@@ -39,21 +39,25 @@ export function ActivityFilterButtons({ activeFilters, onToggleFilter, onSelectA
       >
         Select All
       </button>
-      {ALL_ACTIVITY_TYPES.map((type) => (
-        <button
-          key={type}
-          onClick={() => onToggleFilter(type)}
-          className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
-            activeFilters.includes(type)
-              ? 'bg-[var(--primary)] text-white'
-              : 'bg-[var(--muted)] text-[var(--muted-foreground)] hover:bg-[var(--secondary)]'
-          }`}
-        >
-          <CheckboxIcon checked={activeFilters.includes(type)} />
-          <span className="hidden xs:inline sm:inline">{ACTIVITY_TYPE_LABELS[type]}</span>
-          <span className="xs:hidden sm:hidden">{ACTIVITY_TYPE_LABELS[type].charAt(0)}</span>
-        </button>
-      ))}
+      {ALL_ACTIVITY_TYPES.map((type) => {
+        const label = ACTIVITY_TYPE_LABELS[type] ?? type;
+        const compactLabel = label.charAt(0);
+        return (
+          <button
+            key={type}
+            onClick={() => { onToggleFilter(type); }}
+            className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
+              activeFilters.includes(type)
+                ? 'bg-[var(--primary)] text-white'
+                : 'bg-[var(--muted)] text-[var(--muted-foreground)] hover:bg-[var(--secondary)]'
+            }`}
+          >
+            <CheckboxIcon checked={activeFilters.includes(type)} />
+            <span className="hidden xs:inline sm:inline">{label}</span>
+            <span className="xs:hidden sm:hidden">{compactLabel}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }

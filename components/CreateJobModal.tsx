@@ -272,7 +272,7 @@ export default function CreateJobModal({ isOpen, onClose, onSuccess, defaultStat
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 sm:p-4" onClick={handleClose}>
-      <div className="bg-[var(--card)] rounded-xl shadow-2xl max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-[var(--card)] rounded-xl shadow-2xl max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden" onClick={(e) => { e.stopPropagation(); }}>
         {/* Header */}
         <div className="bg-gray-50 px-4 sm:px-6 py-4 sm:py-5 border-b border-[var(--border)]">
           <div className="flex items-center justify-between">

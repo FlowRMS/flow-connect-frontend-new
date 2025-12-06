@@ -81,18 +81,21 @@ export function AddTaskNoteLinkModal({
   // Get display info for an entity
   const getEntityDisplay = (entity: TaskSearchResult | NoteSearchResult, type: LinkEntityType): { name: string; subtitle: string } => {
     switch (type) {
-      case 'TASK':
+      case 'TASK': {
         const taskEntity = entity as TaskSearchResult;
         return { 
           name: taskEntity.title || 'Untitled Task', 
           subtitle: `${taskEntity.status || ''} - ${taskEntity.priority || ''}`.trim().replace(/^-\s*|-\s*$/g, '') 
         };
-      case 'NOTE':
+      }
+      case 'NOTE': {
         const noteEntity = entity as NoteSearchResult;
+        const contentPreview = noteEntity.content ? noteEntity.content.substring(0, 50) : '';
         return { 
           name: noteEntity.title || 'Untitled Note', 
-          subtitle: noteEntity.content?.substring(0, 50) || '' 
+          subtitle: contentPreview 
         };
+      }
       default:
         return { name: entity.id, subtitle: '' };
     }
@@ -116,27 +119,31 @@ export function AddTaskNoteLinkModal({
     }
   }, [linkType, tasks, tasksLoading, notes, notesLoading]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!selectedEntityId) return;
 
-    try {
-      await createLinkMutation.mutateAsync({
-        sourceEntityType: entityType as CRMEntityType,
-        sourceEntityId: entityId,
-        targetEntityType: linkType as CRMEntityType,
-        targetEntityId: selectedEntityId,
-      });
-      
-      // Reset and close
-      setSelectedEntityId('');
-      setSearchTerm('');
-      onSuccess();
-      onClose();
-    } catch (error) {
-      console.error('Failed to create link:', error);
-    }
+    const runSubmit = async () => {
+      try {
+        await createLinkMutation.mutateAsync({
+          sourceEntityType: entityType as CRMEntityType,
+          sourceEntityId: entityId,
+          targetEntityType: linkType as CRMEntityType,
+          targetEntityId: selectedEntityId,
+        });
+        
+        // Reset and close
+        setSelectedEntityId('');
+        setSearchTerm('');
+        onSuccess();
+        onClose();
+      } catch (error) {
+        console.error('Failed to create link:', error);
+      }
+    };
+
+    void runSubmit();
   };
 
   const handleLinkTypeChange = (type: LinkEntityType) => {
@@ -147,7 +154,8 @@ export function AddTaskNoteLinkModal({
 
   if (!isOpen) return null;
 
-  const config = ENTITY_TYPE_CONFIG[linkType];
+  const safeLinkType = ALL_ENTITY_TYPES.includes(linkType) ? linkType : 'TASK';
+  const config = ENTITY_TYPE_CONFIG[safeLinkType];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -176,10 +184,11 @@ export function AddTaskNoteLinkModal({
         <div className="flex border-b border-gray-200 px-4">
           {ALL_ENTITY_TYPES.map((type) => {
             const typeConfig = ENTITY_TYPE_CONFIG[type];
+            const colorClass = typeConfig.color;
             return (
               <button
                 key={type}
-                onClick={() => handleLinkTypeChange(type)}
+                onClick={() => { handleLinkTypeChange(type); }}
                 className={`
                   flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors
                   ${linkType === type 
@@ -188,7 +197,7 @@ export function AddTaskNoteLinkModal({
                   }
                 `}
               >
-                <div className={`w-5 h-5 rounded flex items-center justify-center text-white ${typeConfig.color}`}>
+                <div className={`w-5 h-5 rounded flex items-center justify-center text-white ${colorClass}`}>
                   {typeConfig.icon}
                 </div>
                 {typeConfig.plural}
@@ -198,7 +207,7 @@ export function AddTaskNoteLinkModal({
         </div>
 
         {/* Content */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-hidden flex flex-col">
+        <form onSubmit={(e) => { handleSubmit(e); }} className="flex-1 overflow-hidden flex flex-col">
           <div className="p-6 flex-1 overflow-y-auto">
             {/* Search Input */}
             <div className="mb-4">
@@ -239,7 +248,7 @@ export function AddTaskNoteLinkModal({
                     <button
                       key={entity.id}
                       type="button"
-                      onClick={() => setSelectedEntityId(entity.id)}
+                      onClick={() => { setSelectedEntityId(entity.id); }}
                       className={`
                         w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all
                         ${isSelected 

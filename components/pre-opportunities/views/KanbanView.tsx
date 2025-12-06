@@ -374,8 +374,89 @@ export function KanbanView({
     setOverId(event.over?.id as string || null);
   }, []);
 
+  const applyOptimisticStatusUpdate = useCallback((preOppId: string, targetStatus: PreOpportunityStatus) => {
+    const previousPreOpps = queryClient.getQueryData<APIPreOppLandingPage[]>(
+      crmQueryKeys.preOpportunityLandingPages()
+    );
+
+    if (previousPreOpps) {
+      queryClient.setQueryData<APIPreOppLandingPage[]>(
+        crmQueryKeys.preOpportunityLandingPages(),
+        previousPreOpps.map(preOpp =>
+          preOpp.id === preOppId
+            ? { ...preOpp, status: targetStatus as APIPreOppLandingPage['status'] }
+            : preOpp
+        )
+      );
+    }
+
+    return previousPreOpps;
+  }, [queryClient]);
+
+  const getTargetStatus = useCallback((overIdValue: string) => {
+    if (stages.some(s => s.name === overIdValue)) {
+      return overIdValue as PreOpportunityStatus;
+    }
+    const targetCard = preOpps.find(p => p.id === overIdValue);
+    return targetCard?.status ?? null;
+  }, [preOpps, stages]);
+
+  const persistStatusChange = useCallback(async (
+    preOppId: string,
+    targetStatus: PreOpportunityStatus,
+    previousPreOpps: APIPreOppLandingPage[] | undefined,
+    entityNumber?: string
+  ) => {
+    try {
+      const fullPreOpp = await fetchPreOpportunity(preOppId);
+      if (!fullPreOpp) {
+        throw new Error('Failed to fetch pre-opportunity data');
+      }
+
+      await updateMutation.mutateAsync({
+        id: preOppId,
+        entityNumber: fullPreOpp.entityNumber,
+        entityDate: fullPreOpp.entityDate,
+        status: targetStatus,
+        soldToCustomerId: fullPreOpp.soldToCustomerId,
+        billToCustomerId: fullPreOpp.billToCustomerId,
+        soldToCustomerAddressId: fullPreOpp.soldToCustomerAddressId,
+        billToCustomerAddressId: fullPreOpp.billToCustomerAddressId,
+        jobId: fullPreOpp.jobId,
+        expDate: fullPreOpp.expDate,
+        acceptDate: fullPreOpp.acceptDate,
+        reviseDate: fullPreOpp.reviseDate,
+        customerRef: fullPreOpp.customerRef,
+        paymentTerms: fullPreOpp.paymentTerms,
+        freightTerms: fullPreOpp.freightTerms,
+        details: fullPreOpp.details?.map(d => ({
+          id: d.id,
+          itemNumber: d.itemNumber,
+          productId: d.productId,
+          productCpnId: d.productCpnId,
+          quantity: d.quantity,
+          unitPrice: d.unitPrice,
+          discountRate: d.discountRate,
+          leadTime: d.leadTime,
+          endUserId: d.endUserId,
+        })) || [],
+        optimisticStatus: targetStatus,
+      });
+
+      if (entityNumber) {
+        preOpportunityToasts.statusChanged(entityNumber, getStatusLabel(targetStatus));
+      }
+    } catch (error) {
+      if (previousPreOpps) {
+        queryClient.setQueryData(crmQueryKeys.preOpportunityLandingPages(), previousPreOpps);
+      }
+      console.error('Failed to update status:', error);
+      preOpportunityToasts.updateError(error instanceof Error ? error.message : 'Failed to update status');
+    }
+  }, [queryClient, updateMutation]);
+
   // Handle drag end
-  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
     
     setActiveDragItem(null);
@@ -384,99 +465,16 @@ export function KanbanView({
     
     if (!over) return;
 
-    const activePreOppId = active.id as string;
-    const overIdValue = over.id as string;
-    
-    // Find the item being dragged
+    const activePreOppId = String(active.id);
     const draggedItem = preOpps.find(p => p.id === activePreOppId);
     if (!draggedItem) return;
-    
-    // Determine the target status
-    let targetStatus: PreOpportunityStatus;
-    
-    // Check if we're dropping on a column (stage name) or on another card
-    const isColumn = stages.some(s => s.name === overIdValue);
-    
-    if (isColumn) {
-      targetStatus = overIdValue as PreOpportunityStatus;
-    } else {
-      // Dropping on another card - find which column that card is in
-      const targetCard = preOpps.find(p => p.id === overIdValue);
-      if (!targetCard) return;
-      targetStatus = targetCard.status;
-    }
-    
-    // Only update if status changed
-    if (draggedItem.status !== targetStatus) {
-      // Apply immediate optimistic update to cache BEFORE fetching
-      const previousPreOpps = queryClient.getQueryData<APIPreOppLandingPage[]>(
-        crmQueryKeys.preOpportunityLandingPages()
-      );
-      
-      if (previousPreOpps) {
-        queryClient.setQueryData<APIPreOppLandingPage[]>(
-          crmQueryKeys.preOpportunityLandingPages(),
-          previousPreOpps.map(preOpp =>
-            preOpp.id === activePreOppId
-              ? { ...preOpp, status: targetStatus as APIPreOppLandingPage['status'] }
-              : preOpp
-          )
-        );
-      }
-      
-      try {
-        // Fetch full pre-opportunity data to get all required fields
-        const fullPreOpp = await fetchPreOpportunity(activePreOppId);
-        if (!fullPreOpp) {
-          // Rollback on error
-          if (previousPreOpps) {
-            queryClient.setQueryData(crmQueryKeys.preOpportunityLandingPages(), previousPreOpps);
-          }
-          throw new Error('Failed to fetch pre-opportunity data');
-        }
 
-        // Build the update payload with all required fields
-        // Include optimisticStatus for mutation-level optimistic update
-        await updateMutation.mutateAsync({
-          id: activePreOppId,
-          entityNumber: fullPreOpp.entityNumber,
-          entityDate: fullPreOpp.entityDate,
-          status: targetStatus,
-          soldToCustomerId: fullPreOpp.soldToCustomerId,
-          billToCustomerId: fullPreOpp.billToCustomerId,
-          soldToCustomerAddressId: fullPreOpp.soldToCustomerAddressId,
-          billToCustomerAddressId: fullPreOpp.billToCustomerAddressId,
-          jobId: fullPreOpp.jobId,
-          expDate: fullPreOpp.expDate,
-          acceptDate: fullPreOpp.acceptDate,
-          reviseDate: fullPreOpp.reviseDate,
-          customerRef: fullPreOpp.customerRef,
-          paymentTerms: fullPreOpp.paymentTerms,
-          freightTerms: fullPreOpp.freightTerms,
-          details: fullPreOpp.details?.map(d => ({
-            id: d.id,
-            itemNumber: d.itemNumber,
-            productId: d.productId,
-            productCpnId: d.productCpnId,
-            quantity: d.quantity,
-            unitPrice: d.unitPrice,
-            discountRate: d.discountRate,
-            leadTime: d.leadTime,
-            endUserId: d.endUserId,
-          })) || [],
-          optimisticStatus: targetStatus,
-        });
-        preOpportunityToasts.statusChanged(draggedItem.entityNumber, getStatusLabel(targetStatus));
-      } catch (error) {
-        // Rollback optimistic update on error
-        if (previousPreOpps) {
-          queryClient.setQueryData(crmQueryKeys.preOpportunityLandingPages(), previousPreOpps);
-        }
-        console.error('Failed to update status:', error);
-        preOpportunityToasts.updateError(error instanceof Error ? error.message : 'Failed to update status');
-      }
-    }
-  }, [preOpps, stages, updateMutation, setActiveId, queryClient]);
+    const targetStatus = getTargetStatus(String(over.id));
+    if (!targetStatus || draggedItem.status === targetStatus) return;
+
+    const previousPreOpps = applyOptimisticStatusUpdate(activePreOppId, targetStatus);
+    void persistStatusChange(activePreOppId, targetStatus, previousPreOpps, draggedItem.entityNumber);
+  }, [applyOptimisticStatusUpdate, getTargetStatus, persistStatusChange, preOpps]);
 
   // Handle delete
   const handleDelete = async (preOppId: string) => {

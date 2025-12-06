@@ -103,7 +103,7 @@ export default function CompanyDetailView({
         entityId={company.id}
         entityType="COMPANY"
         title="Connected Tasks"
-        onAddClick={() => openAddLinkModal('TASK')}
+        onAddClick={() => { openAddLinkModal('TASK'); }}
       />
 
       {/* Connected Notes */}
@@ -112,7 +112,7 @@ export default function CompanyDetailView({
         entityId={company.id}
         entityType="COMPANY"
         title="Connected Notes"
-        onAddClick={() => openAddLinkModal('NOTE')}
+        onAddClick={() => { openAddLinkModal('NOTE'); }}
       />
 
       {/* Add Link Modal for Tasks/Notes */}
@@ -121,7 +121,7 @@ export default function CompanyDetailView({
         entityId={company.id}
         entityType="COMPANY"
         initialLinkType={addLinkEntityType}
-        onClose={() => setShowAddLinkModal(false)}
+        onClose={() => { setShowAddLinkModal(false); }}
         onSuccess={handleLinkSuccess}
       />
 
