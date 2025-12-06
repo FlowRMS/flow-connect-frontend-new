@@ -375,22 +375,54 @@ export function KanbanView({
   }, []);
 
   const applyOptimisticStatusUpdate = useCallback((preOppId: string, targetStatus: PreOpportunityStatus) => {
-    const previousPreOpps = queryClient.getQueryData<APIPreOppLandingPage[]>(
-      crmQueryKeys.preOpportunityLandingPages()
-    );
+    // Get all matching query caches (both regular and infinite)
+    const queryCache = queryClient.getQueryCache();
+    const matchingQueries = queryCache.findAll({
+      predicate: (query) => {
+        const key = query.queryKey;
+        return Array.isArray(key) && key.includes('preOpportunityLandingPages');
+      },
+    });
 
-    if (previousPreOpps) {
-      queryClient.setQueryData<APIPreOppLandingPage[]>(
-        crmQueryKeys.preOpportunityLandingPages(),
-        previousPreOpps.map(preOpp =>
-          preOpp.id === preOppId
-            ? { ...preOpp, status: targetStatus as APIPreOppLandingPage['status'] }
-            : preOpp
-        )
-      );
-    }
+    // Snapshot all matching caches for potential rollback
+    const previousData: Record<string, unknown> = {};
+    matchingQueries.forEach((query) => {
+      previousData[JSON.stringify(query.queryKey)] = query.state.data;
+    });
 
-    return previousPreOpps;
+    // Helper function to update pre-opp status
+    const updatePreOppStatus = (preOpp: APIPreOppLandingPage) => {
+      if (preOpp.id === preOppId) {
+        return { ...preOpp, status: targetStatus as APIPreOppLandingPage['status'] };
+      }
+      return preOpp;
+    };
+
+    // Optimistically update all matching caches
+    matchingQueries.forEach((query) => {
+      const data = query.state.data;
+
+      // Handle infinite query structure (has pages array)
+      if (data && typeof data === 'object' && 'pages' in data) {
+        const infiniteData = data as { pages: Array<{ records: APIPreOppLandingPage[]; total: number }>; pageParams: unknown[] };
+        queryClient.setQueryData(query.queryKey, {
+          ...infiniteData,
+          pages: infiniteData.pages.map(page => ({
+            ...page,
+            records: page.records.map(updatePreOppStatus),
+          })),
+        });
+      }
+      // Handle regular array structure
+      else if (Array.isArray(data)) {
+        queryClient.setQueryData(
+          query.queryKey,
+          (data as APIPreOppLandingPage[]).map(updatePreOppStatus)
+        );
+      }
+    });
+
+    return previousData;
   }, [queryClient]);
 
   const getTargetStatus = useCallback((overIdValue: string) => {
@@ -404,7 +436,7 @@ export function KanbanView({
   const persistStatusChange = useCallback(async (
     preOppId: string,
     targetStatus: PreOpportunityStatus,
-    previousPreOpps: APIPreOppLandingPage[] | undefined,
+    previousData: Record<string, unknown>,
     entityNumber?: string
   ) => {
     try {
@@ -447,9 +479,11 @@ export function KanbanView({
         preOpportunityToasts.statusChanged(entityNumber, getStatusLabel(targetStatus));
       }
     } catch (error) {
-      if (previousPreOpps) {
-        queryClient.setQueryData(crmQueryKeys.preOpportunityLandingPages(), previousPreOpps);
-      }
+      // Rollback all caches on error
+      Object.entries(previousData).forEach(([keyStr, data]) => {
+        const queryKey = JSON.parse(keyStr);
+        queryClient.setQueryData(queryKey, data);
+      });
       console.error('Failed to update status:', error);
       preOpportunityToasts.updateError(error instanceof Error ? error.message : 'Failed to update status');
     }

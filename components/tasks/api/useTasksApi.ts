@@ -217,47 +217,82 @@ export function useCreateTask() {
 export function useUpdateTask() {
   const queryClient = useQueryClient();
 
-  return useMutation<Task, Error, { id: string; input: UpdateTaskInput }, { previousTasks: TaskLandingPage[] | undefined }>({
+  return useMutation<Task, Error, { id: string; input: UpdateTaskInput }, { previousData: unknown }>({
     mutationFn: ({ id, input }) => updateTask(id, input),
     // Optimistic update - immediately update UI before API responds
     onMutate: async ({ id, input }) => {
       // Cancel any outgoing refetches so they don't overwrite our optimistic update
-      await queryClient.cancelQueries({ queryKey: tasksQueryKeys.list() });
-      
-      // Snapshot the previous value
-      const previousTasks = queryClient.getQueryData<TaskLandingPage[]>(tasksQueryKeys.list());
-      
-      // Optimistically update the cache
-      if (previousTasks) {
-        queryClient.setQueryData<TaskLandingPage[]>(tasksQueryKeys.list(), (old) => {
-          if (!old) return old;
-          return old.map(task => {
-            if (task.id === id) {
-              return {
-                ...task,
-                title: input.title,
-                status: input.status,
-                priority: input.priority,
-                description: input.description ?? task.description,
-                dueDate: input.dueDate ?? task.dueDate,
-                reminderDate: input.reminderDate ?? task.reminderDate,
-                tags: input.tags ?? task.tags,
-                // assignedTo might be an ID, so keep it as-is for now
-                assignedTo: input.assignedToId ?? task.assignedTo,
-              };
-            }
-            return task;
+      await queryClient.cancelQueries({ queryKey: tasksQueryKeys.all });
+
+      // Get all matching query caches (both regular and infinite)
+      const queryCache = queryClient.getQueryCache();
+      const matchingQueries = queryCache.findAll({
+        queryKey: tasksQueryKeys.all,
+        predicate: (query) => {
+          const key = query.queryKey;
+          return Array.isArray(key) && key[0] === 'tasks' && key.includes('list');
+        },
+      });
+
+      // Snapshot all matching caches
+      const previousData: Record<string, unknown> = {};
+      matchingQueries.forEach((query) => {
+        previousData[JSON.stringify(query.queryKey)] = query.state.data;
+      });
+
+      // Helper function to update a single task
+      const updateTaskInList = (task: TaskLandingPage): TaskLandingPage => {
+        if (task.id === id) {
+          return {
+            ...task,
+            title: input.title,
+            status: input.status,
+            priority: input.priority,
+            description: input.description ?? task.description,
+            dueDate: input.dueDate ?? task.dueDate,
+            reminderDate: input.reminderDate ?? task.reminderDate,
+            tags: input.tags ?? task.tags,
+            assignedTo: input.assignedToId ?? task.assignedTo,
+          };
+        }
+        return task;
+      };
+
+      // Optimistically update all matching caches
+      matchingQueries.forEach((query) => {
+        const data = query.state.data;
+
+        // Handle infinite query structure (has pages array)
+        if (data && typeof data === 'object' && 'pages' in data) {
+          const infiniteData = data as { pages: Array<{ records: TaskLandingPage[]; total: number }>; pageParams: unknown[] };
+          queryClient.setQueryData(query.queryKey, {
+            ...infiniteData,
+            pages: infiniteData.pages.map(page => ({
+              ...page,
+              records: page.records.map(updateTaskInList),
+            })),
           });
-        });
-      }
-      
+        }
+        // Handle regular array structure
+        else if (Array.isArray(data)) {
+          queryClient.setQueryData(
+            query.queryKey,
+            (data as TaskLandingPage[]).map(updateTaskInList)
+          );
+        }
+      });
+
       // Return context with the snapshotted value
-      return { previousTasks };
+      return { previousData };
     },
     // If mutation fails, roll back to the previous value
     onError: (_err, _variables, context) => {
-      if (context?.previousTasks) {
-        queryClient.setQueryData(tasksQueryKeys.list(), context.previousTasks);
+      if (context?.previousData) {
+        const previousData = context.previousData as Record<string, unknown>;
+        Object.entries(previousData).forEach(([keyStr, data]) => {
+          const queryKey = JSON.parse(keyStr);
+          queryClient.setQueryData(queryKey, data);
+        });
       }
     },
     // Always refetch after error or success to ensure we have the latest data

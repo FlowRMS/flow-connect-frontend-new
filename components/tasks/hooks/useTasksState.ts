@@ -489,46 +489,76 @@ export function useTasksState() {
 
   const handleKanbanDrop = useCallback(async (targetStatus: TaskStatusAPI) => {
     if (!draggedTaskId) return;
-    
+
     // Find the task to get all its data
     const task = tasks.find(t => t.id === draggedTaskId);
     if (!task) {
       setDraggedTaskId(null);
       return;
     }
-    
+
     const taskIdToUpdate = draggedTaskId;
-    
+
     // Clear dragged state immediately
     setDraggedTaskId(null);
-    
-    // OPTIMISTIC UPDATE: Immediately update the cache for instant visual feedback
-    // This is done BEFORE the API call, so the card moves immediately
-    const previousTasks = queryClient.getQueryData<import('../api/tasksApi').TaskLandingPage[]>(tasksQueryKeys.list());
-    
-    if (previousTasks) {
-      queryClient.setQueryData<import('../api/tasksApi').TaskLandingPage[]>(tasksQueryKeys.list(), (old) => {
-        if (!old) return old;
-        return old.map(t => {
-          if (t.id === taskIdToUpdate) {
-            return {
-              ...t,
-              status: targetStatus, // Update status immediately
-            };
-          }
-          return t;
+
+    // OPTIMISTIC UPDATE: Immediately update ALL matching caches for instant visual feedback
+    // This handles both regular and infinite query caches
+    const queryCache = queryClient.getQueryCache();
+    const matchingQueries = queryCache.findAll({
+      queryKey: tasksQueryKeys.all,
+      predicate: (query) => {
+        const key = query.queryKey;
+        return Array.isArray(key) && key[0] === 'tasks' && key.includes('list');
+      },
+    });
+
+    // Snapshot all matching caches for potential rollback
+    const previousData: Record<string, unknown> = {};
+    matchingQueries.forEach((query) => {
+      previousData[JSON.stringify(query.queryKey)] = query.state.data;
+    });
+
+    // Helper function to update task status
+    const updateTaskStatus = (t: import('../api/tasksApi').TaskLandingPage) => {
+      if (t.id === taskIdToUpdate) {
+        return { ...t, status: targetStatus };
+      }
+      return t;
+    };
+
+    // Optimistically update all matching caches
+    matchingQueries.forEach((query) => {
+      const data = query.state.data;
+
+      // Handle infinite query structure (has pages array)
+      if (data && typeof data === 'object' && 'pages' in data) {
+        const infiniteData = data as { pages: Array<{ records: import('../api/tasksApi').TaskLandingPage[]; total: number }>; pageParams: unknown[] };
+        queryClient.setQueryData(query.queryKey, {
+          ...infiniteData,
+          pages: infiniteData.pages.map(page => ({
+            ...page,
+            records: page.records.map(updateTaskStatus),
+          })),
         });
-      });
-    }
-    
+      }
+      // Handle regular array structure
+      else if (Array.isArray(data)) {
+        queryClient.setQueryData(
+          query.queryKey,
+          (data as import('../api/tasksApi').TaskLandingPage[]).map(updateTaskStatus)
+        );
+      }
+    });
+
     try {
       // Fetch full task to get assignedToId (GetTask API has it)
       const fullTask = await fetchTaskApi(taskIdToUpdate);
-      
+
       // Send COMPLETE data - including assignedToId from the fetched full task
       await updateTaskMutation.mutateAsync({
         id: taskIdToUpdate,
-        input: { 
+        input: {
           title: task.title,
           status: targetStatus,
           priority: task.apiPriority,
@@ -539,15 +569,16 @@ export function useTasksState() {
           assignedToId: fullTask?.assignedToId || undefined,
         }
       });
-      
+
       // Show success toast after API update
       taskToasts.updateSuccess(task.title);
     } catch (error) {
       console.error('Failed to update task status via drag-drop:', error);
-      // ROLLBACK: Restore previous state on error
-      if (previousTasks) {
-        queryClient.setQueryData(tasksQueryKeys.list(), previousTasks);
-      }
+      // ROLLBACK: Restore all previous states on error
+      Object.entries(previousData).forEach(([keyStr, data]) => {
+        const queryKey = JSON.parse(keyStr);
+        queryClient.setQueryData(queryKey, data);
+      });
       taskToasts.updateError();
     }
   }, [draggedTaskId, tasks, updateTaskMutation, queryClient]);

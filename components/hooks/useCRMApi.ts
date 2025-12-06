@@ -307,35 +307,74 @@ export function useUpdateCRMJob() {
     Job,
     Error,
     { id: string; input: UpdateJobInput; optimisticStatusName?: string },
-    { previousJobs: JobLandingPage[] | undefined }
+    { previousData: unknown }
   >({
     mutationFn: ({ id, input }) => updateJob(id, input),
     onMutate: async (variables) => {
       // Cancel any outgoing refetches so they don't overwrite optimistic update
       await queryClient.cancelQueries({ queryKey: crmQueryKeys.jobLandingPages() });
 
-      // Snapshot the previous value
-      const previousJobs = queryClient.getQueryData<JobLandingPage[]>(crmQueryKeys.jobLandingPages());
+      // Get all matching query caches (both regular and infinite)
+      const queryCache = queryClient.getQueryCache();
+      const matchingQueries = queryCache.findAll({
+        queryKey: crmQueryKeys.all,
+        predicate: (query) => {
+          const key = query.queryKey;
+          return Array.isArray(key) && key.includes('jobLandingPages');
+        },
+      });
 
-      // Optimistically update the cache
-      if (previousJobs && variables.optimisticStatusName) {
-        queryClient.setQueryData<JobLandingPage[]>(
-          crmQueryKeys.jobLandingPages(),
-          previousJobs.map(job =>
-            job.id === variables.id
-              ? { ...job, statusName: variables.optimisticStatusName }
-              : job
-          )
-        );
+      // Snapshot all matching caches
+      const previousData: Record<string, unknown> = {};
+      matchingQueries.forEach((query) => {
+        previousData[JSON.stringify(query.queryKey)] = query.state.data;
+      });
+
+      // Optimistically update all matching caches
+      if (variables.optimisticStatusName) {
+        matchingQueries.forEach((query) => {
+          const data = query.state.data;
+
+          // Handle infinite query structure (has pages array)
+          if (data && typeof data === 'object' && 'pages' in data) {
+            const infiniteData = data as { pages: Array<{ records: JobLandingPage[]; total: number }>; pageParams: unknown[] };
+            queryClient.setQueryData(query.queryKey, {
+              ...infiniteData,
+              pages: infiniteData.pages.map(page => ({
+                ...page,
+                records: page.records.map(job =>
+                  job.id === variables.id
+                    ? { ...job, statusName: variables.optimisticStatusName }
+                    : job
+                ),
+              })),
+            });
+          }
+          // Handle regular array structure
+          else if (Array.isArray(data)) {
+            queryClient.setQueryData(
+              query.queryKey,
+              (data as JobLandingPage[]).map(job =>
+                job.id === variables.id
+                  ? { ...job, statusName: variables.optimisticStatusName }
+                  : job
+              )
+            );
+          }
+        });
       }
 
       // Return context object with the snapshotted value
-      return { previousJobs };
+      return { previousData };
     },
     onError: (_err, _variables, context) => {
-      // Roll back to the previous value on error
-      if (context?.previousJobs) {
-        queryClient.setQueryData(crmQueryKeys.jobLandingPages(), context.previousJobs);
+      // Roll back to the previous values on error
+      if (context?.previousData) {
+        const previousData = context.previousData as Record<string, unknown>;
+        Object.entries(previousData).forEach(([keyStr, data]) => {
+          const queryKey = JSON.parse(keyStr);
+          queryClient.setQueryData(queryKey, data);
+        });
       }
     },
     onSettled: (data) => {
@@ -847,7 +886,7 @@ export function useUpdateCRMPreOpportunity() {
     PreOpportunity,
     Error,
     UpdatePreOpportunityInput & { optimisticStatus?: string },
-    { previousPreOpps: PreOpportunityLandingPage[] | undefined }
+    { previousData: unknown }
   >({
     mutationFn: (input) => {
       // Remove optimisticStatus from the API call since it's only for optimistic updates
@@ -858,30 +897,67 @@ export function useUpdateCRMPreOpportunity() {
       // Cancel any outgoing refetches so they don't overwrite optimistic update
       await queryClient.cancelQueries({ queryKey: crmQueryKeys.preOpportunityLandingPages() });
 
-      // Snapshot the previous value
-      const previousPreOpps = queryClient.getQueryData<PreOpportunityLandingPage[]>(
-        crmQueryKeys.preOpportunityLandingPages()
-      );
+      // Get all matching query caches (both regular and infinite)
+      const queryCache = queryClient.getQueryCache();
+      const matchingQueries = queryCache.findAll({
+        queryKey: crmQueryKeys.all,
+        predicate: (query) => {
+          const key = query.queryKey;
+          return Array.isArray(key) && key.includes('preOpportunityLandingPages');
+        },
+      });
 
-      // Optimistically update the cache
-      if (previousPreOpps && variables.optimisticStatus) {
-        queryClient.setQueryData<PreOpportunityLandingPage[]>(
-          crmQueryKeys.preOpportunityLandingPages(),
-          previousPreOpps.map(preOpp =>
-            preOpp.id === variables.id
-              ? { ...preOpp, status: variables.optimisticStatus as PreOpportunityLandingPage['status'] }
-              : preOpp
-          )
-        );
+      // Snapshot all matching caches
+      const previousData: Record<string, unknown> = {};
+      matchingQueries.forEach((query) => {
+        previousData[JSON.stringify(query.queryKey)] = query.state.data;
+      });
+
+      // Optimistically update all matching caches
+      if (variables.optimisticStatus) {
+        matchingQueries.forEach((query) => {
+          const data = query.state.data;
+
+          // Handle infinite query structure (has pages array)
+          if (data && typeof data === 'object' && 'pages' in data) {
+            const infiniteData = data as { pages: Array<{ records: PreOpportunityLandingPage[]; total: number }>; pageParams: unknown[] };
+            queryClient.setQueryData(query.queryKey, {
+              ...infiniteData,
+              pages: infiniteData.pages.map(page => ({
+                ...page,
+                records: page.records.map(preOpp =>
+                  preOpp.id === variables.id
+                    ? { ...preOpp, status: variables.optimisticStatus as PreOpportunityLandingPage['status'] }
+                    : preOpp
+                ),
+              })),
+            });
+          }
+          // Handle regular array structure
+          else if (Array.isArray(data)) {
+            queryClient.setQueryData(
+              query.queryKey,
+              (data as PreOpportunityLandingPage[]).map(preOpp =>
+                preOpp.id === variables.id
+                  ? { ...preOpp, status: variables.optimisticStatus as PreOpportunityLandingPage['status'] }
+                  : preOpp
+              )
+            );
+          }
+        });
       }
 
       // Return context object with the snapshotted value
-      return { previousPreOpps };
+      return { previousData };
     },
     onError: (_err, _variables, context) => {
-      // Roll back to the previous value on error
-      if (context?.previousPreOpps) {
-        queryClient.setQueryData(crmQueryKeys.preOpportunityLandingPages(), context.previousPreOpps);
+      // Roll back to the previous values on error
+      if (context?.previousData) {
+        const previousData = context.previousData as Record<string, unknown>;
+        Object.entries(previousData).forEach(([keyStr, data]) => {
+          const queryKey = JSON.parse(keyStr);
+          queryClient.setQueryData(queryKey, data);
+        });
       }
     },
     onSettled: (data) => {
