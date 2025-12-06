@@ -177,17 +177,45 @@ interface AddLinkModalProps {
 
 export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onClose, onSuccess }: AddLinkModalProps) {
   const [entityType, setEntityType] = useState<LinkEntityType>(initialEntityType);
-  const [selectedEntityId, setSelectedEntityId] = useState<string>('');
+  const [selectedEntityIds, setSelectedEntityIds] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState('');
+  const [isLinking, setIsLinking] = useState(false);
+  const [linkProgress, setLinkProgress] = useState({ current: 0, total: 0 });
 
   // Reset entity type when modal opens with a new initialEntityType
   useEffect(() => {
     if (isOpen) {
       setEntityType(initialEntityType);
-      setSelectedEntityId('');
+      setSelectedEntityIds(new Set());
       setSearchTerm('');
+      setIsLinking(false);
+      setLinkProgress({ current: 0, total: 0 });
     }
   }, [isOpen, initialEntityType]);
+
+  // Toggle entity selection
+  const toggleEntitySelection = (entityId: string) => {
+    setSelectedEntityIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(entityId)) {
+        newSet.delete(entityId);
+      } else {
+        newSet.add(entityId);
+      }
+      return newSet;
+    });
+  };
+
+  // Select all visible entities
+  const selectAllEntities = () => {
+    const allIds = new Set(entities.map((e: { id: string }) => e.id));
+    setSelectedEntityIds(allIds);
+  };
+
+  // Deselect all entities
+  const deselectAllEntities = () => {
+    setSelectedEntityIds(new Set());
+  };
 
   // Fetch landing pages for companies, contacts, pre-opportunities
   const { data: companies, isLoading: companiesLoading } = useCRMCompanyLandingPages();
@@ -396,29 +424,50 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!selectedEntityId) return;
+    if (selectedEntityIds.size === 0) return;
 
-    try {
-      await createLinkMutation.mutateAsync({
-        sourceEntityType: 'JOB' as CRMEntityType,
-        sourceEntityId: jobId,
-        targetEntityType: entityType as CRMEntityType,
-        targetEntityId: selectedEntityId,
-      });
-      
-      // Reset and close
-      setSelectedEntityId('');
-      setSearchTerm('');
-      onSuccess();
-      onClose();
-    } catch (error) {
-      console.error('Failed to create link:', error);
+    setIsLinking(true);
+    setLinkProgress({ current: 0, total: selectedEntityIds.size });
+
+    const entityIdsArray = Array.from(selectedEntityIds);
+    let successCount = 0;
+    let failCount = 0;
+
+    // Link entities one by one (API calls in sequence)
+    for (let i = 0; i < entityIdsArray.length; i++) {
+      const entityId = entityIdsArray[i];
+      setLinkProgress({ current: i + 1, total: entityIdsArray.length });
+
+      try {
+        await createLinkMutation.mutateAsync({
+          sourceEntityType: 'JOB' as CRMEntityType,
+          sourceEntityId: jobId,
+          targetEntityType: entityType as CRMEntityType,
+          targetEntityId: entityId,
+        });
+        successCount++;
+      } catch (error) {
+        console.error(`Failed to link entity ${entityId}:`, error);
+        failCount++;
+      }
+    }
+
+    setIsLinking(false);
+    
+    // Reset and close
+    setSelectedEntityIds(new Set());
+    setSearchTerm('');
+    onSuccess();
+    onClose();
+
+    if (failCount > 0) {
+      console.warn(`Linked ${successCount} entities, ${failCount} failed`);
     }
   };
 
   const handleEntityTypeChange = (type: LinkEntityType) => {
     setEntityType(type);
-    setSelectedEntityId('');
+    setSelectedEntityIds(new Set());
     setSearchTerm('');
   };
 
@@ -489,9 +538,34 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
 
             {/* Entity List */}
             <div>
-              <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-                Select {config.label}
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-[var(--foreground)]">
+                  Select {config.plural} ({selectedEntityIds.size} selected)
+                </label>
+                {entities.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={selectAllEntities}
+                      className="text-xs text-[var(--primary)] hover:underline"
+                    >
+                      Select All
+                    </button>
+                    {selectedEntityIds.size > 0 && (
+                      <>
+                        <span className="text-[var(--muted-foreground)]">•</span>
+                        <button
+                          type="button"
+                          onClick={deselectAllEntities}
+                          className="text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                        >
+                          Clear
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
               <div className="border border-[var(--border)] rounded-lg overflow-hidden max-h-60 overflow-y-auto">
                 {isLoading ? (
                   <div className="p-4 text-center text-[var(--muted-foreground)]">
@@ -509,15 +583,15 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
                   </div>
                 ) : (
                   <div className="divide-y divide-[var(--border)]">
-                    {entities.map((entity: any) => {
-                      const isSelected = selectedEntityId === entity.id;
+                    {entities.map((entity: { id: string }) => {
+                      const isSelected = selectedEntityIds.has(entity.id);
                       const { name, subtitle } = getEntityDisplay(entity, entityType);
                       
                       return (
                         <button
                           key={entity.id}
                           type="button"
-                          onClick={() => setSelectedEntityId(entity.id)}
+                          onClick={() => toggleEntitySelection(entity.id)}
                           className={`w-full text-left px-4 py-3 transition-colors ${
                             isSelected 
                               ? 'bg-[var(--primary)]/10 border-l-4 border-[var(--primary)]' 
@@ -526,6 +600,17 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
+                              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                                isSelected
+                                  ? 'bg-[var(--primary)] border-[var(--primary)]'
+                                  : 'border-[var(--border)]'
+                              }`}>
+                                {isSelected && (
+                                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2">
+                                    <path d="M2 6l3 3 5-5" strokeLinecap="round" strokeLinejoin="round"/>
+                                  </svg>
+                                )}
+                              </div>
                               <span className={`w-8 h-8 rounded-lg ${config.color} flex items-center justify-center text-white`}>
                                 {config.icon}
                               </span>
@@ -536,11 +621,6 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
                                 )}
                               </div>
                             </div>
-                            {isSelected && (
-                              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-[var(--primary)]">
-                                <path d="M5 10l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
-                              </svg>
-                            )}
                           </div>
                         </button>
                       );
@@ -552,27 +632,38 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
           </div>
 
           {/* Footer */}
-          <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3 flex-shrink-0">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-[var(--foreground)] bg-[var(--muted)] rounded-lg hover:bg-[var(--secondary)] transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={!selectedEntityId || createLinkMutation.isPending}
-              className="px-4 py-2 text-sm font-medium text-white bg-[var(--primary)] rounded-lg hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {createLinkMutation.isPending && (
-                <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                </svg>
+          <div className="px-6 py-4 border-t border-[var(--border)] flex justify-between items-center flex-shrink-0">
+            <div className="text-sm text-[var(--muted-foreground)]">
+              {selectedEntityIds.size > 0 && (
+                <span>{selectedEntityIds.size} {selectedEntityIds.size === 1 ? config.label.toLowerCase() : config.plural.toLowerCase()} selected</span>
               )}
-              Link {config.label}
-            </button>
+              {isLinking && (
+                <span className="ml-2">Linking {linkProgress.current}/{linkProgress.total}...</span>
+              )}
+            </div>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isLinking}
+                className="px-4 py-2 text-sm font-medium text-[var(--foreground)] bg-[var(--muted)] rounded-lg hover:bg-[var(--secondary)] transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={selectedEntityIds.size === 0 || isLinking}
+                className="px-4 py-2 text-sm font-medium text-white bg-[var(--primary)] rounded-lg hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {isLinking && (
+                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                  </svg>
+                )}
+                Link {selectedEntityIds.size > 1 ? `${selectedEntityIds.size} ${config.plural}` : config.label}
+              </button>
+            </div>
           </div>
         </form>
       </div>

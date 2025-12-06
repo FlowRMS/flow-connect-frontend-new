@@ -865,9 +865,9 @@ const PRODUCT_SEARCH = `
 
 const CREATE_LINK = `
   mutation CreateLink(
-    $sourceEntityType: EntityType!
+    $sourceEntityType: CRMEntityType!
     $sourceEntityId: UUID!
-    $targetEntityType: EntityType!
+    $targetEntityType: CRMEntityType!
     $targetEntityId: UUID!
   ) {
     createLink(input: {
@@ -894,9 +894,9 @@ const DELETE_LINK = `
 
 const DELETE_LINK_BY_ENTITIES = `
   mutation DeleteLinkByEntities(
-    $sourceEntityType: EntityType!
+    $sourceEntityType: CRMEntityType!
     $sourceEntityId: UUID!
-    $targetEntityType: EntityType!
+    $targetEntityType: CRMEntityType!
     $targetEntityId: UUID!
   ) {
     deleteLinkByEntities(input: {

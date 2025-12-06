@@ -84,18 +84,36 @@ export default function JobsContent() {
     return selectedJob;
   }, [fullJobData, selectedJob]);
 
-  // Check for ID in query params to auto-select a job
+  // Check for ID in query params to auto-select a job (only on initial load)
   useEffect(() => {
     const jobId = searchParams.get('id');
     if (jobId && jobs.length > 0 && !selectedJob) {
       const job = jobs.find(j => j.id === jobId);
       if (job) {
         setSelectedJob(job);
-        // Clear the query param after selecting
-        router.replace('/jobs', { scroll: false });
       }
     }
-  }, [searchParams, jobs, selectedJob, setSelectedJob, router]);
+  }, [searchParams, jobs, selectedJob, setSelectedJob]);
+
+  // Update URL when job selection changes
+  const lastUrlUpdateRef = React.useRef<string | null>(null);
+  
+  useEffect(() => {
+    if (!isMounted) return;
+    
+    const newJobId = selectedJob?.id || null;
+    
+    // Prevent duplicate updates
+    if (lastUrlUpdateRef.current === newJobId) return;
+    lastUrlUpdateRef.current = newJobId;
+    
+    // Use window.history.replaceState for synchronous URL update without triggering React re-renders
+    if (newJobId) {
+      window.history.replaceState(null, '', `/jobs?id=${newJobId}`);
+    } else {
+      window.history.replaceState(null, '', '/jobs');
+    }
+  }, [selectedJob?.id, isMounted]);
 
   // Filter and sort configuration
   const jobFilterOptions = getJobFilterOptions(uniqueJobNames, uniqueStatuses, uniqueTypes, uniqueCreators);
