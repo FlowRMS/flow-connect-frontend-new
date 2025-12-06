@@ -55,9 +55,9 @@ function DroppableColumn({
     <div
       ref={setNodeRef}
       className={`
-        min-h-[500px] rounded-lg p-3 transition-all duration-200
-        ${showHighlight 
-          ? 'bg-blue-50/80 ring-2 ring-blue-400/50' 
+        min-h-[200px] sm:min-h-[400px] lg:min-h-[500px] rounded-lg p-2 sm:p-3 transition-all duration-200
+        ${showHighlight
+          ? 'bg-blue-50/80 ring-2 ring-blue-400/50'
           : 'bg-[var(--muted)]/30'
         }
       `}
@@ -127,12 +127,16 @@ export function KanbanView({
     return rectIntersection(args);
   };
 
-  // Calculate grid columns based on number of stages
-  const gridColsClass = stages.length <= 3
-    ? 'grid-cols-3'
-    : stages.length === 4
-      ? 'grid-cols-4'
-      : 'grid-cols-5';
+  // Calculate grid columns based on number of stages - responsive
+  const getGridColsClass = () => {
+    if (stages.length <= 3) {
+      return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
+    } else if (stages.length === 4) {
+      return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4';
+    } else {
+      return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5';
+    }
+  };
 
   return (
     <DndContext
@@ -143,7 +147,7 @@ export function KanbanView({
       onDragOver={onDragOver}
       onDragCancel={onDragCancel}
     >
-      <div className={`grid ${gridColsClass} gap-4 w-full`} style={{ minWidth: 0 }}>
+      <div className={`grid ${getGridColsClass()} gap-3 sm:gap-4 w-full`} style={{ minWidth: 0 }}>
         {stages.map((stage) => {
           const stageJobs = getJobsByStatus(stage.name);
           const isOverColumn = overId === `stage-${stage.name}`;

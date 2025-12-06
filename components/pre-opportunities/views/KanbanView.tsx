@@ -39,11 +39,12 @@ import { preOpportunityToasts } from '../../lib/toast';
 
 // Column status indicator colors (dots) - matching Jobs style
 const COLUMN_STATUS_COLORS: Record<PreOpportunityStatus, string> = {
-  'DRAFT': 'bg-gray-400',
-  'PENDING': 'bg-blue-500',
-  'APPROVED': 'bg-green-500',
-  'REJECTED': 'bg-red-500',
-  'CONVERTED': 'bg-purple-500',
+  'QUALIFIED': 'bg-blue-500',
+  'NEGOTIATION': 'bg-purple-500',
+  'FOLLOW_UP': 'bg-yellow-500',
+  'WAITING_ON_FACTORY': 'bg-orange-500',
+  'LOST': 'bg-red-500',
+  'WON': 'bg-green-500',
 };
 
 // ============================================================================
@@ -129,69 +130,69 @@ function KanbanCard({ preOpp, onDelete }: { preOpp: PreOpportunityLandingPage; o
       onPointerMove={handlePointerMove}
       onClick={handleClick}
       className={`
-        group bg-white border rounded-lg p-4 mb-3 
+        group bg-white border rounded-lg p-2.5 md:p-4 mb-2 md:mb-3
         transition-all duration-200 cursor-pointer relative
-        ${isDragging 
-          ? 'opacity-60 shadow-lg scale-[1.02] rotate-1 border-blue-300' 
+        ${isDragging
+          ? 'opacity-60 shadow-lg scale-[1.02] rotate-1 border-blue-300'
           : 'hover:shadow-md hover:border-gray-300 border-gray-200'
         }
       `}
     >
       {/* Header Row */}
-      <div className="flex items-start gap-3 mb-3">
+      <div className="flex items-start gap-2 md:gap-3 mb-2 md:mb-3">
         <div className="flex-1 min-w-0">
-          <h4 className="text-sm font-semibold text-gray-900 leading-tight truncate hover:text-blue-600 transition-colors">
+          <h4 className="text-xs md:text-sm font-semibold text-gray-900 leading-tight truncate hover:text-blue-600 transition-colors">
             {preOpp.entityNumber}
           </h4>
-          <p className="text-xs text-gray-500 mt-0.5">
+          <p className="text-[10px] md:text-xs text-gray-500 mt-0.5">
             {formatDate(preOpp.entityDate)}
           </p>
         </div>
         <button
           onClick={handleDeleteClick}
           onPointerDown={(e) => e.stopPropagation()}
-          className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-red-50 rounded text-gray-400 hover:text-red-600 transition-all"
+          className="p-1 md:p-1.5 opacity-0 group-hover:opacity-100 hover:bg-red-50 rounded text-gray-400 hover:text-red-600 transition-all flex-shrink-0"
           title="Delete"
         >
-          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="md:w-[14px] md:h-[14px]">
             <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
           </svg>
         </button>
       </div>
 
       {/* Value - Highlighted */}
-      <div className="text-lg font-bold text-blue-600 mb-3">
+      <div className="text-sm md:text-lg font-bold text-blue-600 mb-2 md:mb-3">
         {formatCurrency(preOpp.total)}
       </div>
 
       {/* Status Badge */}
-      <div className="flex items-center gap-2 mb-3">
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100">
-          <span className={`w-2 h-2 rounded-full ${statusColor}`}></span>
-          {getStatusLabel(preOpp.status)}
+      <div className="flex items-center gap-2 mb-2 md:mb-3">
+        <span className="inline-flex items-center gap-1 md:gap-1.5 px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-full text-[10px] md:text-xs font-medium bg-gray-100">
+          <span className={`w-1.5 md:w-2 h-1.5 md:h-2 rounded-full ${statusColor}`}></span>
+          <span className="truncate">{getStatusLabel(preOpp.status)}</span>
         </span>
       </div>
 
       {/* Expiration Date */}
       {preOpp.expDate && (
-        <div className="flex items-center gap-2 mb-3 pt-3 border-t border-gray-100 text-xs text-gray-500">
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="flex items-center gap-1.5 md:gap-2 mb-2 md:mb-3 pt-2 md:pt-3 border-t border-gray-100 text-[10px] md:text-xs text-gray-500">
+          <svg className="w-3 h-3 md:w-3.5 md:h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          <span>Exp: {formatDate(preOpp.expDate)}</span>
+          <span className="truncate">Exp: {formatDate(preOpp.expDate)}</span>
         </div>
       )}
 
       {/* Created By */}
-      <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
-        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-xs font-semibold shadow-sm">
+      <div className="flex items-center gap-1.5 md:gap-2 pt-2 border-t border-gray-100">
+        <div className="w-5 h-5 md:w-6 md:h-6 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-[10px] md:text-xs font-semibold shadow-sm flex-shrink-0">
           {preOpp.createdBy?.charAt(0)?.toUpperCase() || '?'}
         </div>
-        <span className="text-xs text-gray-500 truncate">{preOpp.createdBy}</span>
+        <span className="text-[10px] md:text-xs text-gray-500 truncate">{preOpp.createdBy}</span>
       </div>
 
       {/* Drag Handle Indicator - visible on hover */}
-      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-40 transition-opacity pointer-events-none">
+      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-40 transition-opacity pointer-events-none hidden md:block">
         <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
           <path d="M7 2a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 2zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 8zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 14zm6-8a2 2 0 1 0-.001-4.001A2 2 0 0 0 13 6zm0 2a2 2 0 1 0 .001 4.001A2 2 0 0 0 13 8zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 13 14z"/>
         </svg>
@@ -254,21 +255,21 @@ function DroppableColumn({
   const statusColor = COLUMN_STATUS_COLORS[stage.name] || 'bg-gray-400';
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col min-w-[140px] sm:min-w-0">
       {/* Column Header - Minimal like Jobs */}
-      <div className="flex items-center justify-between px-2 py-2 mb-2">
-        <div className="flex items-center gap-2">
-          <span className={`w-2 h-2 rounded-full ${statusColor}`}></span>
-          <span className="text-sm text-gray-700 font-medium">
+      <div className="flex items-center justify-between px-1.5 md:px-2 py-1.5 md:py-2 mb-2">
+        <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
+          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${statusColor}`}></span>
+          <span className="text-xs md:text-sm text-gray-700 font-medium truncate">
             {stage.displayName}
           </span>
-          <span className="text-xs text-gray-400 font-medium">
+          <span className="text-[10px] md:text-xs text-gray-400 font-medium flex-shrink-0">
             {preOpps.length}
           </span>
         </div>
-        <button 
+        <button
           onClick={() => onNewClick(stage.name)}
-          className="p-1 hover:bg-gray-100 rounded transition-colors text-gray-400 hover:text-gray-600"
+          className="p-1 hover:bg-gray-100 rounded transition-colors text-gray-400 hover:text-gray-600 flex-shrink-0"
           title={`Add pre-opportunity to ${stage.displayName}`}
         >
           <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
@@ -282,9 +283,9 @@ function DroppableColumn({
         <div
           ref={setNodeRef}
           className={`
-            min-h-[400px] rounded-lg p-2 transition-all duration-200
-            ${isOver 
-              ? 'bg-blue-50 ring-2 ring-blue-300 ring-opacity-50' 
+            min-h-[250px] md:min-h-[400px] rounded-lg p-1.5 md:p-2 transition-all duration-200
+            ${isOver
+              ? 'bg-blue-50 ring-2 ring-blue-300 ring-opacity-50'
               : 'bg-gray-50/50'
             }
           `}
@@ -340,7 +341,7 @@ export function KanbanView({
   
   // Modal state for creating new pre-opportunities from column
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [createModalInitialStatus, setCreateModalInitialStatus] = useState<PreOpportunityStatus>('DRAFT');
+  const [createModalInitialStatus, setCreateModalInitialStatus] = useState<PreOpportunityStatus>('QUALIFIED');
   
   // Active dragging item and over state
   const [activeDragItem, setActiveDragItem] = useState<PreOpportunityLandingPage | null>(null);
@@ -373,8 +374,89 @@ export function KanbanView({
     setOverId(event.over?.id as string || null);
   }, []);
 
+  const applyOptimisticStatusUpdate = useCallback((preOppId: string, targetStatus: PreOpportunityStatus) => {
+    const previousPreOpps = queryClient.getQueryData<APIPreOppLandingPage[]>(
+      crmQueryKeys.preOpportunityLandingPages()
+    );
+
+    if (previousPreOpps) {
+      queryClient.setQueryData<APIPreOppLandingPage[]>(
+        crmQueryKeys.preOpportunityLandingPages(),
+        previousPreOpps.map(preOpp =>
+          preOpp.id === preOppId
+            ? { ...preOpp, status: targetStatus as APIPreOppLandingPage['status'] }
+            : preOpp
+        )
+      );
+    }
+
+    return previousPreOpps;
+  }, [queryClient]);
+
+  const getTargetStatus = useCallback((overIdValue: string) => {
+    if (stages.some(s => s.name === overIdValue)) {
+      return overIdValue as PreOpportunityStatus;
+    }
+    const targetCard = preOpps.find(p => p.id === overIdValue);
+    return targetCard?.status ?? null;
+  }, [preOpps, stages]);
+
+  const persistStatusChange = useCallback(async (
+    preOppId: string,
+    targetStatus: PreOpportunityStatus,
+    previousPreOpps: APIPreOppLandingPage[] | undefined,
+    entityNumber?: string
+  ) => {
+    try {
+      const fullPreOpp = await fetchPreOpportunity(preOppId);
+      if (!fullPreOpp) {
+        throw new Error('Failed to fetch pre-opportunity data');
+      }
+
+      await updateMutation.mutateAsync({
+        id: preOppId,
+        entityNumber: fullPreOpp.entityNumber,
+        entityDate: fullPreOpp.entityDate,
+        status: targetStatus,
+        soldToCustomerId: fullPreOpp.soldToCustomerId,
+        billToCustomerId: fullPreOpp.billToCustomerId,
+        soldToCustomerAddressId: fullPreOpp.soldToCustomerAddressId,
+        billToCustomerAddressId: fullPreOpp.billToCustomerAddressId,
+        jobId: fullPreOpp.jobId,
+        expDate: fullPreOpp.expDate,
+        acceptDate: fullPreOpp.acceptDate,
+        reviseDate: fullPreOpp.reviseDate,
+        customerRef: fullPreOpp.customerRef,
+        paymentTerms: fullPreOpp.paymentTerms,
+        freightTerms: fullPreOpp.freightTerms,
+        details: fullPreOpp.details?.map(d => ({
+          id: d.id,
+          itemNumber: d.itemNumber,
+          productId: d.productId,
+          productCpnId: d.productCpnId,
+          quantity: d.quantity,
+          unitPrice: d.unitPrice,
+          discountRate: d.discountRate,
+          leadTime: d.leadTime,
+          endUserId: d.endUserId,
+        })) || [],
+        optimisticStatus: targetStatus,
+      });
+
+      if (entityNumber) {
+        preOpportunityToasts.statusChanged(entityNumber, getStatusLabel(targetStatus));
+      }
+    } catch (error) {
+      if (previousPreOpps) {
+        queryClient.setQueryData(crmQueryKeys.preOpportunityLandingPages(), previousPreOpps);
+      }
+      console.error('Failed to update status:', error);
+      preOpportunityToasts.updateError(error instanceof Error ? error.message : 'Failed to update status');
+    }
+  }, [queryClient, updateMutation]);
+
   // Handle drag end
-  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
     
     setActiveDragItem(null);
@@ -383,99 +465,16 @@ export function KanbanView({
     
     if (!over) return;
 
-    const activePreOppId = active.id as string;
-    const overIdValue = over.id as string;
-    
-    // Find the item being dragged
+    const activePreOppId = String(active.id);
     const draggedItem = preOpps.find(p => p.id === activePreOppId);
     if (!draggedItem) return;
-    
-    // Determine the target status
-    let targetStatus: PreOpportunityStatus;
-    
-    // Check if we're dropping on a column (stage name) or on another card
-    const isColumn = stages.some(s => s.name === overIdValue);
-    
-    if (isColumn) {
-      targetStatus = overIdValue as PreOpportunityStatus;
-    } else {
-      // Dropping on another card - find which column that card is in
-      const targetCard = preOpps.find(p => p.id === overIdValue);
-      if (!targetCard) return;
-      targetStatus = targetCard.status;
-    }
-    
-    // Only update if status changed
-    if (draggedItem.status !== targetStatus) {
-      // Apply immediate optimistic update to cache BEFORE fetching
-      const previousPreOpps = queryClient.getQueryData<APIPreOppLandingPage[]>(
-        crmQueryKeys.preOpportunityLandingPages()
-      );
-      
-      if (previousPreOpps) {
-        queryClient.setQueryData<APIPreOppLandingPage[]>(
-          crmQueryKeys.preOpportunityLandingPages(),
-          previousPreOpps.map(preOpp =>
-            preOpp.id === activePreOppId
-              ? { ...preOpp, status: targetStatus as APIPreOppLandingPage['status'] }
-              : preOpp
-          )
-        );
-      }
-      
-      try {
-        // Fetch full pre-opportunity data to get all required fields
-        const fullPreOpp = await fetchPreOpportunity(activePreOppId);
-        if (!fullPreOpp) {
-          // Rollback on error
-          if (previousPreOpps) {
-            queryClient.setQueryData(crmQueryKeys.preOpportunityLandingPages(), previousPreOpps);
-          }
-          throw new Error('Failed to fetch pre-opportunity data');
-        }
 
-        // Build the update payload with all required fields
-        // Include optimisticStatus for mutation-level optimistic update
-        await updateMutation.mutateAsync({
-          id: activePreOppId,
-          entityNumber: fullPreOpp.entityNumber,
-          entityDate: fullPreOpp.entityDate,
-          status: targetStatus,
-          soldToCustomerId: fullPreOpp.soldToCustomerId,
-          billToCustomerId: fullPreOpp.billToCustomerId,
-          soldToCustomerAddressId: fullPreOpp.soldToCustomerAddressId,
-          billToCustomerAddressId: fullPreOpp.billToCustomerAddressId,
-          jobId: fullPreOpp.jobId,
-          expDate: fullPreOpp.expDate,
-          acceptDate: fullPreOpp.acceptDate,
-          reviseDate: fullPreOpp.reviseDate,
-          customerRef: fullPreOpp.customerRef,
-          paymentTerms: fullPreOpp.paymentTerms,
-          freightTerms: fullPreOpp.freightTerms,
-          details: fullPreOpp.details?.map(d => ({
-            id: d.id,
-            itemNumber: d.itemNumber,
-            productId: d.productId,
-            productCpnId: d.productCpnId,
-            quantity: d.quantity,
-            unitPrice: d.unitPrice,
-            discountRate: d.discountRate,
-            leadTime: d.leadTime,
-            endUserId: d.endUserId,
-          })) || [],
-          optimisticStatus: targetStatus,
-        });
-        preOpportunityToasts.statusChanged(draggedItem.entityNumber, getStatusLabel(targetStatus));
-      } catch (error) {
-        // Rollback optimistic update on error
-        if (previousPreOpps) {
-          queryClient.setQueryData(crmQueryKeys.preOpportunityLandingPages(), previousPreOpps);
-        }
-        console.error('Failed to update status:', error);
-        preOpportunityToasts.updateError(error instanceof Error ? error.message : 'Failed to update status');
-      }
-    }
-  }, [preOpps, stages, updateMutation, setActiveId, queryClient]);
+    const targetStatus = getTargetStatus(String(over.id));
+    if (!targetStatus || draggedItem.status === targetStatus) return;
+
+    const previousPreOpps = applyOptimisticStatusUpdate(activePreOppId, targetStatus);
+    void persistStatusChange(activePreOppId, targetStatus, previousPreOpps, draggedItem.entityNumber);
+  }, [applyOptimisticStatusUpdate, getTargetStatus, persistStatusChange, preOpps]);
 
   // Handle delete
   const handleDelete = async (preOppId: string) => {
@@ -508,7 +507,7 @@ export function KanbanView({
     // If we have collisions, prioritize stage columns
     if (pointerCollisions.length > 0) {
       const columnCollision = pointerCollisions.find(c => 
-        ['DRAFT', 'PENDING', 'APPROVED', 'REJECTED', 'CONVERTED'].includes(String(c.id))
+        ['QUALIFIED', 'NEGOTIATION', 'FOLLOW_UP', 'WAITING_ON_FACTORY', 'LOST', 'WON'].includes(String(c.id))
       );
       if (columnCollision) {
         return [columnCollision];
@@ -528,7 +527,8 @@ export function KanbanView({
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="grid grid-cols-5 gap-4">
+        <div className="overflow-x-auto pb-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4 min-w-[600px] lg:min-w-0">
           {stages.map((stage) => {
             const stagePreOpps = getPreOppsByStatus(preOpps, stage.name);
             const isOverColumn = overId === stage.name;
@@ -544,6 +544,7 @@ export function KanbanView({
               />
             );
           })}
+          </div>
         </div>
 
         {/* Drag Overlay - the floating card while dragging */}

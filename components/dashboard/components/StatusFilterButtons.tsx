@@ -33,19 +33,20 @@ export function StatusFilterButtons({ statusFilters, onToggleStatusFilter }: Sta
   const statuses: ActivityStatus[] = ['upcoming', 'completed'];
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1.5 sm:gap-2">
       {statuses.map((status) => (
         <button
           key={status}
           onClick={() => onToggleStatusFilter(status)}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border ${
+          className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors border whitespace-nowrap ${
             statusFilters.includes(status)
               ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
               : 'border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--muted)]'
           }`}
         >
           <CheckboxIcon checked={statusFilters.includes(status)} />
-          {capitalize(status)}
+          <span className="hidden sm:inline">{capitalize(status)}</span>
+          <span className="sm:hidden">{status === 'upcoming' ? 'Up' : 'Done'}</span>
         </button>
       ))}
     </div>

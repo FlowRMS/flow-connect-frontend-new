@@ -2,13 +2,14 @@
  * Contact Detail View Component
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import ContactDetailHeader from './ContactDetailHeader';
 import ContactInfoForm from './ContactInfoForm';
 import ContactRelatedEntities from './ContactRelatedEntities';
 import ConnectedNotesSection from '../../notes/ConnectedNotesSection';
 import ConnectedTasksSection from '../../tasks/ConnectedTasksSection';
 import DeleteConfirmModal from './DeleteConfirmModal';
+import { AddTaskNoteLinkModal } from '../modals/AddTaskNoteLinkModal';
 import type { Contact } from '../types';
 import type { Job as APIJob, Company as APICompany } from '../../lib/crm-graphql';
 
@@ -47,8 +48,29 @@ export default function ContactDetailView({
   onJobClick,
   onCompanyClick,
 }: ContactDetailViewProps) {
+  // Modal states for linking tasks/notes
+  const [showAddLinkModal, setShowAddLinkModal] = useState(false);
+  const [addLinkEntityType, setAddLinkEntityType] = useState<'TASK' | 'NOTE'>('TASK');
+  const [tasksSectionKey, setTasksSectionKey] = useState(0);
+  const [notesSectionKey, setNotesSectionKey] = useState(0);
+
+  // Handle link success - trigger refetch via key change
+  const handleLinkSuccess = () => {
+    if (addLinkEntityType === 'TASK') {
+      setTasksSectionKey(prev => prev + 1);
+    } else {
+      setNotesSectionKey(prev => prev + 1);
+    }
+  };
+
+  // Open add link modal for specific entity type
+  const openAddLinkModal = (entityType: 'TASK' | 'NOTE') => {
+    setAddLinkEntityType(entityType);
+    setShowAddLinkModal(true);
+  };
+
   return (
-    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
+    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-3 sm:p-6">
       <ContactDetailHeader
         contact={contact}
         isEditing={isEditing}
@@ -76,16 +98,30 @@ export default function ContactDetailView({
 
       {/* Connected Tasks */}
       <ConnectedTasksSection
+        key={`tasks-${tasksSectionKey}`}
         entityId={contact.id}
         entityType="CONTACT"
         title="Connected Tasks"
+        onAddClick={() => openAddLinkModal('TASK')}
       />
 
       {/* Connected Notes */}
       <ConnectedNotesSection
+        key={`notes-${notesSectionKey}`}
         entityId={contact.id}
         entityType="CONTACT"
         title="Connected Notes"
+        onAddClick={() => openAddLinkModal('NOTE')}
+      />
+
+      {/* Add Link Modal for Tasks/Notes */}
+      <AddTaskNoteLinkModal
+        isOpen={showAddLinkModal}
+        entityId={contact.id}
+        entityType="CONTACT"
+        initialLinkType={addLinkEntityType}
+        onClose={() => setShowAddLinkModal(false)}
+        onSuccess={handleLinkSuccess}
       />
 
       {/* Delete Confirmation Modal */}

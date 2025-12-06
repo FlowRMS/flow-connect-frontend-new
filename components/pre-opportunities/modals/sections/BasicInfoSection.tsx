@@ -6,10 +6,9 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import DatePicker from 'react-datepicker';
-import 'react-datepicker/dist/react-datepicker.css';
 import type { PreOpportunityStatus } from '../../types';
 import { formatLocalDate } from '../../../lib/date-utils';
+import { StyledDatePicker } from '../../../shared/StyledDatePicker';
 
 interface BasicInfoSectionProps {
   entityNumber: string;
@@ -28,11 +27,12 @@ interface BasicInfoSectionProps {
 
 // Status color mapping
 const STATUS_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
-  'DRAFT': { bg: 'bg-gray-100', text: 'text-gray-700', dot: 'bg-gray-500' },
-  'PENDING': { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500' },
-  'APPROVED': { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-500' },
-  'REJECTED': { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500' },
-  'CONVERTED': { bg: 'bg-purple-50', text: 'text-purple-700', dot: 'bg-purple-500' },
+  'QUALIFIED': { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500' },
+  'NEGOTIATION': { bg: 'bg-purple-50', text: 'text-purple-700', dot: 'bg-purple-500' },
+  'FOLLOW_UP': { bg: 'bg-yellow-50', text: 'text-yellow-700', dot: 'bg-yellow-500' },
+  'WAITING_ON_FACTORY': { bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-500' },
+  'LOST': { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500' },
+  'WON': { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-500' },
 };
 
 // Custom styled status dropdown
@@ -57,11 +57,12 @@ function StatusSelect({
   }, []);
 
   const options: { value: PreOpportunityStatus; label: string }[] = [
-    { value: 'DRAFT', label: 'Draft' },
-    { value: 'PENDING', label: 'Pending' },
-    { value: 'APPROVED', label: 'Approved' },
-    { value: 'REJECTED', label: 'Rejected' },
-    { value: 'CONVERTED', label: 'Converted' },
+    { value: 'QUALIFIED', label: 'Qualified' },
+    { value: 'NEGOTIATION', label: 'Negotiation' },
+    { value: 'FOLLOW_UP', label: 'Follow Up' },
+    { value: 'WAITING_ON_FACTORY', label: 'Waiting on Factory' },
+    { value: 'LOST', label: 'Lost' },
+    { value: 'WON', label: 'Won' },
   ];
 
   const selectedOption = options.find(opt => opt.value === value);
@@ -133,124 +134,6 @@ function StatusSelect({
   );
 }
 
-// Styled wrapper for react-datepicker
-interface StyledDatePickerProps {
-  selected: Date | null;
-  onChange: (date: Date | null) => void;
-  placeholder?: string;
-}
-
-function StyledDatePicker({ selected, onChange, placeholder }: StyledDatePickerProps) {
-  return (
-    <div className="styled-datepicker-wrapper">
-      <DatePicker
-        selected={selected}
-        onChange={onChange}
-        placeholderText={placeholder || 'Select date...'}
-        dateFormat="MMM d, yyyy"
-        className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400 cursor-pointer"
-        calendarClassName="styled-calendar"
-        showPopperArrow={false}
-        popperClassName="react-datepicker-popper-styled"
-        popperPlacement="bottom-start"
-        wrapperClassName="w-full"
-      />
-      <style jsx global>{`
-        .styled-datepicker-wrapper {
-          position: relative;
-          width: 100%;
-        }
-        .styled-datepicker-wrapper .react-datepicker-wrapper {
-          width: 100%;
-        }
-        .styled-datepicker-wrapper .react-datepicker__input-container {
-          width: 100%;
-        }
-        .react-datepicker-popper-styled {
-          z-index: 100 !important;
-        }
-        .react-datepicker {
-          font-family: inherit !important;
-          border: 1px solid #e5e7eb !important;
-          border-radius: 12px !important;
-          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
-          overflow: hidden;
-        }
-        .react-datepicker__header {
-          background: linear-gradient(to bottom, #f9fafb, #f3f4f6) !important;
-          border-bottom: 1px solid #e5e7eb !important;
-          padding: 12px !important;
-          border-radius: 0 !important;
-        }
-        .react-datepicker__current-month {
-          font-weight: 600 !important;
-          font-size: 0.95rem !important;
-          color: #111827 !important;
-          margin-bottom: 8px !important;
-        }
-        .react-datepicker__day-names {
-          margin-top: 4px !important;
-        }
-        .react-datepicker__day-name {
-          color: #6b7280 !important;
-          font-weight: 500 !important;
-          font-size: 0.75rem !important;
-          width: 2.2rem !important;
-          margin: 0.15rem !important;
-        }
-        .react-datepicker__month {
-          margin: 0.5rem !important;
-        }
-        .react-datepicker__day {
-          width: 2.2rem !important;
-          height: 2.2rem !important;
-          line-height: 2.2rem !important;
-          margin: 0.15rem !important;
-          border-radius: 8px !important;
-          font-size: 0.875rem !important;
-          color: #374151 !important;
-          transition: all 0.15s ease !important;
-        }
-        .react-datepicker__day:hover {
-          background-color: #eff6ff !important;
-          color: #2563eb !important;
-        }
-        .react-datepicker__day--selected,
-        .react-datepicker__day--keyboard-selected {
-          background-color: #2563eb !important;
-          color: white !important;
-          font-weight: 600 !important;
-        }
-        .react-datepicker__day--selected:hover {
-          background-color: #1d4ed8 !important;
-        }
-        .react-datepicker__day--today {
-          font-weight: 600 !important;
-          color: #2563eb !important;
-        }
-        .react-datepicker__day--today.react-datepicker__day--selected {
-          color: white !important;
-        }
-        .react-datepicker__day--outside-month {
-          color: #d1d5db !important;
-        }
-        .react-datepicker__navigation {
-          top: 12px !important;
-        }
-        .react-datepicker__navigation-icon::before {
-          border-color: #6b7280 !important;
-          border-width: 2px 2px 0 0 !important;
-        }
-        .react-datepicker__navigation:hover .react-datepicker__navigation-icon::before {
-          border-color: #2563eb !important;
-        }
-        .react-datepicker__triangle {
-          display: none !important;
-        }
-      `}</style>
-    </div>
-  );
-}
 
 export function BasicInfoSection({
   entityNumber,

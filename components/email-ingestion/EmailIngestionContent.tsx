@@ -46,25 +46,25 @@ export default function EmailIngestionContent() {
     : null;
 
   return (
-    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6 relative">
+    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-3 sm:p-6 relative">
       {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-2">
+      <div className="mb-4 sm:mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2 mb-2">
           <div>
-            <h1 className="text-2xl font-semibold text-[var(--foreground)]">Email Ingestion</h1>
-            <p className="text-sm text-[var(--muted-foreground)] mt-1">
-              Review and process incoming emails with automated entity detection
+            <h1 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]">Email Ingestion</h1>
+            <p className="text-xs sm:text-sm text-[var(--muted-foreground)] mt-1">
+              Review and process incoming emails
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
             {/* View Mode Toggle */}
             <div className="flex items-center gap-1 p-1 bg-[var(--muted)] rounded-md">
               <button
                 onClick={() => setViewMode('card')}
-                className={`p-2 rounded ${viewMode === 'card' ? 'bg-white shadow-sm' : 'hover:bg-[var(--card)]'}`}
+                className={`p-1.5 sm:p-2 rounded ${viewMode === 'card' ? 'bg-white shadow-sm' : 'hover:bg-[var(--card)]'}`}
                 title="Card View"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-[18px] sm:h-[18px]">
                   <rect x="3" y="3" width="7" height="7" rx="1"/>
                   <rect x="14" y="3" width="7" height="7" rx="1"/>
                   <rect x="14" y="14" width="7" height="7" rx="1"/>
@@ -73,10 +73,10 @@ export default function EmailIngestionContent() {
               </button>
               <button
                 onClick={() => setViewMode('spreadsheet')}
-                className={`p-2 rounded ${viewMode === 'spreadsheet' ? 'bg-white shadow-sm' : 'hover:bg-[var(--card)]'}`}
+                className={`hidden sm:block p-1.5 sm:p-2 rounded ${viewMode === 'spreadsheet' ? 'bg-white shadow-sm' : 'hover:bg-[var(--card)]'}`}
                 title="Spreadsheet View"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-[18px] sm:h-[18px]">
                   <line x1="8" y1="6" x2="21" y2="6"/>
                   <line x1="8" y1="12" x2="21" y2="12"/>
                   <line x1="8" y1="18" x2="21" y2="18"/>
@@ -87,14 +87,14 @@ export default function EmailIngestionContent() {
               </button>
             </div>
 
-            <button className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors">
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+            <button className="hidden sm:flex items-center gap-2 px-2 sm:px-3 py-1.5 text-xs sm:text-sm border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors">
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-4 sm:h-4">
                 <path d="M3 6h14M3 10h14M3 14h14" strokeLinecap="round"/>
               </svg>
               Filter
             </button>
-            <button className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors">
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+            <button className="hidden sm:flex items-center gap-2 px-2 sm:px-3 py-1.5 text-xs sm:text-sm border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors">
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-4 sm:h-4">
                 <path d="M3 4h14M6 8h11M9 12h8M12 16h5" strokeLinecap="round"/>
               </svg>
               Sort
@@ -105,20 +105,21 @@ export default function EmailIngestionContent() {
       </div>
 
       {/* Status Filters */}
-      <div className="mb-6 flex items-center gap-4 border-b border-[var(--border)] pb-2">
-        <div className="flex gap-2">
+      <div className="mb-4 sm:mb-6 flex items-center gap-2 sm:gap-4 border-b border-[var(--border)] pb-2 overflow-x-auto">
+        <div className="flex gap-1 sm:gap-2">
           {(['All', 'Needs Attention', 'Processed'] as FilterStatus[]).map((status) => (
             <button
               key={status}
               onClick={() => setSelectedStatus(status)}
-              className={`px-4 py-2 text-sm font-medium whitespace-nowrap rounded-lg transition-colors ${
+              className={`px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium whitespace-nowrap rounded-lg transition-colors ${
                 selectedStatus === status
                   ? 'bg-[var(--primary)] text-white'
                   : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] border border-[var(--border)]'
               }`}
             >
-              {status}
-              <span className="ml-2 text-xs opacity-75">
+              {status === 'Needs Attention' ? <span className="sm:hidden">Attention</span> : null}
+              {status === 'Needs Attention' ? <span className="hidden sm:inline">{status}</span> : status}
+              <span className="ml-1 sm:ml-2 text-xs opacity-75">
                 ({status === 'All'
                   ? statusCounts.all
                   : status === 'Processed'

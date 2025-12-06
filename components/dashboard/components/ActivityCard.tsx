@@ -239,26 +239,26 @@ export function ActivityCard({ activity }: ActivityCardProps) {
   return (
     <Link
       href={activity.link}
-      className="flex gap-4 pb-4 border-b border-[var(--border)] last:border-0 last:pb-0 hover:bg-[var(--muted)]/30 -mx-2 px-3 py-4 rounded-lg transition-colors cursor-pointer"
+      className="flex flex-col sm:flex-row gap-3 sm:gap-4 pb-4 border-b border-[var(--border)] last:border-0 last:pb-0 hover:bg-[var(--muted)]/30 -mx-2 px-2 sm:px-3 py-3 sm:py-4 rounded-lg transition-colors cursor-pointer"
     >
-      {/* Avatar */}
-      <div className={`flex-shrink-0 w-10 h-10 rounded-full ${getAvatarColor(activity.assignedTo)} flex items-center justify-center text-white text-sm font-semibold`}>
+      {/* Avatar - Hidden on very small screens, shown on sm+ */}
+      <div className={`hidden sm:flex flex-shrink-0 w-10 h-10 rounded-full ${getAvatarColor(activity.assignedTo)} items-center justify-center text-white text-sm font-semibold`}>
         {getInitials(activity.assignedTo)}
       </div>
 
       {/* Content */}
       <div className="flex-1 min-w-0">
         {/* Header with prominent type badge */}
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <div className="flex-1">
-            <div className="flex items-center gap-3 mb-2">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
               <ActivityTypeBadge type={activity.type} />
-              <span className="text-sm text-[var(--muted-foreground)]">{activity.time}</span>
+              <span className="text-xs sm:text-sm text-[var(--muted-foreground)]">{activity.time}</span>
             </div>
-            <h4 className="font-semibold text-[var(--foreground)] text-base mb-1">{activity.entity || activity.title}</h4>
-            <p className="text-sm text-[var(--muted-foreground)] line-clamp-2">{activity.description}</p>
+            <h4 className="font-semibold text-[var(--foreground)] text-sm sm:text-base mb-1 line-clamp-2 sm:line-clamp-1">{activity.entity || activity.title}</h4>
+            <p className="text-xs sm:text-sm text-[var(--muted-foreground)] line-clamp-2">{activity.description}</p>
           </div>
-          <span className={`px-2.5 py-1 rounded-full text-xs font-medium flex-shrink-0 ${getStatusBadgeClass(activity.activityStatus)}`}>
+          <span className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-xs font-medium flex-shrink-0 self-start ${getStatusBadgeClass(activity.activityStatus)}`}>
             {capitalize(activity.activityStatus)}
           </span>
         </div>
@@ -270,19 +270,19 @@ export function ActivityCard({ activity }: ActivityCardProps) {
 
         {/* Tags */}
         {activity.tags && activity.tags.length > 0 && (
-          <div className="flex items-center gap-3 flex-wrap mb-3">
-            <div className="flex gap-1.5 flex-wrap">
-              {activity.tags.slice(0, 4).map((tag, idx) => (
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap mb-3">
+            <div className="flex gap-1 sm:gap-1.5 flex-wrap">
+              {activity.tags.slice(0, 3).map((tag, idx) => (
                 <span
                   key={idx}
-                  className="px-2 py-1 bg-[var(--secondary)] text-[var(--secondary-foreground)] rounded text-xs font-medium"
+                  className="px-1.5 sm:px-2 py-0.5 sm:py-1 bg-[var(--secondary)] text-[var(--secondary-foreground)] rounded text-xs font-medium"
                 >
                   {tag}
                 </span>
               ))}
-              {activity.tags.length > 4 && (
-                <span className="px-2 py-1 text-xs text-[var(--muted-foreground)]">
-                  +{activity.tags.length - 4} more
+              {activity.tags.length > 3 && (
+                <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-xs text-[var(--muted-foreground)]">
+                  +{activity.tags.length - 3} more
                 </span>
               )}
             </div>
@@ -299,15 +299,15 @@ export function ActivityCard({ activity }: ActivityCardProps) {
         )}
 
         {/* Footer */}
-        <div className="flex items-center gap-3 text-xs text-[var(--muted-foreground)] pt-2 border-t border-[var(--border)]">
+        <div className="flex items-center gap-2 sm:gap-3 text-xs text-[var(--muted-foreground)] pt-2 border-t border-[var(--border)] flex-wrap">
           <div className="flex items-center gap-1.5">
-            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="flex-shrink-0">
               <circle cx="10" cy="7" r="3"/>
               <path d="M4 18c0-3 2.7-5.5 6-5.5s6 2.5 6 5.5"/>
             </svg>
-            <span>{activity.assignedTo}</span>
+            <span className="truncate max-w-[120px] sm:max-w-none">{activity.assignedTo}</span>
           </div>
-          <span>·</span>
+          <span className="hidden sm:inline">·</span>
           <span>{activity.date}</span>
         </div>
       </div>

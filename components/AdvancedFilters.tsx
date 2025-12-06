@@ -167,7 +167,7 @@ export default function AdvancedFilters({
         columnName: option.columnName,
         operator: 'IN',
         values: selectedValues,
-        value: selectedValues.join(','),
+        // Note: Don't set value for IN operator - API expects only values array
       });
     }
     
@@ -224,16 +224,17 @@ export default function AdvancedFilters({
           setIsExpanded(!isExpanded);
           if (isExpanded) setExpandedFilterId(null);
         }}
-        className={`flex items-center gap-2 px-3 py-1.5 text-sm border rounded-md transition-colors ${
-          localFilters.length > 0 
-            ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]' 
+        className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 text-xs sm:text-sm border rounded-md transition-colors ${
+          localFilters.length > 0
+            ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]'
             : 'border-[var(--border)] hover:bg-[var(--muted)]'
         }`}
       >
-        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-4 sm:h-4">
           <path d="M3 6h14M7 10h10M11 14h6" strokeLinecap="round"/>
         </svg>
-        Advanced Filters
+        <span className="hidden sm:inline">Advanced Filters</span>
+        <span className="sm:hidden">Filters</span>
         {activeFilterCount > 0 && (
           <span className="ml-1 px-1.5 py-0.5 bg-[var(--primary)] text-white text-xs rounded-full">
             {activeFilterCount}
@@ -243,21 +244,21 @@ export default function AdvancedFilters({
 
       {/* Expanded Filter Panel - Fixed positioning with full height */}
       {isExpanded && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center pt-10 px-4 pointer-events-none">
-          <div 
-            className="w-full max-w-4xl bg-white rounded-xl p-6 shadow-2xl pointer-events-auto overflow-visible border border-gray-200"
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-4 sm:pt-10 px-2 sm:px-4 pointer-events-none">
+          <div
+            className="w-full max-w-4xl bg-white rounded-xl p-3 sm:p-6 shadow-2xl pointer-events-auto border border-gray-200 max-h-[90vh] overflow-y-auto"
           >
             {/* Header */}
-            <div className="flex items-start justify-between mb-6 pb-4 border-b border-gray-100">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-blue-50 rounded-lg">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2">
+            <div className="flex items-start justify-between mb-4 sm:mb-6 pb-3 sm:pb-4 border-b border-gray-100">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="p-2 sm:p-2.5 bg-blue-50 rounded-lg">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" className="sm:w-5 sm:h-5">
                     <path d="M3 6h18M7 12h10M11 18h2" strokeLinecap="round"/>
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Advanced Filters</h3>
-                  <p className="text-sm text-gray-500">{filterOptions.filter(f => f.available !== false).length} available filters</p>
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-900">Advanced Filters</h3>
+                  <p className="text-xs sm:text-sm text-gray-500">{filterOptions.filter(f => f.available !== false).length} available filters</p>
                 </div>
               </div>
               <button
@@ -265,9 +266,9 @@ export default function AdvancedFilters({
                   setIsExpanded(false);
                   setExpandedFilterId(null);
                 }}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-500 hover:text-gray-700"
+                className="p-1.5 sm:p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-500 hover:text-gray-700"
               >
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-5 sm:h-5">
                   <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </button>
@@ -275,25 +276,25 @@ export default function AdvancedFilters({
 
             {/* Active Filters Display */}
             {localFilters.length > 0 && (
-              <div className="mb-6 bg-blue-50 rounded-lg p-4 border border-blue-100">
+              <div className="mb-4 sm:mb-6 bg-blue-50 rounded-lg p-3 sm:p-4 border border-blue-100">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-medium text-blue-700">Active:</span>
+                  <span className="text-xs sm:text-sm font-medium text-blue-700">Active:</span>
                   {localFilters.map((filter, index) => {
                     const option = filterOptions.find(o => o.columnName === filter.columnName);
                     const label = option?.label || filter.columnName;
                     return (
-                      <span key={index} className="px-3 py-1.5 bg-white text-gray-700 rounded-lg text-sm flex items-center gap-2 border border-gray-200 shadow-sm">
+                      <span key={index} className="px-2 sm:px-3 py-1 sm:py-1.5 bg-white text-gray-700 rounded-lg text-xs sm:text-sm flex items-center gap-1 sm:gap-2 border border-gray-200 shadow-sm">
                         <span className="font-medium text-gray-900">{label}:</span>
-                        <span className="text-gray-600">
-                          {filter.operator === 'IN' && filter.values 
-                            ? filter.values.join(', ') 
+                        <span className="text-gray-600 truncate max-w-[100px] sm:max-w-none">
+                          {filter.operator === 'IN' && filter.values
+                            ? filter.values.join(', ')
                             : filter.value}
                         </span>
-                        <button 
-                          onClick={() => handleClearFilter(filter.columnName)} 
+                        <button
+                          onClick={() => handleClearFilter(filter.columnName)}
                           className="ml-1 p-0.5 hover:bg-gray-100 rounded transition-colors text-gray-400 hover:text-red-500"
                         >
-                          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                          <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-3.5 sm:h-3.5">
                             <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
                           </svg>
                         </button>
@@ -305,14 +306,14 @@ export default function AdvancedFilters({
             )}
 
             {/* Filter By Field - With inline dropdowns */}
-            <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
-              <div className="flex items-center gap-2 mb-4">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2">
+            <div className="bg-gray-50 rounded-lg p-3 sm:p-4 border border-gray-100">
+              <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" className="sm:w-[18px] sm:h-[18px]">
                   <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46" />
                 </svg>
-                <h4 className="text-sm font-semibold text-gray-700">Filter By Field</h4>
+                <h4 className="text-xs sm:text-sm font-semibold text-gray-700">Filter By Field</h4>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
                 {filterOptions.map((option) => (
                   <div key={option.id} className="relative">
                     <button 

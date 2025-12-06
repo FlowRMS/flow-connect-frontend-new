@@ -1,23 +1,56 @@
+'use client';
+
 import React from 'react';
+import Image from 'next/image';
+import { MobileSidebarContext } from './Sidebar';
 
 export default function TopBar() {
   const loginUrl = process.env.NEXT_PUBLIC_LOGIN_URL || 'https://app2.flowrms.com';
+  const { setIsOpen, isMobile } = React.useContext(MobileSidebarContext);
 
   return (
-    <div className="bg-[var(--card)] border-b border-[var(--border)] px-6 py-3 flex items-center justify-end">
-      {/* Right: Back to FlowRMS & Notifications */}
+    <div className="bg-[var(--card)] border-b border-[var(--border)] px-3 sm:px-6 py-3 flex items-center justify-between">
+      {/* Left: Mobile hamburger & logo */}
       <div className="flex items-center gap-3">
+        {isMobile && (
+          <>
+            <button
+              onClick={() => setIsOpen(true)}
+              className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors md:hidden"
+              aria-label="Open menu"
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="3" y1="6" x2="21" y2="6" strokeLinecap="round"/>
+                <line x1="3" y1="12" x2="21" y2="12" strokeLinecap="round"/>
+                <line x1="3" y1="18" x2="21" y2="18" strokeLinecap="round"/>
+              </svg>
+            </button>
+            <Image
+              src="/flow-logo.png"
+              alt="FlowCRM"
+              width={28}
+              height={28}
+              className="md:hidden"
+            />
+            <span className="text-sm font-semibold text-[var(--foreground)] md:hidden">FlowCRM</span>
+          </>
+        )}
+      </div>
+
+      {/* Right: Back to FlowRMS & Notifications */}
+      <div className="flex items-center gap-2 sm:gap-3">
         <a
           href={loginUrl}
-          className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-[var(--primary)] border border-[var(--primary)] rounded-lg hover:bg-[var(--primary)] hover:text-white transition-colors"
+          className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium text-[var(--primary)] border border-[var(--primary)] rounded-lg hover:bg-[var(--primary)] hover:text-white transition-colors"
         >
-          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-4 sm:h-4">
             <path d="M10 16l-6-6 6-6M4 10h12" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
-          Back to FlowRMS
+          <span className="hidden xs:inline sm:inline">Back to FlowRMS</span>
+          <span className="xs:hidden sm:hidden">Back to FlowRMS</span>
         </a>
-        <button className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors relative">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+        <button className="p-1.5 sm:p-2 hover:bg-[var(--muted)] rounded-lg transition-colors relative">
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-5 sm:h-5">
             <path d="M10 5a3 3 0 013 3v3l1.5 3h-9L7 11V8a3 3 0 013-3zM8.5 16a1.5 1.5 0 003 0" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </button>

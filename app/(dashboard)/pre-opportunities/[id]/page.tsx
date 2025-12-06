@@ -26,7 +26,7 @@ export default function PreOpportunityDetailPage({ params }: PageProps) {
 
   const [isEditing, setIsEditing] = useState(false);
   const [editFormData, setEditFormData] = useState<EditFormData>({
-    status: 'DRAFT',
+    status: 'QUALIFIED',
     expDate: '',
     reviseDate: '',
     acceptDate: '',

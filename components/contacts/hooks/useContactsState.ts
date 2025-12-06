@@ -154,12 +154,21 @@ export function useContactsState() {
 
   // Convert ActiveFilter to LandingPageFilter for server-side filtering
   const toServerFilters = useCallback((filters: ActiveFilter[]): LandingPageFilter[] => {
-    return filters.map(f => ({
-      operator: f.operator,
-      columnName: f.columnName,
-      value: f.value,
-      values: f.values,
-    }));
+    return filters.map(f => {
+      // Only include value OR values, not both - check which one exists
+      if (f.values && f.values.length > 0) {
+        return {
+          operator: f.operator,
+          columnName: f.columnName,
+          values: f.values,
+        };
+      }
+      return {
+        operator: f.operator,
+        columnName: f.columnName,
+        value: f.value,
+      };
+    });
   }, []);
 
   // Convert ActiveSort to LandingPageOrderBy for server-side sorting

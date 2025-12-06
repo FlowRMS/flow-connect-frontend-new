@@ -1,7 +1,7 @@
 /**
  * Activity Feed Hook
  * Fetches and combines data from all entity landing pages for the activity feed
- * Supports infinite scroll pagination
+ * Supports infinite scroll pagination and server-side filtering
  */
 
 import { useInfiniteQuery } from '@tanstack/react-query';
@@ -19,6 +19,8 @@ import {
   type PreOpportunityLandingPage,
   type NoteLandingPage,
   type TaskLandingPage,
+  type LandingPageFilter,
+  type LandingPageOrderBy,
 } from '../../lib/crm-graphql';
 
 export interface ActivityFeedData {
@@ -48,23 +50,28 @@ const PAGE_SIZE = 10;
 export const activityFeedQueryKeys = {
   all: ['activityFeed'] as const,
   combined: () => [...activityFeedQueryKeys.all, 'combined'] as const,
-  infinite: () => [...activityFeedQueryKeys.all, 'infinite'] as const,
+  infinite: (filters?: LandingPageFilter[], orderBy?: LandingPageOrderBy[]) => 
+    [...activityFeedQueryKeys.all, 'infinite', { filters, orderBy }] as const,
 };
 
 /**
- * Fetch paginated entity data for the activity feed
+ * Fetch paginated entity data for the activity feed with optional filters
  */
-async function fetchActivityPage(pageIndex: number): Promise<ActivityFeedPage> {
+async function fetchActivityPage(
+  pageIndex: number,
+  filters?: LandingPageFilter[],
+  orderBy?: LandingPageOrderBy[]
+): Promise<ActivityFeedPage> {
   const offset = pageIndex * PAGE_SIZE;
   const pagination = { limit: PAGE_SIZE, offset };
 
   const [jobsResult, companiesResult, contactsResult, preOpportunitiesResult, notesResult, tasksResult] = await Promise.all([
-    fetchJobLandingPages(undefined, undefined, pagination).catch(() => ({ records: [], total: 0 })),
-    fetchCompanyLandingPages(undefined, undefined, pagination).catch(() => ({ records: [], total: 0 })),
-    fetchContactLandingPages(undefined, undefined, pagination).catch(() => ({ records: [], total: 0 })),
-    fetchPreOpportunityLandingPages(undefined, undefined, pagination).catch(() => ({ records: [], total: 0 })),
-    fetchNoteLandingPages(undefined, undefined, pagination).catch(() => ({ records: [], total: 0 })),
-    fetchTaskLandingPages(undefined, undefined, pagination).catch(() => ({ records: [], total: 0 })),
+    fetchJobLandingPages(filters, orderBy, pagination).catch(() => ({ records: [], total: 0 })),
+    fetchCompanyLandingPages(filters, orderBy, pagination).catch(() => ({ records: [], total: 0 })),
+    fetchContactLandingPages(filters, orderBy, pagination).catch(() => ({ records: [], total: 0 })),
+    fetchPreOpportunityLandingPages(filters, orderBy, pagination).catch(() => ({ records: [], total: 0 })),
+    fetchNoteLandingPages(filters, orderBy, pagination).catch(() => ({ records: [], total: 0 })),
+    fetchTaskLandingPages(filters, orderBy, pagination).catch(() => ({ records: [], total: 0 })),
   ]);
 
   return {
@@ -89,13 +96,16 @@ async function fetchActivityPage(pageIndex: number): Promise<ActivityFeedPage> {
 }
 
 /**
- * Hook to fetch activity feed data with infinite scroll pagination
+ * Hook to fetch activity feed data with infinite scroll pagination and server-side filtering
  */
-export function useActivityFeed() {
+export function useActivityFeed(
+  filters?: LandingPageFilter[],
+  orderBy?: LandingPageOrderBy[]
+) {
   const query = useInfiniteQuery<ActivityFeedPage, Error>({
-    queryKey: activityFeedQueryKeys.infinite(),
+    queryKey: activityFeedQueryKeys.infinite(filters, orderBy),
     queryFn: async ({ pageParam = 0 }) => {
-      return fetchActivityPage(pageParam as number);
+      return fetchActivityPage(pageParam as number, filters, orderBy);
     },
     initialPageParam: 0,
     getNextPageParam: (lastPage) => {

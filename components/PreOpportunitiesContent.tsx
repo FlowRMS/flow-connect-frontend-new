@@ -69,17 +69,17 @@ export default function PreOpportunitiesContent() {
   }
 
   return (
-    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
+    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-3 sm:p-6">
       {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-2">
+      <div className="mb-4 sm:mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2 mb-2">
           <div>
-            <h1 className="text-2xl font-semibold text-[var(--foreground)]">Pre-Opportunities</h1>
-            <p className="text-sm text-[var(--muted-foreground)] mt-1">
+            <h1 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]">Pre-Opportunities</h1>
+            <p className="text-xs sm:text-sm text-[var(--muted-foreground)] mt-1">
               {isLoading ? 'Loading...' : `${preOpps.length} opportunities`}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
             <ViewModeToggle viewMode={viewMode} onViewModeChange={setViewMode} />
 
             <SortButton
@@ -96,10 +96,11 @@ export default function PreOpportunitiesContent() {
 
             <button
               onClick={handleOpenCreateModal}
-              className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"
+              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-xs sm:text-sm hover:bg-[var(--primary-hover)] transition-colors"
             >
               <PlusCircleIcon />
-              New Pre-Opportunity
+              <span className="hidden sm:inline">New Pre-Opportunity</span>
+              <span className="sm:hidden">New</span>
             </button>
           </div>
         </div>

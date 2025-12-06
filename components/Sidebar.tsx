@@ -1,13 +1,55 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 
+// Custom hook to detect mobile screen size
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  return isMobile;
+}
+
+// Export mobile sidebar context for use in layout
+export const MobileSidebarContext = React.createContext<{
+  isOpen: boolean;
+  setIsOpen: (open: boolean) => void;
+  isMobile: boolean;
+}>({
+  isOpen: false,
+  setIsOpen: () => {},
+  isMobile: false,
+});
+
+export function MobileSidebarProvider({ children }: { children: React.ReactNode }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const isMobile = useIsMobile();
+
+  // Close sidebar when switching from mobile to desktop
+  useEffect(() => {
+    if (!isMobile) setIsOpen(false);
+  }, [isMobile]);
+
+  return (
+    <MobileSidebarContext.Provider value={{ isOpen, setIsOpen, isMobile }}>
+      {children}
+    </MobileSidebarContext.Provider>
+  );
+}
+
 export default function Sidebar() {
   const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const { isOpen, setIsOpen, isMobile } = React.useContext(MobileSidebarContext);
 
   const mainNav = [
     {
@@ -140,60 +182,135 @@ export default function Sidebar() {
     },
   ];
 
-  return (
-    <div className={`${isCollapsed ? 'w-16' : 'w-64'} bg-[var(--card)] border-r border-[var(--border)] flex flex-col transition-all duration-300`}>
-      {/* Logo & Toggle */}
-      <div className="p-4 border-b border-[var(--border)] flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <Image
-            src="/flow-logo.png"
-            alt="FlowCRM"
-            width={32}
-            height={32}
-            className="flex-shrink-0"
-          />
-          {!isCollapsed && <span className="text-lg font-semibold text-[var(--foreground)]">FlowCRM</span>}
-        </div>
-        <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="p-1.5 text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] rounded-md transition-all flex-shrink-0"
-          title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 20 20"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            className={`transition-transform duration-300 ${isCollapsed ? 'rotate-180' : ''}`}
-          >
-            <path d="M13 6l-4 4 4 4" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </button>
-      </div>
+  // Close mobile sidebar when navigating
+  useEffect(() => {
+    if (isMobile && isOpen) {
+      setIsOpen(false);
+    }
+  }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto p-3">
-        {mainNav.map((item) => {
-          const isActive = pathname === item.href;
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              title={isCollapsed ? item.name : undefined}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all mb-1 ${
-                isActive
-                  ? 'bg-[var(--primary)] text-white'
-                  : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]'
-              } ${isCollapsed ? 'justify-center' : ''}`}
+  // Desktop sidebar
+  if (!isMobile) {
+    return (
+      <div className={`${isCollapsed ? 'w-16' : 'w-64'} bg-[var(--card)] border-r border-[var(--border)] flex flex-col transition-all duration-300`}>
+        {/* Logo & Toggle */}
+        <div className="p-4 border-b border-[var(--border)] flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <Image
+              src="/flow-logo.png"
+              alt="FlowCRM"
+              width={32}
+              height={32}
+              className="flex-shrink-0"
+            />
+            {!isCollapsed && <span className="text-lg font-semibold text-[var(--foreground)]">FlowCRM</span>}
+          </div>
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="p-1.5 text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] rounded-md transition-all flex-shrink-0"
+            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              className={`transition-transform duration-300 ${isCollapsed ? 'rotate-180' : ''}`}
             >
-              {item.icon}
-              {!isCollapsed && <span>{item.name}</span>}
-            </Link>
-          );
-        })}
-      </nav>
-    </div>
+              <path d="M13 6l-4 4 4 4" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 overflow-y-auto p-3">
+          {mainNav.map((item) => {
+            const isActive = pathname === item.href;
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                title={isCollapsed ? item.name : undefined}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all mb-1 ${
+                  isActive
+                    ? 'bg-[var(--primary)] text-white'
+                    : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]'
+                } ${isCollapsed ? 'justify-center' : ''}`}
+              >
+                {item.icon}
+                {!isCollapsed && <span>{item.name}</span>}
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
+    );
+  }
+
+  // Mobile sidebar - slide-out drawer
+  return (
+    <>
+      {/* Backdrop */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+
+      {/* Drawer */}
+      <div
+        className={`fixed top-0 left-0 h-full w-72 bg-[var(--card)] border-r border-[var(--border)] flex flex-col z-50 transform transition-transform duration-300 ease-in-out md:hidden ${
+          isOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        {/* Logo & Close */}
+        <div className="p-4 border-b border-[var(--border)] flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <Image
+              src="/flow-logo.png"
+              alt="FlowCRM"
+              width={32}
+              height={32}
+              className="flex-shrink-0"
+            />
+            <span className="text-lg font-semibold text-[var(--foreground)]">FlowCRM</span>
+          </div>
+          <button
+            onClick={() => setIsOpen(false)}
+            className="p-1.5 text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] rounded-md transition-all flex-shrink-0"
+            title="Close menu"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 overflow-y-auto p-3">
+          {mainNav.map((item) => {
+            const isActive = pathname === item.href;
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                onClick={() => setIsOpen(false)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all mb-1 ${
+                  isActive
+                    ? 'bg-[var(--primary)] text-white'
+                    : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]'
+                }`}
+              >
+                {item.icon}
+                <span>{item.name}</span>
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
+    </>
   );
 }

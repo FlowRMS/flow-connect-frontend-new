@@ -32,27 +32,32 @@ function CheckboxIcon({ checked }: CheckboxIconProps) {
 
 export function ActivityFilterButtons({ activeFilters, onToggleFilter, onSelectAll }: ActivityFilterButtonsProps) {
   return (
-    <div className="flex flex-wrap gap-2 mb-6 pb-4 border-b border-[var(--border)]">
+    <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-4 sm:mb-6 pb-3 sm:pb-4 border-b border-[var(--border)] overflow-x-auto -mx-1 px-1 sm:mx-0 sm:px-0">
       <button
         onClick={onSelectAll}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors bg-[var(--primary)] text-white hover:opacity-90"
+        className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors bg-[var(--primary)] text-white hover:opacity-90 whitespace-nowrap flex-shrink-0"
       >
         Select All
       </button>
-      {ALL_ACTIVITY_TYPES.map((type) => (
-        <button
-          key={type}
-          onClick={() => onToggleFilter(type)}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-            activeFilters.includes(type)
-              ? 'bg-[var(--primary)] text-white'
-              : 'bg-[var(--muted)] text-[var(--muted-foreground)] hover:bg-[var(--secondary)]'
-          }`}
-        >
-          <CheckboxIcon checked={activeFilters.includes(type)} />
-          {ACTIVITY_TYPE_LABELS[type]}
-        </button>
-      ))}
+      {ALL_ACTIVITY_TYPES.map((type) => {
+        const label = ACTIVITY_TYPE_LABELS[type] ?? type;
+        const compactLabel = label.charAt(0);
+        return (
+          <button
+            key={type}
+            onClick={() => { onToggleFilter(type); }}
+            className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
+              activeFilters.includes(type)
+                ? 'bg-[var(--primary)] text-white'
+                : 'bg-[var(--muted)] text-[var(--muted-foreground)] hover:bg-[var(--secondary)]'
+            }`}
+          >
+            <CheckboxIcon checked={activeFilters.includes(type)} />
+            <span className="hidden xs:inline sm:inline">{label}</span>
+            <span className="xs:hidden sm:hidden">{compactLabel}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }

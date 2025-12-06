@@ -19,10 +19,10 @@ type Tab = {
 // Chart wrapper component
 function ChartCard({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
   return (
-    <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-6">
-      <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">{title}</h3>
-      <p className="text-sm text-[var(--muted-foreground)] mb-4">{description}</p>
-      <div className="flex justify-center">
+    <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3 sm:p-6">
+      <h3 className="text-base sm:text-lg font-semibold text-[var(--foreground)] mb-1 sm:mb-2">{title}</h3>
+      <p className="text-xs sm:text-sm text-[var(--muted-foreground)] mb-3 sm:mb-4">{description}</p>
+      <div className="flex justify-center overflow-x-auto">
         {children}
       </div>
     </div>
@@ -102,38 +102,38 @@ function ActivityReportsTab() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div>
-        <h2 className="text-2xl font-semibold text-[var(--foreground)] mb-1">Activity Reports</h2>
-        <p className="text-sm text-[var(--muted-foreground)]">Track team activities, engagement patterns, and productivity metrics</p>
+        <h2 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)] mb-1">Activity Reports</h2>
+        <p className="text-xs sm:text-sm text-[var(--muted-foreground)]">Track team activities, engagement patterns, and productivity metrics</p>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-4 gap-4">
-        <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
-          <div className="text-sm text-[var(--muted-foreground)] mb-1">Total Activities</div>
-          <div className="text-3xl font-bold text-[var(--foreground)]">1,247</div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3 sm:p-4">
+          <div className="text-xs sm:text-sm text-[var(--muted-foreground)] mb-1">Total Activities</div>
+          <div className="text-xl sm:text-3xl font-bold text-[var(--foreground)]">1,247</div>
           <div className="text-xs text-[var(--success)] mt-1">↑ 12% vs last month</div>
         </div>
-        <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
-          <div className="text-sm text-[var(--muted-foreground)] mb-1">Calls Made</div>
-          <div className="text-3xl font-bold text-[var(--foreground)]">438</div>
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3 sm:p-4">
+          <div className="text-xs sm:text-sm text-[var(--muted-foreground)] mb-1">Calls Made</div>
+          <div className="text-xl sm:text-3xl font-bold text-[var(--foreground)]">438</div>
           <div className="text-xs text-[var(--success)] mt-1">↑ 8% vs last month</div>
         </div>
-        <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
-          <div className="text-sm text-[var(--muted-foreground)] mb-1">Emails Sent</div>
-          <div className="text-3xl font-bold text-[var(--foreground)]">562</div>
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3 sm:p-4">
+          <div className="text-xs sm:text-sm text-[var(--muted-foreground)] mb-1">Emails Sent</div>
+          <div className="text-xl sm:text-3xl font-bold text-[var(--foreground)]">562</div>
           <div className="text-xs text-red-500 mt-1">↓ 3% vs last month</div>
         </div>
-        <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
-          <div className="text-sm text-[var(--muted-foreground)] mb-1">Meetings</div>
-          <div className="text-3xl font-bold text-[var(--foreground)]">247</div>
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3 sm:p-4">
+          <div className="text-xs sm:text-sm text-[var(--muted-foreground)] mb-1">Meetings</div>
+          <div className="text-xl sm:text-3xl font-bold text-[var(--foreground)]">247</div>
           <div className="text-xs text-[var(--success)] mt-1">↑ 15% vs last month</div>
         </div>
       </div>
 
       {/* Charts Grid */}
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
         <ChartCard
           title="Activity Timeline"
           description="Daily activity breakdown over the last 30 days"
@@ -263,38 +263,38 @@ function PipelineReportsTab() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div>
-        <h2 className="text-2xl font-semibold text-[var(--foreground)] mb-1">Pipeline Reports</h2>
-        <p className="text-sm text-[var(--muted-foreground)]">Analyze pipeline health, conversion rates, and revenue forecasts</p>
+        <h2 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)] mb-1">Pipeline Reports</h2>
+        <p className="text-xs sm:text-sm text-[var(--muted-foreground)]">Analyze pipeline health, conversion rates, and revenue forecasts</p>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-4 gap-4">
-        <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
-          <div className="text-sm text-[var(--muted-foreground)] mb-1">Pipeline Value</div>
-          <div className="text-3xl font-bold text-[var(--foreground)]">$4.2M</div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3 sm:p-4">
+          <div className="text-xs sm:text-sm text-[var(--muted-foreground)] mb-1">Pipeline Value</div>
+          <div className="text-xl sm:text-3xl font-bold text-[var(--foreground)]">$4.2M</div>
           <div className="text-xs text-[var(--success)] mt-1">↑ 18% vs last quarter</div>
         </div>
-        <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
-          <div className="text-sm text-[var(--muted-foreground)] mb-1">Active Opportunities</div>
-          <div className="text-3xl font-bold text-[var(--foreground)]">47</div>
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3 sm:p-4">
+          <div className="text-xs sm:text-sm text-[var(--muted-foreground)] mb-1">Active Opportunities</div>
+          <div className="text-xl sm:text-3xl font-bold text-[var(--foreground)]">47</div>
           <div className="text-xs text-[var(--success)] mt-1">↑ 5 new this month</div>
         </div>
-        <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
-          <div className="text-sm text-[var(--muted-foreground)] mb-1">Avg Deal Size</div>
-          <div className="text-3xl font-bold text-[var(--foreground)]">$89K</div>
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3 sm:p-4">
+          <div className="text-xs sm:text-sm text-[var(--muted-foreground)] mb-1">Avg Deal Size</div>
+          <div className="text-xl sm:text-3xl font-bold text-[var(--foreground)]">$89K</div>
           <div className="text-xs text-[var(--success)] mt-1">↑ 12% vs last quarter</div>
         </div>
-        <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
-          <div className="text-sm text-[var(--muted-foreground)] mb-1">Win Rate</div>
-          <div className="text-3xl font-bold text-[var(--foreground)]">34%</div>
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3 sm:p-4">
+          <div className="text-xs sm:text-sm text-[var(--muted-foreground)] mb-1">Win Rate</div>
+          <div className="text-xl sm:text-3xl font-bold text-[var(--foreground)]">34%</div>
           <div className="text-xs text-red-500 mt-1">↓ 2% vs last quarter</div>
         </div>
       </div>
 
       {/* Charts Grid */}
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
         <ChartCard
           title="Pipeline by Stage"
           description="Value distribution across pipeline stages"
@@ -418,14 +418,14 @@ function SalesPerformanceTab() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div>
-        <h2 className="text-2xl font-semibold text-[var(--foreground)] mb-1">Sales Performance</h2>
-        <p className="text-sm text-[var(--muted-foreground)]">Track quota attainment, revenue metrics, and individual performance</p>
+        <h2 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)] mb-1">Sales Performance</h2>
+        <p className="text-xs sm:text-sm text-[var(--muted-foreground)]">Track quota attainment, revenue metrics, and individual performance</p>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
         <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
           <div className="text-sm text-[var(--muted-foreground)] mb-1">Revenue (YTD)</div>
           <div className="text-3xl font-bold text-[var(--foreground)]">$3.1M</div>
@@ -1122,35 +1122,36 @@ export default function AnalyticsContent() {
   return (
     <main className="flex-1 overflow-y-auto bg-[var(--background)] relative">
       {/* Coming Soon Overlay */}
-      <ComingSoonOverlay 
+      <ComingSoonOverlay
         title="Analytics Coming Soon"
         description="Comprehensive analytics and reporting dashboards are being developed. Get actionable insights from your data!"
       />
-      
+
       {/* Sticky Header with Tabs */}
       <div className="sticky top-0 bg-[var(--background)] border-b border-[var(--border)] z-10">
-        <div className="px-6 pt-6 pb-4">
-          <h1 className="text-2xl font-semibold text-[var(--foreground)] mb-1">Analytics</h1>
-          <p className="text-sm text-[var(--muted-foreground)]">
+        <div className="px-3 sm:px-6 pt-4 sm:pt-6 pb-3 sm:pb-4">
+          <h1 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)] mb-1">Analytics</h1>
+          <p className="text-xs sm:text-sm text-[var(--muted-foreground)]">
             Comprehensive reporting and insights for data-driven decision making
           </p>
         </div>
 
         {/* Tabs */}
-        <div className="px-6">
-          <div className="flex gap-1 overflow-x-auto">
+        <div className="px-3 sm:px-6">
+          <div className="flex gap-1 overflow-x-auto pb-1 -mx-1 px-1">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors whitespace-nowrap ${
+                className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-medium rounded-t-lg transition-colors whitespace-nowrap ${
                   activeTab === tab.id
                     ? 'bg-[var(--card)] text-[var(--foreground)] border-t border-l border-r border-[var(--border)]'
                     : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)]'
                 }`}
               >
                 {tab.icon}
-                <span>{tab.name}</span>
+                <span className="hidden sm:inline">{tab.name}</span>
+                <span className="sm:hidden">{tab.name.split(' ')[0]}</span>
               </button>
             ))}
           </div>
@@ -1158,7 +1159,7 @@ export default function AnalyticsContent() {
       </div>
 
       {/* Tab Content */}
-      <div className="p-6">
+      <div className="p-3 sm:p-6">
         {renderTabContent()}
       </div>
     </main>
