@@ -3,15 +3,17 @@
  * Custom hooks for interacting with the Email Ingestion GraphQL API
  */
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import { hasCRMTokens } from '../lib/crm-auth';
 import {
   fetchEmails,
   fetchEmail,
+  fetchEmailsPaginated,
   updateEmailStatus,
   deleteEmail,
   deleteEmailAttachment,
   type UpdateEmailStatusInput,
+  type EmailPaginatedResult,
 } from '../lib/email-graphql';
 import type { Email, EmailStatusAPI } from '../email-ingestion/types';
 
@@ -19,9 +21,12 @@ import type { Email, EmailStatusAPI } from '../email-ingestion/types';
 // Query Keys
 // ============================================================================
 
+const PAGE_SIZE = 10;
+
 export const emailQueryKeys = {
   all: ['emails'] as const,
   list: (status?: EmailStatusAPI) => [...emailQueryKeys.all, 'list', { status }] as const,
+  infinite: (status?: EmailStatusAPI) => [...emailQueryKeys.all, 'infinite', { status }] as const,
   detail: (id: string) => [...emailQueryKeys.all, 'detail', id] as const,
 };
 
@@ -38,6 +43,56 @@ export function useEmails(status?: EmailStatusAPI) {
     queryFn: () => fetchEmails(status),
     enabled: hasCRMTokens(),
     staleTime: 30 * 1000, // 30 seconds
+  });
+}
+
+/**
+ * Fetch emails with infinite scroll pagination
+ */
+export function useEmailsInfinite(status?: EmailStatusAPI) {
+  const query = useInfiniteQuery<EmailPaginatedResult, Error>({
+    queryKey: emailQueryKeys.infinite(status),
+    queryFn: async ({ pageParam = 0 }) => {
+      return fetchEmailsPaginated(status, {
+        limit: PAGE_SIZE,
+        offset: pageParam as number,
+      });
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      if (!lastPage.hasMore) return undefined;
+      return allPages.length * PAGE_SIZE;
+    },
+    enabled: hasCRMTokens(),
+    staleTime: 30 * 1000,
+    refetchOnWindowFocus: true,
+  });
+
+  // Combine all pages into a single array with deduplication
+  const emails: Email[] = query.data
+    ? deduplicateById(query.data.pages.flatMap(page => page.emails))
+    : [];
+
+  return {
+    emails,
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch,
+    fetchNextPage: query.fetchNextPage,
+    hasNextPage: query.hasNextPage,
+    isFetchingNextPage: query.isFetchingNextPage,
+  };
+}
+
+/**
+ * Helper to deduplicate records by ID
+ */
+function deduplicateById<T extends { id: string }>(records: T[]): T[] {
+  const seen = new Set<string>();
+  return records.filter(record => {
+    if (seen.has(record.id)) return false;
+    seen.add(record.id);
+    return true;
   });
 }
 

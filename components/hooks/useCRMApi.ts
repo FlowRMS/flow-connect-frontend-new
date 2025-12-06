@@ -3,7 +3,7 @@
  * Custom hooks for interacting with the CRM GraphQL API
  */
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import { hasCRMTokens } from '../lib/crm-auth';
 import {
   // Types
@@ -30,6 +30,8 @@ import {
   type JobSearchResult,
   type LandingPageFilter,
   type LandingPageOrderBy,
+  type PaginationParams,
+  type PaginatedResult,
   type EntityLink,
   type CreateLinkInput,
   type DeleteLinkByEntitiesInput,
@@ -371,7 +373,36 @@ export function useCRMJobLandingPages(
 ) {
   return useQuery<JobLandingPage[], Error>({
     queryKey: crmQueryKeys.jobLandingPages(filters, orderBy),
-    queryFn: () => fetchJobLandingPages(filters, orderBy),
+    queryFn: async () => {
+      const result = await fetchJobLandingPages(filters, orderBy);
+      return result.records;
+    },
+    enabled: hasCRMTokens(),
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Fetch job landing pages with infinite scroll pagination
+ */
+const DEFAULT_PAGE_SIZE = 50;
+
+export function useCRMJobLandingPagesInfinite(
+  filters?: LandingPageFilter[],
+  orderBy?: LandingPageOrderBy[],
+  pageSize: number = DEFAULT_PAGE_SIZE
+) {
+  return useInfiniteQuery<PaginatedResult<JobLandingPage>, Error>({
+    queryKey: [...crmQueryKeys.jobLandingPages(filters, orderBy), 'infinite'],
+    queryFn: async ({ pageParam = 0 }) => {
+      return fetchJobLandingPages(filters, orderBy, { limit: pageSize, offset: pageParam as number });
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const totalFetched = allPages.reduce((acc, page) => acc + page.records.length, 0);
+      if (totalFetched >= lastPage.total) return undefined;
+      return totalFetched;
+    },
     enabled: hasCRMTokens(),
     staleTime: 30 * 1000,
   });
@@ -496,7 +527,34 @@ export function useCRMCompanyLandingPages(
 ) {
   return useQuery<CompanyLandingPage[], Error>({
     queryKey: crmQueryKeys.companyLandingPages(filters, orderBy),
-    queryFn: () => fetchCompanyLandingPages(filters, orderBy),
+    queryFn: async () => {
+      const result = await fetchCompanyLandingPages(filters, orderBy);
+      return result.records;
+    },
+    enabled: hasCRMTokens(),
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Fetch company landing pages with infinite scroll pagination
+ */
+export function useCRMCompanyLandingPagesInfinite(
+  filters?: LandingPageFilter[],
+  orderBy?: LandingPageOrderBy[],
+  pageSize: number = DEFAULT_PAGE_SIZE
+) {
+  return useInfiniteQuery<PaginatedResult<CompanyLandingPage>, Error>({
+    queryKey: [...crmQueryKeys.companyLandingPages(filters, orderBy), 'infinite'],
+    queryFn: async ({ pageParam = 0 }) => {
+      return fetchCompanyLandingPages(filters, orderBy, { limit: pageSize, offset: pageParam as number });
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const totalFetched = allPages.reduce((acc, page) => acc + page.records.length, 0);
+      if (totalFetched >= lastPage.total) return undefined;
+      return totalFetched;
+    },
     enabled: hasCRMTokens(),
     staleTime: 30 * 1000,
   });
@@ -597,7 +655,34 @@ export function useCRMContactLandingPages(
 ) {
   return useQuery<ContactLandingPage[], Error>({
     queryKey: crmQueryKeys.contactLandingPages(filters, orderBy),
-    queryFn: () => fetchContactLandingPages(filters, orderBy),
+    queryFn: async () => {
+      const result = await fetchContactLandingPages(filters, orderBy);
+      return result.records;
+    },
+    enabled: hasCRMTokens(),
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Fetch contact landing pages with infinite scroll pagination
+ */
+export function useCRMContactLandingPagesInfinite(
+  filters?: LandingPageFilter[],
+  orderBy?: LandingPageOrderBy[],
+  pageSize: number = DEFAULT_PAGE_SIZE
+) {
+  return useInfiniteQuery<PaginatedResult<ContactLandingPage>, Error>({
+    queryKey: [...crmQueryKeys.contactLandingPages(filters, orderBy), 'infinite'],
+    queryFn: async ({ pageParam = 0 }) => {
+      return fetchContactLandingPages(filters, orderBy, { limit: pageSize, offset: pageParam as number });
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const totalFetched = allPages.reduce((acc, page) => acc + page.records.length, 0);
+      if (totalFetched >= lastPage.total) return undefined;
+      return totalFetched;
+    },
     enabled: hasCRMTokens(),
     staleTime: 30 * 1000,
   });
@@ -616,7 +701,34 @@ export function useCRMPreOpportunityLandingPages(
 ) {
   return useQuery<PreOpportunityLandingPage[], Error>({
     queryKey: crmQueryKeys.preOpportunityLandingPages(filters, orderBy),
-    queryFn: () => fetchPreOpportunityLandingPages(filters, orderBy),
+    queryFn: async () => {
+      const result = await fetchPreOpportunityLandingPages(filters, orderBy);
+      return result.records;
+    },
+    enabled: hasCRMTokens(),
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Fetch pre-opportunity landing pages with infinite scroll pagination
+ */
+export function useCRMPreOpportunityLandingPagesInfinite(
+  filters?: LandingPageFilter[],
+  orderBy?: LandingPageOrderBy[],
+  pageSize: number = DEFAULT_PAGE_SIZE
+) {
+  return useInfiniteQuery<PaginatedResult<PreOpportunityLandingPage>, Error>({
+    queryKey: [...crmQueryKeys.preOpportunityLandingPages(filters, orderBy), 'infinite'],
+    queryFn: async ({ pageParam = 0 }) => {
+      return fetchPreOpportunityLandingPages(filters, orderBy, { limit: pageSize, offset: pageParam as number });
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const totalFetched = allPages.reduce((acc, page) => acc + page.records.length, 0);
+      if (totalFetched >= lastPage.total) return undefined;
+      return totalFetched;
+    },
     enabled: hasCRMTokens(),
     staleTime: 30 * 1000,
   });
@@ -962,7 +1074,34 @@ export function useCRMNoteLandingPages(
 ) {
   return useQuery<NoteLandingPage[], Error>({
     queryKey: crmQueryKeys.noteLandingPages(filters, orderBy),
-    queryFn: () => fetchNoteLandingPages(filters, orderBy),
+    queryFn: async () => {
+      const result = await fetchNoteLandingPages(filters, orderBy);
+      return result.records;
+    },
+    enabled: hasCRMTokens(),
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Fetch note landing pages with infinite scroll pagination
+ */
+export function useCRMNoteLandingPagesInfinite(
+  filters?: LandingPageFilter[],
+  orderBy?: LandingPageOrderBy[],
+  pageSize: number = DEFAULT_PAGE_SIZE
+) {
+  return useInfiniteQuery<PaginatedResult<NoteLandingPage>, Error>({
+    queryKey: [...crmQueryKeys.noteLandingPages(filters, orderBy), 'infinite'],
+    queryFn: async ({ pageParam = 0 }) => {
+      return fetchNoteLandingPages(filters, orderBy, { limit: pageSize, offset: pageParam as number });
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const totalFetched = allPages.reduce((acc, page) => acc + page.records.length, 0);
+      if (totalFetched >= lastPage.total) return undefined;
+      return totalFetched;
+    },
     enabled: hasCRMTokens(),
     staleTime: 30 * 1000,
   });
@@ -1139,10 +1278,40 @@ export function useCreateCRMNoteLink() {
 /**
  * Fetch all tasks using landing pages endpoint
  */
-export function useCRMTasks() {
+export function useCRMTasks(
+  filters?: LandingPageFilter[],
+  orderBy?: LandingPageOrderBy[]
+) {
   return useQuery<TaskLandingPage[], Error>({
     queryKey: crmQueryKeys.taskLandingPages(),
-    queryFn: fetchTaskLandingPages,
+    queryFn: async () => {
+      const result = await fetchTaskLandingPages(filters, orderBy);
+      return result.records;
+    },
+    enabled: hasCRMTokens(),
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Fetch tasks with infinite scroll pagination
+ */
+export function useCRMTasksInfinite(
+  filters?: LandingPageFilter[],
+  orderBy?: LandingPageOrderBy[],
+  pageSize: number = DEFAULT_PAGE_SIZE
+) {
+  return useInfiniteQuery<PaginatedResult<TaskLandingPage>, Error>({
+    queryKey: [...crmQueryKeys.taskLandingPages(), 'infinite'],
+    queryFn: async ({ pageParam = 0 }) => {
+      return fetchTaskLandingPages(filters, orderBy, { limit: pageSize, offset: pageParam as number });
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const totalFetched = allPages.reduce((acc, page) => acc + page.records.length, 0);
+      if (totalFetched >= lastPage.total) return undefined;
+      return totalFetched;
+    },
     enabled: hasCRMTokens(),
     staleTime: 30 * 1000,
   });

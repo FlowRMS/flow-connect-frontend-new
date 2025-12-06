@@ -2,7 +2,7 @@
  * Company Types and Interfaces
  */
 
-import type { CompanyLandingPage, CompanySourceType } from '../lib/crm-graphql';
+import type { CompanyLandingPage, CompanySourceType, Company as APICompany } from '../lib/crm-graphql';
 
 // UI Company type (display format)
 export interface Company {
@@ -51,8 +51,8 @@ function normalizeCompanySourceType(value: string | CompanySourceType | undefine
 export function mapLandingPageToUICompany(landingPage: CompanyLandingPage): Company {
   // Normalize and map companySourceType
   const normalizedSourceType = normalizeCompanySourceType(landingPage.companySourceType);
-  const type = normalizedSourceType === 'MANUFACTURER' 
-    ? ['Manufacturer'] 
+  const type = normalizedSourceType === 'MANUFACTURER'
+    ? ['Manufacturer']
     : ['Customer'];
 
   return {
@@ -71,5 +71,36 @@ export function mapLandingPageToUICompany(landingPage: CompanyLandingPage): Comp
     followers: [], // Followers not in API yet
     companySourceType: normalizedSourceType,
     createdBy: landingPage.createdBy || '',
+  };
+}
+
+/**
+ * Mapper function to convert full API Company to UI format
+ */
+export function mapAPICompanyToUICompany(apiCompany: APICompany): Company {
+  const normalizedSourceType = normalizeCompanySourceType(apiCompany.companySourceType);
+  const type = normalizedSourceType === 'MANUFACTURER'
+    ? ['Manufacturer']
+    : ['Customer'];
+  const tags = Array.isArray(apiCompany.tags)
+    ? apiCompany.tags
+    : (typeof apiCompany.tags === 'string' ? [apiCompany.tags] : []);
+
+  return {
+    id: apiCompany.id,
+    name: apiCompany.name,
+    type,
+    website: apiCompany.website || '',
+    phone: apiCompany.phone || '',
+    address: '',
+    tags: tags.filter(Boolean) as string[],
+    lists: [],
+    territory: '',
+    contactCount: 0,
+    jobCount: 0,
+    lastActivity: apiCompany.createdAt || new Date().toISOString(),
+    followers: [],
+    companySourceType: normalizedSourceType,
+    createdBy: apiCompany.createdBy || '',
   };
 }

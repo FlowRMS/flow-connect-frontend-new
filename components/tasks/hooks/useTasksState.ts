@@ -17,23 +17,50 @@ import type {
 } from '../types';
 import type { ActiveFilter, ActiveSort } from '../../AdvancedFilters';
 import { applyFilter } from '../../lib/filter-utils';
-import { 
-  useTasks, 
-  useUpdateTask, 
+import {
+  useTasksInfinite,
+  useUpdateTask,
   useDeleteTask,
   useContactsMap,
-  tasksQueryKeys
+  tasksQueryKeys,
+  type TaskLandingPageFilter,
+  type TaskLandingPageOrderBy
 } from '../api';
-import { fetchTask as fetchTaskApi } from '../api/tasksApi';
+import { fetchTask as fetchTaskApi, type TaskLandingPage } from '../api/tasksApi';
 import { convertTaskLandingPageToUI, convertUIStatusToAPI, convertUIPriorityToAPI, getUniqueValues, tagsToString } from '../utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { taskToasts } from '../../lib/toast';
 
 export function useTasksState() {
   const queryClient = useQueryClient();
-  
-  // API data fetching - only fetch tasks, related entities are fetched lazily in modals
-  const { data: apiTasks = [], isLoading: isLoadingTasks, error: tasksError, refetch: refetchTasks } = useTasks();
+
+  // Server-side filters - defined BEFORE API hook so they can be passed to the query
+  const [serverFilters, setServerFilters] = useState<TaskLandingPageFilter[]>([]);
+  const [serverOrderBy, setServerOrderBy] = useState<TaskLandingPageOrderBy[]>([]);
+
+  // API data fetching with infinite scroll - now with server-side filters
+  const {
+    data: tasksData,
+    isLoading: isLoadingTasks,
+    error: tasksError,
+    refetch: refetchTasks,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useTasksInfinite(serverFilters, serverOrderBy);
+
+  // Flatten paginated results with deduplication
+  const apiTasks = useMemo(() => {
+    if (!tasksData?.pages) return [];
+    const allRecords = tasksData.pages.flatMap(page => page.records);
+    // Deduplicate by ID
+    const seen = new Set<string>();
+    return allRecords.filter((record: TaskLandingPage) => {
+      if (seen.has(record.id)) return false;
+      seen.add(record.id);
+      return true;
+    });
+  }, [tasksData]);
   
   // Extract unique assignedTo values that look like UUIDs (for contact lookup)
   const assignedToIds = useMemo(() => {
@@ -604,33 +631,56 @@ export function useTasksState() {
   const uniqueStatuses = useMemo(() => getUniqueValues(tasks, 'status'), [tasks]);
   const uniquePriorities = useMemo(() => getUniqueValues(tasks, 'priority'), [tasks]);
 
-  // Advanced filter handlers
+  // Convert ActiveFilter to TaskLandingPageFilter for server-side filtering
+  const toServerFilters = useCallback((filters: ActiveFilter[]): TaskLandingPageFilter[] => {
+    return filters.map(f => ({
+      operator: f.operator,
+      columnName: f.columnName,
+      value: f.value,
+      values: f.values,
+    }));
+  }, []);
+
+  // Convert ActiveSort to TaskLandingPageOrderBy for server-side sorting
+  const toServerOrderBy = useCallback((sorts: ActiveSort[]): TaskLandingPageOrderBy[] => {
+    return sorts.map(s => ({
+      columnName: s.columnName,
+      direction: s.direction,
+    }));
+  }, []);
+
+  // Advanced filter handlers - now with server-side filtering
   const handleFilterChange = useCallback((filter: ActiveFilter | undefined) => {
     setActiveFilter(filter);
     if (filter) {
       setActiveFilters([filter]);
+      setServerFilters(toServerFilters([filter])); // Server-side filter
     } else {
       setActiveFilters([]);
+      setServerFilters([]); // Clear server-side filters
     }
-  }, []);
+  }, [toServerFilters]);
 
   const handleFiltersChange = useCallback((filters: ActiveFilter[]) => {
     setActiveFilters(filters);
     setActiveFilter(filters.length > 0 ? filters[0] : undefined);
-  }, []);
+    setServerFilters(toServerFilters(filters)); // Server-side filters
+  }, [toServerFilters]);
 
-  // Advanced sort handlers
+  // Advanced sort handlers - now with server-side sorting
   const handleSortChange = useCallback((sort: ActiveSort | undefined) => {
     if (sort) {
       setClientSortColumn(sort.columnName);
       setClientSortDirection(sort.direction);
       setClientSortColumns([sort]);
+      setServerOrderBy(toServerOrderBy([sort])); // Server-side sort
     } else {
       setClientSortColumn(undefined);
       setClientSortDirection('ASC');
       setClientSortColumns([]);
+      setServerOrderBy([]); // Clear server-side sort
     }
-  }, []);
+  }, [toServerOrderBy]);
 
   const handleMultiSortChange = useCallback((sorts: ActiveSort[]) => {
     setClientSortColumns(sorts);
@@ -641,22 +691,28 @@ export function useTasksState() {
       setClientSortColumn(undefined);
       setClientSortDirection('ASC');
     }
-  }, []);
+    setServerOrderBy(toServerOrderBy(sorts)); // Server-side sort
+  }, [toServerOrderBy]);
 
   return {
     // Loading states
     isLoading: isLoadingTasks,
     error: tasksError,
     refetch: refetchTasks,
-    
+
+    // Pagination
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+
     // Mutation states
     isUpdating: updateTaskMutation.isPending,
     isDeleting: deleteTaskMutation.isPending,
-    
+
     // View state
     viewMode,
     setViewMode,
-    
+
     // Task data
     tasks,
     filteredTasks,

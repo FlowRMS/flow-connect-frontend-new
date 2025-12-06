@@ -38,18 +38,27 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
   
   // Assignee state
   const [assigneeSearch, setAssigneeSearch] = useState('');
+  const [debouncedAssigneeSearch, setDebouncedAssigneeSearch] = useState('');
   const [selectedAssignee, setSelectedAssignee] = useState<{ id: string; name: string } | null>(null);
   const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
   const assigneeInputRef = useRef<HTMLInputElement>(null);
   const assigneeDropdownRef = useRef<HTMLDivElement>(null);
-  
+
   // Entity links state - unified using LinkSelector
   const [selectedLinks, setSelectedLinks] = useState<SelectedLink[]>([]);
-  
+
   const [isMounted, setIsMounted] = useState(false);
-  
-  // User search for assignee selection
-  const { data: assigneeUsers = [], isLoading: isLoadingAssignees } = useUserSearch(assigneeSearch, isOpen && showAssigneeDropdown);
+
+  // Debounce assignee search to prevent focus loss on each keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedAssigneeSearch(assigneeSearch);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [assigneeSearch]);
+
+  // User search for assignee selection - uses debounced value
+  const { data: assigneeUsers = [], isLoading: isLoadingAssignees } = useUserSearch(debouncedAssigneeSearch, isOpen && showAssigneeDropdown);
 
   // Mutations
   const createMutation = useCreateTask();

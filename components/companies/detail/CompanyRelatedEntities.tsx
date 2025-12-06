@@ -242,6 +242,15 @@ export default function CompanyRelatedEntities({
               </span>
             )}
           </div>
+          <button 
+            onClick={() => openAddLinkModal('CONTACT')}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+          >
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+            </svg>
+            Link Contact
+          </button>
         </div>
         <div className="p-6">
           {contactsLoading ? (
@@ -259,6 +268,12 @@ export default function CompanyRelatedEntities({
           ) : contacts.length === 0 ? (
             <div className="text-center py-4 text-[var(--muted-foreground)]">
               <p className="text-sm">No contacts linked</p>
+              <button
+                onClick={() => openAddLinkModal('CONTACT')}
+                className="mt-2 text-sm text-[var(--primary)] hover:underline"
+              >
+                + Add a contact
+              </button>
             </div>
           ) : (
             <div className="space-y-3">

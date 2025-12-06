@@ -5,9 +5,12 @@
 
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTasksState } from './tasks/hooks/useTasksState';
+import { useCRMTask } from './hooks/useCRMApi';
+import { convertCRMTaskToUI } from './tasks/utils';
+import { useInfiniteScroll } from './hooks/useInfiniteScroll';
 import { getTaskFilterOptions, getTaskSortOptions } from './tasks/config/filterConfig';
 import { TASK_CATEGORIES, AVAILABLE_ASSIGNEES, AVAILABLE_PRIORITIES, AVAILABLE_TAGS } from './tasks/constants';
 import GridView from './tasks/views/GridView';
@@ -25,7 +28,13 @@ export default function TasksContent() {
   const [isMounted, setIsMounted] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
-  
+
+  // Track intentional clear to prevent re-selection after back navigation
+  const isIntentionalClearRef = useRef(false);
+
+  // Get task ID from URL - this is the source of truth for navigation
+  const taskIdFromUrl = searchParams.get('id');
+
   useEffect(() => {
     setIsMounted(true);
   }, []);
@@ -36,6 +45,11 @@ export default function TasksContent() {
     error,
     refetch,
     isUpdating,
+
+    // Pagination
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
 
     // View state
     viewMode,
@@ -119,6 +133,13 @@ export default function TasksContent() {
     handleMultiSortChange,
   } = useTasksState();
 
+  // Infinite scroll trigger
+  const { loadMoreRef } = useInfiniteScroll({
+    hasNextPage: hasNextPage ?? false,
+    isFetchingNextPage,
+    fetchNextPage,
+  });
+
   // Get filter and sort options with dynamic data
   const taskFilterOptions = useMemo(() => getTaskFilterOptions(
     uniqueTitles,
@@ -131,18 +152,31 @@ export default function TasksContent() {
 
   const taskSortOptions = useMemo(() => getTaskSortOptions(), []);
 
-  // Check for task ID in query params to auto-select and open the task pane
+  // Fetch task details when navigating via URL
+  // This ensures we can display the task even if it's not in the loaded pagination
+  const targetTaskId = (!isIntentionalClearRef.current && taskIdFromUrl) ? taskIdFromUrl : '';
+  const { data: taskData, isLoading: taskDetailLoading } = useCRMTask(targetTaskId);
+
+  // When we get task data from API (navigating via URL), set it as selected
   useEffect(() => {
-    const taskId = searchParams.get('id');
-    if (taskId && tasks.length > 0 && !selectedTask) {
-      const task = tasks.find(t => t.id === taskId);
-      if (task) {
-        setSelectedTask(task);
-        // Clear the query param after selecting
-        router.replace('/tasks', { scroll: false });
+    if (taskData && taskIdFromUrl && !isIntentionalClearRef.current) {
+      const mappedTask = convertCRMTaskToUI(taskData);
+      if (!selectedTask || selectedTask.id !== mappedTask.id) {
+        setSelectedTask(mappedTask);
       }
     }
-  }, [searchParams, tasks, selectedTask, setSelectedTask, router]);
+  }, [taskData, taskIdFromUrl, selectedTask, setSelectedTask]);
+
+  // Handle back navigation - close modal and clear URL
+  const handleBack = () => {
+    isIntentionalClearRef.current = true;
+    setSelectedTask(null);
+    router.replace('/tasks', { scroll: false });
+    // Reset the flag after navigation
+    setTimeout(() => {
+      isIntentionalClearRef.current = false;
+    }, 100);
+  };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -539,13 +573,40 @@ export default function TasksContent() {
         />
       )}
 
+      {/* Loading state for task detail from URL navigation */}
+      {taskDetailLoading && taskIdFromUrl && !selectedTask && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 flex flex-col items-center gap-4">
+            <svg className="animate-spin h-10 w-10 text-[var(--primary)]" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+            </svg>
+            <p className="text-[var(--muted-foreground)]">Loading task...</p>
+          </div>
+        </div>
+      )}
+
       {/* Task Modal */}
       {selectedTask && (
         <TaskModal
           task={selectedTask}
-          onClose={() => setSelectedTask(null)}
+          onClose={handleBack}
           onToggleComplete={toggleTaskComplete}
         />
+      )}
+
+      {/* Infinite scroll trigger */}
+      <div ref={loadMoreRef} className="h-4" />
+      {isFetchingNextPage && (
+        <div className="flex items-center justify-center py-4">
+          <div className="flex items-center gap-2 text-[var(--muted-foreground)]">
+            <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+            </svg>
+            <span>Loading more tasks...</span>
+          </div>
+        </div>
       )}
 
       {/* Create Task Modal */}

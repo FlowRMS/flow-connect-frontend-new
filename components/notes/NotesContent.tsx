@@ -5,11 +5,13 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AdvancedFilters from '../AdvancedFilters';
 import SortButton from '../SortButton';
 import { useNotesState } from './hooks/useNotesState';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
+import { useCRMNote } from '../hooks/useCRMApi';
 import { getNoteFilterOptions, getNoteSortOptions } from './config/filterConfig';
 import { GridView } from './views/GridView';
 import { ListView } from './views/ListView';
@@ -18,16 +20,17 @@ import { NoteModal } from './modals/NoteModal';
 import { SummarizeModal } from './modals/SummarizeModal';
 import { CreateNoteModal } from './modals/CreateNoteModal';
 import { EditNoteModal } from './modals/EditNoteModal';
+import { parseNote } from './utils';
 
 export default function NotesContent() {
-  // Track if component is mounted to avoid hydration mismatch
-  const [isMounted, setIsMounted] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
+  // Track intentional clear to prevent re-selection after back navigation
+  const isIntentionalClearRef = useRef(false);
+
+  // Get note ID from URL - this is the source of truth for navigation
+  const noteIdFromUrl = searchParams.get('id');
 
   // State management
   const {
@@ -50,8 +53,13 @@ export default function NotesContent() {
     isLoading,
     error,
     refetch,
+    isMounted,
     handleEditNote,
     handleNoteDeleted,
+    // Pagination
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
     // Filter and sort state
     uniqueTitles,
     uniqueTags,
@@ -62,18 +70,38 @@ export default function NotesContent() {
     handleMultiSortChange,
   } = useNotesState();
 
-  // Check for note ID in query params to auto-select
+  // Infinite scroll trigger
+  const { loadMoreRef } = useInfiniteScroll({
+    hasNextPage: hasNextPage ?? false,
+    isFetchingNextPage,
+    fetchNextPage,
+  });
+
+  // Fetch note details when navigating via URL
+  // This ensures we can display the note even if it's not in the loaded pagination
+  const targetNoteId = (!isIntentionalClearRef.current && noteIdFromUrl) ? noteIdFromUrl : '';
+  const { data: noteData, isLoading: noteDetailLoading } = useCRMNote(targetNoteId);
+
+  // When we get note data from API (navigating via URL), set it as selected
   useEffect(() => {
-    const noteId = searchParams.get('id');
-    if (noteId && notes.length > 0 && !selectedNote) {
-      const note = notes.find(n => n.id === noteId);
-      if (note) {
-        setSelectedNote(note);
-        // Clear the query param after selecting
-        router.replace('/notes', { scroll: false });
+    if (noteData && noteIdFromUrl && !isIntentionalClearRef.current) {
+      const mappedNote = parseNote(noteData);
+      if (!selectedNote || selectedNote.id !== mappedNote.id) {
+        setSelectedNote(mappedNote);
       }
     }
-  }, [searchParams, notes, selectedNote, setSelectedNote, router]);
+  }, [noteData, noteIdFromUrl, selectedNote, setSelectedNote]);
+
+  // Handle back navigation - close modal and clear URL
+  const handleBack = () => {
+    isIntentionalClearRef.current = true;
+    setSelectedNote(null);
+    router.replace('/notes', { scroll: false });
+    // Reset the flag after navigation
+    setTimeout(() => {
+      isIntentionalClearRef.current = false;
+    }, 100);
+  };
 
   // Filter and sort configuration with dynamic options
   const noteFilterOptions = getNoteFilterOptions(uniqueTitles, uniqueTags, uniqueCreators);
@@ -236,11 +264,42 @@ export default function NotesContent() {
         </div>
       )}
 
+      {/* Infinite scroll trigger */}
+      {isMounted && !isLoading && !error && filteredNotes.length > 0 && (
+        <>
+          <div ref={loadMoreRef} className="h-4" />
+          {isFetchingNextPage && (
+            <div className="flex items-center justify-center py-4">
+              <div className="flex items-center gap-2 text-[var(--muted-foreground)]">
+                <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                </svg>
+                <span>Loading more notes...</span>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Loading state for note detail from URL navigation */}
+      {noteDetailLoading && noteIdFromUrl && !selectedNote && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 flex flex-col items-center gap-4">
+            <svg className="animate-spin h-10 w-10 text-[var(--primary)]" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+            </svg>
+            <p className="text-[var(--muted-foreground)]">Loading note...</p>
+          </div>
+        </div>
+      )}
+
       {/* Modals */}
       {selectedNote && (
         <NoteModal
           note={selectedNote}
-          onClose={() => setSelectedNote(null)}
+          onClose={handleBack}
           onEdit={() => handleEditNote(selectedNote)}
           onDelete={handleNoteDeleted}
         />

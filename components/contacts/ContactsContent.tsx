@@ -4,7 +4,7 @@
 
 'use client';
 
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AdvancedFilters from '../AdvancedFilters';
 import SortButton from '../SortButton';
@@ -13,8 +13,11 @@ import ListView from './views/ListView';
 import GridView from './views/GridView';
 import CreateContactModal from './modals/CreateContactModal';
 import { useContactsState } from './hooks/useContactsState';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
+import { useCRMContact } from '../hooks/useCRMApi';
 import { getContactFilterOptions, getContactSortOptions } from './config/filterConfig';
 import { CONTACT_TYPES } from './constants';
+import { mapAPIContactToUIContact } from './types';
 import type { DuplicateGroup } from './types';
 import type { Job as APIJob, Company as APICompany } from '../lib/crm-graphql';
 
@@ -23,18 +26,60 @@ export default function ContactsContent() {
   const searchParams = useSearchParams();
   const state = useContactsState();
 
-  // Check for ID in query params to auto-select a contact
-  const contactId = searchParams.get('id');
+  // Infinite scroll trigger
+  const { loadMoreRef } = useInfiniteScroll({
+    hasNextPage: state.hasNextPage ?? false,
+    isFetchingNextPage: state.isFetchingNextPage,
+    fetchNextPage: state.fetchNextPage,
+  });
+
+  // Get contact ID from URL - this is the source of truth for navigation
+  const contactIdFromUrl = searchParams.get('id');
+
+  // Track intentional clear to prevent re-selecting after back navigation
+  const isIntentionalClearRef = useRef(false);
+
+  // Fetch full contact details when navigating via URL
+  // This fetches directly by ID, regardless of whether contact is in local paginated data
+  const targetContactId = (!isIntentionalClearRef.current && contactIdFromUrl) ? contactIdFromUrl : (state.selectedContact?.id || '');
+  const { data: fullContactData, isLoading: contactDetailLoading } = useCRMContact(targetContactId);
+
+  // When we get contact data from API (navigating via URL), set it as selected
   useEffect(() => {
-    if (contactId && state.contacts.length > 0 && !state.selectedContact) {
-      const contact = state.contacts.find(c => c.id === contactId);
-      if (contact) {
-        state.setSelectedContact(contact);
-        // Clear the query param after selecting
-        router.replace('/contacts', { scroll: false });
+    if (fullContactData && contactIdFromUrl && !isIntentionalClearRef.current) {
+      const mappedContact = mapAPIContactToUIContact(fullContactData);
+      // Only update if the selected contact is different or not set
+      if (!state.selectedContact || state.selectedContact.id !== mappedContact.id) {
+        state.setSelectedContact(mappedContact);
       }
     }
-  }, [contactId, state.contacts.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fullContactData, contactIdFromUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset the intentional clear flag when URL has no ID
+  useEffect(() => {
+    if (!contactIdFromUrl) {
+      isIntentionalClearRef.current = false;
+    }
+  }, [contactIdFromUrl]);
+
+  // Update URL when a contact is selected (not when cleared - that's handled by handleBack)
+  useEffect(() => {
+    if (!state.isMounted) return;
+    if (state.selectedContact?.id) {
+      const currentId = searchParams.get('id');
+      if (currentId !== state.selectedContact.id) {
+        router.replace(`/contacts?id=${state.selectedContact.id}`, { scroll: false });
+      }
+    }
+  }, [state.selectedContact?.id, state.isMounted, router, searchParams]);
+
+  // Handle back navigation
+  const handleBack = () => {
+    isIntentionalClearRef.current = true;
+    state.setSelectedContact(null);
+    state.setIsEditing(false);
+    router.replace('/contacts', { scroll: false });
+  };
 
   // Navigation handlers for related entities
   const handleJobClick = (job: APIJob) => {
@@ -89,8 +134,8 @@ export default function ContactsContent() {
     );
   }
 
-  // Show loading state
-  if (state.isLoading) {
+  // Show loading state (also check isMounted for hydration safety)
+  if (!state.isMounted || state.isLoading) {
     return (
       <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
         <div className="mb-6">
@@ -141,6 +186,35 @@ export default function ContactsContent() {
     );
   }
 
+  // Show loading state while fetching contact details from URL navigation
+  if (contactIdFromUrl && contactDetailLoading && !state.selectedContact) {
+    return (
+      <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
+        <div className="mb-6">
+          <button
+            onClick={handleBack}
+            className="flex items-center gap-2 text-[var(--muted-foreground)] hover:text-[var(--foreground)] mb-4"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M15 10H5M5 10l4-4M5 10l4 4" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Back to Contacts
+          </button>
+          <h1 className="text-2xl font-semibold text-[var(--foreground)]">Loading Contact Details...</h1>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <div className="flex items-center gap-3 text-[var(--muted-foreground)]">
+            <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+            </svg>
+            <span>Fetching contact details...</span>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   // Contact Detail View
   if (state.selectedContact) {
     return (
@@ -151,10 +225,7 @@ export default function ContactsContent() {
         isDeleting={state.deleteContactMutation.isPending}
         editFormData={state.editFormData}
         deleteConfirmId={state.deleteConfirmId}
-        onBack={() => {
-          state.setSelectedContact(null);
-          state.setIsEditing(false);
-        }}
+        onBack={handleBack}
         onEdit={state.handleStartEdit}
         onSave={state.handleSaveEdit}
         onCancel={state.handleCancelEdit}
@@ -278,8 +349,22 @@ export default function ContactsContent() {
         <GridView contacts={state.filteredContacts} onContactClick={state.setSelectedContact} />
       )}
 
+      {/* Infinite scroll trigger */}
+      <div ref={loadMoreRef} className="h-4" />
+      {state.isFetchingNextPage && (
+        <div className="flex items-center justify-center py-4">
+          <div className="flex items-center gap-2 text-[var(--muted-foreground)]">
+            <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+            </svg>
+            <span>Loading more contacts...</span>
+          </div>
+        </div>
+      )}
+
       {/* Create Contact Modal */}
-      <CreateContactModal 
+      <CreateContactModal
         isOpen={state.showCreateModal}
         onClose={() => state.setShowCreateModal(false)}
         onSuccess={() => state.refetch()}

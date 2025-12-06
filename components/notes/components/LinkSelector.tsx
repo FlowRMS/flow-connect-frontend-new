@@ -502,25 +502,27 @@ export function LinkSelector({
       className="bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden flex flex-col"
     >
       {/* Tabs - scrollable container */}
-      <div className="flex border-b border-gray-200 bg-gray-50 overflow-x-auto scrollbar-hide">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => {
-              setActiveTab(tab.id);
-              setSearchQuery('');
-            }}
-            className={`flex-shrink-0 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors whitespace-nowrap ${
-              activeTab === tab.id
-                ? 'text-blue-600 border-b-2 border-blue-600 bg-white'
-                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-            }`}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
+      <div className="flex-shrink-0 border-b border-gray-200 bg-gray-50">
+        <div className="flex overflow-x-auto" style={{ scrollbarWidth: 'thin' }}>
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => {
+                setActiveTab(tab.id);
+                setSearchQuery('');
+              }}
+              className={`flex-shrink-0 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-colors whitespace-nowrap border-b-2 ${
+                activeTab === tab.id
+                  ? 'text-blue-600 border-blue-600 bg-white'
+                  : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Entity List */}

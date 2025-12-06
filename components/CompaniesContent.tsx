@@ -5,20 +5,22 @@
 
 'use client';
 
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import AdvancedFilters from './AdvancedFilters';
+import AdvancedFilters, { ActiveFilter, ActiveSort } from './AdvancedFilters';
 import SortButton from './SortButton';
 import CreateCompanyModal from './CreateCompanyModal';
-import { useCRMCompanyLandingPages, useDeleteCRMCompany, useUpdateCRMCompany } from './hooks/useCRMApi';
+import { useCRMCompanyLandingPagesInfinite, useDeleteCRMCompany, useUpdateCRMCompany, useCRMCompany } from './hooks/useCRMApi';
 import { hasCRMTokens } from './lib/crm-auth';
 import { companyToasts } from './lib/toast';
-import type { CompanySourceType, Contact as APIContact, Job as APIJob } from './lib/crm-graphql';
+import { useInfiniteScroll } from './hooks/useInfiniteScroll';
+import type { CompanySourceType, Contact as APIContact, Job as APIJob, LandingPageFilter, LandingPageOrderBy } from './lib/crm-graphql';
 
 // Modular imports
 import { useCompaniesState } from './companies/hooks/useCompaniesState';
 import { COMPANY_TYPES } from './companies/constants';
 import { getCompanyFilterOptions, getCompanySortOptions } from './companies/config/filterConfig';
+import { mapAPICompanyToUICompany } from './companies/types';
 import CompanyDetailView from './companies/detail/CompanyDetailView';
 import GridView from './companies/views/GridView';
 import ListView from './companies/views/ListView';
@@ -27,12 +29,71 @@ export default function CompaniesContent() {
   // Router for navigation
   const router = useRouter();
   const searchParams = useSearchParams();
-  
-  // CRM API hooks
-  const isConnected = hasCRMTokens();
-  const { data: landingPageCompanies, isLoading, error, refetch } = useCRMCompanyLandingPages();
+
+  // Hydration-safe mounted state
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Server-side filters - defined BEFORE API hook so they can be passed to the query
+  const [serverFilters, setServerFilters] = useState<LandingPageFilter[]>([]);
+  const [serverOrderBy, setServerOrderBy] = useState<LandingPageOrderBy[]>([]);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Handler for server-side filter changes
+  const handleServerFiltersChange = useCallback((filters: ActiveFilter[]) => {
+    const apiFilters: LandingPageFilter[] = filters.map(f => ({
+      operator: f.operator,
+      columnName: f.columnName,
+      value: f.value,
+      values: f.values,
+    }));
+    setServerFilters(apiFilters);
+  }, []);
+
+  // Handler for server-side sort changes
+  const handleServerSortChange = useCallback((sorts: ActiveSort[]) => {
+    const apiOrderBy: LandingPageOrderBy[] = sorts.map(s => ({
+      columnName: s.columnName,
+      direction: s.direction,
+    }));
+    setServerOrderBy(apiOrderBy);
+  }, []);
+
+  // CRM API hooks with infinite scroll - now with server-side filters
+  const isConnected = isMounted ? hasCRMTokens() : false;
+  const {
+    data: companiesData,
+    isLoading,
+    error,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useCRMCompanyLandingPagesInfinite(serverFilters, serverOrderBy);
   const deleteCompanyMutation = useDeleteCRMCompany();
   const updateCompanyMutation = useUpdateCRMCompany();
+
+  // Flatten paginated results with deduplication
+  const landingPageCompanies = useMemo(() => {
+    if (!companiesData?.pages) return undefined;
+    const allRecords = companiesData.pages.flatMap(page => page.records);
+    // Deduplicate by ID
+    const seen = new Set<string>();
+    return allRecords.filter(record => {
+      if (seen.has(record.id)) return false;
+      seen.add(record.id);
+      return true;
+    });
+  }, [companiesData]);
+
+  // Infinite scroll trigger
+  const { loadMoreRef } = useInfiniteScroll({
+    hasNextPage: hasNextPage ?? false,
+    isFetchingNextPage,
+    fetchNextPage,
+  });
 
   // State management
   const {
@@ -57,24 +118,68 @@ export default function CompaniesContent() {
     uniqueCompanyNames,
     uniqueCompanyTypes,
     uniqueCreatedBy,
-    handleFiltersChange,
-    handleMultiSortChange,
+    handleFiltersChange: stateHandleFiltersChange,
+    handleMultiSortChange: stateHandleMultiSortChange,
     handleStartEdit,
     handleCancelEdit,
   } = useCompaniesState(landingPageCompanies);
 
-  // Check for ID in query params to auto-select a company
+  // Wrapper handlers that call both state and server-side filter handlers
+  const handleFiltersChange = useCallback((filters: ActiveFilter[]) => {
+    stateHandleFiltersChange(filters);
+    handleServerFiltersChange(filters);
+  }, [stateHandleFiltersChange, handleServerFiltersChange]);
+
+  const handleMultiSortChange = useCallback((sorts: ActiveSort[]) => {
+    stateHandleMultiSortChange(sorts);
+    handleServerSortChange(sorts);
+  }, [stateHandleMultiSortChange, handleServerSortChange]);
+
+  // Get company ID from URL - this is the source of truth for navigation
+  const companyIdFromUrl = searchParams.get('id');
+
+  // Track intentional clear to prevent re-selecting after back navigation
+  const isIntentionalClearRef = useRef(false);
+
+  // Fetch full company details when navigating via URL
+  const targetCompanyId = (!isIntentionalClearRef.current && companyIdFromUrl) ? companyIdFromUrl : (selectedCompany?.id || '');
+  const { data: fullCompanyData, isLoading: companyDetailLoading } = useCRMCompany(targetCompanyId);
+
+  // When we get company data from API (navigating via URL), set it as selected
   useEffect(() => {
-    const companyId = searchParams.get('id');
-    if (companyId && companies.length > 0 && !selectedCompany) {
-      const company = companies.find(c => c.id === companyId);
-      if (company) {
-        setSelectedCompany(company);
-        // Clear the query param after selecting
-        router.replace('/companies', { scroll: false });
+    if (fullCompanyData && companyIdFromUrl && !isIntentionalClearRef.current) {
+      const mappedCompany = mapAPICompanyToUICompany(fullCompanyData);
+      if (!selectedCompany || selectedCompany.id !== mappedCompany.id) {
+        setSelectedCompany(mappedCompany);
       }
     }
-  }, [searchParams, companies, selectedCompany, setSelectedCompany, router]);
+  }, [fullCompanyData, companyIdFromUrl, selectedCompany, setSelectedCompany]);
+
+  // Reset the intentional clear flag when URL has no ID
+  useEffect(() => {
+    if (!companyIdFromUrl) {
+      isIntentionalClearRef.current = false;
+    }
+  }, [companyIdFromUrl]);
+
+  // Update URL when a company is selected (not when cleared - that's handled by handleBack)
+  useEffect(() => {
+    if (!isMounted) return;
+    if (selectedCompany?.id) {
+      const currentId = searchParams.get('id');
+      if (currentId !== selectedCompany.id) {
+        router.replace(`/companies?id=${selectedCompany.id}`, { scroll: false });
+      }
+    }
+  }, [selectedCompany?.id, isMounted, router, searchParams]);
+
+  // Handle back navigation
+  const handleBack = () => {
+    isIntentionalClearRef.current = true;
+    setSelectedCompany(null);
+    setIsEditing(false);
+    router.replace('/companies', { scroll: false });
+  };
 
   // Navigation handlers for related entities
   const handleContactClick = (contact: APIContact) => {
@@ -162,6 +267,35 @@ export default function CompaniesContent() {
     setEditFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  // Show loading state while fetching company details from URL navigation
+  if (companyIdFromUrl && companyDetailLoading && !selectedCompany) {
+    return (
+      <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
+        <div className="mb-6">
+          <button
+            onClick={handleBack}
+            className="flex items-center gap-2 text-[var(--muted-foreground)] hover:text-[var(--foreground)] mb-4"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M15 10H5M5 10l4-4M5 10l4 4" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Back to Companies
+          </button>
+          <h1 className="text-2xl font-semibold text-[var(--foreground)]">Loading Company Details...</h1>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <div className="flex items-center gap-3 text-[var(--muted-foreground)]">
+            <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+            </svg>
+            <span>Fetching company details...</span>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   // Company Detail View
   if (selectedCompany) {
     return (
@@ -172,7 +306,7 @@ export default function CompaniesContent() {
         deleteConfirmId={deleteConfirmId}
         updatePending={updateCompanyMutation.isPending}
         deletePending={deleteCompanyMutation.isPending}
-        onBack={() => setSelectedCompany(null)}
+        onBack={handleBack}
         onStartEdit={handleStartEdit}
         onSaveEdit={handleSaveEdit}
         onCancelEdit={handleCancelEdit}
@@ -219,8 +353,8 @@ export default function CompaniesContent() {
     );
   }
 
-  // Show loading state
-  if (isLoading) {
+  // Show loading state (also check isMounted for hydration safety)
+  if (!isMounted || isLoading) {
     return (
       <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
         <div className="mb-6">
@@ -383,10 +517,28 @@ export default function CompaniesContent() {
             Add Your First Company
           </button>
         </div>
-      ) : viewMode === 'grid' ? (
-        <GridView companies={filteredCompanies} onCompanyClick={setSelectedCompany} />
       ) : (
-        <ListView companies={filteredCompanies} onCompanyClick={setSelectedCompany} />
+        <>
+          {viewMode === 'grid' ? (
+            <GridView companies={filteredCompanies} onCompanyClick={setSelectedCompany} />
+          ) : (
+            <ListView companies={filteredCompanies} onCompanyClick={setSelectedCompany} />
+          )}
+
+          {/* Infinite scroll trigger */}
+          <div ref={loadMoreRef} className="h-4" />
+          {isFetchingNextPage && (
+            <div className="flex items-center justify-center py-4">
+              <div className="flex items-center gap-2 text-[var(--muted-foreground)]">
+                <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                </svg>
+                <span>Loading more companies...</span>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </main>
   );

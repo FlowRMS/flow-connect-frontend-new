@@ -3,9 +3,9 @@
  */
 
 import { ASSIGNEE_COLORS, PRIORITY_COLORS, API_PRIORITY_COLORS } from './constants';
-import type { 
-  Task, 
-  TaskPriority, 
+import type {
+  Task,
+  TaskPriority,
   TaskStatus,
   TaskStatusAPI,
   TaskPriorityAPI,
@@ -13,6 +13,7 @@ import type {
   ParsedTask,
   TaskRelatedEntities,
 } from './types';
+import type { CRMTask } from '../lib/crm-graphql';
 import type { ActiveFilter } from '../AdvancedFilters';
 import { formatLocalDate } from '../lib/date-utils';
 
@@ -161,6 +162,38 @@ export function convertTaskLandingPageToUI(taskLanding: TaskLandingPage): Task {
     comments: 0,
     createdBy: taskLanding.createdBy,
     createdAt: taskLanding.createdAt,
+  };
+}
+
+/**
+ * Convert CRMTask (from GetTask API) to UI Task
+ * Used when fetching a single task by ID for navigation
+ */
+export function convertCRMTaskToUI(task: CRMTask): Task {
+  const uiStatus = convertAPIStatusToUI(task.status, task.dueDate);
+  const uiPriority = convertAPIPriorityToUI(task.priority);
+  const tags = parseTagsString(task.tags);
+
+  return {
+    id: task.id,
+    title: task.title || '',
+    description: task.description || '',
+    dueDate: task.dueDate || '',
+    reminderDate: undefined,
+    // CRMTask has assignedToId, not assignedTo name - show as Loading until resolved
+    assignedTo: 'Loading...',
+    assignedToId: task.assignedToId || undefined,
+    taskType: 'General',
+    status: uiStatus,
+    apiStatus: task.status,
+    tags,
+    entities: undefined,
+    priority: uiPriority,
+    apiPriority: task.priority,
+    completed: task.status === 'COMPLETED',
+    comments: 0,
+    createdBy: task.createdBy,
+    createdAt: task.createdAt,
   };
 }
 

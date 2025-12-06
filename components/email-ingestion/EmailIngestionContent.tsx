@@ -12,6 +12,7 @@ import { useEmailsState } from './hooks/useEmailsState';
 import { CardView } from './views/CardView';
 import { SpreadsheetView } from './views/SpreadsheetView';
 import { EmailDetailModal } from './detail/EmailDetailModal';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import type { FilterStatus } from './types';
 
 export default function EmailIngestionContent() {
@@ -28,7 +29,17 @@ export default function EmailIngestionContent() {
     handleProcessEmail,
     isLoading,
     error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
   } = useEmailsState();
+
+  // Infinite scroll
+  const { loadMoreRef } = useInfiniteScroll({
+    hasNextPage: hasNextPage ?? false,
+    isFetchingNextPage,
+    fetchNextPage,
+  });
 
   const selectedEmail = selectedEmailId
     ? emails.find(e => e.id === selectedEmailId)
@@ -167,6 +178,27 @@ export default function EmailIngestionContent() {
               onEmailClick={setSelectedEmailId}
               onProcessEmail={handleProcessEmail}
             />
+          )}
+
+          {/* Infinite scroll trigger */}
+          <div ref={loadMoreRef} className="h-4" />
+
+          {/* Loading more indicator */}
+          {isFetchingNextPage && (
+            <div className="flex items-center justify-center py-4">
+              <svg className="animate-spin h-5 w-5 text-blue-500 mr-2" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <span className="text-sm text-gray-500">Loading more emails...</span>
+            </div>
+          )}
+
+          {/* End of list indicator */}
+          {!hasNextPage && filteredEmails.length > 0 && (
+            <div className="text-center py-4 text-sm text-gray-400">
+              All emails loaded
+            </div>
           )}
         </>
       )}

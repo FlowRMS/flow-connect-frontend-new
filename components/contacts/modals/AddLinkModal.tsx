@@ -1,18 +1,17 @@
 /**
  * Add Link Modal Component for Contacts
  * Allows users to link entities (Companies, Jobs) to a Contact
+ * Uses server-side search for real-time filtering
  */
 
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-  useCRMCompanyLandingPages,
-  useCRMJobLandingPages,
   useCRMJobsByContact,
-  useCRMCompany,
   useCreateCRMLink,
 } from '../../hooks/useCRMApi';
+import { useJobSearch, useCompanySearch, type JobSearchResult, type CompanySearchResult } from '../../notes/api';
 import type { CRMEntityType } from '../../lib/crm-graphql';
 
 type LinkEntityType = 'COMPANY' | 'JOB';
@@ -26,13 +25,13 @@ interface AddLinkModalProps {
   onSuccess: () => void;
 }
 
-export function AddLinkModal({ 
-  isOpen, 
+export function AddLinkModal({
+  isOpen,
   contactId,
   currentCompanyId,
-  initialEntityType = 'COMPANY', 
-  onClose, 
-  onSuccess 
+  initialEntityType = 'COMPANY',
+  onClose,
+  onSuccess
 }: AddLinkModalProps) {
   const [entityType, setEntityType] = useState<LinkEntityType>(initialEntityType);
   const [selectedEntityId, setSelectedEntityId] = useState<string>('');
@@ -47,10 +46,12 @@ export function AddLinkModal({
     }
   }, [isOpen, initialEntityType]);
 
-  // Fetch companies and jobs from landing pages
-  const { data: companies, isLoading: companiesLoading } = useCRMCompanyLandingPages();
-  const { data: jobs, isLoading: jobsLoading } = useCRMJobLandingPages();
-  
+  // Fetch companies using server-side search - pass searchTerm directly, hook handles everything
+  const { data: searchedCompanies = [], isLoading: companiesLoading } = useCompanySearch(searchTerm, isOpen);
+
+  // Fetch jobs using server-side search - pass searchTerm directly, hook handles everything
+  const { data: searchedJobs = [], isLoading: jobsLoading } = useJobSearch(searchTerm, isOpen);
+
   // Fetch already linked jobs for this contact
   const { data: linkedJobs = [] } = useCRMJobsByContact(contactId);
 
@@ -60,28 +61,28 @@ export function AddLinkModal({
   // Get IDs of already linked entities
   const linkedJobIds = useMemo(() => new Set(linkedJobs.map(j => j.id)), [linkedJobs]);
 
-  // Filter entities based on search term AND exclude already linked
+  // Filter entities - both companies and jobs use server-side search, just exclude already linked
   const filteredEntities = useMemo(() => {
     if (entityType === 'COMPANY') {
-      if (!companies) return [];
-      return companies.filter(company => {
+      // Companies are already filtered by server-side search
+      return searchedCompanies.filter((company: CompanySearchResult) => {
         // Exclude the currently associated company
         if (currentCompanyId && company.id === currentCompanyId) return false;
-        return company.name.toLowerCase().includes(searchTerm.toLowerCase());
+        return true;
       });
     } else {
-      if (!jobs) return [];
-      return jobs.filter(job => {
+      // Jobs are already filtered by server-side search
+      return searchedJobs.filter((job: JobSearchResult) => {
         // Exclude already linked jobs
         if (linkedJobIds.has(job.id)) return false;
-        return job.jobName.toLowerCase().includes(searchTerm.toLowerCase());
+        return true;
       });
     }
-  }, [entityType, companies, jobs, searchTerm, currentCompanyId, linkedJobIds]);
+  }, [entityType, searchedCompanies, searchedJobs, currentCompanyId, linkedJobIds]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!selectedEntityId) return;
 
     try {
@@ -91,7 +92,7 @@ export function AddLinkModal({
         targetEntityType: entityType as CRMEntityType,
         targetEntityId: selectedEntityId,
       });
-      
+
       // Reset and close
       setSelectedEntityId('');
       setSearchTerm('');
@@ -113,8 +114,8 @@ export function AddLinkModal({
   const isLoading = entityType === 'COMPANY' ? companiesLoading : jobsLoading;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-lg w-full max-h-[80vh] flex flex-col">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onMouseDown={onClose}>
+      <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-lg w-full max-h-[80vh] flex flex-col" onMouseDown={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between flex-shrink-0">
           <h2 className="text-xl font-semibold text-[var(--foreground)]">Link Entity</h2>
@@ -199,21 +200,21 @@ export function AddLinkModal({
                   <div className="divide-y divide-[var(--border)]">
                     {filteredEntities.map((entity: any) => {
                       const isSelected = selectedEntityId === entity.id;
-                      const displayName = entityType === 'COMPANY' 
-                        ? entity.name 
-                        : entity.jobName;
+                      const displayName = entityType === 'COMPANY'
+                        ? entity.name
+                        : (entity.jobName || entity.name);
                       const subtitle = entityType === 'COMPANY'
                         ? entity.companySourceType
-                        : entity.statusName || entity.jobType || '';
-                      
+                        : (entity.statusName || entity.jobType || '');
+
                       return (
                         <button
                           key={entity.id}
                           type="button"
                           onClick={() => setSelectedEntityId(entity.id)}
                           className={`w-full text-left px-4 py-3 transition-colors ${
-                            isSelected 
-                              ? 'bg-[var(--primary)]/10 border-l-4 border-[var(--primary)]' 
+                            isSelected
+                              ? 'bg-[var(--primary)]/10 border-l-4 border-[var(--primary)]'
                               : 'hover:bg-[var(--muted)]/50'
                           }`}
                         >

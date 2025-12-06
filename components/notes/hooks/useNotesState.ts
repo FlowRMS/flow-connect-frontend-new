@@ -3,15 +3,17 @@
  * Integrates with the new Notes API for fetching and managing notes
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import type { ParsedNote, ViewMode } from '../types';
 import type { ActiveFilter, ActiveSort } from '../../AdvancedFilters';
-import { useNotes } from '../api/useNotesApi';
-import { 
-  filterNotes, 
-  getAllTags, 
-  parseCommaSeparated, 
-  applyNoteFilter, 
+import { useCRMNoteLandingPagesInfinite } from '../../hooks/useCRMApi';
+import { hasCRMTokens } from '../../lib/crm-auth';
+import type { NoteLandingPage, LandingPageFilter, LandingPageOrderBy } from '../../lib/crm-graphql';
+import {
+  filterNotes,
+  getAllTags,
+  parseCommaSeparated,
+  applyNoteFilter,
   sortNotes,
   getAllTitles,
   getUniqueTags,
@@ -21,27 +23,26 @@ import {
 /**
  * Parse API note to ParsedNote format
  */
-function parseApiNote(note: {
-  id: string;
-  title: string;
-  content: string;
-  mentions: string;
-  tags: string;
-  createdBy: string;
-  createdAt: string;
-}): ParsedNote {
+function parseApiNote(note: NoteLandingPage): ParsedNote {
   return {
     id: note.id,
-    title: note.title,
-    content: note.content,
-    mentions: parseCommaSeparated(note.mentions),
-    tags: parseCommaSeparated(note.tags),
-    createdBy: note.createdBy,
-    createdAt: note.createdAt,
+    title: note.title || '',
+    content: note.content || '',
+    mentions: [], // NoteLandingPage doesn't include mentions
+    tags: parseCommaSeparated(note.tags || ''),
+    createdBy: note.createdBy || '',
+    createdAt: note.createdAt || '',
   };
 }
 
 export function useNotesState() {
+  // Hydration-safe mounted state
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   // View state
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [selectedTag, setSelectedTag] = useState<string>('All');
@@ -60,8 +61,34 @@ export function useNotesState() {
   const [activeSorts, setActiveSorts] = useState<ActiveSort[]>([]);
   const [activeSort, setActiveSort] = useState<ActiveSort | undefined>(undefined);
 
-  // Fetch notes from API using the new notes endpoint
-  const { data: rawNotes, isLoading, error, refetch } = useNotes();
+  // Server-side filters - defined BEFORE API hook so they can be passed to the query
+  const [serverFilters, setServerFilters] = useState<LandingPageFilter[]>([]);
+  const [serverOrderBy, setServerOrderBy] = useState<LandingPageOrderBy[]>([]);
+
+  // CRM API hooks with infinite scroll - now with server-side filters
+  const isConnected = isMounted ? hasCRMTokens() : false;
+  const {
+    data: notesData,
+    isLoading,
+    error,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useCRMNoteLandingPagesInfinite(serverFilters, serverOrderBy);
+
+  // Flatten paginated results with deduplication
+  const rawNotes = useMemo(() => {
+    if (!notesData?.pages) return undefined;
+    const allRecords = notesData.pages.flatMap(page => page.records);
+    // Deduplicate by ID
+    const seen = new Set<string>();
+    return allRecords.filter(record => {
+      if (seen.has(record.id)) return false;
+      seen.add(record.id);
+      return true;
+    });
+  }, [notesData]);
 
   // Parse notes from API format to UI format
   const notes = useMemo(() => {
@@ -129,35 +156,59 @@ export function useNotesState() {
     refetch();
   };
 
+  // Convert ActiveFilter to LandingPageFilter for server-side filtering
+  const toServerFilters = useCallback((filters: ActiveFilter[]): LandingPageFilter[] => {
+    return filters.map(f => ({
+      operator: f.operator,
+      columnName: f.columnName,
+      value: f.value,
+      values: f.values,
+    }));
+  }, []);
+
+  // Convert ActiveSort to LandingPageOrderBy for server-side sorting
+  const toServerOrderBy = useCallback((sorts: ActiveSort[]): LandingPageOrderBy[] => {
+    return sorts.map(s => ({
+      columnName: s.columnName,
+      direction: s.direction,
+    }));
+  }, []);
+
   // Filter change handlers
-  const handleFilterChange = (filter: ActiveFilter | undefined) => {
+  const handleFilterChange = useCallback((filter: ActiveFilter | undefined) => {
     setActiveFilter(filter);
     if (filter) {
       setActiveFilters([filter]);
+      setServerFilters(toServerFilters([filter])); // Server-side filter
     } else {
       setActiveFilters([]);
+      setServerFilters([]); // Clear server-side filters
     }
-  };
+  }, [toServerFilters]);
 
-  const handleFiltersChange = (filters: ActiveFilter[]) => {
+  const handleFiltersChange = useCallback((filters: ActiveFilter[]) => {
     setActiveFilters(filters);
     setActiveFilter(filters.length > 0 ? filters[0] : undefined);
-  };
+    setServerFilters(toServerFilters(filters)); // Server-side filters
+  }, [toServerFilters]);
 
   // Sort change handlers
-  const handleSortChange = (sort: ActiveSort | undefined) => {
+  const handleSortChange = useCallback((sort: ActiveSort | undefined) => {
     setActiveSort(sort);
     if (sort) {
       setActiveSorts([sort]);
+      setServerOrderBy(toServerOrderBy([sort])); // Server-side sort
     } else {
       setActiveSorts([]);
+      setServerOrderBy([]); // Clear server-side sort
     }
-  };
+  }, [toServerOrderBy]);
 
-  const handleMultiSortChange = (sorts: ActiveSort[]) => {
+  const handleMultiSortChange = useCallback((sorts: ActiveSort[]) => {
     setActiveSorts(sorts);
     setActiveSort(sorts.length > 0 ? sorts[0] : undefined);
-  };
+    setServerOrderBy(toServerOrderBy(sorts)); // Server-side sort
+  }, [toServerOrderBy]);
 
   return {
     // View state
@@ -175,6 +226,13 @@ export function useNotesState() {
     isLoading,
     error,
     refetch,
+    isMounted,
+    isConnected,
+
+    // Pagination
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
 
     // Unique values for filters
     uniqueTitles,
@@ -208,7 +266,7 @@ export function useNotesState() {
     setShowEditModal,
     noteToEdit,
     setNoteToEdit,
-    
+
     // Handlers
     handleEditNote,
     handleNoteDeleted,

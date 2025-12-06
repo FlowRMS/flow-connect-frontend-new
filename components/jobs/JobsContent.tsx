@@ -5,13 +5,13 @@
 
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { DragEndEvent, DragStartEvent, DragOverEvent } from '@dnd-kit/core';
 import AdvancedFilters, { ActiveFilter, ActiveSort } from '../AdvancedFilters';
 import SortButton from '../SortButton';
 import CreateJobModal from '../CreateJobModal';
-import { useCRMJobLandingPages, useCRMJobStatuses, useUpdateCRMJob, useCRMJob, useDeleteCRMJob } from '../hooks/useCRMApi';
+import { useCRMJobLandingPagesInfinite, useCRMJobStatuses, useUpdateCRMJob, useCRMJob, useDeleteCRMJob } from '../hooks/useCRMApi';
 import { hasCRMTokens } from '../lib/crm-auth';
 import { jobToasts } from '../lib/toast';
 import { parseApiError } from '../lib/error-utils';
@@ -24,7 +24,8 @@ import { ListView } from './views/ListView';
 import { getCompanyDetails } from './mockData';
 import type { Job } from './types';
 import { mapAPIJobToUIJob } from './types';
-import type { Company, Contact } from '../lib/crm-graphql';
+import type { Company, Contact, JobLandingPage, LandingPageFilter, LandingPageOrderBy } from '../lib/crm-graphql';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 
 export default function JobsContent() {
   // Router for navigation
@@ -33,15 +34,68 @@ export default function JobsContent() {
   
   // Hydration-safe mounted state
   const [isMounted, setIsMounted] = useState(false);
-  
+
+  // Server-side filters - defined BEFORE API hook so they can be passed to the query
+  const [serverFilters, setServerFilters] = useState<LandingPageFilter[]>([]);
+  const [serverOrderBy, setServerOrderBy] = useState<LandingPageOrderBy[]>([]);
+
   useEffect(() => {
     setIsMounted(true);
   }, []);
-  
-  // CRM API hooks
+
+  // Handler for server-side filter changes
+  const handleServerFiltersChange = useCallback((filters: ActiveFilter[]) => {
+    // Convert ActiveFilter to LandingPageFilter (they have the same structure)
+    const apiFilters: LandingPageFilter[] = filters.map(f => ({
+      operator: f.operator,
+      columnName: f.columnName,
+      value: f.value,
+      values: f.values,
+    }));
+    setServerFilters(apiFilters);
+  }, []);
+
+  // Handler for server-side sort changes
+  const handleServerSortChange = useCallback((sorts: ActiveSort[]) => {
+    const apiOrderBy: LandingPageOrderBy[] = sorts.map(s => ({
+      columnName: s.columnName,
+      direction: s.direction,
+    }));
+    setServerOrderBy(apiOrderBy);
+  }, []);
+
+  // CRM API hooks with infinite scroll pagination - now with server-side filters
   const isConnected = isMounted ? hasCRMTokens() : false;
-  const { data: landingPageJobs, isLoading: jobsLoading, error: jobsError, refetch: refetchJobs } = useCRMJobLandingPages();
+  const {
+    data: jobsData,
+    isLoading: jobsLoading,
+    error: jobsError,
+    refetch: refetchJobs,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useCRMJobLandingPagesInfinite(serverFilters, serverOrderBy);
   const { data: apiStatuses, isLoading: statusesLoading } = useCRMJobStatuses();
+
+  // Flatten paginated results into a single array with deduplication
+  const landingPageJobs = useMemo(() => {
+    if (!jobsData?.pages) return undefined;
+    const allRecords = jobsData.pages.flatMap(page => page.records);
+    // Deduplicate by ID to prevent duplicate key errors
+    const seen = new Set<string>();
+    return allRecords.filter(record => {
+      if (seen.has(record.id)) return false;
+      seen.add(record.id);
+      return true;
+    });
+  }, [jobsData]);
+
+  // Infinite scroll trigger
+  const { loadMoreRef } = useInfiniteScroll({
+    hasNextPage: hasNextPage ?? false,
+    isFetchingNextPage,
+    fetchNextPage,
+  });
   const updateJobMutation = useUpdateCRMJob();
   const deleteJobMutation = useDeleteCRMJob();
 
@@ -73,8 +127,16 @@ export default function JobsContent() {
     uniqueJobNames, uniqueStatuses, uniqueTypes, uniqueCreators,
   } = useJobsState(landingPageJobs, apiStatuses);
 
-  // Fetch full job details when a job is selected (uses GET_JOB endpoint)
-  const { data: fullJobData, isLoading: jobDetailLoading } = useCRMJob(selectedJob?.id || '');
+  // Get job ID from URL - this is the source of truth for navigation
+  const jobIdFromUrl = searchParams.get('id');
+
+  // Track intentional clear to prevent re-selecting after back navigation
+  const isIntentionalClearRef = React.useRef(false);
+
+  // Fetch full job details when navigating via URL OR when a job is selected
+  // This fetches directly by ID, regardless of whether job is in local paginated data
+  const targetJobId = (!isIntentionalClearRef.current && jobIdFromUrl) ? jobIdFromUrl : (selectedJob?.id || '');
+  const { data: fullJobData, isLoading: jobDetailLoading } = useCRMJob(targetJobId);
 
   // Map the full job data to UI format when available
   const detailedJob = useMemo(() => {
@@ -84,36 +146,41 @@ export default function JobsContent() {
     return selectedJob;
   }, [fullJobData, selectedJob]);
 
-  // Check for ID in query params to auto-select a job (only on initial load)
+  // When we get job data from API (navigating via URL), set it as selected
   useEffect(() => {
-    const jobId = searchParams.get('id');
-    if (jobId && jobs.length > 0 && !selectedJob) {
-      const job = jobs.find(j => j.id === jobId);
-      if (job) {
-        setSelectedJob(job);
+    if (fullJobData && jobIdFromUrl && !isIntentionalClearRef.current) {
+      const mappedJob = mapAPIJobToUIJob(fullJobData);
+      // Only update if the selected job is different or not set
+      if (!selectedJob || selectedJob.id !== mappedJob.id) {
+        setSelectedJob(mappedJob);
       }
     }
-  }, [searchParams, jobs, selectedJob, setSelectedJob]);
+  }, [fullJobData, jobIdFromUrl, selectedJob, setSelectedJob]);
 
-  // Update URL when job selection changes
-  const lastUrlUpdateRef = React.useRef<string | null>(null);
-  
+  // Reset the intentional clear flag when URL has no ID
+  useEffect(() => {
+    if (!jobIdFromUrl) {
+      isIntentionalClearRef.current = false;
+    }
+  }, [jobIdFromUrl]);
+
+  // Handle back navigation - clear selection and update URL
+  const handleBack = React.useCallback(() => {
+    isIntentionalClearRef.current = true;
+    setSelectedJob(null);
+    router.replace('/jobs', { scroll: false });
+  }, [setSelectedJob, router]);
+
+  // Update URL when a job is selected (not when cleared - that's handled by handleBack)
   useEffect(() => {
     if (!isMounted) return;
-    
-    const newJobId = selectedJob?.id || null;
-    
-    // Prevent duplicate updates
-    if (lastUrlUpdateRef.current === newJobId) return;
-    lastUrlUpdateRef.current = newJobId;
-    
-    // Use window.history.replaceState for synchronous URL update without triggering React re-renders
-    if (newJobId) {
-      window.history.replaceState(null, '', `/jobs?id=${newJobId}`);
-    } else {
-      window.history.replaceState(null, '', '/jobs');
+    if (selectedJob?.id) {
+      const currentId = searchParams.get('id');
+      if (currentId !== selectedJob.id) {
+        router.replace(`/jobs?id=${selectedJob.id}`, { scroll: false });
+      }
     }
-  }, [selectedJob?.id, isMounted]);
+  }, [selectedJob?.id, isMounted, router, searchParams]);
 
   // Filter and sort configuration
   const jobFilterOptions = getJobFilterOptions(uniqueJobNames, uniqueStatuses, uniqueTypes, uniqueCreators);
@@ -257,7 +324,9 @@ export default function JobsContent() {
     // Also update the multi-filter state
     if (filter) {
       setActiveFilters([filter]);
+      handleServerFiltersChange([filter]); // Server-side filter
     } else {
+      handleServerFiltersChange([]); // Clear server-side filters
       setActiveFilters([]);
     }
   };
@@ -266,6 +335,8 @@ export default function JobsContent() {
     setActiveFilters(filters);
     // Also update the single filter for backward compatibility
     setActiveFilter(filters.length > 0 ? filters[0] : undefined);
+    // Update server-side filters
+    handleServerFiltersChange(filters);
   };
 
   const handleSortChange = (sort: ActiveSort | undefined) => {
@@ -273,10 +344,12 @@ export default function JobsContent() {
       setClientSortColumn(sort.columnName);
       setClientSortDirection(sort.direction);
       setClientSortColumns([sort]);
+      handleServerSortChange([sort]); // Server-side sort
     } else {
       setClientSortColumn(undefined);
       setClientSortDirection('ASC');
       setClientSortColumns([]);
+      handleServerSortChange([]); // Clear server-side sort
     }
   };
 
@@ -290,6 +363,8 @@ export default function JobsContent() {
       setClientSortColumn(undefined);
       setClientSortDirection('ASC');
     }
+    // Update server-side sort
+    handleServerSortChange(sorts);
   };
 
   const handleStartEdit = () => {
@@ -494,8 +569,8 @@ export default function JobsContent() {
       return (
         <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
           <div className="mb-6">
-            <button 
-              onClick={() => setSelectedJob(null)}
+            <button
+              onClick={handleBack}
               className="flex items-center gap-2 text-[var(--muted-foreground)] hover:text-[var(--foreground)] mb-4"
             >
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
@@ -530,7 +605,7 @@ export default function JobsContent() {
         editFormData={editFormData}
         repType={repType}
         showRepTypeModal={showRepTypeModal}
-        onBack={() => setSelectedJob(null)}
+        onBack={handleBack}
         onEditChange={handleEditChange}
         onStartEdit={handleStartEdit}
         onSaveEdit={handleSaveEdit}
@@ -675,6 +750,20 @@ export default function JobsContent() {
               onJobClick={setSelectedJob}
               onJobCheckboxChange={handleJobCheckboxChange}
             />
+          )}
+
+          {/* Infinite scroll trigger */}
+          <div ref={loadMoreRef} className="h-4" />
+          {isFetchingNextPage && (
+            <div className="flex items-center justify-center py-4">
+              <div className="flex items-center gap-2 text-[var(--muted-foreground)]">
+                <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                </svg>
+                <span>Loading more jobs...</span>
+              </div>
+            </div>
           )}
         </>
       )}

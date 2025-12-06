@@ -56,8 +56,8 @@ export interface UpdateEmailStatusInput {
 // ============================================================================
 
 const GET_EMAILS = `
-  query GetEmails($status: EmailStatusEnum) {
-    getEmails(status: $status) {
+  query GetEmails($status: EmailStatusEnum, $limit: Int, $offset: Int) {
+    getEmails(status: $status, limit: $limit, offset: $offset) {
       id
       externalId
       conversationId
@@ -327,13 +327,31 @@ export async function emailGraphQLRequest<T = unknown>(
 // API Functions - Email Queries
 // ============================================================================
 
+export interface EmailPaginationInput {
+  limit?: number;
+  offset?: number;
+}
+
+export interface EmailPaginatedResult {
+  emails: Email[];
+  total: number;
+  hasMore: boolean;
+}
+
 /**
- * Fetch emails with optional status filter
+ * Fetch emails with optional status filter and pagination
  */
-export async function fetchEmails(status?: EmailStatusAPI): Promise<Email[]> {
+export async function fetchEmails(
+  status?: EmailStatusAPI,
+  pagination?: EmailPaginationInput
+): Promise<Email[]> {
   const response = await emailGraphQLRequest<{ getEmails: Email[] }>({
     query: GET_EMAILS,
-    variables: status ? { status } : undefined,
+    variables: {
+      status,
+      limit: pagination?.limit,
+      offset: pagination?.offset,
+    },
   });
 
   if (response.errors) {
@@ -341,6 +359,23 @@ export async function fetchEmails(status?: EmailStatusAPI): Promise<Email[]> {
   }
 
   return response.data?.getEmails || [];
+}
+
+/**
+ * Fetch paginated emails for infinite scroll
+ */
+export async function fetchEmailsPaginated(
+  status?: EmailStatusAPI,
+  pagination?: EmailPaginationInput
+): Promise<EmailPaginatedResult> {
+  const emails = await fetchEmails(status, pagination);
+  const limit = pagination?.limit || 10;
+
+  return {
+    emails,
+    total: emails.length,
+    hasMore: emails.length === limit,
+  };
 }
 
 /**

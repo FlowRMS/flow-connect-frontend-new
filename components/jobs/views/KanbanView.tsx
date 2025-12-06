@@ -127,6 +127,13 @@ export function KanbanView({
     return rectIntersection(args);
   };
 
+  // Calculate grid columns based on number of stages
+  const gridColsClass = stages.length <= 3
+    ? 'grid-cols-3'
+    : stages.length === 4
+      ? 'grid-cols-4'
+      : 'grid-cols-5';
+
   return (
     <DndContext
       sensors={sensors}
@@ -136,14 +143,14 @@ export function KanbanView({
       onDragOver={onDragOver}
       onDragCancel={onDragCancel}
     >
-      <div className="grid grid-cols-5 gap-6 min-w-full">
+      <div className={`grid ${gridColsClass} gap-4 w-full`} style={{ minWidth: 0 }}>
         {stages.map((stage) => {
           const stageJobs = getJobsByStatus(stage.name);
           const isOverColumn = overId === `stage-${stage.name}`;
           const statusColor = COLUMN_STATUS_COLORS[stage.name] || 'bg-gray-400';
 
           return (
-            <div key={stage.name} className="flex flex-col">
+            <div key={stage.name} className="flex flex-col min-w-0 flex-1">
               {/* Column Header */}
               <div className="flex items-center justify-between px-3 py-3 mb-3 bg-[var(--card)] rounded-lg border border-[var(--border)]">
                 <div className="flex items-center gap-2.5">
