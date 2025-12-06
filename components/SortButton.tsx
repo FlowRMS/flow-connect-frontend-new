@@ -149,7 +149,7 @@ export default function SortButton({
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-xl z-50 border border-gray-100 overflow-hidden">
+        <div className="absolute right-0 mt-2 w-64 md:w-72 bg-white rounded-lg shadow-xl z-50 border border-gray-100 overflow-hidden max-h-[80vh] overflow-y-auto" style={{ maxWidth: 'calc(100vw - 2rem)' }}>
           <div className="p-2 border-b border-gray-100 flex justify-between items-center bg-gray-50">
             <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-2">Sort By (Multi-Select)</span>
             {sortCount > 0 && (

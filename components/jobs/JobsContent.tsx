@@ -630,42 +630,44 @@ export default function JobsContent() {
 
   // Main jobs list view
   return (
-    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
+    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-3 sm:p-6">
       {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-2">
+      <div className="mb-4 sm:mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2 mb-2">
           <div>
-            <h1 className="text-2xl font-semibold text-[var(--foreground)]">Jobs</h1>
+            <h1 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]">Jobs</h1>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
             <button
               onClick={() => setShowDedupeModal(true)}
-              className="flex items-center gap-2 px-6 py-2.5 text-sm font-medium bg-purple-600 text-white rounded-full hover:bg-purple-700 transition-colors shadow-sm"
+              className="hidden sm:flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 text-xs sm:text-sm font-medium bg-purple-600 text-white rounded-full hover:bg-purple-700 transition-colors shadow-sm"
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="sm:w-[18px] sm:h-[18px]">
                 <path d="M12 5v14M5 12h14" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
-              Find Duplicates ({duplicateGroups.length})
+              <span className="hidden md:inline">Find Duplicates</span>
+              <span className="md:hidden">Dedupe</span>
+              ({duplicateGroups.length})
             </button>
 
             {/* View Mode Toggle */}
             <div className="flex items-center gap-1 p-1 bg-[var(--muted)] rounded-md">
               <button
                 onClick={() => setViewMode('kanban')}
-                className={`p-2 rounded ${viewMode === 'kanban' ? 'bg-white shadow-sm' : 'hover:bg-[var(--card)]'}`}
+                className={`p-1.5 sm:p-2 rounded ${viewMode === 'kanban' ? 'bg-white shadow-sm' : 'hover:bg-[var(--card)]'}`}
                 title="Kanban View"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-[18px] sm:h-[18px]">
                   <rect x="3" y="3" width="7" height="18" rx="1"/>
                   <rect x="14" y="3" width="7" height="10" rx="1"/>
                 </svg>
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className={`p-2 rounded ${viewMode === 'list' ? 'bg-white shadow-sm' : 'hover:bg-[var(--card)]'}`}
+                className={`p-1.5 sm:p-2 rounded ${viewMode === 'list' ? 'bg-white shadow-sm' : 'hover:bg-[var(--card)]'}`}
                 title="List View"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-[18px] sm:h-[18px]">
                   <line x1="8" y1="6" x2="21" y2="6"/>
                   <line x1="8" y1="12" x2="21" y2="12"/>
                   <line x1="8" y1="18" x2="21" y2="18"/>
@@ -676,29 +678,30 @@ export default function JobsContent() {
               </button>
             </div>
 
-            <SortButton 
+            <SortButton
               sortOptions={jobSortOptions}
               onSortChange={handleSortChange}
               activeSort={clientSortColumn ? { columnName: clientSortColumn, direction: clientSortDirection } : undefined}
             />
 
-            <AdvancedFilters 
+            <AdvancedFilters
               filterOptions={jobFilterOptions}
               onFilterChange={handleFilterChange}
               onFiltersChange={handleFiltersChange}
               activeFilter={activeFilter}
               activeFilters={activeFilters}
             />
-            
-            <button 
+
+            <button
               onClick={() => setShowCreateJobModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"
+              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-xs sm:text-sm hover:bg-[var(--primary-hover)] transition-colors"
             >
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-4 sm:h-4">
                 <circle cx="10" cy="10" r="7"/>
                 <path d="M10 7v6M7 10h6" strokeLinecap="round"/>
               </svg>
-              Add Job
+              <span className="hidden sm:inline">Add Job</span>
+              <span className="sm:hidden">Add</span>
             </button>
           </div>
         </div>

@@ -70,7 +70,7 @@ export default function ContactDetailView({
   };
 
   return (
-    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
+    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-3 sm:p-6">
       <ContactDetailHeader
         contact={contact}
         isEditing={isEditing}

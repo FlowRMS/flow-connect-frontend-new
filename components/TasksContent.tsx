@@ -213,22 +213,22 @@ export default function TasksContent() {
   }
 
   return (
-    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
+    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-3 sm:p-6">
       {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-4">
+      <div className="mb-4 sm:mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4">
           <div>
-            <h1 className="text-2xl font-semibold text-[var(--foreground)]">Tasks</h1>
+            <h1 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]">Tasks</h1>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap overflow-x-auto pb-1 sm:pb-0">
             {/* View Mode Toggle */}
             <div className="flex items-center gap-1 p-1 bg-[var(--muted)] rounded-md">
               <button
                 onClick={() => setViewMode('grid')}
-                className={`p-2 rounded ${viewMode === 'grid' ? 'bg-white shadow-sm' : 'hover:bg-[var(--card)]'}`}
+                className={`p-1.5 sm:p-2 rounded ${viewMode === 'grid' ? 'bg-white shadow-sm' : 'hover:bg-[var(--card)]'}`}
                 title="Grid View"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-[18px] sm:h-[18px]">
                   <rect x="3" y="3" width="7" height="7" rx="1"/>
                   <rect x="14" y="3" width="7" height="7" rx="1"/>
                   <rect x="14" y="14" width="7" height="7" rx="1"/>
@@ -237,10 +237,10 @@ export default function TasksContent() {
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className={`p-2 rounded ${viewMode === 'list' ? 'bg-white shadow-sm' : 'hover:bg-[var(--card)]'}`}
+                className={`p-1.5 sm:p-2 rounded ${viewMode === 'list' ? 'bg-white shadow-sm' : 'hover:bg-[var(--card)]'}`}
                 title="List View"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-[18px] sm:h-[18px]">
                   <line x1="8" y1="6" x2="21" y2="6"/>
                   <line x1="8" y1="12" x2="21" y2="12"/>
                   <line x1="8" y1="18" x2="21" y2="18"/>
@@ -251,20 +251,20 @@ export default function TasksContent() {
               </button>
               <button
                 onClick={() => setViewMode('kanban')}
-                className={`p-2 rounded ${viewMode === 'kanban' ? 'bg-white shadow-sm' : 'hover:bg-[var(--card)]'}`}
+                className={`p-1.5 sm:p-2 rounded ${viewMode === 'kanban' ? 'bg-white shadow-sm' : 'hover:bg-[var(--card)]'}`}
                 title="Kanban View"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-[18px] sm:h-[18px]">
                   <rect x="3" y="3" width="7" height="18" rx="1"/>
                   <rect x="14" y="3" width="7" height="10" rx="1"/>
                 </svg>
               </button>
               <button
                 onClick={() => setViewMode('spreadsheet')}
-                className={`p-2 rounded ${viewMode === 'spreadsheet' ? 'bg-white shadow-sm' : 'hover:bg-[var(--card)]'}`}
+                className={`hidden sm:block p-1.5 sm:p-2 rounded ${viewMode === 'spreadsheet' ? 'bg-white shadow-sm' : 'hover:bg-[var(--card)]'}`}
                 title="Spreadsheet View"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-[18px] sm:h-[18px]">
                   <rect x="3" y="3" width="18" height="18" rx="2"/>
                   <line x1="3" y1="9" x2="21" y2="9"/>
                   <line x1="3" y1="15" x2="21" y2="15"/>
@@ -274,10 +274,10 @@ export default function TasksContent() {
               </button>
               <button
                 onClick={() => setViewMode('calendar')}
-                className={`p-2 rounded ${viewMode === 'calendar' ? 'bg-white shadow-sm' : 'hover:bg-[var(--card)]'}`}
+                className={`hidden sm:block p-1.5 sm:p-2 rounded ${viewMode === 'calendar' ? 'bg-white shadow-sm' : 'hover:bg-[var(--card)]'}`}
                 title="Calendar View"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-[18px] sm:h-[18px]">
                   <rect x="3" y="4" width="18" height="18" rx="2"/>
                   <line x1="16" y1="2" x2="16" y2="6"/>
                   <line x1="8" y1="2" x2="8" y2="6"/>
@@ -299,23 +299,23 @@ export default function TasksContent() {
               activeFilters={activeFilters}
               onFiltersChange={handleFiltersChange}
             />
-            <div className="relative">
+            <div className="relative hidden sm:block">
               <button
                 onClick={() => setShowBulkActionsDropdown(!showBulkActionsDropdown)}
                 disabled={selectedTasks.length === 0}
-                className={`flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-md transition-colors ${
+                className={`flex items-center gap-2 px-2 sm:px-3 py-1.5 text-xs sm:text-sm border border-[var(--border)] rounded-md transition-colors ${
                   selectedTasks.length === 0
                     ? 'opacity-50 cursor-not-allowed'
                     : 'hover:bg-[var(--muted)]'
                 }`}
               >
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-4 sm:h-4">
                   <rect x="3" y="3" width="6" height="6" rx="1"/>
                   <rect x="11" y="3" width="6" height="6" rx="1"/>
                   <rect x="3" y="11" width="6" height="6" rx="1"/>
                   <rect x="11" y="11" width="6" height="6" rx="1"/>
                 </svg>
-                Bulk Actions
+                <span className="hidden md:inline">Bulk Actions</span>
                 {selectedTasks.length > 0 && (
                   <span className="ml-1 px-1.5 py-0.5 bg-[var(--primary)] text-white text-xs rounded-full">
                     {selectedTasks.length}
@@ -422,51 +422,52 @@ export default function TasksContent() {
               </svg>
               Summarize with FlowChat
             </button>
-            <button 
+            <button
               onClick={() => setShowCreateTaskModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"
+              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-xs sm:text-sm hover:bg-[var(--primary-hover)] transition-colors"
             >
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-4 sm:h-4">
                 <circle cx="10" cy="10" r="7"/>
                 <path d="M10 7v6M7 10h6" strokeLinecap="round"/>
               </svg>
-              Add Task
+              <span className="hidden sm:inline">Add Task</span>
+              <span className="sm:hidden">Add</span>
             </button>
           </div>
         </div>
 
         {/* Search Bar */}
-        <div className="relative mt-4">
+        <div className="relative mt-3 sm:mt-4">
           <svg
-            width="20"
-            height="20"
+            width="18"
+            height="18"
             viewBox="0 0 20 20"
             fill="none"
             stroke="currentColor"
             strokeWidth="2"
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] sm:w-5 sm:h-5"
           >
             <circle cx="8" cy="8" r="6"/>
             <path d="M12 12l5 5" strokeLinecap="round"/>
           </svg>
           <input
             type="text"
-            placeholder="Search tasks by title, description, or tags..."
+            placeholder="Search tasks..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--card)] text-[var(--foreground)]"
+            className="w-full pl-9 sm:pl-10 pr-4 py-2 sm:py-2.5 text-sm sm:text-base border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--card)] text-[var(--foreground)]"
           />
         </div>
       </div>
 
       {/* Category Filters and Bulk Select */}
-      <div className="mb-6 flex items-center gap-4">
-        <div className="flex gap-2 overflow-x-auto pb-2 flex-1">
+      <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+        <div className="flex gap-1 sm:gap-2 overflow-x-auto pb-2 flex-1 -mx-1 px-1">
           {TASK_CATEGORIES.map((category) => (
             <button
               key={category}
               onClick={() => setSelectedCategory(category)}
-              className={`px-4 py-2 text-sm font-medium whitespace-nowrap rounded-lg transition-colors ${
+              className={`px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium whitespace-nowrap rounded-lg transition-colors ${
                 selectedCategory === category
                   ? 'bg-[var(--primary)] text-white'
                   : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] border border-[var(--border)]'
@@ -474,17 +475,17 @@ export default function TasksContent() {
             >
               {category}
               {category !== 'All' && (
-                <span className="ml-2 text-xs opacity-75">
+                <span className="ml-1 sm:ml-2 text-xs opacity-75">
                   ({getTasksByStatus(category)})
                 </span>
               )}
               {category === 'All' && (
-                <span className="ml-2 text-xs opacity-75">({tasks.length})</span>
+                <span className="ml-1 sm:ml-2 text-xs opacity-75">({tasks.length})</span>
               )}
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="hidden sm:flex items-center gap-2">
           <label className="flex items-center gap-2 cursor-pointer text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
             <input
               type="checkbox"

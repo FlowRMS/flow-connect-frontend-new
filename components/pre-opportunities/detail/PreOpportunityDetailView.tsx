@@ -64,7 +64,7 @@ export function PreOpportunityDetailView({
   };
 
   return (
-    <main className="flex-1 overflow-y-auto bg-gray-50 p-6">
+    <main className="flex-1 overflow-y-auto bg-gray-50 p-3 md:p-6">
       <PreOpportunityDetailHeader
         preOpp={preOpp}
         isEditing={isEditing}
@@ -77,21 +77,21 @@ export function PreOpportunityDetailView({
         onDelete={onDelete}
       />
 
-      <div className="grid grid-cols-3 gap-6">
-        {/* Main Content - 2 columns */}
-        <div className="col-span-2 space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+        {/* Main Content - 2 columns on large screens */}
+        <div className="lg:col-span-2 space-y-4 md:space-y-6 order-2 lg:order-1">
           <PreOpportunityDetailsForm
             preOpp={preOpp}
             isEditing={isEditing}
             editFormData={editFormData}
             onChange={onEditChange}
           />
-          <PreOpportunityLineItems 
-            preOpp={preOpp} 
+          <PreOpportunityLineItems
+            preOpp={preOpp}
             isEditing={isEditing}
             onLineItemsChange={onLineItemsChange}
           />
-          
+
           {/* Connected Tasks */}
           <ConnectedTasksSection
             key={`tasks-${tasksSectionKey}`}
@@ -100,7 +100,7 @@ export function PreOpportunityDetailView({
             title="Connected Tasks"
             onAddClick={() => openAddLinkModal('TASK')}
           />
-          
+
           {/* Connected Notes */}
           <ConnectedNotesSection
             key={`notes-${notesSectionKey}`}
@@ -111,8 +111,8 @@ export function PreOpportunityDetailView({
           />
         </div>
 
-        {/* Sidebar - 1 column */}
-        <div>
+        {/* Sidebar - 1 column, appears first on mobile for summary visibility */}
+        <div className="order-1 lg:order-2">
           <PreOpportunitySummary preOpp={preOpp} />
         </div>
       </div>

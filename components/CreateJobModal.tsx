@@ -1,16 +1,15 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import DatePicker from 'react-datepicker';
-import 'react-datepicker/dist/react-datepicker.css';
-import { 
-  useCRMJobStatuses, 
+import {
+  useCRMJobStatuses,
   useCreateCRMJob,
 } from './hooks/useCRMApi';
 import { hasCRMTokens } from './lib/crm-auth';
 import type { JobInput } from './lib/crm-graphql';
 import { jobToasts } from './lib/toast';
 import { formatLocalDate } from './lib/date-utils';
+import { StyledDatePicker } from './shared/StyledDatePicker';
 
 // Custom styled dropdown component
 interface CustomSelectProps {
@@ -122,125 +121,6 @@ function CustomSelect({ value, onChange, options, placeholder, disabled, icon }:
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-// Styled wrapper for react-datepicker
-interface StyledDatePickerProps {
-  selected: Date | null;
-  onChange: (date: Date | null) => void;
-  placeholder?: string;
-}
-
-function StyledDatePicker({ selected, onChange, placeholder }: StyledDatePickerProps) {
-  return (
-    <div className="styled-datepicker-wrapper">
-      <DatePicker
-        selected={selected}
-        onChange={onChange}
-        placeholderText={placeholder || 'Select date...'}
-        dateFormat="MMM d, yyyy"
-        className="w-full px-4 py-3 border border-[var(--border)] rounded-xl text-sm bg-white text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400 cursor-pointer"
-        calendarClassName="styled-calendar"
-        showPopperArrow={false}
-        popperClassName="react-datepicker-popper-styled"
-        popperPlacement="bottom-start"
-        wrapperClassName="w-full"
-      />
-      <style jsx global>{`
-        .styled-datepicker-wrapper {
-          position: relative;
-          width: 100%;
-        }
-        .styled-datepicker-wrapper .react-datepicker-wrapper {
-          width: 100%;
-        }
-        .styled-datepicker-wrapper .react-datepicker__input-container {
-          width: 100%;
-        }
-        .react-datepicker-popper-styled {
-          z-index: 100 !important;
-        }
-        .react-datepicker {
-          font-family: inherit !important;
-          border: 1px solid #e5e7eb !important;
-          border-radius: 12px !important;
-          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
-          overflow: hidden;
-        }
-        .react-datepicker__header {
-          background: linear-gradient(to bottom, #f9fafb, #f3f4f6) !important;
-          border-bottom: 1px solid #e5e7eb !important;
-          padding: 12px !important;
-          border-radius: 0 !important;
-        }
-        .react-datepicker__current-month {
-          font-weight: 600 !important;
-          font-size: 0.95rem !important;
-          color: #111827 !important;
-          margin-bottom: 8px !important;
-        }
-        .react-datepicker__day-names {
-          margin-top: 4px !important;
-        }
-        .react-datepicker__day-name {
-          color: #6b7280 !important;
-          font-weight: 500 !important;
-          font-size: 0.75rem !important;
-          width: 2.2rem !important;
-          margin: 0.15rem !important;
-        }
-        .react-datepicker__month {
-          margin: 0.5rem !important;
-        }
-        .react-datepicker__day {
-          width: 2.2rem !important;
-          height: 2.2rem !important;
-          line-height: 2.2rem !important;
-          margin: 0.15rem !important;
-          border-radius: 8px !important;
-          font-size: 0.875rem !important;
-          color: #374151 !important;
-          transition: all 0.15s ease !important;
-        }
-        .react-datepicker__day:hover {
-          background-color: #eff6ff !important;
-          color: #2563eb !important;
-        }
-        .react-datepicker__day--selected,
-        .react-datepicker__day--keyboard-selected {
-          background-color: #2563eb !important;
-          color: white !important;
-          font-weight: 600 !important;
-        }
-        .react-datepicker__day--selected:hover {
-          background-color: #1d4ed8 !important;
-        }
-        .react-datepicker__day--today {
-          font-weight: 600 !important;
-          color: #2563eb !important;
-        }
-        .react-datepicker__day--today.react-datepicker__day--selected {
-          color: white !important;
-        }
-        .react-datepicker__day--outside-month {
-          color: #d1d5db !important;
-        }
-        .react-datepicker__navigation {
-          top: 12px !important;
-        }
-        .react-datepicker__navigation-icon::before {
-          border-color: #6b7280 !important;
-          border-width: 2px 2px 0 0 !important;
-        }
-        .react-datepicker__navigation:hover .react-datepicker__navigation-icon::before {
-          border-color: #2563eb !important;
-        }
-        .react-datepicker__triangle {
-          display: none !important;
-        }
-      `}</style>
     </div>
   );
 }
@@ -391,27 +271,27 @@ export default function CreateJobModal({ isOpen, onClose, onSuccess, defaultStat
   ] as const;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={handleClose}>
-      <div className="bg-[var(--card)] rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 sm:p-4" onClick={handleClose}>
+      <div className="bg-[var(--card)] rounded-xl shadow-2xl max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="bg-gray-50 px-6 py-5 border-b border-[var(--border)]">
+        <div className="bg-gray-50 px-4 sm:px-6 py-4 sm:py-5 border-b border-[var(--border)]">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-[var(--foreground)]">Create New Job</h2>
-                <p className="text-sm text-[var(--muted-foreground)]">Fill in the details to add a new job</p>
+                <h2 className="text-base sm:text-lg font-semibold text-[var(--foreground)]">Create New Job</h2>
+                <p className="text-xs sm:text-sm text-[var(--muted-foreground)] hidden sm:block">Fill in the details to add a new job</p>
               </div>
             </div>
             <button
               onClick={handleClose}
-              className="p-2 hover:bg-gray-200 rounded-lg transition-colors text-gray-500 hover:text-gray-700"
+              className="p-1.5 sm:p-2 hover:bg-gray-200 rounded-lg transition-colors text-gray-500 hover:text-gray-700"
             >
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-5 sm:h-5">
                 <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
               </svg>
             </button>
@@ -419,21 +299,21 @@ export default function CreateJobModal({ isOpen, onClose, onSuccess, defaultStat
 
           {/* Section Tabs */}
           {isConnected && (
-            <div className="flex gap-1 mt-4">
+            <div className="flex gap-1 mt-3 sm:mt-4 overflow-x-auto">
               {sections.map((section) => (
                 <button
                   key={section.id}
                   onClick={() => setActiveSection(section.id)}
                   className={`
-                    flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all
-                    ${activeSection === section.id 
-                      ? 'bg-white text-blue-600 shadow-sm' 
+                    flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-lg transition-all whitespace-nowrap
+                    ${activeSection === section.id
+                      ? 'bg-white text-blue-600 shadow-sm'
                       : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
                     }
                   `}
                 >
                   {section.icon}
-                  {section.label}
+                  <span className="hidden sm:inline">{section.label}</span>
                 </button>
               ))}
             </div>
@@ -463,8 +343,8 @@ export default function CreateJobModal({ isOpen, onClose, onSuccess, defaultStat
             </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="overflow-y-auto max-h-[calc(90vh-200px)]">
-            <div className="p-6">
+          <form onSubmit={handleSubmit} className="overflow-y-auto max-h-[calc(95vh-200px)] sm:max-h-[calc(90vh-200px)]">
+            <div className="p-4 sm:p-6">
               {error && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-start gap-2">
                   <svg className="w-5 h-5 text-red-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -485,10 +365,10 @@ export default function CreateJobModal({ isOpen, onClose, onSuccess, defaultStat
 
               {/* Basic Info Section */}
               {activeSection === 'basic' && (
-                <div className="space-y-5">
-                  <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-4 sm:space-y-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     {/* Job Name */}
-                    <div className="col-span-2">
+                    <div className="col-span-1 sm:col-span-2">
                       <label className="flex items-center gap-1 text-sm font-medium text-[var(--foreground)] mb-2">
                         <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
@@ -575,7 +455,7 @@ export default function CreateJobModal({ isOpen, onClose, onSuccess, defaultStat
                   </div>
 
                   {/* Dates Row */}
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div>
                       <label className="flex items-center gap-1 text-sm font-medium text-[var(--foreground)] mb-2">
                         <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -745,37 +625,39 @@ export default function CreateJobModal({ isOpen, onClose, onSuccess, defaultStat
             </div>
 
             {/* Footer Actions */}
-            <div className="sticky bottom-0 bg-gray-50 px-6 py-4 border-t border-[var(--border)] flex items-center justify-between">
-              <div className="text-sm text-gray-500">
+            <div className="sticky bottom-0 bg-gray-50 px-4 sm:px-6 py-3 sm:py-4 border-t border-[var(--border)] flex items-center justify-between">
+              <div className="text-xs sm:text-sm text-gray-500 hidden sm:block">
                 <span className="text-red-500">*</span> Required fields
               </div>
-              <div className="flex gap-3">
+              <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={handleClose}
-                  className="px-5 py-2.5 border border-[var(--border)] text-[var(--foreground)] rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors"
+                  className="flex-1 sm:flex-none px-3 sm:px-5 py-2 sm:py-2.5 border border-[var(--border)] text-[var(--foreground)] rounded-lg text-xs sm:text-sm font-medium hover:bg-gray-100 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={createJobMutation.isPending || statusesLoading}
-                  className="px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="flex-1 sm:flex-none px-3 sm:px-5 py-2 sm:py-2.5 bg-blue-600 text-white rounded-lg text-xs sm:text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {createJobMutation.isPending ? (
                     <>
-                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                      <svg className="animate-spin h-3.5 w-3.5 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
                       </svg>
-                      Creating...
+                      <span className="hidden sm:inline">Creating...</span>
+                      <span className="sm:hidden">...</span>
                     </>
                   ) : (
                     <>
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                       </svg>
-                      Create Job
+                      <span className="hidden sm:inline">Create Job</span>
+                      <span className="sm:hidden">Create</span>
                     </>
                   )}
                 </button>

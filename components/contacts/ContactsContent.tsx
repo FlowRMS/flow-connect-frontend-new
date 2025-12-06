@@ -242,34 +242,36 @@ export default function ContactsContent() {
 
   // Main List View
   return (
-    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
+    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-3 sm:p-6">
       {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-2">
+      <div className="mb-4 sm:mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2 mb-2">
           <div>
-            <h1 className="text-2xl font-semibold text-[var(--foreground)]">Contacts</h1>
+            <h1 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]">Contacts</h1>
           </div>
-          <div className="flex items-center gap-2">
-            {/* Dedupe Button */}
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            {/* Dedupe Button - hidden on mobile, visible on tablet+ */}
             <button
               onClick={() => state.setShowDedupeModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg font-medium text-sm hover:bg-purple-700 transition-colors"
+              className="hidden sm:flex items-center gap-2 px-3 sm:px-4 py-2 bg-purple-600 text-white rounded-lg font-medium text-xs sm:text-sm hover:bg-purple-700 transition-colors"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-4 sm:h-4">
                 <path d="M12 2v20M2 12h20"/>
                 <circle cx="12" cy="12" r="3"/>
               </svg>
-              Find Duplicates ({duplicateGroups.length})
+              <span className="hidden md:inline">Find Duplicates</span>
+              <span className="md:hidden">Dedupe</span>
+              ({duplicateGroups.length})
             </button>
 
             {/* View Mode Toggle */}
             <div className="flex items-center gap-1 p-1 bg-[var(--muted)] rounded-md">
               <button
                 onClick={() => state.setViewMode('grid')}
-                className={`p-2 rounded ${state.viewMode === 'grid' ? 'bg-white shadow-sm' : 'hover:bg-[var(--card)]'}`}
+                className={`p-1.5 sm:p-2 rounded ${state.viewMode === 'grid' ? 'bg-white shadow-sm' : 'hover:bg-[var(--card)]'}`}
                 title="Grid View"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-[18px] sm:h-[18px]">
                   <rect x="3" y="3" width="7" height="7" rx="1"/>
                   <rect x="14" y="3" width="7" height="7" rx="1"/>
                   <rect x="14" y="14" width="7" height="7" rx="1"/>
@@ -278,10 +280,10 @@ export default function ContactsContent() {
               </button>
               <button
                 onClick={() => state.setViewMode('list')}
-                className={`p-2 rounded ${state.viewMode === 'list' ? 'bg-white shadow-sm' : 'hover:bg-[var(--card)]'}`}
+                className={`p-1.5 sm:p-2 rounded ${state.viewMode === 'list' ? 'bg-white shadow-sm' : 'hover:bg-[var(--card)]'}`}
                 title="List View"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-[18px] sm:h-[18px]">
                   <line x1="8" y1="6" x2="21" y2="6"/>
                   <line x1="8" y1="12" x2="21" y2="12"/>
                   <line x1="8" y1="18" x2="21" y2="18"/>
@@ -303,37 +305,38 @@ export default function ContactsContent() {
               onFiltersChange={state.handleFiltersChange}
               activeFilters={state.activeFilters}
             />
-            <button 
+            <button
               onClick={() => state.setShowCreateModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"
+              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-xs sm:text-sm hover:bg-[var(--primary-hover)] transition-colors"
             >
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-4 sm:h-4">
                 <circle cx="10" cy="10" r="7"/>
                 <path d="M10 7v6M7 10h6" strokeLinecap="round"/>
               </svg>
-              Add Contact
+              <span className="hidden sm:inline">Add Contact</span>
+              <span className="sm:hidden">Add</span>
             </button>
           </div>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="mb-6 flex items-center justify-between border-b border-[var(--border)]">
-        <div className="flex gap-2 overflow-x-auto pb-2">
+      <div className="mb-4 sm:mb-6 flex items-center justify-between border-b border-[var(--border)]">
+        <div className="flex gap-1 sm:gap-2 overflow-x-auto pb-2 -mx-1 px-1">
           {CONTACT_TYPES.map((type) => (
             <button
               key={type}
               onClick={() => state.setSelectedType(type)}
-              className={`px-4 py-2 text-sm font-medium whitespace-nowrap rounded-lg transition-colors ${
+              className={`px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium whitespace-nowrap rounded-lg transition-colors ${
                 state.selectedType === type
                   ? 'bg-[var(--primary)] text-white'
                   : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]'
               }`}
             >
               {type}
-              {type === 'All' && <span className="ml-2 text-xs opacity-75">({state.contacts.length})</span>}
+              {type === 'All' && <span className="ml-1 sm:ml-2 text-xs opacity-75">({state.contacts.length})</span>}
               {type !== 'All' && (
-                <span className="ml-2 text-xs opacity-75">
+                <span className="ml-1 sm:ml-2 text-xs opacity-75">
                   ({state.contacts.filter(c => c.contactType.includes(type)).length})
                 </span>
               )}

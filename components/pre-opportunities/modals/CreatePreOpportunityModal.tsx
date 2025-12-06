@@ -280,27 +280,27 @@ export function CreatePreOpportunityModal({ isOpen, onClose, onSuccess, initialS
   const isValid = !!soldToCustomerId && !!entityNumber;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={handleClose}>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 sm:p-4" onClick={handleClose}>
       <div className="bg-[var(--card)] rounded-xl shadow-2xl max-w-5xl w-full max-h-[95vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
         {/* Header - Jobs Style */}
-        <div className="bg-gray-50 px-6 py-5 border-b border-[var(--border)] flex-shrink-0">
+        <div className="bg-gray-50 px-4 sm:px-6 py-4 sm:py-5 border-b border-[var(--border)] flex-shrink-0">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-[var(--foreground)]">Create Pre-Opportunity</h2>
-                <p className="text-sm text-[var(--muted-foreground)]">Fill in the details to create a new pre-opportunity</p>
+                <h2 className="text-base sm:text-lg font-semibold text-[var(--foreground)]">Create Pre-Opportunity</h2>
+                <p className="text-xs sm:text-sm text-[var(--muted-foreground)] hidden sm:block">Fill in the details to create a new pre-opportunity</p>
               </div>
             </div>
             <button
               onClick={handleClose}
-              className="p-2 hover:bg-gray-200 rounded-lg transition-colors text-gray-500 hover:text-gray-700"
+              className="p-1.5 sm:p-2 hover:bg-gray-200 rounded-lg transition-colors text-gray-500 hover:text-gray-700"
             >
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-5 sm:h-5">
                 <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
               </svg>
             </button>
@@ -308,8 +308,8 @@ export function CreatePreOpportunityModal({ isOpen, onClose, onSuccess, initialS
         </div>
 
         {/* Form Content */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6">
-          <div className="space-y-6">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6">
+          <div className="space-y-4 sm:space-y-6">
             {/* Basic Info */}
             <BasicInfoSection
               entityNumber={entityNumber}
@@ -402,8 +402,8 @@ export function CreatePreOpportunityModal({ isOpen, onClose, onSuccess, initialS
         </form>
 
         {/* Footer - Jobs Style */}
-        <div className="border-t border-gray-200 px-6 py-4 bg-gray-50 flex items-center justify-between flex-shrink-0">
-          <div className="text-sm text-gray-500">
+        <div className="border-t border-gray-200 px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 flex items-center justify-between flex-shrink-0">
+          <div className="text-xs sm:text-sm text-gray-500 hidden sm:flex">
             {lineItems.length === 0 ? (
               <span className="text-gray-500 flex items-center gap-1">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -420,12 +420,12 @@ export function CreatePreOpportunityModal({ isOpen, onClose, onSuccess, initialS
               </span>
             )}
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
             <button
               type="button"
               onClick={handleClose}
               disabled={createMutation.isPending}
-              className="px-5 py-2.5 border border-[var(--border)] text-[var(--foreground)] rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors disabled:opacity-50"
+              className="flex-1 sm:flex-none px-3 sm:px-5 py-2 sm:py-2.5 border border-[var(--border)] text-[var(--foreground)] rounded-lg text-xs sm:text-sm font-medium hover:bg-gray-100 transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
@@ -433,22 +433,24 @@ export function CreatePreOpportunityModal({ isOpen, onClose, onSuccess, initialS
               type="button"
               onClick={handleSubmit}
               disabled={createMutation.isPending || !isValid}
-              className="px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="flex-1 sm:flex-none px-3 sm:px-5 py-2 sm:py-2.5 bg-blue-600 text-white rounded-lg text-xs sm:text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {createMutation.isPending ? (
                 <>
-                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                  <svg className="animate-spin h-3.5 w-3.5 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
                   </svg>
-                  Creating...
+                  <span className="hidden sm:inline">Creating...</span>
+                  <span className="sm:hidden">...</span>
                 </>
               ) : (
                 <>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
-                  Create Pre-Opportunity
+                  <span className="hidden sm:inline">Create Pre-Opportunity</span>
+                  <span className="sm:hidden">Create</span>
                 </>
               )}
             </button>
