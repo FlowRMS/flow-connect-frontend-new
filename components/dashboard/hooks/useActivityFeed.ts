@@ -2,17 +2,14 @@
  * Activity Feed Hook
  * Fetches and combines data from all entity landing pages for the activity feed
  * Supports infinite scroll pagination and server-side filtering
+ *
+ * Optimized to use a single GraphQL query with aliases instead of 6 separate requests
  */
 
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { hasCRMTokens } from '../../lib/crm-auth';
 import {
-  fetchJobLandingPages,
-  fetchCompanyLandingPages,
-  fetchContactLandingPages,
-  fetchPreOpportunityLandingPages,
-  fetchNoteLandingPages,
-  fetchTaskLandingPages,
+  fetchAllLandingPages,
   type JobLandingPage,
   type CompanyLandingPage,
   type ContactLandingPage,
@@ -56,6 +53,7 @@ export const activityFeedQueryKeys = {
 
 /**
  * Fetch paginated entity data for the activity feed with optional filters
+ * Uses a single GraphQL query with aliases to fetch all entity types at once
  */
 async function fetchActivityPage(
   pageIndex: number,
@@ -65,31 +63,32 @@ async function fetchActivityPage(
   const offset = pageIndex * PAGE_SIZE;
   const pagination = { limit: PAGE_SIZE, offset };
 
-  const [jobsResult, companiesResult, contactsResult, preOpportunitiesResult, notesResult, tasksResult] = await Promise.all([
-    fetchJobLandingPages(filters, orderBy, pagination).catch(() => ({ records: [], total: 0 })),
-    fetchCompanyLandingPages(filters, orderBy, pagination).catch(() => ({ records: [], total: 0 })),
-    fetchContactLandingPages(filters, orderBy, pagination).catch(() => ({ records: [], total: 0 })),
-    fetchPreOpportunityLandingPages(filters, orderBy, pagination).catch(() => ({ records: [], total: 0 })),
-    fetchNoteLandingPages(filters, orderBy, pagination).catch(() => ({ records: [], total: 0 })),
-    fetchTaskLandingPages(filters, orderBy, pagination).catch(() => ({ records: [], total: 0 })),
-  ]);
+  // Single query fetches all 6 entity types at once using GraphQL aliases
+  const result = await fetchAllLandingPages(filters, orderBy, pagination).catch(() => ({
+    jobs: { records: [], total: 0 },
+    companies: { records: [], total: 0 },
+    contacts: { records: [], total: 0 },
+    preOpportunities: { records: [], total: 0 },
+    notes: { records: [], total: 0 },
+    tasks: { records: [], total: 0 },
+  }));
 
   return {
     data: {
-      jobs: jobsResult.records,
-      companies: companiesResult.records,
-      contacts: contactsResult.records,
-      preOpportunities: preOpportunitiesResult.records,
-      notes: notesResult.records,
-      tasks: tasksResult.records,
+      jobs: result.jobs.records,
+      companies: result.companies.records,
+      contacts: result.contacts.records,
+      preOpportunities: result.preOpportunities.records,
+      notes: result.notes.records,
+      tasks: result.tasks.records,
     },
     totals: {
-      jobs: jobsResult.total,
-      companies: companiesResult.total,
-      contacts: contactsResult.total,
-      preOpportunities: preOpportunitiesResult.total,
-      notes: notesResult.total,
-      tasks: tasksResult.total,
+      jobs: result.jobs.total,
+      companies: result.companies.total,
+      contacts: result.contacts.total,
+      preOpportunities: result.preOpportunities.total,
+      notes: result.notes.total,
+      tasks: result.tasks.total,
     },
     pageIndex,
   };
