@@ -62,8 +62,9 @@ export interface TaskLandingPage {
   status: TaskStatus;
   priority: TaskPriority;
   dueDate: string;
+  linkedTitles: string[];
   reminderDate: string;
-  tags: string;
+  tags: string[];
   assignedTo: string;
   createdBy: string;
   createdAt: string;
@@ -436,6 +437,7 @@ const FIND_TASKS_LANDING_PAGES = `
           createdBy
           description
           dueDate
+          linkedTitles
           priority
           reminderDate
           status

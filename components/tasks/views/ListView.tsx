@@ -6,7 +6,7 @@
 import React from 'react';
 import type { Task, TaskPriority } from '../types';
 import { getInitials, getAvatarColor, formatTaskDate, getStatusColor, getReminderStatus, getReminderStatusColor, formatReminderDate } from '../utils';
-import { EntityBadges } from '../components';
+import { LinkedTitleBadges } from '../components';
 
 interface ListViewProps {
   tasks: Task[];
@@ -107,9 +107,9 @@ export default function ListView({ tasks, onUpdateTask, onToggleComplete, onSele
                   </span>
                 </div>
 
-                {/* Entity Links - fetched via API */}
+                {/* Entity Links - from linkedTitles */}
                 <div className="mb-2">
-                  <EntityBadges taskId={task.id} maxItems={4} />
+                  <LinkedTitleBadges linkedTitles={task.linkedTitles} maxItems={4} />
                 </div>
                 
                 {/* Tags */}

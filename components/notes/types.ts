@@ -27,6 +27,7 @@ export interface NoteLandingPage {
   id: string;
   title: string;
   content: string;
+  linkedTitles: string[];
   tags: string;
   createdBy: string;
   createdAt: string;
@@ -84,6 +85,12 @@ export interface SummarizeFilters {
   summaryType: 'brief' | 'detailed' | 'action-items';
 }
 
+// Linked title item parsed from linkedTitles string
+export interface LinkedTitle {
+  type: string;
+  name: string;
+}
+
 // Helper type for parsed Note (with arrays instead of comma-separated strings)
 export interface ParsedNote {
   id: string;
@@ -91,6 +98,7 @@ export interface ParsedNote {
   content: string;
   mentions: string[];
   tags: string[];
+  linkedTitles: LinkedTitle[];
   createdBy: string;
   createdAt: string;
   conversationCount?: number;

@@ -2803,6 +2803,7 @@ export interface NoteLandingPage {
   id: string;
   title: string;
   content: string;
+  linkedTitles: string[];
   tags: string;
   createdBy: string;
   createdAt: string;
@@ -2980,6 +2981,7 @@ const FIND_NOTE_LANDING_PAGES = `
           id
           title
           content
+          linkedTitles
           tags
           createdBy
           createdAt
@@ -3181,6 +3183,9 @@ export interface TaskLandingPage {
   status: TaskStatusAPI;
   priority: TaskPriorityAPI;
   dueDate: string;
+  linkedTitles: string[];
+  reminderDate: string;
+  tags: string[];
   assignedTo: string;
   createdBy: string;
   createdAt: string;
@@ -3288,8 +3293,11 @@ const FIND_TASK_LANDING_PAGES = `
           createdBy
           description
           dueDate
+          linkedTitles
           priority
+          reminderDate
           status
+          tags
           title
         }
       }

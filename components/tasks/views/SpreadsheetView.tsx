@@ -6,7 +6,7 @@ import React from 'react';
 import type { Task, TaskStatusAPI, TaskPriorityAPI } from '../types';
 import { AVAILABLE_ASSIGNEES, API_STATUS_OPTIONS, API_PRIORITY_OPTIONS } from '../constants';
 import { convertAPIStatusToUI, convertAPIPriorityToUI, getReminderStatus, getReminderStatusColor, formatReminderDate } from '../utils';
-import { CustomSelect, EntityBadges } from '../components';
+import { CustomSelect, LinkedTitleBadges } from '../components';
 import { StyledDatePicker, parseDateString, formatDateToString } from '../components';
 
 interface SpreadsheetViewProps {
@@ -175,7 +175,7 @@ export default function SpreadsheetView({
                   </div>
                 </td>
                 <td className="px-4 py-3">
-                  <EntityBadges taskId={task.id} compact maxItems={3} />
+                  <LinkedTitleBadges linkedTitles={task.linkedTitles} compact maxItems={3} />
                 </td>
               </tr>
             ))}
