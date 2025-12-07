@@ -3,7 +3,7 @@
  */
 
 import { AVATAR_COLORS } from './constants';
-import type { Note, ParsedNote, NoteConversation, NoteLandingPage } from './types';
+import type { Note, ParsedNote, NoteConversation, NoteLandingPage, LinkedTitle } from './types';
 import type { ActiveFilter } from '../AdvancedFilters';
 
 /**
@@ -31,6 +31,29 @@ export function parseCommaSeparated(value: string | null | undefined | unknown):
 }
 
 /**
+ * Parse linkedTitles array into array of LinkedTitle objects
+ * Format from API: ["TYPE:Name", "TYPE:Name"] e.g. ["JOB:Job Name", "COMPANY:Company Name"]
+ * Or just names without type prefix: ["BERKELEY"]
+ */
+export function parseLinkedTitles(value: string[] | null | undefined): LinkedTitle[] {
+  if (!value || !Array.isArray(value) || value.length === 0) return [];
+
+  return value.map(item => {
+    if (!item || typeof item !== 'string') return { type: 'UNKNOWN', name: '' };
+    const trimmed = item.trim();
+    const colonIndex = trimmed.indexOf(':');
+    if (colonIndex === -1) {
+      // No colon found, treat entire string as name with unknown type
+      return { type: 'UNKNOWN', name: trimmed };
+    }
+    return {
+      type: trimmed.substring(0, colonIndex).trim().toUpperCase(),
+      name: trimmed.substring(colonIndex + 1).trim()
+    };
+  }).filter(item => item.name.length > 0);
+}
+
+/**
  * Convert an array to a comma-separated string
  */
 export function toCommaSeparated(arr: string[]): string {
@@ -47,6 +70,7 @@ export function parseNote(note: Note): ParsedNote {
     content: note.content,
     mentions: parseCommaSeparated(note.mentions),
     tags: parseCommaSeparated(note.tags),
+    linkedTitles: [], // Note detail doesn't have linkedTitles, use relatedEntities for detail view
     createdBy: note.createdBy,
     createdAt: note.createdAt,
   };
@@ -63,6 +87,7 @@ export function parseNoteLandingPage(note: NoteLandingPage): ParsedNote {
     content: note.content,
     mentions: [], // Landing page doesn't include mentions
     tags: parseCommaSeparated(note.tags),
+    linkedTitles: parseLinkedTitles(note.linkedTitles),
     createdBy: note.createdBy,
     createdAt: note.createdAt,
   };

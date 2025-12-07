@@ -7,11 +7,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { ParsedNote } from '../types';
 import { formatTimestamp, formatTimeAgo, getInitials, getAvatarColor } from '../utils';
-import { useNoteConversations, useContactSearch, useNoteRelatedEntities, type EntityType } from '../api';
+import { useNoteConversations, useContactSearch } from '../api';
 
-// Helper to get entity type colors
-const getEntityTypeColor = (type: EntityType) => {
-  switch (type) {
+// Helper to get entity type colors for linkedTitles
+const getLinkedTitleColor = (type: string) => {
+  switch (type.toUpperCase()) {
     case 'JOB': return 'bg-blue-100 text-blue-700';
     case 'COMPANY': return 'bg-purple-100 text-purple-700';
     case 'CONTACT': return 'bg-green-100 text-green-700';
@@ -38,7 +38,6 @@ interface NoteCardProps {
 
 function NoteCard({ note, isLast, isMounted, contacts }: NoteCardProps) {
   const { data: conversations = [], isLoading: isLoadingConversations } = useNoteConversations(note.id);
-  const { data: relatedEntities } = useNoteRelatedEntities(note.id);
 
   // Resolve mentions to names
   const mentionNames = useMemo(() => {
@@ -47,25 +46,6 @@ function NoteCard({ note, isLast, isMounted, contacts }: NoteCardProps) {
       return contact ? `${contact.firstName} ${contact.lastName}` : null;
     }).filter(Boolean);
   }, [note.mentions, contacts]);
-
-  // Build related entities list
-  const entityLinks = useMemo(() => {
-    if (!relatedEntities) return [];
-    const links: Array<{ type: EntityType; name: string }> = [];
-    relatedEntities.companies?.forEach(c => links.push({ type: 'COMPANY', name: c.name }));
-    relatedEntities.contacts?.forEach(c => links.push({ type: 'CONTACT', name: `${c.firstName} ${c.lastName}` }));
-    relatedEntities.jobs?.forEach(j => links.push({ type: 'JOB', name: j.jobName }));
-    relatedEntities.tasks?.forEach(t => links.push({ type: 'TASK', name: t.title }));
-    relatedEntities.preOpportunities?.forEach(p => links.push({ type: 'PRE_OPPORTUNITY', name: p.entityNumber || 'Unknown Pre-Opp' }));
-    relatedEntities.quotes?.forEach(q => links.push({ type: 'QUOTE', name: q.quoteNumber || q.jobName || 'Unknown Quote' }));
-    relatedEntities.orders?.forEach(o => links.push({ type: 'ORDER', name: o.orderNumber || o.jobName || 'Unknown Order' }));
-    relatedEntities.invoices?.forEach(i => links.push({ type: 'INVOICE', name: i.invoiceNumber || 'Unknown Invoice' }));
-    relatedEntities.checks?.forEach(c => links.push({ type: 'CHECK', name: c.checkNumber || 'Unknown Check' }));
-    relatedEntities.factories?.forEach(f => links.push({ type: 'FACTORY', name: f.title || 'Unknown Factory' }));
-    relatedEntities.customers?.forEach(c => links.push({ type: 'CUSTOMER', name: c.companyName || 'Unknown Customer' }));
-    relatedEntities.products?.forEach(p => links.push({ type: 'PRODUCT', name: p.factoryPartNumber || 'Unknown Product' }));
-    return links;
-  }, [relatedEntities]);
 
   return (
     <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg overflow-hidden">
@@ -122,14 +102,14 @@ function NoteCard({ note, isLast, isMounted, contacts }: NoteCardProps) {
           </div>
         )}
 
-        {/* Related Entities */}
-        {entityLinks.length > 0 && (
+        {/* Linked Entities from linkedTitles */}
+        {note.linkedTitles.length > 0 && (
           <div className="flex gap-2 flex-wrap mt-3">
             <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Linked:</span>
-            {entityLinks.map((link, idx) => (
-              <span 
-                key={idx} 
-                className={`px-2.5 py-1 rounded text-sm font-medium ${getEntityTypeColor(link.type)}`}
+            {note.linkedTitles.map((link, idx) => (
+              <span
+                key={idx}
+                className={`px-2.5 py-1 rounded text-sm font-medium ${getLinkedTitleColor(link.type)}`}
               >
                 {link.name}
               </span>

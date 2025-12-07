@@ -12,6 +12,7 @@ import type {
   TaskLandingPage,
   ParsedTask,
   TaskRelatedEntities,
+  LinkedTitle,
 } from './types';
 import type { CRMTask } from '../lib/crm-graphql';
 import type { ActiveFilter } from '../AdvancedFilters';
@@ -91,6 +92,29 @@ export function convertUIPriorityToAPI(uiPriority: TaskPriority): TaskPriorityAP
 }
 
 /**
+ * Parse linkedTitles array into array of LinkedTitle objects
+ * Format from API: ["TYPE:Name", "TYPE:Name"] e.g. ["JOB:Job Name", "COMPANY:Company Name"]
+ * Or just names without type prefix: ["BERKELEY"]
+ */
+export function parseLinkedTitles(value: string[] | null | undefined): LinkedTitle[] {
+  if (!value || !Array.isArray(value) || value.length === 0) return [];
+
+  return value.map(item => {
+    if (!item || typeof item !== 'string') return { type: 'UNKNOWN', name: '' };
+    const trimmed = item.trim();
+    const colonIndex = trimmed.indexOf(':');
+    if (colonIndex === -1) {
+      // No colon found, treat entire string as name with unknown type
+      return { type: 'UNKNOWN', name: trimmed };
+    }
+    return {
+      type: trimmed.substring(0, colonIndex).trim().toUpperCase(),
+      name: trimmed.substring(colonIndex + 1).trim()
+    };
+  }).filter(item => item.name.length > 0);
+}
+
+/**
  * Parse tags string to array
  * Handles various formats:
  * - String: "tag1,tag2,tag3" -> ["tag1", "tag2", "tag3"]
@@ -136,7 +160,8 @@ export function convertTaskLandingPageToUI(taskLanding: TaskLandingPage): Task {
   const uiStatus = convertAPIStatusToUI(taskLanding.status, taskLanding.dueDate);
   const uiPriority = convertAPIPriorityToUI(taskLanding.priority);
   const tags = parseTagsString(taskLanding.tags);
-  
+  const linkedTitles = parseLinkedTitles(taskLanding.linkedTitles);
+
   // Check if assignedTo is a UUID - if so, it's the assignedToId
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const isUUID = taskLanding.assignedTo && uuidRegex.test(taskLanding.assignedTo);
@@ -155,6 +180,7 @@ export function convertTaskLandingPageToUI(taskLanding: TaskLandingPage): Task {
     status: uiStatus,
     apiStatus: taskLanding.status,
     tags,
+    linkedTitles,
     entities: undefined,
     priority: uiPriority,
     apiPriority: taskLanding.priority,
@@ -187,6 +213,7 @@ export function convertCRMTaskToUI(task: CRMTask): Task {
     status: uiStatus,
     apiStatus: task.status,
     tags,
+    linkedTitles: [], // Detail view uses relatedEntities, not linkedTitles
     entities: undefined,
     priority: uiPriority,
     apiPriority: task.priority,

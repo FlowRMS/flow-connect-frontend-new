@@ -79,6 +79,12 @@ export const UI_PRIORITY_TO_API: Record<TaskPriority, TaskPriorityAPI> = {
   'Critical': 'CRITICAL',
 };
 
+// Linked title item parsed from linkedTitles string
+export interface LinkedTitle {
+  type: string;
+  name: string;
+}
+
 // UI Task type (display format)
 export interface Task {
   id: string;
@@ -92,6 +98,7 @@ export interface Task {
   status: TaskStatus;
   apiStatus: TaskStatusAPI;
   tags: string[];
+  linkedTitles: LinkedTitle[];
   entities?: TaskEntities;
   priority: TaskPriority;
   apiPriority: TaskPriorityAPI;

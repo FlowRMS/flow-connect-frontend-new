@@ -6,7 +6,7 @@ import React from 'react';
 import type { Task, TaskDropdownState, TaskPriority } from '../types';
 import { AVAILABLE_TASK_TYPES, AVAILABLE_PRIORITIES, AVAILABLE_TAGS, API_STATUS_OPTIONS, API_PRIORITY_OPTIONS } from '../constants';
 import { getInitials, getAvatarColor, formatTaskDate, getStatusColor, getPriorityColor, getReminderStatus, getReminderStatusColor, formatReminderDate } from '../utils';
-import { EntityBadges } from '../components';
+import { LinkedTitleBadges } from '../components';
 import type { TaskStatusAPI, TaskPriorityAPI } from '../types';
 
 interface GridViewProps {
@@ -214,9 +214,9 @@ export default function GridView({
               })()}
             </div>
 
-            {/* Entity Links - fetched via API */}
+            {/* Entity Links - from linkedTitles */}
             <div className="mb-2">
-              <EntityBadges taskId={task.id} compact maxItems={3} />
+              <LinkedTitleBadges linkedTitles={task.linkedTitles} compact maxItems={3} />
             </div>
           </div>
 

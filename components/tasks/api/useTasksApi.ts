@@ -243,6 +243,10 @@ export function useUpdateTask() {
       // Helper function to update a single task
       const updateTaskInList = (task: TaskLandingPage): TaskLandingPage => {
         if (task.id === id) {
+          // Convert tags string to array if needed
+          const newTags = input.tags
+            ? input.tags.split(',').map(t => t.trim()).filter(Boolean)
+            : task.tags;
           return {
             ...task,
             title: input.title,
@@ -251,7 +255,7 @@ export function useUpdateTask() {
             description: input.description ?? task.description,
             dueDate: input.dueDate ?? task.dueDate,
             reminderDate: input.reminderDate ?? task.reminderDate,
-            tags: input.tags ?? task.tags,
+            tags: newTags,
             assignedTo: input.assignedToId ?? task.assignedTo,
           };
         }

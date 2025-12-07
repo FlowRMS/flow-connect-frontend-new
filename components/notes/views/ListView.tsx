@@ -7,11 +7,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { ParsedNote } from '../types';
 import { formatTimestamp, getInitials, getAvatarColor } from '../utils';
-import { useContactSearch, useNoteRelatedEntities, type EntityType } from '../api';
+import { useContactSearch } from '../api';
 
-// Helper to get entity type colors
-const getEntityTypeColor = (type: EntityType) => {
-  switch (type) {
+// Helper to get entity type colors for linkedTitles
+const getLinkedTitleColor = (type: string) => {
+  switch (type.toUpperCase()) {
     case 'JOB': return 'bg-blue-100 text-blue-700';
     case 'COMPANY': return 'bg-purple-100 text-purple-700';
     case 'CONTACT': return 'bg-green-100 text-green-700';
@@ -29,21 +29,18 @@ const getEntityTypeColor = (type: EntityType) => {
   }
 };
 
-// Individual Note List Item with its own data fetching
-function NoteListItem({ 
-  note, 
-  onNoteClick, 
+// Individual Note List Item - uses linkedTitles from landing page data
+function NoteListItem({
+  note,
+  onNoteClick,
   contacts,
-  isMounted 
-}: { 
-  note: ParsedNote; 
+  isMounted
+}: {
+  note: ParsedNote;
   onNoteClick: (note: ParsedNote) => void;
   contacts: Array<{ id: string; firstName: string; lastName: string }>;
   isMounted: boolean;
 }) {
-  // Fetch related entities for this specific note
-  const { data: relatedEntities } = useNoteRelatedEntities(note.id);
-
   // Resolve mentions to names
   const mentionNames = useMemo(() => {
     return note.mentions.map(mentionId => {
@@ -51,25 +48,6 @@ function NoteListItem({
       return contact ? `${contact.firstName} ${contact.lastName}` : null;
     }).filter(Boolean);
   }, [note.mentions, contacts]);
-
-  // Build related entities list
-  const entityLinks = useMemo(() => {
-    if (!relatedEntities) return [];
-    const links: Array<{ type: EntityType; name: string }> = [];
-    relatedEntities.companies?.forEach(c => links.push({ type: 'COMPANY', name: c.name }));
-    relatedEntities.contacts?.forEach(c => links.push({ type: 'CONTACT', name: `${c.firstName} ${c.lastName}` }));
-    relatedEntities.jobs?.forEach(j => links.push({ type: 'JOB', name: j.jobName }));
-    relatedEntities.tasks?.forEach(t => links.push({ type: 'TASK', name: t.title }));
-    relatedEntities.preOpportunities?.forEach(p => links.push({ type: 'PRE_OPPORTUNITY', name: p.entityNumber || 'Unknown Pre-Opp' }));
-    relatedEntities.quotes?.forEach(q => links.push({ type: 'QUOTE', name: q.quoteNumber || q.jobName || 'Unknown Quote' }));
-    relatedEntities.orders?.forEach(o => links.push({ type: 'ORDER', name: o.orderNumber || o.jobName || 'Unknown Order' }));
-    relatedEntities.invoices?.forEach(i => links.push({ type: 'INVOICE', name: i.invoiceNumber || 'Unknown Invoice' }));
-    relatedEntities.checks?.forEach(c => links.push({ type: 'CHECK', name: c.checkNumber || 'Unknown Check' }));
-    relatedEntities.factories?.forEach(f => links.push({ type: 'FACTORY', name: f.title || 'Unknown Factory' }));
-    relatedEntities.customers?.forEach(c => links.push({ type: 'CUSTOMER', name: c.companyName || 'Unknown Customer' }));
-    relatedEntities.products?.forEach(p => links.push({ type: 'PRODUCT', name: p.factoryPartNumber || 'Unknown Product' }));
-    return links;
-  }, [relatedEntities]);
 
   return (
     <div
@@ -135,20 +113,20 @@ function NoteListItem({
               </div>
             )}
 
-            {/* Related Entities */}
-            {entityLinks.length > 0 && (
+            {/* Linked Entities from linkedTitles */}
+            {note.linkedTitles.length > 0 && (
               <div className="flex gap-1.5 flex-wrap">
-                {entityLinks.slice(0, 2).map((link, idx) => (
-                  <span 
-                    key={idx} 
-                    className={`px-2 py-1 rounded text-xs font-medium ${getEntityTypeColor(link.type)}`}
+                {note.linkedTitles.slice(0, 2).map((link, idx) => (
+                  <span
+                    key={idx}
+                    className={`px-2 py-1 rounded text-xs font-medium ${getLinkedTitleColor(link.type)}`}
                   >
                     {link.name}
                   </span>
                 ))}
-                {entityLinks.length > 2 && (
+                {note.linkedTitles.length > 2 && (
                   <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-medium">
-                    +{entityLinks.length - 2} more
+                    +{note.linkedTitles.length - 2} more
                   </span>
                 )}
               </div>
