@@ -11,6 +11,7 @@ import { useCreateCRMLink } from '../../hooks/useCRMApi';
 import { useTaskSearch, type TaskSearchResult } from '../../notes/api';
 import { useNoteSearch, type NoteSearchResult } from '../../tasks/api';
 import type { CRMEntityType } from '../../lib/crm-graphql';
+import { linkToasts } from '../../lib/toast';
 
 // Linkable entity types
 type LinkEntityType = 'TASK' | 'NOTE';
@@ -133,13 +134,27 @@ export function AddTaskNoteLinkModal({
           targetEntityId: selectedEntityId,
         });
         
+        // Show success toast
+        const config = ENTITY_TYPE_CONFIG[linkType];
+        linkToasts.createSuccess(config.label);
+        
         // Reset and close
         setSelectedEntityId('');
         setSearchTerm('');
         onSuccess();
         onClose();
-      } catch (error) {
+      } catch (error: any) {
         console.error('Failed to create link:', error);
+        
+        // Check if it's a "link already exists" error
+        const errorMessage = error?.message || '';
+        const config = ENTITY_TYPE_CONFIG[linkType];
+        
+        if (errorMessage.includes('Link already exists') || errorMessage.includes('already exists')) {
+          linkToasts.alreadyExists(config.label);
+        } else {
+          linkToasts.createError(errorMessage || undefined);
+        }
       }
     };
 

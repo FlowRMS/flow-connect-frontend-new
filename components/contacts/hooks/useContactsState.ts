@@ -81,18 +81,8 @@ export function useContactsState() {
     });
   }, [contactsData]);
 
-  // Update selectedContact with full contact data (including companyId) when fetched
-  useEffect(() => {
-    if (fullContactData && selectedContact && selectedContactId === selectedContact.id) {
-      // Update the selectedContact with companyId from the full contact data
-      if (fullContactData.companyId && !selectedContact.companyId) {
-        setSelectedContact(prev => prev ? {
-          ...prev,
-          companyId: fullContactData.companyId || '',
-        } : null);
-      }
-    }
-  }, [fullContactData, selectedContact, selectedContactId]);
+  // Note: Full contact data is fetched but not used to update selectedContact
+  // as we now use contactRelatedEntities for associated data
 
   // Custom setSelectedContact that also triggers full contact fetch
   const handleSelectContact = useCallback((contact: Contact | null) => {

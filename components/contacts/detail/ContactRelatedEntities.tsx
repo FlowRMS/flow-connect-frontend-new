@@ -8,8 +8,8 @@
 import React, { useState } from 'react';
 import type { Contact } from '../types';
 import { 
-  useCRMJobsByContact, 
-  useCRMCompany,
+  useCRMContactRelatedEntities,
+  useCRMJobsByContact,
   useDeleteCRMLinkByEntities 
 } from '../../hooks/useCRMApi';
 import type { Job as APIJob, Company as APICompany, CRMEntityType } from '../../lib/crm-graphql';
@@ -102,48 +102,12 @@ function JobCard({
  * Company Info Card Component
  */
 function CompanyInfoCard({
-  companyId,
-  companyName,
+  company,
   onClick
 }: {
-  companyId: string;
-  companyName: string;
+  company: APICompany;
   onClick?: (company: APICompany) => void;
 }) {
-  const { data: company, isLoading, error } = useCRMCompany(companyId);
-
-  if (isLoading) {
-    return (
-      <div className="p-4 bg-[var(--muted)] rounded-lg border border-[var(--border)] animate-pulse">
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-lg bg-gray-200" />
-          <div className="flex-1 space-y-2">
-            <div className="h-4 bg-gray-200 rounded w-1/2" />
-            <div className="h-3 bg-gray-200 rounded w-1/3" />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !company) {
-    return (
-      <div className="p-4 bg-[var(--muted)] rounded-lg border border-[var(--border)]">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
-            <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-            </svg>
-          </div>
-          <div>
-            <p className="font-medium text-[var(--foreground)]">{companyName || 'Unknown Company'}</p>
-            <p className="text-xs text-[var(--muted-foreground)]">Unable to load details</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div 
       onClick={() => onClick?.(company)}
@@ -239,13 +203,24 @@ export default function ContactRelatedEntities({
   const [showAddLinkModal, setShowAddLinkModal] = useState(false);
   const [addLinkEntityType, setAddLinkEntityType] = useState<LinkEntityType>('COMPANY');
 
-  // Fetch jobs for this contact
+  // Fetch company data for this contact
+  const { 
+    data: relatedEntities, 
+    isLoading: companiesLoading, 
+    error: companiesError,
+    refetch: refetchCompanies 
+  } = useCRMContactRelatedEntities(contact.id);
+
+  // Fetch jobs separately using existing endpoint
   const { 
     data: jobs = [], 
     isLoading: jobsLoading, 
     error: jobsError,
     refetch: refetchJobs 
   } = useCRMJobsByContact(contact.id);
+
+  const companies = relatedEntities?.companies || [];
+  const primaryCompany = companies[0]; // First company is the primary one
 
   // Delete link mutation
   const deleteLinkMutation = useDeleteCRMLinkByEntities();
@@ -265,8 +240,10 @@ export default function ContactRelatedEntities({
         targetEntityType: entityType as CRMEntityType,
         targetEntityId: entityId,
       });
-      // Refetch to update the UI
-      if (entityType === 'JOB') {
+      // Refetch appropriate data based on entity type
+      if (entityType === 'COMPANY') {
+        refetchCompanies();
+      } else {
         refetchJobs();
       }
     } catch (error) {
@@ -276,29 +253,35 @@ export default function ContactRelatedEntities({
 
   // Handle successful link creation
   const handleLinkSuccess = () => {
+    refetchCompanies();
     refetchJobs();
   };
 
   return (
     <>
       {/* Associated Company */}
-      {contact.companyId && (
+      {companiesLoading ? (
+        <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] mb-6">
+          <div className="px-6 py-4 border-b border-[var(--border)]">
+            <h2 className="text-lg font-semibold text-[var(--foreground)]">Associated Company</h2>
+          </div>
+          <div className="p-6">
+            <LoadingSkeleton />
+          </div>
+        </div>
+      ) : primaryCompany ? (
         <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] mb-6">
           <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
             <h2 className="text-lg font-semibold text-[var(--foreground)]">Associated Company</h2>
           </div>
           <div className="p-6">
             <CompanyInfoCard 
-              companyId={contact.companyId}
-              companyName={contact.company}
+              company={primaryCompany}
               onClick={onCompanyClick}
             />
           </div>
         </div>
-      )}
-
-      {/* No company linked */}
-      {!contact.companyId && (
+      ) : (
         <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] mb-6">
           <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
             <h2 className="text-lg font-semibold text-[var(--foreground)]">Associated Company</h2>
@@ -390,7 +373,7 @@ export default function ContactRelatedEntities({
       <AddLinkModal
         isOpen={showAddLinkModal}
         contactId={contact.id}
-        currentCompanyId={contact.companyId}
+        currentCompanyId={undefined}
         initialEntityType={addLinkEntityType}
         onClose={() => setShowAddLinkModal(false)}
         onSuccess={handleLinkSuccess}

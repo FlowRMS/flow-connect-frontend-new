@@ -162,7 +162,6 @@ export interface Contact {
   email?: string | null;
   phone?: string | null;
   role?: string | null;
-  companyId?: string | null;
   notes?: string | null;
   tags?: string | string[] | null;
   territory?: string | null;
@@ -704,7 +703,6 @@ const GET_CONTACT = `
       email
       phone
       role
-      companyId
       notes
       tags
       territory
@@ -722,7 +720,6 @@ const GET_CONTACTS_BY_COMPANY = `
       email
       phone
       role
-      companyId
       notes
       tags
       territory
@@ -921,7 +918,7 @@ const FIND_CONTACT_LANDING_PAGES = `
           companyName
           createdBy
           createdAt
-          tags
+          
         }
       }
       total
@@ -2251,6 +2248,10 @@ export interface JobRelatedEntities {
   checks: CheckSearchResult[];
 }
 
+export interface ContactRelatedEntities {
+  companies: Company[];
+}
+
 // ============================================================================
 // Entity Link GraphQL Queries and Mutations
 // ============================================================================
@@ -2411,6 +2412,30 @@ const GET_JOB_RELATED_ENTITIES = `
         quoteNumber
         soldToCustomerId
         userOwnerIds
+      }
+    }
+  }
+`;
+
+const GET_CONTACT_RELATED_ENTITIES = `
+  query GetContactRelatedEntities($contactId: UUID!) {
+    contactRelatedEntities(contactId: $contactId) {
+      companies {
+        companySourceType
+        createdAt
+        createdBy {
+          email
+          firstName
+          fullName
+          id
+          lastName
+        }
+        id
+        name
+        parentCompanyId
+        phone
+        tags
+        website
       }
     }
   }
@@ -2624,6 +2649,25 @@ export async function fetchJobRelatedEntities(jobId: string): Promise<JobRelated
     orders: data.orders || [],
     invoices: data.invoices || [],
     checks: data.checks || [],
+  };
+}
+
+export async function fetchContactRelatedEntities(contactId: string): Promise<ContactRelatedEntities> {
+  const response = await crmGraphQLRequest<{ contactRelatedEntities: ContactRelatedEntities }>({
+    query: GET_CONTACT_RELATED_ENTITIES,
+    variables: { contactId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch contact related entities');
+  }
+
+  const data = response.data?.contactRelatedEntities || { 
+    companies: [],
+  };
+  
+  return {
+    companies: mapFormattedCreatedBy(data.companies) as Company[],
   };
 }
 

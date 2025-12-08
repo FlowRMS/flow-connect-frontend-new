@@ -36,6 +36,7 @@ import {
   type CreateLinkInput,
   type DeleteLinkByEntitiesInput,
   type JobRelatedEntities,
+  type ContactRelatedEntities,
   type Note,
   type NoteConversation,
   type NoteLandingPage,
@@ -98,6 +99,7 @@ import {
   deleteLink,
   deleteLinkByEntities,
   fetchJobRelatedEntities,
+  fetchContactRelatedEntities,
   fetchLinksBySource,
   fetchNotesByEntity,
   type NoteLink,
@@ -205,6 +207,8 @@ export const crmQueryKeys = {
   // Entity Links
   jobRelatedEntities: (jobId: string) => 
     [...crmQueryKeys.all, 'jobRelatedEntities', jobId] as const,
+  contactRelatedEntities: (contactId: string) => 
+    [...crmQueryKeys.all, 'contactRelatedEntities', contactId] as const,
   
   // Notes
   notes: () => [...crmQueryKeys.all, 'notes'] as const,
@@ -1015,6 +1019,18 @@ export function useCRMJobRelatedEntities(jobId: string) {
 }
 
 /**
+ * Fetch related entities for a specific contact
+ */
+export function useCRMContactRelatedEntities(contactId: string) {
+  return useQuery<ContactRelatedEntities, Error>({
+    queryKey: crmQueryKeys.contactRelatedEntities(contactId),
+    queryFn: () => fetchContactRelatedEntities(contactId),
+    enabled: hasCRMTokens() && !!contactId,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
  * Create entity link mutation
  */
 export function useCreateCRMLink() {
@@ -1042,6 +1058,13 @@ export function useCreateCRMLink() {
         queryClient.invalidateQueries({ 
           queryKey: crmQueryKeys.jobsByCompany(variables.sourceEntityId) 
         });
+        // Invalidate tasks and notes for this company
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.tasksByEntity(variables.sourceEntityId, 'COMPANY') 
+        });
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.notesByEntity(variables.sourceEntityId, 'COMPANY') 
+        });
       }
       if (variables.targetEntityType === 'COMPANY') {
         queryClient.invalidateQueries({ 
@@ -1050,16 +1073,65 @@ export function useCreateCRMLink() {
         queryClient.invalidateQueries({ 
           queryKey: crmQueryKeys.jobsByCompany(variables.targetEntityId) 
         });
+        // Invalidate tasks and notes for this company
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.tasksByEntity(variables.targetEntityId, 'COMPANY') 
+        });
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.notesByEntity(variables.targetEntityId, 'COMPANY') 
+        });
       }
       // Invalidate contact-related queries
       if (variables.sourceEntityType === 'CONTACT') {
         queryClient.invalidateQueries({ 
           queryKey: crmQueryKeys.jobsByContact(variables.sourceEntityId) 
         });
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.contactRelatedEntities(variables.sourceEntityId) 
+        });
+        // Invalidate tasks and notes for this contact
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.tasksByEntity(variables.sourceEntityId, 'CONTACT') 
+        });
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.notesByEntity(variables.sourceEntityId, 'CONTACT') 
+        });
       }
       if (variables.targetEntityType === 'CONTACT') {
         queryClient.invalidateQueries({ 
           queryKey: crmQueryKeys.jobsByContact(variables.targetEntityId) 
+        });
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.contactRelatedEntities(variables.targetEntityId) 
+        });
+        // Invalidate tasks and notes for this contact
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.tasksByEntity(variables.targetEntityId, 'CONTACT') 
+        });
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.notesByEntity(variables.targetEntityId, 'CONTACT') 
+        });
+      }
+      // Invalidate task-related queries
+      if (variables.sourceEntityType === 'TASK') {
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.task(variables.sourceEntityId) 
+        });
+      }
+      if (variables.targetEntityType === 'TASK') {
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.task(variables.targetEntityId) 
+        });
+      }
+      // Invalidate note-related queries
+      if (variables.sourceEntityType === 'NOTE') {
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.note(variables.sourceEntityId) 
+        });
+      }
+      if (variables.targetEntityType === 'NOTE') {
+        queryClient.invalidateQueries({ 
+          queryKey: crmQueryKeys.note(variables.targetEntityId) 
         });
       }
     },

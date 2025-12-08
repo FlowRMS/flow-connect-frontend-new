@@ -781,7 +781,6 @@ const GET_CONTACT = `
       notes
       territory
       tags
-      companyId
       createdAt
     }
   }

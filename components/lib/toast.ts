@@ -307,6 +307,35 @@ export const noteToasts = {
     }),
 };
 
+// Link Operation Toasts
+export const linkToasts = {
+  createSuccess: (linkType: string) =>
+    showSuccessToast('Link Created', {
+      description: `${linkType} has been linked successfully`,
+    }),
+  
+  alreadyExists: (linkType: string) =>
+    showWarningToast('Link Already Exists', {
+      description: `This ${linkType} is already linked`,
+      duration: 4000,
+    }),
+  
+  createError: (error?: string) =>
+    showErrorToast('Failed to Create Link', {
+      description: error || 'Please try again or contact support',
+    }),
+  
+  deleteSuccess: (linkType: string) =>
+    showSuccessToast('Link Removed', {
+      description: `${linkType} has been unlinked`,
+    }),
+  
+  deleteError: (error?: string) =>
+    showErrorToast('Failed to Remove Link', {
+      description: error || 'Please try again or contact support',
+    }),
+};
+
 // Generic Operation Toasts
 export const genericToasts = {
   loading: (message: string) =>
