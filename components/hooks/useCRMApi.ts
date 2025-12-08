@@ -552,7 +552,13 @@ export function useDeleteCRMCompany() {
     mutationFn: deleteCompany,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: crmQueryKeys.companies() });
-      queryClient.invalidateQueries({ queryKey: crmQueryKeys.companyLandingPages() });
+      // Use predicate to match all company landing page queries (including infinite)
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey;
+          return Array.isArray(key) && key[0] === 'crm' && key[1] === 'companyLandingPages';
+        }
+      });
     },
   });
 }
@@ -680,7 +686,13 @@ export function useDeleteCRMContact() {
     mutationFn: deleteContact,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: crmQueryKeys.contacts() });
-      queryClient.invalidateQueries({ queryKey: crmQueryKeys.contactLandingPages() });
+      // Use predicate to match all contact landing page queries (including infinite)
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey;
+          return Array.isArray(key) && key[0] === 'crm' && key[1] === 'contactLandingPages';
+        }
+      });
     },
   });
 }

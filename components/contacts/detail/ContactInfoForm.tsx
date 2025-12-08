@@ -307,23 +307,33 @@ export default function ContactInfoForm({
             </svg>
             Tags
           </label>
-          <div className="flex gap-2 flex-wrap mt-2">
-            {contact.tags.length > 0 ? (
-              contact.tags.map((tag, idx) => (
-                <span 
-                  key={idx} 
-                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-full text-sm font-medium"
-                >
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                  </svg>
-                  {tag}
-                </span>
-              ))
-            ) : (
-              <span className="text-sm text-gray-400 italic">No tags assigned</span>
-            )}
-          </div>
+          {isEditing ? (
+            <input
+              type="text"
+              value={editFormData.tags ? (Array.isArray(editFormData.tags) ? editFormData.tags.join(', ') : editFormData.tags) : contact.tags.join(', ')}
+              onChange={(e) => onFieldChange('tags', e.target.value)}
+              className={inputClass}
+              placeholder="Enter comma-separated tags (e.g. Healthcare, Monitor, VIP)"
+            />
+          ) : (
+            <div className="flex gap-2 flex-wrap mt-2">
+              {contact.tags.length > 0 ? (
+                contact.tags.map((tag, idx) => (
+                  <span 
+                    key={idx} 
+                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-full text-sm font-medium"
+                  >
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                    </svg>
+                    {tag}
+                  </span>
+                ))
+              ) : (
+                <span className="text-sm text-gray-400 italic">No tags assigned</span>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

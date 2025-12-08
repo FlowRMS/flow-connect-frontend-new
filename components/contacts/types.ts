@@ -57,6 +57,29 @@ function extractContactTypes(role: string): string[] {
 }
 
 /**
+ * Parse tags from API format to string array
+ * API may return: string "tag1, tag2" | string[] ["tag1, tag2"] | string[] ["tag1", "tag2"]
+ */
+function parseTags(apiTags: string | string[] | null | undefined): string[] {
+  if (!apiTags) return [];
+
+  if (typeof apiTags === 'string') {
+    return apiTags.split(',').map(t => t.trim()).filter(Boolean);
+  }
+
+  if (Array.isArray(apiTags)) {
+    return apiTags.flatMap(tag => {
+      if (typeof tag === 'string') {
+        return tag.split(',').map(t => t.trim()).filter(Boolean);
+      }
+      return [];
+    });
+  }
+
+  return [];
+}
+
+/**
  * Mapper function to convert Landing Page data to UI format
  */
 export function mapLandingPageToUIContact(landingPage: ContactLandingPage): Contact {
@@ -73,7 +96,7 @@ export function mapLandingPageToUIContact(landingPage: ContactLandingPage): Cont
     companyId: '', // Not available in landing page
     role: landingPage.role || '',
     contactType: extractContactTypes(role),
-    tags: [],
+    tags: parseTags(landingPage.tags), // Parse tags from landing page
     lists: [],
     territory: '',
     lastActivity: landingPage.createdAt || new Date().toISOString(),
@@ -86,9 +109,7 @@ export function mapLandingPageToUIContact(landingPage: ContactLandingPage): Cont
  */
 export function mapAPIContactToUIContact(apiContact: APIContact): Contact {
   const role = apiContact.role || '';
-  const tags = Array.isArray(apiContact.tags)
-    ? apiContact.tags
-    : (typeof apiContact.tags === 'string' ? [apiContact.tags] : []);
+  const tags = parseTags(apiContact.tags);
 
   return {
     id: apiContact.id,
@@ -101,7 +122,7 @@ export function mapAPIContactToUIContact(apiContact: APIContact): Contact {
     companyId: apiContact.companyId || '',
     role: apiContact.role || '',
     contactType: extractContactTypes(role),
-    tags: tags.filter(Boolean) as string[],
+    tags,
     lists: [],
     territory: apiContact.territory || '',
     lastActivity: apiContact.createdAt || new Date().toISOString(),

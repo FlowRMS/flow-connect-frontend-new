@@ -220,7 +220,7 @@ export default function TasksContent() {
           <div>
             <h1 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]">Tasks</h1>
           </div>
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap overflow-x-auto pb-1 sm:pb-0">
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
             {/* View Mode Toggle */}
             <div className="flex items-center gap-1 p-1 bg-[var(--muted)] rounded-md">
               <button
@@ -353,7 +353,7 @@ export default function TasksContent() {
                         onChange={(e) => {
                           if (e.target.value) {
                             selectedTasks.forEach(taskId => {
-                              updateTask(taskId, { priority: e.target.value as 'No priority' | 'Urgent' });
+                              updateTask(taskId, { priority: e.target.value as 'Low priority' | 'Normal' | 'Urgent' | 'Critical' });
                             });
                             e.target.value = '';
                           }

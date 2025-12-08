@@ -46,6 +46,31 @@ function normalizeCompanySourceType(value: string | CompanySourceType | undefine
 }
 
 /**
+ * Parse tags from API format to string array
+ * API may return: string "tag1, tag2" | string[] ["tag1, tag2"] | string[] ["tag1", "tag2"]
+ */
+function parseTags(apiTags: string | string[] | null | undefined): string[] {
+  if (!apiTags) return [];
+
+  if (typeof apiTags === 'string') {
+    // Handle comma-separated string
+    return apiTags.split(',').map(t => t.trim()).filter(Boolean);
+  }
+
+  if (Array.isArray(apiTags)) {
+    // Handle array - each element might also be comma-separated
+    return apiTags.flatMap(tag => {
+      if (typeof tag === 'string') {
+        return tag.split(',').map(t => t.trim()).filter(Boolean);
+      }
+      return [];
+    });
+  }
+
+  return [];
+}
+
+/**
  * Mapper function to convert API data to UI format
  */
 export function mapLandingPageToUICompany(landingPage: CompanyLandingPage): Company {
@@ -62,7 +87,7 @@ export function mapLandingPageToUICompany(landingPage: CompanyLandingPage): Comp
     website: landingPage.website || '',
     phone: landingPage.phone || '',
     address: '', // Address not in API yet
-    tags: [], // Tags not in landing page response
+    tags: parseTags(landingPage.tags), // Parse tags from landing page
     lists: [], // Lists not in API yet
     territory: '', // Territory not in API yet
     contactCount: 0, // Contact count not in API yet
@@ -82,9 +107,7 @@ export function mapAPICompanyToUICompany(apiCompany: APICompany): Company {
   const type = normalizedSourceType === 'MANUFACTURER'
     ? ['Manufacturer']
     : ['Customer'];
-  const tags = Array.isArray(apiCompany.tags)
-    ? apiCompany.tags
-    : (typeof apiCompany.tags === 'string' ? [apiCompany.tags] : []);
+  const tags = parseTags(apiCompany.tags);
 
   return {
     id: apiCompany.id,
@@ -93,7 +116,7 @@ export function mapAPICompanyToUICompany(apiCompany: APICompany): Company {
     website: apiCompany.website || '',
     phone: apiCompany.phone || '',
     address: '',
-    tags: tags.filter(Boolean) as string[],
+    tags,
     lists: [],
     territory: '',
     contactCount: 0,

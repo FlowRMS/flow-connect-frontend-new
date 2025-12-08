@@ -289,7 +289,7 @@ export function useTasksState() {
             comparison = new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
             break;
           case 'priority':
-            const priorityOrder = { 'Critical': 4, 'Urgent': 3, 'Normal': 2, 'Low': 1, 'No priority': 0 };
+            const priorityOrder = { 'Critical': 4, 'Urgent': 3, 'Normal': 2, 'Low priority': 1 };
             comparison = (priorityOrder[b.priority as keyof typeof priorityOrder] || 0) -
                         (priorityOrder[a.priority as keyof typeof priorityOrder] || 0);
             break;
