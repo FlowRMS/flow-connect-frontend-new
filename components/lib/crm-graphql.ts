@@ -916,7 +916,7 @@ const FIND_CONTACT_LANDING_PAGES = `
           companyName
           createdBy
           createdAt
-          
+          tags
         }
       }
       total
