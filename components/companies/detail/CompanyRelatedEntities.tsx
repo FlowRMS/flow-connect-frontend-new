@@ -14,6 +14,7 @@ import {
 } from '../../hooks/useCRMApi';
 import type { Contact as APIContact, Job as APIJob, CRMEntityType } from '../../lib/crm-graphql';
 import { AddLinkModal } from '../modals/AddLinkModal';
+import { linkToasts } from '../../lib/toast';
 
 // ============================================================================
 // Types
@@ -36,9 +37,13 @@ type LinkEntityType = 'CONTACT' | 'JOB';
  */
 function ContactCard({ 
   contact,
+  onUnlink,
+  isUnlinking,
   onClick 
 }: { 
   contact: APIContact;
+  onUnlink: () => void;
+  isUnlinking: boolean;
   onClick?: () => void;
 }) {
   const fullName = `${contact.firstName} ${contact.lastName}`.trim();
@@ -46,15 +51,18 @@ function ContactCard({
   
   return (
     <div 
-      className={`flex items-center p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]/30 transition-colors ${onClick ? 'cursor-pointer' : ''}`}
-      onClick={onClick}
+      className="flex items-center justify-between p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]/30 transition-colors group"
     >
-      {/* Avatar */}
-      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-medium text-sm flex-shrink-0">
-        {initials || '?'}
-      </div>
-      
-      <div className="flex-1 min-w-0 ml-3">
+      <div 
+        className={`flex items-center flex-1 min-w-0 ${onClick ? 'cursor-pointer' : ''}`}
+        onClick={onClick}
+      >
+        {/* Avatar */}
+        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-medium text-sm flex-shrink-0">
+          {initials || '?'}
+        </div>
+        
+        <div className="flex-1 min-w-0 ml-3">
         {/* Name & Role */}
         <div className="flex items-center gap-2">
           <h4 className="font-medium text-[var(--foreground)] truncate">
@@ -72,7 +80,23 @@ function ContactCard({
           {contact.email && <span className="truncate">{contact.email}</span>}
           {contact.phone && <span>• {contact.phone}</span>}
         </div>
+        </div>
       </div>
+
+      {/* Unlink Button */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onUnlink();
+        }}
+        disabled={isUnlinking}
+        className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
+        title="Unlink contact"
+      >
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+        </svg>
+      </button>
     </div>
   );
 }
@@ -202,7 +226,7 @@ export default function CompanyRelatedEntities({
   };
 
   // Handle unlinking an entity
-  const handleUnlink = async (entityType: 'CONTACT' | 'JOB', entityId: string) => {
+  const handleUnlink = async (entityType: 'CONTACT' | 'JOB', entityId: string, entityName?: string) => {
     try {
       await deleteLinkMutation.mutateAsync({
         sourceEntityType: 'COMPANY' as CRMEntityType,
@@ -210,6 +234,8 @@ export default function CompanyRelatedEntities({
         targetEntityType: entityType as CRMEntityType,
         targetEntityId: entityId,
       });
+      // Show success toast
+      linkToasts.deleteSuccess(entityType === 'CONTACT' ? 'Contact' : 'Job');
       // Refetch to update the UI
       if (entityType === 'CONTACT') {
         refetchContacts();
@@ -218,6 +244,7 @@ export default function CompanyRelatedEntities({
       }
     } catch (error) {
       console.error('Failed to unlink entity:', error);
+      linkToasts.deleteError();
     }
   };
 
@@ -277,13 +304,18 @@ export default function CompanyRelatedEntities({
             </div>
           ) : (
             <div className="space-y-3">
-              {contacts.map((contact) => (
-                <ContactCard 
-                  key={contact.id} 
-                  contact={contact}
-                  onClick={onContactClick ? () => onContactClick(contact) : undefined}
-                />
-              ))}
+              {contacts.map((contact) => {
+                const fullName = `${contact.firstName} ${contact.lastName}`.trim();
+                return (
+                  <ContactCard 
+                    key={contact.id} 
+                    contact={contact}
+                    onUnlink={() => handleUnlink('CONTACT', contact.id, fullName)}
+                    isUnlinking={deleteLinkMutation.isPending}
+                    onClick={onContactClick ? () => onContactClick(contact) : undefined}
+                  />
+                );
+              })}
             </div>
           )}
         </div>

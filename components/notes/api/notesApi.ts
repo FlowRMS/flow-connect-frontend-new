@@ -508,7 +508,6 @@ const GET_NOTE_RELATED_ENTITIES = `
         website
       }
       contacts {
-        companyId
         createdAt
         email
         firstName
@@ -674,7 +673,6 @@ const COMPANY_SEARCH = `
 const CONTACT_SEARCH = `
   query ContactSearch($searchTerm: String!) {
     contactSearch(searchTerm: $searchTerm) {
-      companyId
       createdAt
       email
       id

@@ -14,6 +14,7 @@ import {
 } from '../../hooks/useCRMApi';
 import type { Job as APIJob, Company as APICompany, CRMEntityType } from '../../lib/crm-graphql';
 import { AddLinkModal } from '../modals/AddLinkModal';
+import { linkToasts } from '../../lib/toast';
 
 // ============================================================================
 // Types
@@ -103,25 +104,34 @@ function JobCard({
  */
 function CompanyInfoCard({
   company,
+  onUnlink,
+  isUnlinking,
   onClick
 }: {
   company: APICompany;
+  onUnlink: () => void;
+  isUnlinking: boolean;
   onClick?: (company: APICompany) => void;
 }) {
   return (
     <div 
-      onClick={() => onClick?.(company)}
-      className={`p-4 bg-[var(--muted)] rounded-lg border border-[var(--border)] hover:border-[var(--primary)] transition-all ${onClick ? 'cursor-pointer hover:shadow-md' : ''}`}
+      className={`p-4 bg-[var(--muted)] rounded-lg border border-[var(--border)] hover:border-[var(--primary)] transition-all ${onClick ? 'hover:shadow-md' : ''} group`}
     >
       <div className="flex items-start gap-3">
         {/* Company Icon */}
-        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white flex-shrink-0">
+        <div 
+          className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white flex-shrink-0 cursor-pointer"
+          onClick={() => onClick?.(company)}
+        >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
           </svg>
         </div>
         
-        <div className="flex-1 min-w-0">
+        <div 
+          className="flex-1 min-w-0 cursor-pointer"
+          onClick={() => onClick?.(company)}
+        >
           {/* Company Name & Type */}
           <div className="flex items-center gap-2">
             <h4 className="font-medium text-[var(--foreground)] truncate">
@@ -159,12 +169,20 @@ function CompanyInfoCard({
           </div>
         </div>
 
-        {/* Arrow indicator */}
-        {onClick && (
-          <svg className="w-5 h-5 text-[var(--muted-foreground)] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" />
+        {/* Unlink Button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onUnlink();
+          }}
+          disabled={isUnlinking}
+          className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
+          title="Unlink company"
+        >
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
           </svg>
-        )}
+        </button>
       </div>
     </div>
   );
@@ -232,7 +250,7 @@ export default function ContactRelatedEntities({
   };
 
   // Handle unlinking an entity
-  const handleUnlink = async (entityType: 'COMPANY' | 'JOB', entityId: string) => {
+  const handleUnlink = async (entityType: 'COMPANY' | 'JOB', entityId: string, entityName?: string) => {
     try {
       await deleteLinkMutation.mutateAsync({
         sourceEntityType: 'CONTACT' as CRMEntityType,
@@ -240,6 +258,8 @@ export default function ContactRelatedEntities({
         targetEntityType: entityType as CRMEntityType,
         targetEntityId: entityId,
       });
+      // Show success toast
+      linkToasts.deleteSuccess(entityType === 'COMPANY' ? 'Company' : 'Job');
       // Refetch appropriate data based on entity type
       if (entityType === 'COMPANY') {
         refetchCompanies();
@@ -248,6 +268,7 @@ export default function ContactRelatedEntities({
       }
     } catch (error) {
       console.error('Failed to unlink entity:', error);
+      linkToasts.deleteError();
     }
   };
 
@@ -277,6 +298,8 @@ export default function ContactRelatedEntities({
           <div className="p-6">
             <CompanyInfoCard 
               company={primaryCompany}
+              onUnlink={() => handleUnlink('COMPANY', primaryCompany.id, primaryCompany.name)}
+              isUnlinking={deleteLinkMutation.isPending}
               onClick={onCompanyClick}
             />
           </div>

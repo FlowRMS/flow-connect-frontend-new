@@ -2344,7 +2344,6 @@ const GET_JOB_RELATED_ENTITIES = `
         firstName
         email
         createdAt
-        companyId
       }
       invoices {
         balanceId
