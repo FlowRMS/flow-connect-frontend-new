@@ -72,7 +72,6 @@ query MyQuery {
 
 query MyQuery {
   contactSearch(searchTerm: "") {
-    companyId
     createdAt
     email
     firstName
