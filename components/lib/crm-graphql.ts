@@ -795,7 +795,6 @@ const CREATE_CONTACT = `
       email
       phone
       role
-      companyId
       notes
       tags
       territory
@@ -813,7 +812,6 @@ const UPDATE_CONTACT = `
       email
       phone
       role
-      companyId
       notes
       tags
       territory
