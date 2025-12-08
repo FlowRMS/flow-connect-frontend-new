@@ -99,6 +99,7 @@ export function PreOpportunityDetailView({
             entityType="PRE_OPPORTUNITY"
             title="Connected Tasks"
             onAddClick={() => openAddLinkModal('TASK')}
+            onUnlinkSuccess={() => setTasksSectionKey(prev => prev + 1)}
           />
 
           {/* Connected Notes */}
@@ -108,6 +109,7 @@ export function PreOpportunityDetailView({
             entityType="PRE_OPPORTUNITY"
             title="Connected Notes"
             onAddClick={() => openAddLinkModal('NOTE')}
+            onUnlinkSuccess={() => setNotesSectionKey(prev => prev + 1)}
           />
         </div>
 

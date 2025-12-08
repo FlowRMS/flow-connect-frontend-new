@@ -6,10 +6,12 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useCreateCRMLink } from '../../hooks/useCRMApi';
 import { useTaskSearch, type TaskSearchResult } from '../../notes/api';
 import { useNoteSearch, type NoteSearchResult } from '../../tasks/api';
 import type { CRMEntityType } from '../../lib/crm-graphql';
+import { linkToasts } from '../../lib/toast';
 
 // Linkable entity types for Pre-Opportunities
 type LinkEntityType = 'TASK' | 'NOTE';
@@ -52,6 +54,8 @@ export function AddLinkModal({ isOpen, preOpportunityId, initialEntityType = 'TA
   const [entityType, setEntityType] = useState<LinkEntityType>(initialEntityType);
   const [selectedEntityId, setSelectedEntityId] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
+  
+  const queryClient = useQueryClient();
 
   // Reset entity type when modal opens with a new initialEntityType
   useEffect(() => {
@@ -117,6 +121,17 @@ export function AddLinkModal({ isOpen, preOpportunityId, initialEntityType = 'TA
         targetEntityId: selectedEntityId,
       });
       
+      // Invalidate related queries to trigger refetch
+      await queryClient.invalidateQueries({ 
+        queryKey: ['crm', 'tasks', 'byEntity', preOpportunityId, 'PRE_OPPORTUNITY'] 
+      });
+      await queryClient.invalidateQueries({ 
+        queryKey: ['crm', 'notes', 'byEntity', preOpportunityId, 'PRE_OPPORTUNITY'] 
+      });
+      
+      // Show success toast
+      linkToasts.createSuccess(entityType === 'TASK' ? 'Task' : 'Note');
+      
       // Reset and close
       setSelectedEntityId('');
       setSearchTerm('');
@@ -124,6 +139,8 @@ export function AddLinkModal({ isOpen, preOpportunityId, initialEntityType = 'TA
       onClose();
     } catch (error) {
       console.error('Failed to create link:', error);
+      // Show error toast
+      linkToasts.createError();
     }
   };
 

@@ -102,7 +102,8 @@ export default function ContactDetailView({
         entityId={contact.id}
         entityType="CONTACT"
         title="Connected Tasks"
-        onAddClick={() => openAddLinkModal('TASK')}
+        onAddClick={() => { openAddLinkModal('TASK'); }}
+        onUnlinkSuccess={() => setTasksSectionKey(prev => prev + 1)}
       />
 
       {/* Connected Notes */}
@@ -111,7 +112,8 @@ export default function ContactDetailView({
         entityId={contact.id}
         entityType="CONTACT"
         title="Connected Notes"
-        onAddClick={() => openAddLinkModal('NOTE')}
+        onAddClick={() => { openAddLinkModal('NOTE'); }}
+        onUnlinkSuccess={() => setNotesSectionKey(prev => prev + 1)}
       />
 
       {/* Add Link Modal for Tasks/Notes */}
