@@ -26,6 +26,7 @@ import type {
   Note,
 } from '../../lib/crm-graphql';
 import { AddLinkModal } from '../modals/AddLinkModal';
+import { linkToasts } from '../../lib/toast';
 
 interface ConnectedEntitiesSectionProps {
   jobId: string;
@@ -197,11 +198,28 @@ export function ConnectedEntitiesSection({
         targetEntityType: entityType as CRMEntityType,
         targetEntityId: entityId,
       });
+      
+      // Get entity type label for toast
+      const entityTypeLabels: Record<LinkEntityType, string> = {
+        COMPANY: 'Company',
+        CONTACT: 'Contact',
+        TASK: 'Task',
+        NOTE: 'Note',
+        PRE_OPPORTUNITY: 'Pre-Opportunity',
+        QUOTE: 'Quote',
+        ORDER: 'Order',
+        INVOICE: 'Invoice',
+        CHECK: 'Check',
+      };
+      
+      linkToasts.deleteSuccess(entityTypeLabels[entityType]);
+      
       refetch();
       refetchTasks();
       refetchNotes();
     } catch (unlinkError) {
       console.error('Failed to unlink entity:', unlinkError);
+      linkToasts.deleteError();
     }
   };
 
@@ -793,7 +811,7 @@ export function ConnectedEntitiesSection({
                         className="flex items-center justify-between p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]/30 transition-colors cursor-pointer group"
                         onClick={() => handleNoteClick(note)}
                       >
-                        <div className="flex items-center gap-3 flex-1">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
                           <div className="w-10 h-10 rounded-lg bg-yellow-500 flex items-center justify-center text-white flex-shrink-0">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                               <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" strokeLinecap="round" strokeLinejoin="round"/>
@@ -813,7 +831,7 @@ export function ConnectedEntitiesSection({
                             handleUnlink('NOTE', note.id);
                           }}
                           disabled={deleteLinkMutation.isPending}
-                          className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                          className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all flex-shrink-0"
                           title="Unlink note"
                         >
                           <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">

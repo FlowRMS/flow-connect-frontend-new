@@ -7,8 +7,9 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useCRMTasksByEntity } from '../hooks/useCRMApi';
+import { useCRMTasksByEntity, useDeleteCRMLinkByEntities } from '../hooks/useCRMApi';
 import type { TaskByEntity, TaskEntityType } from '../lib/crm-graphql';
+import { linkToasts } from '../lib/toast';
 
 interface ConnectedTasksSectionProps {
   entityId: string;
@@ -16,6 +17,7 @@ interface ConnectedTasksSectionProps {
   title?: string;
   onTaskClick?: (task: TaskByEntity) => void;
   onAddClick?: () => void;
+  onUnlinkSuccess?: () => void;
 }
 
 /**
@@ -71,7 +73,17 @@ function formatStatus(status: string): string {
 /**
  * Task Card Component
  */
-function TaskCard({ task, onClick }: { task: TaskByEntity; onClick?: () => void }) {
+function TaskCard({ 
+  task, 
+  onClick, 
+  onUnlink, 
+  isUnlinking 
+}: { 
+  task: TaskByEntity; 
+  onClick?: () => void;
+  onUnlink: () => void;
+  isUnlinking: boolean;
+}) {
   const [isExpanded, setIsExpanded] = useState(false);
   
   const formatDate = (dateString: string) => {
@@ -94,10 +106,13 @@ function TaskCard({ task, onClick }: { task: TaskByEntity; onClick?: () => void 
 
   return (
     <div 
-      className={`p-4 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]/30 transition-colors ${onClick ? 'cursor-pointer' : ''} ${isCompleted ? 'opacity-70' : ''}`}
-      onClick={onClick}
+      className={`p-4 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]/30 transition-colors ${isCompleted ? 'opacity-70' : ''} group`}
     >
       <div className="flex items-start justify-between mb-2">
+        <div 
+          className={`flex-1 ${onClick ? 'cursor-pointer' : ''}`}
+          onClick={onClick}
+        >
         <div className="flex items-center gap-2 flex-1 min-w-0">
           {/* Checkbox/status indicator */}
           <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 ${
@@ -115,6 +130,7 @@ function TaskCard({ task, onClick }: { task: TaskByEntity; onClick?: () => void 
             {task.title || 'Untitled Task'}
           </h4>
         </div>
+        </div>
         <div className="flex items-center gap-2 flex-shrink-0 ml-2">
           <span className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(task.status)}`}>
             {formatStatus(task.status)}
@@ -124,6 +140,20 @@ function TaskCard({ task, onClick }: { task: TaskByEntity; onClick?: () => void 
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
           )}
+          {/* Unlink Button */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onUnlink();
+            }}
+            disabled={isUnlinking}
+            className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
+            title="Unlink task"
+          >
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+            </svg>
+          </button>
         </div>
       </div>
       
@@ -236,14 +266,19 @@ export default function ConnectedTasksSection({
   title = 'Connected Tasks',
   onTaskClick,
   onAddClick,
+  onUnlinkSuccess,
 }: ConnectedTasksSectionProps) {
   const router = useRouter();
+  const [unlinkingTaskId, setUnlinkingTaskId] = useState<string | null>(null);
+  
   const {
     data: tasks = [],
     isLoading,
     error,
     refetch,
   } = useCRMTasksByEntity(entityId, entityType);
+  
+  const deleteLinkMutation = useDeleteCRMLinkByEntities();
 
   const handleTaskClick = (task: TaskByEntity) => {
     if (onTaskClick) {
@@ -251,6 +286,28 @@ export default function ConnectedTasksSection({
     } else {
       // Default behavior: navigate to tasks page with the task ID
       router.push(`/tasks?id=${task.id}`);
+    }
+  };
+  
+  const handleUnlink = async (taskId: string) => {
+    setUnlinkingTaskId(taskId);
+    try {
+      await deleteLinkMutation.mutateAsync({
+        sourceEntityType: entityType,
+        sourceEntityId: entityId,
+        targetEntityType: 'TASK',
+        targetEntityId: taskId,
+      });
+      linkToasts.deleteSuccess('Task');
+      refetch();
+      if (onUnlinkSuccess) {
+        onUnlinkSuccess();
+      }
+    } catch (error) {
+      console.error('Failed to unlink task:', error);
+      linkToasts.deleteError();
+    } finally {
+      setUnlinkingTaskId(null);
     }
   };
 
@@ -354,6 +411,8 @@ export default function ConnectedTasksSection({
                 key={task.id} 
                 task={task} 
                 onClick={() => handleTaskClick(task)}
+                onUnlink={() => handleUnlink(task.id)}
+                isUnlinking={unlinkingTaskId === task.id}
               />
             ))}
           </div>

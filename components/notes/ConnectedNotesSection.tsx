@@ -7,8 +7,9 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useCRMNotesByEntity } from '../hooks/useCRMApi';
+import { useCRMNotesByEntity, useDeleteCRMLinkByEntities } from '../hooks/useCRMApi';
 import type { Note, CRMEntityType } from '../lib/crm-graphql';
+import { linkToasts } from '../lib/toast';
 
 interface ConnectedNotesSectionProps {
   entityId: string;
@@ -16,12 +17,23 @@ interface ConnectedNotesSectionProps {
   title?: string;
   onNoteClick?: (note: Note) => void;
   onAddClick?: () => void;
+  onUnlinkSuccess?: () => void;
 }
 
 /**
  * Note Card Component
  */
-function NoteCard({ note, onClick }: { note: Note; onClick?: () => void }) {
+function NoteCard({ 
+  note, 
+  onClick, 
+  onUnlink, 
+  isUnlinking 
+}: { 
+  note: Note; 
+  onClick?: () => void;
+  onUnlink: () => void;
+  isUnlinking: boolean;
+}) {
   const [isExpanded, setIsExpanded] = useState(false);
   
   const formatDate = (dateString: string) => {
@@ -42,10 +54,13 @@ function NoteCard({ note, onClick }: { note: Note; onClick?: () => void }) {
 
   return (
     <div 
-      className={`p-4 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]/30 transition-colors ${onClick ? 'cursor-pointer' : ''}`}
-      onClick={onClick}
+      className={`p-4 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]/30 transition-colors group`}
     >
       <div className="flex items-start justify-between mb-2">
+        <div 
+          className={`flex-1 ${onClick ? 'cursor-pointer' : ''}`}
+          onClick={onClick}
+        >
         <div className="flex items-center gap-2 flex-1 min-w-0">
           {/* Note icon */}
           <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
@@ -57,6 +72,7 @@ function NoteCard({ note, onClick }: { note: Note; onClick?: () => void }) {
             {note.title || 'Untitled Note'}
           </h4>
         </div>
+        </div>
         <div className="flex items-center gap-2 flex-shrink-0 ml-2">
           <span className="text-xs text-[var(--muted-foreground)]">
             {formatDate(note.createdAt)}
@@ -66,6 +82,20 @@ function NoteCard({ note, onClick }: { note: Note; onClick?: () => void }) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
           )}
+          {/* Unlink Button */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onUnlink();
+            }}
+            disabled={isUnlinking}
+            className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
+            title="Unlink note"
+          >
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+            </svg>
+          </button>
         </div>
       </div>
       
@@ -160,14 +190,19 @@ export default function ConnectedNotesSection({
   title = 'Connected Notes',
   onNoteClick,
   onAddClick,
+  onUnlinkSuccess,
 }: ConnectedNotesSectionProps) {
   const router = useRouter();
+  const [unlinkingNoteId, setUnlinkingNoteId] = useState<string | null>(null);
+  
   const {
     data: notes = [],
     isLoading,
     error,
     refetch,
   } = useCRMNotesByEntity(entityId, entityType as CRMEntityType);
+  
+  const deleteLinkMutation = useDeleteCRMLinkByEntities();
 
   const handleNoteClick = (note: Note) => {
     if (onNoteClick) {
@@ -175,6 +210,28 @@ export default function ConnectedNotesSection({
     } else {
       // Default behavior: navigate to notes page with the note ID
       router.push(`/notes?id=${note.id}`);
+    }
+  };
+  
+  const handleUnlink = async (noteId: string) => {
+    setUnlinkingNoteId(noteId);
+    try {
+      await deleteLinkMutation.mutateAsync({
+        sourceEntityType: entityType as CRMEntityType,
+        sourceEntityId: entityId,
+        targetEntityType: 'NOTE',
+        targetEntityId: noteId,
+      });
+      linkToasts.deleteSuccess('Note');
+      refetch();
+      if (onUnlinkSuccess) {
+        onUnlinkSuccess();
+      }
+    } catch (error) {
+      console.error('Failed to unlink note:', error);
+      linkToasts.deleteError();
+    } finally {
+      setUnlinkingNoteId(null);
     }
   };
 
@@ -244,6 +301,8 @@ export default function ConnectedNotesSection({
                 key={note.id} 
                 note={note} 
                 onClick={() => handleNoteClick(note)}
+                onUnlink={() => handleUnlink(note.id)}
+                isUnlinking={unlinkingNoteId === note.id}
               />
             ))}
           </div>

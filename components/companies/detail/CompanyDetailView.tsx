@@ -104,6 +104,7 @@ export default function CompanyDetailView({
         entityType="COMPANY"
         title="Connected Tasks"
         onAddClick={() => { openAddLinkModal('TASK'); }}
+        onUnlinkSuccess={() => setTasksSectionKey(prev => prev + 1)}
       />
 
       {/* Connected Notes */}
@@ -113,6 +114,7 @@ export default function CompanyDetailView({
         entityType="COMPANY"
         title="Connected Notes"
         onAddClick={() => { openAddLinkModal('NOTE'); }}
+        onUnlinkSuccess={() => setNotesSectionKey(prev => prev + 1)}
       />
 
       {/* Add Link Modal for Tasks/Notes */}

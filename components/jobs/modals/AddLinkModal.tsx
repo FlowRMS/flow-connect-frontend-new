@@ -37,6 +37,7 @@ import {
 } from '../../notes/api';
 import { useNoteSearch, type NoteSearchResult } from '../../tasks/api';
 import type { CRMEntityType } from '../../lib/crm-graphql';
+import { linkToasts } from '../../lib/toast';
 
 // All linkable entity types
 type LinkEntityType = 'COMPANY' | 'CONTACT' | 'TASK' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'FACTORY' | 'CUSTOMER' | 'PRODUCT';
@@ -393,6 +394,7 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
     const entityIdsArray = Array.from(selectedEntityIds);
     let successCount = 0;
     let failCount = 0;
+    let alreadyExistsCount = 0;
 
     // Link entities one by one (API calls in sequence)
     for (let i = 0; i < entityIdsArray.length; i++) {
@@ -407,9 +409,19 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
           targetEntityId: entityId,
         });
         successCount++;
-      } catch (error) {
+      } catch (error: any) {
         console.error(`Failed to link entity ${entityId}:`, error);
-        failCount++;
+        
+        // Check if error is "Link already exists"
+        const errorMessage = error?.message || '';
+        const isAlreadyExists = errorMessage.includes('Link already exists') || 
+                                errorMessage.includes('already exists');
+        
+        if (isAlreadyExists) {
+          alreadyExistsCount++;
+        } else {
+          failCount++;
+        }
       }
     }
 
@@ -421,8 +433,17 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
     onSuccess();
     onClose();
 
+    // Show appropriate toast messages
+    if (successCount > 0) {
+      linkToasts.createSuccess(`${successCount} ${config.label}${successCount > 1 ? 's' : ''}`);
+    }
+    
+    if (alreadyExistsCount > 0) {
+      linkToasts.alreadyExists(`${alreadyExistsCount} ${config.label}${alreadyExistsCount > 1 ? 's' : ''}`);
+    }
+    
     if (failCount > 0) {
-      console.warn(`Linked ${successCount} entities, ${failCount} failed`);
+      linkToasts.createError(`Failed to link ${failCount} ${config.label}${failCount > 1 ? 's' : ''}`);
     }
   };
 
