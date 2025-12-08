@@ -12,6 +12,31 @@ import { NextRequest, NextResponse } from 'next/server';
  * - error: Error code if auth failed
  * - error_description: Human-readable error message
  */
+
+function getBaseUrl(request: NextRequest): string {
+  // Check for forwarded headers (used by reverse proxies like Render, Vercel, etc.)
+  const forwardedHost = request.headers.get('x-forwarded-host');
+  const forwardedProto = request.headers.get('x-forwarded-proto') || 'https';
+
+  if (forwardedHost) {
+    return `${forwardedProto}://${forwardedHost}`;
+  }
+
+  // Check the host header
+  const host = request.headers.get('host');
+  if (host && !host.includes('localhost')) {
+    return `https://${host}`;
+  }
+
+  // Fallback to environment variable if set
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL;
+  }
+
+  // Last resort: use the request origin (may be internal URL on some platforms)
+  return request.nextUrl.origin;
+}
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
 
@@ -22,7 +47,8 @@ export async function GET(request: NextRequest) {
   const errorDescription = searchParams.get('error_description');
 
   // Build the redirect URL to the integrations page
-  const redirectUrl = new URL('/integrations', request.nextUrl.origin);
+  const baseUrl = getBaseUrl(request);
+  const redirectUrl = new URL('/integrations', baseUrl);
 
   // Pass through all relevant parameters
   if (code) {
