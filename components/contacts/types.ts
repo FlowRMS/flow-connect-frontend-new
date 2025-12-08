@@ -11,7 +11,6 @@ export interface Contact {
   email: string;
   phone: string;
   company: string;
-  companyId: string;
   role: string;
   contactType: string[];
   tags: string[];
@@ -93,7 +92,6 @@ export function mapLandingPageToUIContact(landingPage: ContactLandingPage): Cont
     email: landingPage.email || '',
     phone: landingPage.phone || '',
     company: landingPage.companyName || '',
-    companyId: '', // Not available in landing page
     role: landingPage.role || '',
     contactType: extractContactTypes(role),
     tags: parseTags(landingPage.tags), // Parse tags from landing page
@@ -119,7 +117,6 @@ export function mapAPIContactToUIContact(apiContact: APIContact): Contact {
     email: apiContact.email || '',
     phone: apiContact.phone || '',
     company: '', // Will be fetched separately if needed
-    companyId: apiContact.companyId || '',
     role: apiContact.role || '',
     contactType: extractContactTypes(role),
     tags,
