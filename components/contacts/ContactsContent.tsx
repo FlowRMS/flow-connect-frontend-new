@@ -215,6 +215,13 @@ export default function ContactsContent() {
     );
   }
 
+  // Wrap delete handler to navigate back after successful deletion
+  const handleDeleteWithNavigation = async (id: string) => {
+    await state.handleDeleteContact(id);
+    // Navigate back to contacts list after deletion
+    router.replace('/contacts', { scroll: false });
+  };
+
   // Contact Detail View
   if (state.selectedContact) {
     return (
@@ -229,7 +236,7 @@ export default function ContactsContent() {
         onEdit={state.handleStartEdit}
         onSave={state.handleSaveEdit}
         onCancel={state.handleCancelEdit}
-        onDelete={state.handleDeleteContact}
+        onDelete={handleDeleteWithNavigation}
         onFieldChange={(field, value) =>
           state.setEditFormData((prev) => ({ ...prev, [field]: value }))
         }

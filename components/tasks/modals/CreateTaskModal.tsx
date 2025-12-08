@@ -41,8 +41,10 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
   const [debouncedAssigneeSearch, setDebouncedAssigneeSearch] = useState('');
   const [selectedAssignee, setSelectedAssignee] = useState<{ id: string; name: string } | null>(null);
   const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
+  const [assigneeDropdownPosition, setAssigneeDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
   const assigneeInputRef = useRef<HTMLInputElement>(null);
   const assigneeDropdownRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   // Entity links state - unified using LinkSelector
   const [selectedLinks, setSelectedLinks] = useState<SelectedLink[]>([]);
@@ -69,19 +71,56 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
     setIsMounted(true);
   }, []);
 
+  // Update dropdown position when showing
+  const updateDropdownPosition = () => {
+    if (assigneeInputRef.current) {
+      const rect = assigneeInputRef.current.getBoundingClientRect();
+      setAssigneeDropdownPosition({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width,
+      });
+    }
+  };
+
+  // Update position when dropdown opens
+  useEffect(() => {
+    if (showAssigneeDropdown) {
+      updateDropdownPosition();
+    }
+  }, [showAssigneeDropdown]);
+
   // Close assignee dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as Node;
-      if (assigneeInputRef.current && !assigneeInputRef.current.contains(target) && 
+      if (assigneeInputRef.current && !assigneeInputRef.current.contains(target) &&
           assigneeDropdownRef.current && !assigneeDropdownRef.current.contains(target)) {
         setShowAssigneeDropdown(false);
       }
     };
-    
+
+    // Reposition dropdown on scroll instead of closing
+    const handleScroll = () => {
+      if (showAssigneeDropdown) {
+        updateDropdownPosition();
+      }
+    };
+
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    // Add scroll listener to the form element (modal content)
+    const formElement = formRef.current;
+    if (formElement) {
+      formElement.addEventListener('scroll', handleScroll);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      if (formElement) {
+        formElement.removeEventListener('scroll', handleScroll);
+      }
+    };
+  }, [showAssigneeDropdown]);
 
   if (!isOpen) return null;
 
@@ -217,7 +256,7 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
+        <form ref={formRef} onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
           <div className="p-4 sm:p-6 space-y-4 sm:space-y-5">
             {/* Task Details Section */}
             <div className="bg-gray-50 rounded-xl p-4 sm:p-5 space-y-3 sm:space-y-4">
@@ -373,13 +412,13 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
                       disabled={isLoadingAssignees}
                     />
                     {showAssigneeDropdown && isMounted && createPortal(
-                      <div 
+                      <div
                         ref={assigneeDropdownRef}
                         style={{
                           position: 'fixed',
-                          top: assigneeInputRef.current ? assigneeInputRef.current.getBoundingClientRect().bottom + 4 : 0,
-                          left: assigneeInputRef.current ? assigneeInputRef.current.getBoundingClientRect().left : 0,
-                          width: assigneeInputRef.current ? assigneeInputRef.current.offsetWidth : 'auto',
+                          top: assigneeDropdownPosition.top,
+                          left: assigneeDropdownPosition.left,
+                          width: assigneeDropdownPosition.width || 'auto',
                           zIndex: 9999,
                         }}
                         className="bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"

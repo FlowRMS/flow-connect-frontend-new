@@ -7,7 +7,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useCreateCRMCompany, useCRMCompanyLandingPages } from '../../hooks/useCRMApi';
+import { useCreateCRMCompany } from '../../hooks/useCRMApi';
+import { useCompanySearch } from '../../notes/api';
 import { hasCRMTokens } from '../../lib/crm-auth';
 import type { CompanyInput, CompanySourceType } from '../../lib/crm-graphql';
 import { companyToasts } from '../../lib/toast';
@@ -163,34 +164,44 @@ function CustomSelect({ value, onChange, options, placeholder, disabled, icon }:
   );
 }
 
-// Portaled Parent Company Search Select
+// Portaled Parent Company Search Select with API search on every keystroke
 interface ParentCompanySelectProps {
   value: string;
   selectedName: string;
-  companies: { id: string; name: string; companySourceType: string }[];
-  isLoading: boolean;
   onChange: (id: string, name: string) => void;
   onClear: () => void;
 }
 
-function ParentCompanySelect({ value, selectedName, companies, isLoading, onChange, onClear }: ParentCompanySelectProps) {
+function ParentCompanySelect({ value, selectedName, onChange, onClear }: ParentCompanySelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
   const triggerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Use the company search hook - always enabled so it fetches on every keystroke
+  // Empty string returns all companies, typing filters via API
+  const { data: searchResults = [], isLoading } = useCompanySearch(searchQuery);
 
   useEffect(() => {
     setPortalTarget(document.body);
   }, []);
+
+  // Focus search input when dropdown opens
+  useEffect(() => {
+    if (isOpen && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen && triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom;
       const dropdownHeight = 280;
-      
+
       if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
         setPosition({
           top: rect.top + window.scrollY - dropdownHeight - 4,
@@ -212,7 +223,7 @@ function ParentCompanySelect({ value, selectedName, companies, isLoading, onChan
       const target = event.target as Node;
       const isInsideTrigger = triggerRef.current?.contains(target);
       const isInsideDropdown = dropdownRef.current?.contains(target);
-      
+
       if (!isInsideTrigger && !isInsideDropdown) {
         setIsOpen(false);
         setSearchQuery('');
@@ -221,10 +232,6 @@ function ParentCompanySelect({ value, selectedName, companies, isLoading, onChan
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  const filteredCompanies = companies.filter(company =>
-    company.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
   const dropdownContent = isOpen && portalTarget && createPortal(
     <div
@@ -239,8 +246,9 @@ function ParentCompanySelect({ value, selectedName, companies, isLoading, onChan
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
+            ref={searchInputRef}
             type="text"
-            placeholder="Search companies..."
+            placeholder="Type to search companies..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -248,7 +256,7 @@ function ParentCompanySelect({ value, selectedName, companies, isLoading, onChan
           />
         </div>
       </div>
-      
+
       {/* Options list */}
       <div className="max-h-48 overflow-y-auto">
         {/* None option */}
@@ -266,21 +274,21 @@ function ParentCompanySelect({ value, selectedName, companies, isLoading, onChan
           </svg>
           None (No parent company)
         </button>
-        
+
         {isLoading ? (
           <div className="px-4 py-6 text-center">
             <svg className="animate-spin h-5 w-5 text-gray-400 mx-auto mb-2" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
             </svg>
-            <span className="text-sm text-gray-500">Loading companies...</span>
+            <span className="text-sm text-gray-500">Searching...</span>
           </div>
-        ) : filteredCompanies.length === 0 ? (
+        ) : searchResults.length === 0 ? (
           <div className="px-4 py-6 text-center text-sm text-gray-500">
-            No companies found
+            {searchQuery ? 'No companies found' : 'Type to search for companies'}
           </div>
         ) : (
-          filteredCompanies.map((company) => (
+          searchResults.map((company) => (
             <button
               key={company.id}
               type="button"
@@ -347,10 +355,10 @@ function ParentCompanySelect({ value, selectedName, companies, isLoading, onChan
             <span className="text-gray-400">Select parent company (optional)</span>
           )}
         </div>
-        <svg 
-          className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`} 
-          fill="none" 
-          viewBox="0 0 24 24" 
+        <svg
+          className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`}
+          fill="none"
+          viewBox="0 0 24 24"
           stroke="currentColor"
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -381,7 +389,6 @@ export default function CreateCompanyModal({ isOpen, onClose, onSuccess }: Creat
 
   const isConnected = hasCRMTokens();
   const createCompanyMutation = useCreateCRMCompany();
-  const { data: existingCompanies, isLoading: companiesLoading } = useCRMCompanyLandingPages();
 
   const resetForm = () => {
     setFormData({
@@ -600,8 +607,6 @@ export default function CreateCompanyModal({ isOpen, onClose, onSuccess }: Creat
                   <ParentCompanySelect
                     value={formData.parentCompanyId}
                     selectedName={formData.parentCompanyName}
-                    companies={existingCompanies || []}
-                    isLoading={companiesLoading}
                     onChange={(id, name) => setFormData(prev => ({ ...prev, parentCompanyId: id, parentCompanyName: name }))}
                     onClear={() => setFormData(prev => ({ ...prev, parentCompanyId: '', parentCompanyName: '' }))}
                   />

@@ -149,8 +149,8 @@ export default function SortButton({
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-64 md:w-72 bg-white rounded-lg shadow-xl z-50 border border-gray-100 overflow-hidden max-h-[80vh] overflow-y-auto" style={{ maxWidth: 'calc(100vw - 2rem)' }}>
-          <div className="p-2 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+        <div className="absolute right-0 mt-2 w-64 md:w-72 bg-white rounded-lg shadow-xl z-[100] border border-gray-100" style={{ maxWidth: 'calc(100vw - 2rem)', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+          <div className="p-2 border-b border-gray-100 flex justify-between items-center bg-gray-50 flex-shrink-0">
             <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-2">Sort By (Multi-Select)</span>
             {sortCount > 0 && (
               <button 
@@ -161,7 +161,7 @@ export default function SortButton({
               </button>
             )}
           </div>
-          <div className="max-h-80 overflow-y-auto py-1">
+          <div className="overflow-y-auto py-1 flex-1">
             {sortOptions.map((option) => {
               const sortIndex = getSortIndex(option.columnName);
               const direction = getSortDirection(option.columnName);
@@ -210,25 +210,27 @@ export default function SortButton({
                 </div>
               );
             })}
-          </div>
-          {sortCount > 0 && (
-            <div className="p-3 border-t border-gray-100 bg-gray-50">
-              <div className="text-xs text-gray-500 mb-2">Active sorts (in order):</div>
-              <div className="flex flex-wrap gap-1">
-                {localSorts.map((sort, index) => {
-                  const option = sortOptions.find(o => o.columnName === sort.columnName);
-                  return (
-                    <span key={sort.columnName} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
-                      <span className="font-medium">{index + 1}.</span>
-                      {option?.label || sort.columnName}
-                      <span className="text-blue-500">({sort.direction})</span>
-                    </span>
-                  );
-                })}
-              </div>
             </div>
-          )}
-        </div>
+            
+            {/* Footer with active sorts */}
+            {sortCount > 0 && (
+              <div className="p-3 border-t border-gray-100 bg-gray-50 flex-shrink-0">
+                <div className="text-xs text-gray-500 mb-2">Active sorts (in order):</div>
+                <div className="flex flex-wrap gap-1">
+                  {localSorts.map((sort, index) => {
+                    const option = sortOptions.find(o => o.columnName === sort.columnName);
+                    return (
+                      <span key={sort.columnName} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
+                        <span className="font-medium">{index + 1}.</span>
+                        {option?.label || sort.columnName}
+                        <span className="text-blue-500">({sort.direction})</span>
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
       )}
     </div>
   );

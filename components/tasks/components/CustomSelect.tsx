@@ -88,13 +88,13 @@ export function CustomSelect<T extends string = string>({
   }, [isOpen]);
 
   const dropdownContent = isOpen && !disabled && portalTarget && createPortal(
-    <div 
+    <div
       ref={dropdownRef}
       className="fixed z-[9999] bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden"
-      style={{ 
-        top: position.top, 
+      style={{
+        top: position.top,
         left: position.left,
-        width: position.width,
+        minWidth: Math.max(position.width, 140),
         maxHeight: 220,
       }}
     >

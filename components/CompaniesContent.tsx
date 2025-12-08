@@ -218,6 +218,8 @@ export default function CompaniesContent() {
       setDeleteConfirmId(null);
       if (selectedCompany?.id === id) {
         setSelectedCompany(null);
+        // Navigate back to companies list after deletion
+        router.replace('/companies', { scroll: false });
       }
     } catch (err) {
       console.error('Failed to delete company:', err);
@@ -240,6 +242,16 @@ export default function CompaniesContent() {
     // Ensure companySourceType is a valid enum value
     const normalizedSourceType = normalizeCompanySourceType(editFormData.companySourceType);
     
+    // Parse tags - handle both string and array formats
+    let tagsToSend: string | undefined;
+    if (editFormData.tags) {
+      if (typeof editFormData.tags === 'string') {
+        tagsToSend = editFormData.tags;
+      } else if (Array.isArray(editFormData.tags)) {
+        tagsToSend = editFormData.tags.join(',');
+      }
+    }
+    
     try {
       await updateCompanyMutation.mutateAsync({
         id: selectedCompany.id,
@@ -248,11 +260,14 @@ export default function CompaniesContent() {
           phone: editFormData.phone,
           website: editFormData.website,
           companySourceType: normalizedSourceType,
+          tags: tagsToSend,
         },
       });
       
       // Update local state
       const updatedName = editFormData.name || selectedCompany.name;
+      const updatedTags = tagsToSend ? tagsToSend.split(',').map(t => t.trim()).filter(Boolean) : selectedCompany.tags;
+      
       companyToasts.updateSuccess(updatedName);
       setSelectedCompany({
         ...selectedCompany,
@@ -261,6 +276,7 @@ export default function CompaniesContent() {
         website: editFormData.website || selectedCompany.website,
         companySourceType: normalizedSourceType,
         type: normalizedSourceType === 'MANUFACTURER' ? ['Manufacturer'] : ['Customer'],
+        tags: updatedTags,
       });
       
       setIsEditing(false);

@@ -36,14 +36,14 @@ const uiStatusToAPI: Record<TaskStatus, TaskStatusAPI> = {
 
 // Priority mappings
 const apiPriorityToUI: Record<TaskPriorityAPI, TaskPriority> = {
-  'LOW': 'No priority',
+  'LOW': 'Low priority',
   'NORMAL': 'Normal',
   'URGENT': 'Urgent',
   'CRITICAL': 'Critical',
 };
 
 const uiPriorityToAPI: Record<TaskPriority, TaskPriorityAPI> = {
-  'No priority': 'LOW',
+  'Low priority': 'LOW',
   'Normal': 'NORMAL',
   'Urgent': 'URGENT',
   'Critical': 'CRITICAL',
@@ -81,7 +81,7 @@ export function convertUIStatusToAPI(uiStatus: TaskStatus): TaskStatusAPI {
  * Convert API priority to UI priority
  */
 export function convertAPIPriorityToUI(apiPriority: TaskPriorityAPI): TaskPriority {
-  return apiPriorityToUI[apiPriority] || 'No priority';
+  return apiPriorityToUI[apiPriority] || 'Low priority';
 }
 
 /**
@@ -301,7 +301,7 @@ export function getAvatarColor(name: string): string {
  * Get priority badge color
  */
 export function getPriorityColor(priority: TaskPriority): string {
-  return PRIORITY_COLORS[priority] || PRIORITY_COLORS['No priority'];
+  return PRIORITY_COLORS[priority] || PRIORITY_COLORS['Low priority'];
 }
 
 /**
@@ -483,7 +483,7 @@ export function getPriorityBorderColor(priority: TaskPriority): string {
       return 'border-l-red-500';
     case 'Normal':
       return 'border-l-blue-500';
-    case 'No priority':
+    case 'Low priority':
       return 'border-l-gray-300';
     default:
       return 'border-l-gray-400';

@@ -30,12 +30,18 @@ export function formatDate(dateString: string): string {
   if (!dateString) return '-';
   const date = new Date(dateString);
   const today = new Date();
-  const diffTime = Math.abs(today.getTime() - date.getTime());
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+  // Reset times to midnight for accurate day comparison
+  const dateDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+  const diffTime = todayDay.getTime() - dateDay.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
   if (diffDays === 0) return 'Today';
   if (diffDays === 1) return 'Yesterday';
-  if (diffDays < 7) return `${diffDays} days ago`;
+  if (diffDays < 7 && diffDays > 0) return `${diffDays} days ago`;
+  if (diffDays < 0) return 'Today'; // Future date (edge case)
   return date.toLocaleDateString();
 }
 

@@ -41,7 +41,7 @@ export type {
 export type TaskStatus = 'Today' | 'Overdue' | 'Upcoming' | 'Waiting' | 'Completed';
 
 // Task priority types for UI display
-export type TaskPriority = 'No priority' | 'Urgent' | 'Normal' | 'Critical';
+export type TaskPriority = 'Low priority' | 'Urgent' | 'Normal' | 'Critical';
 
 // View mode types
 export type TaskViewMode = 'grid' | 'list' | 'kanban' | 'spreadsheet' | 'calendar';
@@ -65,7 +65,7 @@ export const UI_STATUS_TO_API: Record<TaskStatus, TaskStatusAPI> = {
 
 // API Priority to UI Priority mapping
 export const API_PRIORITY_TO_UI: Record<TaskPriorityAPI, TaskPriority> = {
-  'LOW': 'No priority',
+  'LOW': 'Low priority',
   'NORMAL': 'Normal',
   'URGENT': 'Urgent',
   'CRITICAL': 'Critical',
@@ -73,7 +73,7 @@ export const API_PRIORITY_TO_UI: Record<TaskPriorityAPI, TaskPriority> = {
 
 // UI Priority to API Priority mapping
 export const UI_PRIORITY_TO_API: Record<TaskPriority, TaskPriorityAPI> = {
-  'No priority': 'LOW',
+  'Low priority': 'LOW',
   'Normal': 'NORMAL',
   'Urgent': 'URGENT',
   'Critical': 'CRITICAL',

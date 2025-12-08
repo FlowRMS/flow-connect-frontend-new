@@ -243,15 +243,20 @@ export function useUpdateTask() {
       // Helper function to update a single task
       const updateTaskInList = (task: TaskLandingPage): TaskLandingPage => {
         if (task.id === id) {
-          // Convert tags string to array if needed
-          const newTags = input.tags
-            ? input.tags.split(',').map(t => t.trim()).filter(Boolean)
-            : task.tags;
+          // Handle tags - could be string, array, or undefined
+          let newTags = task.tags;
+          if (input.tags !== undefined) {
+            if (typeof input.tags === 'string') {
+              newTags = input.tags.split(',').map(t => t.trim()).filter(Boolean);
+            } else if (Array.isArray(input.tags)) {
+              newTags = input.tags;
+            }
+          }
           return {
             ...task,
-            title: input.title,
-            status: input.status,
-            priority: input.priority,
+            title: input.title ?? task.title,
+            status: input.status ?? task.status,
+            priority: input.priority ?? task.priority,
             description: input.description ?? task.description,
             dueDate: input.dueDate ?? task.dueDate,
             reminderDate: input.reminderDate ?? task.reminderDate,
@@ -432,6 +437,7 @@ export function useUserSearch(searchTerm: string, enabled = true) {
     queryFn: () => searchUsers(searchTerm),
     enabled: hasCRMTokens() && enabled,
     staleTime: 60 * 1000,
+    placeholderData: (previousData) => previousData, // Keep previous data while loading new results
   });
 }
 

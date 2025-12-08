@@ -201,7 +201,8 @@ function transformJob(job: JobLandingPage): Activity {
  */
 function transformCompany(company: CompanyLandingPage): Activity {
   const sourceTypeLabel = company.companySourceType === 'CUSTOMER' ? 'Customer' : 'Manufacturer';
-  
+  const companyTags = parseTags(company.tags);
+
   return {
     id: company.id,
     type: 'company',
@@ -212,7 +213,7 @@ function transformCompany(company: CompanyLandingPage): Activity {
     description: `${sourceTypeLabel} company${company.website ? ` - ${company.website}` : ''}`,
     entity: company.name,
     entityType: 'Company',
-    tags: [sourceTypeLabel],
+    tags: [sourceTypeLabel, ...companyTags],
     assignedTo: company.createdBy || 'System',
     mentions: [],
     status: company.companySourceType,
@@ -231,9 +232,9 @@ function transformCompany(company: CompanyLandingPage): Activity {
  */
 function transformContact(contact: ContactLandingPage): Activity {
   const fullName = `${contact.firstName || ''} ${contact.lastName || ''}`.trim();
-  const rolePart = contact.role ? ` - ${contact.role}` : '';
   const companyPart = contact.companyName ? ` at ${contact.companyName}` : '';
-  
+  const contactTags = parseTags(contact.tags);
+
   return {
     id: contact.id,
     type: 'contact',
@@ -244,7 +245,7 @@ function transformContact(contact: ContactLandingPage): Activity {
     description: `${contact.role || 'Contact'}${companyPart}${contact.email ? ` • ${contact.email}` : ''}`,
     entity: fullName,
     entityType: 'Contact',
-    tags: contact.role ? [contact.role] : [],
+    tags: contact.role ? [contact.role, ...contactTags] : contactTags,
     assignedTo: contact.createdBy || 'System',
     mentions: contact.companyName ? [`@${contact.companyName}`] : [],
     status: '',

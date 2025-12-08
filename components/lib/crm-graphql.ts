@@ -439,6 +439,7 @@ export interface CompanyLandingPage {
   website?: string;
   createdBy?: string;
   createdAt?: string;
+  tags?: string[];
 }
 
 export interface ContactLandingPage {
@@ -451,6 +452,7 @@ export interface ContactLandingPage {
   companyName?: string;
   createdBy?: string;
   createdAt?: string;
+  tags?: string[];
 }
 
 // ============================================================================
@@ -886,6 +888,7 @@ const FIND_COMPANY_LANDING_PAGES = `
           createdBy
           phone
           website
+          tags
         }
       }
       total
@@ -918,6 +921,7 @@ const FIND_CONTACT_LANDING_PAGES = `
           companyName
           createdBy
           createdAt
+          tags
         }
       }
       total

@@ -278,36 +278,31 @@ export default function CompanyInfoForm({
             </svg>
             Tags
           </label>
-          <div className="flex gap-2 flex-wrap items-center min-h-[44px] p-3 border border-gray-200 rounded-lg bg-gray-50">
-            {company.tags.length > 0 ? (
-              company.tags.map((tag, idx) => (
-                <span 
-                  key={idx} 
-                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-full text-sm shadow-sm"
-                >
-                  <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                  {tag}
-                  {isEditing && (
-                    <button className="hover:text-red-500 transition-colors ml-1">
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M3 3l8 8M11 3l-8 8" strokeLinecap="round"/>
-                      </svg>
-                    </button>
-                  )}
-                </span>
-              ))
-            ) : (
-              <span className="text-sm text-gray-400">No tags added</span>
-            )}
-            {isEditing && (
-              <button className="inline-flex items-center gap-1 px-3 py-1.5 border border-dashed border-gray-300 text-gray-500 rounded-full text-sm hover:border-blue-400 hover:text-blue-500 transition-colors">
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M7 3v8M3 7h8" strokeLinecap="round"/>
-                </svg>
-                Add Tag
-              </button>
-            )}
-          </div>
+          {isEditing ? (
+            <input
+              type="text"
+              value={editFormData.tags ? (Array.isArray(editFormData.tags) ? editFormData.tags.join(', ') : editFormData.tags) : company.tags.join(', ')}
+              onChange={(e) => onFieldChange('tags', e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400"
+              placeholder="Enter comma-separated tags (e.g. GC, Healthcare, Monitor)"
+            />
+          ) : (
+            <div className="flex gap-2 flex-wrap items-center min-h-[44px] p-3 border border-gray-200 rounded-lg bg-gray-50">
+              {company.tags.length > 0 ? (
+                company.tags.map((tag, idx) => (
+                  <span 
+                    key={idx} 
+                    className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-full text-sm shadow-sm"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                    {tag}
+                  </span>
+                ))
+              ) : (
+                <span className="text-sm text-gray-400">No tags added</span>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

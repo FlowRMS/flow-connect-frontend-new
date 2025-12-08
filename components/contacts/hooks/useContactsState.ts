@@ -243,6 +243,16 @@ export function useContactsState() {
   const handleSaveEdit = async () => {
     if (!selectedContact) return;
     
+    // Parse tags - handle both string and array formats
+    let tagsToSend: string | undefined;
+    if (editFormData.tags) {
+      if (typeof editFormData.tags === 'string') {
+        tagsToSend = editFormData.tags;
+      } else if (Array.isArray(editFormData.tags)) {
+        tagsToSend = editFormData.tags.join(',');
+      }
+    }
+    
     try {
       await updateContactMutation.mutateAsync({
         id: selectedContact.id,
@@ -252,11 +262,15 @@ export function useContactsState() {
           email: editFormData.email,
           phone: editFormData.phone,
           role: editFormData.role,
+          tags: tagsToSend,
         },
       });
       
       const fullName = `${editFormData.firstName || selectedContact.firstName} ${editFormData.lastName || selectedContact.lastName}`;
       contactToasts.updateSuccess(fullName);
+      
+      // Parse tags for local state update
+      const updatedTags = tagsToSend ? tagsToSend.split(',').map(t => t.trim()).filter(Boolean) : selectedContact.tags;
       
       setSelectedContact({
         ...selectedContact,
@@ -266,6 +280,7 @@ export function useContactsState() {
         email: editFormData.email || selectedContact.email,
         phone: editFormData.phone || selectedContact.phone,
         role: editFormData.role || selectedContact.role,
+        tags: updatedTags,
       });
       
       setIsEditing(false);

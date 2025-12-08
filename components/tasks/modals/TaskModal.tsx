@@ -64,6 +64,9 @@ export default function TaskModal({
   const [editReminderDate, setEditReminderDate] = useState(task.reminderDate || '');
   const [editTags, setEditTags] = useState<string[]>(task.tags || []);
   const [customTag, setCustomTag] = useState('');
+
+  // Local task state for immediate UI updates
+  const [localTask, setLocalTask] = useState(task);
   
   // Assignee editing state
   const [editAssigneeName, setEditAssigneeName] = useState(task.assignedTo || 'Unassigned');
@@ -145,6 +148,11 @@ export default function TaskModal({
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Sync localTask when task prop changes
+  useEffect(() => {
+    setLocalTask(task);
+  }, [task]);
 
   // Update edit state when full task loads (for tags, reminderDate, and assignedToId)
   // CRITICAL: fullTask from useTask has assignedToId (UUID), while the landing page task
@@ -262,7 +270,7 @@ export default function TaskModal({
       // Priority: 1) User's edited value if they changed it, 2) fullTask.assignedToId from GetTask API
       // We MUST send assignedToId to preserve the assignment, otherwise it gets unassigned
       let finalAssignedToId: string | undefined = undefined;
-      
+
       if (editAssigneeId && editAssigneeId.trim() !== '') {
         // User has set/edited an assignee
         finalAssignedToId = editAssigneeId;
@@ -271,9 +279,9 @@ export default function TaskModal({
         finalAssignedToId = fullTask.assignedToId;
       }
       // If both are empty, finalAssignedToId stays undefined (truly unassigned)
-      
+
       await updateTaskMutation.mutateAsync({
-        id: task.id,
+        id: localTask.id,
         input: {
           title: editTitle,
           description: editDescription,
@@ -285,10 +293,23 @@ export default function TaskModal({
           assignedToId: finalAssignedToId,
         }
       });
-      
-      // Note: useUpdateTask already handles cache invalidation in onSettled
-      // No need to manually invalidate or refetch here - it causes duplicate API calls
-      
+
+      // Update local state immediately for UI feedback
+      setLocalTask(prev => ({
+        ...prev,
+        title: editTitle,
+        description: editDescription,
+        apiStatus: editStatus,
+        apiPriority: editPriority,
+        status: statusLabels[editStatus] as Task['status'],
+        priority: priorityLabels[editPriority] as Task['priority'],
+        dueDate: editDueDate,
+        reminderDate: editReminderDate,
+        tags: editTags,
+        assignedTo: editAssigneeName,
+        assignedToId: finalAssignedToId || '',
+      }));
+
       setIsEditMode(false);
       taskToasts.updateSuccess(editTitle);
       onTaskUpdated?.();
@@ -299,16 +320,16 @@ export default function TaskModal({
   };
 
   const handleCancelEdit = () => {
-    setEditTitle(task.title);
-    setEditDescription(task.description);
-    setEditStatus(task.apiStatus);
-    setEditPriority(task.apiPriority);
-    setEditDueDate(task.dueDate);
-    setEditReminderDate(fullTask?.reminderDate || task.reminderDate || '');
-    setEditTags(fullTask?.tags ? parseTagsString(fullTask.tags) : task.tags);
-    setEditAssigneeName(task.assignedTo || 'Unassigned');
-    // CRITICAL: Use fullTask.assignedToId (UUID) when available, fallback to task.assignedToId
-    setEditAssigneeId(fullTask?.assignedToId || task.assignedToId || '');
+    setEditTitle(localTask.title);
+    setEditDescription(localTask.description);
+    setEditStatus(localTask.apiStatus);
+    setEditPriority(localTask.apiPriority);
+    setEditDueDate(localTask.dueDate);
+    setEditReminderDate(fullTask?.reminderDate || localTask.reminderDate || '');
+    setEditTags(fullTask?.tags ? parseTagsString(fullTask.tags) : localTask.tags);
+    setEditAssigneeName(localTask.assignedTo || 'Unassigned');
+    // CRITICAL: Use fullTask.assignedToId (UUID) when available, fallback to localTask.assignedToId
+    setEditAssigneeId(fullTask?.assignedToId || localTask.assignedToId || '');
     setIsEditMode(false);
     setAddEntityType(null);
     setEntitySearch('');
@@ -533,13 +554,17 @@ export default function TaskModal({
                     {onToggleComplete && (
                       <input
                         type="checkbox"
-                        checked={task.completed}
-                        onChange={() => onToggleComplete(task.id)}
+                        checked={localTask.completed}
+                        onChange={() => {
+                          // Update local state immediately for UI feedback
+                          setLocalTask(prev => ({ ...prev, completed: !prev.completed }));
+                          onToggleComplete(localTask.id);
+                        }}
                         className="w-5 h-5 rounded border-gray-300 text-[var(--primary)] focus:ring-[var(--primary)] cursor-pointer"
                       />
                     )}
-                    <h2 className={`text-2xl font-semibold ${task.completed ? 'line-through text-[var(--muted-foreground)]' : 'text-[var(--foreground)]'}`}>
-                      {task.title}
+                    <h2 className={`text-2xl font-semibold ${localTask.completed ? 'line-through text-[var(--muted-foreground)]' : 'text-[var(--foreground)]'}`}>
+                      {localTask.title}
                     </h2>
                   </div>
                 )}
@@ -559,14 +584,14 @@ export default function TaskModal({
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`px-3 py-1 rounded-lg text-xs font-medium border ${getStatusColor(task.status)}`}>
-                      {task.status}
+                    <span className={`px-3 py-1 rounded-lg text-xs font-medium border ${getStatusColor(localTask.status)}`}>
+                      {localTask.status}
                     </span>
-                    <span className={`px-3 py-1 rounded-lg text-xs font-medium border ${getPriorityColor(task.priority)}`}>
-                      {task.priority}
+                    <span className={`px-3 py-1 rounded-lg text-xs font-medium border ${getPriorityColor(localTask.priority)}`}>
+                      {localTask.priority}
                     </span>
                     <span className="px-3 py-1 bg-purple-100 text-purple-700 border border-purple-200 rounded-lg text-xs font-medium">
-                      {task.taskType}
+                      {localTask.taskType}
                     </span>
                   </div>
                 )}
