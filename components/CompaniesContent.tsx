@@ -216,11 +216,11 @@ export default function CompaniesContent() {
       await deleteCompanyMutation.mutateAsync(id);
       companyToasts.deleteSuccess(company?.name || 'Company');
       setDeleteConfirmId(null);
-      if (selectedCompany?.id === id) {
-        setSelectedCompany(null);
-        // Navigate back to companies list after deletion
-        router.replace('/companies', { scroll: false });
-      }
+      
+      // Always navigate back to companies list after deletion
+      isIntentionalClearRef.current = true;
+      setSelectedCompany(null);
+      router.replace('/companies', { scroll: false });
     } catch (err) {
       console.error('Failed to delete company:', err);
       companyToasts.deleteError(err instanceof Error ? err.message : undefined);

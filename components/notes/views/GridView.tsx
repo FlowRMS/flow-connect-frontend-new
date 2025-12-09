@@ -69,9 +69,10 @@ function NoteGridCard({
       </div>
 
       {/* Note Content */}
-      <p className="text-sm text-[var(--muted-foreground)] mb-4 line-clamp-3">
-        {note.content}
-      </p>
+      <div 
+        className="text-sm text-[var(--muted-foreground)] mb-4 line-clamp-3"
+        dangerouslySetInnerHTML={{ __html: note.content }}
+      />
 
       {/* Tags */}
       {note.tags.length > 0 && (

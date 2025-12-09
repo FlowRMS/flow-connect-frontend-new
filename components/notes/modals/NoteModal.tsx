@@ -456,7 +456,11 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
                 </h3>
                 <div className="p-4 bg-[var(--muted)]/30 rounded-lg border border-[var(--border)]">
                   <p className="text-sm text-[var(--foreground)] leading-relaxed whitespace-pre-wrap">
-                    {note.content || <span className="text-[var(--muted-foreground)] italic">No content</span>}
+                    {note.content ? (
+                      <div dangerouslySetInnerHTML={{ __html: note.content }} />
+                    ) : (
+                      <span className="text-[var(--muted-foreground)] italic">No content</span>
+                    )}
                   </p>
                 </div>
               </div>

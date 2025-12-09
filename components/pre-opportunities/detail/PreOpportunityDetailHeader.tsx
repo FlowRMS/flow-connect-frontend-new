@@ -177,34 +177,24 @@ export function PreOpportunityDetailHeader({
             ) : (
               <>
                 <button
-                  onClick={onEditClick}
-                  className="flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 md:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs md:text-sm font-medium"
+                  onClick={onDelete}
+                  className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-4 py-2 md:py-2.5 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 hover:border-red-300 transition-all text-xs md:text-sm font-medium"
                 >
-                  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="md:w-4 md:h-4">
+                  <svg className="w-3.5 h-3.5 md:w-4 md:h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M4 6h12M6 6v10a2 2 0 002 2h4a2 2 0 002-2V6M8 6V4a2 2 0 012-2h0a2 2 0 012 2v2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <span className="hidden sm:inline">Delete</span>
+                </button>
+                <button
+                  onClick={onEditClick}
+                  className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-4 py-2 md:py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-all text-xs md:text-sm font-medium"
+                >
+                  <svg className="w-3.5 h-3.5 md:w-4 md:h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M11 4H4a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-7" strokeLinecap="round" strokeLinejoin="round"/>
                     <path d="M18.5 2.5a2.121 2.121 0 010 3l-9 9L6 15l.5-3.5 9-9a2.121 2.121 0 013 0z" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
-                  <span className="hidden sm:inline">Edit</span>
-                </button>
-                <button
-                  onClick={onDelete}
-                  disabled={isDeleting}
-                  className="flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 md:py-2.5 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors text-xs md:text-sm font-medium disabled:opacity-50"
-                >
-                  {isDeleting ? (
-                    <>
-                      <svg className="animate-spin h-3.5 w-3.5 md:h-4 md:w-4" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                      </svg>
-                    </>
-                  ) : (
-                    <>
-                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="md:w-4 md:h-4">
-                        <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
-                      </svg>
-                    </>
-                  )}
+                  <span className="hidden sm:inline">Edit Pre-Opp</span>
+                  <span className="sm:hidden">Edit</span>
                 </button>
               </>
             )}

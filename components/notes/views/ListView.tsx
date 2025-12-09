@@ -82,9 +82,10 @@ function NoteListItem({
           </div>
 
           {/* Note Content */}
-          <p className="text-sm text-[var(--muted-foreground)] mb-3 line-clamp-2">
-            {note.content}
-          </p>
+          <div 
+            className="text-sm text-[var(--muted-foreground)] mb-3 line-clamp-2"
+            dangerouslySetInnerHTML={{ __html: note.content }}
+          />
 
           {/* Tags, Mentions, Related Entities and Metadata */}
           <div className="flex items-center gap-3 flex-wrap">

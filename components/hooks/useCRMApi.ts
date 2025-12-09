@@ -996,8 +996,10 @@ export function useDeleteCRMPreOpportunity() {
   return useMutation<boolean, Error, string>({
     mutationFn: deletePreOpportunity,
     onSuccess: () => {
+      // Invalidate all pre-opportunity queries
       queryClient.invalidateQueries({ queryKey: crmQueryKeys.preOpportunities() });
-      queryClient.invalidateQueries({ queryKey: crmQueryKeys.preOpportunityLandingPages() });
+      // Invalidate all landing pages queries (matches any filters/orderBy combination)
+      queryClient.invalidateQueries({ queryKey: [...crmQueryKeys.all, 'preOpportunityLandingPages'] });
     },
   });
 }
