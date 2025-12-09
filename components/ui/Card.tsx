@@ -73,14 +73,17 @@ interface CardTitleProps {
   children: React.ReactNode;
   className?: string;
   icon?: React.ReactNode;
+  iconClassName?: string;
   subtitle?: string;
 }
 
-export function CardTitle({ children, className = '', icon, subtitle }: CardTitleProps) {
+export function CardTitle({ children, className = '', icon, iconClassName, subtitle }: CardTitleProps) {
+  const defaultIconClassName = 'flex-shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br from-[var(--primary)] to-[var(--primary-hover)] flex items-center justify-center text-white';
+
   return (
     <div className={`flex items-center gap-3 ${className}`}>
       {icon && (
-        <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br from-[var(--primary)] to-[var(--primary-hover)] flex items-center justify-center text-white">
+        <div className={iconClassName !== undefined ? iconClassName : defaultIconClassName}>
           {icon}
         </div>
       )}

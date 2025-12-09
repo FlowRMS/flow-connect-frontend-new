@@ -1,16 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 /**
- * Microsoft 365 OAuth Callback Handler
+ * Gmail OAuth Callback Handler
  *
- * This route receives the OAuth callback from Microsoft and redirects
+ * This route receives the OAuth callback from Google and redirects
  * to the frontend integrations page with the code and state parameters.
- *
- * Microsoft redirects here with:
- * - code: Authorization code to exchange for tokens
- * - state: CSRF protection state
- * - error: Error code if auth failed
- * - error_description: Human-readable error message
  */
 
 function getBaseUrl(request: NextRequest): string {
@@ -33,14 +27,14 @@ function getBaseUrl(request: NextRequest): string {
     return process.env.NEXT_PUBLIC_APP_URL;
   }
 
-  // Last resort: use the request origin (may be internal URL on some platforms)
+  // Last resort: use the request origin
   return request.nextUrl.origin;
 }
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
 
-  // Extract OAuth parameters from Microsoft's callback
+  // Extract OAuth parameters from Google's callback
   const code = searchParams.get('code');
   const state = searchParams.get('state');
   const error = searchParams.get('error');
@@ -50,8 +44,8 @@ export async function GET(request: NextRequest) {
   const baseUrl = getBaseUrl(request);
   const redirectUrl = new URL('/integrations', baseUrl);
 
-  // Add provider identifier so frontend knows this is O365 callback
-  redirectUrl.searchParams.set('provider', 'o365');
+  // Add provider identifier so frontend knows this is Gmail callback
+  redirectUrl.searchParams.set('provider', 'gmail');
 
   // Pass through all relevant parameters
   if (code) {
