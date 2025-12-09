@@ -135,14 +135,14 @@ export function JobCard({ job, isDragging, isCompleted = false, onClick, onCheck
       </div>
 
       {/* Tags */}
-      {/* {job.tags.length > 0 && (
-        <div className={`flex gap-1.5 flex-wrap ${completed ? 'opacity-60' : ''}`}>
+      {job.tags && job.tags.length > 0 && (
+        <div className={`flex gap-1.5 flex-wrap mt-2 ${completed ? 'opacity-60' : ''}`}>
           {job.tags.map((tag: string, idx: number) => {
             const tagColor = getTagColor(tag);
             return (
               <span
                 key={idx}
-                className={`inline-flex items-center gap-1.5 px-2 py-1 ${tagColor.bg} ${tagColor.text} rounded-md text-xs font-medium`}
+                className={`inline-flex items-center gap-1.5 px-2 py-0.5 ${tagColor.bg} ${tagColor.text} rounded text-xs font-medium`}
               >
                 <span className={`w-1.5 h-1.5 rounded-full ${tagColor.dot}`}></span>
                 {tag}
@@ -150,7 +150,7 @@ export function JobCard({ job, isDragging, isCompleted = false, onClick, onCheck
             );
           })}
         </div>
-      )} */}
+      )}
 
       {/* Dates */}
       {(job.startDate !== '-' || job.endDate !== '-') && (

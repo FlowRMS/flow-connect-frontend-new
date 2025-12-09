@@ -91,6 +91,7 @@ export interface Job {
   createdBy: string;
   createdAt: string;
   status: JobStatus;
+  tags?: string | string[];
 }
 
 export interface JobInput {
@@ -105,6 +106,7 @@ export interface JobInput {
   endDate?: string;
   description?: string;
   additionalInformation?: string;
+  tags?: string;
 }
 
 export interface UpdateJobInput {
@@ -119,6 +121,7 @@ export interface UpdateJobInput {
   endDate?: string;
   description?: string;
   additionalInformation?: string;
+  tags?: string;
 }
 
 // Company Types
@@ -428,6 +431,7 @@ export interface JobLandingPage {
   requester?: string;
   createdBy?: string;
   createdAt?: string;
+  tags?: string | string[];
 }
 
 export interface CompanyLandingPage {
@@ -492,6 +496,7 @@ const GET_JOB = `
       }
       structuralDetails
       structuralInformation
+      tags
     }
   }
 `;
@@ -521,6 +526,7 @@ const CREATE_JOB = `
       }
       createdAt
       additionalInformation
+      tags
     }
   }
 `;
@@ -538,6 +544,7 @@ const UPDATE_JOB = `
       startDate
       endDate
       requesterId
+      tags
       createdBy {
         email
         firstName
@@ -853,6 +860,7 @@ const FIND_JOB_LANDING_PAGES = `
           startDate
           statusName
           createdBy
+          tags
         }
       }
       total

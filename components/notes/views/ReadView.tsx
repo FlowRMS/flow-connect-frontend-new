@@ -72,7 +72,10 @@ function NoteCard({ note, isLast, isMounted, contacts }: NoteCardProps) {
       {/* Note Content */}
       <div className="px-6 py-5">
         <div className="prose prose-sm max-w-none text-[var(--foreground)]">
-          <p className="text-base leading-relaxed whitespace-pre-wrap">{note.content}</p>
+          <div 
+            className="text-base leading-relaxed"
+            dangerouslySetInnerHTML={{ __html: note.content }}
+          />
         </div>
 
         {/* Tags */}

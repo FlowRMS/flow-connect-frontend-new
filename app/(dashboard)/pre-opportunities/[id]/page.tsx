@@ -8,6 +8,7 @@ import React, { useState, useEffect, use, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCRMPreOpportunity, useUpdateCRMPreOpportunity, useDeleteCRMPreOpportunity } from '@/components/hooks/useCRMApi';
 import { PreOpportunityDetailView } from '@/components/pre-opportunities/detail';
+import { DeleteConfirmModal } from '@/components/pre-opportunities/modals/DeleteConfirmModal';
 import { preOpportunityToasts } from '@/components/lib/toast';
 import type { EditFormData } from '@/components/pre-opportunities/detail/PreOpportunityDetailsForm';
 import type { PreOpportunityDetailInput } from '@/components/pre-opportunities/types';
@@ -25,6 +26,7 @@ export default function PreOpportunityDetailPage({ params }: PageProps) {
   const deleteMutation = useDeleteCRMPreOpportunity();
 
   const [isEditing, setIsEditing] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [editFormData, setEditFormData] = useState<EditFormData>({
     status: 'QUALIFIED',
     expDate: '',
@@ -135,12 +137,12 @@ export default function PreOpportunityDetailPage({ params }: PageProps) {
     }
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
+    setShowDeleteModal(true);
+  };
+
+  const handleDeleteConfirm = async () => {
     if (!preOpp) return;
-    
-    if (!confirm(`Are you sure you want to delete pre-opportunity ${preOpp.entityNumber}?`)) {
-      return;
-    }
 
     try {
       await deleteMutation.mutateAsync(preOpp.id);
@@ -192,19 +194,31 @@ export default function PreOpportunityDetailPage({ params }: PageProps) {
   }
 
   return (
-    <PreOpportunityDetailView
-      preOpp={preOpp}
-      isEditing={isEditing}
-      isSaving={updateMutation.isPending}
-      isDeleting={deleteMutation.isPending}
-      editFormData={editFormData}
-      onBack={handleBack}
-      onEditClick={() => setIsEditing(true)}
-      onSave={handleSave}
-      onCancel={handleCancel}
-      onDelete={handleDelete}
-      onEditChange={handleEditChange}
-      onLineItemsChange={handleLineItemsChange}
-    />
+    <div className="flex-1 flex flex-col overflow-hidden">
+      <PreOpportunityDetailView
+        preOpp={preOpp}
+        isEditing={isEditing}
+        isSaving={updateMutation.isPending}
+        isDeleting={deleteMutation.isPending}
+        editFormData={editFormData}
+        onBack={handleBack}
+        onEditClick={() => setIsEditing(true)}
+        onSave={handleSave}
+        onCancel={handleCancel}
+        onDelete={handleDelete}
+        onEditChange={handleEditChange}
+        onLineItemsChange={handleLineItemsChange}
+      />
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && preOpp && (
+        <DeleteConfirmModal
+          entityNumber={preOpp.entityNumber}
+          isPending={deleteMutation.isPending}
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setShowDeleteModal(false)}
+        />
+      )}
+    </div>
   );
 }

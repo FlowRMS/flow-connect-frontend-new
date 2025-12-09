@@ -392,6 +392,7 @@ export default function JobsContent() {
         additionalInformation: jobToEdit.additionalInformation,
         structuralInformation: jobToEdit.structuralInformation,
         structuralDetails: jobToEdit.structuralDetails,
+        tags: jobToEdit.tags || [],
       });
       setIsEditing(true);
     }
@@ -409,6 +410,11 @@ export default function JobsContent() {
         throw new Error('Unable to find status ID for the current job status');
       }
 
+      // Prepare tags as comma-separated string for the API
+      const tagsString = editFormData.tags && Array.isArray(editFormData.tags) 
+        ? editFormData.tags.join(',') 
+        : undefined;
+
       await updateJobMutation.mutateAsync({
         id: currentJob.id,
         input: {
@@ -421,11 +427,14 @@ export default function JobsContent() {
           additionalInformation: editFormData.additionalInformation,
           structuralInformation: editFormData.structuralInformation,
           structuralDetails: editFormData.structuralDetails,
+          tags: tagsString,
         },
       });
       
       // Update local state
       const updatedName = editFormData.name || currentJob.name;
+      const updatedTags = editFormData.tags || currentJob.tags;
+      
       jobToasts.updateSuccess(updatedName);
       setSelectedJob({
         ...currentJob,
@@ -437,7 +446,7 @@ export default function JobsContent() {
         additionalInformation: editFormData.additionalInformation || currentJob.additionalInformation,
         structuralInformation: editFormData.structuralInformation || currentJob.structuralInformation,
         structuralDetails: editFormData.structuralDetails || currentJob.structuralDetails,
-        tags: editFormData.type && editFormData.type !== 'General' ? [editFormData.type] : [],
+        tags: updatedTags,
       });
       
       setIsEditing(false);
@@ -454,7 +463,18 @@ export default function JobsContent() {
   };
 
   const handleEditChange = (field: keyof Job, value: string) => {
-    setEditFormData(prev => ({ ...prev, [field]: value }));
+    // Handle tags separately as they come as stringified array
+    if (field === 'tags') {
+      try {
+        const tagsArray = JSON.parse(value);
+        setEditFormData(prev => ({ ...prev, [field]: tagsArray }));
+      } catch {
+        // If parsing fails, treat as single tag
+        setEditFormData(prev => ({ ...prev, [field]: [value] }));
+      }
+    } else {
+      setEditFormData(prev => ({ ...prev, [field]: value }));
+    }
   };
 
   // Handle delete job
@@ -465,7 +485,12 @@ export default function JobsContent() {
     try {
       await deleteJobMutation.mutateAsync(currentJob.id);
       jobToasts.deleteSuccess(currentJob.name);
+      
+      // Navigate back to jobs list after deletion
+      isIntentionalClearRef.current = true;
       setSelectedJob(null);
+      router.replace('/jobs', { scroll: false });
+      
       refetchJobs();
     } catch (err) {
       console.error('Failed to delete job:', err);

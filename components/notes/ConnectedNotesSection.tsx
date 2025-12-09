@@ -101,9 +101,12 @@ function NoteCard({
       
       {note.content && (
         <div className="text-sm text-[var(--muted-foreground)] ml-10">
-          <p className="whitespace-pre-wrap">
-            {isExpanded ? note.content : truncateContent(note.content)}
-          </p>
+          <div 
+            className="prose prose-sm max-w-none"
+            dangerouslySetInnerHTML={{ 
+              __html: isExpanded ? note.content : truncateContent(note.content) 
+            }}
+          />
           {note.content.length > 150 && (
             <button
               onClick={(e) => {

@@ -137,6 +137,19 @@ export type MergeStrategy = 'keep' | 'combine';
  */
 export function mapLandingPageToUIJob(landingPage: JobLandingPage): Job {
   const jobType = landingPage.jobType || 'General';
+  
+  // Parse tags from API - same logic as mapAPIJobToUIJob
+  let parsedTags: string[] = [];
+  if (landingPage.tags) {
+    if (typeof landingPage.tags === 'string') {
+      parsedTags = landingPage.tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
+    } else if (Array.isArray(landingPage.tags)) {
+      parsedTags = landingPage.tags.flatMap(tag => 
+        tag.split(',').map(t => t.trim())
+      ).filter(tag => tag.length > 0);
+    }
+  }
+  
   return {
     id: landingPage.id,
     name: landingPage.jobName,
@@ -149,7 +162,7 @@ export function mapLandingPageToUIJob(landingPage: JobLandingPage): Job {
     ec: '-',
     owner: landingPage.jobOwner || landingPage.createdBy || 'Unknown',
     description: landingPage.description || '',
-    tags: jobType !== 'General' ? [jobType] : [],
+    tags: parsedTags,
     createdBy: landingPage.createdBy || '',
     createdAt: landingPage.createdAt || '',
     // Landing page doesn't have these fields, so use defaults
@@ -165,6 +178,21 @@ export function mapLandingPageToUIJob(landingPage: JobLandingPage): Job {
  */
 export function mapAPIJobToUIJob(apiJob: APIJob): Job {
   const jobType = apiJob.jobType || 'General';
+  
+  // Parse tags from API - can be string, array, or undefined
+  let parsedTags: string[] = [];
+  if (apiJob.tags) {
+    if (typeof apiJob.tags === 'string') {
+      // If it's a string, split by comma
+      parsedTags = apiJob.tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
+    } else if (Array.isArray(apiJob.tags)) {
+      // If it's already an array, flatten any comma-separated values
+      parsedTags = apiJob.tags.flatMap(tag => 
+        tag.split(',').map(t => t.trim())
+      ).filter(tag => tag.length > 0);
+    }
+  }
+  
   return {
     id: apiJob.id,
     name: apiJob.jobName,
@@ -177,7 +205,7 @@ export function mapAPIJobToUIJob(apiJob: APIJob): Job {
     ec: '-',
     owner: apiJob.createdBy || 'Unknown',
     description: apiJob.description || '',
-    tags: jobType !== 'General' ? [jobType] : [],
+    tags: parsedTags,
     createdBy: apiJob.createdBy || '',
     createdAt: apiJob.createdAt || '',
     // Additional fields from GetJob endpoint

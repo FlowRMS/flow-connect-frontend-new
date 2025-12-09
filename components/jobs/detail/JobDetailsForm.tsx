@@ -9,6 +9,7 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import type { Job } from '../types';
 import { formatLocalDate, parseLocalDate } from '../../lib/date-utils';
+import { TagsEditor } from './TagsEditor';
 
 // Styled DatePicker wrapper with custom styles using Portal
 const StyledDatePicker: React.FC<{
@@ -209,6 +210,10 @@ export function JobDetailsForm({ job, isEditing, editFormData, onChange }: JobDe
 
   const handleDateChange = (field: keyof Job) => (date: Date | null) => {
     onChange(field, formatLocalDate(date));
+  };
+
+  const handleTagsChange = (tags: string[]) => {
+    onChange('tags', JSON.stringify(tags));
   };
 
   const inputBaseClass = `
@@ -448,36 +453,11 @@ export function JobDetailsForm({ job, isEditing, editFormData, onChange }: JobDe
             </svg>
             Tags
           </label>
-          <div className="flex gap-2 flex-wrap items-center min-h-[44px] p-3 border border-gray-200 rounded-lg bg-gray-50">
-            {job.tags.length > 0 ? (
-              job.tags.map((tag: string, idx: number) => (
-                <span 
-                  key={idx} 
-                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-full text-sm shadow-sm"
-                >
-                  <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                  {tag}
-                  {isEditing && (
-                    <button className="hover:text-red-500 transition-colors ml-1">
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M3 3l8 8M11 3l-8 8" strokeLinecap="round"/>
-                      </svg>
-                    </button>
-                  )}
-                </span>
-              ))
-            ) : (
-              <span className="text-sm text-gray-400">No tags added</span>
-            )}
-            {isEditing && (
-              <button className="inline-flex items-center gap-1 px-3 py-1.5 border border-dashed border-gray-300 text-gray-500 rounded-full text-sm hover:border-blue-400 hover:text-blue-500 transition-colors">
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M7 3v8M3 7h8" strokeLinecap="round"/>
-                </svg>
-                Add Tag
-              </button>
-            )}
-          </div>
+          <TagsEditor
+            tags={isEditing ? (editFormData.tags || []) : job.tags}
+            isEditing={isEditing}
+            onChange={handleTagsChange}
+          />
         </div>
       </div>
     </div>
