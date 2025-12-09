@@ -168,11 +168,14 @@ export function parseO365CallbackParams(): O365CallbackParams {
 }
 
 /**
- * Check if current URL has OAuth callback parameters
+ * Check if current URL has O365 OAuth callback parameters
  */
 export function hasO365CallbackParams(): boolean {
-  const params = parseO365CallbackParams();
-  return !!(params.code || params.error);
+  if (typeof window === 'undefined') return false;
+  const params = new URLSearchParams(window.location.search);
+  const provider = params.get('provider');
+  // Only return true if provider is o365 or not set (for backwards compatibility)
+  return (provider === 'o365' || !provider) && !!(params.get('code') || params.get('error'));
 }
 
 /**
