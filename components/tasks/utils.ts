@@ -115,6 +115,19 @@ export function parseLinkedTitles(value: string[] | null | undefined): LinkedTit
 }
 
 /**
+ * Parse linkedEntities array from API to LinkedTitle objects
+ * Format from API: [{ entityType: "JOB", id: "123", title: "Job Name" }]
+ */
+export function parseLinkedEntities(entities: Array<{ entityType: string; id: string; title: string }> | null | undefined): LinkedTitle[] {
+  if (!entities || !Array.isArray(entities) || entities.length === 0) return [];
+
+  return entities.map(entity => ({
+    type: entity.entityType?.toUpperCase() || 'UNKNOWN',
+    name: entity.title || ''
+  })).filter(item => item.name.length > 0);
+}
+
+/**
  * Parse tags string to array
  * Handles various formats:
  * - String: "tag1,tag2,tag3" -> ["tag1", "tag2", "tag3"]
@@ -160,7 +173,7 @@ export function convertTaskLandingPageToUI(taskLanding: TaskLandingPage): Task {
   const uiStatus = convertAPIStatusToUI(taskLanding.status, taskLanding.dueDate);
   const uiPriority = convertAPIPriorityToUI(taskLanding.priority);
   const tags = parseTagsString(taskLanding.tags);
-  const linkedTitles = parseLinkedTitles(taskLanding.linkedTitles);
+  const linkedTitles = parseLinkedEntities(taskLanding.linkedEntities);
 
   // Check if assignedTo is a UUID - if so, it's the assignedToId
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

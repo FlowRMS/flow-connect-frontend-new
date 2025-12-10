@@ -18,6 +18,7 @@ export interface Activity {
   tags: string[];
   assignedTo: string;
   mentions: string[];
+  linkedEntities?: Array<{ type: string; name: string }>;
   status: string;
   activityStatus: ActivityStatus;
   link: string;

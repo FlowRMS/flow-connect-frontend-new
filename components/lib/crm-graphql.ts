@@ -2856,7 +2856,11 @@ export interface NoteLandingPage {
   id: string;
   title: string;
   content: string;
-  linkedTitles: string[];
+  linkedEntities: Array<{
+    entityType: string;
+    id: string;
+    title: string;
+  }>;
   tags: string;
   createdBy: string;
   createdAt: string;
@@ -3034,7 +3038,11 @@ const FIND_NOTE_LANDING_PAGES = `
           id
           title
           content
-          linkedTitles
+          linkedEntities {
+            entityType
+            id
+            title
+          }
           tags
           createdBy
           createdAt
@@ -3236,7 +3244,11 @@ export interface TaskLandingPage {
   status: TaskStatusAPI;
   priority: TaskPriorityAPI;
   dueDate: string;
-  linkedTitles: string[];
+  linkedEntities: Array<{
+    entityType: string;
+    id: string;
+    title: string;
+  }>;
   reminderDate: string;
   tags: string[];
   assignedTo: string;
@@ -3346,7 +3358,11 @@ const FIND_TASK_LANDING_PAGES = `
           createdBy
           description
           dueDate
-          linkedTitles
+          linkedEntities {
+            entityType
+            id
+            title
+          }
           priority
           reminderDate
           status
@@ -3466,7 +3482,11 @@ const FIND_ALL_LANDING_PAGES = `
           id
           title
           content
-          linkedTitles
+          linkedEntities {
+            entityType
+            id
+            title
+          }
           tags
           createdBy
           createdAt
@@ -3489,7 +3509,11 @@ const FIND_ALL_LANDING_PAGES = `
           createdBy
           description
           dueDate
-          linkedTitles
+          linkedEntities {
+            entityType
+            id
+            title
+          }
           priority
           reminderDate
           status

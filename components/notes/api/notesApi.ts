@@ -377,7 +377,11 @@ const FIND_NOTES_LANDING_PAGES = `
           content
           createdAt
           createdBy
-          linkedTitles
+          linkedEntities {
+            entityType
+            id
+            title
+          }
           mentions
           tags
           title

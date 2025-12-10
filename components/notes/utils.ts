@@ -54,6 +54,19 @@ export function parseLinkedTitles(value: string[] | null | undefined): LinkedTit
 }
 
 /**
+ * Parse linkedEntities array from API to LinkedTitle objects
+ * Format from API: [{ entityType: "JOB", id: "123", title: "Job Name" }]
+ */
+export function parseLinkedEntities(entities: Array<{ entityType: string; id: string; title: string }> | null | undefined): LinkedTitle[] {
+  if (!entities || !Array.isArray(entities) || entities.length === 0) return [];
+
+  return entities.map(entity => ({
+    type: entity.entityType?.toUpperCase() || 'UNKNOWN',
+    name: entity.title || ''
+  })).filter(item => item.name.length > 0);
+}
+
+/**
  * Convert an array to a comma-separated string
  */
 export function toCommaSeparated(arr: string[]): string {
@@ -87,7 +100,7 @@ export function parseNoteLandingPage(note: NoteLandingPage): ParsedNote {
     content: note.content,
     mentions: [], // Landing page doesn't include mentions
     tags: parseCommaSeparated(note.tags),
-    linkedTitles: parseLinkedTitles(note.linkedTitles),
+    linkedTitles: parseLinkedEntities(note.linkedEntities),
     createdBy: note.createdBy,
     createdAt: note.createdAt,
   };

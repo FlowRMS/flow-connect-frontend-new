@@ -304,6 +304,14 @@ function transformNote(note: NoteLandingPage): Activity {
     ? (note.content.length > 100 ? note.content.substring(0, 100) + '...' : note.content)
     : 'No content';
   
+  // Parse linkedEntities to linkedTitles format
+  const linkedEntities = note.linkedEntities
+    ? note.linkedEntities.map(entity => ({
+        type: entity.entityType?.toUpperCase() || 'UNKNOWN',
+        name: entity.title || ''
+      })).filter(item => item.name.length > 0)
+    : [];
+  
   return {
     id: note.id,
     type: 'note',
@@ -317,6 +325,7 @@ function transformNote(note: NoteLandingPage): Activity {
     tags,
     assignedTo: note.createdBy || 'System',
     mentions: [],
+    linkedEntities,
     status: '',
     activityStatus: 'completed',
     link: `/notes?id=${note.id}`,
@@ -333,6 +342,14 @@ function transformTask(task: TaskLandingPage): Activity {
   const dueDateText = task.dueDate ? `Due: ${formatDate(task.dueDate)}` : '';
   const priorityText = task.priority ? `[${task.priority}]` : '';
   
+  // Parse linkedEntities to linkedTitles format
+  const linkedEntities = task.linkedEntities
+    ? task.linkedEntities.map(entity => ({
+        type: entity.entityType?.toUpperCase() || 'UNKNOWN',
+        name: entity.title || ''
+      })).filter(item => item.name.length > 0)
+    : [];
+  
   return {
     id: task.id,
     type: 'task',
@@ -346,6 +363,7 @@ function transformTask(task: TaskLandingPage): Activity {
     tags: task.priority ? [task.priority] : [],
     assignedTo: task.assignedTo || task.createdBy || 'Unassigned',
     mentions: [],
+    linkedEntities,
     status: task.status,
     activityStatus: determineActivityStatus(task.status, task.dueDate),
     link: `/tasks?id=${task.id}`,
