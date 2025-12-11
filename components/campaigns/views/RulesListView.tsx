@@ -2,9 +2,9 @@
  * Rules List View Component
  */
 
-import React from 'react';
 import type { Rule } from '../types';
-import { getStatusColor, formatDate } from '../utils';
+import { getStatusColor } from '../types';
+import { formatDate } from '../utils';
 
 interface RulesListViewProps {
   rules: Rule[];

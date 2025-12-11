@@ -52,6 +52,18 @@ export function useCampaignState() {
   const [aiPrompt, setAIPrompt] = useState('');
   const [aiContext, setAIContext] = useState<AIContext>(null);
 
+  // Edit mode
+  const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
+
+  // Campaign name and description
+  const [campaignName, setCampaignName] = useState('');
+  const [campaignDescription, setCampaignDescription] = useState('');
+
+  // Schedule settings
+  const [sendImmediately, setSendImmediately] = useState(true);
+  const [scheduledDate, setScheduledDate] = useState('');
+  const [scheduledTime, setScheduledTime] = useState('');
+
   // Campaign condition handlers
   const addCampaignCondition = (groupId: string) => {
     setCampaignConditionGroups(groups =>
@@ -139,6 +151,15 @@ export function useCampaignState() {
     }
   };
 
+  // Add multiple contacts at once (fixes multi-selection bug)
+  const addMultipleToRecipientList = (contacts: Contact[]) => {
+    setRecipientList(prev => {
+      const existingIds = new Set(prev.map(c => c.id));
+      const newContacts = contacts.filter(c => !existingIds.has(c.id));
+      return [...prev, ...newContacts];
+    });
+  };
+
   const removeFromRecipientList = (contactId: string) => {
     setRecipientList(recipientList.filter(c => c.id !== contactId));
   };
@@ -203,6 +224,7 @@ export function useCampaignState() {
 
     // Recipient list actions
     addToRecipientList,
+    addMultipleToRecipientList,
     removeFromRecipientList,
     clearRecipientList,
 
@@ -216,5 +238,23 @@ export function useCampaignState() {
     setAIPrompt,
     aiContext,
     setAIContext,
+
+    // Edit mode
+    editingCampaignId,
+    setEditingCampaignId,
+
+    // Campaign name and description
+    campaignName,
+    setCampaignName,
+    campaignDescription,
+    setCampaignDescription,
+
+    // Schedule settings
+    sendImmediately,
+    setSendImmediately,
+    scheduledDate,
+    setScheduledDate,
+    scheduledTime,
+    setScheduledTime,
   };
 }

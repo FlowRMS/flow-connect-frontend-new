@@ -1,34 +1,236 @@
 /**
  * New Campaign View Component
+ * Fully integrated with Campaign API
  */
 
-import React from 'react';
-import type { Contact } from '../types';
+'use client';
+
+import { useState, useMemo, useCallback } from 'react';
+import dynamic from 'next/dynamic';
+import type { Contact, RuleConditionGroup } from '../types';
+import { mapListTypeToAPI, mapSendPaceToAPI } from '../types';
 import ConditionBuilder from '../components/ConditionBuilder';
 import StaticListBuilder from '../components/StaticListBuilder';
 import { SEND_PACE_OPTIONS } from '../constants';
+import {
+  useCreateCampaign,
+  useUpdateCampaign,
+  useEstimateRecipients,
+  type CampaignCriteria,
+  type CriteriaCondition,
+  type EstimateSampleContact,
+} from '../api';
+
+// Dynamically import RichTextEditor to avoid SSR issues with Tiptap
+const RichTextEditor = dynamic(() => import('../components/RichTextEditor'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full min-h-[280px] border border-[var(--border)] rounded-md bg-[var(--background)] animate-pulse" />
+  ),
+});
 
 interface NewCampaignViewProps {
   campaignState: any;
-  availableContacts: Contact[];
+  onCancel?: () => void;
+  onSuccess?: () => void;
+  onDelete?: () => void;
+  editMode?: boolean;
+  campaignId?: string;
 }
 
-export default function NewCampaignView({ campaignState, availableContacts }: NewCampaignViewProps) {
+export default function NewCampaignView({
+  campaignState,
+  onCancel,
+  onSuccess,
+  onDelete,
+  editMode = false,
+  campaignId,
+}: NewCampaignViewProps) {
+  // Local state for form
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [testEmail, setTestEmail] = useState('');
+  const [showTestEmailModal, setShowTestEmailModal] = useState(false);
+  const [showEmailPreview, setShowEmailPreview] = useState(false);
+  const [isHtmlMode, setIsHtmlMode] = useState(false);
+
+  // API hooks
+  const createCampaignMutation = useCreateCampaign();
+  const updateCampaignMutation = useUpdateCampaign();
+
+  // Build criteria from condition groups for API
+  const buildCriteriaFromGroups = useCallback((groups: RuleConditionGroup[]): CampaignCriteria | null => {
+    const validGroups = groups.filter(group =>
+      group.conditions.some(c => c.entity && c.field && c.operator)
+    );
+
+    if (validGroups.length === 0) return null;
+
+    return {
+      groups: validGroups.map(group => ({
+        logicalOperator: group.logic,
+        conditions: group.conditions
+          .filter(c => c.entity && c.field && c.operator)
+          .map(c => ({
+            entityType: c.entity as CriteriaCondition['entityType'],
+            field: c.field,
+            operator: c.operator as CriteriaCondition['operator'],
+            value: c.value,
+          })),
+      })),
+      // Multiple groups are combined with OR (each group is an alternative set of conditions)
+      // When you click "Add OR condition group", groups should be OR'd together
+      groupOperator: validGroups.length > 1 ? 'OR' as const : 'AND' as const,
+    };
+  }, []);
+
+  // Get criteria for estimate
+  const criteria = useMemo(() => {
+    if (campaignState.listType === 'static') return null;
+    return buildCriteriaFromGroups(campaignState.campaignConditionGroups);
+  }, [campaignState.listType, campaignState.campaignConditionGroups, buildCriteriaFromGroups]);
+
+  // Estimate recipients for criteria-based/dynamic campaigns
+  const { data: estimateData, isLoading: estimateLoading } = useEstimateRecipients(criteria);
+
+  // Convert sampleContacts from API to Contact type for display
+  const sampleRecipients: Contact[] = useMemo(() => {
+    if (!estimateData?.sampleContacts) return [];
+    return estimateData.sampleContacts.map((contact: EstimateSampleContact) => ({
+      id: contact.id,
+      name: `${contact.firstName || ''} ${contact.lastName || ''}`.trim(),
+      firstName: contact.firstName,
+      lastName: contact.lastName,
+      email: contact.email || '',
+      phone: contact.phone,
+      role: contact.role,
+      territory: contact.territory,
+      tags: Array.isArray(contact.tags) ? contact.tags.join(', ') : contact.tags,
+    }));
+  }, [estimateData?.sampleContacts]);
+
+  // Handle form submission
+  const handleCreateCampaign = async (saveAsDraft = false) => {
+    if (!campaignState.campaignName.trim()) {
+      alert('Please enter a campaign name');
+      return;
+    }
+
+    // Only require these fields for non-draft campaigns
+    if (!saveAsDraft) {
+      if (!campaignState.emailSubject.trim()) {
+        alert('Please enter an email subject');
+        return;
+      }
+
+      if (!campaignState.emailBody.trim()) {
+        alert('Please enter email body content');
+        return;
+      }
+
+      // Validate recipients based on list type
+      if (campaignState.listType === 'static') {
+        if (campaignState.recipientList.length === 0) {
+          alert('Please select at least one recipient');
+          return;
+        }
+      } else {
+        if (!criteria || criteria.groups.length === 0) {
+          alert('Please define at least one condition');
+          return;
+        }
+      }
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const input = {
+        name: campaignState.campaignName,
+        recipientListType: mapListTypeToAPI(campaignState.listType),
+        description: campaignState.campaignDescription || '',
+        emailSubject: campaignState.emailSubject || '',
+        emailBody: campaignState.emailBody || '',
+        aiPersonalizationEnabled: campaignState.useAIPersonalization,
+        sendPace: mapSendPaceToAPI(campaignState.sendPace),
+        maxEmailsPerDay: campaignState.maxPerDay,
+        sendImmediately: saveAsDraft ? false : campaignState.sendImmediately,
+        scheduledAt: !saveAsDraft && !campaignState.sendImmediately && campaignState.scheduledDate
+          ? new Date(`${campaignState.scheduledDate}T${campaignState.scheduledTime || '09:00'}`).toISOString()
+          : undefined,
+        staticContactIds: campaignState.listType === 'static'
+          ? campaignState.recipientList.map((c: Contact) => c.id)
+          : undefined,
+        criteria: campaignState.listType !== 'static' ? criteria || undefined : undefined,
+      };
+
+      if (editMode && campaignId) {
+        await updateCampaignMutation.mutateAsync({ id: campaignId, input });
+      } else {
+        await createCampaignMutation.mutateAsync(input);
+      }
+      onSuccess?.();
+    } catch (error) {
+      console.error(`Failed to ${editMode ? 'update' : 'create'} campaign:`, error);
+      alert(`Failed to ${editMode ? 'update' : 'create'} campaign. Please try again.`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle test email
+  const handleSendTestEmail = async () => {
+    if (!testEmail.trim()) {
+      alert('Please enter an email address');
+      return;
+    }
+
+    try {
+      // Note: Test email requires a campaign ID, so we'd need to save as draft first
+      // For now, show a message about this limitation
+      alert('To send a test email, please save the campaign as draft first.');
+      setShowTestEmailModal(false);
+    } catch (error) {
+      console.error('Failed to send test email:', error);
+    }
+  };
+
+  const handleCancel = () => {
+    onCancel?.() ?? campaignState.setActiveTab('campaigns');
+  };
+
   return (
     <div className="grid grid-cols-12 gap-6">
       {/* Left Column - Campaign Configuration */}
       <div className="col-span-8 space-y-6">
         <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6">
-          <h2 className="text-lg font-semibold text-[var(--foreground)] mb-4">Campaign Configuration</h2>
+          <h2 className="text-lg font-semibold text-[var(--foreground)] mb-4">
+            {editMode ? 'Edit Campaign' : 'Campaign Configuration'}
+          </h2>
 
           {/* Campaign Name */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-              Campaign Name
+              Campaign Name <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
+              value={campaignState.campaignName}
+              onChange={(e) => campaignState.setCampaignName(e.target.value)}
               placeholder="e.g., Q1 Product Launch"
+              className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
+            />
+          </div>
+
+          {/* Campaign Description */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+              Description
+            </label>
+            <input
+              type="text"
+              value={campaignState.campaignDescription}
+              onChange={(e) => campaignState.setCampaignDescription(e.target.value)}
+              placeholder="Brief description of the campaign..."
               className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
             />
           </div>
@@ -91,7 +293,6 @@ export default function NewCampaignView({ campaignState, availableContacts }: Ne
             {/* Static List */}
             {campaignState.listType === 'static' && (
               <StaticListBuilder
-                availableContacts={availableContacts}
                 searchQuery={campaignState.searchQuery}
                 setSearchQuery={campaignState.setSearchQuery}
                 selectedCompanies={campaignState.selectedCompanies}
@@ -106,6 +307,7 @@ export default function NewCampaignView({ campaignState, availableContacts }: Ne
                 setOpenDropdown={campaignState.setOpenDropdown}
                 recipientList={campaignState.recipientList}
                 addToRecipientList={campaignState.addToRecipientList}
+                addMultipleToRecipientList={campaignState.addMultipleToRecipientList}
                 clearRecipientList={campaignState.clearRecipientList}
                 clearAllFilters={campaignState.clearAllFilters}
               />
@@ -147,7 +349,7 @@ export default function NewCampaignView({ campaignState, availableContacts }: Ne
           {/* Email Subject */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-              Email Subject
+              Email Subject <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
@@ -158,18 +360,46 @@ export default function NewCampaignView({ campaignState, availableContacts }: Ne
             />
           </div>
 
-          {/* Email Body */}
+          {/* Email Body - Rich Text Editor */}
           <div className="mb-4">
-            <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-              Email Body
-            </label>
-            <textarea
-              value={campaignState.emailBody}
-              onChange={(e) => campaignState.setEmailBody(e.target.value)}
-              placeholder="Enter base email content... AI will personalize for each recipient."
-              rows={12}
-              className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] resize-none bg-[var(--background)]"
-            />
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-[var(--foreground)]">
+                Email Body <span className="text-red-500">*</span>
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsHtmlMode(!isHtmlMode)}
+                  className={`px-2 py-1 text-xs rounded transition-colors ${
+                    isHtmlMode
+                      ? 'bg-[var(--primary)] text-white'
+                      : 'bg-[var(--muted)] text-[var(--muted-foreground)] hover:bg-[var(--muted)]/80'
+                  }`}
+                >
+                  {isHtmlMode ? 'HTML Mode' : 'Visual Mode'}
+                </button>
+              </div>
+            </div>
+            <div className="text-xs text-[var(--muted-foreground)] mb-2">
+              Use {'{{first_name}}'}, {'{{last_name}}'}, {'{{email}}'} for personalization
+            </div>
+
+            {/* Editor / Textarea */}
+            {isHtmlMode ? (
+              <textarea
+                value={campaignState.emailBody}
+                onChange={(e) => campaignState.setEmailBody(e.target.value)}
+                placeholder="<html>&#10;<body>&#10;  <p>Hello {{first_name}},</p>&#10;  <p>Your email content here...</p>&#10;</body>&#10;</html>"
+                rows={12}
+                className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] resize-none bg-[var(--background)] font-mono"
+              />
+            ) : (
+              <RichTextEditor
+                content={campaignState.emailBody}
+                onChange={campaignState.setEmailBody}
+                placeholder="Hello {{first_name}}, write your email content here..."
+              />
+            )}
           </div>
 
           {/* AI Personalization */}
@@ -211,59 +441,142 @@ export default function NewCampaignView({ campaignState, availableContacts }: Ne
             <input
               type="number"
               value={campaignState.maxPerDay}
-              onChange={(e) => campaignState.setMaxPerDay(parseInt(e.target.value))}
+              onChange={(e) => campaignState.setMaxPerDay(parseInt(e.target.value) || 50)}
+              min={1}
+              max={1000}
               className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
             />
           </div>
 
           {/* Schedule Section */}
-          <div className="mb-6 p-4 border border-[var(--border)] rounded-lg bg-[var(--muted)]/20">
-            <label className="block text-sm font-medium text-[var(--foreground)] mb-3">
-              When to Send
-            </label>
+          <div className="mb-6 p-5 border border-[var(--border)] rounded-xl bg-gradient-to-br from-[var(--muted)]/30 to-[var(--muted)]/10">
+            <div className="flex items-center gap-2 mb-4">
+              <svg className="w-5 h-5 text-[var(--primary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <label className="text-sm font-semibold text-[var(--foreground)]">
+                When to Send
+              </label>
+            </div>
             <div className="grid grid-cols-2 gap-3 mb-4">
               <button
-                className="px-4 py-2.5 text-sm rounded-lg border-2 border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)] font-medium transition-all"
+                type="button"
+                onClick={() => campaignState.setSendImmediately(true)}
+                className={`relative px-4 py-3 text-sm rounded-xl border-2 transition-all flex items-center justify-center gap-2 ${
+                  campaignState.sendImmediately
+                    ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)] font-medium shadow-sm'
+                    : 'border-[var(--border)] text-[var(--foreground)] hover:border-[var(--primary)]/50 hover:bg-[var(--muted)]/30'
+                }`}
               >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
                 Send Immediately
+                {campaignState.sendImmediately && (
+                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-[var(--primary)] rounded-full border-2 border-white"></span>
+                )}
               </button>
               <button
-                className="px-4 py-2.5 text-sm rounded-lg border-2 border-[var(--border)] text-[var(--foreground)] hover:border-[var(--primary)]/50 transition-all"
+                type="button"
+                onClick={() => campaignState.setSendImmediately(false)}
+                className={`relative px-4 py-3 text-sm rounded-xl border-2 transition-all flex items-center justify-center gap-2 ${
+                  !campaignState.sendImmediately
+                    ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)] font-medium shadow-sm'
+                    : 'border-[var(--border)] text-[var(--foreground)] hover:border-[var(--primary)]/50 hover:bg-[var(--muted)]/30'
+                }`}
               >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
                 Schedule for Later
+                {!campaignState.sendImmediately && (
+                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-[var(--primary)] rounded-full border-2 border-white"></span>
+                )}
               </button>
             </div>
-            {/* Schedule inputs - shown when "Schedule for Later" is selected */}
-            <div className="grid grid-cols-2 gap-3 opacity-50">
-              <div>
-                <label className="block text-xs text-[var(--muted-foreground)] mb-1">Date</label>
-                <input
-                  type="date"
-                  disabled
-                  className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm bg-[var(--background)]"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-[var(--muted-foreground)] mb-1">Time</label>
-                <input
-                  type="time"
-                  disabled
-                  className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm bg-[var(--background)]"
-                />
+
+            {/* Enhanced Schedule inputs - shown when "Schedule for Later" is selected */}
+            <div className={`transition-all duration-300 ${campaignState.sendImmediately ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
+              <div className="bg-[var(--background)] rounded-xl p-4 border border-[var(--border)]">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="flex items-center gap-1.5 text-xs font-medium text-[var(--foreground)] mb-2">
+                      <svg className="w-3.5 h-3.5 text-[var(--muted-foreground)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      Schedule Date
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="date"
+                        value={campaignState.scheduledDate}
+                        onChange={(e) => campaignState.setScheduledDate(e.target.value)}
+                        disabled={campaignState.sendImmediately}
+                        min={new Date().toISOString().split('T')[0]}
+                        className="w-full px-3 py-2.5 border border-[var(--border)] rounded-lg text-sm bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-all cursor-pointer hover:border-[var(--primary)]/50"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="flex items-center gap-1.5 text-xs font-medium text-[var(--foreground)] mb-2">
+                      <svg className="w-3.5 h-3.5 text-[var(--muted-foreground)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Schedule Time
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="time"
+                        value={campaignState.scheduledTime}
+                        onChange={(e) => campaignState.setScheduledTime(e.target.value)}
+                        disabled={campaignState.sendImmediately}
+                        className="w-full px-3 py-2.5 border border-[var(--border)] rounded-lg text-sm bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-all cursor-pointer hover:border-[var(--primary)]/50"
+                      />
+                    </div>
+                  </div>
+                </div>
+                {!campaignState.sendImmediately && campaignState.scheduledDate && (
+                  <div className="mt-3 pt-3 border-t border-[var(--border)]">
+                    <p className="text-xs text-[var(--muted-foreground)] flex items-center gap-1.5">
+                      <svg className="w-3.5 h-3.5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Campaign will be sent on{' '}
+                      <span className="font-medium text-[var(--foreground)]">
+                        {new Date(`${campaignState.scheduledDate}T${campaignState.scheduledTime || '09:00'}`).toLocaleString('en-US', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                          hour: 'numeric',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
           {/* Preview & Test Section */}
           <div className="mb-6 flex gap-3">
-            <button className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors">
+            <button
+              type="button"
+              onClick={() => setShowEmailPreview(true)}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
+            >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                 <circle cx="12" cy="12" r="3" />
               </svg>
               Preview Email
             </button>
-            <button className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors">
+            <button
+              type="button"
+              onClick={() => setShowTestEmailModal(true)}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
+            >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M22 2L11 13" />
                 <path d="M22 2l-7 20-4-9-9-4 20-7z" />
@@ -273,19 +586,45 @@ export default function NewCampaignView({ campaignState, availableContacts }: Ne
           </div>
 
           {/* Action Buttons */}
-          <div className="flex gap-3">
-            <button className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors">
-              Create Campaign
+          <div className="flex gap-3 items-center">
+            <button
+              type="button"
+              onClick={() => handleCreateCampaign(false)}
+              disabled={isSubmitting}
+              className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50"
+            >
+              {isSubmitting ? (editMode ? 'Updating...' : 'Creating...') : (editMode ? 'Update Campaign' : 'Create Campaign')}
             </button>
-            <button className="px-4 py-2 border border-[var(--border)] rounded-lg font-medium text-sm hover:bg-[var(--muted)] transition-colors">
+            <button
+              type="button"
+              onClick={() => handleCreateCampaign(true)}
+              disabled={isSubmitting}
+              className="px-4 py-2 border border-[var(--border)] rounded-lg font-medium text-sm hover:bg-[var(--muted)] transition-colors disabled:opacity-50"
+            >
               Save as Draft
             </button>
             <button
-              onClick={() => campaignState.setActiveTab('campaigns')}
+              type="button"
+              onClick={handleCancel}
               className="px-4 py-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
             >
               Cancel
             </button>
+            {/* Delete button - only show in edit mode */}
+            {editMode && onDelete && (
+              <button
+                type="button"
+                onClick={onDelete}
+                disabled={isSubmitting}
+                className="ml-auto px-4 py-2 bg-red-500 text-white rounded-lg font-medium text-sm hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                </svg>
+                Delete Campaign
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -341,14 +680,225 @@ export default function NewCampaignView({ campaignState, availableContacts }: Ne
 
         {(campaignState.listType === 'criteria' || campaignState.listType === 'dynamic') && (
           <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6">
-            <h3 className="text-sm font-semibold text-[var(--foreground)] mb-4">Estimated Recipients</h3>
-            <div className="text-center py-8">
-              <div className="text-4xl font-bold text-[var(--foreground)] mb-2">~45</div>
-              <div className="text-sm text-[var(--muted-foreground)]">recipients match your criteria</div>
-            </div>
+            <h3 className="text-sm font-semibold text-[var(--foreground)] mb-4">
+              Matching Recipients
+              {estimateData?.count ? ` (${estimateData.count})` : ''}
+            </h3>
+            {estimateLoading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary)] mx-auto mb-2"></div>
+                <div className="text-sm text-[var(--muted-foreground)]">Finding matching contacts...</div>
+              </div>
+            ) : !criteria ? (
+              <div className="text-center py-8 text-sm text-[var(--muted-foreground)]">
+                Define criteria to see matching recipients
+              </div>
+            ) : sampleRecipients.length === 0 && estimateData?.count === 0 ? (
+              <div className="text-center py-8 text-sm text-[var(--muted-foreground)]">
+                No contacts match your criteria
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2 max-h-[350px] overflow-y-auto">
+                  {sampleRecipients.map((contact: Contact) => (
+                    <div
+                      key={contact.id}
+                      className="flex items-center p-2 border border-[var(--border)] rounded-md"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <div className="text-sm font-medium text-[var(--foreground)] truncate">{contact.name}</div>
+                          {contact.role && (
+                            <span className="text-xs px-2 py-0.5 rounded bg-[var(--muted)] text-[var(--muted-foreground)]">
+                              {contact.role}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-[var(--muted-foreground)] truncate">{contact.email}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {estimateData && estimateData.count > sampleRecipients.length && (
+                  <div className="mt-3 pt-3 border-t border-[var(--border)] text-center text-sm text-[var(--muted-foreground)]">
+                    +{estimateData.count - sampleRecipients.length} more recipients
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
       </div>
+
+      {/* Test Email Modal */}
+      {showTestEmailModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-[var(--card)] rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-[var(--foreground)] mb-4">Send Test Email</h3>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                Email Address
+              </label>
+              <input
+                type="email"
+                value={testEmail}
+                onChange={(e) => setTestEmail(e.target.value)}
+                placeholder="Enter email address..."
+                className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
+              />
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => setShowTestEmailModal(false)}
+                className="px-4 py-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSendTestEmail}
+                className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"
+              >
+                Send Test
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Email Preview Modal */}
+      {showEmailPreview && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--card)] rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-[var(--foreground)]">Email Preview</h3>
+                  <p className="text-xs text-[var(--muted-foreground)]">See how your email will appear to recipients</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEmailPreview(false)}
+                className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Email Content */}
+            <div className="flex-1 overflow-auto p-4">
+              {/* Email Header Info */}
+              <div className="bg-[var(--muted)]/30 rounded-lg p-4 mb-4">
+                <div className="space-y-2">
+                  <div className="flex items-start gap-3">
+                    <span className="text-xs font-medium text-[var(--muted-foreground)] w-16 flex-shrink-0">From:</span>
+                    <span className="text-sm text-[var(--foreground)]">Your Campaign &lt;noreply@yourcompany.com&gt;</span>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="text-xs font-medium text-[var(--muted-foreground)] w-16 flex-shrink-0">To:</span>
+                    <span className="text-sm text-[var(--foreground)]">
+                      {campaignState.listType === 'static' && campaignState.recipientList.length > 0
+                        ? `${campaignState.recipientList[0]?.name || 'John Doe'} <${campaignState.recipientList[0]?.email || 'john@example.com'}>`
+                        : 'John Doe <john@example.com>'
+                      }
+                    </span>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="text-xs font-medium text-[var(--muted-foreground)] w-16 flex-shrink-0">Subject:</span>
+                    <span className="text-sm font-medium text-[var(--foreground)]">
+                      {campaignState.emailSubject || '(No subject)'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Email Body Preview */}
+              <div className="border border-[var(--border)] rounded-lg bg-white min-h-[300px]">
+                <div className="p-6">
+                  {campaignState.emailBody ? (
+                    <div
+                      className="prose prose-sm max-w-none"
+                      dangerouslySetInnerHTML={{
+                        __html: campaignState.emailBody
+                          .replace(/\{\{first_name\}\}/g, campaignState.listType === 'static' && campaignState.recipientList[0]?.firstName ? campaignState.recipientList[0].firstName : 'John')
+                          .replace(/\{\{last_name\}\}/g, campaignState.listType === 'static' && campaignState.recipientList[0]?.lastName ? campaignState.recipientList[0].lastName : 'Doe')
+                          .replace(/\{\{email\}\}/g, campaignState.listType === 'static' && campaignState.recipientList[0]?.email ? campaignState.recipientList[0].email : 'john@example.com')
+                      }}
+                    />
+                  ) : (
+                    <div className="text-center py-12 text-[var(--muted-foreground)]">
+                      <svg className="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <p>No email content yet</p>
+                      <p className="text-sm mt-1">Add content to the email body to see a preview</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Personalization Info */}
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <svg className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="text-xs text-blue-800">
+                    <strong>Personalization Preview:</strong> Variables like {'{{first_name}}'}, {'{{last_name}}'}, and {'{{email}}'}
+                    {campaignState.listType === 'static' && campaignState.recipientList.length > 0
+                      ? ` are shown with data from the first recipient (${campaignState.recipientList[0]?.name}).`
+                      : ' are shown with sample data (John Doe).'}
+                    {campaignState.useAIPersonalization && ' AI personalization will further customize content for each recipient.'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between p-4 border-t border-[var(--border)] bg-[var(--muted)]/20">
+              <div className="text-xs text-[var(--muted-foreground)]">
+                {campaignState.listType === 'static'
+                  ? `${campaignState.recipientList.length} recipients selected`
+                  : estimateData?.count
+                    ? `~${estimateData.count} matching recipients`
+                    : 'Recipients based on criteria'}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEmailPreview(false);
+                    setShowTestEmailModal(true);
+                  }}
+                  className="px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  </svg>
+                  Send Test
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowEmailPreview(false)}
+                  className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"
+                >
+                  Close Preview
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

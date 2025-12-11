@@ -85,15 +85,6 @@ export const OPERATOR_MAP: Record<string, OperatorConfig[]> = {
   ],
 } as const;
 
-// Available tags for filtering
-export const AVAILABLE_TAGS = [
-  'VIP',
-  'Decision Maker',
-  'Follow Up',
-  'Hot Lead',
-  'Cold Lead',
-] as const;
-
 // Send pace configurations
 export const SEND_PACE_OPTIONS = [
   { value: 'fast', label: 'Fast (500/hour)' },
