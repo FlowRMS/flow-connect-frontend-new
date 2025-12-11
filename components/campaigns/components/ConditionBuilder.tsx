@@ -75,6 +75,27 @@ function EntityIcon({ type, className = "w-4 h-4" }: { type: string; className?:
   }
 }
 
+// Helper functions to extract unique values from search results
+function getContactFirstNames(contacts: any[]): string[] {
+  const names = contacts.map(c => c.firstName).filter(Boolean);
+  return [...new Set(names)].sort();
+}
+
+function getContactLastNames(contacts: any[]): string[] {
+  const names = contacts.map(c => c.lastName).filter(Boolean);
+  return [...new Set(names)].sort();
+}
+
+function getJobNames(jobs: any[]): string[] {
+  const names = jobs.map(j => j.jobName || j.name).filter(Boolean);
+  return [...new Set(names)].sort();
+}
+
+function getCompanyNames(companies: any[]): string[] {
+  const names = companies.map(c => c.name).filter(Boolean);
+  return [...new Set(names)].sort();
+}
+
 // Hook to get ALL field values for a given entity and field (loads once, no search term dependency)
 function useFieldValues(entityType: string, fieldName: string, fieldType: string) {
   const isSelectField = fieldType === 'select';
@@ -95,6 +116,8 @@ function useFieldValues(entityType: string, fieldName: string, fieldType: string
       case 'CONTACT':
         if (!contacts) return [];
         switch (fieldName) {
+          case 'first_name': return getContactFirstNames(contacts);
+          case 'last_name': return getContactLastNames(contacts);
           case 'role': return getContactRoles(contacts);
           case 'territory': return getContactTerritories(contacts);
           case 'tags': return extractAllTags(contacts);
@@ -103,6 +126,7 @@ function useFieldValues(entityType: string, fieldName: string, fieldType: string
       case 'COMPANY':
         if (!companies) return [];
         switch (fieldName) {
+          case 'name': return getCompanyNames(companies);
           case 'company_source_type': return getCompanyTypes(companies);
           case 'tags': return extractAllTags(companies);
           default: return [];
@@ -110,6 +134,7 @@ function useFieldValues(entityType: string, fieldName: string, fieldType: string
       case 'JOB':
         if (!jobs) return [];
         switch (fieldName) {
+          case 'job_name': return getJobNames(jobs);
           case 'job_type': return getJobTypes(jobs);
           case 'status_id': return getJobStatuses(jobs);
           case 'tags': return extractAllTags(jobs);

@@ -199,8 +199,8 @@ export const OPERATOR_OPTIONS: OperatorConfig[] = [
 // Field configurations by entity type - Maps to actual API fields
 export const ENTITY_FIELDS: Record<CriteriaEntityType, FieldConfig[]> = {
   CONTACT: [
-    { value: 'first_name', label: 'First Name', type: 'text', apiField: 'firstName' },
-    { value: 'last_name', label: 'Last Name', type: 'text', apiField: 'lastName' },
+    { value: 'first_name', label: 'First Name', type: 'select', apiField: 'firstName' },
+    { value: 'last_name', label: 'Last Name', type: 'select', apiField: 'lastName' },
     { value: 'email', label: 'Email', type: 'text' },
     { value: 'phone', label: 'Phone', type: 'text' },
     { value: 'role', label: 'Role', type: 'select' },
@@ -208,7 +208,7 @@ export const ENTITY_FIELDS: Record<CriteriaEntityType, FieldConfig[]> = {
     { value: 'tags', label: 'Tags', type: 'select' },
   ],
   JOB: [
-    { value: 'job_name', label: 'Job Name', type: 'text', apiField: 'jobName' },
+    { value: 'job_name', label: 'Job Name', type: 'select', apiField: 'jobName' },
     { value: 'status_id', label: 'Status', type: 'select' },
     { value: 'job_type', label: 'Job Type', type: 'select', apiField: 'jobType' },
     { value: 'start_date', label: 'Start Date', type: 'date', apiField: 'startDate' },
@@ -216,7 +216,7 @@ export const ENTITY_FIELDS: Record<CriteriaEntityType, FieldConfig[]> = {
     { value: 'tags', label: 'Tags', type: 'select' },
   ],
   COMPANY: [
-    { value: 'name', label: 'Company Name', type: 'text' },
+    { value: 'name', label: 'Company Name', type: 'select' },
     { value: 'company_source_type', label: 'Company Type', type: 'select', apiField: 'companySourceType' },
     { value: 'website', label: 'Website', type: 'text' },
     { value: 'phone', label: 'Phone', type: 'text' },

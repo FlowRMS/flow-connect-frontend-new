@@ -336,6 +336,104 @@ export const linkToasts = {
     }),
 };
 
+// Campaign Toasts
+export const campaignToasts = {
+  createSuccess: (name: string) =>
+    showSuccessToast('Campaign Created', {
+      description: `"${name}" has been created successfully`,
+    }),
+
+  createError: (error?: string) =>
+    showErrorToast('Failed to Create Campaign', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  updateSuccess: (name: string) =>
+    showSuccessToast('Campaign Updated', {
+      description: `"${name}" has been updated successfully`,
+    }),
+
+  updateError: (error?: string) =>
+    showErrorToast('Failed to Update Campaign', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  deleteSuccess: (name: string) =>
+    showSuccessToast('Campaign Deleted', {
+      description: `"${name}" has been removed`,
+    }),
+
+  deleteError: (error?: string) =>
+    showErrorToast('Failed to Delete Campaign', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  startSuccess: (name: string) =>
+    showSuccessToast('Campaign Started', {
+      description: `"${name}" is now sending emails`,
+    }),
+
+  startError: (error?: string) =>
+    showErrorToast('Failed to Start Campaign', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  pauseSuccess: (name: string) =>
+    showSuccessToast('Campaign Paused', {
+      description: `"${name}" has been paused`,
+    }),
+
+  pauseError: (error?: string) =>
+    showErrorToast('Failed to Pause Campaign', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  resumeSuccess: (name: string) =>
+    showSuccessToast('Campaign Resumed', {
+      description: `"${name}" is now sending again`,
+    }),
+
+  resumeError: (error?: string) =>
+    showErrorToast('Failed to Resume Campaign', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  cloneSuccess: (name: string) =>
+    showSuccessToast('Campaign Cloned', {
+      description: `"${name}" has been created as a copy`,
+    }),
+
+  cloneError: (error?: string) =>
+    showErrorToast('Failed to Clone Campaign', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  testEmailSuccess: (email: string) =>
+    showSuccessToast('Test Email Sent', {
+      description: `Test email sent to ${email}`,
+    }),
+
+  testEmailError: (error?: string) =>
+    showErrorToast('Failed to Send Test Email', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  savedAsDraft: (name: string) =>
+    showSuccessToast('Saved as Draft', {
+      description: `"${name}" has been saved as a draft`,
+    }),
+
+  noEmailProvider: () =>
+    showWarningToast('Email Provider Required', {
+      description: 'Please connect O365 or Gmail in Settings > Integrations',
+    }),
+
+  validationError: (message: string) =>
+    showWarningToast('Validation Error', {
+      description: message,
+    }),
+};
+
 // Generic Operation Toasts
 export const genericToasts = {
   loading: (message: string) =>

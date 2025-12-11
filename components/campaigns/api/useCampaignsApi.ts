@@ -17,6 +17,9 @@ import {
   resumeCampaign,
   refreshDynamicRecipients,
   sendTestEmail,
+  startCampaignSending,
+  fetchCampaignSendingStatus,
+  checkEmailProviders,
   searchContacts,
   searchCompanies,
   searchJobs,
@@ -27,6 +30,8 @@ import {
   type CampaignInput,
   type CampaignCriteria,
   type EstimateRecipientsResult,
+  type CampaignSendingStatusResponse,
+  type EmailProviderStatus,
   type ContactSearchResult,
   type CompanySearchResult,
   type JobSearchResult,
@@ -44,7 +49,9 @@ export const campaignsQueryKeys = {
   listInfinite: () => [...campaignsQueryKeys.all, 'list', 'infinite'] as const,
   detail: (id: string) => [...campaignsQueryKeys.all, 'detail', id] as const,
   recipients: (campaignId: string) => [...campaignsQueryKeys.all, 'recipients', campaignId] as const,
+  sendingStatus: (campaignId: string) => [...campaignsQueryKeys.all, 'sendingStatus', campaignId] as const,
   estimate: (criteria: CampaignCriteria) => [...campaignsQueryKeys.all, 'estimate', JSON.stringify(criteria)] as const,
+  emailProviders: () => [...campaignsQueryKeys.all, 'emailProviders'] as const,
   search: {
     contacts: (term: string) => ['campaigns', 'search', 'contacts', term] as const,
     companies: (term: string) => ['campaigns', 'search', 'companies', term] as const,
@@ -61,13 +68,16 @@ const DEFAULT_PAGE_SIZE = 50;
 
 /**
  * Fetch all campaigns (simple list)
+ * @param pollInterval - Optional interval in ms to refetch (for background updates)
  */
-export function useCampaigns() {
+export function useCampaigns(pollInterval?: number) {
   return useQuery<PaginatedResult<CampaignLandingPage>, Error>({
     queryKey: campaignsQueryKeys.list(),
     queryFn: () => fetchCampaigns(),
     enabled: hasCRMTokens(),
-    staleTime: 30 * 1000,
+    staleTime: 10 * 1000, // Consider data stale after 10 seconds
+    refetchInterval: pollInterval, // Background polling
+    refetchIntervalInBackground: false, // Don't poll when tab is not focused
   });
 }
 
@@ -231,6 +241,49 @@ export function useSendTestEmail() {
   });
 }
 
+/**
+ * Start campaign sending
+ * Transitions campaign from DRAFT to SENDING
+ */
+export function useStartCampaignSending() {
+  const queryClient = useQueryClient();
+
+  return useMutation<Campaign, Error, string>({
+    mutationFn: startCampaignSending,
+    onSuccess: (_, campaignId) => {
+      queryClient.invalidateQueries({ queryKey: campaignsQueryKeys.list() });
+      queryClient.invalidateQueries({ queryKey: campaignsQueryKeys.listInfinite() });
+      queryClient.invalidateQueries({ queryKey: campaignsQueryKeys.detail(campaignId) });
+    },
+  });
+}
+
+/**
+ * Get campaign sending status for progress monitoring
+ * Use pollInterval to poll for updates while campaign is sending
+ */
+export function useCampaignSendingStatus(campaignId: string | null, pollInterval?: number) {
+  return useQuery<CampaignSendingStatusResponse, Error>({
+    queryKey: campaignId ? campaignsQueryKeys.sendingStatus(campaignId) : ['noop'],
+    queryFn: () => campaignId ? fetchCampaignSendingStatus(campaignId) : Promise.reject('No campaign ID'),
+    enabled: hasCRMTokens() && !!campaignId,
+    refetchInterval: pollInterval,
+    staleTime: 5 * 1000, // 5 seconds
+  });
+}
+
+/**
+ * Check email provider connection status
+ */
+export function useEmailProviders() {
+  return useQuery<EmailProviderStatus, Error>({
+    queryKey: campaignsQueryKeys.emailProviders(),
+    queryFn: checkEmailProviders,
+    enabled: hasCRMTokens(),
+    staleTime: 60 * 1000, // 1 minute
+  });
+}
+
 // ============================================================================
 // Search Hooks for Criteria Builder and Static List
 // ============================================================================
@@ -306,6 +359,8 @@ export type {
   CriteriaCondition,
   CriteriaGroup,
   EstimateRecipientsResult,
+  CampaignSendingStatusResponse,
+  EmailProviderStatus,
   ContactSearchResult,
   CompanySearchResult,
   JobSearchResult,

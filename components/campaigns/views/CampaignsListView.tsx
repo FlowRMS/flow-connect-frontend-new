@@ -14,6 +14,9 @@ interface CampaignsListViewProps {
   onPause?: (campaignId: string) => void;
   onResume?: (campaignId: string) => void;
   onEdit?: (campaignId: string) => void;
+  onStart?: (campaignId: string) => void;
+  onViewStatus?: (campaignId: string, campaignName: string) => void;
+  onClone?: (campaignId: string) => void;
 }
 
 // Status icons
@@ -63,6 +66,9 @@ export default function CampaignsListView({
   onPause,
   onResume,
   onEdit,
+  onStart,
+  onViewStatus,
+  onClone,
 }: CampaignsListViewProps) {
   return (
     <div className="space-y-4">
@@ -280,7 +286,19 @@ export default function CampaignsListView({
                   {/* Actions */}
                   <div className="col-span-1 flex items-center justify-center">
                     <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                      {/* Edit button - always shown for Draft and Scheduled */}
+                      {/* Start button - only for Draft */}
+                      {campaign.status === 'Draft' && (
+                        <button
+                          onClick={() => onStart?.(campaign.id)}
+                          className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                          title="Start Campaign"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polygon points="5 3 19 12 5 21 5 3" />
+                          </svg>
+                        </button>
+                      )}
+                      {/* Edit button - for Draft and Scheduled */}
                       {(campaign.status === 'Draft' || campaign.status === 'Scheduled') && (
                         <button
                           onClick={() => onEdit?.(campaign.id)}
@@ -293,11 +311,24 @@ export default function CampaignsListView({
                           </svg>
                         </button>
                       )}
+                      {/* View Status for Sending or Paused */}
+                      {(campaign.status === 'Sending' || campaign.status === 'Paused') && (
+                        <button
+                          onClick={() => onViewStatus?.(campaign.id, campaign.name)}
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="View Progress"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                            <circle cx="12" cy="12" r="3" />
+                          </svg>
+                        </button>
+                      )}
                       {/* Pause for Scheduled or Sending */}
                       {(campaign.status === 'Scheduled' || campaign.status === 'Sending') && (
                         <button
                           onClick={() => onPause?.(campaign.id)}
-                          className="p-1.5 text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors"
+                          className="p-1.5 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
                           title={campaign.status === 'Sending' ? 'Pause Sending' : 'Cancel Schedule'}
                         >
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -334,6 +365,7 @@ export default function CampaignsListView({
                       {/* View Stats for Completed */}
                       {campaign.status === 'Completed' && (
                         <button
+                          onClick={() => onViewStatus?.(campaign.id, campaign.name)}
                           className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                           title="View Statistics"
                         >
@@ -341,6 +373,19 @@ export default function CampaignsListView({
                             <path d="M18 20V10" />
                             <path d="M12 20V4" />
                             <path d="M6 20v-6" />
+                          </svg>
+                        </button>
+                      )}
+                      {/* Clone button - for Sending, Completed, and Paused campaigns */}
+                      {(campaign.status === 'Sending' || campaign.status === 'Completed' || campaign.status === 'Paused') && (
+                        <button
+                          onClick={() => onClone?.(campaign.id)}
+                          className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                          title="Clone Campaign"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                           </svg>
                         </button>
                       )}

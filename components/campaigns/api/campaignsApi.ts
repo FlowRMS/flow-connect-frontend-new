@@ -179,6 +179,42 @@ export interface PaginatedResult<T> {
   total: number;
 }
 
+// Campaign Sending Status Response
+export interface CampaignSendingStatusResponse {
+  campaignId: string;
+  status: CampaignStatus;
+  totalRecipients: number;
+  sentCount: number;
+  pendingCount: number;
+  failedCount: number;
+  bouncedCount: number;
+  todaySentCount: number;
+  maxEmailsPerDay: number;
+  remainingToday: number;
+  sendPace: SendPace | null;
+  emailsPerHour: number;
+  progressPercentage: number;
+  progressDisplay: string;
+  isCompleted: boolean;
+  canSendMoreToday: boolean;
+}
+
+// Email Provider Connection Status
+export interface EmailProviderStatus {
+  o365ConnectionStatus: {
+    isConnected: boolean;
+    microsoftEmail: string | null;
+    expiresAt: string | null;
+    lastUsedAt: string | null;
+  };
+  gmailConnectionStatus: {
+    isConnected: boolean;
+    googleEmail: string | null;
+    expiresAt: string | null;
+    lastUsedAt: string | null;
+  };
+}
+
 // ============================================================================
 // GraphQL Queries
 // ============================================================================
@@ -389,7 +425,61 @@ const REFRESH_DYNAMIC_RECIPIENTS = `
 
 const SEND_TEST_EMAIL = `
   mutation SendTestEmail($campaignId: UUID!, $testEmail: String!) {
-    sendTestEmail(campaignId: $campaignId, testEmail: $testEmail)
+    sendTestEmail(campaignId: $campaignId, testEmail: $testEmail) {
+      success
+      error
+    }
+  }
+`;
+
+const START_CAMPAIGN_SENDING = `
+  mutation StartCampaignSending($campaignId: UUID!) {
+    startCampaignSending(campaignId: $campaignId) {
+      id
+      status
+      recipientsCount
+      sentCount
+    }
+  }
+`;
+
+const GET_CAMPAIGN_SENDING_STATUS = `
+  query CampaignSendingStatus($campaignId: UUID!) {
+    campaignSendingStatus(campaignId: $campaignId) {
+      campaignId
+      status
+      totalRecipients
+      sentCount
+      pendingCount
+      failedCount
+      bouncedCount
+      todaySentCount
+      maxEmailsPerDay
+      remainingToday
+      sendPace
+      emailsPerHour
+      progressPercentage
+      progressDisplay
+      isCompleted
+      canSendMoreToday
+    }
+  }
+`;
+
+const CHECK_EMAIL_PROVIDERS = `
+  query CheckEmailProviders {
+    o365ConnectionStatus {
+      isConnected
+      microsoftEmail
+      expiresAt
+      lastUsedAt
+    }
+    gmailConnectionStatus {
+      isConnected
+      googleEmail
+      expiresAt
+      lastUsedAt
+    }
   }
 `;
 
@@ -600,7 +690,7 @@ export async function refreshDynamicRecipients(campaignId: string): Promise<Camp
  * Send a test email for a campaign
  */
 export async function sendTestEmail(campaignId: string, testEmail: string): Promise<boolean> {
-  const response = await crmGraphQLRequest<{ sendTestEmail: boolean }>({
+  const response = await crmGraphQLRequest<{ sendTestEmail: { success: boolean; error: string | null } }>({
     query: SEND_TEST_EMAIL,
     variables: { campaignId, testEmail },
   });
@@ -609,7 +699,73 @@ export async function sendTestEmail(campaignId: string, testEmail: string): Prom
     throw new Error(response.errors[0]?.message || 'Failed to send test email');
   }
 
+  const result = response.data?.sendTestEmail;
+  if (!result?.success) {
+    throw new Error(result?.error || 'Failed to send test email');
+  }
+
   return true;
+}
+
+/**
+ * Start sending a campaign
+ * Transitions campaign from DRAFT to SENDING status
+ */
+export async function startCampaignSending(campaignId: string): Promise<Campaign> {
+  const response = await crmGraphQLRequest<{ startCampaignSending: Campaign }>({
+    query: START_CAMPAIGN_SENDING,
+    variables: { campaignId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to start campaign sending');
+  }
+
+  if (!response.data?.startCampaignSending) {
+    throw new Error('No campaign returned from start sending mutation');
+  }
+
+  return response.data.startCampaignSending;
+}
+
+/**
+ * Get campaign sending status for progress monitoring
+ */
+export async function fetchCampaignSendingStatus(campaignId: string): Promise<CampaignSendingStatusResponse> {
+  const response = await crmGraphQLRequest<{ campaignSendingStatus: CampaignSendingStatusResponse }>({
+    query: GET_CAMPAIGN_SENDING_STATUS,
+    variables: { campaignId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch campaign sending status');
+  }
+
+  if (!response.data?.campaignSendingStatus) {
+    throw new Error('No status returned from campaign sending status query');
+  }
+
+  return response.data.campaignSendingStatus;
+}
+
+/**
+ * Check email provider connection status
+ * Returns O365 and Gmail connection status
+ */
+export async function checkEmailProviders(): Promise<EmailProviderStatus> {
+  const response = await crmGraphQLRequest<EmailProviderStatus>({
+    query: CHECK_EMAIL_PROVIDERS,
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to check email providers');
+  }
+
+  if (!response.data) {
+    throw new Error('No data returned from email provider check');
+  }
+
+  return response.data;
 }
 
 // ============================================================================

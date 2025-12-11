@@ -5,7 +5,7 @@
 
 'use client';
 
-import React, { useMemo, useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useCampaignState } from './hooks/useCampaignState';
 import { useRuleState } from './hooks/useRuleState';
@@ -24,8 +24,13 @@ import {
   useDeleteCampaign,
   usePauseCampaign,
   useResumeCampaign,
+  useStartCampaignSending,
+  useEmailProviders,
+  useCreateCampaign,
 } from './api';
+import CampaignStatusModal from './modals/CampaignStatusModal';
 import { mapAPIToListType } from './types';
+import { campaignToasts } from '../lib/toast';
 
 export default function CampaignsContent() {
   // URL routing
@@ -77,13 +82,27 @@ export default function CampaignsContent() {
     lastPopulatedCampaignId.current = null;
   };
 
-  // Fetch campaigns from API
-  const { data: campaignsData, isLoading: campaignsLoading, error: campaignsError } = useCampaigns();
+  // Check if we should poll (when on campaigns tab and there are active campaigns)
+  const shouldPoll = campaignState.activeTab === 'campaigns';
+
+  // Fetch campaigns from API with background polling every 15 seconds when viewing list
+  const { data: campaignsData, isLoading: campaignsLoading, error: campaignsError } = useCampaigns(
+    shouldPoll ? 15000 : undefined
+  );
 
   // Campaign mutations
   const deleteCampaignMutation = useDeleteCampaign();
   const pauseCampaignMutation = usePauseCampaign();
   const resumeCampaignMutation = useResumeCampaign();
+  const startCampaignMutation = useStartCampaignSending();
+  const createCampaignMutation = useCreateCampaign();
+
+  // Status modal state
+  const [statusModalCampaign, setStatusModalCampaign] = useState<{ id: string; name: string } | null>(null);
+
+  // Check email providers
+  const { data: emailProviders } = useEmailProviders();
+  const hasEmailProvider = emailProviders?.o365ConnectionStatus?.isConnected || emailProviders?.gmailConnectionStatus?.isConnected;
 
   // Fetch single campaign for editing
   const { data: editingCampaignData, isLoading: editingCampaignLoading } = useCampaign(
@@ -264,28 +283,233 @@ export default function CampaignsContent() {
 
   // Handle campaign actions
   const handleDeleteCampaign = async (campaignId: string) => {
+    const campaign = campaigns.find(c => c.id === campaignId);
     if (confirm('Are you sure you want to delete this campaign?')) {
       try {
         await deleteCampaignMutation.mutateAsync(campaignId);
+        campaignToasts.deleteSuccess(campaign?.name || 'Campaign');
       } catch (error) {
         console.error('Failed to delete campaign:', error);
+        const errorMessage = error instanceof Error ? error.message : undefined;
+        campaignToasts.deleteError(errorMessage);
       }
     }
   };
 
   const handlePauseCampaign = async (campaignId: string) => {
+    const campaign = campaigns.find(c => c.id === campaignId);
     try {
       await pauseCampaignMutation.mutateAsync(campaignId);
+      campaignToasts.pauseSuccess(campaign?.name || 'Campaign');
     } catch (error) {
       console.error('Failed to pause campaign:', error);
+      const errorMessage = error instanceof Error ? error.message : undefined;
+      campaignToasts.pauseError(errorMessage);
     }
   };
 
   const handleResumeCampaign = async (campaignId: string) => {
+    const campaign = campaigns.find(c => c.id === campaignId);
     try {
       await resumeCampaignMutation.mutateAsync(campaignId);
+      campaignToasts.resumeSuccess(campaign?.name || 'Campaign');
     } catch (error) {
       console.error('Failed to resume campaign:', error);
+      const errorMessage = error instanceof Error ? error.message : undefined;
+      campaignToasts.resumeError(errorMessage);
+    }
+  };
+
+  // Handle start campaign
+  const handleStartCampaign = async (campaignId: string) => {
+    if (!hasEmailProvider) {
+      campaignToasts.noEmailProvider();
+      return;
+    }
+
+    const campaign = campaigns.find(c => c.id === campaignId);
+    try {
+      await startCampaignMutation.mutateAsync(campaignId);
+      campaignToasts.startSuccess(campaign?.name || 'Campaign');
+      // Show status modal
+      if (campaign) {
+        setStatusModalCampaign({ id: campaignId, name: campaign.name });
+      }
+    } catch (error) {
+      console.error('Failed to start campaign:', error);
+      const errorMessage = error instanceof Error ? error.message : undefined;
+      campaignToasts.startError(errorMessage);
+    }
+  };
+
+  // Handle view status
+  const handleViewStatus = (campaignId: string, campaignName: string) => {
+    setStatusModalCampaign({ id: campaignId, name: campaignName });
+  };
+
+  // Handle status modal close
+  const handleCloseStatusModal = () => {
+    setStatusModalCampaign(null);
+  };
+
+  // Generate clone name with proper numbering (Clone 1, Clone 2, etc.)
+  const generateCloneName = (originalName: string): string => {
+    // Check if the name already has a clone pattern
+    const clonePattern = /^(.+?)\s*-\s*Clone\s*(\d+)?$/i;
+    const match = originalName.match(clonePattern);
+
+    let baseName: string;
+    if (match) {
+      // If it's already a clone, use the base name
+      baseName = match[1].trim();
+    } else {
+      baseName = originalName;
+    }
+
+    // Find existing clones of this campaign
+    const existingClones = campaigns.filter(c => {
+      const namePattern = new RegExp(`^${baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*-\\s*Clone\\s*(\\d+)?$`, 'i');
+      return namePattern.test(c.name) || c.name === `${baseName} - Clone`;
+    });
+
+    // Determine the next clone number
+    let maxCloneNum = 0;
+    existingClones.forEach(c => {
+      const numMatch = c.name.match(/Clone\s*(\d+)$/i);
+      if (numMatch) {
+        const num = parseInt(numMatch[1], 10);
+        if (num > maxCloneNum) maxCloneNum = num;
+      } else if (c.name.toLowerCase().endsWith('clone')) {
+        // "Clone" without number counts as 1
+        if (maxCloneNum < 1) maxCloneNum = 1;
+      }
+    });
+
+    return `${baseName} - Clone ${maxCloneNum + 1}`;
+  };
+
+  // Transform criteria from backend format (snake_case) to API format (camelCase)
+  const transformCriteriaForClone = (rawCriteria: any): import('./api').CampaignCriteria | undefined => {
+    if (!rawCriteria) return undefined;
+
+    // Map entity_type number to string (backend uses enum numbers)
+    const entityTypeMap: Record<number, string> = {
+      1: 'JOB',
+      2: 'COMPANY',
+      3: 'CONTACT',
+      4: 'TASK',
+    };
+
+    const transformCondition = (cond: any): import('./api').CriteriaCondition => {
+      // Get entity type - could be number or string
+      const rawEntity = cond.entityType || cond.entity_type || cond.entity || '';
+      const entityType = (typeof rawEntity === 'number'
+        ? (entityTypeMap[rawEntity] || 'CONTACT')
+        : String(rawEntity).toUpperCase()) as import('./api').CriteriaCondition['entityType'];
+
+      // Get operator and ensure uppercase
+      const rawOperator = cond.operator || cond.Operator || 'EQUALS';
+      const operator = String(rawOperator).toUpperCase() as import('./api').CriteriaCondition['operator'];
+
+      return {
+        entityType,
+        field: cond.field || cond.Field || '',
+        operator,
+        value: cond.value || cond.Value || '',
+      };
+    };
+
+    const transformGroup = (group: any) => {
+      // Get logic operator - handle both snake_case and camelCase
+      const rawLogic = group.logicalOperator || group.logical_operator || group.LogicalOperator || 'AND';
+      const logicalOperator = String(rawLogic).toUpperCase() as 'AND' | 'OR';
+
+      return {
+        logicalOperator,
+        conditions: (group.conditions || []).map(transformCondition),
+      };
+    };
+
+    // Handle groups array
+    if (rawCriteria.groups && Array.isArray(rawCriteria.groups)) {
+      const rawGroupOp = rawCriteria.groupOperator || rawCriteria.group_operator || 'AND';
+      const groupOperator = String(rawGroupOp).toUpperCase() as 'AND' | 'OR';
+      return {
+        groups: rawCriteria.groups.map(transformGroup),
+        groupOperator,
+      };
+    }
+
+    // Handle flat conditions array (legacy format)
+    if (rawCriteria.conditions && Array.isArray(rawCriteria.conditions)) {
+      return {
+        groups: [{
+          logicalOperator: 'AND' as const,
+          conditions: rawCriteria.conditions.map(transformCondition),
+        }],
+        groupOperator: 'AND' as const,
+      };
+    }
+
+    return undefined;
+  };
+
+  // Handle clone campaign
+  const handleCloneCampaign = async (campaignId: string) => {
+    try {
+      // Fetch the full campaign details
+      const campaignToClone = await import('./api').then(api => api.fetchCampaign(campaignId));
+
+      if (!campaignToClone) {
+        campaignToasts.cloneError('Could not find campaign to clone');
+        return;
+      }
+
+      // Fetch recipients if it's a static campaign
+      let staticContactIds: string[] | undefined;
+      if (campaignToClone.recipientListType === 'STATIC') {
+        const recipients = await import('./api').then(api => api.fetchCampaignRecipients(campaignId));
+        staticContactIds = recipients.map(r => r.contactId);
+      }
+
+      // Parse and transform criteria if available
+      let criteria;
+      if (campaignToClone.criteriaJson && campaignToClone.recipientListType !== 'STATIC') {
+        try {
+          const rawCriteria = JSON.parse(campaignToClone.criteriaJson);
+          criteria = transformCriteriaForClone(rawCriteria);
+        } catch (e) {
+          console.error('Failed to parse criteria JSON for clone:', e);
+        }
+      }
+
+      // Generate new name
+      const cloneName = generateCloneName(campaignToClone.name);
+
+      // Create the cloned campaign
+      const input = {
+        name: cloneName,
+        recipientListType: campaignToClone.recipientListType,
+        description: campaignToClone.description || '',
+        emailSubject: campaignToClone.emailSubject,
+        emailBody: campaignToClone.emailBody,
+        aiPersonalizationEnabled: campaignToClone.aiPersonalizationEnabled,
+        sendPace: campaignToClone.sendPace,
+        maxEmailsPerDay: campaignToClone.maxEmailsPerDay,
+        sendImmediately: false, // Always start clones as draft
+        staticContactIds,
+        criteria,
+      };
+
+      const newCampaign = await createCampaignMutation.mutateAsync(input);
+      campaignToasts.cloneSuccess(cloneName);
+
+      // Navigate to edit the new campaign
+      handleEditCampaign(newCampaign.id);
+    } catch (error) {
+      console.error('Failed to clone campaign:', error);
+      const errorMessage = error instanceof Error ? error.message : undefined;
+      campaignToasts.cloneError(errorMessage);
     }
   };
 
@@ -368,7 +592,7 @@ export default function CampaignsContent() {
             <TabButton
               active={true}
               onClick={() => {}}
-              label="Edit Campaign"
+              label="View Campaign"
             />
           )}
           {/* <TabButton
@@ -405,6 +629,9 @@ export default function CampaignsContent() {
               onPause={handlePauseCampaign}
               onResume={handleResumeCampaign}
               onEdit={handleEditCampaign}
+              onStart={handleStartCampaign}
+              onViewStatus={handleViewStatus}
+              onClone={handleCloneCampaign}
             />
           )}
         </>
@@ -454,8 +681,10 @@ export default function CampaignsContent() {
                   }
                 }
               } : undefined}
+              onClone={campaignState.editingCampaignId ? () => handleCloneCampaign(campaignState.editingCampaignId!) : undefined}
               editMode={true}
               campaignId={campaignState.editingCampaignId || undefined}
+              campaignStatus={editingCampaignData ? mapCampaignStatus(editingCampaignData.status) : undefined}
             />
           )}
         </>
@@ -485,6 +714,19 @@ export default function CampaignsContent() {
         onGenerate={handleGenerateWithAI}
         onClose={handleCloseAIModal}
       />
+
+      {/* Campaign Status Modal */}
+      {statusModalCampaign && (
+        <CampaignStatusModal
+          campaignId={statusModalCampaign.id}
+          campaignName={statusModalCampaign.name}
+          isOpen={true}
+          onClose={handleCloseStatusModal}
+          onStatusChange={() => {
+            // Refetch campaigns list when status changes
+          }}
+        />
+      )}
     </main>
   );
 }

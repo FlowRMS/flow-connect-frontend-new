@@ -10,7 +10,14 @@ import { useState, useMemo, useEffect, useRef, type ReactNode } from 'react';
 import type { Contact } from '../types';
 import { mapContactSearchResultToContact } from '../types';
 import { getUniqueContactValues } from '../utils';
-import { useContactSearch, useCompanySearch, type CompanySearchResult } from '../api';
+import {
+  useContactSearch,
+  useCompanySearch,
+  useEstimateRecipients,
+  type CompanySearchResult,
+  type CampaignCriteria,
+  type EstimateSampleContact,
+} from '../api';
 
 // Debounce hook
 function useDebounce<T>(value: T, delay: number): T {
@@ -75,8 +82,11 @@ export default function StaticListBuilder({
   const [companySearchTerm, setCompanySearchTerm] = useState('');
   const debouncedCompanySearch = useDebounce(companySearchTerm, 300);
 
-  // Use the contact search API - empty string returns all contacts
-  const { data: contactsData, isLoading: isSearching } = useContactSearch(debouncedSearchQuery, true);
+  // Use the contact search API - only when NO companies are selected
+  const { data: contactsData, isLoading: isSearchingContacts } = useContactSearch(
+    debouncedSearchQuery,
+    selectedCompanies.length === 0
+  );
 
   // Use company search API with trigger-based search
   const { data: companiesData, isLoading: isLoadingCompanies } = useCompanySearch(
@@ -84,8 +94,47 @@ export default function StaticListBuilder({
     debouncedCompanySearch.length >= 1 || openDropdown === 'company'
   );
 
-  // Transform API contacts to UI format
-  const availableContacts: Contact[] = useMemo(() => {
+  // Build criteria for estimateRecipients when companies are selected
+  const companyCriteria: CampaignCriteria | null = useMemo(() => {
+    if (selectedCompanies.length === 0) return null;
+
+    // Build criteria with IN operator for multiple companies
+    return {
+      groups: [{
+        logicalOperator: 'AND' as const,
+        conditions: [{
+          entityType: 'COMPANY' as const,
+          field: 'name',
+          operator: selectedCompanies.length === 1 ? 'EQUALS' as const : 'IN' as const,
+          value: selectedCompanies.length === 1 ? selectedCompanies[0] : selectedCompanies.join(','),
+        }],
+      }],
+      groupOperator: 'AND' as const,
+    };
+  }, [selectedCompanies]);
+
+  // Use estimateRecipients to get contacts from selected companies
+  const { data: estimateData, isLoading: isLoadingEstimate } = useEstimateRecipients(companyCriteria);
+
+  // Convert estimate sample contacts to Contact type
+  const companyFilteredContacts: Contact[] = useMemo(() => {
+    if (!estimateData?.sampleContacts) return [];
+    return estimateData.sampleContacts.map((contact: EstimateSampleContact) => ({
+      id: contact.id,
+      name: `${contact.firstName || ''} ${contact.lastName || ''}`.trim(),
+      firstName: contact.firstName,
+      lastName: contact.lastName,
+      email: contact.email || '',
+      phone: contact.phone,
+      role: contact.role,
+      type: contact.role,
+      territory: contact.territory,
+      tags: Array.isArray(contact.tags) ? contact.tags.join(', ') : contact.tags,
+    }));
+  }, [estimateData]);
+
+  // Transform API contacts to UI format (when no companies selected)
+  const searchedContacts: Contact[] = useMemo(() => {
     if (!contactsData) return [];
     return contactsData.map(mapContactSearchResultToContact);
   }, [contactsData]);
@@ -96,14 +145,22 @@ export default function StaticListBuilder({
     return companiesData.map((c: CompanySearchResult) => c.name).filter(Boolean);
   }, [companiesData]);
 
-  // Apply local filters (company, type) on top of search results
+  // Determine which contacts to show based on whether companies are selected
+  const availableContacts: Contact[] = useMemo(() => {
+    return selectedCompanies.length > 0 ? companyFilteredContacts : searchedContacts;
+  }, [selectedCompanies.length, companyFilteredContacts, searchedContacts]);
+
+  // Apply local filters (type/role) on top of results
   const filteredContacts = useMemo(() => {
     let result = availableContacts;
 
-    // Filter by selected companies
-    if (selectedCompanies.length > 0) {
+    // Apply search filter when companies are selected (estimate doesn't support search)
+    if (selectedCompanies.length > 0 && searchQuery) {
+      const searchLower = searchQuery.toLowerCase();
       result = result.filter(contact =>
-        contact.company && selectedCompanies.includes(contact.company)
+        contact.name?.toLowerCase().includes(searchLower) ||
+        contact.email?.toLowerCase().includes(searchLower) ||
+        contact.role?.toLowerCase().includes(searchLower)
       );
     }
 
@@ -115,7 +172,9 @@ export default function StaticListBuilder({
     }
 
     return result;
-  }, [availableContacts, selectedCompanies, selectedTypes]);
+  }, [availableContacts, selectedCompanies.length, searchQuery, selectedTypes]);
+
+  const isSearching = selectedCompanies.length > 0 ? isLoadingEstimate : isSearchingContacts;
 
   const allFilteredSelected = filteredContacts.length > 0 &&
     filteredContacts.every(c => selectedContactIds.includes(c.id));
@@ -245,6 +304,15 @@ export default function StaticListBuilder({
         )}
       </div>
 
+      {/* Company match count */}
+      {selectedCompanies.length > 0 && estimateData && !isSearching && (
+        <div className="mb-2 px-3 py-2 bg-purple-50 border border-purple-200 rounded-md">
+          <p className="text-sm text-purple-700">
+            <span className="font-medium">{estimateData.count}</span> contact{estimateData.count !== 1 ? 's' : ''} found at {selectedCompanies.length} selected compan{selectedCompanies.length !== 1 ? 'ies' : 'y'}
+          </p>
+        </div>
+      )}
+
       {/* Bulk Actions Bar */}
       <div className="flex items-center justify-between py-2 px-3 bg-[var(--muted)]/30 rounded-md mb-2">
         <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -286,11 +354,13 @@ export default function StaticListBuilder({
         {isSearching ? (
           <div className="text-center py-8 text-[var(--muted-foreground)]">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[var(--primary)] mx-auto mb-2"></div>
-            <p>Searching contacts...</p>
+            <p>{selectedCompanies.length > 0 ? 'Finding contacts at selected companies...' : 'Searching contacts...'}</p>
           </div>
         ) : filteredContacts.length === 0 ? (
           <div className="text-center py-8 text-[var(--muted-foreground)]">
-            {availableContacts.length === 0 ? (
+            {selectedCompanies.length > 0 ? (
+              <p>No contacts found at the selected companies.</p>
+            ) : availableContacts.length === 0 ? (
               <p>No contacts found. Try a different search term.</p>
             ) : (
               <p>No contacts match your filters</p>
