@@ -27,7 +27,11 @@ export interface NoteLandingPage {
   id: string;
   title: string;
   content: string;
-  linkedTitles: string[];
+  linkedEntities: Array<{
+    entityType: string;
+    id: string;
+    title: string;
+  }>;
   tags: string;
   createdBy: string;
   createdAt: string;

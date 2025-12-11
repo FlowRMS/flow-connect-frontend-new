@@ -13,7 +13,7 @@ import {
   filterNotes,
   getAllTags,
   parseCommaSeparated,
-  parseLinkedTitles,
+  parseLinkedEntities,
   applyNoteFilter,
   sortNotes,
   getAllTitles,
@@ -31,7 +31,7 @@ function parseApiNote(note: NoteLandingPage): ParsedNote {
     content: note.content || '',
     mentions: [], // NoteLandingPage doesn't include mentions
     tags: parseCommaSeparated(note.tags || ''),
-    linkedTitles: parseLinkedTitles(note.linkedTitles),
+    linkedTitles: parseLinkedEntities(note.linkedEntities),
     createdBy: note.createdBy || '',
     createdAt: note.createdAt || '',
   };
