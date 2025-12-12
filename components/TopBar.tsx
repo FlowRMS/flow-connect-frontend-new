@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { MobileSidebarContext } from './Sidebar';
 
 export default function TopBar() {
@@ -37,8 +38,22 @@ export default function TopBar() {
         )}
       </div>
 
-      {/* Right: Back to FlowRMS & Notifications */}
+      {/* Right: DISC Analytics, Back to FlowRMS & Notifications */}
       <div className="flex items-center gap-2 sm:gap-3">
+        {/* DISC Analytics Button */}
+        <Link
+          href="/disc-analytics"
+          className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-4 sm:h-4">
+            <circle cx="12" cy="12" r="10"/>
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M12 2v3M12 19v3"/>
+          </svg>
+          <span className="hidden sm:inline">DISC Analytics</span>
+          <span className="sm:hidden">DISC</span>
+        </Link>
+        
         <a
           href={loginUrl}
           className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium text-[var(--primary)] border border-[var(--primary)] rounded-lg hover:bg-[var(--primary)] hover:text-white transition-colors"
