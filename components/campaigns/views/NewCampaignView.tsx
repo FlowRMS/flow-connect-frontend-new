@@ -641,7 +641,14 @@ export default function NewCampaignView({
             </label>
             <select
               value={campaignState.sendPace}
-              onChange={(e) => campaignState.setSendPace(e.target.value)}
+              onChange={(e) => {
+                const selectedPace = e.target.value;
+                campaignState.setSendPace(selectedPace);
+                const paceOption = SEND_PACE_OPTIONS.find(opt => opt.value === selectedPace);
+                if (paceOption) {
+                  campaignState.setMaxPerDay(paceOption.maxPerDay);
+                }
+              }}
               disabled={isReadOnly}
               className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm hover:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-colors appearance-none bg-[var(--background)] bg-[length:16px] bg-[position:right_12px_center] bg-no-repeat ${
                 isReadOnly ? 'cursor-not-allowed bg-gray-50' : 'cursor-pointer'
@@ -662,14 +669,18 @@ export default function NewCampaignView({
             <input
               type="number"
               value={campaignState.maxPerDay}
-              onChange={(e) => campaignState.setMaxPerDay(parseInt(e.target.value) || 50)}
+              onChange={(e) => {
+                const value = parseInt(e.target.value) || 50;
+                campaignState.setMaxPerDay(Math.min(value, 100));
+              }}
               min={1}
-              max={1000}
+              max={100}
               disabled={isReadOnly}
               className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)] ${
                 isReadOnly ? 'cursor-not-allowed bg-gray-50' : ''
               }`}
             />
+            <p className="text-xs text-[var(--muted-foreground)] mt-1">Maximum 100 emails per day</p>
           </div>
 
           {/* Schedule Section */}

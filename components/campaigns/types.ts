@@ -141,16 +141,14 @@ export function mapAPIToListType(apiType: APIRecipientListType): ListType {
 export type TabType = 'campaigns' | 'new-campaign' | 'rules' | 'new-rule' | 'edit-campaign';
 
 // Send pace type - Maps to API SendPace
-export type SendPace = 'fast' | 'medium' | 'slow' | 'very-slow' | 'randomized';
+export type SendPace = 'slow' | 'medium' | 'fast';
 
 // Map SendPace to API
 export function mapSendPaceToAPI(pace: SendPace): APISendPace {
   const map: Record<SendPace, APISendPace> = {
-    'fast': 'FAST',
-    'medium': 'MEDIUM',
     'slow': 'SLOW',
-    'very-slow': 'SLOW',
-    'randomized': 'MEDIUM',
+    'medium': 'MEDIUM',
+    'fast': 'FAST',
   };
   return map[pace];
 }

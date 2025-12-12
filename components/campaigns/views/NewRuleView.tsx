@@ -175,7 +175,14 @@ export default function NewRuleView({ ruleState, onOpenAIModal, onCancel }: NewR
             </label>
             <select
               value={ruleState.sendPace}
-              onChange={(e) => ruleState.setSendPace(e.target.value)}
+              onChange={(e) => {
+                const selectedPace = e.target.value;
+                ruleState.setSendPace(selectedPace);
+                const paceOption = SEND_PACE_OPTIONS.find(opt => opt.value === selectedPace);
+                if (paceOption) {
+                  ruleState.setMaxPerDay(paceOption.maxPerDay);
+                }
+              }}
               className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm hover:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-colors cursor-pointer appearance-none bg-[var(--background)] bg-[length:16px] bg-[position:right_12px_center] bg-no-repeat"
               style={{backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23666'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E\")"}}
             >
@@ -193,9 +200,15 @@ export default function NewRuleView({ ruleState, onOpenAIModal, onCancel }: NewR
             <input
               type="number"
               value={ruleState.maxPerDay}
-              onChange={(e) => ruleState.setMaxPerDay(parseInt(e.target.value))}
+              onChange={(e) => {
+                const value = parseInt(e.target.value) || 50;
+                ruleState.setMaxPerDay(Math.min(value, 100));
+              }}
+              min={1}
+              max={100}
               className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
             />
+            <p className="text-xs text-[var(--muted-foreground)] mt-1">Maximum 100 emails per day</p>
           </div>
 
           {/* Preview & Test Section */}

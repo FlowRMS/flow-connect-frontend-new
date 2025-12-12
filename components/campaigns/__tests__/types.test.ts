@@ -176,14 +176,6 @@ describe('Types - Send Pace Mapping', () => {
     it('should map slow to SLOW', () => {
       expect(mapSendPaceToAPI('slow')).toBe('SLOW');
     });
-
-    it('should map very-slow to SLOW', () => {
-      expect(mapSendPaceToAPI('very-slow')).toBe('SLOW');
-    });
-
-    it('should map randomized to MEDIUM', () => {
-      expect(mapSendPaceToAPI('randomized')).toBe('MEDIUM');
-    });
   });
 });
 
