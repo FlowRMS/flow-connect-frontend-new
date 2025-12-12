@@ -30,5 +30,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "flow-crm-disc_analytics"]
+  "exclude": ["node_modules", "flow-crm-disc_analytics", "flow-crm-orders"]
 }
