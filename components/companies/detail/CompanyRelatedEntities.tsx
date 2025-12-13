@@ -265,7 +265,7 @@ export default function CompanyRelatedEntities({
         <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
           <div className="flex items-center gap-3">
             <h2 className="text-lg font-semibold text-[var(--foreground)]">
-              Contacts at {company.name}
+              Contacts
             </h2>
             {!contactsLoading && (
               <span className="px-2 py-0.5 text-xs font-medium bg-[var(--muted)] text-[var(--muted-foreground)] rounded-full">

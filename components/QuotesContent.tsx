@@ -2525,6 +2525,44 @@ const mockQuoteFiles: QuoteFile[] = [
   },
 ];
 
+// Mock linked objects for quotes
+const mockLinkedPreOpps = [
+  { id: 'PO-2024-001', name: 'Downtown Office Complex', status: 'active', value: 125000, date: '2024-02-15' },
+  { id: 'PO-2024-003', name: 'Residential Tower Project', status: 'pending', value: 85000, date: '2024-03-01' },
+];
+
+const mockLinkedOrders = [
+  { id: 'ORD-2024-0156', name: 'Downtown Office - Phase 1', status: 'processing', value: 45000, date: '2024-03-10' },
+  { id: 'ORD-2024-0189', name: 'Downtown Office - Phase 2', status: 'shipped', value: 62000, date: '2024-03-18' },
+];
+
+const mockLinkedInvoices = [
+  { id: 'INV-2024-0892', name: 'Downtown Office - Deposit', status: 'paid', value: 25000, date: '2024-03-12' },
+  { id: 'INV-2024-0923', name: 'Downtown Office - Progress 1', status: 'pending', value: 35000, date: '2024-03-20' },
+];
+
+const mockLinkedCommissionStatements = [
+  { id: 'CS-2024-03', name: 'March 2024 Statement', status: 'processed', value: 4250, date: '2024-03-31' },
+];
+
+const mockLinkedContacts = [
+  { id: 'CON-001', name: 'John Smith', role: 'Project Manager', company: 'Turner Construction', email: 'jsmith@turner.com' },
+  { id: 'CON-002', name: 'Emily Davis', role: 'Purchasing Agent', company: 'Turner Construction', email: 'edavis@turner.com' },
+  { id: 'CON-003', name: 'Michael Chen', role: 'Electrical Engineer', company: 'MEP Associates', email: 'mchen@mep.com' },
+];
+
+const mockLinkedCompanies = [
+  { id: 'COMP-001', name: 'Turner Construction', type: 'Customer', city: 'New York', state: 'NY' },
+  { id: 'COMP-002', name: 'MEP Associates', type: 'Consultant', city: 'Chicago', state: 'IL' },
+];
+
+const mockLinkedTags = [
+  { id: 'TAG-001', name: 'High Priority', color: '#EF4444' },
+  { id: 'TAG-002', name: 'Hospitality', color: '#8B5CF6' },
+  { id: 'TAG-003', name: 'LED Retrofit', color: '#10B981' },
+  { id: 'TAG-004', name: 'Energy Rebate', color: '#F59E0B' },
+];
+
 const mockDistributorQuotes: DistributorQuote[] = [
   {
     id: 'DQ-001',
@@ -3363,7 +3401,7 @@ export default function QuotesContent() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [quotes, setQuotes] = useState<Quote[]>(mockQuotes);
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
-  const [detailTab, setDetailTab] = useState<'lines' | 'approvals' | 'recipients' | 'distributors' | 'files' | 'versions' | 'notes' | 'tasks' | 'activity' | 'settings' | 'submittals'>('lines');
+  const [detailTab, setDetailTab] = useState<'lines' | 'approvals' | 'recipients' | 'distributors' | 'linkedObjects' | 'versions' | 'notes' | 'tasks' | 'activity' | 'settings' | 'submittals'>('lines');
   const [showApprovalRequestModal, setShowApprovalRequestModal] = useState(false);
   const [showCreateSubmittalModal, setShowCreateSubmittalModal] = useState(false);
   const [submittals, setSubmittals] = useState<Submittal[]>(mockSubmittals);
@@ -5943,7 +5981,7 @@ export default function QuotesContent() {
                   { id: 'notes', label: 'Notes' },
                   { id: 'tasks', label: 'Tasks' },
                   { id: 'activity', label: 'Activity' },
-                  { id: 'files', label: 'Files', count: quoteFiles.filter(f => f.quoteId === selectedQuote.id).length },
+                  { id: 'linkedObjects', label: 'Linked Objects' },
                   { id: 'versions', label: 'Versions' },
                   { id: 'settings', label: 'Settings' },
                 ].filter(tab => !(quoteViewMode === 'simple' && tab.hideInSimple)).map(tab => (
@@ -6309,6 +6347,10 @@ export default function QuotesContent() {
                           )}
                           {/* Dynamic columns based on columnOrder */}
                           {getOrderedVisibleColumns().map(colKey => renderHeaderCell(colKey))}
+                          {/* Outside Reps column - only when commission splits enabled */}
+                          {showCommissionSplits && (
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">Outside Reps</th>
+                          )}
                           {/* Empty header for expand/more button column - always last */}
                           <th className="px-2 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase w-10"></th>
                         </tr>
@@ -6439,6 +6481,92 @@ export default function QuotesContent() {
                                       />
                                     </td>
                                     {getOrderedVisibleColumns().map(colKey => renderBodyCell(colKey, item))}
+                                    {/* Outside Reps Column - Only visible when showCommissionSplits is enabled */}
+                                    {showCommissionSplits && (() => {
+                                      const currentRep = item.outsideRepSplits.length === 1 ? item.outsideRepSplits[0] : null;
+                                      const hasMultiple = item.outsideRepSplits.length > 1;
+                                      const displayText = hasMultiple ? 'Multiple' : (currentRep?.repName || 'Select...');
+                                      const filteredReps = availableOutsideReps.filter(rep =>
+                                        rep.name.toLowerCase().includes(lineItemRepSearch.toLowerCase())
+                                      );
+                                      return (
+                                        <td className="px-3 py-2 text-sm relative">
+                                          <div className="line-item-rep-container">
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setLineItemRepDropdown(lineItemRepDropdown === item.id ? null : item.id);
+                                                setLineItemRepSearch('');
+                                              }}
+                                              className={`w-full text-left px-2 py-1 rounded hover:bg-[var(--muted)] transition-colors flex items-center gap-1 text-xs ${hasMultiple ? 'text-[var(--primary)] font-medium' : ''}`}
+                                            >
+                                              <span className="flex-1 truncate">{displayText}</span>
+                                              <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-[var(--muted-foreground)] flex-shrink-0">
+                                                <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                                              </svg>
+                                            </button>
+                                            {lineItemRepDropdown === item.id && (
+                                              <div className="absolute top-full left-0 mt-1 w-64 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                                                <div className="p-2 border-b border-[var(--border)]">
+                                                  <input
+                                                    type="text"
+                                                    value={lineItemRepSearch}
+                                                    onChange={(e) => setLineItemRepSearch(e.target.value)}
+                                                    placeholder="Search reps..."
+                                                    className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                                                    autoFocus
+                                                    onClick={(e) => e.stopPropagation()}
+                                                  />
+                                                </div>
+                                                <div className="max-h-48 overflow-y-auto">
+                                                  {/* Multiple option */}
+                                                  <button
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setLineItemRepSplitsTarget(item.id);
+                                                      setLineItemRepSplits(item.outsideRepSplits.length > 0
+                                                        ? item.outsideRepSplits.map(s => ({ repId: s.repId, repName: s.repName, percentage: s.percentage }))
+                                                        : [{ repId: availableOutsideReps[0]?.id || '', repName: availableOutsideReps[0]?.name || '', percentage: 100 }]
+                                                      );
+                                                      setShowLineItemRepSplitsModal(true);
+                                                      setLineItemRepDropdown(null);
+                                                    }}
+                                                    className="w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors border-b border-[var(--border)] flex items-center gap-2"
+                                                  >
+                                                    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--primary)]">
+                                                      <path d="M12 4.5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zM19 8.5a2 2 0 11-4 0 2 2 0 014 0zM5 8.5a2 2 0 11-4 0 2 2 0 014 0zM10 10v6M6 14h8" strokeLinecap="round" strokeLinejoin="round"/>
+                                                    </svg>
+                                                    <span className="font-medium text-[var(--primary)] text-sm">Multiple (Split Commission)</span>
+                                                  </button>
+                                                  {filteredReps.map(rep => (
+                                                    <button
+                                                      key={rep.id}
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setQuoteLineItems(prev => prev.map(li =>
+                                                          li.id === item.id ? {
+                                                            ...li,
+                                                            outsideRepSplits: [{ repId: rep.id, repName: rep.name, percentage: 100 }]
+                                                          } : li
+                                                        ));
+                                                        setLineItemRepDropdown(null);
+                                                        setLineItemRepSearch('');
+                                                      }}
+                                                      className={`w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors ${currentRep?.repId === rep.id ? 'bg-[var(--muted)]' : ''}`}
+                                                    >
+                                                      <div className="text-sm">{rep.name}</div>
+                                                    </button>
+                                                  ))}
+                                                  {filteredReps.length === 0 && (
+                                                    <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">No reps found</div>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
+                                        </td>
+                                      );
+                                    })()}
                                     <td className="px-2 py-2 text-center">
                                       <button
                                         onClick={() => {
@@ -6460,7 +6588,7 @@ export default function QuotesContent() {
                                 {/* Add Line Row for this section */}
                                 {!isCollapsed && (
                                   <tr className="border-b border-[var(--border)] hover:bg-[var(--muted)]/20 transition-colors">
-                                    <td colSpan={totalColumns} className="px-4 py-2">
+                                    <td colSpan={totalColumns + (showCommissionSplits ? 1 : 0)} className="px-4 py-2">
                                       <button
                                         className="flex items-center gap-2 text-sm text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors"
                                         onClick={() => addLineItem(section.id)}
@@ -6480,7 +6608,7 @@ export default function QuotesContent() {
                         {/* Add Section row at the very bottom in shelf mode */}
                         {showSections && sectionDisplayMode === 'lineShelf' && (
                           <tr className="hover:bg-[var(--muted)]/20 transition-colors">
-                            <td colSpan={1 + getOrderedVisibleColumns().length + 1} className="px-4 py-3 border-t border-[var(--border)]">
+                            <td colSpan={1 + getOrderedVisibleColumns().length + (showCommissionSplits ? 1 : 0) + 1} className="px-4 py-3 border-t border-[var(--border)]">
                               <button
                                 className="flex items-center gap-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
                                 onClick={() => addSection()}
@@ -6635,6 +6763,92 @@ export default function QuotesContent() {
                                   </td>
                                 )}
                                 {getOrderedVisibleColumns().map(colKey => renderBodyCell(colKey, item))}
+                                {/* Outside Reps Column - Only visible when showCommissionSplits is enabled */}
+                                {showCommissionSplits && (() => {
+                                  const currentRep = item.outsideRepSplits.length === 1 ? item.outsideRepSplits[0] : null;
+                                  const hasMultiple = item.outsideRepSplits.length > 1;
+                                  const displayText = hasMultiple ? 'Multiple' : (currentRep?.repName || 'Select...');
+                                  const filteredReps = availableOutsideReps.filter(rep =>
+                                    rep.name.toLowerCase().includes(lineItemRepSearch.toLowerCase())
+                                  );
+                                  return (
+                                    <td className="px-3 py-2 text-sm relative">
+                                      <div className="line-item-rep-container">
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setLineItemRepDropdown(lineItemRepDropdown === item.id ? null : item.id);
+                                            setLineItemRepSearch('');
+                                          }}
+                                          className={`w-full text-left px-2 py-1 rounded hover:bg-[var(--muted)] transition-colors flex items-center gap-1 text-xs ${hasMultiple ? 'text-[var(--primary)] font-medium' : ''}`}
+                                        >
+                                          <span className="flex-1 truncate">{displayText}</span>
+                                          <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-[var(--muted-foreground)] flex-shrink-0">
+                                            <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                                          </svg>
+                                        </button>
+                                        {lineItemRepDropdown === item.id && (
+                                          <div className="absolute top-full left-0 mt-1 w-64 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                                            <div className="p-2 border-b border-[var(--border)]">
+                                              <input
+                                                type="text"
+                                                value={lineItemRepSearch}
+                                                onChange={(e) => setLineItemRepSearch(e.target.value)}
+                                                placeholder="Search reps..."
+                                                className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                                                autoFocus
+                                                onClick={(e) => e.stopPropagation()}
+                                              />
+                                            </div>
+                                            <div className="max-h-48 overflow-y-auto">
+                                              {/* Multiple option */}
+                                              <button
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setLineItemRepSplitsTarget(item.id);
+                                                  setLineItemRepSplits(item.outsideRepSplits.length > 0
+                                                    ? item.outsideRepSplits.map(s => ({ repId: s.repId, repName: s.repName, percentage: s.percentage }))
+                                                    : [{ repId: availableOutsideReps[0]?.id || '', repName: availableOutsideReps[0]?.name || '', percentage: 100 }]
+                                                  );
+                                                  setShowLineItemRepSplitsModal(true);
+                                                  setLineItemRepDropdown(null);
+                                                }}
+                                                className="w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors border-b border-[var(--border)] flex items-center gap-2"
+                                              >
+                                                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--primary)]">
+                                                  <path d="M12 4.5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zM19 8.5a2 2 0 11-4 0 2 2 0 014 0zM5 8.5a2 2 0 11-4 0 2 2 0 014 0zM10 10v6M6 14h8" strokeLinecap="round" strokeLinejoin="round"/>
+                                                </svg>
+                                                <span className="font-medium text-[var(--primary)] text-sm">Multiple (Split Commission)</span>
+                                              </button>
+                                              {filteredReps.map(rep => (
+                                                <button
+                                                  key={rep.id}
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setQuoteLineItems(prev => prev.map(li =>
+                                                      li.id === item.id ? {
+                                                        ...li,
+                                                        outsideRepSplits: [{ repId: rep.id, repName: rep.name, percentage: 100 }]
+                                                      } : li
+                                                    ));
+                                                    setLineItemRepDropdown(null);
+                                                    setLineItemRepSearch('');
+                                                  }}
+                                                  className={`w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors ${currentRep?.repId === rep.id ? 'bg-[var(--muted)]' : ''}`}
+                                                >
+                                                  <div className="text-sm">{rep.name}</div>
+                                                </button>
+                                              ))}
+                                              {filteredReps.length === 0 && (
+                                                <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">No reps found</div>
+                                              )}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </td>
+                                  );
+                                })()}
                                 <td className="px-2 py-2 text-center">
                                   <button
                                     onClick={() => {
@@ -6657,7 +6871,7 @@ export default function QuotesContent() {
                         {/* Add Line Row at the bottom (for column mode or no sections) */}
                         {!(showSections && sectionDisplayMode === 'lineShelf') && (
                           <tr className="hover:bg-[var(--muted)]/20 transition-colors">
-                            <td colSpan={1 + (showSections && sectionDisplayMode === 'column' ? 1 : 0) + getOrderedVisibleColumns().length + 1} className="px-4 py-2">
+                            <td colSpan={1 + (showSections && sectionDisplayMode === 'column' ? 1 : 0) + getOrderedVisibleColumns().length + (showCommissionSplits ? 1 : 0) + 1} className="px-4 py-2">
                               <button
                                 className="flex items-center gap-2 text-sm text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors"
                                 onClick={() => addLineItem()}
@@ -6990,7 +7204,7 @@ export default function QuotesContent() {
                           {effectiveVisibleColumns.has('specSheet') && (
                             <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase">Spec</th>
                           )}
-                          {effectiveVisibleColumns.has('outsideReps') && showCommissionSplits && (
+                          {showCommissionSplits && (
                             <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">Outside Reps</th>
                           )}
                           {effectiveVisibleColumns.has('commissionDiscountPercent') && (
@@ -7570,7 +7784,7 @@ export default function QuotesContent() {
                                       </td>
                                     )}
                                     {/* Outside Reps Column - Only visible when showCommissionSplits is enabled */}
-                                    {effectiveVisibleColumns.has('outsideReps') && showCommissionSplits && (() => {
+                                    {showCommissionSplits && (() => {
                                       const currentRep = item.outsideRepSplits.length === 1 ? item.outsideRepSplits[0] : null;
                                       const hasMultiple = item.outsideRepSplits.length > 1;
                                       const displayText = hasMultiple ? 'Multiple' : (currentRep?.repName || 'Select...');
@@ -7998,7 +8212,7 @@ export default function QuotesContent() {
                         {/* Add Section row at the very bottom in shelf mode */}
                         {showSections && sectionDisplayMode === 'lineShelf' && (
                           <tr className="hover:bg-[var(--muted)]/20 transition-colors">
-                            <td colSpan={1 + effectiveVisibleColumns.size + 1} className="px-4 py-3 border-t border-[var(--border)]">
+                            <td colSpan={1 + effectiveVisibleColumns.size + (showCommissionSplits ? 1 : 0) + 1} className="px-4 py-3 border-t border-[var(--border)]">
                               <button
                                 className="flex items-center gap-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
                                 onClick={() => addSection()}
@@ -9872,266 +10086,222 @@ export default function QuotesContent() {
               </div>
             )}
 
-            {/* Files Tab */}
-            {detailTab === 'files' && (
-              <div className="space-y-6">
+            {/* Linked Objects Tab */}
+            {detailTab === 'linkedObjects' && (
+              <div className="space-y-6 overflow-y-auto max-h-[calc(100vh-300px)]">
                 {/* Header */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-lg font-semibold text-[var(--foreground)]">Quote Files</h2>
-                    <p className="text-sm text-[var(--muted-foreground)]">Manage files attached to this quote and control which are included in emails</p>
-                  </div>
-                  <button className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-sm hover:bg-[var(--primary-hover)] transition-colors">
-                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M14 2H6a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V4a2 2 0 00-2-2z"/>
-                      <path d="M10 10v4M8 12h4" strokeLinecap="round"/>
-                    </svg>
-                    Upload File
-                  </button>
+                <div>
+                  <h2 className="text-lg font-semibold text-[var(--foreground)]">Linked Objects</h2>
+                  <p className="text-sm text-[var(--muted-foreground)]">Related entities connected to this quote</p>
                 </div>
 
-                {/* Files Table */}
-                <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
-                  <table className="w-full">
-                    <thead className="bg-[var(--muted)]/30">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase">File Name</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase">Type</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase">Size</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase">Uploaded</th>
-                        <th className="px-4 py-3 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase">Include in Email</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {quoteFiles.filter(f => f.quoteId === selectedQuote.id).map(file => {
-                        const fileExtension = file.name.split('.').pop()?.toLowerCase() || '';
-                        const getFileIcon = () => {
-                          switch (fileExtension) {
-                            case 'pdf':
-                              return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="text-red-500"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" strokeWidth="2"/><path d="M14 2v6h6" stroke="currentColor" strokeWidth="2"/><text x="6" y="18" fontSize="6" fill="currentColor" fontWeight="bold">PDF</text></svg>;
-                            case 'xlsx':
-                            case 'xls':
-                              return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="text-green-600"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" strokeWidth="2"/><path d="M14 2v6h6" stroke="currentColor" strokeWidth="2"/><text x="5" y="18" fontSize="5" fill="currentColor" fontWeight="bold">XLS</text></svg>;
-                            case 'dwg':
-                            case 'dxf':
-                              return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="text-blue-600"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" strokeWidth="2"/><path d="M14 2v6h6" stroke="currentColor" strokeWidth="2"/><text x="4" y="18" fontSize="5" fill="currentColor" fontWeight="bold">CAD</text></svg>;
-                            case 'zip':
-                            case 'rar':
-                              return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="text-yellow-600"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" strokeWidth="2"/><path d="M14 2v6h6" stroke="currentColor" strokeWidth="2"/><text x="5" y="18" fontSize="5" fill="currentColor" fontWeight="bold">ZIP</text></svg>;
-                            default:
-                              return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="text-gray-500"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" strokeWidth="2"/><path d="M14 2v6h6" stroke="currentColor" strokeWidth="2"/></svg>;
-                          }
-                        };
-                        const formatFileSize = (bytes: number) => {
-                          if (bytes < 1024) return `${bytes} B`;
-                          if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-                          return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-                        };
-                        return (
-                          <tr key={file.id} className="border-t border-[var(--border)] hover:bg-[var(--muted)]/20">
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-3">
-                                {getFileIcon()}
-                                <span className="text-sm font-medium text-[var(--foreground)]">{file.name}</span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className="text-sm text-[var(--muted-foreground)] uppercase">{fileExtension}</span>
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className="text-sm text-[var(--muted-foreground)]">{formatFileSize(file.size)}</span>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="text-sm">
-                                <div className="text-[var(--foreground)]">{new Date(file.uploadedAt).toLocaleDateString()}</div>
-                                <div className="text-xs text-[var(--muted-foreground)]">by {file.uploadedBy}</div>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <button
-                                onClick={() => {
-                                  setQuoteFiles(prev => prev.map(f =>
-                                    f.id === file.id ? { ...f, includeInEmail: !f.includeInEmail } : f
-                                  ));
-                                }}
-                                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                                  file.includeInEmail
-                                    ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                }`}
-                              >
-                                {file.includeInEmail ? (
-                                  <>
-                                    <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                                      <path d="M16 5l-9 9-4-4" strokeLinecap="round" strokeLinejoin="round"/>
-                                    </svg>
-                                    Include
-                                  </>
-                                ) : (
-                                  <>
-                                    <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                                      <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
-                                    </svg>
-                                    Exclude
-                                  </>
-                                )}
-                              </button>
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <div className="flex items-center justify-end gap-2">
-                                <button className="p-1.5 hover:bg-[var(--muted)] rounded transition-colors" title="Download">
-                                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted-foreground)]">
-                                    <path d="M10 3v10M6 9l4 4 4-4M4 15h12" strokeLinecap="round" strokeLinejoin="round"/>
-                                  </svg>
-                                </button>
-                                <button className="p-1.5 hover:bg-[var(--muted)] rounded transition-colors" title="Preview">
-                                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted-foreground)]">
-                                    <circle cx="10" cy="10" r="3"/>
-                                    <path d="M2 10s3-6 8-6 8 6 8 6-3 6-8 6-8-6-8-6z"/>
-                                  </svg>
-                                </button>
-                                <button className="p-1.5 hover:bg-red-50 rounded transition-colors" title="Delete">
-                                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-500">
-                                    <path d="M4 6h12M8 6V4h4v2M6 6v10a1 1 0 001 1h6a1 1 0 001-1V6"/>
-                                  </svg>
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Spec Sheets Section */}
-                <div className="mt-8">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h3 className="text-md font-semibold text-[var(--foreground)]">Line Item Spec Sheets</h3>
-                      <p className="text-sm text-[var(--muted-foreground)]">Select which product spec sheets to include when sending the quote</p>
-                    </div>
+                {/* Pre-Opportunities */}
+                <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+                  <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => {
-                          const lineItemsWithSpecs = quoteLineItems.filter(li => li.hasSpecSheet);
-                          setSpecSheetSelections(new Set(lineItemsWithSpecs.map(li => li.id)));
-                        }}
-                        className="text-sm text-[var(--primary)] hover:underline"
-                      >
-                        Select All
-                      </button>
-                      <span className="text-[var(--muted-foreground)]">|</span>
-                      <button
-                        onClick={() => setSpecSheetSelections(new Set())}
-                        className="text-sm text-[var(--primary)] hover:underline"
-                      >
-                        Deselect All
-                      </button>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-orange-500">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                      </svg>
+                      <span className="font-medium text-[var(--foreground)]">Pre-Opportunities</span>
+                      <span className="text-xs bg-[var(--muted)] text-[var(--muted-foreground)] px-2 py-0.5 rounded-full">{mockLinkedPreOpps.length}</span>
                     </div>
+                    <button className="text-xs text-[var(--primary)] hover:underline">+ Link Pre-Opp</button>
                   </div>
-                  <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
-                    <table className="w-full">
-                      <thead className="bg-[var(--muted)]/30">
-                        <tr>
-                          <th className="w-12 px-4 py-3 text-center">
-                            <input
-                              type="checkbox"
-                              checked={quoteLineItems.filter(li => li.hasSpecSheet).every(li => specSheetSelections.has(li.id))}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSpecSheetSelections(new Set(quoteLineItems.filter(li => li.hasSpecSheet).map(li => li.id)));
-                                } else {
-                                  setSpecSheetSelections(new Set());
-                                }
-                              }}
-                              className="accent-[var(--primary)]"
-                            />
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase">Part #</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase">Description</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase">Manufacturer</th>
-                          <th className="px-4 py-3 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase">Include in Email</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {quoteLineItems.filter(li => li.hasSpecSheet).map(item => (
-                          <tr key={item.id} className="border-t border-[var(--border)] hover:bg-[var(--muted)]/20">
-                            <td className="px-4 py-3 text-center">
-                              <input
-                                type="checkbox"
-                                checked={specSheetSelections.has(item.id)}
-                                onChange={() => {
-                                  setSpecSheetSelections(prev => {
-                                    const newSet = new Set(prev);
-                                    if (newSet.has(item.id)) {
-                                      newSet.delete(item.id);
-                                    } else {
-                                      newSet.add(item.id);
-                                    }
-                                    return newSet;
-                                  });
-                                }}
-                                className="accent-[var(--primary)]"
-                              />
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className="font-mono text-sm text-[var(--foreground)]">{item.productNumber}</span>
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className="text-sm text-[var(--foreground)]">{item.description}</span>
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className="text-sm text-[var(--muted-foreground)]">{item.manufacturers[0].name}</span>
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <button
-                                onClick={() => {
-                                  setSpecSheetSelections(prev => {
-                                    const newSet = new Set(prev);
-                                    if (newSet.has(item.id)) {
-                                      newSet.delete(item.id);
-                                    } else {
-                                      newSet.add(item.id);
-                                    }
-                                    return newSet;
-                                  });
-                                }}
-                                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                                  specSheetSelections.has(item.id)
-                                    ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                }`}
-                              >
-                                {specSheetSelections.has(item.id) ? (
-                                  <>
-                                    <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                                      <path d="M16 5l-9 9-4-4" strokeLinecap="round" strokeLinejoin="round"/>
-                                    </svg>
-                                    Include
-                                  </>
-                                ) : (
-                                  <>
-                                    <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                                      <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
-                                    </svg>
-                                    Exclude
-                                  </>
-                                )}
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="divide-y divide-[var(--border)]">
+                    {mockLinkedPreOpps.map(item => (
+                      <div key={item.id} className="px-4 py-3 flex items-center justify-between hover:bg-[var(--muted)]/30 cursor-pointer">
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono text-xs text-[var(--muted-foreground)]">{item.id}</span>
+                          <span className="text-sm text-[var(--foreground)]">{item.name}</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <span className="text-sm font-medium text-[var(--foreground)]">${item.value.toLocaleString()}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${item.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{item.status}</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="mt-3 flex items-center gap-2 text-sm text-[var(--muted-foreground)]">
-                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                      <circle cx="10" cy="10" r="8"/>
-                      <path d="M10 6v4M10 14h.01"/>
-                    </svg>
-                    {specSheetSelections.size} of {quoteLineItems.filter(li => li.hasSpecSheet).length} spec sheets selected for inclusion
+                </div>
+
+                {/* Orders */}
+                <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+                  <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-500">
+                        <rect x="2" y="3" width="20" height="18" rx="2"/>
+                        <path d="M8 7h8M8 11h8M8 15h4"/>
+                      </svg>
+                      <span className="font-medium text-[var(--foreground)]">Orders</span>
+                      <span className="text-xs bg-[var(--muted)] text-[var(--muted-foreground)] px-2 py-0.5 rounded-full">{mockLinkedOrders.length}</span>
+                    </div>
+                    <button className="text-xs text-[var(--primary)] hover:underline">+ Link Order</button>
+                  </div>
+                  <div className="divide-y divide-[var(--border)]">
+                    {mockLinkedOrders.map(item => (
+                      <div key={item.id} className="px-4 py-3 flex items-center justify-between hover:bg-[var(--muted)]/30 cursor-pointer">
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono text-xs text-[var(--muted-foreground)]">{item.id}</span>
+                          <span className="text-sm text-[var(--foreground)]">{item.name}</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <span className="text-sm font-medium text-[var(--foreground)]">${item.value.toLocaleString()}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${item.status === 'shipped' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>{item.status}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Invoices */}
+                <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+                  <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-500">
+                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                        <path d="M14 2v6h6M9 13h6M9 17h3"/>
+                      </svg>
+                      <span className="font-medium text-[var(--foreground)]">Invoices</span>
+                      <span className="text-xs bg-[var(--muted)] text-[var(--muted-foreground)] px-2 py-0.5 rounded-full">{mockLinkedInvoices.length}</span>
+                    </div>
+                    <button className="text-xs text-[var(--primary)] hover:underline">+ Link Invoice</button>
+                  </div>
+                  <div className="divide-y divide-[var(--border)]">
+                    {mockLinkedInvoices.map(item => (
+                      <div key={item.id} className="px-4 py-3 flex items-center justify-between hover:bg-[var(--muted)]/30 cursor-pointer">
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono text-xs text-[var(--muted-foreground)]">{item.id}</span>
+                          <span className="text-sm text-[var(--foreground)]">{item.name}</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <span className="text-sm font-medium text-[var(--foreground)]">${item.value.toLocaleString()}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${item.status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{item.status}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Commission Statements */}
+                <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+                  <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-500">
+                        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+                      </svg>
+                      <span className="font-medium text-[var(--foreground)]">Commission Statements</span>
+                      <span className="text-xs bg-[var(--muted)] text-[var(--muted-foreground)] px-2 py-0.5 rounded-full">{mockLinkedCommissionStatements.length}</span>
+                    </div>
+                    <button className="text-xs text-[var(--primary)] hover:underline">+ Link Statement</button>
+                  </div>
+                  <div className="divide-y divide-[var(--border)]">
+                    {mockLinkedCommissionStatements.map(item => (
+                      <div key={item.id} className="px-4 py-3 flex items-center justify-between hover:bg-[var(--muted)]/30 cursor-pointer">
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono text-xs text-[var(--muted-foreground)]">{item.id}</span>
+                          <span className="text-sm text-[var(--foreground)]">{item.name}</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <span className="text-sm font-medium text-green-600">${item.value.toLocaleString()}</span>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">{item.status}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Contacts */}
+                <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+                  <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-cyan-500">
+                        <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+                        <circle cx="12" cy="7" r="4"/>
+                      </svg>
+                      <span className="font-medium text-[var(--foreground)]">Contacts</span>
+                      <span className="text-xs bg-[var(--muted)] text-[var(--muted-foreground)] px-2 py-0.5 rounded-full">{mockLinkedContacts.length}</span>
+                    </div>
+                    <button className="text-xs text-[var(--primary)] hover:underline">+ Link Contact</button>
+                  </div>
+                  <div className="divide-y divide-[var(--border)]">
+                    {mockLinkedContacts.map(item => (
+                      <div key={item.id} className="px-4 py-3 flex items-center justify-between hover:bg-[var(--muted)]/30 cursor-pointer">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-cyan-100 flex items-center justify-center text-cyan-600 text-xs font-medium">
+                            {item.name.split(' ').map(n => n[0]).join('')}
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium text-[var(--foreground)]">{item.name}</div>
+                            <div className="text-xs text-[var(--muted-foreground)]">{item.role}</div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm text-[var(--foreground)]">{item.company}</div>
+                          <div className="text-xs text-[var(--muted-foreground)]">{item.email}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Companies */}
+                <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+                  <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-indigo-500">
+                        <path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                      </svg>
+                      <span className="font-medium text-[var(--foreground)]">Companies</span>
+                      <span className="text-xs bg-[var(--muted)] text-[var(--muted-foreground)] px-2 py-0.5 rounded-full">{mockLinkedCompanies.length}</span>
+                    </div>
+                    <button className="text-xs text-[var(--primary)] hover:underline">+ Link Company</button>
+                  </div>
+                  <div className="divide-y divide-[var(--border)]">
+                    {mockLinkedCompanies.map(item => (
+                      <div key={item.id} className="px-4 py-3 flex items-center justify-between hover:bg-[var(--muted)]/30 cursor-pointer">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600 text-xs font-medium">
+                            {item.name.substring(0, 2).toUpperCase()}
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium text-[var(--foreground)]">{item.name}</div>
+                            <div className="text-xs text-[var(--muted-foreground)]">{item.city}, {item.state}</div>
+                          </div>
+                        </div>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${item.type === 'Customer' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>{item.type}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Tags */}
+                <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+                  <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-pink-500">
+                        <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/>
+                        <circle cx="7" cy="7" r="1.5" fill="currentColor"/>
+                      </svg>
+                      <span className="font-medium text-[var(--foreground)]">Tags</span>
+                      <span className="text-xs bg-[var(--muted)] text-[var(--muted-foreground)] px-2 py-0.5 rounded-full">{mockLinkedTags.length}</span>
+                    </div>
+                    <button className="text-xs text-[var(--primary)] hover:underline">+ Add Tag</button>
+                  </div>
+                  <div className="p-4 flex flex-wrap gap-2">
+                    {mockLinkedTags.map(tag => (
+                      <span
+                        key={tag.id}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium"
+                        style={{ backgroundColor: `${tag.color}20`, color: tag.color }}
+                      >
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: tag.color }} />
+                        {tag.name}
+                        <button className="ml-1 hover:opacity-70">
+                          <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                          </svg>
+                        </button>
+                      </span>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -10722,71 +10892,6 @@ export default function QuotesContent() {
             {detailTab === 'settings' && (
               <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6">
                 <div className="space-y-5">
-                  {/* Price Level Markups - Vertical Layout */}
-                  <div className="space-y-3">
-                    {quotePriceLevels.map((level, index) => (
-                      <div key={level.id} className="flex items-center gap-4">
-                        <span className={`w-8 text-sm font-medium ${priceLevelColors[index % priceLevelColors.length]}`}>L{index + 1}</span>
-                        <div className="relative w-24">
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            value={level.percent}
-                            onChange={(e) => setQuotePriceLevels(prev => prev.map(l =>
-                              l.id === level.id ? { ...l, percent: parseFloat(e.target.value) || 0 } : l
-                            ))}
-                            className="w-full px-3 py-1.5 pr-7 border border-[var(--border)] rounded focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent bg-[var(--background)] text-[var(--foreground)] text-sm"
-                          />
-                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-[var(--muted-foreground)]">%</span>
-                        </div>
-                        <input
-                          type="text"
-                          value={level.description}
-                          onChange={(e) => setQuotePriceLevels(prev => prev.map(l =>
-                            l.id === level.id ? { ...l, description: e.target.value } : l
-                          ))}
-                          placeholder="Description"
-                          className="flex-1 px-3 py-1.5 border border-[var(--border)] rounded focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent bg-[var(--background)] text-[var(--foreground)] text-sm text-[var(--muted-foreground)]"
-                        />
-                        {quotePriceLevels.length > 1 && (
-                          <button
-                            onClick={() => setQuotePriceLevels(prev => prev.filter(l => l.id !== level.id))}
-                            className="w-6 h-6 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center hover:bg-red-100 hover:text-red-600 transition-colors flex-shrink-0"
-                            title="Remove level"
-                          >
-                            <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M4 10h12" strokeLinecap="round"/>
-                            </svg>
-                          </button>
-                        )}
-                      </div>
-                    ))}
-
-                    {/* Add Level Button */}
-                    <button
-                      onClick={() => {
-                        const maxId = Math.max(...quotePriceLevels.map(l => l.id));
-                        const lastPercent = quotePriceLevels[quotePriceLevels.length - 1]?.percent || 20;
-                        setQuotePriceLevels(prev => [...prev, {
-                          id: maxId + 1,
-                          percent: lastPercent + 5,
-                          description: ''
-                        }]);
-                      }}
-                      className="flex items-center gap-2 text-sm text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors mt-2"
-                    >
-                      <span className="w-6 h-6 rounded-full bg-[var(--primary)]/10 flex items-center justify-center">
-                        <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M10 4v12M4 10h12" strokeLinecap="round"/>
-                        </svg>
-                      </span>
-                      Add price level
-                    </button>
-                  </div>
-
-                  {/* Divider */}
-                  <div className="border-t border-[var(--border)]"></div>
-
                   {/* End User Toggle - Simple row */}
                   <div className="flex items-center gap-3">
                     <button
@@ -10849,6 +10954,71 @@ export default function QuotesContent() {
                         <span className="text-sm text-[var(--muted-foreground)]">End User</span>
                       </label>
                     </div>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="border-t border-[var(--border)]"></div>
+
+                  {/* Price Level Markups - Vertical Layout (moved to bottom) */}
+                  <div className="space-y-3">
+                    {quotePriceLevels.map((level, index) => (
+                      <div key={level.id} className="flex items-center gap-4">
+                        <span className={`w-8 text-sm font-medium ${priceLevelColors[index % priceLevelColors.length]}`}>L{index + 1}</span>
+                        <div className="relative w-24">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={level.percent}
+                            onChange={(e) => setQuotePriceLevels(prev => prev.map(l =>
+                              l.id === level.id ? { ...l, percent: parseFloat(e.target.value) || 0 } : l
+                            ))}
+                            className="w-full px-3 py-1.5 pr-7 border border-[var(--border)] rounded focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent bg-[var(--background)] text-[var(--foreground)] text-sm"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-[var(--muted-foreground)]">%</span>
+                        </div>
+                        <input
+                          type="text"
+                          value={level.description}
+                          onChange={(e) => setQuotePriceLevels(prev => prev.map(l =>
+                            l.id === level.id ? { ...l, description: e.target.value } : l
+                          ))}
+                          placeholder="Description"
+                          className="flex-1 px-3 py-1.5 border border-[var(--border)] rounded focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent bg-[var(--background)] text-[var(--foreground)] text-sm text-[var(--muted-foreground)]"
+                        />
+                        {quotePriceLevels.length > 1 && (
+                          <button
+                            onClick={() => setQuotePriceLevels(prev => prev.filter(l => l.id !== level.id))}
+                            className="w-6 h-6 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center hover:bg-red-100 hover:text-red-600 transition-colors flex-shrink-0"
+                            title="Remove level"
+                          >
+                            <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M4 10h12" strokeLinecap="round"/>
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    ))}
+
+                    {/* Add Level Button */}
+                    <button
+                      onClick={() => {
+                        const maxId = Math.max(...quotePriceLevels.map(l => l.id));
+                        const lastPercent = quotePriceLevels[quotePriceLevels.length - 1]?.percent || 20;
+                        setQuotePriceLevels(prev => [...prev, {
+                          id: maxId + 1,
+                          percent: lastPercent + 5,
+                          description: ''
+                        }]);
+                      }}
+                      className="flex items-center gap-2 text-sm text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors mt-2"
+                    >
+                      <span className="w-6 h-6 rounded-full bg-[var(--primary)]/10 flex items-center justify-center">
+                        <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M10 4v12M4 10h12" strokeLinecap="round"/>
+                        </svg>
+                      </span>
+                      Add price level
+                    </button>
                   </div>
                 </div>
               </div>

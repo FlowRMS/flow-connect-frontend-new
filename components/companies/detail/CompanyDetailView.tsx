@@ -14,7 +14,7 @@ import DeleteConfirmModal from './DeleteConfirmModal';
 import { AddTaskNoteLinkModal } from '../modals/AddTaskNoteLinkModal';
 import { AddAddressModal, type Address } from '../../shared/AddAddressModal';
 
-type TabId = 'overview' | 'factory-info' | 'sales-reps' | 'addresses' | 'contacts' | 'pre-quotes' | 'emails' | 'meetings' | 'tasks' | 'notes' | 'tags';
+type TabId = 'overview' | 'factory-info' | 'sales-reps' | 'addresses' | 'contacts' | 'pre-quotes' | 'emails' | 'meetings' | 'tasks' | 'notes';
 
 // US States list
 const US_STATES = [
@@ -51,31 +51,51 @@ interface CompanyDetailViewProps {
   onDeleteClick: () => void;
   onDeleteConfirm: () => void;
   onDeleteCancel: () => void;
-  onFieldChange: (field: string, value: string | number | CompanySourceType | CompanyAddress[] | ManufacturerInfo | SalesRepAssignment[]) => void;
+  onFieldChange: (field: string, value: string | number | string[] | CompanySourceType | CompanyAddress[] | ManufacturerInfo | SalesRepAssignment[]) => void;
   onContactClick?: (contact: APIContact) => void;
   onJobClick?: (job: APIJob) => void;
 }
 
-// Portaled Select Component for Company Type
+// Default company type options
+const DEFAULT_COMPANY_TYPES = [
+  { value: 'Customer', label: 'Customer', color: { bg: 'bg-green-100', text: 'text-green-700', dot: 'bg-green-500' } },
+  { value: 'Manufacturer', label: 'Manufacturer', color: { bg: 'bg-purple-100', text: 'text-purple-700', dot: 'bg-purple-500' } },
+];
+
+// Company Type Single-Select Dropdown with "Add Category" option
 function CompanyTypeSelect({
   value,
   onChange,
+  customTypes = [],
+  onAddCustomType,
   disabled,
 }: {
-  value: CompanySourceType;
-  onChange: (value: CompanySourceType) => void;
+  value: string;
+  onChange: (value: string) => void;
+  customTypes?: string[];
+  onAddCustomType?: (type: string) => void;
   disabled: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newTypeName, setNewTypeName] = useState('');
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const options: { value: CompanySourceType; label: string; description: string }[] = [
-    { value: 'CUSTOMER', label: 'Customer', description: 'End customers and buyers' },
-    { value: 'MANUFACTURER', label: 'Manufacturer', description: 'Product manufacturers and suppliers' },
+  // All options: defaults + custom
+  const allOptions = [
+    ...DEFAULT_COMPANY_TYPES,
+    ...customTypes.map(t => ({
+      value: t,
+      label: t,
+      color: { bg: 'bg-blue-100', text: 'text-blue-700', dot: 'bg-blue-500' },
+      isCustom: true,
+    })),
   ];
+
+  const selectedOption = allOptions.find(opt => opt.value === value) || allOptions[0];
 
   useEffect(() => {
     setPortalTarget(document.body);
@@ -84,8 +104,8 @@ function CompanyTypeSelect({
   useEffect(() => {
     if (isOpen && triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
+      const dropdownHeight = 200;
       const spaceBelow = window.innerHeight - rect.bottom;
-      const dropdownHeight = 120;
 
       if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
         setPosition({
@@ -117,20 +137,25 @@ function CompanyTypeSelect({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const selectedOption = options.find(opt => opt.value === value);
-
-  const getTypeColor = (type: CompanySourceType) => {
-    return type === 'MANUFACTURER'
-      ? { bg: 'bg-purple-50', text: 'text-purple-700', dot: 'bg-purple-500' }
-      : { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-500' };
+  const handleAddCategory = () => {
+    if (newTypeName.trim() && onAddCustomType) {
+      const trimmed = newTypeName.trim();
+      // Don't allow duplicates
+      if (!allOptions.some(opt => opt.value.toLowerCase() === trimmed.toLowerCase())) {
+        onAddCustomType(trimmed);
+        onChange(trimmed); // Select the newly added type
+      }
+    }
+    setNewTypeName('');
+    setShowAddModal(false);
+    setIsOpen(false);
   };
 
   if (disabled) {
-    const colors = getTypeColor(value);
     return (
       <div className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 flex items-center gap-2">
-        <span className={`w-2.5 h-2.5 rounded-full ${colors.dot}`} />
-        <span className="text-gray-900">{selectedOption?.label || (value === 'MANUFACTURER' ? 'Manufacturer' : 'Customer')}</span>
+        <span className={`w-2.5 h-2.5 rounded-full ${selectedOption.color.dot}`} />
+        <span className="text-gray-900">{selectedOption.label}</span>
       </div>
     );
   }
@@ -141,38 +166,86 @@ function CompanyTypeSelect({
       className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"
       style={{ top: position.top, left: position.left, width: position.width }}
     >
-      <div className="py-1">
-        {options.map((option) => {
-          const colors = getTypeColor(option.value);
-          return (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => {
-                onChange(option.value);
-                setIsOpen(false);
-              }}
-              className={`
-                w-full px-4 py-2.5 text-left text-sm flex items-center gap-2.5
-                transition-colors hover:bg-gray-50
-                ${value === option.value ? 'bg-blue-50' : ''}
-              `}
-            >
-              <span className={`w-2.5 h-2.5 rounded-full ${colors.dot} flex-shrink-0`} />
-              <div className="flex-1">
-                <span className={`${value === option.value ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
-                  {option.label}
-                </span>
-                <p className="text-xs text-gray-500 mt-0.5">{option.description}</p>
-              </div>
-              {value === option.value && (
-                <svg className="w-4 h-4 text-blue-600 ml-auto flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                </svg>
-              )}
-            </button>
-          );
-        })}
+      <div className="py-1 max-h-[250px] overflow-y-auto">
+        {allOptions.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => {
+              onChange(option.value);
+              setIsOpen(false);
+            }}
+            className={`
+              w-full px-4 py-2.5 text-left text-sm flex items-center gap-2.5
+              transition-colors hover:bg-gray-50
+              ${value === option.value ? 'bg-blue-50' : ''}
+            `}
+          >
+            <span className={`w-2.5 h-2.5 rounded-full ${option.color.dot} flex-shrink-0`} />
+            <span className={`flex-1 ${value === option.value ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
+              {option.label}
+            </span>
+            {value === option.value && (
+              <svg className="w-4 h-4 text-blue-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+          </button>
+        ))}
+
+        {/* Add Category Option */}
+        <div className="border-t border-gray-100 mt-1 pt-1">
+          <button
+            type="button"
+            onClick={() => setShowAddModal(true)}
+            className="w-full px-4 py-2.5 text-left text-sm flex items-center gap-2.5 text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            <span>Add category</span>
+          </button>
+        </div>
+      </div>
+    </div>,
+    portalTarget
+  );
+
+  // Add Category Modal
+  const addModal = showAddModal && portalTarget && createPortal(
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/50" onClick={() => setShowAddModal(false)} />
+      <div className="relative bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Add Company Type</h3>
+        <input
+          type="text"
+          value={newTypeName}
+          onChange={(e) => setNewTypeName(e.target.value)}
+          placeholder="Enter type name..."
+          className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          autoFocus
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleAddCategory();
+            if (e.key === 'Escape') setShowAddModal(false);
+          }}
+        />
+        <div className="flex justify-end gap-3 mt-4">
+          <button
+            type="button"
+            onClick={() => setShowAddModal(false)}
+            className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleAddCategory}
+            disabled={!newTypeName.trim()}
+            className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+          >
+            Add
+          </button>
+        </div>
       </div>
     </div>,
     portalTarget
@@ -192,8 +265,8 @@ function CompanyTypeSelect({
         `}
       >
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span className={`w-2.5 h-2.5 rounded-full ${getTypeColor(value).dot}`} />
-          <span className="text-gray-900">{selectedOption?.label || (value === 'MANUFACTURER' ? 'Manufacturer' : 'Customer')}</span>
+          <span className={`w-2.5 h-2.5 rounded-full ${selectedOption.color.dot}`} />
+          <span className="text-gray-900">{selectedOption.label}</span>
         </div>
         <svg
           className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`}
@@ -205,6 +278,7 @@ function CompanyTypeSelect({
         </svg>
       </button>
       {dropdownContent}
+      {addModal}
     </div>
   );
 }
@@ -391,7 +465,6 @@ export default function CompanyDetailView({
     'meetings': null,
     'tasks': null,
     'notes': null,
-    'tags': null,
   });
 
   // Reference to the scrollable container
@@ -562,7 +635,6 @@ export default function CompanyDetailView({
     { id: 'meetings', label: 'Meetings' },
     { id: 'tasks', label: 'Tasks' },
     { id: 'notes', label: 'Notes' },
-    { id: 'tags', label: 'Tags' },
   ];
 
   const inputClass = "w-full px-4 py-3 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400";
@@ -624,44 +696,23 @@ export default function CompanyDetailView({
               </svg>
               Delete
             </button>
-            {isEditing ? (
-              <>
-                <button
-                  onClick={onCancelEdit}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={onSaveEdit}
-                  disabled={updatePending}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-                >
-                  {updatePending ? (
-                    <>
-                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                      </svg>
-                      Saving...
-                    </>
-                  ) : (
-                    'Save Changes'
-                  )}
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={onStartEdit}
-                className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors flex items-center gap-2"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M11 4H4a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-7" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M18.5 2.5a2.121 2.121 0 010 3l-9 9L6 15l.5-3.5 9-9a2.121 2.121 0 013 0z" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                Edit
-              </button>
-            )}
+            <button
+              onClick={onSaveEdit}
+              disabled={updatePending}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+            >
+              {updatePending ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                  </svg>
+                  Saving...
+                </>
+              ) : (
+                'Save'
+              )}
+            </button>
           </div>
         </div>
       </div>
@@ -694,57 +745,93 @@ export default function CompanyDetailView({
               <div className="px-6 py-4 border-b border-[var(--border)]">
                 <h2 className="text-lg font-semibold text-[var(--foreground)]">Overview</h2>
               </div>
-              <div className="p-6">
-                <div className="grid grid-cols-4 gap-4">
+              <div className="p-6 space-y-6">
+                {/* Basic Fields */}
+                <div className="grid grid-cols-3 gap-4">
                   {/* Company Name */}
                   <div>
                     <label className={labelClass}>Company Name*</label>
                     <input
                       type="text"
-                      value={isEditing ? editFormData.name || '' : company.name}
+                      value={isEditing ? (editFormData.name ?? company.name) : company.name}
                       onChange={(e) => onFieldChange('name', e.target.value)}
                       className={isEditing ? inputClass : readOnlyClass}
                       readOnly={!isEditing}
                     />
                   </div>
-                  {/* Contact Email */}
+                  {/* Website */}
                   <div>
-                    <label className={labelClass}>Contact Email</label>
-                    <input
-                      type="email"
-                      value={isEditing ? editFormData.email || '' : (company.email || '')}
-                      onChange={(e) => onFieldChange('email', e.target.value)}
-                      className={isEditing ? inputClass : readOnlyClass}
-                      readOnly={!isEditing}
-                    />
-                  </div>
-                  {/* Contact Number */}
-                  <div>
-                    <label className={labelClass}>Contact Number</label>
+                    <label className={labelClass}>Website</label>
                     <input
                       type="text"
-                      value={isEditing ? editFormData.phone || '' : (company.phone || '')}
-                      onChange={(e) => onFieldChange('phone', e.target.value)}
+                      value={isEditing ? (editFormData.website ?? company.website ?? '') : (company.website || '')}
+                      onChange={(e) => onFieldChange('website', e.target.value)}
                       className={isEditing ? inputClass : readOnlyClass}
                       readOnly={!isEditing}
+                      placeholder="https://example.com"
                     />
                   </div>
-                  {/* Inside Rep */}
+                  {/* Company Type */}
                   <div>
-                    <label className={labelClass}>Inside Rep*</label>
-                    {isEditing ? (
-                      <select
-                        value={editFormData.insideRep || company.insideRep || ''}
-                        onChange={(e) => onFieldChange('insideRep', e.target.value)}
-                        className={inputClass}
+                    <label className={labelClass}>Company Type</label>
+                    <CompanyTypeSelect
+                      value={isEditing ? (editFormData.type?.[0] ?? company.type[0] ?? 'Customer') : (company.type[0] ?? 'Customer')}
+                      onChange={(value) => onFieldChange('type', [value] as unknown as string)}
+                      customTypes={[]}
+                      onAddCustomType={(newType) => {
+                        onFieldChange('type', [newType] as unknown as string);
+                      }}
+                      disabled={false}
+                    />
+                  </div>
+                </div>
+
+                {/* Tags */}
+                <div>
+                  <label className={labelClass}>Tags</label>
+                  <div className="flex flex-wrap gap-2 min-h-[42px] p-3 border border-gray-200 rounded-lg bg-gray-50">
+                    {(() => {
+                      const currentTags = isEditing ? (editFormData.tags ?? company.tags) : company.tags;
+                      return currentTags.length > 0 ? (
+                        <>
+                          {currentTags.map((tag, idx) => (
+                            <span key={idx} className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+                              {tag}
+                              {isEditing && (
+                                <button
+                                  onClick={() => {
+                                    onFieldChange('tags', currentTags.filter((_, i) => i !== idx));
+                                  }}
+                                  className="ml-1 text-blue-500 hover:text-blue-700"
+                                >
+                                  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                                  </svg>
+                                </button>
+                              )}
+                            </span>
+                          ))}
+                        </>
+                      ) : (
+                        <span className="text-gray-400 text-sm">No tags</span>
+                      );
+                    })()}
+                    {isEditing && (
+                      <button
+                        onClick={() => {
+                          const tagName = prompt('Enter tag name:');
+                          if (tagName?.trim()) {
+                            const currentTags = editFormData.tags ?? company.tags;
+                            onFieldChange('tags', [...currentTags, tagName.trim()]);
+                          }
+                        }}
+                        className="inline-flex items-center gap-1 px-2 py-1 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
                       >
-                        <option value="">Select Inside Rep</option>
-                        <option value="Rep 1">Rep 1</option>
-                        <option value="Rep 2">Rep 2</option>
-                        <option value="Rep 3">Rep 3</option>
-                      </select>
-                    ) : (
-                      <div className={readOnlyClass}>{company.insideRep || '-'}</div>
+                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                        </svg>
+                        Add tag
+                      </button>
                     )}
                   </div>
                 </div>
@@ -963,6 +1050,76 @@ export default function CompanyDetailView({
                         className={isEditing ? textareaClass : `${readOnlyClass} min-h-[80px]`}
                         readOnly={!isEditing}
                       />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Classification */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Classification</h3>
+                  <div className="space-y-4">
+                    {/* Company Type */}
+                    <div>
+                      <label className={labelClass}>Company Type</label>
+                      <CompanyTypeSelect
+                        value={isEditing ? (editFormData.type?.[0] ?? company.type[0] ?? 'Manufacturer') : (company.type[0] ?? 'Manufacturer')}
+                        onChange={(value) => onFieldChange('type', [value] as unknown as string)}
+                        customTypes={[]}
+                        onAddCustomType={(newType) => {
+                          onFieldChange('type', [newType] as unknown as string);
+                        }}
+                        disabled={false}
+                      />
+                    </div>
+
+                    {/* Tags */}
+                    <div>
+                      <label className={labelClass}>Tags</label>
+                      <div className="flex flex-wrap gap-2 min-h-[42px] p-3 border border-gray-200 rounded-lg bg-gray-50">
+                        {(() => {
+                          const currentTags = isEditing ? (editFormData.tags ?? company.tags) : company.tags;
+                          return currentTags.length > 0 ? (
+                            <>
+                              {currentTags.map((tag, idx) => (
+                                <span key={idx} className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+                                  {tag}
+                                  {isEditing && (
+                                    <button
+                                      onClick={() => {
+                                        onFieldChange('tags', currentTags.filter((_, i) => i !== idx));
+                                      }}
+                                      className="ml-1 text-blue-500 hover:text-blue-700"
+                                    >
+                                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                                      </svg>
+                                    </button>
+                                  )}
+                                </span>
+                              ))}
+                            </>
+                          ) : (
+                            <span className="text-gray-400 text-sm">No tags</span>
+                          );
+                        })()}
+                        {isEditing && (
+                          <button
+                            onClick={() => {
+                              const tagName = prompt('Enter tag name:');
+                              if (tagName?.trim()) {
+                                const currentTags = editFormData.tags ?? company.tags;
+                                onFieldChange('tags', [...currentTags, tagName.trim()]);
+                              }
+                            }}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                            </svg>
+                            Add tag
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1432,54 +1589,6 @@ export default function CompanyDetailView({
           />
         </div>
 
-        {/* ============ TAGS SECTION ============ */}
-        <div ref={el => { sectionRefs.current['tags'] = el; }} id="section-tags">
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
-            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg font-semibold text-[var(--foreground)]">Tags</h2>
-                <span className="px-2 py-0.5 text-xs font-medium bg-[var(--muted)] text-[var(--muted-foreground)] rounded-full">
-                  {company.tags.length}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {/* TODO: Add tag */}}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-                  </svg>
-                  Add Tag
-                </button>
-              </div>
-            </div>
-            <div className="p-6">
-              {company.tags.length > 0 ? (
-                <div className="flex gap-2 flex-wrap">
-                  {company.tags.map((tag, idx) => (
-                    <span key={idx} className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-4 text-[var(--muted-foreground)]">
-                  <svg className="w-12 h-12 text-[var(--muted-foreground)]/30 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                  </svg>
-                  <p className="text-sm">No tags added</p>
-                  <button
-                    onClick={() => {/* TODO: Add tag */}}
-                    className="mt-2 text-sm text-[var(--primary)] hover:underline"
-                  >
-                    + Add a tag
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Add Link Modal for Tasks/Notes */}
