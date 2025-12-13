@@ -3432,6 +3432,9 @@ export default function QuotesContent() {
   const [headerEndUser, setHeaderEndUser] = useState('');
   const [endUserSameAsCustomer, setEndUserSameAsCustomer] = useState(true);
 
+  // Customer Part Number source - 'soldTo' or 'endUser'
+  const [customerPartNumberSource, setCustomerPartNumberSource] = useState<'soldTo' | 'endUser'>('soldTo');
+
   // Quote view mode - 'overage' (full) or 'simple' (basic pricing only)
   const [quoteViewMode, setQuoteViewMode] = useState<'overage' | 'simple'>('simple');
   const [showViewModeDropdown, setShowViewModeDropdown] = useState(false);
@@ -3452,6 +3455,13 @@ export default function QuotesContent() {
   const [splitCommission, setSplitCommission] = useState(false);
   const [showRepSplitsModal, setShowRepSplitsModal] = useState(false);
   const [repCommissionSplits, setRepCommissionSplits] = useState<{repId: string; repName: string; percentage: number}[]>([]);
+
+  // Line item outside rep splits
+  const [lineItemRepDropdown, setLineItemRepDropdown] = useState<string | null>(null);
+  const [lineItemRepSearch, setLineItemRepSearch] = useState('');
+  const [showLineItemRepSplitsModal, setShowLineItemRepSplitsModal] = useState(false);
+  const [lineItemRepSplitsTarget, setLineItemRepSplitsTarget] = useState<string | null>(null);
+  const [lineItemRepSplits, setLineItemRepSplits] = useState<{repId: string; repName: string; percentage: number}[]>([]);
 
   // Line item details modal (for hidden columns in simple view)
   const [showLineDetailsModal, setShowLineDetailsModal] = useState(false);
@@ -3510,6 +3520,18 @@ export default function QuotesContent() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [productSearchOpen]);
+
+  // Close line item rep dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (lineItemRepDropdown && !(e.target as Element).closest('.line-item-rep-container')) {
+        setLineItemRepDropdown(null);
+        setLineItemRepSearch('');
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [lineItemRepDropdown]);
 
   // Column visibility state
   type ColumnKey = 'partNumber' | 'customerPartNumber' | 'description' | 'quantity' | 'uom' | 'endUser' | 'manufacturer' | 'base' | 'sell' | 'sellTotal' | 'overage' | 'overageAmt' | 'commRate' | 'baseComm' | 'overageShare' | 'overageComm' | 'totalEarn' | 'effRate' | 'l1' | 'l2' | 'l3' | 'trend' | 'specSheet' | 'outsideReps' | 'divisor' | 'commissionDiscountPercent' | 'commissionDiscountAmount' | 'lineDiscountPercent' | 'lineDiscountAmount' | 'leadTime';
@@ -4120,7 +4142,89 @@ export default function QuotesContent() {
       case 'l3':
         return <td key={colKey} className="px-3 py-2 text-sm text-right text-[var(--muted-foreground)]">${item.level3Price.toLocaleString()}</td>;
       case 'outsideReps':
-        return <td key={colKey} className="px-3 py-2 text-sm text-center">{item.outsideRepSplits.length > 0 ? item.outsideRepSplits.length : '—'}</td>;
+        // Only show if commission splits is enabled
+        if (!showCommissionSplits) return null;
+        const currentRep = item.outsideRepSplits.length === 1 ? item.outsideRepSplits[0] : null;
+        const hasMultiple = item.outsideRepSplits.length > 1;
+        const displayText = hasMultiple ? 'Multiple' : (currentRep?.repName || 'Select...');
+        const filteredReps = availableOutsideReps.filter(rep =>
+          rep.name.toLowerCase().includes(lineItemRepSearch.toLowerCase())
+        );
+        return (
+          <td key={colKey} className="px-3 py-2 text-sm relative">
+            <div className="line-item-rep-container">
+              <button
+                onClick={() => {
+                  setLineItemRepDropdown(lineItemRepDropdown === item.id ? null : item.id);
+                  setLineItemRepSearch('');
+                }}
+                className={`w-full text-left px-2 py-1 rounded hover:bg-[var(--muted)] transition-colors flex items-center gap-1 ${hasMultiple ? 'text-[var(--primary)] font-medium' : ''}`}
+              >
+                <span className="flex-1 truncate">{displayText}</span>
+                <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-[var(--muted-foreground)] flex-shrink-0">
+                  <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                </svg>
+              </button>
+              {lineItemRepDropdown === item.id && (
+                <div className="absolute top-full left-0 mt-1 w-64 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                  <div className="p-2 border-b border-[var(--border)]">
+                    <input
+                      type="text"
+                      value={lineItemRepSearch}
+                      onChange={(e) => setLineItemRepSearch(e.target.value)}
+                      placeholder="Search reps..."
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="max-h-48 overflow-y-auto">
+                    {/* Multiple option */}
+                    <button
+                      onClick={() => {
+                        // Open the line item rep splits modal
+                        setLineItemRepSplitsTarget(item.id);
+                        setLineItemRepSplits(item.outsideRepSplits.length > 0
+                          ? item.outsideRepSplits.map(s => ({ repId: s.repId, repName: s.repName, percentage: s.percentage }))
+                          : [{ repId: availableOutsideReps[0]?.id || '', repName: availableOutsideReps[0]?.name || '', percentage: 100 }]
+                        );
+                        setShowLineItemRepSplitsModal(true);
+                        setLineItemRepDropdown(null);
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors border-b border-[var(--border)] flex items-center gap-2"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--primary)]">
+                        <path d="M12 4.5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zM19 8.5a2 2 0 11-4 0 2 2 0 014 0zM5 8.5a2 2 0 11-4 0 2 2 0 014 0zM10 10v6M6 14h8" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      <span className="font-medium text-[var(--primary)]">Multiple (Split Commission)</span>
+                    </button>
+                    {filteredReps.map(rep => (
+                      <button
+                        key={rep.id}
+                        onClick={() => {
+                          // Set single rep at 100%
+                          setQuoteLineItems(prev => prev.map(li =>
+                            li.id === item.id ? {
+                              ...li,
+                              outsideRepSplits: [{ repId: rep.id, repName: rep.name, percentage: 100 }]
+                            } : li
+                          ));
+                          setLineItemRepDropdown(null);
+                          setLineItemRepSearch('');
+                        }}
+                        className={`w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors ${currentRep?.repId === rep.id ? 'bg-[var(--muted)]' : ''}`}
+                      >
+                        <div className="text-sm">{rep.name}</div>
+                      </button>
+                    ))}
+                    {filteredReps.length === 0 && (
+                      <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">No reps found</div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </td>
+        );
       default:
         return <td key={colKey} className="px-3 py-2 text-sm">—</td>;
     }
@@ -5757,67 +5861,69 @@ export default function QuotesContent() {
                   />
                 </div>
 
-                {/* Outside Rep */}
-                <div>
-                  <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                    Outside Rep
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={quoteOutsideRep}
-                      onChange={(e) => {
-                        setQuoteOutsideRep(e.target.value);
-                        if (!e.target.value) {
-                          setSplitCommission(false);
-                          setRepCommissionSplits([]);
-                        }
-                      }}
-                      className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none cursor-pointer pr-8"
-                    >
-                      <option value="">Select Rep...</option>
-                      {availableOutsideReps.map(rep => (
-                        <option key={rep.id} value={rep.id}>{rep.name}</option>
-                      ))}
-                    </select>
-                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]">
-                      <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  </div>
-                  {quoteOutsideRep && (
-                    <div className="mt-2 flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        id="splitCommission"
-                        checked={splitCommission}
+                {/* Outside Rep - Hidden when commission splits per line is enabled */}
+                {!showCommissionSplits && (
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
+                      Outside Rep
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={quoteOutsideRep}
                         onChange={(e) => {
-                          setSplitCommission(e.target.checked);
-                          if (e.target.checked) {
-                            // Initialize with the selected rep at 100%
-                            const rep = availableOutsideReps.find(r => r.id === quoteOutsideRep);
-                            if (rep) {
-                              setRepCommissionSplits([{ repId: rep.id, repName: rep.name, percentage: 100 }]);
-                            }
-                            setShowRepSplitsModal(true);
-                          } else {
+                          setQuoteOutsideRep(e.target.value);
+                          if (!e.target.value) {
+                            setSplitCommission(false);
                             setRepCommissionSplits([]);
                           }
                         }}
-                        className="accent-[var(--primary)]"
-                      />
-                      <label htmlFor="splitCommission" className="text-xs text-[var(--muted-foreground)] cursor-pointer">
-                        Split Commission
-                      </label>
-                      {splitCommission && repCommissionSplits.length > 0 && (
-                        <button
-                          onClick={() => setShowRepSplitsModal(true)}
-                          className="text-xs text-[var(--primary)] hover:underline ml-1"
-                        >
-                          ({repCommissionSplits.length} reps)
-                        </button>
-                      )}
+                        className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none cursor-pointer pr-8"
+                      >
+                        <option value="">Select Rep...</option>
+                        {availableOutsideReps.map(rep => (
+                          <option key={rep.id} value={rep.id}>{rep.name}</option>
+                        ))}
+                      </select>
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]">
+                        <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
                     </div>
-                  )}
-                </div>
+                    {quoteOutsideRep && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="splitCommission"
+                          checked={splitCommission}
+                          onChange={(e) => {
+                            setSplitCommission(e.target.checked);
+                            if (e.target.checked) {
+                              // Initialize with the selected rep at 100%
+                              const rep = availableOutsideReps.find(r => r.id === quoteOutsideRep);
+                              if (rep) {
+                                setRepCommissionSplits([{ repId: rep.id, repName: rep.name, percentage: 100 }]);
+                              }
+                              setShowRepSplitsModal(true);
+                            } else {
+                              setRepCommissionSplits([]);
+                            }
+                          }}
+                          className="accent-[var(--primary)]"
+                        />
+                        <label htmlFor="splitCommission" className="text-xs text-[var(--muted-foreground)] cursor-pointer">
+                          Split Commission
+                        </label>
+                        {splitCommission && repCommissionSplits.length > 0 && (
+                          <button
+                            onClick={() => setShowRepSplitsModal(true)}
+                            className="text-xs text-[var(--primary)] hover:underline ml-1"
+                          >
+                            ({repCommissionSplits.length} reps)
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -7464,31 +7570,91 @@ export default function QuotesContent() {
                                       </td>
                                     )}
                                     {/* Outside Reps Column - Only visible when showCommissionSplits is enabled */}
-                                    {effectiveVisibleColumns.has('outsideReps') && showCommissionSplits && (
-                                      <td className="px-3 py-2">
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setCommissionSplitsModalItem(item);
-                                            setShowCommissionSplitsModal(true);
-                                          }}
-                                          className="flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-[var(--muted)] transition-colors group"
-                                        >
-                                          {item.outsideRepSplits.length === 0 ? (
-                                            <span className="text-[var(--muted-foreground)]">—</span>
-                                          ) : item.outsideRepSplits.length === 1 ? (
-                                            <span className="text-[var(--foreground)]">{item.outsideRepSplits[0].repName}</span>
-                                          ) : (
-                                            <span className="text-[var(--primary)]">
-                                              {item.outsideRepSplits.length} Reps Split
-                                            </span>
-                                          )}
-                                          <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <path d="M8 4l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/>
-                                          </svg>
-                                        </button>
-                                      </td>
-                                    )}
+                                    {effectiveVisibleColumns.has('outsideReps') && showCommissionSplits && (() => {
+                                      const currentRep = item.outsideRepSplits.length === 1 ? item.outsideRepSplits[0] : null;
+                                      const hasMultiple = item.outsideRepSplits.length > 1;
+                                      const displayText = hasMultiple ? 'Multiple' : (currentRep?.repName || 'Select...');
+                                      const filteredReps = availableOutsideReps.filter(rep =>
+                                        rep.name.toLowerCase().includes(lineItemRepSearch.toLowerCase())
+                                      );
+                                      return (
+                                        <td className="px-3 py-2 text-sm relative">
+                                          <div className="line-item-rep-container">
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setLineItemRepDropdown(lineItemRepDropdown === item.id ? null : item.id);
+                                                setLineItemRepSearch('');
+                                              }}
+                                              className={`w-full text-left px-2 py-1 rounded hover:bg-[var(--muted)] transition-colors flex items-center gap-1 text-xs ${hasMultiple ? 'text-[var(--primary)] font-medium' : ''}`}
+                                            >
+                                              <span className="flex-1 truncate">{displayText}</span>
+                                              <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-[var(--muted-foreground)] flex-shrink-0">
+                                                <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                                              </svg>
+                                            </button>
+                                            {lineItemRepDropdown === item.id && (
+                                              <div className="absolute top-full left-0 mt-1 w-64 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                                                <div className="p-2 border-b border-[var(--border)]">
+                                                  <input
+                                                    type="text"
+                                                    value={lineItemRepSearch}
+                                                    onChange={(e) => setLineItemRepSearch(e.target.value)}
+                                                    placeholder="Search reps..."
+                                                    className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                                                    autoFocus
+                                                    onClick={(e) => e.stopPropagation()}
+                                                  />
+                                                </div>
+                                                <div className="max-h-48 overflow-y-auto">
+                                                  {/* Multiple option */}
+                                                  <button
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setLineItemRepSplitsTarget(item.id);
+                                                      setLineItemRepSplits(item.outsideRepSplits.length > 0
+                                                        ? item.outsideRepSplits.map(s => ({ repId: s.repId, repName: s.repName, percentage: s.percentage }))
+                                                        : [{ repId: availableOutsideReps[0]?.id || '', repName: availableOutsideReps[0]?.name || '', percentage: 100 }]
+                                                      );
+                                                      setShowLineItemRepSplitsModal(true);
+                                                      setLineItemRepDropdown(null);
+                                                    }}
+                                                    className="w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors border-b border-[var(--border)] flex items-center gap-2"
+                                                  >
+                                                    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--primary)]">
+                                                      <path d="M12 4.5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zM19 8.5a2 2 0 11-4 0 2 2 0 014 0zM5 8.5a2 2 0 11-4 0 2 2 0 014 0zM10 10v6M6 14h8" strokeLinecap="round" strokeLinejoin="round"/>
+                                                    </svg>
+                                                    <span className="font-medium text-[var(--primary)] text-sm">Multiple (Split Commission)</span>
+                                                  </button>
+                                                  {filteredReps.map(rep => (
+                                                    <button
+                                                      key={rep.id}
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setQuoteLineItems(prev => prev.map(li =>
+                                                          li.id === item.id ? {
+                                                            ...li,
+                                                            outsideRepSplits: [{ repId: rep.id, repName: rep.name, percentage: 100 }]
+                                                          } : li
+                                                        ));
+                                                        setLineItemRepDropdown(null);
+                                                        setLineItemRepSearch('');
+                                                      }}
+                                                      className={`w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors ${currentRep?.repId === rep.id ? 'bg-[var(--muted)]' : ''}`}
+                                                    >
+                                                      <div className="text-sm">{rep.name}</div>
+                                                    </button>
+                                                  ))}
+                                                  {filteredReps.length === 0 && (
+                                                    <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">No reps found</div>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
+                                        </td>
+                                      );
+                                    })()}
                                     {/* Discount columns */}
                                     {effectiveVisibleColumns.has('commissionDiscountPercent') && (
                                       <td className="px-3 py-2 text-sm text-center text-[var(--muted-foreground)]">
@@ -10654,6 +10820,36 @@ export default function QuotesContent() {
                     </button>
                     <span className="text-sm font-medium text-[var(--foreground)]">Enable commission splits per line</span>
                   </div>
+
+                  {/* Divider */}
+                  <div className="border-t border-[var(--border)]"></div>
+
+                  {/* Customer Part Number Source Toggle */}
+                  <div className="space-y-2">
+                    <span className="text-sm font-medium text-[var(--foreground)]">Customer Part Number Source</span>
+                    <div className="flex items-center gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="customerPartNumberSource"
+                          checked={customerPartNumberSource === 'soldTo'}
+                          onChange={() => setCustomerPartNumberSource('soldTo')}
+                          className="accent-[var(--primary)]"
+                        />
+                        <span className="text-sm text-[var(--muted-foreground)]">Sold To Customer</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="customerPartNumberSource"
+                          checked={customerPartNumberSource === 'endUser'}
+                          onChange={() => setCustomerPartNumberSource('endUser')}
+                          className="accent-[var(--primary)]"
+                        />
+                        <span className="text-sm text-[var(--muted-foreground)]">End User</span>
+                      </label>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -11117,6 +11313,211 @@ export default function QuotesContent() {
                 <button
                   onClick={() => setShowRepSplitsModal(false)}
                   disabled={repCommissionSplits.reduce((sum, s) => sum + s.percentage, 0) !== 100}
+                  className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Line Item Rep Commission Splits Modal */}
+        {showLineItemRepSplitsModal && lineItemRepSplitsTarget && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-lg w-full">
+              <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-[var(--foreground)]">Commission Splits</h2>
+                  <p className="text-sm text-[var(--muted-foreground)]">Divide commission for this line item</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowLineItemRepSplitsModal(false);
+                    setLineItemRepSplitsTarget(null);
+                  }}
+                  className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
+                >
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                  </svg>
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                {/* Total percentage indicator */}
+                {(() => {
+                  const totalPercentage = lineItemRepSplits.reduce((sum, split) => sum + split.percentage, 0);
+                  const isValid = totalPercentage === 100;
+                  return (
+                    <div className={`flex items-center justify-between p-3 rounded-lg ${
+                      isValid ? 'bg-green-50 border border-green-200' : 'bg-yellow-50 border border-yellow-200'
+                    }`}>
+                      <span className={`text-sm font-medium ${isValid ? 'text-green-700' : 'text-yellow-700'}`}>
+                        Total: {totalPercentage}%
+                      </span>
+                      {!isValid && (
+                        <span className="text-xs text-yellow-600">
+                          Must equal 100%
+                        </span>
+                      )}
+                      {isValid && (
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-600">
+                          <path d="M5 10l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Rep splits list */}
+                <div className="space-y-3">
+                  {lineItemRepSplits.map((split, index) => (
+                    <div key={split.repId + index} className="flex items-center gap-3 p-3 border border-[var(--border)] rounded-lg">
+                      <div className="flex-1">
+                        <select
+                          value={split.repId}
+                          onChange={(e) => {
+                            const newRep = availableOutsideReps.find(r => r.id === e.target.value);
+                            if (newRep) {
+                              setLineItemRepSplits(prev => prev.map((s, i) =>
+                                i === index ? { ...s, repId: newRep.id, repName: newRep.name } : s
+                              ));
+                            }
+                          }}
+                          className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
+                        >
+                          {availableOutsideReps.map(rep => (
+                            <option
+                              key={rep.id}
+                              value={rep.id}
+                              disabled={lineItemRepSplits.some(s => s.repId === rep.id && s.repId !== split.repId)}
+                            >
+                              {rep.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="w-24 flex items-center gap-1">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={split.percentage}
+                          onChange={(e) => {
+                            const rawValue = e.target.value.replace(/[^0-9]/g, '');
+                            const value = Math.min(100, Math.max(0, parseInt(rawValue) || 0));
+                            const otherRepsCount = lineItemRepSplits.length - 1;
+                            if (otherRepsCount > 0) {
+                              const remaining = 100 - value;
+                              const perRep = Math.floor(remaining / otherRepsCount);
+                              const remainder = remaining - (perRep * otherRepsCount);
+                              let extraAssigned = 0;
+                              setLineItemRepSplits(prev => prev.map((s, i) => {
+                                if (i === index) {
+                                  return { ...s, percentage: value };
+                                } else {
+                                  const extraPercent = extraAssigned < remainder ? 1 : 0;
+                                  extraAssigned++;
+                                  return { ...s, percentage: Math.max(0, perRep + extraPercent) };
+                                }
+                              }));
+                            } else {
+                              setLineItemRepSplits(prev => prev.map((s, i) =>
+                                i === index ? { ...s, percentage: value } : s
+                              ));
+                            }
+                          }}
+                          onFocus={(e) => e.target.select()}
+                          className="w-16 px-2 py-2 bg-white border border-[var(--border)] rounded-md text-sm text-center focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent [appearance:textfield]"
+                        />
+                        <span className="text-sm text-[var(--muted-foreground)]">%</span>
+                      </div>
+                      {lineItemRepSplits.length > 1 && (
+                        <button
+                          onClick={() => {
+                            const remaining = lineItemRepSplits.filter((_, i) => i !== index);
+                            const newCount = remaining.length;
+                            const perRep = Math.floor(100 / newCount);
+                            const remainder = 100 - (perRep * newCount);
+                            let extraAssigned = 0;
+                            setLineItemRepSplits(remaining.map(s => {
+                              const extraPercent = extraAssigned < remainder ? 1 : 0;
+                              extraAssigned++;
+                              return { ...s, percentage: perRep + extraPercent };
+                            }));
+                          }}
+                          className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Remove rep"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Add rep button */}
+                {lineItemRepSplits.length < availableOutsideReps.length && (
+                  <button
+                    onClick={() => {
+                      const usedRepIds = new Set(lineItemRepSplits.map(s => s.repId));
+                      const availableRep = availableOutsideReps.find(r => !usedRepIds.has(r.id));
+                      if (availableRep) {
+                        const newCount = lineItemRepSplits.length + 1;
+                        const perRep = Math.floor(100 / newCount);
+                        const remainder = 100 - (perRep * newCount);
+                        let extraAssigned = 0;
+                        const updatedSplits = lineItemRepSplits.map(s => {
+                          const extraPercent = extraAssigned < remainder ? 1 : 0;
+                          extraAssigned++;
+                          return { ...s, percentage: perRep + extraPercent };
+                        });
+                        const newRepPercent = perRep + (extraAssigned < remainder ? 1 : 0);
+                        setLineItemRepSplits([...updatedSplits, { repId: availableRep.id, repName: availableRep.name, percentage: newRepPercent }]);
+                      }
+                    }}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-dashed border-[var(--border)] rounded-lg text-sm text-[var(--muted-foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)] transition-colors"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                    </svg>
+                    Add Rep
+                  </button>
+                )}
+              </div>
+              <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3">
+                <button
+                  onClick={() => {
+                    setShowLineItemRepSplitsModal(false);
+                    setLineItemRepSplitsTarget(null);
+                    setLineItemRepSplits([]);
+                  }}
+                  className="px-4 py-2 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors text-sm font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    // Save the splits to the line item
+                    if (lineItemRepSplitsTarget) {
+                      setQuoteLineItems(prev => prev.map(li =>
+                        li.id === lineItemRepSplitsTarget ? {
+                          ...li,
+                          outsideRepSplits: lineItemRepSplits.map(s => ({
+                            repId: s.repId,
+                            repName: s.repName,
+                            percentage: s.percentage
+                          }))
+                        } : li
+                      ));
+                    }
+                    setShowLineItemRepSplitsModal(false);
+                    setLineItemRepSplitsTarget(null);
+                    setLineItemRepSplits([]);
+                  }}
+                  disabled={lineItemRepSplits.reduce((sum, s) => sum + s.percentage, 0) !== 100}
                   className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Save
