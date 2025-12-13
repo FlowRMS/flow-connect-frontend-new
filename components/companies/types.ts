@@ -4,6 +4,39 @@
 
 import type { CompanyLandingPage, CompanySourceType, Company as APICompany } from '../lib/crm-graphql';
 
+// Address type for company addresses
+export type AddressType = 'shipping' | 'billing' | 'mailing';
+
+// Company Address interface
+export interface CompanyAddress {
+  id: string;
+  types: AddressType[];  // Can be multiple: shipping, billing, mailing
+  country: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  isPrimary?: boolean;
+}
+
+// Manufacturer-specific fields
+export interface ManufacturerInfo {
+  factoryAccountNumber?: string;
+  factoryEmail?: string;
+  logoUrl?: string;
+  freightDiscountType?: 'ADD' | 'SUBTRACT' | 'NONE';
+  leadTime?: string;
+  paymentTerms?: string;
+  baseCommissionRate?: number;      // Base commission rate (e.g., 0.06 for 6%)
+  commissionDiscountRate?: number;  // Commission discount rate
+  overallDiscountRate?: number;     // Overall discount rate
+  externalTerms?: string;
+  additionalInformation?: string;
+  freightTerms?: string;
+  externalPaymentTerms?: string;
+}
+
 // UI Company type (display format)
 export interface Company {
   id: string;
@@ -11,6 +44,7 @@ export interface Company {
   type: string[];
   website: string;
   phone: string;
+  email?: string;
   address: string;
   tags: string[];
   lists: string[];
@@ -22,7 +56,11 @@ export interface Company {
   companySourceType: CompanySourceType;
   standardCommissionRate?: number;    // Standard/direct commission rate (e.g., 0.10 for 10%)
   warehouseCommissionRate?: number;   // Warehouse commission rate (e.g., 0.05 for 5%)
+  insideRep?: string;
   createdBy: string;
+  // Extended fields
+  addresses?: CompanyAddress[];
+  manufacturerInfo?: ManufacturerInfo;
 }
 
 // View mode type

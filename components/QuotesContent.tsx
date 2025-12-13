@@ -3436,8 +3436,10 @@ export default function QuotesContent() {
   const [quoteViewMode, setQuoteViewMode] = useState<'overage' | 'simple'>('simple');
   const [showViewModeDropdown, setShowViewModeDropdown] = useState(false);
 
-  // Sections visibility - off by default in simple view
+  // Sections visibility and settings
   const [showSections, setShowSections] = useState(false);
+  const [showSectionsModal, setShowSectionsModal] = useState(false);
+  const [sectionDisplayMode, setSectionDisplayMode] = useState<'column' | 'lineShelf'>('column');
 
   // Commission splits settings
   const [showCommissionSplits, setShowCommissionSplits] = useState(false);
@@ -4638,13 +4640,62 @@ export default function QuotesContent() {
     return grouped;
   }, [quotes, stages]);
 
-  // Get line items for selected quote - memoized
-  const quoteLineItems = useMemo(() =>
-    selectedQuote
-      ? mockLineItems.filter(li => li.quoteId === selectedQuote.id)
-      : [],
-    [selectedQuote]
-  );
+  // Get line items for selected quote - using state so they can be modified
+  const [quoteLineItems, setQuoteLineItems] = useState<LineItem[]>([]);
+
+  // Sync line items when selected quote changes
+  useEffect(() => {
+    if (selectedQuote) {
+      setQuoteLineItems(mockLineItems.filter(li => li.quoteId === selectedQuote.id));
+    } else {
+      setQuoteLineItems([]);
+    }
+  }, [selectedQuote?.id]);
+
+  // Function to add a new line item
+  const addLineItem = (sectionId?: string) => {
+    if (!selectedQuote) return;
+
+    const targetSectionId = sectionId || mockSections[0]?.id || 'section-1';
+    const targetSection = mockSections.find(s => s.id === targetSectionId);
+
+    const newItem: LineItem = {
+      id: `li-${Date.now()}`,
+      quoteId: selectedQuote.id,
+      sectionId: targetSectionId,
+      sectionName: targetSection?.name || 'General',
+      productNumber: '',
+      description: 'New Line Item',
+      endUser: '',
+      quantity: 1,
+      uom: 'EA',
+      manufacturers: [{
+        name: '',
+        basePrice: 0,
+        commissionRate: 0.08,
+        overageShare: 0.85,
+        approvalStatus: 'unknown',
+        approvalDate: null,
+        approvalNotes: null,
+      }],
+      basePrice: 0,
+      sellPrice: 0,
+      level1Price: 0,
+      level2Price: 0,
+      level3Price: 0,
+      overagePercent: 0,
+      commissionable: true,
+      locked: false,
+      priceHistory: [],
+      quotedPriceHistory: [],
+      hasSpecSheet: false,
+      outsideRepSplits: [],
+      useDivisor: false,
+      divisor: 1,
+    };
+
+    setQuoteLineItems(prev => [...prev, newItem]);
+  };
 
   // Get distributor quotes for selected quote - memoized
   const quoteDistributorQuotes = useMemo(() =>
@@ -4671,16 +4722,6 @@ export default function QuotesContent() {
 
     return { baseTotal, sellTotal, l1Total, l2Total, l3Total, overage, commission };
   }, [quoteLineItems]);
-
-  // Placeholder for line item editing - TODO: implement proper state management
-  // Currently quoteLineItems is derived from mockLineItems, so we need to either:
-  // 1. Convert to useState with initial value from mockLineItems, or
-  // 2. Implement proper API calls when backend is ready
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const setQuoteLineItems = (_updater: (prev: LineItem[]) => LineItem[]) => {
-    // No-op until state management is implemented
-    console.warn('Line item editing not yet implemented');
-  };
 
   // Quote Detail View
   if (selectedQuote) {
@@ -5228,7 +5269,7 @@ export default function QuotesContent() {
               {[
                 { id: 'lines', label: 'Line Items', count: quoteLineItems.length },
                 { id: 'approvals', label: 'Approvals', count: selectedQuote.pendingApprovals, hideInSimple: true },
-                { id: 'recipients', label: 'Recipients', count: 4 },
+                { id: 'recipients', label: 'Recipients', count: 4, hideInSimple: true },
                 { id: 'submittals', label: 'Submittals', hideInSimple: true },
                 { id: 'notes', label: 'Notes' },
                 { id: 'tasks', label: 'Tasks' },
@@ -5266,20 +5307,6 @@ export default function QuotesContent() {
                 {/* Line Items Toolbar */}
                 <div className="flex items-center justify-between flex-shrink-0">
                   <div className="flex items-center gap-2">
-                    <button className="flex items-center gap-2 px-3 py-1.5 text-sm bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors">
-                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M10 6v8M6 10h8" strokeLinecap="round"/>
-                      </svg>
-                      Add Line
-                    </button>
-                    <button className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors">
-                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                        <rect x="3" y="3" width="14" height="4" rx="1"/>
-                        <rect x="3" y="10" width="14" height="4" rx="1"/>
-                      </svg>
-                      Add Section
-                    </button>
-
                     {/* Auto-Calculate Overage Button */}
                     {quoteViewMode === 'overage' && (
                       <button
@@ -5546,23 +5573,21 @@ export default function QuotesContent() {
                       )}
                     </div>
 
-                    {/* Sections Toggle - only in simple view */}
-                    {quoteViewMode === 'simple' && (
-                      <button
-                        onClick={() => setShowSections(!showSections)}
-                        className={`flex items-center gap-2 px-3 py-1.5 text-sm border rounded-lg transition-colors ${
-                          showSections
-                            ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]'
-                            : 'border-[var(--border)] hover:bg-[var(--muted)]'
-                        }`}
-                      >
-                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                          <rect x="3" y="3" width="14" height="4" rx="1"/>
-                          <rect x="3" y="10" width="14" height="7" rx="1"/>
-                        </svg>
-                        Sections
-                      </button>
-                    )}
+                    {/* Sections Button - Opens Settings Modal */}
+                    <button
+                      onClick={() => setShowSectionsModal(true)}
+                      className={`flex items-center gap-2 px-3 py-1.5 text-sm border rounded-lg transition-colors ${
+                        showSections
+                          ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]'
+                          : 'border-[var(--border)] hover:bg-[var(--muted)]'
+                      }`}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="3" y="3" width="14" height="4" rx="1"/>
+                        <rect x="3" y="10" width="14" height="7" rx="1"/>
+                      </svg>
+                      Sections
+                    </button>
 
                     {/* Columns Button - Opens Modal */}
                     <button
@@ -5575,10 +5600,6 @@ export default function QuotesContent() {
                       Columns
                       <span className="px-1.5 py-0.5 bg-[var(--muted)] rounded text-xs">{effectiveVisibleColumns.size}</span>
                     </button>
-
-                    <span className="text-sm text-[var(--muted-foreground)]">
-                      {quoteLineItems.length} items
-                    </span>
                   </div>
                 </div>
 
@@ -5606,8 +5627,8 @@ export default function QuotesContent() {
                               className="accent-[var(--primary)]"
                             />
                           </th>
-                          {/* Section column - only in simple view with sections enabled */}
-                          {quoteViewMode === 'simple' && showSections && (
+                          {/* Section column - only in simple view with sections enabled in column mode */}
+                          {quoteViewMode === 'simple' && showSections && sectionDisplayMode === 'column' && (
                             <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">
                               Section
                             </th>
@@ -5619,45 +5640,227 @@ export default function QuotesContent() {
                         </tr>
                       </thead>
                       <tbody>
-                        {/* Simple View - Flat list with Section column */}
-                        {quoteViewMode === 'simple' && quoteLineItems
-                          .filter(item => {
-                            const partFilter = columnFilters['partNumber']?.toLowerCase() || '';
-                            const descFilter = columnFilters['description']?.toLowerCase() || '';
-                            const mfrFilter = columnFilters['manufacturer']?.toLowerCase() || '';
+                        {/* Simple View - Shelf Mode: Group by sections with header rows */}
+                        {showSections && sectionDisplayMode === 'lineShelf' && (
+                          mockSections.map(section => {
+                            const sectionItems = quoteLineItems.filter(li => li.sectionId === section.id);
+                            if (sectionItems.length === 0) return null;
+
+                            const isCollapsed = collapsedSections.has(section.id);
+                            const sectionTotals = sectionItems.reduce((acc, item) => ({
+                              baseTotal: acc.baseTotal + (item.basePrice * item.quantity),
+                              sellTotal: acc.sellTotal + (item.sellPrice * item.quantity),
+                              commissionTotal: acc.commissionTotal + (item.sellPrice * item.quantity * (item.manufacturers[0]?.commissionRate || 0.08)),
+                            }), { baseTotal: 0, sellTotal: 0, commissionTotal: 0 });
+
+                            // Calculate total columns for colspan (in shelf mode, no section column)
+                            const totalColumns = 1 + getOrderedVisibleColumns().length + 1;
+
+                            // Filter and sort items
+                            const filteredSortedItems = sectionItems
+                              .filter(item => {
+                                const partFilter = columnFilters['partNumber']?.toLowerCase() || '';
+                                const descFilter = columnFilters['description']?.toLowerCase() || '';
+                                const mfrFilter = columnFilters['manufacturer']?.toLowerCase() || '';
+                                return (
+                                  (!partFilter || item.productNumber.toLowerCase().includes(partFilter)) &&
+                                  (!descFilter || item.description.toLowerCase().includes(descFilter)) &&
+                                  (!mfrFilter || item.manufacturers[0].name.toLowerCase().includes(mfrFilter))
+                                );
+                              })
+                              .sort((a, b) => {
+                                if (!sortColumn) return 0;
+                                let aVal: string | number = '';
+                                let bVal: string | number = '';
+                                switch (sortColumn) {
+                                  case 'partNumber': aVal = a.productNumber; bVal = b.productNumber; break;
+                                  case 'description': aVal = a.description; bVal = b.description; break;
+                                  case 'quantity': aVal = a.quantity; bVal = b.quantity; break;
+                                  case 'manufacturer': aVal = a.manufacturers[0].name; bVal = b.manufacturers[0].name; break;
+                                  case 'base': aVal = a.basePrice; bVal = b.basePrice; break;
+                                  case 'sell': aVal = a.sellPrice; bVal = b.sellPrice; break;
+                                }
+                                if (typeof aVal === 'string') {
+                                  return sortDirection === 'asc' ? aVal.localeCompare(bVal as string) : (bVal as string).localeCompare(aVal);
+                                }
+                                return sortDirection === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
+                              });
+
                             return (
-                              (!partFilter || item.productNumber.toLowerCase().includes(partFilter)) &&
-                              (!descFilter || item.description.toLowerCase().includes(descFilter)) &&
-                              (!mfrFilter || item.manufacturers[0].name.toLowerCase().includes(mfrFilter))
+                              <React.Fragment key={section.id}>
+                                {/* Section Header Row */}
+                                <tr className="bg-[var(--muted)]/20 border-b border-[var(--border)] hover:bg-[var(--muted)]/40 transition-colors">
+                                  <td colSpan={totalColumns} className="px-4 py-2.5">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-3">
+                                        <input
+                                          type="checkbox"
+                                          checked={sectionItems.length > 0 && sectionItems.every(item => selectedLineItems.has(item.id))}
+                                          onChange={(e) => {
+                                            e.stopPropagation();
+                                            const sectionItemIds = sectionItems.map(item => item.id);
+                                            setSelectedLineItems(prev => {
+                                              const newSet = new Set(prev);
+                                              const allSelected = sectionItemIds.every(id => newSet.has(id));
+                                              if (allSelected) {
+                                                sectionItemIds.forEach(id => newSet.delete(id));
+                                              } else {
+                                                sectionItemIds.forEach(id => newSet.add(id));
+                                              }
+                                              return newSet;
+                                            });
+                                          }}
+                                          className="accent-[var(--primary)]"
+                                          title="Select all items in section"
+                                        />
+                                        <button
+                                          onClick={() => toggleSectionCollapse(section.id)}
+                                          className="flex items-center gap-2 hover:bg-[var(--muted)] rounded px-1 -ml-1 transition-colors"
+                                        >
+                                          <svg
+                                            width="16"
+                                            height="16"
+                                            viewBox="0 0 20 20"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="2"
+                                            className={`transition-transform ${isCollapsed ? '-rotate-90' : ''}`}
+                                          >
+                                            <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                                          </svg>
+                                          <span className="font-semibold text-[var(--foreground)]">{section.name}</span>
+                                        </button>
+                                        <span className="text-sm text-[var(--muted-foreground)]">({sectionItems.length} items)</span>
+                                      </div>
+                                      <div className="flex items-center gap-4 text-sm">
+                                        <span className="text-[var(--muted-foreground)]">
+                                          Base Price: <span className="font-semibold text-[var(--foreground)]">${sectionTotals.baseTotal.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+                                        </span>
+                                        <span className="text-[var(--muted-foreground)]">|</span>
+                                        <span className="text-[var(--muted-foreground)]">
+                                          Sell Price: <span className="font-semibold text-[var(--foreground)]">${sectionTotals.sellTotal.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+                                        </span>
+                                        <span className="text-[var(--muted-foreground)]">|</span>
+                                        <span className="text-[var(--muted-foreground)]">
+                                          Commission: <span className="font-semibold text-purple-600">${sectionTotals.commissionTotal.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                                {/* Section Line Items */}
+                                {!isCollapsed && filteredSortedItems.map(item => (
+                                  <tr
+                                    key={item.id}
+                                    className={`border-b border-[var(--border)] hover:bg-[var(--muted)]/20 transition-colors ${
+                                      selectedLineItems.has(item.id) ? 'bg-[var(--primary)]/5' : ''
+                                    }`}
+                                  >
+                                    <td className="px-3 py-2">
+                                      <input
+                                        type="checkbox"
+                                        checked={selectedLineItems.has(item.id)}
+                                        onChange={() => toggleLineItemSelection(item.id)}
+                                        className="accent-[var(--primary)]"
+                                      />
+                                    </td>
+                                    {getOrderedVisibleColumns().map(colKey => renderBodyCell(colKey, item))}
+                                    <td className="px-2 py-2 text-center">
+                                      <button
+                                        onClick={() => {
+                                          setLineDetailsModalItem(item);
+                                          setShowLineDetailsModal(true);
+                                        }}
+                                        className="p-1.5 hover:bg-[var(--muted)] rounded-lg transition-colors text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                                        title="More details"
+                                      >
+                                        <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                                          <circle cx="10" cy="4" r="2"/>
+                                          <circle cx="10" cy="10" r="2"/>
+                                          <circle cx="10" cy="16" r="2"/>
+                                        </svg>
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                                {/* Add Line Row for this section */}
+                                {!isCollapsed && (
+                                  <tr className="border-b border-[var(--border)] hover:bg-[var(--muted)]/20 transition-colors">
+                                    <td colSpan={totalColumns} className="px-4 py-2">
+                                      <button
+                                        className="flex items-center gap-2 text-sm text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors"
+                                        onClick={() => addLineItem(section.id)}
+                                      >
+                                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                          <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                                        </svg>
+                                        Add Line
+                                      </button>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
                             );
                           })
-                          .sort((a, b) => {
-                            if (!sortColumn) return 0;
-                            let aVal: string | number = '';
-                            let bVal: string | number = '';
-                            switch (sortColumn) {
-                              case 'partNumber': aVal = a.productNumber; bVal = b.productNumber; break;
-                              case 'description': aVal = a.description; bVal = b.description; break;
-                              case 'quantity': aVal = a.quantity; bVal = b.quantity; break;
-                              case 'manufacturer': aVal = a.manufacturers[0].name; bVal = b.manufacturers[0].name; break;
-                              case 'base': aVal = a.basePrice; bVal = b.basePrice; break;
-                              case 'sell': aVal = a.sellPrice; bVal = b.sellPrice; break;
-                            }
-                            if (typeof aVal === 'string') {
-                              return sortDirection === 'asc' ? aVal.localeCompare(bVal as string) : (bVal as string).localeCompare(aVal);
-                            }
-                            return sortDirection === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
-                          })
-                          .map(item => {
-                            const section = mockSections.find(s => s.id === item.sectionId);
-                            return (
+                        )}
+                        {/* Add Section row at the very bottom in shelf mode */}
+                        {showSections && sectionDisplayMode === 'lineShelf' && (
+                          <tr className="hover:bg-[var(--muted)]/20 transition-colors">
+                            <td colSpan={1 + getOrderedVisibleColumns().length + 1} className="px-4 py-3 border-t border-[var(--border)]">
+                              <button
+                                className="flex items-center gap-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+                                onClick={() => {
+                                  // Create a new section and add a line to it
+                                  const newSectionId = `section-${Date.now()}`;
+                                  // For now, just add to a "New Section" - in real implementation would create the section
+                                  addLineItem(newSectionId);
+                                }}
+                              >
+                                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                                </svg>
+                                Add Section
+                              </button>
+                            </td>
+                          </tr>
+                        )}
+                        {!(showSections && sectionDisplayMode === 'lineShelf') && (
+                          /* Simple View - Column Mode or No Sections: Flat list */
+                          quoteLineItems
+                            .filter(item => {
+                              const partFilter = columnFilters['partNumber']?.toLowerCase() || '';
+                              const descFilter = columnFilters['description']?.toLowerCase() || '';
+                              const mfrFilter = columnFilters['manufacturer']?.toLowerCase() || '';
+                              return (
+                                (!partFilter || item.productNumber.toLowerCase().includes(partFilter)) &&
+                                (!descFilter || item.description.toLowerCase().includes(descFilter)) &&
+                                (!mfrFilter || item.manufacturers[0].name.toLowerCase().includes(mfrFilter))
+                              );
+                            })
+                            .sort((a, b) => {
+                              if (!sortColumn) return 0;
+                              let aVal: string | number = '';
+                              let bVal: string | number = '';
+                              switch (sortColumn) {
+                                case 'partNumber': aVal = a.productNumber; bVal = b.productNumber; break;
+                                case 'description': aVal = a.description; bVal = b.description; break;
+                                case 'quantity': aVal = a.quantity; bVal = b.quantity; break;
+                                case 'manufacturer': aVal = a.manufacturers[0].name; bVal = b.manufacturers[0].name; break;
+                                case 'base': aVal = a.basePrice; bVal = b.basePrice; break;
+                                case 'sell': aVal = a.sellPrice; bVal = b.sellPrice; break;
+                              }
+                              if (typeof aVal === 'string') {
+                                return sortDirection === 'asc' ? aVal.localeCompare(bVal as string) : (bVal as string).localeCompare(aVal);
+                              }
+                              return sortDirection === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
+                            })
+                            .map(item => (
                               <tr
                                 key={item.id}
                                 className={`border-b border-[var(--border)] hover:bg-[var(--muted)]/20 transition-colors ${
                                   selectedLineItems.has(item.id) ? 'bg-[var(--primary)]/5' : ''
                                 }`}
                               >
-                                {/* Checkbox */}
                                 <td className="px-3 py-2">
                                   <input
                                     type="checkbox"
@@ -5666,8 +5869,8 @@ export default function QuotesContent() {
                                     className="accent-[var(--primary)]"
                                   />
                                 </td>
-                                {/* Section selector */}
-                                {showSections && (
+                                {/* Section selector - only in column mode */}
+                                {showSections && sectionDisplayMode === 'column' && (
                                   <td className="px-3 py-2 text-sm text-[var(--muted-foreground)]">
                                     <select
                                       value={item.sectionId}
@@ -5684,9 +5887,7 @@ export default function QuotesContent() {
                                     </select>
                                   </td>
                                 )}
-                                {/* Dynamic cells based on columnOrder */}
                                 {getOrderedVisibleColumns().map(colKey => renderBodyCell(colKey, item))}
-                                {/* Actions column - always last */}
                                 <td className="px-2 py-2 text-center">
                                   <button
                                     onClick={() => {
@@ -5704,9 +5905,24 @@ export default function QuotesContent() {
                                   </button>
                                 </td>
                               </tr>
-                            );
-                          })
-                        }
+                            ))
+                        )}
+                        {/* Add Line Row at the bottom (for column mode or no sections) */}
+                        {!(showSections && sectionDisplayMode === 'lineShelf') && (
+                          <tr className="hover:bg-[var(--muted)]/20 transition-colors">
+                            <td colSpan={1 + (showSections && sectionDisplayMode === 'column' ? 1 : 0) + getOrderedVisibleColumns().length + 1} className="px-4 py-2">
+                              <button
+                                className="flex items-center gap-2 text-sm text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors"
+                                onClick={() => addLineItem()}
+                              >
+                                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                                </svg>
+                                Add Line
+                              </button>
+                            </td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                     )}
@@ -6132,11 +6348,12 @@ export default function QuotesContent() {
 
                           return (
                             <React.Fragment key={section.id}>
-                              {/* Section Header Row */}
+                              {/* Section Header Row - Only show when sections enabled AND in shelf mode */}
+                              {showSections && sectionDisplayMode === 'lineShelf' && (
                               <tr
-                                className="bg-[var(--muted)]/30 border-b border-[var(--border)] hover:bg-[var(--muted)]/50 transition-colors"
+                                className="bg-[var(--muted)]/20 border-b border-[var(--border)] hover:bg-[var(--muted)]/40 transition-colors"
                               >
-                                <td colSpan={totalColumns} className="px-4 py-3">
+                                <td colSpan={totalColumns} className="px-4 py-2.5">
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-3">
                                       <input
@@ -6149,10 +6366,8 @@ export default function QuotesContent() {
                                             const newSet = new Set(prev);
                                             const allSelected = sectionItemIds.every(id => newSet.has(id));
                                             if (allSelected) {
-                                              // Deselect all in section
                                               sectionItemIds.forEach(id => newSet.delete(id));
                                             } else {
-                                              // Select all in section
                                               sectionItemIds.forEach(id => newSet.add(id));
                                             }
                                             return newSet;
@@ -6176,57 +6391,29 @@ export default function QuotesContent() {
                                         >
                                           <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
                                         </svg>
-                                        <h3 className="font-semibold text-[var(--foreground)]">{section.name}</h3>
+                                        <span className="font-semibold text-[var(--foreground)]">{section.name}</span>
                                       </button>
                                       <span className="text-sm text-[var(--muted-foreground)]">({sectionItems.length} items)</span>
-                                      {sectionNeedsApproval && (
-                                        <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded text-xs font-medium">
-                                          Approval Needed
-                                        </span>
-                                      )}
                                     </div>
-                                    <div className="flex items-center gap-4">
-                                      <div className="flex items-center gap-3 text-xs">
-                                        <span className="text-[var(--muted-foreground)]">
-                                          Base Price: <span className="font-medium text-[var(--foreground)]">${sectionTotals.baseTotal.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
-                                        </span>
-                                        <span className="text-[var(--muted-foreground)]">|</span>
-                                        <span className="text-[var(--muted-foreground)]">
-                                          Sell Price: <span className="font-semibold text-[var(--foreground)]">${sectionTotals.sellTotal.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
-                                        </span>
-                                        {quoteViewMode === 'overage' && (
-                                          <>
-                                            <span className="text-[var(--muted-foreground)]">|</span>
-                                            <span className="text-[var(--muted-foreground)]">
-                                              Commission: <span className="font-medium text-purple-600">${sectionTotals.commissionTotal.toLocaleString(undefined, {maximumFractionDigits: 0})} ({sectionTotals.sellTotal > 0 ? ((sectionTotals.commissionTotal / sectionTotals.sellTotal) * 100).toFixed(1) : 0}%)</span>
-                                            </span>
-                                            <span className="text-[var(--muted-foreground)]">|</span>
-                                            <span className="text-[var(--muted-foreground)]">
-                                              Overage: <span className="font-medium text-orange-600">${sectionTotals.overageTotal.toLocaleString(undefined, {maximumFractionDigits: 0})} ({sectionTotals.baseTotal > 0 ? ((sectionTotals.overageTotal / sectionTotals.baseTotal) * 100).toFixed(1) : 0}%)</span>
-                                            </span>
-                                            <span className="text-[var(--muted-foreground)]">|</span>
-                                            <span className="text-[var(--muted-foreground)]">
-                                              Earnings: <span className="font-semibold text-green-600">${(sectionTotals.overageTotal + sectionTotals.commissionTotal).toLocaleString(undefined, {maximumFractionDigits: 0})} ({sectionTotals.sellTotal > 0 ? (((sectionTotals.overageTotal + sectionTotals.commissionTotal) / sectionTotals.sellTotal) * 100).toFixed(1) : 0}%)</span>
-                                            </span>
-                                          </>
-                                        )}
-                                      </div>
-                                      <button
-                                        onClick={(e) => { e.stopPropagation(); }}
-                                        className="p-1 hover:bg-[var(--muted)] rounded transition-colors"
-                                      >
-                                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                                          <circle cx="10" cy="5" r="1.5"/>
-                                          <circle cx="10" cy="10" r="1.5"/>
-                                          <circle cx="10" cy="15" r="1.5"/>
-                                        </svg>
-                                      </button>
+                                    <div className="flex items-center gap-4 text-sm">
+                                      <span className="text-[var(--muted-foreground)]">
+                                        Base Price: <span className="font-semibold text-[var(--foreground)]">${sectionTotals.baseTotal.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+                                      </span>
+                                      <span className="text-[var(--muted-foreground)]">|</span>
+                                      <span className="text-[var(--muted-foreground)]">
+                                        Sell Price: <span className="font-semibold text-[var(--foreground)]">${sectionTotals.sellTotal.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+                                      </span>
+                                      <span className="text-[var(--muted-foreground)]">|</span>
+                                      <span className="text-[var(--muted-foreground)]">
+                                        Commission: <span className="font-semibold text-purple-600">${sectionTotals.commissionTotal.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+                                      </span>
                                     </div>
                                   </div>
                                 </td>
                               </tr>
-                              {/* Section Line Items - Only show if not collapsed */}
-                              {!isCollapsed && filteredSortedItems.map(item => (
+                              )}
+                              {/* Section Line Items - Only collapse when sections are enabled in shelf mode */}
+                              {(!(showSections && sectionDisplayMode === 'lineShelf') || !isCollapsed) && filteredSortedItems.map(item => (
                                   <React.Fragment key={item.id}>
                                   <tr
                                     className={`border-b border-[var(--border)] hover:bg-[var(--muted)]/20 transition-colors ${
@@ -6980,9 +7167,46 @@ export default function QuotesContent() {
                                   )}
                                 </React.Fragment>
                               ))}
+                              {/* Add Line Row for this section */}
+                              {showSections && sectionDisplayMode === 'lineShelf' && !collapsedSections.has(section.id) && (
+                                <tr className="border-b border-[var(--border)] hover:bg-[var(--muted)]/20 transition-colors">
+                                  <td colSpan={totalColumns} className="px-4 py-2">
+                                    <button
+                                      className="flex items-center gap-2 text-sm text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors"
+                                      onClick={() => {
+                                        addLineItem(section.id);
+                                      }}
+                                    >
+                                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                                      </svg>
+                                      Add Line
+                                    </button>
+                                  </td>
+                                </tr>
+                              )}
                             </React.Fragment>
                           );
                         })}
+                        {/* Add Section row at the very bottom in shelf mode */}
+                        {showSections && sectionDisplayMode === 'lineShelf' && (
+                          <tr className="hover:bg-[var(--muted)]/20 transition-colors">
+                            <td colSpan={1 + effectiveVisibleColumns.size + 1} className="px-4 py-3 border-t border-[var(--border)]">
+                              <button
+                                className="flex items-center gap-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+                                onClick={() => {
+                                  const newSectionId = `section-${Date.now()}`;
+                                  addLineItem(newSectionId);
+                                }}
+                              >
+                                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                                </svg>
+                                Add Section
+                              </button>
+                            </td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                     )}
@@ -9994,6 +10218,87 @@ export default function QuotesContent() {
           </div>
         )}
 
+        {/* Sections Settings Modal */}
+        {showSectionsModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-md w-full">
+              <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-[var(--foreground)]">Section Settings</h2>
+                <button
+                  onClick={() => setShowSectionsModal(false)}
+                  className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
+                >
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                  </svg>
+                </button>
+              </div>
+              <div className="p-6 space-y-6">
+                {/* Enable Sections Toggle */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-medium text-[var(--foreground)]">Enable Sections</div>
+                    <div className="text-sm text-[var(--muted-foreground)]">Group line items by section</div>
+                  </div>
+                  <button
+                    onClick={() => setShowSections(!showSections)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      showSections ? 'bg-[var(--primary)]' : 'bg-[var(--muted)]'
+                    }`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${
+                      showSections ? 'translate-x-6' : 'translate-x-1'
+                    }`} />
+                  </button>
+                </div>
+
+                {/* Display Mode - only show when sections are enabled */}
+                {showSections && (
+                  <div className="space-y-3">
+                    <div className="font-medium text-[var(--foreground)]">Display Mode</div>
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-3 p-3 border border-[var(--border)] rounded-lg cursor-pointer hover:bg-[var(--muted)]/50 transition-colors">
+                        <input
+                          type="radio"
+                          name="sectionDisplayMode"
+                          checked={sectionDisplayMode === 'column'}
+                          onChange={() => setSectionDisplayMode('column')}
+                          className="accent-[var(--primary)]"
+                        />
+                        <div>
+                          <div className="font-medium text-[var(--foreground)]">Column Mode</div>
+                          <div className="text-sm text-[var(--muted-foreground)]">Show section as a column in the table</div>
+                        </div>
+                      </label>
+                      <label className="flex items-center gap-3 p-3 border border-[var(--border)] rounded-lg cursor-pointer hover:bg-[var(--muted)]/50 transition-colors">
+                        <input
+                          type="radio"
+                          name="sectionDisplayMode"
+                          checked={sectionDisplayMode === 'lineShelf'}
+                          onChange={() => setSectionDisplayMode('lineShelf')}
+                          className="accent-[var(--primary)]"
+                        />
+                        <div>
+                          <div className="font-medium text-[var(--foreground)]">Line Shelf Mode</div>
+                          <div className="text-sm text-[var(--muted-foreground)]">Show section headers as row dividers</div>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end">
+                <button
+                  onClick={() => setShowSectionsModal(false)}
+                  className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors text-sm font-medium"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Columns Configuration Modal */}
         {showColumnsMenu && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -10001,7 +10306,7 @@ export default function QuotesContent() {
               <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
                 <div>
                   <h2 className="text-lg font-semibold text-[var(--foreground)]">Configure Columns</h2>
-                  <p className="text-sm text-[var(--muted-foreground)]">Drag to reorder, check to show in table</p>
+                  <p className="text-sm text-[var(--muted-foreground)]">Check columns to show in table</p>
                 </div>
                 <button
                   onClick={() => setShowColumnsMenu(false)}
@@ -10032,50 +10337,8 @@ export default function QuotesContent() {
                       return (
                         <div
                           key={colKey}
-                          draggable
-                          onDragStart={(e) => {
-                            setDraggingColumn(colKey);
-                            e.dataTransfer.effectAllowed = 'move';
-                          }}
-                          onDragOver={(e) => {
-                            e.preventDefault();
-                            if (!draggingColumn || draggingColumn === colKey) return;
-                            const filteredOrder = columnOrder.filter(ck => {
-                              if (quoteViewMode === 'simple') {
-                                const c = columnDefinitions.find(cd => cd.key === ck);
-                                if (c && ['Overage', 'Commission', 'Levels'].includes(c.group)) return false;
-                              }
-                              return true;
-                            });
-                            const dragIndex = filteredOrder.indexOf(draggingColumn);
-                            const targetIndex = filteredOrder.indexOf(colKey);
-                            if (dragIndex !== -1 && targetIndex !== -1) {
-                              const newOrder = [...columnOrder];
-                              const actualDragIndex = newOrder.indexOf(draggingColumn);
-                              const actualTargetIndex = newOrder.indexOf(colKey);
-                              newOrder.splice(actualDragIndex, 1);
-                              newOrder.splice(actualTargetIndex, 0, draggingColumn);
-                              setColumnOrder(newOrder);
-                            }
-                          }}
-                          onDragEnd={() => setDraggingColumn(null)}
-                          className={`flex items-center gap-3 px-4 py-3 rounded-lg border transition-all cursor-grab active:cursor-grabbing ${
-                            draggingColumn === colKey
-                              ? 'bg-[var(--primary)]/10 border-[var(--primary)] shadow-lg scale-[1.02]'
-                              : 'bg-[var(--card)] border-[var(--border)] hover:bg-[var(--muted)]/50'
-                          }`}
+                          className="flex items-center gap-3 px-4 py-3 rounded-lg border bg-[var(--card)] border-[var(--border)] hover:bg-[var(--muted)]/50 transition-all"
                         >
-                          {/* Drag Handle */}
-                          <div className="text-[var(--muted-foreground)]">
-                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                              <circle cx="5" cy="3" r="1.5"/>
-                              <circle cx="11" cy="3" r="1.5"/>
-                              <circle cx="5" cy="8" r="1.5"/>
-                              <circle cx="11" cy="8" r="1.5"/>
-                              <circle cx="5" cy="13" r="1.5"/>
-                              <circle cx="11" cy="13" r="1.5"/>
-                            </svg>
-                          </div>
                           {/* Checkbox */}
                           <input
                             type="checkbox"

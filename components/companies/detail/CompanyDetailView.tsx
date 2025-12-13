@@ -5,15 +5,37 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import type { Company } from '../types';
+import type { Company, CompanyAddress, AddressType, ManufacturerInfo } from '../types';
 import type { CompanySourceType, Contact as APIContact, Job as APIJob } from '../../lib/crm-graphql';
 import CompanyRelatedEntities from './CompanyRelatedEntities';
 import ConnectedNotesSection from '../../notes/ConnectedNotesSection';
 import ConnectedTasksSection from '../../tasks/ConnectedTasksSection';
 import DeleteConfirmModal from './DeleteConfirmModal';
 import { AddTaskNoteLinkModal } from '../modals/AddTaskNoteLinkModal';
+import { AddAddressModal, type Address } from '../../shared/AddAddressModal';
 
-type TabId = 'overview' | 'contacts' | 'jobs' | 'tasks' | 'notes';
+type TabId = 'overview' | 'factory-info' | 'addresses' | 'contacts' | 'pre-quotes' | 'emails' | 'meetings' | 'tasks' | 'notes' | 'tags';
+
+// US States list
+const US_STATES = [
+  { value: 'AL', label: 'Alabama' }, { value: 'AK', label: 'Alaska' }, { value: 'AZ', label: 'Arizona' },
+  { value: 'AR', label: 'Arkansas' }, { value: 'CA', label: 'California' }, { value: 'CO', label: 'Colorado' },
+  { value: 'CT', label: 'Connecticut' }, { value: 'DE', label: 'Delaware' }, { value: 'FL', label: 'Florida' },
+  { value: 'GA', label: 'Georgia' }, { value: 'HI', label: 'Hawaii' }, { value: 'ID', label: 'Idaho' },
+  { value: 'IL', label: 'Illinois' }, { value: 'IN', label: 'Indiana' }, { value: 'IA', label: 'Iowa' },
+  { value: 'KS', label: 'Kansas' }, { value: 'KY', label: 'Kentucky' }, { value: 'LA', label: 'Louisiana' },
+  { value: 'ME', label: 'Maine' }, { value: 'MD', label: 'Maryland' }, { value: 'MA', label: 'Massachusetts' },
+  { value: 'MI', label: 'Michigan' }, { value: 'MN', label: 'Minnesota' }, { value: 'MS', label: 'Mississippi' },
+  { value: 'MO', label: 'Missouri' }, { value: 'MT', label: 'Montana' }, { value: 'NE', label: 'Nebraska' },
+  { value: 'NV', label: 'Nevada' }, { value: 'NH', label: 'New Hampshire' }, { value: 'NJ', label: 'New Jersey' },
+  { value: 'NM', label: 'New Mexico' }, { value: 'NY', label: 'New York' }, { value: 'NC', label: 'North Carolina' },
+  { value: 'ND', label: 'North Dakota' }, { value: 'OH', label: 'Ohio' }, { value: 'OK', label: 'Oklahoma' },
+  { value: 'OR', label: 'Oregon' }, { value: 'PA', label: 'Pennsylvania' }, { value: 'RI', label: 'Rhode Island' },
+  { value: 'SC', label: 'South Carolina' }, { value: 'SD', label: 'South Dakota' }, { value: 'TN', label: 'Tennessee' },
+  { value: 'TX', label: 'Texas' }, { value: 'UT', label: 'Utah' }, { value: 'VT', label: 'Vermont' },
+  { value: 'VA', label: 'Virginia' }, { value: 'WA', label: 'Washington' }, { value: 'WV', label: 'West Virginia' },
+  { value: 'WI', label: 'Wisconsin' }, { value: 'WY', label: 'Wyoming' },
+];
 
 interface CompanyDetailViewProps {
   company: Company;
@@ -29,7 +51,7 @@ interface CompanyDetailViewProps {
   onDeleteClick: () => void;
   onDeleteConfirm: () => void;
   onDeleteCancel: () => void;
-  onFieldChange: (field: string, value: string | number | CompanySourceType) => void;
+  onFieldChange: (field: string, value: string | number | CompanySourceType | CompanyAddress[] | ManufacturerInfo) => void;
   onContactClick?: (contact: APIContact) => void;
   onJobClick?: (job: APIJob) => void;
 }
@@ -187,6 +209,146 @@ function CompanyTypeSelect({
   );
 }
 
+// Address Card Component
+function AddressCard({
+  address,
+  isEditing,
+  onUpdate,
+  onDelete,
+}: {
+  address: CompanyAddress;
+  isEditing: boolean;
+  onUpdate: (updated: CompanyAddress) => void;
+  onDelete: () => void;
+}) {
+  const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500";
+  const readOnlyClass = "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-600";
+
+  const toggleAddressType = (type: AddressType) => {
+    const newTypes = address.types.includes(type)
+      ? address.types.filter(t => t !== type)
+      : [...address.types, type];
+    onUpdate({ ...address, types: newTypes });
+  };
+
+  return (
+    <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+      {/* Address Type Checkboxes */}
+      <div className="flex items-center gap-6 mb-4">
+        {(['shipping', 'billing', 'mailing'] as AddressType[]).map((type) => (
+          <label key={type} className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={address.types.includes(type)}
+              onChange={() => isEditing && toggleAddressType(type)}
+              disabled={!isEditing}
+              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span className="text-sm text-gray-700 capitalize">{type}</span>
+          </label>
+        ))}
+        {isEditing && (
+          <button
+            onClick={onDelete}
+            className="ml-auto text-red-500 hover:text-red-700 text-sm"
+          >
+            Remove
+          </button>
+        )}
+      </div>
+
+      {/* Country */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-1">Country*</label>
+        {isEditing ? (
+          <select
+            value={address.country}
+            onChange={(e) => onUpdate({ ...address, country: e.target.value })}
+            className={inputClass}
+          >
+            <option value="United States">United States</option>
+            <option value="Canada">Canada</option>
+            <option value="Mexico">Mexico</option>
+          </select>
+        ) : (
+          <div className={readOnlyClass}>{address.country || '-'}</div>
+        )}
+      </div>
+
+      {/* Address Line 1 */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-1">Address Line 1*</label>
+        <input
+          type="text"
+          value={address.addressLine1}
+          onChange={(e) => onUpdate({ ...address, addressLine1: e.target.value })}
+          className={isEditing ? inputClass : readOnlyClass}
+          readOnly={!isEditing}
+          placeholder="Street address"
+        />
+      </div>
+
+      {/* Address Line 2 */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-1">Address Line 2</label>
+        <input
+          type="text"
+          value={address.addressLine2 || ''}
+          onChange={(e) => onUpdate({ ...address, addressLine2: e.target.value })}
+          className={isEditing ? inputClass : readOnlyClass}
+          readOnly={!isEditing}
+          placeholder="Apt, suite, unit, etc."
+        />
+      </div>
+
+      {/* City */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-1">City*</label>
+        <input
+          type="text"
+          value={address.city}
+          onChange={(e) => onUpdate({ ...address, city: e.target.value })}
+          className={isEditing ? inputClass : readOnlyClass}
+          readOnly={!isEditing}
+          placeholder="City"
+        />
+      </div>
+
+      {/* State & ZIP */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">State*</label>
+          {isEditing ? (
+            <select
+              value={address.state}
+              onChange={(e) => onUpdate({ ...address, state: e.target.value })}
+              className={inputClass}
+            >
+              <option value="">Select a state</option>
+              {US_STATES.map((state) => (
+                <option key={state.value} value={state.value}>{state.label}</option>
+              ))}
+            </select>
+          ) : (
+            <div className={readOnlyClass}>{address.state || '-'}</div>
+          )}
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">ZIP Code*</label>
+          <input
+            type="text"
+            value={address.zipCode}
+            onChange={(e) => onUpdate({ ...address, zipCode: e.target.value })}
+            className={isEditing ? inputClass : readOnlyClass}
+            readOnly={!isEditing}
+            placeholder="ZIP code"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function CompanyDetailView({
   company,
   isEditing,
@@ -211,14 +373,24 @@ export default function CompanyDetailView({
   const [tasksSectionKey, setTasksSectionKey] = useState(0);
   const [notesSectionKey, setNotesSectionKey] = useState(0);
   const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const [showAddAddressModal, setShowAddAddressModal] = useState(false);
+
+  // Get current company type
+  const currentCompanyType = isEditing ? (editFormData.companySourceType || company.companySourceType) : company.companySourceType;
+  const isManufacturer = currentCompanyType === 'MANUFACTURER';
 
   // Section refs for scroll-to functionality
   const sectionRefs = useRef<Record<TabId, HTMLDivElement | null>>({
     'overview': null,
+    'factory-info': null,
+    'addresses': null,
     'contacts': null,
-    'jobs': null,
+    'pre-quotes': null,
+    'emails': null,
+    'meetings': null,
     'tasks': null,
     'notes': null,
+    'tags': null,
   });
 
   // Reference to the scrollable container
@@ -244,12 +416,13 @@ export default function CompanyDetailView({
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    const tabIds: TabId[] = ['overview', 'contacts', 'jobs', 'tasks', 'notes'];
-
     const handleScroll = () => {
       const scrollTop = container.scrollTop;
-
       let currentSection: TabId = 'overview';
+
+      const tabIds: TabId[] = isManufacturer
+        ? ['overview', 'factory-info', 'addresses', 'contacts', 'pre-quotes', 'emails', 'meetings', 'tasks', 'notes']
+        : ['overview', 'addresses', 'contacts', 'pre-quotes', 'emails', 'meetings', 'tasks', 'notes'];
 
       for (const tabId of tabIds) {
         const section = sectionRefs.current[tabId];
@@ -267,7 +440,7 @@ export default function CompanyDetailView({
     container.addEventListener('scroll', handleScroll, { passive: true });
     handleScroll();
     return () => container.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [isManufacturer]);
 
   // Handle link success - trigger refetch via key change
   const handleLinkSuccess = () => {
@@ -284,17 +457,64 @@ export default function CompanyDetailView({
     setShowAddLinkModal(true);
   };
 
-  const tabs = [
-    { id: 'overview' as TabId, label: 'Overview' },
-    { id: 'contacts' as TabId, label: 'Contacts' },
-    { id: 'jobs' as TabId, label: 'Jobs' },
-    { id: 'tasks' as TabId, label: 'Tasks' },
-    { id: 'notes' as TabId, label: 'Notes' },
+  // Get addresses
+  const addresses = isEditing ? (editFormData.addresses || company.addresses || []) : (company.addresses || []);
+
+  // Get manufacturer info
+  const manufacturerInfo = isEditing
+    ? (editFormData.manufacturerInfo || company.manufacturerInfo || {})
+    : (company.manufacturerInfo || {});
+
+  // Address handlers
+  const handleAddAddress = (address: Address) => {
+    const newAddress: CompanyAddress = {
+      id: address.id,
+      types: address.types,
+      country: address.country,
+      addressLine1: address.addressLine1,
+      addressLine2: address.addressLine2,
+      city: address.city,
+      state: address.state,
+      zipCode: address.zipCode,
+    };
+    onFieldChange('addresses', [...addresses, newAddress]);
+  };
+
+  const updateAddress = (index: number, updated: CompanyAddress) => {
+    const newAddresses = [...addresses];
+    newAddresses[index] = updated;
+    onFieldChange('addresses', newAddresses);
+  };
+
+  const deleteAddress = (index: number) => {
+    onFieldChange('addresses', addresses.filter((_, i) => i !== index));
+  };
+
+  // Manufacturer info handler
+  const updateManufacturerInfo = (field: keyof ManufacturerInfo, value: string | number) => {
+    onFieldChange('manufacturerInfo', { ...manufacturerInfo, [field]: value });
+  };
+
+  // Build tabs based on company type
+  const tabs: { id: TabId; label: string }[] = [
+    ...(isManufacturer
+      ? [{ id: 'factory-info' as TabId, label: 'Factory Info' }]
+      : [{ id: 'overview' as TabId, label: 'Overview' }]
+    ),
+    { id: 'addresses', label: 'Addresses' },
+    { id: 'contacts', label: 'Contacts' },
+    { id: 'pre-quotes', label: 'Pre-Quotes' },
+    { id: 'emails', label: 'Emails' },
+    { id: 'meetings', label: 'Meetings' },
+    { id: 'tasks', label: 'Tasks' },
+    { id: 'notes', label: 'Notes' },
+    { id: 'tags', label: 'Tags' },
   ];
 
   const inputClass = "w-full px-4 py-3 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400";
   const readOnlyClass = "w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-600 cursor-not-allowed";
-  const labelClass = "flex items-center gap-2 text-sm font-medium text-gray-700 mb-2";
+  const labelClass = "block text-sm font-medium text-gray-700 mb-1.5";
+  const textareaClass = "w-full px-4 py-3 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400 resize-y min-h-[80px]";
 
   const getTypeColor = (type: CompanySourceType) => {
     return type === 'MANUFACTURER'
@@ -320,7 +540,9 @@ export default function CompanyDetailView({
             </button>
             <div className="flex items-center gap-3">
               {/* Company Icon */}
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-sm">
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-sm ${
+                isManufacturer ? 'bg-gradient-to-br from-purple-500 to-indigo-600' : 'bg-gradient-to-br from-emerald-500 to-teal-600'
+              }`}>
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                 </svg>
@@ -330,15 +552,6 @@ export default function CompanyDetailView({
                   <h1 className="text-xl font-semibold text-gray-900">
                     {company.name}
                   </h1>
-                  <div className="relative group">
-                    <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <div className="absolute left-0 top-full mt-1 w-64 p-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-                      Company details, contacts, jobs, and related entities
-                    </div>
-                  </div>
-                  {/* Company Type */}
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${typeColors.bg} ${typeColors.text}`}>
                     {company.companySourceType === 'MANUFACTURER' ? 'Manufacturer' : 'Customer'}
                   </span>
@@ -392,7 +605,7 @@ export default function CompanyDetailView({
                   <path d="M11 4H4a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-7" strokeLinecap="round" strokeLinejoin="round"/>
                   <path d="M18.5 2.5a2.121 2.121 0 010 3l-9 9L6 15l.5-3.5 9-9a2.121 2.121 0 013 0z" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
-                Edit Company
+                Edit
               </button>
             )}
           </div>
@@ -420,220 +633,329 @@ export default function CompanyDetailView({
 
       {/* Scrollable Content */}
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-6 space-y-8 relative">
-        {/* ============ OVERVIEW SECTION ============ */}
-        <div ref={el => { sectionRefs.current['overview'] = el; }} id="section-overview">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Overview</h2>
-
-          {/* Company Information Card */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm mb-6">
-            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 rounded-t-xl">
-              <div className="flex items-center gap-2">
-                <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
-                <h3 className="text-lg font-semibold text-gray-900">Company Information</h3>
+        {/* ============ OVERVIEW SECTION (Non-manufacturers only) ============ */}
+        {!isManufacturer && (
+          <div ref={el => { sectionRefs.current['overview'] = el; }} id="section-overview">
+            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+              <div className="px-6 py-4 border-b border-[var(--border)]">
+                <h2 className="text-lg font-semibold text-[var(--foreground)]">Overview</h2>
+              </div>
+              <div className="p-6">
+                <div className="grid grid-cols-4 gap-4">
+                  {/* Company Name */}
+                  <div>
+                    <label className={labelClass}>Company Name*</label>
+                    <input
+                      type="text"
+                      value={isEditing ? editFormData.name || '' : company.name}
+                      onChange={(e) => onFieldChange('name', e.target.value)}
+                      className={isEditing ? inputClass : readOnlyClass}
+                      readOnly={!isEditing}
+                    />
+                  </div>
+                  {/* Contact Email */}
+                  <div>
+                    <label className={labelClass}>Contact Email</label>
+                    <input
+                      type="email"
+                      value={isEditing ? editFormData.email || '' : (company.email || '')}
+                      onChange={(e) => onFieldChange('email', e.target.value)}
+                      className={isEditing ? inputClass : readOnlyClass}
+                      readOnly={!isEditing}
+                    />
+                  </div>
+                  {/* Contact Number */}
+                  <div>
+                    <label className={labelClass}>Contact Number</label>
+                    <input
+                      type="text"
+                      value={isEditing ? editFormData.phone || '' : (company.phone || '')}
+                      onChange={(e) => onFieldChange('phone', e.target.value)}
+                      className={isEditing ? inputClass : readOnlyClass}
+                      readOnly={!isEditing}
+                    />
+                  </div>
+                  {/* Inside Rep */}
+                  <div>
+                    <label className={labelClass}>Inside Rep*</label>
+                    {isEditing ? (
+                      <select
+                        value={editFormData.insideRep || company.insideRep || ''}
+                        onChange={(e) => onFieldChange('insideRep', e.target.value)}
+                        className={inputClass}
+                      >
+                        <option value="">Select Inside Rep</option>
+                        <option value="Rep 1">Rep 1</option>
+                        <option value="Rep 2">Rep 2</option>
+                        <option value="Rep 3">Rep 3</option>
+                      </select>
+                    ) : (
+                      <div className={readOnlyClass}>{company.insideRep || '-'}</div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
+          </div>
+        )}
 
-            <div className="p-6">
-              <div className="grid grid-cols-3 gap-5">
-                {/* Company Name */}
-                <div className="col-span-2">
-                  <label className={labelClass}>
-                    <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                    </svg>
-                    Company Name
-                  </label>
+        {/* ============ FACTORY INFO SECTION (Manufacturers only) ============ */}
+        {isManufacturer && (
+          <div ref={el => { sectionRefs.current['factory-info'] = el; }} id="section-factory-info">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Factory Information</h2>
+
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+              {/* Row 1 */}
+              <div className="grid grid-cols-6 gap-4 mb-4">
+                <div>
+                  <label className={labelClass}>Name of Factory*</label>
                   <input
                     type="text"
-                    value={isEditing ? editFormData.name || '' : company.name}
-                    onChange={(e) => onFieldChange('name', e.target.value)}
+                    value={company.name}
+                    className={readOnlyClass}
+                    readOnly
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Factory Account Number</label>
+                  <input
+                    type="text"
+                    value={isEditing ? manufacturerInfo.factoryAccountNumber || '' : (manufacturerInfo.factoryAccountNumber || '')}
+                    onChange={(e) => updateManufacturerInfo('factoryAccountNumber', e.target.value)}
                     className={isEditing ? inputClass : readOnlyClass}
                     readOnly={!isEditing}
-                    placeholder={isEditing ? "Enter company name" : ""}
                   />
                 </div>
-
-                {/* Company Type */}
                 <div>
-                  <label className={labelClass}>
-                    <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                    </svg>
-                    Company Type
-                  </label>
-                  <CompanyTypeSelect
-                    value={(isEditing ? editFormData.companySourceType : company.companySourceType) || 'CUSTOMER'}
-                    onChange={(value) => onFieldChange('companySourceType', value)}
-                    disabled={!isEditing}
+                  <label className={labelClass}>Factory Email</label>
+                  <input
+                    type="email"
+                    value={isEditing ? manufacturerInfo.factoryEmail || '' : (manufacturerInfo.factoryEmail || '')}
+                    onChange={(e) => updateManufacturerInfo('factoryEmail', e.target.value)}
+                    className={isEditing ? inputClass : readOnlyClass}
+                    readOnly={!isEditing}
                   />
                 </div>
-
-                {/* Phone */}
                 <div>
-                  <label className={labelClass}>
-                    <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                    </svg>
-                    Phone
-                  </label>
+                  <label className={labelClass}>Phone</label>
                   <input
                     type="text"
-                    value={isEditing ? editFormData.phone || '' : (company.phone || '-')}
+                    value={isEditing ? editFormData.phone || '' : (company.phone || '')}
                     onChange={(e) => onFieldChange('phone', e.target.value)}
                     className={isEditing ? inputClass : readOnlyClass}
                     readOnly={!isEditing}
-                    placeholder={isEditing ? "(555) 123-4567" : ""}
                   />
                 </div>
-
-                {/* Website */}
-                <div className="col-span-2">
-                  <label className={labelClass}>
-                    <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9" />
-                    </svg>
-                    Website
-                  </label>
-                  <input
-                    type="text"
-                    value={isEditing ? editFormData.website || '' : (company.website || '-')}
-                    onChange={(e) => onFieldChange('website', e.target.value)}
-                    className={isEditing ? inputClass : readOnlyClass}
-                    readOnly={!isEditing}
-                    placeholder={isEditing ? "www.example.com" : ""}
-                  />
-                </div>
-              </div>
-
-              {/* Tags Section */}
-              <div className="mt-5">
-                <label className={labelClass}>
-                  <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                  </svg>
-                  Tags
-                </label>
-                {isEditing ? (
-                  <input
-                    type="text"
-                    value={editFormData.tags ? (Array.isArray(editFormData.tags) ? editFormData.tags.join(', ') : editFormData.tags) : company.tags.join(', ')}
-                    onChange={(e) => onFieldChange('tags', e.target.value)}
-                    className={inputClass}
-                    placeholder="Enter comma-separated tags (e.g. GC, Healthcare, Monitor)"
-                  />
-                ) : (
-                  <div className="flex gap-2 flex-wrap items-center min-h-[44px] p-3 border border-gray-200 rounded-lg bg-gray-50">
-                    {company.tags.length > 0 ? (
-                      company.tags.map((tag, idx) => (
-                        <span
-                          key={idx}
-                          className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-full text-sm shadow-sm"
-                        >
-                          <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                          {tag}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="text-sm text-gray-400">No tags added</span>
+                <div>
+                  <label className={labelClass}>Logo URL</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={isEditing ? manufacturerInfo.logoUrl || '' : (manufacturerInfo.logoUrl || '')}
+                      onChange={(e) => updateManufacturerInfo('logoUrl', e.target.value)}
+                      className={isEditing ? inputClass : readOnlyClass}
+                      readOnly={!isEditing}
+                    />
+                    {isEditing && (
+                      <button className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                        <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                      </button>
                     )}
                   </div>
-                )}
+                </div>
+                <div>
+                  <label className={labelClass}>Freight Discount Type*</label>
+                  {isEditing ? (
+                    <select
+                      value={manufacturerInfo.freightDiscountType || 'ADD'}
+                      onChange={(e) => updateManufacturerInfo('freightDiscountType', e.target.value)}
+                      className={inputClass}
+                    >
+                      <option value="ADD">ADD</option>
+                      <option value="SUBTRACT">SUBTRACT</option>
+                      <option value="NONE">NONE</option>
+                    </select>
+                  ) : (
+                    <div className={readOnlyClass}>{manufacturerInfo.freightDiscountType || 'ADD'}</div>
+                  )}
+                </div>
               </div>
 
-              {/* Commission Rates Section - Only show for Manufacturers */}
-              {((isEditing ? editFormData.companySourceType : company.companySourceType) === 'MANUFACTURER') && (
-                <div className="mt-5 pt-5 border-t border-gray-200">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                    <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Commission Rates
-                  </h3>
-                  <div className="grid grid-cols-2 gap-5">
-                    {/* Standard Commission Rate */}
-                    <div>
-                      <label className={labelClass}>
-                        <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                        </svg>
-                        Standard Commission Rate
-                      </label>
-                      {isEditing ? (
-                        <div className="relative">
-                          <input
-                            type="number"
-                            step="0.1"
-                            min="0"
-                            max="100"
-                            value={editFormData.standardCommissionRate != null
-                              ? (Number(editFormData.standardCommissionRate) * 100).toFixed(1)
-                              : (company.standardCommissionRate != null ? (company.standardCommissionRate * 100).toFixed(1) : '')}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              if (value === '') {
-                                onFieldChange('standardCommissionRate', '');
-                              } else {
-                                onFieldChange('standardCommissionRate', (parseFloat(value) / 100));
-                              }
-                            }}
-                            className="w-full px-4 py-3 pr-8 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400"
-                            placeholder="e.g. 10"
-                          />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">%</span>
-                        </div>
-                      ) : (
-                        <div className={readOnlyClass}>
-                          {company.standardCommissionRate != null
-                            ? `${(company.standardCommissionRate * 100).toFixed(1)}%`
-                            : '-'}
-                        </div>
-                      )}
-                      <p className="text-xs text-gray-500 mt-1">Commission rate for direct/standard sales</p>
-                    </div>
-
-                    {/* Warehouse Commission Rate */}
-                    <div>
-                      <label className={labelClass}>
-                        <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
-                        </svg>
-                        Warehouse Commission Rate
-                      </label>
-                      {isEditing ? (
-                        <div className="relative">
-                          <input
-                            type="number"
-                            step="0.1"
-                            min="0"
-                            max="100"
-                            value={editFormData.warehouseCommissionRate != null
-                              ? (Number(editFormData.warehouseCommissionRate) * 100).toFixed(1)
-                              : (company.warehouseCommissionRate != null ? (company.warehouseCommissionRate * 100).toFixed(1) : '')}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              if (value === '') {
-                                onFieldChange('warehouseCommissionRate', '');
-                              } else {
-                                onFieldChange('warehouseCommissionRate', (parseFloat(value) / 100));
-                              }
-                            }}
-                            className="w-full px-4 py-3 pr-8 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400"
-                            placeholder="e.g. 5"
-                          />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">%</span>
-                        </div>
-                      ) : (
-                        <div className={readOnlyClass}>
-                          {company.warehouseCommissionRate != null
-                            ? `${(company.warehouseCommissionRate * 100).toFixed(1)}%`
-                            : '-'}
-                        </div>
-                      )}
-                      <p className="text-xs text-gray-500 mt-1">Commission rate for warehouse sales</p>
-                    </div>
+              {/* Row 2 - Commission rates */}
+              <div className="grid grid-cols-6 gap-4 mb-4">
+                <div>
+                  <label className={labelClass}>Lead Time</label>
+                  <input
+                    type="text"
+                    value={isEditing ? manufacturerInfo.leadTime || '' : (manufacturerInfo.leadTime || '')}
+                    onChange={(e) => updateManufacturerInfo('leadTime', e.target.value)}
+                    className={isEditing ? inputClass : readOnlyClass}
+                    readOnly={!isEditing}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Payment Terms</label>
+                  <input
+                    type="text"
+                    value={isEditing ? manufacturerInfo.paymentTerms || '' : (manufacturerInfo.paymentTerms || '')}
+                    onChange={(e) => updateManufacturerInfo('paymentTerms', e.target.value)}
+                    className={isEditing ? inputClass : readOnlyClass}
+                    readOnly={!isEditing}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Base Commission Rate*</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={isEditing
+                        ? (manufacturerInfo.baseCommissionRate != null ? (manufacturerInfo.baseCommissionRate * 100).toFixed(1) : '')
+                        : (manufacturerInfo.baseCommissionRate != null ? (manufacturerInfo.baseCommissionRate * 100).toFixed(1) : '')}
+                      onChange={(e) => updateManufacturerInfo('baseCommissionRate', parseFloat(e.target.value) / 100)}
+                      className={`${isEditing ? inputClass : readOnlyClass} pr-8`}
+                      readOnly={!isEditing}
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
                   </div>
+                </div>
+                <div>
+                  <label className={labelClass}>Commission Discount Rate</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={isEditing
+                        ? (manufacturerInfo.commissionDiscountRate != null ? (manufacturerInfo.commissionDiscountRate * 100).toFixed(1) : '0')
+                        : (manufacturerInfo.commissionDiscountRate != null ? (manufacturerInfo.commissionDiscountRate * 100).toFixed(1) : '0')}
+                      onChange={(e) => updateManufacturerInfo('commissionDiscountRate', parseFloat(e.target.value) / 100)}
+                      className={`${isEditing ? inputClass : readOnlyClass} pr-8`}
+                      readOnly={!isEditing}
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
+                  </div>
+                </div>
+                <div>
+                  <label className={labelClass}>Overall Discount Rate</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={isEditing
+                        ? (manufacturerInfo.overallDiscountRate != null ? (manufacturerInfo.overallDiscountRate * 100).toFixed(1) : '0')
+                        : (manufacturerInfo.overallDiscountRate != null ? (manufacturerInfo.overallDiscountRate * 100).toFixed(1) : '0')}
+                      onChange={(e) => updateManufacturerInfo('overallDiscountRate', parseFloat(e.target.value) / 100)}
+                      className={`${isEditing ? inputClass : readOnlyClass} pr-8`}
+                      readOnly={!isEditing}
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
+                  </div>
+                </div>
+                <div>
+                  <label className={labelClass}>External Terms</label>
+                  <textarea
+                    value={isEditing ? manufacturerInfo.externalTerms || '' : (manufacturerInfo.externalTerms || '')}
+                    onChange={(e) => updateManufacturerInfo('externalTerms', e.target.value)}
+                    className={isEditing ? textareaClass : `${readOnlyClass} min-h-[80px]`}
+                    readOnly={!isEditing}
+                  />
+                </div>
+              </div>
+
+              {/* Row 3 - Text areas */}
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className={labelClass}>Additional Information</label>
+                  <textarea
+                    value={isEditing ? manufacturerInfo.additionalInformation || '' : (manufacturerInfo.additionalInformation || '')}
+                    onChange={(e) => updateManufacturerInfo('additionalInformation', e.target.value)}
+                    className={isEditing ? textareaClass : `${readOnlyClass} min-h-[80px]`}
+                    readOnly={!isEditing}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Freight Terms</label>
+                  <textarea
+                    value={isEditing ? manufacturerInfo.freightTerms || '' : (manufacturerInfo.freightTerms || '')}
+                    onChange={(e) => updateManufacturerInfo('freightTerms', e.target.value)}
+                    className={isEditing ? textareaClass : `${readOnlyClass} min-h-[80px]`}
+                    readOnly={!isEditing}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>External Payment Terms</label>
+                  <textarea
+                    value={isEditing ? manufacturerInfo.externalPaymentTerms || '' : (manufacturerInfo.externalPaymentTerms || '')}
+                    onChange={(e) => updateManufacturerInfo('externalPaymentTerms', e.target.value)}
+                    className={isEditing ? textareaClass : `${readOnlyClass} min-h-[80px]`}
+                    readOnly={!isEditing}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ============ ADDRESSES SECTION ============ */}
+        <div ref={el => { sectionRefs.current['addresses'] = el; }} id="section-addresses">
+          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-semibold text-[var(--foreground)]">Addresses</h2>
+                <span className="px-2 py-0.5 text-xs font-medium bg-[var(--muted)] text-[var(--muted-foreground)] rounded-full">
+                  {addresses.length}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {/* TODO: Link address modal */}}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  Link Address
+                </button>
+                <button
+                  onClick={() => setShowAddAddressModal(true)}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                  </svg>
+                  New Address
+                </button>
+              </div>
+            </div>
+            <div className="p-6">
+              {addresses.length > 0 ? (
+                <div className="grid grid-cols-2 gap-6">
+                  {addresses.map((address, index) => (
+                    <AddressCard
+                      key={address.id}
+                      address={address}
+                      isEditing={isEditing}
+                      onUpdate={(updated) => updateAddress(index, updated)}
+                      onDelete={() => deleteAddress(index)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-4 text-[var(--muted-foreground)]">
+                  <svg className="w-12 h-12 text-[var(--muted-foreground)]/30 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <p className="text-sm">No addresses linked</p>
+                  <button
+                    onClick={() => setShowAddAddressModal(true)}
+                    className="mt-2 text-sm text-[var(--primary)] hover:underline"
+                  >
+                    + Add an address
+                  </button>
                 </div>
               )}
             </div>
@@ -642,46 +964,235 @@ export default function CompanyDetailView({
 
         {/* ============ CONTACTS SECTION ============ */}
         <div ref={el => { sectionRefs.current['contacts'] = el; }} id="section-contacts">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Contacts at {company.name}</h2>
-
           <CompanyRelatedEntities
             company={company}
             onContactClick={onContactClick}
             onJobClick={onJobClick}
+            onNewContactClick={() => {/* TODO: New contact modal */}}
+            onNewJobClick={() => {/* TODO: New job modal */}}
           />
         </div>
 
-        {/* ============ JOBS SECTION (hidden - already in contacts) ============ */}
-        <div ref={el => { sectionRefs.current['jobs'] = el; }} id="section-jobs" className="sr-only">
-          {/* Jobs are shown in the CompanyRelatedEntities component above */}
+        {/* ============ PRE-QUOTES SECTION ============ */}
+        <div ref={el => { sectionRefs.current['pre-quotes'] = el; }} id="section-pre-quotes">
+          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-semibold text-[var(--foreground)]">Pre-Quotes</h2>
+                <span className="px-2 py-0.5 text-xs font-medium bg-[var(--muted)] text-[var(--muted-foreground)] rounded-full">
+                  0
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {/* TODO: Link pre-quote modal */}}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  Link Pre-Quote
+                </button>
+                <button
+                  onClick={() => {/* TODO: New pre-quote modal */}}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                  </svg>
+                  New Pre-Quote
+                </button>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="text-center py-4 text-[var(--muted-foreground)]">
+                <svg className="w-12 h-12 text-[var(--muted-foreground)]/30 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p className="text-sm">No pre-quotes linked</p>
+                <button
+                  onClick={() => {/* TODO: New pre-quote modal */}}
+                  className="mt-2 text-sm text-[var(--primary)] hover:underline"
+                >
+                  + Add a pre-quote
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ============ EMAILS SECTION ============ */}
+        <div ref={el => { sectionRefs.current['emails'] = el; }} id="section-emails">
+          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-semibold text-[var(--foreground)]">Emails</h2>
+                <span className="px-2 py-0.5 text-xs font-medium bg-[var(--muted)] text-[var(--muted-foreground)] rounded-full">
+                  0
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {/* TODO: Link email modal */}}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  Link Email
+                </button>
+                <button
+                  onClick={() => {/* TODO: Compose email modal */}}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                  </svg>
+                  Compose Email
+                </button>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="text-center py-4 text-[var(--muted-foreground)]">
+                <svg className="w-12 h-12 text-[var(--muted-foreground)]/30 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <p className="text-sm">No emails linked</p>
+                <button
+                  onClick={() => {/* TODO: Compose email modal */}}
+                  className="mt-2 text-sm text-[var(--primary)] hover:underline"
+                >
+                  + Compose an email
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ============ MEETINGS SECTION ============ */}
+        <div ref={el => { sectionRefs.current['meetings'] = el; }} id="section-meetings">
+          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-semibold text-[var(--foreground)]">Meetings</h2>
+                <span className="px-2 py-0.5 text-xs font-medium bg-[var(--muted)] text-[var(--muted-foreground)] rounded-full">
+                  0
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {/* TODO: Link meeting modal */}}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  Link Meeting
+                </button>
+                <button
+                  onClick={() => {/* TODO: Schedule meeting modal */}}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                  </svg>
+                  Schedule Meeting
+                </button>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="text-center py-4 text-[var(--muted-foreground)]">
+                <svg className="w-12 h-12 text-[var(--muted-foreground)]/30 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <p className="text-sm">No meetings linked</p>
+                <button
+                  onClick={() => {/* TODO: Schedule meeting modal */}}
+                  className="mt-2 text-sm text-[var(--primary)] hover:underline"
+                >
+                  + Schedule a meeting
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* ============ TASKS SECTION ============ */}
         <div ref={el => { sectionRefs.current['tasks'] = el; }} id="section-tasks">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Connected Tasks</h2>
-
           <ConnectedTasksSection
             key={`tasks-${tasksSectionKey}`}
             entityId={company.id}
             entityType="COMPANY"
-            title=""
+            title="Tasks"
             onAddClick={() => { openAddLinkModal('TASK'); }}
+            onNewClick={() => {/* TODO: New task modal */}}
             onUnlinkSuccess={() => setTasksSectionKey(prev => prev + 1)}
           />
         </div>
 
         {/* ============ NOTES SECTION ============ */}
         <div ref={el => { sectionRefs.current['notes'] = el; }} id="section-notes">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Connected Notes</h2>
-
           <ConnectedNotesSection
             key={`notes-${notesSectionKey}`}
             entityId={company.id}
             entityType="COMPANY"
-            title=""
+            title="Notes"
             onAddClick={() => { openAddLinkModal('NOTE'); }}
+            onNewClick={() => {/* TODO: New note modal */}}
             onUnlinkSuccess={() => setNotesSectionKey(prev => prev + 1)}
           />
+        </div>
+
+        {/* ============ TAGS SECTION ============ */}
+        <div ref={el => { sectionRefs.current['tags'] = el; }} id="section-tags">
+          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-semibold text-[var(--foreground)]">Tags</h2>
+                <span className="px-2 py-0.5 text-xs font-medium bg-[var(--muted)] text-[var(--muted-foreground)] rounded-full">
+                  {company.tags.length}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {/* TODO: Add tag */}}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                  </svg>
+                  Add Tag
+                </button>
+              </div>
+            </div>
+            <div className="p-6">
+              {company.tags.length > 0 ? (
+                <div className="flex gap-2 flex-wrap">
+                  {company.tags.map((tag, idx) => (
+                    <span key={idx} className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-4 text-[var(--muted-foreground)]">
+                  <svg className="w-12 h-12 text-[var(--muted-foreground)]/30 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                  </svg>
+                  <p className="text-sm">No tags added</p>
+                  <button
+                    onClick={() => {/* TODO: Add tag */}}
+                    className="mt-2 text-sm text-[var(--primary)] hover:underline"
+                  >
+                    + Add a tag
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -693,6 +1204,12 @@ export default function CompanyDetailView({
         initialLinkType={addLinkEntityType}
         onClose={() => { setShowAddLinkModal(false); }}
         onSuccess={handleLinkSuccess}
+      />
+
+      <AddAddressModal
+        isOpen={showAddAddressModal}
+        onClose={() => setShowAddAddressModal(false)}
+        onSave={handleAddAddress}
       />
 
       {deleteConfirmId && (

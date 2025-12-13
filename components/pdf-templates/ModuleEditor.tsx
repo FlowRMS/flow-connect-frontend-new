@@ -233,30 +233,7 @@ function ModuleSpecificSettings({
 
     case 'line-items-table':
       return (
-        <div className="space-y-3">
-          <h4 className="text-xs font-semibold text-[var(--muted-foreground)] uppercase">Table Settings</h4>
-          <ToggleSetting label="Show Section Headers" checked={config.showSectionHeaders as boolean} onChange={(v) => updateConfig('showSectionHeaders', v)} />
-          <ToggleSetting label="Show Row Numbers" checked={config.showRowNumbers as boolean} onChange={(v) => updateConfig('showRowNumbers', v)} />
-          <ToggleSetting label="Alternate Row Colors" checked={config.alternateRowColors as boolean} onChange={(v) => updateConfig('alternateRowColors', v)} />
-
-          <div>
-            <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Header Background</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="color"
-                value={(config.headerBackgroundColor as string) || '#3B82F6'}
-                onChange={(e) => updateConfig('headerBackgroundColor', e.target.value)}
-                className="w-8 h-8 rounded cursor-pointer"
-              />
-              <input
-                type="text"
-                value={(config.headerBackgroundColor as string) || '#3B82F6'}
-                onChange={(e) => updateConfig('headerBackgroundColor', e.target.value)}
-                className="flex-1 px-2 py-1 text-sm border border-[var(--border)] rounded bg-[var(--background)]"
-              />
-            </div>
-          </div>
-        </div>
+        <LineItemsTableSettings config={config} updateConfig={updateConfig} />
       );
 
     case 'pricing-summary':
@@ -464,6 +441,169 @@ function ToggleSetting({
           }`}
         />
       </button>
+    </div>
+  );
+}
+
+// Available columns for line items table
+const availableLineItemColumns = [
+  { id: 'section', label: 'Section', field: 'sectionName', defaultWidth: 12 },
+  { id: 'partNumber', label: 'Part Number', field: 'productNumber', defaultWidth: 15 },
+  { id: 'description', label: 'Description', field: 'description', defaultWidth: 25 },
+  { id: 'manufacturer', label: 'Manufacturer', field: 'manufacturer', defaultWidth: 12 },
+  { id: 'quantity', label: 'Qty', field: 'quantity', defaultWidth: 6 },
+  { id: 'uom', label: 'UOM', field: 'uom', defaultWidth: 6 },
+  { id: 'cost', label: 'Cost', field: 'cost', defaultWidth: 10 },
+  { id: 'base', label: 'Base', field: 'basePrice', defaultWidth: 10 },
+  { id: 'sell', label: 'Sell', field: 'sellPrice', defaultWidth: 10 },
+  { id: 'sellTotal', label: 'Sell Total', field: 'extendedPrice', defaultWidth: 12 },
+  { id: 'margin', label: 'Margin', field: 'margin', defaultWidth: 8 },
+  { id: 'marginPercent', label: 'Margin %', field: 'marginPercent', defaultWidth: 8 },
+  { id: 'binLocation', label: 'Bin Location', field: 'binLocation', defaultWidth: 12 },
+  { id: 'qtyOrdered', label: 'Qty Ordered', field: 'qtyOrdered', defaultWidth: 10 },
+  { id: 'qtyPicked', label: 'Qty Picked', field: 'qtyPicked', defaultWidth: 10 },
+  { id: 'qtyShipped', label: 'Qty Shipped', field: 'qtyShipped', defaultWidth: 10 },
+  { id: 'backorder', label: 'Backorder', field: 'backorder', defaultWidth: 8 },
+];
+
+interface ColumnConfig {
+  id: string;
+  label: string;
+  field: string;
+  visible: boolean;
+  width: number;
+  alignment: 'left' | 'center' | 'right';
+  format?: 'currency' | 'number' | 'text';
+}
+
+// Line Items Table Settings Component
+function LineItemsTableSettings({
+  config,
+  updateConfig,
+}: {
+  config: import('../../lib/types/pdf-templates').ModuleConfig;
+  updateConfig: (key: string, value: unknown) => void;
+}) {
+  const columns = (config.columns as ColumnConfig[]) || [];
+
+  const toggleColumn = (columnId: string) => {
+    const existingIndex = columns.findIndex(c => c.id === columnId || c.field === columnId);
+
+    if (existingIndex >= 0) {
+      // Toggle visibility
+      const newColumns = [...columns];
+      newColumns[existingIndex] = { ...newColumns[existingIndex], visible: !newColumns[existingIndex].visible };
+      updateConfig('columns', newColumns);
+    } else {
+      // Add new column
+      const availableCol = availableLineItemColumns.find(c => c.id === columnId);
+      if (availableCol) {
+        const newColumn: ColumnConfig = {
+          id: availableCol.id,
+          label: availableCol.label,
+          field: availableCol.field,
+          visible: true,
+          width: availableCol.defaultWidth,
+          alignment: ['quantity', 'qtyOrdered', 'qtyPicked', 'qtyShipped', 'uom'].includes(columnId) ? 'center' :
+                     ['cost', 'base', 'sell', 'sellTotal', 'margin', 'marginPercent'].includes(columnId) ? 'right' : 'left',
+          format: ['cost', 'base', 'sell', 'sellTotal', 'margin'].includes(columnId) ? 'currency' :
+                  ['quantity', 'qtyOrdered', 'qtyPicked', 'qtyShipped', 'marginPercent', 'backorder'].includes(columnId) ? 'number' : 'text',
+        };
+        updateConfig('columns', [...columns, newColumn]);
+      }
+    }
+  };
+
+  const isColumnVisible = (columnId: string) => {
+    const col = columns.find(c => c.id === columnId || c.field === availableLineItemColumns.find(a => a.id === columnId)?.field);
+    return col ? col.visible : false;
+  };
+
+  const updateColumnWidth = (columnId: string, width: number) => {
+    const newColumns = columns.map(c =>
+      (c.id === columnId || c.field === availableLineItemColumns.find(a => a.id === columnId)?.field)
+        ? { ...c, width }
+        : c
+    );
+    updateConfig('columns', newColumns);
+  };
+
+  const getColumnWidth = (columnId: string): number => {
+    const col = columns.find(c => c.id === columnId || c.field === availableLineItemColumns.find(a => a.id === columnId)?.field);
+    return col?.width || availableLineItemColumns.find(a => a.id === columnId)?.defaultWidth || 10;
+  };
+
+  return (
+    <div className="space-y-4">
+      <h4 className="text-xs font-semibold text-[var(--muted-foreground)] uppercase">Table Settings</h4>
+      <ToggleSetting label="Show Section Headers" checked={config.showSectionHeaders as boolean} onChange={(v) => updateConfig('showSectionHeaders', v)} />
+      <ToggleSetting label="Show Row Numbers" checked={config.showRowNumbers as boolean} onChange={(v) => updateConfig('showRowNumbers', v)} />
+      <ToggleSetting label="Alternate Row Colors" checked={config.alternateRowColors as boolean} onChange={(v) => updateConfig('alternateRowColors', v)} />
+
+      <div>
+        <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Header Background</label>
+        <div className="flex items-center gap-2">
+          <input
+            type="color"
+            value={(config.headerBackgroundColor as string) || '#3B82F6'}
+            onChange={(e) => updateConfig('headerBackgroundColor', e.target.value)}
+            className="w-8 h-8 rounded cursor-pointer"
+          />
+          <input
+            type="text"
+            value={(config.headerBackgroundColor as string) || '#3B82F6'}
+            onChange={(e) => updateConfig('headerBackgroundColor', e.target.value)}
+            className="flex-1 px-2 py-1 text-sm border border-[var(--border)] rounded bg-[var(--background)]"
+          />
+        </div>
+      </div>
+
+      <hr className="border-[var(--border)]" />
+
+      <div>
+        <h4 className="text-xs font-semibold text-[var(--muted-foreground)] uppercase mb-3">Table Columns</h4>
+        <p className="text-xs text-[var(--muted-foreground)] mb-3">Select which columns to display and adjust their widths.</p>
+
+        <div className="space-y-2 max-h-64 overflow-y-auto">
+          {availableLineItemColumns.map((col) => {
+            const visible = isColumnVisible(col.id);
+            return (
+              <div key={col.id} className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-[var(--muted)]/50">
+                <button
+                  onClick={() => toggleColumn(col.id)}
+                  className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                    visible
+                      ? 'bg-[var(--primary)] border-[var(--primary)] text-white'
+                      : 'border-[var(--border)] bg-[var(--background)]'
+                  }`}
+                >
+                  {visible && (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                      <polyline points="20,6 9,17 4,12" />
+                    </svg>
+                  )}
+                </button>
+                <span className={`flex-1 text-sm ${visible ? 'text-[var(--foreground)]' : 'text-[var(--muted-foreground)]'}`}>
+                  {col.label}
+                </span>
+                {visible && (
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min="5"
+                      max="50"
+                      value={getColumnWidth(col.id)}
+                      onChange={(e) => updateColumnWidth(col.id, Number(e.target.value))}
+                      className="w-12 px-1 py-0.5 text-xs border border-[var(--border)] rounded bg-[var(--background)] text-center"
+                    />
+                    <span className="text-xs text-[var(--muted-foreground)]">%</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

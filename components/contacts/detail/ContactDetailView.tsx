@@ -12,10 +12,20 @@ import ConnectedNotesSection from '../../notes/ConnectedNotesSection';
 import ConnectedTasksSection from '../../tasks/ConnectedTasksSection';
 import DeleteConfirmModal from './DeleteConfirmModal';
 import { AddTaskNoteLinkModal } from '../modals/AddTaskNoteLinkModal';
-import type { Contact } from '../types';
+import type { Contact, ContactAddress, AddressType } from '../types';
 import type { Job as APIJob, Company as APICompany } from '../../lib/crm-graphql';
+import { AddAddressModal, type Address } from '../../shared/AddAddressModal';
 
-type TabId = 'overview' | 'company' | 'jobs' | 'tasks' | 'notes';
+type TabId = 'overview' | 'addresses' | 'company' | 'jobs' | 'tasks' | 'notes';
+
+// US States for dropdown
+const US_STATES = [
+  'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
+  'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
+  'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
+  'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
+  'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'
+];
 
 interface ContactDetailViewProps {
   contact: Contact;
@@ -33,6 +43,169 @@ interface ContactDetailViewProps {
   setDeleteConfirmId: (id: string | null) => void;
   onJobClick?: (job: APIJob) => void;
   onCompanyClick?: (company: APICompany) => void;
+}
+
+// Address Card Component
+interface AddressCardProps {
+  address: ContactAddress;
+  isEditing: boolean;
+  onUpdate: (updates: Partial<ContactAddress>) => void;
+  onDelete: () => void;
+}
+
+function AddressCard({ address, isEditing, onUpdate, onDelete }: AddressCardProps) {
+  const handleTypeToggle = (type: AddressType) => {
+    const newTypes = address.types.includes(type)
+      ? address.types.filter(t => t !== type)
+      : [...address.types, type];
+    onUpdate({ types: newTypes });
+  };
+
+  const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all";
+  const readOnlyClass = "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-600";
+
+  return (
+    <div className="border border-gray-200 rounded-lg p-4 bg-white">
+      {/* Address Type Checkboxes */}
+      <div className="flex items-center gap-6 mb-4">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={address.types.includes('shipping')}
+            onChange={() => isEditing && handleTypeToggle('shipping')}
+            disabled={!isEditing}
+            className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+          />
+          <span className="text-sm text-gray-700">Shipping</span>
+        </label>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={address.types.includes('billing')}
+            onChange={() => isEditing && handleTypeToggle('billing')}
+            disabled={!isEditing}
+            className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+          />
+          <span className="text-sm text-gray-700">Billing</span>
+        </label>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={address.types.includes('mailing')}
+            onChange={() => isEditing && handleTypeToggle('mailing')}
+            disabled={!isEditing}
+            className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+          />
+          <span className="text-sm text-gray-700">Mailing</span>
+        </label>
+
+        {isEditing && (
+          <button
+            onClick={onDelete}
+            className="ml-auto p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors"
+            title="Remove address"
+          >
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+            </svg>
+          </button>
+        )}
+      </div>
+
+      {/* Address Fields */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Country */}
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Country</label>
+          {isEditing ? (
+            <select
+              value={address.country}
+              onChange={(e) => onUpdate({ country: e.target.value })}
+              className={inputClass}
+            >
+              <option value="">Select Country</option>
+              <option value="US">United States</option>
+              <option value="CA">Canada</option>
+              <option value="MX">Mexico</option>
+            </select>
+          ) : (
+            <div className={readOnlyClass}>{address.country || '-'}</div>
+          )}
+        </div>
+
+        {/* State */}
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">State</label>
+          {isEditing ? (
+            <select
+              value={address.state}
+              onChange={(e) => onUpdate({ state: e.target.value })}
+              className={inputClass}
+            >
+              <option value="">Select State</option>
+              {US_STATES.map(state => (
+                <option key={state} value={state}>{state}</option>
+              ))}
+            </select>
+          ) : (
+            <div className={readOnlyClass}>{address.state || '-'}</div>
+          )}
+        </div>
+
+        {/* Address Line 1 */}
+        <div className="md:col-span-2">
+          <label className="block text-xs font-medium text-gray-600 mb-1">Address Line 1</label>
+          <input
+            type="text"
+            value={address.addressLine1}
+            onChange={(e) => onUpdate({ addressLine1: e.target.value })}
+            className={isEditing ? inputClass : readOnlyClass}
+            readOnly={!isEditing}
+            placeholder="Street address"
+          />
+        </div>
+
+        {/* Address Line 2 */}
+        <div className="md:col-span-2">
+          <label className="block text-xs font-medium text-gray-600 mb-1">Address Line 2</label>
+          <input
+            type="text"
+            value={address.addressLine2 || ''}
+            onChange={(e) => onUpdate({ addressLine2: e.target.value })}
+            className={isEditing ? inputClass : readOnlyClass}
+            readOnly={!isEditing}
+            placeholder="Suite, unit, building, floor, etc."
+          />
+        </div>
+
+        {/* City */}
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">City</label>
+          <input
+            type="text"
+            value={address.city}
+            onChange={(e) => onUpdate({ city: e.target.value })}
+            className={isEditing ? inputClass : readOnlyClass}
+            readOnly={!isEditing}
+            placeholder="City"
+          />
+        </div>
+
+        {/* ZIP Code */}
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">ZIP Code</label>
+          <input
+            type="text"
+            value={address.zipCode}
+            onChange={(e) => onUpdate({ zipCode: e.target.value })}
+            className={isEditing ? inputClass : readOnlyClass}
+            readOnly={!isEditing}
+            placeholder="ZIP Code"
+          />
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // Portaled Role Select Component
@@ -198,10 +371,15 @@ export default function ContactDetailView({
   const [tasksSectionKey, setTasksSectionKey] = useState(0);
   const [notesSectionKey, setNotesSectionKey] = useState(0);
   const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const [showAddAddressModal, setShowAddAddressModal] = useState(false);
+
+  // Local state for addresses (since they're managed locally until save)
+  const [localAddresses, setLocalAddresses] = useState<ContactAddress[]>(contact.addresses || []);
 
   // Section refs for scroll-to functionality
   const sectionRefs = useRef<Record<TabId, HTMLDivElement | null>>({
     'overview': null,
+    'addresses': null,
     'company': null,
     'jobs': null,
     'tasks': null,
@@ -231,7 +409,7 @@ export default function ContactDetailView({
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    const tabIds: TabId[] = ['overview', 'company', 'jobs', 'tasks', 'notes'];
+    const tabIds: TabId[] = ['overview', 'addresses', 'company', 'jobs', 'tasks', 'notes'];
 
     const handleScroll = () => {
       const scrollTop = container.scrollTop;
@@ -273,10 +451,36 @@ export default function ContactDetailView({
 
   const tabs = [
     { id: 'overview' as TabId, label: 'Overview' },
+    { id: 'addresses' as TabId, label: 'Addresses' },
     { id: 'company' as TabId, label: 'Company & Jobs' },
     { id: 'tasks' as TabId, label: 'Tasks' },
     { id: 'notes' as TabId, label: 'Notes' },
   ];
+
+  // Address management functions
+  const handleAddAddress = (address: Address) => {
+    const newAddress: ContactAddress = {
+      id: address.id,
+      types: address.types,
+      country: address.country,
+      addressLine1: address.addressLine1,
+      addressLine2: address.addressLine2,
+      city: address.city,
+      state: address.state,
+      zipCode: address.zipCode,
+    };
+    setLocalAddresses([...localAddresses, newAddress]);
+  };
+
+  const updateAddress = (addressId: string, updates: Partial<ContactAddress>) => {
+    setLocalAddresses(localAddresses.map(addr =>
+      addr.id === addressId ? { ...addr, ...updates } : addr
+    ));
+  };
+
+  const deleteAddress = (addressId: string) => {
+    setLocalAddresses(localAddresses.filter(addr => addr.id !== addressId));
+  };
 
   const inputClass = "w-full px-4 py-3 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400";
   const readOnlyClass = "w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-600 cursor-not-allowed";
@@ -570,6 +774,56 @@ export default function ContactDetailView({
           </div>
         </div>
 
+        {/* ============ ADDRESSES SECTION ============ */}
+        <div ref={el => { sectionRefs.current['addresses'] = el; }} id="section-addresses">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">Addresses</h2>
+            <button
+              onClick={() => setShowAddAddressModal(true)}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+              </svg>
+              Add Address
+            </button>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="p-6">
+              {localAddresses.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <p className="text-sm">No addresses added</p>
+                  {isEditing && (
+                    <button
+                      onClick={() => setShowAddAddressModal(true)}
+                      className="mt-2 text-sm text-blue-600 hover:underline"
+                    >
+                      + Add an address
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {localAddresses.map((address) => (
+                    <AddressCard
+                      key={address.id}
+                      address={address}
+                      isEditing={isEditing}
+                      onUpdate={(updates) => updateAddress(address.id, updates)}
+                      onDelete={() => deleteAddress(address.id)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* ============ COMPANY & JOBS SECTION ============ */}
         <div ref={el => { sectionRefs.current['company'] = el; }} id="section-company">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Company & Jobs</h2>
@@ -618,6 +872,12 @@ export default function ContactDetailView({
         initialLinkType={addLinkEntityType}
         onClose={() => setShowAddLinkModal(false)}
         onSuccess={handleLinkSuccess}
+      />
+
+      <AddAddressModal
+        isOpen={showAddAddressModal}
+        onClose={() => setShowAddAddressModal(false)}
+        onSave={handleAddAddress}
       />
 
       {/* Delete Confirmation Modal */}

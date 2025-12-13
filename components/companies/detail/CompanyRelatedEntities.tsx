@@ -24,6 +24,8 @@ interface CompanyRelatedEntitiesProps {
   company: Company;
   onContactClick?: (contact: APIContact) => void;
   onJobClick?: (job: APIJob) => void;
+  onNewContactClick?: () => void;
+  onNewJobClick?: () => void;
 }
 
 type LinkEntityType = 'CONTACT' | 'JOB';
@@ -193,10 +195,12 @@ function LoadingSkeleton() {
 // Main Component
 // ============================================================================
 
-export default function CompanyRelatedEntities({ 
+export default function CompanyRelatedEntities({
   company,
   onContactClick,
-  onJobClick 
+  onJobClick,
+  onNewContactClick,
+  onNewJobClick,
 }: CompanyRelatedEntitiesProps) {
   const [showAddLinkModal, setShowAddLinkModal] = useState(false);
   const [addLinkEntityType, setAddLinkEntityType] = useState<LinkEntityType>('CONTACT');
@@ -269,15 +273,29 @@ export default function CompanyRelatedEntities({
               </span>
             )}
           </div>
-          <button 
-            onClick={() => openAddLinkModal('CONTACT')}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
-          >
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-            </svg>
-            Link Contact
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => openAddLinkModal('CONTACT')}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Link Contact
+            </button>
+            {onNewContactClick && (
+              <button
+                onClick={onNewContactClick}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+              >
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                </svg>
+                New Contact
+              </button>
+            )}
+          </div>
         </div>
         <div className="p-6">
           {contactsLoading ? (
@@ -332,15 +350,29 @@ export default function CompanyRelatedEntities({
               </span>
             )}
           </div>
-          <button 
-            onClick={() => openAddLinkModal('JOB')}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
-          >
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-            </svg>
-            Link Job
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => openAddLinkModal('JOB')}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Link Job
+            </button>
+            {onNewJobClick && (
+              <button
+                onClick={onNewJobClick}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+              >
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                </svg>
+                New Job
+              </button>
+            )}
+          </div>
         </div>
         <div className="p-6">
           {jobsLoading ? (

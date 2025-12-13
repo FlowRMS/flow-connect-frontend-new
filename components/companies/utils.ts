@@ -101,7 +101,7 @@ export function getUniqueValues(companies: Company[], field: keyof Company): str
   companies.forEach(company => {
     const value = company[field];
     if (Array.isArray(value)) {
-      value.forEach(v => values.add(v));
+      value.forEach(v => values.add(typeof v === 'string' ? v : String(v)));
     } else if (value) {
       values.add(String(value));
     }

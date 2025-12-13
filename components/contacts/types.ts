@@ -4,6 +4,22 @@
 
 import type { ContactLandingPage, Contact as APIContact } from '../lib/crm-graphql';
 
+// Address type for contact addresses
+export type AddressType = 'shipping' | 'billing' | 'mailing';
+
+// Contact Address interface
+export interface ContactAddress {
+  id: string;
+  types: AddressType[];  // Can be multiple: shipping, billing, mailing
+  country: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  isPrimary?: boolean;
+}
+
 // UI Contact type (display format)
 export interface Contact {
   id: string;
@@ -20,6 +36,8 @@ export interface Contact {
   firstName: string;
   lastName: string;
   createdBy: string;
+  // Extended fields
+  addresses?: ContactAddress[];
 }
 
 // Duplicate group type

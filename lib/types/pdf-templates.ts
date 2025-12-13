@@ -1,6 +1,6 @@
 // PDF Template Types
 
-export type TemplateType = 'quote' | 'order' | 'invoice' | 'submittal' | 'check' | 'credit';
+export type TemplateType = 'quote' | 'order' | 'invoice' | 'submittal' | 'check' | 'credit' | 'pick-list' | 'packing-slip' | 'shipping-label' | 'bin-label';
 
 export type ModuleType =
   | 'company-header'
@@ -210,6 +210,10 @@ export const templateTypeLabels: Record<TemplateType, string> = {
   submittal: 'Submittal',
   check: 'Commission Check',
   credit: 'Credit Memo',
+  'pick-list': 'Pick List',
+  'packing-slip': 'Packing Slip',
+  'shipping-label': 'Shipping Label',
+  'bin-label': 'Bin Label',
 };
 
 // Template Type Colors
@@ -220,6 +224,10 @@ export const templateTypeColors: Record<TemplateType, string> = {
   submittal: 'bg-orange-100 text-orange-700',
   check: 'bg-pink-100 text-pink-700',
   credit: 'bg-red-100 text-red-700',
+  'pick-list': 'bg-amber-100 text-amber-700',
+  'packing-slip': 'bg-cyan-100 text-cyan-700',
+  'shipping-label': 'bg-indigo-100 text-indigo-700',
+  'bin-label': 'bg-slate-100 text-slate-700',
 };
 
 // Default Global Styles
