@@ -1,13 +1,15 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { MobileSidebarContext } from './Sidebar';
+import AIUploaderModal from './ai-uploader/AIUploaderModal';
 
 export default function TopBar() {
   const loginUrl = process.env.NEXT_PUBLIC_LOGIN_URL || 'https://app2.flowrms.com';
   const { setIsOpen, isMobile } = React.useContext(MobileSidebarContext);
+  const [isUploaderOpen, setIsUploaderOpen] = useState(false);
 
   return (
     <div className="bg-[var(--card)] border-b border-[var(--border)] px-3 sm:px-6 py-3 flex items-center justify-between">
@@ -38,8 +40,20 @@ export default function TopBar() {
         )}
       </div>
 
-      {/* Right: DISC Analytics, Back to FlowRMS & Notifications */}
+      {/* Right: AI Uploader, DISC Analytics, Back to FlowRMS & Notifications */}
       <div className="flex items-center gap-2 sm:gap-3">
+        {/* AI Uploader Button */}
+        <button
+          onClick={() => setIsUploaderOpen(true)}
+          className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium bg-gradient-to-r from-violet-500 to-purple-600 text-white rounded-lg hover:from-violet-600 hover:to-purple-700 transition-all shadow-sm"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-4 sm:h-4">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          <span className="hidden sm:inline">AI Uploader</span>
+          <span className="sm:hidden">AI</span>
+        </button>
+
         {/* DISC Analytics Button */}
         <Link
           href="/disc-analytics"
@@ -70,6 +84,12 @@ export default function TopBar() {
           </svg>
         </button>
       </div>
+
+      {/* AI Uploader Modal */}
+      <AIUploaderModal
+        isOpen={isUploaderOpen}
+        onClose={() => setIsUploaderOpen(false)}
+      />
     </div>
   );
 }

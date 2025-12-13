@@ -11,6 +11,8 @@ import {
   mockBins,
 } from '@/lib/data/warehouse-mock';
 import { Warehouse, Section, Aisle, Shelf, Bay, Row, Bin } from '@/lib/types/warehouse';
+import WarehouseSelector from './WarehouseSelector';
+import { useWarehouse } from './WarehouseContext';
 
 type ViewMode = 'hierarchy' | 'visual';
 type SelectedLevel = 'warehouse' | 'section' | 'aisle' | 'shelf' | 'bay' | 'row' | 'bin';
@@ -22,8 +24,8 @@ interface BreadcrumbItem {
 }
 
 export default function WarehouseLayoutContent() {
+  const { selectedWarehouse, setSelectedWarehouse } = useWarehouse();
   const [viewMode, setViewMode] = useState<ViewMode>('hierarchy');
-  const [selectedWarehouse, setSelectedWarehouse] = useState<Warehouse | null>(mockWarehouses[0] || null);
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([]);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
 
@@ -127,6 +129,7 @@ export default function WarehouseLayoutContent() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <WarehouseSelector />
           <div className="flex items-center border border-[var(--border)] rounded-lg overflow-hidden">
             <button
               onClick={() => setViewMode('hierarchy')}
@@ -303,25 +306,6 @@ export default function WarehouseLayoutContent() {
             <h2 className="text-lg font-semibold text-[var(--foreground)]">Visual Layout</h2>
           </div>
           <div className="p-6">
-            {/* Warehouse Selector */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-                Select Warehouse
-              </label>
-              <select
-                value={selectedWarehouse?.id || ''}
-                onChange={(e) => {
-                  const wh = mockWarehouses.find(w => w.id === e.target.value);
-                  setSelectedWarehouse(wh || null);
-                }}
-                className="px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-              >
-                {mockWarehouses.map((wh) => (
-                  <option key={wh.id} value={wh.id}>{wh.name}</option>
-                ))}
-              </select>
-            </div>
-
             {/* Visual Grid */}
             {selectedWarehouse && (
               <div className="space-y-6">

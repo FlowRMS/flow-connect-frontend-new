@@ -138,6 +138,7 @@ export default function CreateOrderModal({ onClose, onSave }: CreateOrderModalPr
       quantityInvoiced: 0,
       quantityCredited: 0,
       isCancelled: false,
+      isConsignment: false,
     }));
 
     const finalSplitRates: OrderSplitRate[] = splitRates.map(sr => ({

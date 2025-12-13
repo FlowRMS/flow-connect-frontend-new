@@ -17,6 +17,8 @@ import {
   waveStatusLabels,
   FulfillmentStatus,
 } from '@/lib/types/warehouse';
+import WarehouseSelector from './WarehouseSelector';
+import { useWarehouse } from './WarehouseContext';
 
 const statusSteps: FulfillmentStatus[] = ['RELEASED_TO_WAREHOUSE', 'PICKING', 'PICKED', 'PACKING', 'PACKED', 'SHIPPED'];
 
@@ -24,6 +26,7 @@ const statusSteps: FulfillmentStatus[] = ['RELEASED_TO_WAREHOUSE', 'PICKING', 'P
 type StatFilter = 'all' | 'pending' | 'in_progress' | 'completed';
 
 export default function WarehouseFulfillmentContent() {
+  const { selectedWarehouse } = useWarehouse();
   const searchParams = useSearchParams();
   const urlFilter = searchParams.get('filter') as StatFilter | null;
 
@@ -109,13 +112,16 @@ export default function WarehouseFulfillmentContent() {
               Manage order fulfillment and picking waves
             </p>
           </div>
-          <button className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10"/>
-              <path d="M12 8v8M8 12h8"/>
-            </svg>
-            Create Wave
-          </button>
+          <div className="flex items-center gap-3">
+            <WarehouseSelector />
+            <button className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 8v8M8 12h8"/>
+              </svg>
+              Create Wave
+            </button>
+          </div>
         </div>
 
         {/* Stats Cards - Clickable to filter */}

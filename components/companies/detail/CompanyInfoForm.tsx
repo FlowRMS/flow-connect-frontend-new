@@ -12,7 +12,7 @@ interface CompanyInfoFormProps {
   company: Company;
   isEditing: boolean;
   editFormData: Partial<Company>;
-  onFieldChange: (field: string, value: string | CompanySourceType) => void;
+  onFieldChange: (field: string, value: string | number | CompanySourceType) => void;
 }
 
 // Portaled Select Component for Company Type
@@ -290,8 +290,8 @@ export default function CompanyInfoForm({
             <div className="flex gap-2 flex-wrap items-center min-h-[44px] p-3 border border-gray-200 rounded-lg bg-gray-50">
               {company.tags.length > 0 ? (
                 company.tags.map((tag, idx) => (
-                  <span 
-                    key={idx} 
+                  <span
+                    key={idx}
                     className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-full text-sm shadow-sm"
                   >
                     <span className="w-2 h-2 rounded-full bg-blue-500"></span>
@@ -304,6 +304,101 @@ export default function CompanyInfoForm({
             </div>
           )}
         </div>
+
+        {/* Commission Rates Section - Only show for Manufacturers */}
+        {((isEditing ? editFormData.companySourceType : company.companySourceType) === 'MANUFACTURER') && (
+          <div className="mt-5 pt-5 border-t border-gray-200">
+            <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Commission Rates
+            </h3>
+            <div className="grid grid-cols-2 gap-5">
+              {/* Standard Commission Rate */}
+              <div>
+                <label className={labelClass}>
+                  <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  Standard Commission Rate
+                </label>
+                {isEditing ? (
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max="100"
+                      value={editFormData.standardCommissionRate != null
+                        ? (editFormData.standardCommissionRate * 100).toFixed(1)
+                        : (company.standardCommissionRate != null ? (company.standardCommissionRate * 100).toFixed(1) : '')}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value === '') {
+                          onFieldChange('standardCommissionRate', '');
+                        } else {
+                          onFieldChange('standardCommissionRate', (parseFloat(value) / 100).toString());
+                        }
+                      }}
+                      className="w-full px-4 py-3 pr-8 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400"
+                      placeholder="e.g. 10"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">%</span>
+                  </div>
+                ) : (
+                  <div className={inputBaseClass}>
+                    {company.standardCommissionRate != null
+                      ? `${(company.standardCommissionRate * 100).toFixed(1)}%`
+                      : '-'}
+                  </div>
+                )}
+                <p className="text-xs text-gray-500 mt-1">Commission rate for direct/standard sales</p>
+              </div>
+
+              {/* Warehouse Commission Rate */}
+              <div>
+                <label className={labelClass}>
+                  <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
+                  </svg>
+                  Warehouse Commission Rate
+                </label>
+                {isEditing ? (
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max="100"
+                      value={editFormData.warehouseCommissionRate != null
+                        ? (editFormData.warehouseCommissionRate * 100).toFixed(1)
+                        : (company.warehouseCommissionRate != null ? (company.warehouseCommissionRate * 100).toFixed(1) : '')}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value === '') {
+                          onFieldChange('warehouseCommissionRate', '');
+                        } else {
+                          onFieldChange('warehouseCommissionRate', (parseFloat(value) / 100).toString());
+                        }
+                      }}
+                      className="w-full px-4 py-3 pr-8 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400"
+                      placeholder="e.g. 5"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">%</span>
+                  </div>
+                ) : (
+                  <div className={inputBaseClass}>
+                    {company.warehouseCommissionRate != null
+                      ? `${(company.warehouseCommissionRate * 100).toFixed(1)}%`
+                      : '-'}
+                  </div>
+                )}
+                <p className="text-xs text-gray-500 mt-1">Commission rate for warehouse sales</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

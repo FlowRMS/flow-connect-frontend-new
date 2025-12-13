@@ -10,7 +10,9 @@
 export interface ManufacturerFields {
   isManufacturer: boolean;
   // Commission settings
-  baseCommissionRate: number;          // e.g., 0.10 for 10%
+  baseCommissionRate: number;          // e.g., 0.10 for 10% (deprecated, use standardCommissionRate)
+  standardCommissionRate?: number;     // Standard/direct commission rate (e.g., 0.10 for 10%)
+  warehouseCommissionRate?: number;    // Warehouse commission rate (e.g., 0.05 for 5%)
   commissionDiscountRate?: number;
   // Payment terms
   paymentTerms?: string;               // e.g., "Net 30"
@@ -41,9 +43,31 @@ export interface Product {
   description: string;
   unitPrice: number;
   cost?: number;
-  commissionRate?: number;             // Override manufacturer rate
+  commissionRate?: number;             // Override manufacturer rate (deprecated, use standardCommissionRate)
+  standardCommissionRate?: number;     // Standard/direct commission rate (e.g., 0.10 for 10%)
+  warehouseCommissionRate?: number;    // Warehouse commission rate (e.g., 0.05 for 5%)
+  commissionDiscountRate?: number;     // Commission discount rate
+  unitPriceDiscountRate?: number;      // Unit price discount rate
   category?: string;
+  categoryId?: string;
   leadTimeDays?: number;
+  minOrderQty?: number;
+  uom?: string;                        // Unit of measure (e.g., 'ea', 'box', 'case')
+  upc?: string;                        // Universal Product Code
+  approvalDate?: string;
+  approvalComments?: string;
+  // Weights & Measures
+  netWeight?: number;
+  grossWeight?: number;
+  weightUom?: string;                  // e.g., 'LB', 'KG'
+  length?: number;
+  width?: number;
+  height?: number;
+  lengthUom?: string;                  // e.g., 'IN', 'CM'
+  volume?: number;
+  volumeUom?: string;                  // e.g., 'CUBIC_IN', 'CUBIC_CM'
+  unitsPerCase?: number;
+  tareWeight?: number;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -64,6 +88,39 @@ export interface CustomerPartNumber {
   customerName: string;
   customerPartNumber: string;
   priceOverride?: number;
+  commissionRate?: number;             // Customer-specific commission rate
+}
+
+export interface ProductFile {
+  id: string;
+  productId: string;
+  name: string;
+  fileName: string;
+  fileSize: string;
+  fileType: string;
+  url?: string;
+  uploadedAt: string;
+  uploadedBy: string;
+}
+
+export interface ProductNote {
+  id: string;
+  productId: string;
+  content: string;
+  createdAt: string;
+  createdBy: string;
+  updatedAt?: string;
+}
+
+export interface ProductActivity {
+  id: string;
+  productId: string;
+  type: 'created' | 'updated' | 'price_change' | 'note_added' | 'file_uploaded';
+  description: string;
+  userId: string;
+  userName: string;
+  timestamp: string;
+  metadata?: Record<string, unknown>;
 }
 
 // -----------------------------------------------------------------------------
@@ -159,6 +216,8 @@ export interface OrderLineItem {
   quantityInvoiced: number;
   quantityCredited: number;
   isCancelled: boolean;
+  // Consignment tracking
+  isConsignment: boolean;
   // Optional overrides
   splitRateOverride?: OrderSplitRate[];
   notes?: string;
@@ -580,7 +639,9 @@ export interface SelectOption {
 export interface Manufacturer {
   id: string;
   name: string;
-  baseCommissionRate: number;
+  baseCommissionRate: number;            // Deprecated, use standardCommissionRate
+  standardCommissionRate?: number;       // Standard/direct commission rate (e.g., 0.10 for 10%)
+  warehouseCommissionRate?: number;      // Warehouse commission rate (e.g., 0.05 for 5%)
   paymentTerms?: string;
   salesModel: 'direct' | 'warehouse' | 'buy_sell';
   isActive: boolean;

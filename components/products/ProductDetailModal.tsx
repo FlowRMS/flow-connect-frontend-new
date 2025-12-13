@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface SpecSheet {
   id: string;
@@ -46,6 +47,8 @@ interface Product {
   commission10: number;
   commission8: number;
   commission5: number;
+  standardCommissionRate?: number;     // Standard/direct commission rate (e.g., 0.10 for 10%)
+  warehouseCommissionRate?: number;    // Warehouse commission rate (e.g., 0.05 for 5%)
   status: 'active' | 'discontinued' | 'while_supplies_last';
   hasConfigurator: boolean;
   specSheets?: SpecSheet[];
@@ -226,8 +229,14 @@ const mockQuotePriceHistory: QuotePriceHistory[] = [
 ];
 
 export default function ProductDetailModal({ product, onClose, onOpenConfigurator }: ProductDetailModalProps) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<'overview' | 'specs' | 'manufacturer-pricing' | 'quote-history'>('overview');
   const [showAddSpecSheet, setShowAddSpecSheet] = useState(false);
+
+  const handleEditProduct = () => {
+    onClose();
+    router.push(`/products/${product.id}/edit`);
+  };
 
   // Use mock data for now
   const specSheets = product.specSheets || mockSpecSheets;
@@ -412,6 +421,31 @@ export default function ProductDetailModal({ product, onClose, onOpenConfigurato
                   <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
                     <div className="text-xs text-[var(--muted-foreground)] mb-1">5% Commission</div>
                     <div className="text-2xl font-semibold text-[var(--foreground)]">{formatCurrency(product.commission5)}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Commission Rates */}
+              <div>
+                <h3 className="text-sm font-semibold text-[var(--foreground)] mb-3">Commission Rates</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
+                    <div className="text-xs text-[var(--muted-foreground)] mb-1">Standard Commission Rate</div>
+                    <div className="text-2xl font-semibold text-[var(--foreground)]">
+                      {product.standardCommissionRate != null
+                        ? `${(product.standardCommissionRate * 100).toFixed(1)}%`
+                        : '—'}
+                    </div>
+                    <div className="text-xs text-[var(--muted-foreground)] mt-1">Direct sales commission</div>
+                  </div>
+                  <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
+                    <div className="text-xs text-[var(--muted-foreground)] mb-1">Warehouse Commission Rate</div>
+                    <div className="text-2xl font-semibold text-[var(--foreground)]">
+                      {product.warehouseCommissionRate != null
+                        ? `${(product.warehouseCommissionRate * 100).toFixed(1)}%`
+                        : '—'}
+                    </div>
+                    <div className="text-xs text-[var(--muted-foreground)] mt-1">Warehouse sales commission</div>
                   </div>
                 </div>
               </div>
@@ -715,7 +749,10 @@ export default function ProductDetailModal({ product, onClose, onOpenConfigurato
             >
               Close
             </button>
-            <button className="px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors">
+            <button
+              onClick={handleEditProduct}
+              className="px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
+            >
               Edit Product
             </button>
           </div>

@@ -4,11 +4,14 @@ import React, { useState, useMemo } from 'react';
 import { mockRmas, getWarehouseCustomers } from '@/lib/data/warehouse-mock';
 import { Rma, RmaStatus, rmaStatusColors, rmaStatusLabels, rmaReasonLabels } from '@/lib/types/warehouse';
 import ProcessRmaModal from './modals/ProcessRmaModal';
+import WarehouseSelector from './WarehouseSelector';
+import { useWarehouse } from './WarehouseContext';
 
 // Filter types for stat card clicks
 type StatFilter = 'all' | 'pending' | 'awaiting' | 'in_process' | 'completed';
 
 export default function WarehouseReturnsContent() {
+  const { selectedWarehouse } = useWarehouse();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<RmaStatus | 'all'>('all');
   const [customerFilter, setCustomerFilter] = useState<string>('all');
@@ -86,12 +89,15 @@ export default function WarehouseReturnsContent() {
             Manage return merchandise authorizations
           </p>
         </div>
-        <button className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors flex items-center gap-2">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M12 5v14M5 12h14"/>
-          </svg>
-          Create RMA
-        </button>
+        <div className="flex items-center gap-3">
+          <WarehouseSelector />
+          <button className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors flex items-center gap-2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 5v14M5 12h14"/>
+            </svg>
+            Create RMA
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards - Clickable to filter */}

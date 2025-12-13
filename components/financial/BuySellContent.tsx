@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   mockBuySellTransactions,
@@ -20,6 +20,33 @@ import {
 // Filter types for stat card clicks
 type StatFilter = 'all' | 'purchases' | 'sales' | 'returns' | 'unpaid_vendor' | 'unpaid_customer';
 
+// Column visibility types
+type ColumnKey = 'type' | 'date' | 'reference' | 'product' | 'factory' | 'customer' | 'quantity' | 'unitCost' | 'unitPrice' | 'total' | 'profit' | 'status' | 'payment';
+
+type ColumnDefinition = {
+  key: ColumnKey;
+  label: string;
+  group: 'Basic' | 'Pricing' | 'Status';
+};
+
+const columnDefinitions: ColumnDefinition[] = [
+  { key: 'type', label: 'Type', group: 'Basic' },
+  { key: 'date', label: 'Date', group: 'Basic' },
+  { key: 'reference', label: 'Reference', group: 'Basic' },
+  { key: 'product', label: 'Product', group: 'Basic' },
+  { key: 'factory', label: 'Factory', group: 'Basic' },
+  { key: 'customer', label: 'Customer', group: 'Basic' },
+  { key: 'quantity', label: 'Qty', group: 'Pricing' },
+  { key: 'unitCost', label: 'Unit Cost', group: 'Pricing' },
+  { key: 'unitPrice', label: 'Unit Price', group: 'Pricing' },
+  { key: 'total', label: 'Total', group: 'Pricing' },
+  { key: 'profit', label: 'Profit', group: 'Pricing' },
+  { key: 'status', label: 'Status', group: 'Status' },
+  { key: 'payment', label: 'Payment', group: 'Status' },
+];
+
+const defaultVisibleColumns: ColumnKey[] = ['type', 'date', 'reference', 'product', 'factory', 'customer', 'quantity', 'unitCost', 'unitPrice', 'total', 'profit', 'status', 'payment'];
+
 export default function BuySellContent() {
   const searchParams = useSearchParams();
   const urlFilter = searchParams.get('filter') as StatFilter | null;
@@ -30,6 +57,46 @@ export default function BuySellContent() {
   const [selectedStatus, setSelectedStatus] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeStatFilter, setActiveStatFilter] = useState<StatFilter>(urlFilter || 'all');
+
+  // Column visibility state
+  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(new Set(defaultVisibleColumns));
+  const [showColumnsDropdown, setShowColumnsDropdown] = useState(false);
+  const columnsDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Detail modal state
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedTransaction, setSelectedTransaction] = useState<BuySellTransaction | null>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (columnsDropdownRef.current && !columnsDropdownRef.current.contains(event.target as Node)) {
+        setShowColumnsDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const toggleColumn = (col: ColumnKey) => {
+    setVisibleColumns(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(col)) {
+        newSet.delete(col);
+      } else {
+        newSet.add(col);
+      }
+      return newSet;
+    });
+  };
+
+  const handleRowClick = (transaction: BuySellTransaction) => {
+    setSelectedTransaction(transaction);
+    setShowDetailModal(true);
+  };
+
+  // Check if there are any hidden columns
+  const hasHiddenColumns = visibleColumns.size < columnDefinitions.length;
 
   // Update filter when URL changes
   useEffect(() => {
@@ -155,6 +222,53 @@ export default function BuySellContent() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {/* Columns visibility dropdown */}
+            <div className="relative" ref={columnsDropdownRef}>
+              <button
+                onClick={() => setShowColumnsDropdown(!showColumnsDropdown)}
+                className="flex items-center gap-2 px-4 py-2 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 3h7a2 2 0 012 2v14a2 2 0 01-2 2h-7m0-18H5a2 2 0 00-2 2v14a2 2 0 002 2h7m0-18v18"/>
+                </svg>
+                Columns
+                {visibleColumns.size < columnDefinitions.length && (
+                  <span className="ml-1 px-1.5 py-0.5 text-xs bg-[var(--primary)] text-white rounded-full">
+                    {columnDefinitions.length - visibleColumns.size}
+                  </span>
+                )}
+              </button>
+              {showColumnsDropdown && (
+                <div className="absolute top-full right-0 mt-1 w-64 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50 max-h-[400px] overflow-y-auto">
+                  {/* Basic */}
+                  <div className="px-4 py-2 bg-[var(--muted)]/50 text-xs font-semibold text-[var(--muted-foreground)] uppercase sticky top-0 bg-[var(--card)]">Basic</div>
+                  {columnDefinitions.filter(c => c.group === 'Basic').map(col => (
+                    <label key={col.key} className="flex items-center gap-3 px-4 py-2 hover:bg-[var(--muted)] transition-colors cursor-pointer">
+                      <input type="checkbox" checked={visibleColumns.has(col.key)} onChange={() => toggleColumn(col.key)} className="accent-[var(--primary)]" />
+                      <span className="text-sm">{col.label}</span>
+                    </label>
+                  ))}
+
+                  {/* Pricing */}
+                  <div className="px-4 py-2 bg-[var(--muted)]/50 text-xs font-semibold text-[var(--muted-foreground)] uppercase sticky top-0 bg-[var(--card)]">Pricing</div>
+                  {columnDefinitions.filter(c => c.group === 'Pricing').map(col => (
+                    <label key={col.key} className="flex items-center gap-3 px-4 py-2 hover:bg-[var(--muted)] transition-colors cursor-pointer">
+                      <input type="checkbox" checked={visibleColumns.has(col.key)} onChange={() => toggleColumn(col.key)} className="accent-[var(--primary)]" />
+                      <span className="text-sm">{col.label}</span>
+                    </label>
+                  ))}
+
+                  {/* Status */}
+                  <div className="px-4 py-2 bg-[var(--muted)]/50 text-xs font-semibold text-[var(--muted-foreground)] uppercase sticky top-0 bg-[var(--card)]">Status</div>
+                  {columnDefinitions.filter(c => c.group === 'Status').map(col => (
+                    <label key={col.key} className="flex items-center gap-3 px-4 py-2 hover:bg-[var(--muted)] transition-colors cursor-pointer">
+                      <input type="checkbox" checked={visibleColumns.has(col.key)} onChange={() => toggleColumn(col.key)} className="accent-[var(--primary)]" />
+                      <span className="text-sm">{col.label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
             <button className="flex items-center gap-2 px-4 py-2 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
@@ -292,101 +406,149 @@ export default function BuySellContent() {
           <table className="w-full">
             <thead className="bg-[var(--muted)]">
               <tr>
-                <th className="text-left px-4 py-3 text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Type</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Date</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Reference</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Product</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Factory</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Customer</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Qty</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Unit Cost</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Unit Price</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Total</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Profit</th>
-                <th className="text-center px-4 py-3 text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Status</th>
-                <th className="text-center px-4 py-3 text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Payment</th>
+                {visibleColumns.has('type') && <th className="text-left px-4 py-3 text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Type</th>}
+                {visibleColumns.has('date') && <th className="text-left px-4 py-3 text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Date</th>}
+                {visibleColumns.has('reference') && <th className="text-left px-4 py-3 text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Reference</th>}
+                {visibleColumns.has('product') && <th className="text-left px-4 py-3 text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Product</th>}
+                {visibleColumns.has('factory') && <th className="text-left px-4 py-3 text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Factory</th>}
+                {visibleColumns.has('customer') && <th className="text-left px-4 py-3 text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Customer</th>}
+                {visibleColumns.has('quantity') && <th className="text-right px-4 py-3 text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Qty</th>}
+                {visibleColumns.has('unitCost') && <th className="text-right px-4 py-3 text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Unit Cost</th>}
+                {visibleColumns.has('unitPrice') && <th className="text-right px-4 py-3 text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Unit Price</th>}
+                {visibleColumns.has('total') && <th className="text-right px-4 py-3 text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Total</th>}
+                {visibleColumns.has('profit') && <th className="text-right px-4 py-3 text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Profit</th>}
+                {visibleColumns.has('status') && <th className="text-center px-4 py-3 text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Status</th>}
+                {visibleColumns.has('payment') && <th className="text-center px-4 py-3 text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Payment</th>}
+                {hasHiddenColumns && <th className="text-center px-4 py-3 text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider w-10"></th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border)]">
               {filteredTransactions.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="px-4 py-8 text-center text-[var(--muted-foreground)]">
+                  <td colSpan={visibleColumns.size + (hasHiddenColumns ? 1 : 0)} className="px-4 py-8 text-center text-[var(--muted-foreground)]">
                     No transactions found matching your criteria.
                   </td>
                 </tr>
               ) : (
                 filteredTransactions.map((transaction) => (
-                  <tr key={transaction.id} className="hover:bg-[var(--muted)]/50 transition-colors">
-                    <td className="px-4 py-3">
-                      {getTransactionTypeBadge(transaction.transactionType)}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-[var(--foreground)]">
-                      {formatDate(transaction.transactionType === 'PURCHASE' ? transaction.purchaseDate : transaction.saleDate)}
-                    </td>
-                    <td className="px-4 py-3 text-sm">
-                      <div className="text-[var(--foreground)] font-medium">
-                        {transaction.purchaseOrderNumber || transaction.salesOrderNumber || '-'}
-                      </div>
-                      {transaction.vendorInvoiceNumber && (
-                        <div className="text-xs text-[var(--muted-foreground)]">Inv: {transaction.vendorInvoiceNumber}</div>
-                      )}
-                      {transaction.customerInvoiceNumber && (
-                        <div className="text-xs text-[var(--muted-foreground)]">Inv: {transaction.customerInvoiceNumber}</div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="text-sm text-[var(--foreground)] font-medium">{transaction.productName}</div>
-                      <div className="text-xs text-[var(--muted-foreground)]">{transaction.partNumber}</div>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-[var(--foreground)]">
-                      {transaction.factoryName}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-[var(--foreground)]">
-                      {transaction.customerName || '-'}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-right text-[var(--foreground)]">
-                      {transaction.quantity}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-right text-[var(--foreground)]">
-                      {formatCurrency(transaction.unitCost)}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-right text-[var(--foreground)]">
-                      {transaction.unitPrice ? formatCurrency(transaction.unitPrice) : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-right font-medium">
-                      {transaction.transactionType === 'PURCHASE' ? (
-                        <span className="text-blue-600">{formatCurrency(transaction.totalCost)}</span>
-                      ) : (
-                        <span className={transaction.totalRevenue && transaction.totalRevenue >= 0 ? 'text-green-600' : 'text-red-600'}>
-                          {formatCurrency(transaction.totalRevenue)}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-right">
-                      {transaction.totalProfit !== undefined ? (
-                        <div>
-                          <span className={transaction.totalProfit >= 0 ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
-                            {formatCurrency(transaction.totalProfit)}
-                          </span>
-                          {transaction.marginPercentage !== undefined && (
-                            <div className="text-xs text-[var(--muted-foreground)]">{transaction.marginPercentage.toFixed(1)}%</div>
-                          )}
+                  <tr
+                    key={transaction.id}
+                    className={`hover:bg-[var(--muted)]/50 transition-colors ${hasHiddenColumns ? 'cursor-pointer' : ''}`}
+                    onClick={() => hasHiddenColumns && handleRowClick(transaction)}
+                  >
+                    {visibleColumns.has('type') && (
+                      <td className="px-4 py-3">
+                        {getTransactionTypeBadge(transaction.transactionType)}
+                      </td>
+                    )}
+                    {visibleColumns.has('date') && (
+                      <td className="px-4 py-3 text-sm text-[var(--foreground)]">
+                        {formatDate(transaction.transactionType === 'PURCHASE' ? transaction.purchaseDate : transaction.saleDate)}
+                      </td>
+                    )}
+                    {visibleColumns.has('reference') && (
+                      <td className="px-4 py-3 text-sm">
+                        <div className="text-[var(--foreground)] font-medium">
+                          {transaction.purchaseOrderNumber || transaction.salesOrderNumber || '-'}
                         </div>
-                      ) : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span
-                        className={`px-2 py-0.5 text-xs rounded-full ${buySellStatusColors[transaction.status] || 'bg-gray-100 text-gray-700'}`}
-                      >
-                        {buySellStatusLabels[transaction.status] || transaction.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      {transaction.transactionType === 'PURCHASE'
-                        ? getPaymentStatusBadge(transaction.paymentStatus)
-                        : getPaymentStatusBadge(transaction.customerPaymentStatus)
-                      }
-                    </td>
+                        {transaction.vendorInvoiceNumber && (
+                          <div className="text-xs text-[var(--muted-foreground)]">Inv: {transaction.vendorInvoiceNumber}</div>
+                        )}
+                        {transaction.customerInvoiceNumber && (
+                          <div className="text-xs text-[var(--muted-foreground)]">Inv: {transaction.customerInvoiceNumber}</div>
+                        )}
+                      </td>
+                    )}
+                    {visibleColumns.has('product') && (
+                      <td className="px-4 py-3">
+                        <div className="text-sm text-[var(--foreground)] font-medium">{transaction.productName}</div>
+                        <div className="text-xs text-[var(--muted-foreground)]">{transaction.partNumber}</div>
+                      </td>
+                    )}
+                    {visibleColumns.has('factory') && (
+                      <td className="px-4 py-3 text-sm text-[var(--foreground)]">
+                        {transaction.factoryName}
+                      </td>
+                    )}
+                    {visibleColumns.has('customer') && (
+                      <td className="px-4 py-3 text-sm text-[var(--foreground)]">
+                        {transaction.customerName || '-'}
+                      </td>
+                    )}
+                    {visibleColumns.has('quantity') && (
+                      <td className="px-4 py-3 text-sm text-right text-[var(--foreground)]">
+                        {transaction.quantity}
+                      </td>
+                    )}
+                    {visibleColumns.has('unitCost') && (
+                      <td className="px-4 py-3 text-sm text-right text-[var(--foreground)]">
+                        {formatCurrency(transaction.unitCost)}
+                      </td>
+                    )}
+                    {visibleColumns.has('unitPrice') && (
+                      <td className="px-4 py-3 text-sm text-right text-[var(--foreground)]">
+                        {transaction.unitPrice ? formatCurrency(transaction.unitPrice) : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.has('total') && (
+                      <td className="px-4 py-3 text-sm text-right font-medium">
+                        {transaction.transactionType === 'PURCHASE' ? (
+                          <span className="text-blue-600">{formatCurrency(transaction.totalCost)}</span>
+                        ) : (
+                          <span className={transaction.totalRevenue && transaction.totalRevenue >= 0 ? 'text-green-600' : 'text-red-600'}>
+                            {formatCurrency(transaction.totalRevenue)}
+                          </span>
+                        )}
+                      </td>
+                    )}
+                    {visibleColumns.has('profit') && (
+                      <td className="px-4 py-3 text-sm text-right">
+                        {transaction.totalProfit !== undefined ? (
+                          <div>
+                            <span className={transaction.totalProfit >= 0 ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
+                              {formatCurrency(transaction.totalProfit)}
+                            </span>
+                            {transaction.marginPercentage !== undefined && (
+                              <div className="text-xs text-[var(--muted-foreground)]">{transaction.marginPercentage.toFixed(1)}%</div>
+                            )}
+                          </div>
+                        ) : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.has('status') && (
+                      <td className="px-4 py-3 text-center">
+                        <span
+                          className={`px-2 py-0.5 text-xs rounded-full ${buySellStatusColors[transaction.status] || 'bg-gray-100 text-gray-700'}`}
+                        >
+                          {buySellStatusLabels[transaction.status] || transaction.status}
+                        </span>
+                      </td>
+                    )}
+                    {visibleColumns.has('payment') && (
+                      <td className="px-4 py-3 text-center">
+                        {transaction.transactionType === 'PURCHASE'
+                          ? getPaymentStatusBadge(transaction.paymentStatus)
+                          : getPaymentStatusBadge(transaction.customerPaymentStatus)
+                        }
+                      </td>
+                    )}
+                    {hasHiddenColumns && (
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRowClick(transaction);
+                          }}
+                          className="p-1 hover:bg-[var(--muted)] rounded transition-colors"
+                          title="View hidden fields"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M12 5c-7 0-10 7-10 7s3 7 10 7 10-7 10-7-3-7-10-7z"/>
+                          </svg>
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -394,6 +556,164 @@ export default function BuySellContent() {
           </table>
         </div>
       </div>
+
+      {/* Detail Modal - Shows hidden columns */}
+      {showDetailModal && selectedTransaction && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowDetailModal(false)}>
+          <div
+            className="bg-[var(--card)] rounded-lg border border-[var(--border)] shadow-xl w-full max-w-md mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
+              <h3 className="text-lg font-semibold text-[var(--foreground)]">Transaction Details</h3>
+              <button
+                onClick={() => setShowDetailModal(false)}
+                className="p-1 hover:bg-[var(--muted)] rounded transition-colors"
+              >
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+            <div className="p-4 space-y-3 max-h-[60vh] overflow-y-auto">
+              {/* Only show fields that are NOT visible in the table */}
+
+              {!visibleColumns.has('type') && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[var(--muted-foreground)]">Type</span>
+                  <span className="text-sm">{getTransactionTypeBadge(selectedTransaction.transactionType)}</span>
+                </div>
+              )}
+
+              {!visibleColumns.has('date') && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[var(--muted-foreground)]">Date</span>
+                  <span className="text-sm text-[var(--foreground)]">
+                    {formatDate(selectedTransaction.transactionType === 'PURCHASE' ? selectedTransaction.purchaseDate : selectedTransaction.saleDate)}
+                  </span>
+                </div>
+              )}
+
+              {!visibleColumns.has('reference') && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[var(--muted-foreground)]">Reference</span>
+                  <div className="text-right">
+                    <div className="text-sm text-[var(--foreground)] font-medium">
+                      {selectedTransaction.purchaseOrderNumber || selectedTransaction.salesOrderNumber || '-'}
+                    </div>
+                    {selectedTransaction.vendorInvoiceNumber && (
+                      <div className="text-xs text-[var(--muted-foreground)]">Inv: {selectedTransaction.vendorInvoiceNumber}</div>
+                    )}
+                    {selectedTransaction.customerInvoiceNumber && (
+                      <div className="text-xs text-[var(--muted-foreground)]">Inv: {selectedTransaction.customerInvoiceNumber}</div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {!visibleColumns.has('product') && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[var(--muted-foreground)]">Product</span>
+                  <div className="text-right">
+                    <div className="text-sm text-[var(--foreground)] font-medium">{selectedTransaction.productName}</div>
+                    <div className="text-xs text-[var(--muted-foreground)]">{selectedTransaction.partNumber}</div>
+                  </div>
+                </div>
+              )}
+
+              {!visibleColumns.has('factory') && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[var(--muted-foreground)]">Factory</span>
+                  <span className="text-sm text-[var(--foreground)]">{selectedTransaction.factoryName}</span>
+                </div>
+              )}
+
+              {!visibleColumns.has('customer') && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[var(--muted-foreground)]">Customer</span>
+                  <span className="text-sm text-[var(--foreground)]">{selectedTransaction.customerName || '-'}</span>
+                </div>
+              )}
+
+              {!visibleColumns.has('quantity') && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[var(--muted-foreground)]">Qty</span>
+                  <span className="text-sm text-[var(--foreground)]">{selectedTransaction.quantity}</span>
+                </div>
+              )}
+
+              {!visibleColumns.has('unitCost') && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[var(--muted-foreground)]">Unit Cost</span>
+                  <span className="text-sm text-[var(--foreground)]">{formatCurrency(selectedTransaction.unitCost)}</span>
+                </div>
+              )}
+
+              {!visibleColumns.has('unitPrice') && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[var(--muted-foreground)]">Unit Price</span>
+                  <span className="text-sm text-[var(--foreground)]">
+                    {selectedTransaction.unitPrice ? formatCurrency(selectedTransaction.unitPrice) : '-'}
+                  </span>
+                </div>
+              )}
+
+              {!visibleColumns.has('total') && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[var(--muted-foreground)]">Total</span>
+                  <span className={`text-sm font-medium ${selectedTransaction.transactionType === 'PURCHASE' ? 'text-blue-600' : (selectedTransaction.totalRevenue && selectedTransaction.totalRevenue >= 0 ? 'text-green-600' : 'text-red-600')}`}>
+                    {selectedTransaction.transactionType === 'PURCHASE'
+                      ? formatCurrency(selectedTransaction.totalCost)
+                      : formatCurrency(selectedTransaction.totalRevenue)
+                    }
+                  </span>
+                </div>
+              )}
+
+              {!visibleColumns.has('profit') && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[var(--muted-foreground)]">Profit</span>
+                  {selectedTransaction.totalProfit !== undefined ? (
+                    <div className="text-right">
+                      <span className={`text-sm font-medium ${selectedTransaction.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {formatCurrency(selectedTransaction.totalProfit)}
+                      </span>
+                      {selectedTransaction.marginPercentage !== undefined && (
+                        <div className="text-xs text-[var(--muted-foreground)]">{selectedTransaction.marginPercentage.toFixed(1)}%</div>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-sm text-[var(--foreground)]">-</span>
+                  )}
+                </div>
+              )}
+
+              {!visibleColumns.has('status') && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[var(--muted-foreground)]">Status</span>
+                  <span
+                    className={`px-2 py-0.5 text-xs rounded-full ${buySellStatusColors[selectedTransaction.status] || 'bg-gray-100 text-gray-700'}`}
+                  >
+                    {buySellStatusLabels[selectedTransaction.status] || selectedTransaction.status}
+                  </span>
+                </div>
+              )}
+
+              {!visibleColumns.has('payment') && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[var(--muted-foreground)]">Payment</span>
+                  <span>
+                    {selectedTransaction.transactionType === 'PURCHASE'
+                      ? getPaymentStatusBadge(selectedTransaction.paymentStatus)
+                      : getPaymentStatusBadge(selectedTransaction.customerPaymentStatus)
+                    }
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

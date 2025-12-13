@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import TagSearchSelect from './TagSearchSelect';
 import SidebarSettings from './SidebarSettings';
 
@@ -27,12 +28,31 @@ type ActivityRule = {
   tagModifiers: { tag: string; multiplier: number }[];
 };
 
+type TabType = 'rep-types' | 'takeoffs' | 'email-connections' | 'credit-for-sale' | 'sidebar' | 'default-views' | 'manufacturer-integrations';
+
 export default function SettingsContent() {
-  const [activeTab, setActiveTab] = useState<'rep-types' | 'takeoffs' | 'email-connections' | 'credit-for-sale' | 'sidebar'>('rep-types');
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab') as TabType | null;
+  const [activeTab, setActiveTab] = useState<TabType>(tabParam && ['rep-types', 'takeoffs', 'email-connections', 'credit-for-sale', 'sidebar', 'default-views', 'manufacturer-integrations'].includes(tabParam) ? tabParam : 'rep-types');
   const [autoAbridgment, setAutoAbridgment] = useState(false);
+
+  // Update active tab when URL parameter changes
+  useEffect(() => {
+    if (tabParam && ['rep-types', 'takeoffs', 'email-connections', 'credit-for-sale', 'sidebar', 'default-views', 'manufacturer-integrations'].includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
   const [saved, setSaved] = useState(false);
   const [emailConnections, setEmailConnections] = useState<EmailConnection[]>([]);
   const [isConnecting, setIsConnecting] = useState<'gmail' | 'outlook' | null>(null);
+
+  // Default view settings
+  const [defaultViews, setDefaultViews] = useState({
+    quotes: 'simple' as 'overage' | 'simple',
+    orders: 'simple' as 'simple',
+    invoices: 'simple' as 'simple',
+    commissions: 'simple' as 'simple',
+  });
 
   // Common system tags
   const systemTags = [
@@ -200,6 +220,26 @@ export default function SettingsContent() {
           }`}
         >
           Sidebar
+        </button>
+        <button
+          onClick={() => setActiveTab('default-views')}
+          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
+            activeTab === 'default-views'
+              ? 'border-[var(--primary)] text-[var(--primary)]'
+              : 'border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+          }`}
+        >
+          Default Views
+        </button>
+        <button
+          onClick={() => setActiveTab('manufacturer-integrations')}
+          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
+            activeTab === 'manufacturer-integrations'
+              ? 'border-[var(--primary)] text-[var(--primary)]'
+              : 'border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+          }`}
+        >
+          Manufacturer Integrations
         </button>
       </div>
 
@@ -657,6 +697,575 @@ export default function SettingsContent() {
           <SidebarSettings />
         </div>
       )}
+
+      {/* Default Views Tab */}
+      {activeTab === 'default-views' && (
+        <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6 max-w-3xl">
+          <h2 className="text-lg font-semibold text-[var(--foreground)] mb-2">
+            Default View Settings
+          </h2>
+          <p className="text-sm text-[var(--muted-foreground)] mb-6">
+            Choose which view mode to display by default when opening each module.
+          </p>
+
+          <div className="space-y-4">
+            {/* Quotes Default View */}
+            <div className="flex items-center justify-between p-4 border border-[var(--border)] rounded-lg">
+              <div>
+                <h3 className="font-medium text-[var(--foreground)]">Quotes</h3>
+                <p className="text-sm text-[var(--muted-foreground)]">Default view when viewing quote line items</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setDefaultViews(prev => ({ ...prev, quotes: 'overage' }));
+                    setSaved(false);
+                  }}
+                  className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                    defaultViews.quotes === 'overage'
+                      ? 'bg-[var(--primary)] text-white'
+                      : 'bg-[var(--muted)] text-[var(--muted-foreground)] hover:bg-[var(--muted)]/80'
+                  }`}
+                >
+                  Overage View
+                </button>
+                <button
+                  onClick={() => {
+                    setDefaultViews(prev => ({ ...prev, quotes: 'simple' }));
+                    setSaved(false);
+                  }}
+                  className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                    defaultViews.quotes === 'simple'
+                      ? 'bg-[var(--primary)] text-white'
+                      : 'bg-[var(--muted)] text-[var(--muted-foreground)] hover:bg-[var(--muted)]/80'
+                  }`}
+                >
+                  Simple View
+                </button>
+              </div>
+            </div>
+
+            {/* Orders Default View */}
+            <div className="flex items-center justify-between p-4 border border-[var(--border)] rounded-lg bg-[var(--muted)]/20">
+              <div>
+                <h3 className="font-medium text-[var(--foreground)]">Orders</h3>
+                <p className="text-sm text-[var(--muted-foreground)]">Default view when viewing order line items</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1.5 text-sm rounded-lg bg-[var(--primary)] text-white">
+                  Simple View
+                </span>
+              </div>
+            </div>
+
+            {/* Invoices Default View */}
+            <div className="flex items-center justify-between p-4 border border-[var(--border)] rounded-lg bg-[var(--muted)]/20">
+              <div>
+                <h3 className="font-medium text-[var(--foreground)]">Invoices</h3>
+                <p className="text-sm text-[var(--muted-foreground)]">Default view when viewing invoice line items</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1.5 text-sm rounded-lg bg-[var(--primary)] text-white">
+                  Simple View
+                </span>
+              </div>
+            </div>
+
+            {/* Commissions Default View */}
+            <div className="flex items-center justify-between p-4 border border-[var(--border)] rounded-lg bg-[var(--muted)]/20">
+              <div>
+                <h3 className="font-medium text-[var(--foreground)]">Commissions</h3>
+                <p className="text-sm text-[var(--muted-foreground)]">Default view when viewing commission line items</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1.5 text-sm rounded-lg bg-[var(--primary)] text-white">
+                  Simple View
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Info Box */}
+          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex gap-3">
+              <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <h4 className="text-sm font-medium text-blue-900">About View Modes</h4>
+                <p className="text-sm text-blue-700 mt-1">
+                  <strong>Overage View</strong> (Quotes only) shows all pricing columns including overage, commission splits, and price levels.
+                  <strong> Simple View</strong> shows a streamlined view with basic pricing columns only, ideal for quick editing.
+                  Users can switch between views using the View dropdown in Quotes.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-6 mt-6 border-t border-[var(--border)]">
+            <button
+              onClick={handleSave}
+              className={`flex items-center gap-2 px-6 py-2 rounded-lg font-medium text-sm transition-all ${
+                saved
+                  ? 'bg-green-600 text-white'
+                  : 'bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)]'
+              }`}
+            >
+              {saved ? (
+                <>
+                  Saved
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M5 10l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </>
+              ) : (
+                'Save'
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Manufacturer Integrations Tab */}
+      {activeTab === 'manufacturer-integrations' && (
+        <ManufacturerIntegrationsTab />
+      )}
     </main>
+  );
+}
+
+// Manufacturer Integrations Tab Component
+interface ManufacturerIntegration {
+  id: string;
+  name: string;
+  logo?: string;
+  description: string;
+  status: 'available' | 'activated' | 'requested';
+  requestCount?: number;
+  connectedDate?: string;
+  dataTypes: string[];
+}
+
+const initialIntegrations: ManufacturerIntegration[] = [
+  {
+    id: 'signify',
+    name: 'Signify',
+    description: 'Stream quotes, orders, invoices, and commission data from Signify (formerly Philips Lighting)',
+    status: 'available',
+    dataTypes: ['Quotes', 'Orders', 'Invoices', 'Commissions'],
+  },
+  {
+    id: 'rab',
+    name: 'RAB Lighting',
+    description: 'Stream quotes, orders, and commission data from RAB Lighting',
+    status: 'requested',
+    requestCount: 6,
+    dataTypes: ['Quotes', 'Orders', 'Commissions'],
+  },
+];
+
+function ManufacturerIntegrationsTab() {
+  const [integrations, setIntegrations] = React.useState<ManufacturerIntegration[]>(initialIntegrations);
+  const [showRequestModal, setShowRequestModal] = React.useState(false);
+  const [newIntegrationName, setNewIntegrationName] = React.useState('');
+  const [isActivating, setIsActivating] = React.useState<string | null>(null);
+  const [showActivateModal, setShowActivateModal] = React.useState<string | null>(null);
+
+  const handleActivate = async (integrationId: string) => {
+    setIsActivating(integrationId);
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    setIntegrations(prev =>
+      prev.map(integration =>
+        integration.id === integrationId
+          ? { ...integration, status: 'activated', connectedDate: new Date().toISOString().split('T')[0] }
+          : integration
+      )
+    );
+    setIsActivating(null);
+    setShowActivateModal(null);
+  };
+
+  const handleDeactivate = (integrationId: string) => {
+    setIntegrations(prev =>
+      prev.map(integration =>
+        integration.id === integrationId
+          ? { ...integration, status: 'available', connectedDate: undefined }
+          : integration
+      )
+    );
+  };
+
+  const handleRequestIntegration = () => {
+    if (!newIntegrationName.trim()) return;
+
+    const newIntegration: ManufacturerIntegration = {
+      id: newIntegrationName.toLowerCase().replace(/\s+/g, '-'),
+      name: newIntegrationName.trim(),
+      description: `Requested integration for ${newIntegrationName.trim()}`,
+      status: 'requested',
+      requestCount: 1,
+      dataTypes: [],
+    };
+
+    setIntegrations(prev => [...prev, newIntegration]);
+    setNewIntegrationName('');
+    setShowRequestModal(false);
+  };
+
+  const handleUpvote = (integrationId: string) => {
+    setIntegrations(prev =>
+      prev.map(integration =>
+        integration.id === integrationId && integration.status === 'requested'
+          ? { ...integration, requestCount: (integration.requestCount || 0) + 1 }
+          : integration
+      )
+    );
+  };
+
+  const availableIntegrations = integrations.filter(i => i.status === 'available');
+  const activatedIntegrations = integrations.filter(i => i.status === 'activated');
+  const requestedIntegrations = integrations.filter(i => i.status === 'requested');
+
+  return (
+    <div className="max-w-4xl">
+      {/* Header with Request button */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-lg font-semibold text-[var(--foreground)]">Manufacturer Integrations</h2>
+          <p className="text-sm text-[var(--muted-foreground)] mt-1">
+            Connect to manufacturers to automatically stream quotes, orders, invoices, and commission data
+          </p>
+        </div>
+        <button
+          onClick={() => setShowRequestModal(true)}
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-[var(--primary)] border border-[var(--primary)] rounded-lg hover:bg-[var(--primary)] hover:text-white transition-colors"
+        >
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M10 4v12M4 10h12" strokeLinecap="round"/>
+          </svg>
+          Request Integration
+        </button>
+      </div>
+
+      <div className="space-y-8">
+        {/* Activated Integrations */}
+        {activatedIntegrations.length > 0 && (
+          <section>
+            <h3 className="text-base font-semibold text-[var(--foreground)] mb-4 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-green-500"></span>
+              Activated ({activatedIntegrations.length})
+            </h3>
+            <div className="space-y-3">
+              {activatedIntegrations.map(integration => (
+                <IntegrationCard
+                  key={integration.id}
+                  integration={integration}
+                  onDeactivate={() => handleDeactivate(integration.id)}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Available Integrations */}
+        {availableIntegrations.length > 0 && (
+          <section>
+            <h3 className="text-base font-semibold text-[var(--foreground)] mb-4 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+              Available ({availableIntegrations.length})
+            </h3>
+            <div className="space-y-3">
+              {availableIntegrations.map(integration => (
+                <IntegrationCard
+                  key={integration.id}
+                  integration={integration}
+                  onActivate={() => setShowActivateModal(integration.id)}
+                  isActivating={isActivating === integration.id}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Requested Integrations */}
+        {requestedIntegrations.length > 0 && (
+          <section>
+            <h3 className="text-base font-semibold text-[var(--foreground)] mb-4 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-gray-400"></span>
+              Requested ({requestedIntegrations.length})
+            </h3>
+            <div className="space-y-3">
+              {requestedIntegrations.map(integration => (
+                <IntegrationCard
+                  key={integration.id}
+                  integration={integration}
+                  onUpvote={() => handleUpvote(integration.id)}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
+
+      {/* Request Integration Modal */}
+      {showRequestModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--card)] rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
+              <h3 className="text-lg font-semibold text-[var(--foreground)]">Request Integration</h3>
+              <button
+                onClick={() => setShowRequestModal(false)}
+                className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
+              >
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                  Manufacturer Name
+                </label>
+                <input
+                  type="text"
+                  value={newIntegrationName}
+                  onChange={(e) => setNewIntegrationName(e.target.value)}
+                  placeholder="Enter manufacturer name..."
+                  className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
+                />
+              </div>
+              <p className="text-sm text-[var(--muted-foreground)]">
+                We&apos;ll add this manufacturer to our integration roadmap. The more requests an integration receives, the higher priority it becomes.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[var(--border)] bg-[var(--muted)]/30">
+              <button
+                onClick={() => setShowRequestModal(false)}
+                className="px-4 py-2 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRequestIntegration}
+                disabled={!newIntegrationName.trim()}
+                className="px-4 py-2 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Submit Request
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Activate Integration Modal */}
+      {showActivateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--card)] rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
+              <h3 className="text-lg font-semibold text-[var(--foreground)]">Activate Integration</h3>
+              <button
+                onClick={() => setShowActivateModal(null)}
+                className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
+              >
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              {(() => {
+                const integration = integrations.find(i => i.id === showActivateModal);
+                return integration ? (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-lg bg-[var(--primary)]/10 flex items-center justify-center">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--primary)]">
+                          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                          <circle cx="12" cy="12" r="4"/>
+                        </svg>
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-[var(--foreground)]">{integration.name}</h4>
+                        <p className="text-sm text-[var(--muted-foreground)]">{integration.description}</p>
+                      </div>
+                    </div>
+                    <div className="bg-[var(--muted)]/50 rounded-lg p-4">
+                      <h5 className="text-sm font-medium text-[var(--foreground)] mb-2">Data types available:</h5>
+                      <div className="flex flex-wrap gap-2">
+                        {integration.dataTypes.map(type => (
+                          <span key={type} className="px-2 py-1 text-xs bg-[var(--background)] text-[var(--foreground)] rounded-md">
+                            {type}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-sm text-[var(--muted-foreground)]">
+                      Once activated, data from {integration.name} will automatically sync to your account. You can deactivate at any time.
+                    </p>
+                  </>
+                ) : null;
+              })()}
+            </div>
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[var(--border)] bg-[var(--muted)]/30">
+              <button
+                onClick={() => setShowActivateModal(null)}
+                className="px-4 py-2 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleActivate(showActivateModal)}
+                disabled={isActivating === showActivateModal}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isActivating === showActivateModal ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                    </svg>
+                    Activating...
+                  </>
+                ) : (
+                  'Activate Integration'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Integration Card Component
+interface IntegrationCardProps {
+  integration: ManufacturerIntegration;
+  onActivate?: () => void;
+  onDeactivate?: () => void;
+  onUpvote?: () => void;
+  isActivating?: boolean;
+}
+
+function IntegrationCard({ integration, onActivate, onDeactivate, onUpvote, isActivating }: IntegrationCardProps) {
+  const isRequested = integration.status === 'requested';
+  const isActivated = integration.status === 'activated';
+  const isAvailable = integration.status === 'available';
+
+  return (
+    <div
+      className={`border rounded-xl p-5 transition-all ${
+        isRequested
+          ? 'border-[var(--border)] bg-[var(--muted)]/30 opacity-70'
+          : isActivated
+          ? 'border-green-200 bg-green-50/50'
+          : 'border-[var(--border)] bg-[var(--card)] hover:border-[var(--primary)]/50'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-4">
+          <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
+            isActivated ? 'bg-green-100' : isRequested ? 'bg-gray-100' : 'bg-[var(--primary)]/10'
+          }`}>
+            {integration.logo ? (
+              <img src={integration.logo} alt={integration.name} className="w-8 h-8" />
+            ) : (
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={
+                isActivated ? 'text-green-600' : isRequested ? 'text-gray-400' : 'text-[var(--primary)]'
+              }>
+                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                <circle cx="12" cy="12" r="4"/>
+              </svg>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className={`font-semibold ${isRequested ? 'text-gray-500' : 'text-[var(--foreground)]'}`}>
+                {integration.name}
+              </h3>
+              {isActivated && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                  Active
+                </span>
+              )}
+              {isRequested && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                  Requested
+                </span>
+              )}
+            </div>
+            <p className={`text-sm mb-3 ${isRequested ? 'text-gray-400' : 'text-[var(--muted-foreground)]'}`}>
+              {integration.description}
+            </p>
+            {integration.dataTypes.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {integration.dataTypes.map(type => (
+                  <span
+                    key={type}
+                    className={`px-2 py-0.5 text-xs rounded-md ${
+                      isRequested
+                        ? 'bg-gray-100 text-gray-400'
+                        : isActivated
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-[var(--muted)] text-[var(--muted-foreground)]'
+                    }`}
+                  >
+                    {type}
+                  </span>
+                ))}
+              </div>
+            )}
+            {isActivated && integration.connectedDate && (
+              <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+                Connected since {integration.connectedDate}
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="flex-shrink-0">
+          {isAvailable && onActivate && (
+            <button
+              onClick={onActivate}
+              disabled={isActivating}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isActivating ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                  </svg>
+                  Activating...
+                </>
+              ) : (
+                'Activate'
+              )}
+            </button>
+          )}
+          {isActivated && onDeactivate && (
+            <button
+              onClick={onDeactivate}
+              className="px-4 py-2 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+            >
+              Deactivate
+            </button>
+          )}
+          {isRequested && onUpvote && (
+            <button
+              onClick={onUpvote}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-[var(--muted-foreground)] border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 19V5M5 12l7-7 7 7" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <span>{integration.requestCount || 0}</span>
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

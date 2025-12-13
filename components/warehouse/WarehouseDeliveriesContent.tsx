@@ -4,11 +4,14 @@ import React, { useState, useMemo } from 'react';
 import { mockIncomingShipments, getWarehouseFactories } from '@/lib/data/warehouse-mock';
 import { IncomingShipment, shipmentStatusColors, shipmentStatusLabels, ShipmentStatus } from '@/lib/types/warehouse';
 import ReceiveShipmentModal from './modals/ReceiveShipmentModal';
+import WarehouseSelector from './WarehouseSelector';
+import { useWarehouse } from './WarehouseContext';
 
 // Filter types for stat card clicks
 type StatFilter = 'all' | 'today' | 'week' | 'pending' | 'in_transit';
 
 export default function WarehouseDeliveriesContent() {
+  const { selectedWarehouse } = useWarehouse();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<ShipmentStatus | 'all'>('all');
   const [vendorFilter, setVendorFilter] = useState<string>('all');
@@ -106,12 +109,15 @@ export default function WarehouseDeliveriesContent() {
             Track incoming shipments and receive inventory
           </p>
         </div>
-        <button className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors flex items-center gap-2">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M12 5v14M5 12h14"/>
-          </svg>
-          Create PO
-        </button>
+        <div className="flex items-center gap-3">
+          <WarehouseSelector />
+          <button className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors flex items-center gap-2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 5v14M5 12h14"/>
+            </svg>
+            Create PO
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards - Clickable to filter */}

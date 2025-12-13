@@ -19,11 +19,14 @@ import {
   OwnershipType,
 } from '@/lib/types/warehouse';
 import AddInventoryItemModal from './modals/AddInventoryItemModal';
+import WarehouseSelector from './WarehouseSelector';
+import { useWarehouse } from './WarehouseContext';
 
 // Filter types for stat card clicks
 type StatFilter = 'all' | 'available' | 'reserved' | 'low_stock';
 
 export default function WarehouseInventoryContent() {
+  const { selectedWarehouse } = useWarehouse();
   const searchParams = useSearchParams();
   const urlFilter = searchParams.get('filter') as StatFilter | null;
 
@@ -140,15 +143,18 @@ export default function WarehouseInventoryContent() {
               Manage your products and inventory. Click on a row to see inventory items.
             </p>
           </div>
-          <button className="flex items-center gap-2 px-4 py-2 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="12" y1="18" x2="12" y2="12"/>
-              <line x1="9" y1="15" x2="15" y2="15"/>
-            </svg>
-            Update from Manifest
-          </button>
+          <div className="flex items-center gap-3">
+            <WarehouseSelector />
+            <button className="flex items-center gap-2 px-4 py-2 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="12" y1="18" x2="12" y2="12"/>
+                <line x1="9" y1="15" x2="15" y2="15"/>
+              </svg>
+              Update from Manifest
+            </button>
+          </div>
         </div>
 
         {/* Stats Cards - Clickable to filter */}

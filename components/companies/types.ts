@@ -20,6 +20,8 @@ export interface Company {
   lastActivity: string;
   followers: string[];
   companySourceType: CompanySourceType;
+  standardCommissionRate?: number;    // Standard/direct commission rate (e.g., 0.10 for 10%)
+  warehouseCommissionRate?: number;   // Warehouse commission rate (e.g., 0.05 for 5%)
   createdBy: string;
 }
 
@@ -95,6 +97,8 @@ export function mapLandingPageToUICompany(landingPage: CompanyLandingPage): Comp
     lastActivity: landingPage.createdAt || new Date().toISOString(),
     followers: [], // Followers not in API yet
     companySourceType: normalizedSourceType,
+    standardCommissionRate: landingPage.standardCommissionRate,
+    warehouseCommissionRate: landingPage.warehouseCommissionRate,
     createdBy: landingPage.createdBy || '',
   };
 }
@@ -124,6 +128,8 @@ export function mapAPICompanyToUICompany(apiCompany: APICompany): Company {
     lastActivity: apiCompany.createdAt || new Date().toISOString(),
     followers: [],
     companySourceType: normalizedSourceType,
+    standardCommissionRate: apiCompany.standardCommissionRate ?? undefined,
+    warehouseCommissionRate: apiCompany.warehouseCommissionRate ?? undefined,
     createdBy: apiCompany.createdBy || '',
   };
 }

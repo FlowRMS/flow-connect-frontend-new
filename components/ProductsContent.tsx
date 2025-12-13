@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import ProductConfiguratorModal from './products/ProductConfiguratorModal';
-import ProductDetailModal from './products/ProductDetailModal';
 
 // Mock product data based on the image structure
 interface Product {
@@ -18,6 +18,10 @@ interface Product {
   status: 'active' | 'discontinued' | 'while_supplies_last';
   hasConfigurator: boolean;
   configurations?: ProductConfiguration[];
+  // Configuration-related fields
+  productType: 'base' | 'configured';
+  baseProductId?: string;
+  baseProductPartNumber?: string;
 }
 
 interface ProductConfiguration {
@@ -35,7 +39,7 @@ interface ConfigOption {
 
 // Mock products based on the image provided
 const mockProducts: Product[] = [
-  // Main ALF Products (While Supplies Last)
+  // Main ALF Products (While Supplies Last) - Base Products
   {
     id: 'ALF-LS600-T3-G1-FSK-PSC-ASR',
     partNumber: 'ALF LS600 T3 G1 FSK PSC ASR',
@@ -48,6 +52,7 @@ const mockProducts: Product[] = [
     commission5: 301.00,
     status: 'while_supplies_last',
     hasConfigurator: true,
+    productType: 'base',
   },
   {
     id: 'ALF-LS600-T3-G1-FSK-PSC-SFD',
@@ -61,6 +66,7 @@ const mockProducts: Product[] = [
     commission5: 298.00,
     status: 'while_supplies_last',
     hasConfigurator: true,
+    productType: 'base',
   },
   {
     id: 'ALF-LS600-T3-G1-HVU-FSK',
@@ -74,6 +80,40 @@ const mockProducts: Product[] = [
     commission5: 367.00,
     status: 'while_supplies_last',
     hasConfigurator: true,
+    productType: 'base',
+  },
+  // Configured Products (derived from base products)
+  {
+    id: 'ALF-LS600-T3-G1-FSK-PSC-ASR-CFG1',
+    partNumber: 'ALF LS600 T3 G1 FSK PSC ASR-CFG1',
+    description: 'ALF Flexible Area Light - 60W, Type III, 0-10V Dimming',
+    category: 'Area Lights',
+    manufacturer: 'ALF',
+    basePrice: 345.00,
+    commission10: 345.00,
+    commission8: 334.00,
+    commission5: 324.00,
+    status: 'active',
+    hasConfigurator: false,
+    productType: 'configured',
+    baseProductId: 'ALF-LS600-T3-G1-FSK-PSC-ASR',
+    baseProductPartNumber: 'ALF LS600 T3 G1 FSK PSC ASR',
+  },
+  {
+    id: 'ALF-LS600-T3-G1-FSK-PSC-ASR-CFG2',
+    partNumber: 'ALF LS600 T3 G1 FSK PSC ASR-CFG2',
+    description: 'ALF Flexible Area Light - 80W, Type V, DALI Dimming',
+    category: 'Area Lights',
+    manufacturer: 'ALF',
+    basePrice: 385.00,
+    commission10: 385.00,
+    commission8: 373.00,
+    commission5: 362.00,
+    status: 'active',
+    hasConfigurator: false,
+    productType: 'configured',
+    baseProductId: 'ALF-LS600-T3-G1-FSK-PSC-ASR',
+    baseProductPartNumber: 'ALF LS600 T3 G1 FSK PSC ASR',
   },
   // Accessories
   {
@@ -88,6 +128,7 @@ const mockProducts: Product[] = [
     commission5: 26.00,
     status: 'active',
     hasConfigurator: false,
+    productType: 'base',
   },
   {
     id: 'ALF-SFD',
@@ -101,6 +142,7 @@ const mockProducts: Product[] = [
     commission5: 26.00,
     status: 'active',
     hasConfigurator: false,
+    productType: 'base',
   },
   {
     id: 'PC-2',
@@ -114,6 +156,7 @@ const mockProducts: Product[] = [
     commission5: 39.00,
     status: 'active',
     hasConfigurator: false,
+    productType: 'base',
   },
   {
     id: 'ALF-M-EGS',
@@ -127,6 +170,7 @@ const mockProducts: Product[] = [
     commission5: 9.00,
     status: 'active',
     hasConfigurator: false,
+    productType: 'base',
   },
   {
     id: 'ALF-L-EGS',
@@ -140,6 +184,7 @@ const mockProducts: Product[] = [
     commission5: 11.00,
     status: 'active',
     hasConfigurator: false,
+    productType: 'base',
   },
   {
     id: 'ALF-M-HGS',
@@ -153,6 +198,7 @@ const mockProducts: Product[] = [
     commission5: 17.00,
     status: 'active',
     hasConfigurator: false,
+    productType: 'base',
   },
   {
     id: 'ALF-L-HGS',
@@ -166,6 +212,7 @@ const mockProducts: Product[] = [
     commission5: 22.00,
     status: 'active',
     hasConfigurator: false,
+    productType: 'base',
   },
   {
     id: 'ALF-BLS',
@@ -179,6 +226,7 @@ const mockProducts: Product[] = [
     commission5: 11.00,
     status: 'active',
     hasConfigurator: false,
+    productType: 'base',
   },
   {
     id: 'MS-DCE-09-L7-W',
@@ -192,6 +240,7 @@ const mockProducts: Product[] = [
     commission5: 22.00,
     status: 'active',
     hasConfigurator: false,
+    productType: 'base',
   },
   {
     id: 'RM06',
@@ -205,19 +254,39 @@ const mockProducts: Product[] = [
     commission5: 30.00,
     status: 'active',
     hasConfigurator: false,
+    productType: 'base',
   },
 ];
 
 const categories = ['All', 'Area Lights', 'Accessories', 'Controls'];
 const manufacturers = ['All', 'ALF', 'Acuity', 'Philips', 'Cree'];
 
+// Mock factories and categories for dropdowns
+const mockFactories = [
+  { id: 'southern-grounding', name: 'Southern Grounding' },
+  { id: 'alf', name: 'ALF' },
+  { id: 'acme', name: 'Acme Lighting' },
+];
+
+const mockCategoryList = [
+  { id: 'area-lights', name: 'Area Lights' },
+  { id: 'accessories', name: 'Accessories' },
+  { id: 'controls', name: 'Controls' },
+  { id: 'ground-rod', name: 'GROUND ROD' },
+];
+
+const mockCustomers = [
+  { id: 'a', name: 'A' },
+  { id: 'acker-ec', name: 'ACKER EC' },
+  { id: 'demo-plc', name: 'demoPLC 1755200792.651914' },
+];
+
 export default function ProductsContent() {
+  const router = useRouter();
   const [products] = useState<Product[]>(mockProducts);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedManufacturer, setSelectedManufacturer] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
-  const [showDetailModal, setShowDetailModal] = useState(false);
-  const [detailProduct, setDetailProduct] = useState<Product | null>(null);
   const [showConfiguratorModal, setShowConfiguratorModal] = useState(false);
   const [configuratorProduct, setConfiguratorProduct] = useState<Product | null>(null);
 
@@ -292,16 +361,13 @@ export default function ProductsContent() {
   };
 
   const handleProductClick = (product: Product) => {
-    setDetailProduct(product);
-    setShowDetailModal(true);
+    // Navigate directly to the product edit page
+    router.push(`/products/${product.id}/edit`);
   };
 
-  const handleOpenConfiguratorFromDetail = () => {
-    if (detailProduct) {
-      setShowDetailModal(false);
-      setConfiguratorProduct(detailProduct);
-      setShowConfiguratorModal(true);
-    }
+  const handleEditClick = (product: Product) => {
+    // Navigate directly to the product edit page
+    router.push(`/products/${product.id}/edit`);
   };
 
   return (
@@ -408,11 +474,14 @@ export default function ProductsContent() {
           <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
             {/* Table Header */}
             <div className="grid grid-cols-12 gap-4 px-6 py-3 border-b border-[var(--border)] bg-[var(--muted)]/30">
-              <div className="col-span-3 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
+              <div className="col-span-2 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
                 Part Number
               </div>
               <div className="col-span-3 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
                 Description
+              </div>
+              <div className="col-span-1 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
+                Type
               </div>
               <div className="col-span-1 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider text-right">
                 10% Comm
@@ -444,12 +513,37 @@ export default function ProductsContent() {
                     onClick={() => handleProductClick(product)}
                     className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-[var(--muted)]/20 transition-colors cursor-pointer"
                   >
-                    <div className="col-span-3">
+                    <div className="col-span-2">
                       <div className="font-medium text-[var(--foreground)]">{product.partNumber}</div>
                       <div className="text-xs text-[var(--muted-foreground)]">{product.category}</div>
                     </div>
                     <div className="col-span-3 flex items-center">
                       <span className="text-sm text-[var(--foreground)] line-clamp-2">{product.description}</span>
+                    </div>
+                    <div className="col-span-1 flex items-center">
+                      {product.productType === 'configured' ? (
+                        <div className="flex flex-col">
+                          <span className="px-2 py-0.5 text-xs font-medium rounded bg-purple-100 text-purple-700">
+                            Configured
+                          </span>
+                          {product.baseProductPartNumber && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                router.push(`/products/${product.baseProductId}/edit`);
+                              }}
+                              className="text-xs text-blue-600 hover:underline mt-1 text-left truncate max-w-full"
+                              title={`Base: ${product.baseProductPartNumber}`}
+                            >
+                              View base
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="px-2 py-0.5 text-xs font-medium rounded bg-gray-100 text-gray-700">
+                          Base
+                        </span>
+                      )}
                     </div>
                     <div className="col-span-1 flex items-center justify-end">
                       <span className="text-sm font-medium text-[var(--foreground)]">{formatCurrency(product.commission10)}</span>
@@ -466,7 +560,8 @@ export default function ProductsContent() {
                       </span>
                     </div>
                     <div className="col-span-2 flex items-center justify-end gap-2">
-                      {product.hasConfigurator && (
+                      {/* Only show configurator button for base products with configurator */}
+                      {product.hasConfigurator && product.productType === 'base' && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -481,6 +576,19 @@ export default function ProductsContent() {
                           Configurator
                         </button>
                       )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditClick(product);
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 border border-[var(--border)] text-[var(--foreground)] rounded-lg text-xs font-medium hover:bg-[var(--muted)] transition-colors"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" strokeLinecap="round" strokeLinejoin="round"/>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                        Edit
+                      </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -501,18 +609,6 @@ export default function ProductsContent() {
           </div>
         </div>
       </div>
-
-      {/* Product Detail Modal */}
-      {showDetailModal && detailProduct && (
-        <ProductDetailModal
-          product={detailProduct}
-          onClose={() => {
-            setShowDetailModal(false);
-            setDetailProduct(null);
-          }}
-          onOpenConfigurator={handleOpenConfiguratorFromDetail}
-        />
-      )}
 
       {/* Configurator Modal */}
       {showConfiguratorModal && configuratorProduct && (

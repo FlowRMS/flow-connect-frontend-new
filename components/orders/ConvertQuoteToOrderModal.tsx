@@ -148,6 +148,7 @@ export default function ConvertQuoteToOrderModal({ quote, onClose, onConvert }: 
           quantityInvoiced: 0,
           quantityCredited: 0,
           isCancelled: false,
+          isConsignment: false,
         };
       });
 

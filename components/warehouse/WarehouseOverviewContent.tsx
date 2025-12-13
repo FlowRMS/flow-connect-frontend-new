@@ -13,8 +13,11 @@ import {
 } from '@/lib/data/warehouse-mock';
 import { shipmentStatusColors, shipmentStatusLabels } from '@/lib/types/warehouse';
 import { Task, taskTypeColors, taskPriorityColors, taskTypeLabels } from '@/lib/types/tasks';
+import WarehouseSelector from './WarehouseSelector';
+import { useWarehouse } from './WarehouseContext';
 
 export default function WarehouseOverviewContent() {
+  const { selectedWarehouse } = useWarehouse();
   const [tasks, setTasks] = useState<Task[]>(mockWarehouseTasks);
 
   const inventoryStats = useMemo(() => getInventoryStats(), []);
@@ -48,11 +51,14 @@ export default function WarehouseOverviewContent() {
   return (
     <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-[var(--foreground)]">Warehouse Overview</h1>
-        <p className="text-sm text-[var(--muted-foreground)] mt-1">
-          Control center for warehouse operations
-        </p>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-[var(--foreground)]">Warehouse Overview</h1>
+          <p className="text-sm text-[var(--muted-foreground)] mt-1">
+            Control center for warehouse operations
+          </p>
+        </div>
+        <WarehouseSelector />
       </div>
 
       {/* Stats Cards - Clickable to navigate to relevant pages */}

@@ -288,7 +288,7 @@ export default function CompaniesContent() {
   };
 
   // Handle field change in edit form
-  const handleFieldChange = (field: string, value: string | CompanySourceType) => {
+  const handleFieldChange = (field: string, value: string | number | CompanySourceType) => {
     setEditFormData(prev => ({ ...prev, [field]: value }));
   };
 

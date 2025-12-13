@@ -135,6 +135,8 @@ export interface Company {
   phone?: string | null;
   website?: string | null;
   tags?: string | string[] | null;
+  standardCommissionRate?: number | null;    // Standard/direct commission rate (e.g., 0.10 for 10%)
+  warehouseCommissionRate?: number | null;   // Warehouse commission rate (e.g., 0.05 for 5%)
   createdBy?: string | null;
   createdAt?: string | null;
 }
@@ -146,6 +148,8 @@ export interface CompanyInput {
   phone?: string;
   website?: string;
   tags?: string;
+  standardCommissionRate?: number;    // Standard/direct commission rate (e.g., 0.10 for 10%)
+  warehouseCommissionRate?: number;   // Warehouse commission rate (e.g., 0.05 for 5%)
 }
 
 export interface UpdateCompanyInput {
@@ -155,6 +159,8 @@ export interface UpdateCompanyInput {
   phone?: string;
   website?: string;
   tags?: string;
+  standardCommissionRate?: number;    // Standard/direct commission rate (e.g., 0.10 for 10%)
+  warehouseCommissionRate?: number;   // Warehouse commission rate (e.g., 0.05 for 5%)
 }
 
 // Contact Types
@@ -440,6 +446,8 @@ export interface CompanyLandingPage {
   companySourceType: CompanySourceType;
   phone?: string;
   website?: string;
+  standardCommissionRate?: number;    // Standard/direct commission rate (e.g., 0.10 for 10%)
+  warehouseCommissionRate?: number;   // Warehouse commission rate (e.g., 0.05 for 5%)
   createdBy?: string;
   createdAt?: string;
   tags?: string[];

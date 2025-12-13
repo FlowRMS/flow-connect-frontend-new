@@ -6,7 +6,7 @@ import {
   mockOrders,
   mockSalesReps,
 } from '../../lib/data/rms-mock';
-import type { OrderSplitRate } from '../../lib/types/rms';
+import type { OrderSplitRate, OrderLineItem } from '../../lib/types/rms';
 import {
   Order,
   orderStatusLabels,
@@ -115,6 +115,29 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   };
 
   const splitPercentageTotal = editedSplits.reduce((sum, s) => sum + s.splitPercentage, 0);
+
+  // Line item consignment update functions
+  const updateLineItemConsignment = (lineItemId: string, isConsignment: boolean) => {
+    if (order) {
+      const updatedLineItems = order.lineItems.map(item =>
+        item.id === lineItemId ? { ...item, isConsignment } : item
+      );
+      const updatedOrder = { ...order, lineItems: updatedLineItems };
+      setOrders(orders.map(o => o.id === order.id ? updatedOrder : o));
+    }
+  };
+
+  const updateAllLineItemsConsignment = (isConsignment: boolean) => {
+    if (order) {
+      const updatedLineItems = order.lineItems.map(item => ({ ...item, isConsignment }));
+      const updatedOrder = { ...order, lineItems: updatedLineItems };
+      setOrders(orders.map(o => o.id === order.id ? updatedOrder : o));
+    }
+  };
+
+  // Check if all line items are consignment (for bulk toggle)
+  const allItemsConsignment = order?.lineItems.every(item => item.isConsignment) ?? false;
+  const someItemsConsignment = order?.lineItems.some(item => item.isConsignment) ?? false;
 
   // Mock activity data
   const activities = [
@@ -456,6 +479,33 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           <div className="flex-1 overflow-auto p-6">
             {activeTab === 'line-items' && (
               <div className="space-y-3">
+                {/* Bulk Consignment Toggle */}
+                <div className="flex items-center justify-between bg-[var(--card)] border border-[var(--border)] rounded-lg px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={allItemsConsignment}
+                        ref={(el) => {
+                          if (el) {
+                            el.indeterminate = someItemsConsignment && !allItemsConsignment;
+                          }
+                        }}
+                        onChange={(e) => updateAllLineItemsConsignment(e.target.checked)}
+                        className="w-4 h-4 rounded border-[var(--border)] text-[var(--primary)] focus:ring-[var(--primary)] focus:ring-offset-0"
+                      />
+                      <span className="text-sm font-medium text-[var(--foreground)]">
+                        Mark all as consignment
+                      </span>
+                    </label>
+                    {someItemsConsignment && (
+                      <span className="text-xs text-[var(--muted-foreground)]">
+                        ({order.lineItems.filter(i => i.isConsignment).length} of {order.lineItems.length} items)
+                      </span>
+                    )}
+                  </div>
+                </div>
+
                 {order.lineItems.map((item, index) => (
                   <div
                     key={item.id}
@@ -468,6 +518,9 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                       {item.isCancelled && (
                         <span className="px-2 py-0.5 text-xs bg-red-100 text-red-700 rounded">Cancelled</span>
                       )}
+                      {item.isConsignment && (
+                        <span className="px-2 py-0.5 text-xs bg-purple-100 text-purple-700 rounded">Consignment</span>
+                      )}
                       <div className="ml-auto text-sm font-semibold text-[var(--foreground)]">
                         {formatCurrency(item.extendedPrice)}
                       </div>
@@ -476,7 +529,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                     {/* Line Item Details */}
                     <div className="p-4">
                       <p className="text-sm text-[var(--foreground)] mb-3">{item.description}</p>
-                      <div className="grid grid-cols-5 gap-4 text-sm">
+                      <div className="grid grid-cols-6 gap-4 text-sm">
                         <div>
                           <span className="text-[var(--muted-foreground)]">Quantity</span>
                           <p className="font-medium text-[var(--foreground)]">{item.quantity}</p>
@@ -496,6 +549,17 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                         <div>
                           <span className="text-[var(--muted-foreground)]">Commission</span>
                           <p className="font-medium text-green-600">{formatCurrency(item.commissionAmount)}</p>
+                        </div>
+                        <div>
+                          <span className="text-[var(--muted-foreground)]">Consignment</span>
+                          <label className="flex items-center gap-2 mt-1 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={item.isConsignment}
+                              onChange={(e) => updateLineItemConsignment(item.id, e.target.checked)}
+                              className="w-4 h-4 rounded border-[var(--border)] text-[var(--primary)] focus:ring-[var(--primary)] focus:ring-offset-0"
+                            />
+                          </label>
                         </div>
                       </div>
                     </div>

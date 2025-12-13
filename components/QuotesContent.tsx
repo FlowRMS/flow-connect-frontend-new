@@ -596,6 +596,7 @@ type LineItem = {
   description: string;
   endUser: string;
   quantity: number;
+  uom?: string; // Unit of measure (EA, FT, LF, etc.) - defaults to 'EA' if not specified
   manufacturers: {
     name: string;
     basePrice: number;
@@ -622,6 +623,12 @@ type LineItem = {
   // Divisor for unit of measure (e.g., per 100, per 1000)
   useDivisor: boolean;
   divisor: number; // Default 1, can be 100, 1000, etc.
+  // Additional line item details
+  commissionDiscountPercent?: number;
+  commissionDiscountAmount?: number;
+  lineDiscountPercent?: number;
+  lineDiscountAmount?: number;
+  leadTime?: string;
 };
 
 type QuoteFile = {
@@ -1289,6 +1296,7 @@ const mockLineItems: LineItem[] = [
     description: 'Linear LED Fixture 4ft 5000K with Integrated Driver',
     endUser: 'Memorial Hospital',
     quantity: 150,
+    uom: 'EA',
     manufacturers: [
       {
         name: 'Acuity Brands',
@@ -1516,6 +1524,7 @@ const mockLineItems: LineItem[] = [
     description: 'LED Strip Light 24V 10ft Roll with Driver',
     endUser: 'Memorial Hospital',
     quantity: 65,
+    uom: 'RL',
     manufacturers: [
       {
         name: 'Acuity Brands',
@@ -1588,6 +1597,7 @@ const mockLineItems: LineItem[] = [
     description: 'LED Pole Mount 150W Area Light with Photocell',
     endUser: 'Memorial Hospital',
     quantity: 45,
+    uom: 'EA',
     manufacturers: [
       {
         name: 'Philips',
@@ -3418,6 +3428,27 @@ export default function QuotesContent() {
   const [showSetEndUserModal, setShowSetEndUserModal] = useState(false);
   const [selectedEndUser, setSelectedEndUser] = useState('');
 
+  // Header-level end user (used when not per-line)
+  const [headerEndUser, setHeaderEndUser] = useState('');
+  const [endUserSameAsCustomer, setEndUserSameAsCustomer] = useState(true);
+
+  // Quote view mode - 'overage' (full) or 'simple' (basic pricing only)
+  const [quoteViewMode, setQuoteViewMode] = useState<'overage' | 'simple'>('simple');
+  const [showViewModeDropdown, setShowViewModeDropdown] = useState(false);
+
+  // Sections visibility - off by default in simple view
+  const [showSections, setShowSections] = useState(false);
+
+  // Commission splits settings
+  const [showCommissionSplits, setShowCommissionSplits] = useState(false);
+  const [showCommissionSplitsModal, setShowCommissionSplitsModal] = useState(false);
+  const [commissionSplitsModalItem, setCommissionSplitsModalItem] = useState<LineItem | null>(null);
+  const [applyToAllLines, setApplyToAllLines] = useState(false);
+
+  // Line item details modal (for hidden columns in simple view)
+  const [showLineDetailsModal, setShowLineDetailsModal] = useState(false);
+  const [lineDetailsModalItem, setLineDetailsModalItem] = useState<LineItem | null>(null);
+
   // Available end users (would come from contacts/companies in real app)
   const availableEndUsers = [
     'Turner Construction',
@@ -3433,8 +3464,20 @@ export default function QuotesContent() {
   ];
 
   // Column visibility state
-  type ColumnKey = 'partNumber' | 'description' | 'quantity' | 'endUser' | 'manufacturer' | 'base' | 'sell' | 'sellTotal' | 'overage' | 'overageAmt' | 'commRate' | 'baseComm' | 'overageShare' | 'overageComm' | 'totalEarn' | 'effRate' | 'l1' | 'l2' | 'l3' | 'trend' | 'specSheet' | 'outsideReps' | 'divisor';
-  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(new Set(['partNumber', 'description', 'quantity', 'manufacturer', 'base', 'sell', 'sellTotal', 'overage', 'overageAmt', 'commRate', 'baseComm', 'overageShare', 'overageComm', 'totalEarn', 'effRate', 'outsideReps', 'divisor']));
+  type ColumnKey = 'partNumber' | 'description' | 'quantity' | 'uom' | 'endUser' | 'manufacturer' | 'base' | 'sell' | 'sellTotal' | 'overage' | 'overageAmt' | 'commRate' | 'baseComm' | 'overageShare' | 'overageComm' | 'totalEarn' | 'effRate' | 'l1' | 'l2' | 'l3' | 'trend' | 'specSheet' | 'outsideReps' | 'divisor' | 'commissionDiscountPercent' | 'commissionDiscountAmount' | 'lineDiscountPercent' | 'lineDiscountAmount' | 'leadTime';
+  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(new Set(['partNumber', 'description', 'quantity', 'uom', 'manufacturer', 'base', 'sell', 'sellTotal', 'overage', 'overageAmt', 'commRate', 'baseComm', 'overageShare', 'overageComm', 'totalEarn', 'effRate', 'outsideReps', 'divisor']));
+
+  // Column order state for drag-and-drop reordering
+  const [columnOrder, setColumnOrder] = useState<ColumnKey[]>([
+    'partNumber', 'description', 'quantity', 'uom', 'endUser', 'manufacturer',
+    'base', 'sell', 'sellTotal', 'divisor',
+    'overage', 'overageAmt',
+    'commRate', 'baseComm', 'overageShare', 'overageComm', 'totalEarn', 'effRate', 'outsideReps',
+    'l1', 'l2', 'l3',
+    'commissionDiscountPercent', 'commissionDiscountAmount', 'lineDiscountPercent', 'lineDiscountAmount',
+    'leadTime', 'trend', 'specSheet'
+  ]);
+  const [draggingColumn, setDraggingColumn] = useState<ColumnKey | null>(null);
 
   // Rep split modal state
   const [repSplitModalItem, setRepSplitModalItem] = useState<LineItem | null>(null);
@@ -3470,10 +3513,13 @@ export default function QuotesContent() {
     { key: 'partNumber', label: 'Part #', group: 'Basic' },
     { key: 'description', label: 'Description', group: 'Basic' },
     { key: 'quantity', label: 'Qty', group: 'Basic' },
+    { key: 'uom', label: 'UOM', group: 'Basic' },
     { key: 'endUser', label: 'End User', group: 'Basic' },
     { key: 'manufacturer', label: 'Manufacturer', group: 'Basic' },
     { key: 'base', label: 'Base', group: 'Pricing' },
     { key: 'sell', label: 'Sell', group: 'Pricing' },
+    { key: 'sellTotal', label: 'Sell Total', group: 'Pricing' },
+    { key: 'divisor', label: 'Multiplier', group: 'Pricing' },
     { key: 'overage', label: 'Over %', group: 'Overage' },
     { key: 'overageAmt', label: 'Over $', group: 'Overage' },
     { key: 'commRate', label: 'Comm %', group: 'Commission' },
@@ -3482,26 +3528,266 @@ export default function QuotesContent() {
     { key: 'overageComm', label: 'Ovg Comm $', group: 'Commission' },
     { key: 'totalEarn', label: 'Total Earn', group: 'Commission' },
     { key: 'effRate', label: 'Eff %', group: 'Commission' },
+    { key: 'outsideReps', label: 'Outside Reps', group: 'Commission' },
     { key: 'l1', label: 'L1', group: 'Levels' },
     { key: 'l2', label: 'L2', group: 'Levels' },
     { key: 'l3', label: 'L3', group: 'Levels' },
+    { key: 'commissionDiscountPercent', label: 'Comm Disc %', group: 'Discounts' },
+    { key: 'commissionDiscountAmount', label: 'Comm Disc $', group: 'Discounts' },
+    { key: 'lineDiscountPercent', label: 'Line Disc %', group: 'Discounts' },
+    { key: 'lineDiscountAmount', label: 'Line Disc $', group: 'Discounts' },
+    { key: 'leadTime', label: 'Lead Time', group: 'Details' },
     { key: 'trend', label: 'Trend', group: 'Details' },
     { key: 'specSheet', label: 'Spec', group: 'Details' },
-    { key: 'outsideReps', label: 'Outside Reps', group: 'Commission' },
-    { key: 'divisor', label: 'Multiplier', group: 'Pricing' },
   ];
 
   const toggleColumn = (col: ColumnKey) => {
-    setVisibleColumns(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(col)) {
-        newSet.delete(col);
-      } else {
-        newSet.add(col);
-      }
-      return newSet;
-    });
+    if (quoteViewMode === 'simple') {
+      // In simple view, toggle simpleViewColumns
+      setSimpleViewColumns(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(col)) {
+          newSet.delete(col);
+        } else {
+          newSet.add(col);
+        }
+        return newSet;
+      });
+    } else {
+      // In overage view, toggle visibleColumns
+      setVisibleColumns(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(col)) {
+          newSet.delete(col);
+        } else {
+          newSet.add(col);
+        }
+        return newSet;
+      });
+    }
     setActiveView('custom');
+  };
+
+  // Drag and drop handlers for column reordering
+  const handleColumnDragStart = (e: React.DragEvent, col: ColumnKey) => {
+    setDraggingColumn(col);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleColumnDragOver = (e: React.DragEvent, targetCol: ColumnKey) => {
+    e.preventDefault();
+    if (!draggingColumn || draggingColumn === targetCol) return;
+
+    const newOrder = [...columnOrder];
+    const dragIndex = newOrder.indexOf(draggingColumn);
+    const targetIndex = newOrder.indexOf(targetCol);
+
+    if (dragIndex !== -1 && targetIndex !== -1) {
+      newOrder.splice(dragIndex, 1);
+      newOrder.splice(targetIndex, 0, draggingColumn);
+      setColumnOrder(newOrder);
+    }
+  };
+
+  const handleColumnDragEnd = () => {
+    setDraggingColumn(null);
+    setActiveView('custom');
+  };
+
+  // Get ordered columns that are visible
+  const getOrderedVisibleColumns = (): ColumnKey[] => {
+    return columnOrder.filter(col => effectiveVisibleColumns.has(col));
+  };
+
+  // Get CSS order value for a column based on columnOrder
+  const getColumnOrder = (colKey: ColumnKey): number => {
+    const index = columnOrder.indexOf(colKey);
+    return index === -1 ? 999 : index;
+  };
+
+  // Render a table header cell for a given column key
+  const renderHeaderCell = (colKey: ColumnKey): React.ReactNode => {
+    const col = columnDefinitions.find(c => c.key === colKey);
+    if (!col) return null;
+
+    // Map column keys to their sortable names
+    const sortableColumns = ['partNumber', 'description', 'quantity', 'manufacturer', 'base', 'sell', 'endUser'];
+    const filterableColumns = ['partNumber', 'description', 'manufacturer', 'endUser'];
+    const isSortable = sortableColumns.includes(colKey);
+    const isFilterable = filterableColumns.includes(colKey);
+
+    // Special case for endUser - only show if showEndUserPerLine is true
+    if (colKey === 'endUser' && !showEndUserPerLine) return null;
+
+    return (
+      <th key={colKey} className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase relative whitespace-nowrap">
+        <div className="flex items-center gap-1">
+          <span
+            className={isSortable ? "cursor-pointer hover:text-[var(--foreground)]" : ""}
+            onClick={isSortable ? () => handleSort(colKey as 'partNumber' | 'description' | 'quantity' | 'manufacturer' | 'base' | 'sell') : undefined}
+          >
+            {col.label}
+          </span>
+          {isSortable && sortColumn === colKey && (
+            <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className={sortDirection === 'desc' ? 'rotate-180' : ''}>
+              <path d="M6 12l4-4 4 4" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          )}
+          {isFilterable && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setActiveFilterColumn(activeFilterColumn === colKey ? null : colKey); }}
+              className={`p-0.5 rounded hover:bg-[var(--muted)] ${columnFilters[colKey] ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)]'}`}
+            >
+              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 4h14M5 8h10M7 12h6M9 16h2" strokeLinecap="round"/>
+              </svg>
+            </button>
+          )}
+        </div>
+        {isFilterable && activeFilterColumn === colKey && (
+          <div className="absolute top-full left-0 mt-1 bg-white border border-[var(--border)] rounded-lg shadow-lg p-2 z-20 min-w-[180px]">
+            <input
+              type="text"
+              placeholder={`Filter ${col.label}...`}
+              value={columnFilters[colKey] || ''}
+              onChange={(e) => handleFilterChange(colKey, e.target.value)}
+              className="w-full px-2 py-1.5 text-sm border border-[var(--border)] rounded focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+              autoFocus
+              onClick={(e) => e.stopPropagation()}
+            />
+            {columnFilters[colKey] && (
+              <button
+                onClick={(e) => { e.stopPropagation(); handleFilterChange(colKey, ''); }}
+                className="mt-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+              >
+                Clear filter
+              </button>
+            )}
+          </div>
+        )}
+      </th>
+    );
+  };
+
+  // Render a table body cell for a given column key and line item (for Simple View)
+  const renderBodyCell = (colKey: ColumnKey, item: LineItem): React.ReactNode => {
+    // Special case for endUser - only show if showEndUserPerLine is true
+    if (colKey === 'endUser' && !showEndUserPerLine) return null;
+
+    switch (colKey) {
+      case 'partNumber':
+        return <td key={colKey} className="px-3 py-2 font-mono text-sm">{item.productNumber}</td>;
+      case 'description':
+        return <td key={colKey} className="px-3 py-2 text-sm max-w-[200px] truncate">{item.description}</td>;
+      case 'quantity':
+        return (
+          <td key={colKey} className="px-3 py-2 text-sm text-center">
+            <input
+              type="number"
+              value={item.quantity}
+              onChange={(e) => {
+                setQuoteLineItems(prev => prev.map(li =>
+                  li.id === item.id ? { ...li, quantity: parseInt(e.target.value) || 1 } : li
+                ));
+              }}
+              className="w-16 px-2 py-1 text-center border border-transparent hover:border-[var(--border)] focus:border-[var(--primary)] rounded bg-transparent focus:bg-white focus:outline-none"
+            />
+          </td>
+        );
+      case 'uom':
+        return <td key={colKey} className="px-3 py-2 text-sm text-center text-[var(--muted-foreground)]">{item.uom || 'EA'}</td>;
+      case 'endUser':
+        return (
+          <td key={colKey} className="px-3 py-2 text-sm">
+            <input
+              type="text"
+              value={item.endUser || ''}
+              onChange={(e) => {
+                setQuoteLineItems(prev => prev.map(li =>
+                  li.id === item.id ? { ...li, endUser: e.target.value } : li
+                ));
+              }}
+              placeholder="—"
+              className="w-24 px-2 py-1 border border-transparent hover:border-[var(--border)] focus:border-[var(--primary)] rounded bg-transparent focus:bg-white focus:outline-none text-sm"
+            />
+          </td>
+        );
+      case 'manufacturer':
+        return <td key={colKey} className="px-3 py-2 text-sm">{item.manufacturers[0]?.name || '—'}</td>;
+      case 'base':
+        return <td key={colKey} className="px-3 py-2 text-sm text-right text-[var(--muted-foreground)]">${item.basePrice.toLocaleString()}</td>;
+      case 'sell':
+        return (
+          <td key={colKey} className="px-3 py-2 text-sm text-right">
+            <input
+              type="text"
+              value={`$${item.sellPrice.toLocaleString()}`}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value.replace(/[$,]/g, '')) || 0;
+                setQuoteLineItems(prev => prev.map(li =>
+                  li.id === item.id ? { ...li, sellPrice: val } : li
+                ));
+              }}
+              className="w-24 px-2 py-1 text-right border border-transparent hover:border-[var(--border)] focus:border-[var(--primary)] rounded bg-transparent focus:bg-white focus:outline-none"
+            />
+          </td>
+        );
+      case 'sellTotal':
+        return <td key={colKey} className="px-3 py-2 text-sm text-right font-medium">${(item.sellPrice * item.quantity).toLocaleString()}</td>;
+      case 'commissionDiscountPercent':
+        return <td key={colKey} className="px-3 py-2 text-sm text-center text-[var(--muted-foreground)]">{item.commissionDiscountPercent ? `${item.commissionDiscountPercent}%` : '—'}</td>;
+      case 'commissionDiscountAmount':
+        return <td key={colKey} className="px-3 py-2 text-sm text-center text-[var(--muted-foreground)]">{item.commissionDiscountAmount ? `$${item.commissionDiscountAmount}` : '—'}</td>;
+      case 'lineDiscountPercent':
+        return <td key={colKey} className="px-3 py-2 text-sm text-center text-[var(--muted-foreground)]">{item.lineDiscountPercent ? `${item.lineDiscountPercent}%` : '—'}</td>;
+      case 'lineDiscountAmount':
+        return <td key={colKey} className="px-3 py-2 text-sm text-center text-[var(--muted-foreground)]">{item.lineDiscountAmount ? `$${item.lineDiscountAmount}` : '—'}</td>;
+      case 'leadTime':
+        return <td key={colKey} className="px-3 py-2 text-sm text-center text-[var(--muted-foreground)]">{item.leadTime || '—'}</td>;
+      case 'divisor':
+        return <td key={colKey} className="px-3 py-2 text-sm text-center text-[var(--muted-foreground)]">{item.useDivisor ? item.divisor : '—'}</td>;
+      case 'trend':
+        return <td key={colKey} className="px-3 py-2 text-sm text-center text-[var(--muted-foreground)]">—</td>;
+      case 'specSheet':
+        return (
+          <td key={colKey} className="px-3 py-2 text-sm text-center">
+            {item.hasSpecSheet ? (
+              <a href={item.specSheetUrl} target="_blank" rel="noopener noreferrer" className="text-[var(--primary)] hover:underline">View</a>
+            ) : '—'}
+          </td>
+        );
+      // Overage view columns (not typically shown in simple view but included for completeness)
+      case 'overage':
+        return <td key={colKey} className="px-3 py-2 text-sm text-center">{item.overagePercent}%</td>;
+      case 'overageAmt':
+        return <td key={colKey} className="px-3 py-2 text-sm text-right">${((item.sellPrice - item.basePrice) * item.quantity).toLocaleString()}</td>;
+      case 'commRate':
+        return <td key={colKey} className="px-3 py-2 text-sm text-center">{item.manufacturers[0]?.commissionRate || 0}%</td>;
+      case 'baseComm':
+        return <td key={colKey} className="px-3 py-2 text-sm text-right">${(item.basePrice * item.quantity * (item.manufacturers[0]?.commissionRate || 0) / 100).toLocaleString()}</td>;
+      case 'overageShare':
+        return <td key={colKey} className="px-3 py-2 text-sm text-center">{item.manufacturers[0]?.overageShare || 0}%</td>;
+      case 'overageComm':
+        return <td key={colKey} className="px-3 py-2 text-sm text-right">${(((item.sellPrice - item.basePrice) * item.quantity) * (item.manufacturers[0]?.overageShare || 0) / 100).toLocaleString()}</td>;
+      case 'totalEarn':
+        const baseCommVal = item.basePrice * item.quantity * (item.manufacturers[0]?.commissionRate || 0) / 100;
+        const overageCommVal = ((item.sellPrice - item.basePrice) * item.quantity) * (item.manufacturers[0]?.overageShare || 0) / 100;
+        return <td key={colKey} className="px-3 py-2 text-sm text-right font-medium">${(baseCommVal + overageCommVal).toLocaleString()}</td>;
+      case 'effRate':
+        const totalEarnVal = (item.basePrice * item.quantity * (item.manufacturers[0]?.commissionRate || 0) / 100) + (((item.sellPrice - item.basePrice) * item.quantity) * (item.manufacturers[0]?.overageShare || 0) / 100);
+        const sellTotalVal = item.sellPrice * item.quantity;
+        return <td key={colKey} className="px-3 py-2 text-sm text-center">{sellTotalVal > 0 ? ((totalEarnVal / sellTotalVal) * 100).toFixed(1) : 0}%</td>;
+      case 'l1':
+        return <td key={colKey} className="px-3 py-2 text-sm text-right text-[var(--muted-foreground)]">${item.level1Price.toLocaleString()}</td>;
+      case 'l2':
+        return <td key={colKey} className="px-3 py-2 text-sm text-right text-[var(--muted-foreground)]">${item.level2Price.toLocaleString()}</td>;
+      case 'l3':
+        return <td key={colKey} className="px-3 py-2 text-sm text-right text-[var(--muted-foreground)]">${item.level3Price.toLocaleString()}</td>;
+      case 'outsideReps':
+        return <td key={colKey} className="px-3 py-2 text-sm text-center">{item.outsideRepSplits.length > 0 ? item.outsideRepSplits.length : '—'}</td>;
+      default:
+        return <td key={colKey} className="px-3 py-2 text-sm">—</td>;
+    }
   };
 
   const applyView = (viewId: string) => {
@@ -3526,6 +3812,15 @@ export default function QuotesContent() {
       setShowSaveViewModal(false);
     }
   };
+
+  // Columns for Simple View (basic pricing only - no overage/commission columns)
+  const [simpleViewColumns, setSimpleViewColumns] = useState<Set<ColumnKey>>(new Set(['partNumber', 'description', 'quantity', 'uom', 'manufacturer', 'base', 'sell', 'sellTotal']));
+
+  // For backward compatibility
+  const simpleQuoteColumns = simpleViewColumns;
+
+  // Effective visible columns based on view mode
+  const effectiveVisibleColumns = quoteViewMode === 'simple' ? simpleViewColumns : visibleColumns;
 
   const deleteView = (viewId: string) => {
     if (['default', 'compact', 'pricing', 'approval'].includes(viewId)) return; // Can't delete built-in views
@@ -4097,7 +4392,7 @@ export default function QuotesContent() {
     });
 
     const currentItemIndex = visibleItems.findIndex(item => item.id === editingCell.itemId);
-    const visibleEditableColumns = editableColumns.filter(col => visibleColumns.has(col));
+    const visibleEditableColumns = editableColumns.filter(col => effectiveVisibleColumns.has(col));
     const currentColIndex = visibleEditableColumns.indexOf(editingCell.column);
 
     if (currentItemIndex === -1 || currentColIndex === -1) return;
@@ -4452,8 +4747,58 @@ export default function QuotesContent() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <WinProbabilityBadge probability={selectedQuote.winProbability} approvalStatus={selectedQuote.approvalStatus} />
-              <ApprovalStatusBadge status={selectedQuote.approvalStatus} count={selectedQuote.pendingApprovals} />
+              {/* View Mode Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowViewModeDropdown(!showViewModeDropdown)}
+                  className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M1 10s4-6 9-6 9 6 9 6-4 6-9 6-9-6-9-6z" strokeLinecap="round" strokeLinejoin="round"/>
+                    <circle cx="10" cy="10" r="3"/>
+                  </svg>
+                  {quoteViewMode === 'overage' ? 'Overage View' : 'Simple View'}
+                  <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+                {showViewModeDropdown && (
+                  <div className="absolute top-full right-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                    <button
+                      onClick={() => {
+                        setQuoteViewMode('overage');
+                        setShowViewModeDropdown(false);
+                      }}
+                      className={`w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-t-lg flex items-center justify-between ${
+                        quoteViewMode === 'overage' ? 'bg-[var(--primary)]/10 text-[var(--primary)]' : ''
+                      }`}
+                    >
+                      Overage View
+                      {quoteViewMode === 'overage' && (
+                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M4 10l4 4 8-8" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setQuoteViewMode('simple');
+                        setShowViewModeDropdown(false);
+                      }}
+                      className={`w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-b-lg flex items-center justify-between ${
+                        quoteViewMode === 'simple' ? 'bg-[var(--primary)]/10 text-[var(--primary)]' : ''
+                      }`}
+                    >
+                      Simple View
+                      {quoteViewMode === 'simple' && (
+                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M4 10l4 4 8-8" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
 
               {/* Generate PDF Button */}
               <button
@@ -4531,103 +4876,81 @@ export default function QuotesContent() {
           </div>
         </div>
 
-        {/* Pricing Summary Bar - Now First */}
-        <div className="border-b border-[var(--border)] bg-[var(--card)] flex-shrink-0">
-          <button
-            onClick={() => setShowSummaryBar(!showSummaryBar)}
-            className="w-full flex items-center justify-between px-6 py-2 hover:bg-[var(--muted)]/30 transition-colors"
-          >
-            <span className="text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wide">
-              {showSummaryBar ? 'Pricing Summary' : 'Show Pricing Summary'}
-            </span>
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 20 20"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              className={`text-[var(--muted-foreground)] transition-transform ${showSummaryBar ? '' : 'rotate-180'}`}
-            >
-              <path d="M6 12l4-4 4 4" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
-          {showSummaryBar && (
-            <div className="flex items-start justify-end gap-8 px-6 pb-4">
+        {/* Pricing Summary Bar */}
+        <div className="border-b border-[var(--border)] bg-[var(--card)] flex-shrink-0 px-6 py-2 flex items-center justify-end">
+          <div className="relative group">
+            <div className="flex items-center gap-3 text-xs cursor-pointer">
+              <span className="text-[var(--muted-foreground)]">
+                Base Price: <span className="font-medium text-[var(--foreground)]">${totals.baseTotal.toLocaleString()}</span>
+              </span>
+              <span className="text-[var(--muted-foreground)]">|</span>
+              <span className="text-[var(--muted-foreground)]">
+                Sell Price: <span className="font-semibold text-[var(--foreground)]">${totals.sellTotal.toLocaleString()}</span>
+              </span>
+              {quoteViewMode === 'overage' && (
+                <>
+                  <span className="text-[var(--muted-foreground)]">|</span>
+                  <span className="text-[var(--muted-foreground)]">
+                    Commission: <span className="font-medium text-purple-600">${totals.commission.toLocaleString()} ({totals.sellTotal > 0 ? ((totals.commission / totals.sellTotal) * 100).toFixed(1) : 0}%)</span>
+                  </span>
+                  <span className="text-[var(--muted-foreground)]">|</span>
+                  <span className="text-[var(--muted-foreground)]">
+                    Overage: <span className="font-medium text-orange-600">${totals.overage.toLocaleString()} ({totals.baseTotal > 0 ? ((totals.overage / totals.baseTotal) * 100).toFixed(1) : 0}%)</span>
+                  </span>
+                  <span className="text-[var(--muted-foreground)]">|</span>
+                  <span className="text-[var(--muted-foreground)]">
+                    Earnings: <span className="font-semibold text-green-600">${(totals.overage + totals.commission).toLocaleString()} ({totals.sellTotal > 0 ? (((totals.overage + totals.commission) / totals.sellTotal) * 100).toFixed(1) : 0}%)</span>
+                  </span>
+                </>
+              )}
+            </div>
 
-              {/* Right - Pricing Summary with Tooltip */}
-              <div className="relative group">
-                <div className="flex items-center gap-6 cursor-pointer">
-                  <div className="text-right">
-                    <p className="text-xs text-[var(--muted-foreground)] uppercase tracking-wide mb-1">Base Price</p>
-                    <p className="text-sm font-medium text-[var(--foreground)]">${totals.baseTotal.toLocaleString()}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-[var(--muted-foreground)] uppercase tracking-wide mb-1">Sell Price</p>
-                    <p className="text-sm font-medium text-[var(--foreground)]">${totals.sellTotal.toLocaleString()}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-[var(--muted-foreground)] uppercase tracking-wide mb-1">Commission</p>
-                    <p className="text-sm font-medium text-purple-600">${totals.commission.toLocaleString()} ({totals.sellTotal > 0 ? ((totals.commission / totals.sellTotal) * 100).toFixed(1) : 0}%)</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-[var(--muted-foreground)] uppercase tracking-wide mb-1">Overage</p>
-                    <p className="text-sm font-medium text-orange-600">${totals.overage.toLocaleString()} ({totals.baseTotal > 0 ? ((totals.overage / totals.baseTotal) * 100).toFixed(1) : 0}%)</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-[var(--muted-foreground)] uppercase tracking-wide mb-1">Earnings</p>
-                    <p className="text-sm font-semibold text-green-600">${(totals.overage + totals.commission).toLocaleString()} ({totals.sellTotal > 0 ? (((totals.overage + totals.commission) / totals.sellTotal) * 100).toFixed(1) : 0}%)</p>
-                  </div>
-                </div>
-
-                {/* Hover Tooltip with Price Levels */}
-                <div className="absolute top-full right-0 mt-2 bg-white border border-[var(--border)] rounded-lg shadow-xl z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 min-w-[500px]">
-                  <div className="p-4">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-[var(--border)]">
-                          <th className="text-left py-2 px-2 text-xs font-semibold text-[var(--muted-foreground)] uppercase">Level</th>
-                          <th className="text-right py-2 px-2 text-xs font-semibold text-[var(--muted-foreground)] uppercase">Base Price</th>
-                          <th className="text-right py-2 px-2 text-xs font-semibold text-[var(--muted-foreground)] uppercase">Sell Price</th>
-                          <th className="text-right py-2 px-2 text-xs font-semibold text-[var(--muted-foreground)] uppercase">Commission</th>
-                          <th className="text-right py-2 px-2 text-xs font-semibold text-[var(--muted-foreground)] uppercase">Overage</th>
-                          <th className="text-right py-2 px-2 text-xs font-semibold text-[var(--muted-foreground)] uppercase">Earnings</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {/* Sell Row */}
-                        <tr className="border-b border-[var(--border)]/50 bg-[var(--muted)]/20">
-                          <td className="py-2 px-2 font-medium text-[var(--foreground)]">Sell</td>
+            {/* Hover Tooltip with Price Levels */}
+            <div className="absolute top-full right-0 mt-2 bg-white border border-[var(--border)] rounded-lg shadow-xl z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 min-w-[500px]">
+              <div className="p-4">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-[var(--border)]">
+                      <th className="text-left py-2 px-2 text-xs font-semibold text-[var(--muted-foreground)] uppercase">Level</th>
+                      <th className="text-right py-2 px-2 text-xs font-semibold text-[var(--muted-foreground)] uppercase">Base Price</th>
+                      <th className="text-right py-2 px-2 text-xs font-semibold text-[var(--muted-foreground)] uppercase">Sell Price</th>
+                      <th className="text-right py-2 px-2 text-xs font-semibold text-[var(--muted-foreground)] uppercase">Commission</th>
+                      <th className="text-right py-2 px-2 text-xs font-semibold text-[var(--muted-foreground)] uppercase">Overage</th>
+                      <th className="text-right py-2 px-2 text-xs font-semibold text-[var(--muted-foreground)] uppercase">Earnings</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Sell Row */}
+                    <tr className="border-b border-[var(--border)]/50 bg-[var(--muted)]/20">
+                      <td className="py-2 px-2 font-medium text-[var(--foreground)]">Sell</td>
+                      <td className="py-2 px-2 text-right text-[var(--foreground)]">${totals.baseTotal.toLocaleString()}</td>
+                      <td className="py-2 px-2 text-right text-[var(--foreground)]">${totals.sellTotal.toLocaleString()}</td>
+                      <td className="py-2 px-2 text-right text-purple-600">${totals.commission.toLocaleString()} ({totals.sellTotal > 0 ? ((totals.commission / totals.sellTotal) * 100).toFixed(1) : 0}%)</td>
+                      <td className="py-2 px-2 text-right text-orange-600">${totals.overage.toLocaleString()} ({totals.baseTotal > 0 ? ((totals.overage / totals.baseTotal) * 100).toFixed(1) : 0}%)</td>
+                      <td className="py-2 px-2 text-right font-semibold text-green-600">${(totals.overage + totals.commission).toLocaleString()} ({totals.sellTotal > 0 ? (((totals.overage + totals.commission) / totals.sellTotal) * 100).toFixed(1) : 0}%)</td>
+                    </tr>
+                    {/* Dynamic Price Level Rows */}
+                    {quotePriceLevels.map((level, index) => {
+                      const levelSellPrice = totals.sellTotal * (1 + level.percent / 100);
+                      const levelOverage = levelSellPrice - totals.baseTotal;
+                      const levelCommission = totals.commission * (1 + level.percent / 100);
+                      const levelEarnings = levelOverage + levelCommission;
+                      return (
+                        <tr key={level.id} className="border-b border-[var(--border)]/50 last:border-b-0">
+                          <td className={`py-2 px-2 font-medium ${priceLevelColors[index % priceLevelColors.length]}`}>L{index + 1}</td>
                           <td className="py-2 px-2 text-right text-[var(--foreground)]">${totals.baseTotal.toLocaleString()}</td>
-                          <td className="py-2 px-2 text-right text-[var(--foreground)]">${totals.sellTotal.toLocaleString()}</td>
-                          <td className="py-2 px-2 text-right text-purple-600">${totals.commission.toLocaleString()} ({totals.sellTotal > 0 ? ((totals.commission / totals.sellTotal) * 100).toFixed(1) : 0}%)</td>
-                          <td className="py-2 px-2 text-right text-orange-600">${totals.overage.toLocaleString()} ({totals.baseTotal > 0 ? ((totals.overage / totals.baseTotal) * 100).toFixed(1) : 0}%)</td>
-                          <td className="py-2 px-2 text-right font-semibold text-green-600">${(totals.overage + totals.commission).toLocaleString()} ({totals.sellTotal > 0 ? (((totals.overage + totals.commission) / totals.sellTotal) * 100).toFixed(1) : 0}%)</td>
+                          <td className="py-2 px-2 text-right text-[var(--foreground)]">${levelSellPrice.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                          <td className="py-2 px-2 text-right text-purple-600">${levelCommission.toLocaleString(undefined, { maximumFractionDigits: 0 })} ({levelSellPrice > 0 ? ((levelCommission / levelSellPrice) * 100).toFixed(1) : 0}%)</td>
+                          <td className="py-2 px-2 text-right text-orange-600">${levelOverage.toLocaleString(undefined, { maximumFractionDigits: 0 })} ({totals.baseTotal > 0 ? ((levelOverage / totals.baseTotal) * 100).toFixed(1) : 0}%)</td>
+                          <td className="py-2 px-2 text-right font-semibold text-green-600">${levelEarnings.toLocaleString(undefined, { maximumFractionDigits: 0 })} ({levelSellPrice > 0 ? ((levelEarnings / levelSellPrice) * 100).toFixed(1) : 0}%)</td>
                         </tr>
-                        {/* Dynamic Price Level Rows */}
-                        {quotePriceLevels.map((level, index) => {
-                          const levelSellPrice = totals.sellTotal * (1 + level.percent / 100);
-                          const levelOverage = levelSellPrice - totals.baseTotal;
-                          const levelCommission = totals.commission * (1 + level.percent / 100);
-                          const levelEarnings = levelOverage + levelCommission;
-                          return (
-                            <tr key={level.id} className="border-b border-[var(--border)]/50 last:border-b-0">
-                              <td className={`py-2 px-2 font-medium ${priceLevelColors[index % priceLevelColors.length]}`}>L{index + 1}</td>
-                              <td className="py-2 px-2 text-right text-[var(--foreground)]">${totals.baseTotal.toLocaleString()}</td>
-                              <td className="py-2 px-2 text-right text-[var(--foreground)]">${levelSellPrice.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                              <td className="py-2 px-2 text-right text-purple-600">${levelCommission.toLocaleString(undefined, { maximumFractionDigits: 0 })} ({levelSellPrice > 0 ? ((levelCommission / levelSellPrice) * 100).toFixed(1) : 0}%)</td>
-                              <td className="py-2 px-2 text-right text-orange-600">${levelOverage.toLocaleString(undefined, { maximumFractionDigits: 0 })} ({totals.baseTotal > 0 ? ((levelOverage / totals.baseTotal) * 100).toFixed(1) : 0}%)</td>
-                              <td className="py-2 px-2 text-right font-semibold text-green-600">${levelEarnings.toLocaleString(undefined, { maximumFractionDigits: 0 })} ({levelSellPrice > 0 ? ((levelEarnings / levelSellPrice) * 100).toFixed(1) : 0}%)</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
-          )}
+          </div>
         </div>
 
         {/* Collapsible Header Fields Section */}
@@ -4653,8 +4976,8 @@ export default function QuotesContent() {
           </button>
           {showHeaderFields && (
             <div className="px-6 pb-4">
-              {/* Row 1: Quote Number, Sold To, Bill To, Job, Payment Terms, Freight Terms */}
-              <div className="grid grid-cols-6 gap-4 mb-4">
+              {/* Row 1: Quote Number, Sold To, Bill To, End User (conditional), Job, Payment Terms, Freight Terms */}
+              <div className={`grid gap-4 mb-4 ${!showEndUserPerLine ? 'grid-cols-7' : 'grid-cols-6'}`}>
                 {/* Quote Number */}
                 <div>
                   <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
@@ -4725,6 +5048,56 @@ export default function QuotesContent() {
                     </svg>
                   </div>
                 </div>
+
+                {/* End User - Only show if not per-line */}
+                {!showEndUserPerLine && (
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
+                      End User
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={endUserSameAsCustomer ? selectedQuote.soldToCustomer : headerEndUser}
+                        onChange={(e) => {
+                          setHeaderEndUser(e.target.value);
+                          if (e.target.value !== selectedQuote.soldToCustomer) {
+                            setEndUserSameAsCustomer(false);
+                          }
+                        }}
+                        disabled={endUserSameAsCustomer}
+                        className={`w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none cursor-pointer pr-8 ${
+                          endUserSameAsCustomer ? 'bg-[var(--muted)]/30 text-[var(--muted-foreground)]' : ''
+                        }`}
+                      >
+                        <option value="">Select End User...</option>
+                        <option value={selectedQuote.soldToCustomer}>{selectedQuote.soldToCustomer}</option>
+                        <option value="Turner Construction">Turner Construction</option>
+                        <option value="Hensel Phelps">Hensel Phelps</option>
+                        <option value="McCarthy Building">McCarthy Building</option>
+                        <option value="Skanska USA">Skanska USA</option>
+                        <option value="Clark Construction">Clark Construction</option>
+                        <option value="DPR Construction">DPR Construction</option>
+                      </select>
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]">
+                        <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </div>
+                    <label className="flex items-center gap-1.5 mt-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={endUserSameAsCustomer}
+                        onChange={(e) => {
+                          setEndUserSameAsCustomer(e.target.checked);
+                          if (e.target.checked) {
+                            setHeaderEndUser(selectedQuote.soldToCustomer);
+                          }
+                        }}
+                        className="w-3.5 h-3.5 accent-[var(--primary)]"
+                      />
+                      <span className="text-xs text-[var(--muted-foreground)]">Same as Sold To</span>
+                    </label>
+                  </div>
+                )}
 
                 {/* Job */}
                 <div>
@@ -4851,19 +5224,19 @@ export default function QuotesContent() {
           {/* Main Content */}
           <div className="flex-1 flex flex-col p-6 min-w-0 overflow-hidden">
             {/* Tabs */}
-            <div className="flex gap-1 mb-6 border-b border-[var(--border)] flex-shrink-0">
+            <div className="flex gap-1 mb-6 border-b border-[var(--border)] flex-shrink-0 bg-white -mx-6 px-6 pt-4 -mt-6">
               {[
                 { id: 'lines', label: 'Line Items', count: quoteLineItems.length },
-                { id: 'approvals', label: 'Approvals', count: selectedQuote.pendingApprovals },
+                { id: 'approvals', label: 'Approvals', count: selectedQuote.pendingApprovals, hideInSimple: true },
                 { id: 'recipients', label: 'Recipients', count: 4 },
-                { id: 'submittals', label: 'Submittals' },
+                { id: 'submittals', label: 'Submittals', hideInSimple: true },
                 { id: 'notes', label: 'Notes' },
                 { id: 'tasks', label: 'Tasks' },
                 { id: 'activity', label: 'Activity' },
                 { id: 'files', label: 'Files', count: quoteFiles.filter(f => f.quoteId === selectedQuote.id).length },
                 { id: 'versions', label: 'Versions' },
                 { id: 'settings', label: 'Settings' },
-              ].map(tab => (
+              ].filter(tab => !(quoteViewMode === 'simple' && tab.hideInSimple)).map(tab => (
                 <button
                   key={tab.id}
                   onClick={() => setDetailTab(tab.id as typeof detailTab)}
@@ -4908,20 +5281,22 @@ export default function QuotesContent() {
                     </button>
 
                     {/* Auto-Calculate Overage Button */}
-                    <button
-                      onClick={() => setShowAutoCalcModal(true)}
-                      className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors ml-2"
-                      title="Auto-calculate overage for all lines"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                        <rect x="3" y="3" width="14" height="14" rx="2"/>
-                        <path d="M7 7h2v6H7M11 7h2v3h-2M11 12h2v1h-2" strokeLinecap="round"/>
-                      </svg>
-                      Auto-Calc
-                    </button>
+                    {quoteViewMode === 'overage' && (
+                      <button
+                        onClick={() => setShowAutoCalcModal(true)}
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors ml-2"
+                        title="Auto-calculate overage for all lines"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                          <rect x="3" y="3" width="14" height="14" rx="2"/>
+                          <path d="M7 7h2v6H7M11 7h2v3h-2M11 12h2v1h-2" strokeLinecap="round"/>
+                        </svg>
+                        Auto-Calc
+                      </button>
+                    )}
 
                     {/* Recipient Dropdown */}
-                    <div className="relative ml-4">
+                    {quoteViewMode === 'overage' && <div className="relative ml-4">
                       <button
                         onClick={() => setShowRecipientDropdown(!showRecipientDropdown)}
                         className={`flex items-center gap-2 px-3 py-1.5 text-sm border rounded-lg transition-colors ${
@@ -5032,10 +5407,10 @@ export default function QuotesContent() {
                           ))}
                         </div>
                       )}
-                    </div>
+                    </div>}
 
                     {/* Compare to Original Button */}
-                    {selectedRecipient && (
+                    {quoteViewMode === 'overage' && selectedRecipient && (
                       <button
                         onClick={() => setShowCompareView(!showCompareView)}
                         className={`flex items-center gap-2 px-3 py-1.5 text-sm border rounded-lg transition-colors ${
@@ -5171,44 +5546,35 @@ export default function QuotesContent() {
                       )}
                     </div>
 
-                    {/* Columns Dropdown */}
-                    <div className="relative">
+                    {/* Sections Toggle - only in simple view */}
+                    {quoteViewMode === 'simple' && (
                       <button
-                        onClick={() => { setShowColumnsMenu(!showColumnsMenu); setShowViewsMenu(false); }}
-                        className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                        onClick={() => setShowSections(!showSections)}
+                        className={`flex items-center gap-2 px-3 py-1.5 text-sm border rounded-lg transition-colors ${
+                          showSections
+                            ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]'
+                            : 'border-[var(--border)] hover:bg-[var(--muted)]'
+                        }`}
                       >
                         <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M4 6h12M4 10h12M4 14h12" strokeLinecap="round"/>
+                          <rect x="3" y="3" width="14" height="4" rx="1"/>
+                          <rect x="3" y="10" width="14" height="7" rx="1"/>
                         </svg>
-                        Columns
-                        <span className="px-1.5 py-0.5 bg-[var(--muted)] rounded text-xs">{visibleColumns.size}</span>
+                        Sections
                       </button>
-                      {showColumnsMenu && (
-                        <div className="absolute top-full right-0 mt-1 w-64 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20 max-h-80 overflow-y-auto">
-                          {['Basic', 'Pricing', 'Details'].map(group => (
-                            <div key={group}>
-                              <div className="px-4 py-2 bg-[var(--muted)]/30 text-xs font-semibold text-[var(--muted-foreground)] uppercase">
-                                {group}
-                              </div>
-                              {columnDefinitions.filter(c => c.group === group).map(col => (
-                                <label
-                                  key={col.key}
-                                  className="flex items-center gap-3 px-4 py-2 hover:bg-[var(--muted)] transition-colors cursor-pointer"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={visibleColumns.has(col.key)}
-                                    onChange={() => toggleColumn(col.key)}
-                                    className="accent-[var(--primary)]"
-                                  />
-                                  <span className="text-sm">{col.label}</span>
-                                </label>
-                              ))}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    )}
+
+                    {/* Columns Button - Opens Modal */}
+                    <button
+                      onClick={() => { setShowColumnsMenu(true); setShowViewsMenu(false); }}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M4 6h12M4 10h12M4 14h12" strokeLinecap="round"/>
+                      </svg>
+                      Columns
+                      <span className="px-1.5 py-0.5 bg-[var(--muted)] rounded text-xs">{effectiveVisibleColumns.size}</span>
+                    </button>
 
                     <span className="text-sm text-[var(--muted-foreground)]">
                       {quoteLineItems.length} items
@@ -5219,8 +5585,135 @@ export default function QuotesContent() {
                 {/* Sections with Line Items - Single Scrollable Table */}
                 <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-x-auto">
                   <div>
+                    {/* Simple View Table */}
+                    {quoteViewMode === 'simple' && (
                     <table className="w-full min-w-[1400px]">
-                      {/* Table Header with Sort and Filter Icons */}
+                      {/* Table Header - Dynamically rendered in columnOrder */}
+                      <thead className="bg-[var(--card)] sticky top-0 z-20 shadow-sm">
+                        <tr>
+                          {/* Checkbox column - always first */}
+                          <th className="w-10 px-3 py-2 text-left">
+                            <input
+                              type="checkbox"
+                              checked={quoteLineItems.length > 0 && quoteLineItems.every(item => selectedLineItems.has(item.id))}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedLineItems(new Set(quoteLineItems.map(i => i.id)));
+                                } else {
+                                  setSelectedLineItems(new Set());
+                                }
+                              }}
+                              className="accent-[var(--primary)]"
+                            />
+                          </th>
+                          {/* Section column - only in simple view with sections enabled */}
+                          {quoteViewMode === 'simple' && showSections && (
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">
+                              Section
+                            </th>
+                          )}
+                          {/* Dynamic columns based on columnOrder */}
+                          {getOrderedVisibleColumns().map(colKey => renderHeaderCell(colKey))}
+                          {/* Empty header for expand/more button column - always last */}
+                          <th className="px-2 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase w-10"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {/* Simple View - Flat list with Section column */}
+                        {quoteViewMode === 'simple' && quoteLineItems
+                          .filter(item => {
+                            const partFilter = columnFilters['partNumber']?.toLowerCase() || '';
+                            const descFilter = columnFilters['description']?.toLowerCase() || '';
+                            const mfrFilter = columnFilters['manufacturer']?.toLowerCase() || '';
+                            return (
+                              (!partFilter || item.productNumber.toLowerCase().includes(partFilter)) &&
+                              (!descFilter || item.description.toLowerCase().includes(descFilter)) &&
+                              (!mfrFilter || item.manufacturers[0].name.toLowerCase().includes(mfrFilter))
+                            );
+                          })
+                          .sort((a, b) => {
+                            if (!sortColumn) return 0;
+                            let aVal: string | number = '';
+                            let bVal: string | number = '';
+                            switch (sortColumn) {
+                              case 'partNumber': aVal = a.productNumber; bVal = b.productNumber; break;
+                              case 'description': aVal = a.description; bVal = b.description; break;
+                              case 'quantity': aVal = a.quantity; bVal = b.quantity; break;
+                              case 'manufacturer': aVal = a.manufacturers[0].name; bVal = b.manufacturers[0].name; break;
+                              case 'base': aVal = a.basePrice; bVal = b.basePrice; break;
+                              case 'sell': aVal = a.sellPrice; bVal = b.sellPrice; break;
+                            }
+                            if (typeof aVal === 'string') {
+                              return sortDirection === 'asc' ? aVal.localeCompare(bVal as string) : (bVal as string).localeCompare(aVal);
+                            }
+                            return sortDirection === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
+                          })
+                          .map(item => {
+                            const section = mockSections.find(s => s.id === item.sectionId);
+                            return (
+                              <tr
+                                key={item.id}
+                                className={`border-b border-[var(--border)] hover:bg-[var(--muted)]/20 transition-colors ${
+                                  selectedLineItems.has(item.id) ? 'bg-[var(--primary)]/5' : ''
+                                }`}
+                              >
+                                {/* Checkbox */}
+                                <td className="px-3 py-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedLineItems.has(item.id)}
+                                    onChange={() => toggleLineItemSelection(item.id)}
+                                    className="accent-[var(--primary)]"
+                                  />
+                                </td>
+                                {/* Section selector */}
+                                {showSections && (
+                                  <td className="px-3 py-2 text-sm text-[var(--muted-foreground)]">
+                                    <select
+                                      value={item.sectionId}
+                                      onChange={(e) => {
+                                        setQuoteLineItems(prev => prev.map(li =>
+                                          li.id === item.id ? { ...li, sectionId: e.target.value } : li
+                                        ));
+                                      }}
+                                      className="bg-transparent border-none text-sm text-[var(--foreground)] cursor-pointer hover:bg-[var(--muted)] rounded px-1 py-0.5 -ml-1"
+                                    >
+                                      {mockSections.map(s => (
+                                        <option key={s.id} value={s.id}>{s.name}</option>
+                                      ))}
+                                    </select>
+                                  </td>
+                                )}
+                                {/* Dynamic cells based on columnOrder */}
+                                {getOrderedVisibleColumns().map(colKey => renderBodyCell(colKey, item))}
+                                {/* Actions column - always last */}
+                                <td className="px-2 py-2 text-center">
+                                  <button
+                                    onClick={() => {
+                                      setLineDetailsModalItem(item);
+                                      setShowLineDetailsModal(true);
+                                    }}
+                                    className="p-1.5 hover:bg-[var(--muted)] rounded-lg transition-colors text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                                    title="More details"
+                                  >
+                                    <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                                      <circle cx="10" cy="4" r="2"/>
+                                      <circle cx="10" cy="10" r="2"/>
+                                      <circle cx="10" cy="16" r="2"/>
+                                    </svg>
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        }
+                      </tbody>
+                    </table>
+                    )}
+                    {/* Overage View Table */}
+                    {quoteViewMode === 'overage' && (
+                    <table className="w-full min-w-[1400px]">
+                      {/* Table Header for Overage View */}
                       <thead className="bg-[var(--card)] sticky top-0 z-20 shadow-sm">
                         <tr>
                           <th className="w-10 px-3 py-2 text-left">
@@ -5237,7 +5730,7 @@ export default function QuotesContent() {
                               className="accent-[var(--primary)]"
                             />
                           </th>
-                          {visibleColumns.has('partNumber') && (
+                          {effectiveVisibleColumns.has('partNumber') && (
                             <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase relative">
                                       <div className="flex items-center gap-1">
                                         <span className="cursor-pointer hover:text-[var(--foreground)]" onClick={() => handleSort('partNumber')}>Part #</span>
@@ -5278,7 +5771,7 @@ export default function QuotesContent() {
                                       )}
                                     </th>
                                   )}
-                                  {visibleColumns.has('description') && (
+                                  {effectiveVisibleColumns.has('description') && (
                                     <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase relative">
                                       <div className="flex items-center gap-1">
                                         <span className="cursor-pointer hover:text-[var(--foreground)]" onClick={() => handleSort('description')}>Description</span>
@@ -5360,7 +5853,7 @@ export default function QuotesContent() {
                                       )}
                                     </th>
                                   )}
-                                  {visibleColumns.has('manufacturer') && (
+                                  {effectiveVisibleColumns.has('manufacturer') && (
                                     <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase relative">
                                       <div className="flex items-center gap-1">
                                         <span className="cursor-pointer hover:text-[var(--foreground)]" onClick={() => handleSort('manufacturer')}>Mfr</span>
@@ -5401,7 +5894,7 @@ export default function QuotesContent() {
                                       )}
                                     </th>
                                   )}
-                                  {visibleColumns.has('quantity') && (
+                                  {effectiveVisibleColumns.has('quantity') && (
                                     <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase cursor-pointer hover:text-[var(--foreground)]" onClick={() => handleSort('quantity')}>
                                       <div className="flex items-center justify-center gap-1">
                                         Qty
@@ -5413,7 +5906,12 @@ export default function QuotesContent() {
                                       </div>
                                     </th>
                                   )}
-                                  {visibleColumns.has('base') && (
+                                  {effectiveVisibleColumns.has('uom') && (
+                                    <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase">
+                                      UOM
+                                    </th>
+                                  )}
+                                  {effectiveVisibleColumns.has('base') && (
                                     <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase cursor-pointer hover:text-[var(--foreground)] whitespace-nowrap" onClick={() => handleSort('base')}>
                                       <div className="flex items-center justify-center gap-1">
                                         Base Unit $
@@ -5440,7 +5938,7 @@ export default function QuotesContent() {
                                     </th>
                                   ) : (
                                     <>
-                                      {visibleColumns.has('overage') && (
+                                      {effectiveVisibleColumns.has('overage') && (
                                         <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase cursor-pointer hover:text-[var(--foreground)]" onClick={() => handleSort('overage')}>
                                           <div className="flex items-center justify-center gap-1">
                                             % Over
@@ -5452,7 +5950,7 @@ export default function QuotesContent() {
                                           </div>
                                         </th>
                                       )}
-                                      {visibleColumns.has('sell') && (
+                                      {effectiveVisibleColumns.has('sell') && (
                                         <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase cursor-pointer hover:text-[var(--foreground)] whitespace-nowrap" onClick={() => handleSort('sell')}>
                                           <div className="flex items-center justify-center gap-1">
                                             Sell Unit $
@@ -5464,7 +5962,7 @@ export default function QuotesContent() {
                                           </div>
                                         </th>
                                       )}
-                                      {visibleColumns.has('sellTotal') && (
+                                      {effectiveVisibleColumns.has('sellTotal') && (
                                         <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase cursor-pointer hover:text-[var(--foreground)] whitespace-nowrap" onClick={() => handleSort('sellTotal')}>
                                           <div className="flex items-center justify-center gap-1">
                                             Sell $
@@ -5476,7 +5974,7 @@ export default function QuotesContent() {
                                           </div>
                                         </th>
                                       )}
-                                      {visibleColumns.has('l1') && (
+                                      {effectiveVisibleColumns.has('l1') && (
                                         <th className="px-3 py-2 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase cursor-pointer hover:text-[var(--foreground)]" onClick={() => handleSort('l1')}>
                                           <div className="flex items-center justify-end gap-1">
                                             L1
@@ -5488,7 +5986,7 @@ export default function QuotesContent() {
                                           </div>
                                         </th>
                                       )}
-                                      {visibleColumns.has('l2') && (
+                                      {effectiveVisibleColumns.has('l2') && (
                                         <th className="px-3 py-2 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase cursor-pointer hover:text-[var(--foreground)]" onClick={() => handleSort('l2')}>
                                           <div className="flex items-center justify-end gap-1">
                                             L2
@@ -5500,45 +5998,63 @@ export default function QuotesContent() {
                                           </div>
                                         </th>
                                       )}
-                                      {visibleColumns.has('l3') && (
+                                      {effectiveVisibleColumns.has('l3') && (
                                         <th className="px-3 py-2 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase">L3</th>
                                       )}
                                     </>
                                   )}
-                                  {visibleColumns.has('commRate') && (
+                                  {effectiveVisibleColumns.has('commRate') && (
                                     <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">Com %</th>
                                   )}
-                                  {visibleColumns.has('baseComm') && (
+                                  {effectiveVisibleColumns.has('baseComm') && (
                                     <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">Com $</th>
                                   )}
-                                  {visibleColumns.has('overageShare') && (
+                                  {effectiveVisibleColumns.has('overageShare') && (
                                     <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">Ovg %</th>
                                   )}
-                                  {visibleColumns.has('overageComm') && (
+                                  {effectiveVisibleColumns.has('overageComm') && (
                                     <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">Ovg $</th>
                                   )}
-                                  {visibleColumns.has('effRate') && (
+                                  {effectiveVisibleColumns.has('effRate') && (
                                     <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">Earn %</th>
                                   )}
-                                  {visibleColumns.has('totalEarn') && (
+                                  {effectiveVisibleColumns.has('totalEarn') && (
                                     <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">Earn $</th>
                                   )}
-                                  {visibleColumns.has('trend') && (
+                                  {effectiveVisibleColumns.has('trend') && (
                                     <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase">Trend</th>
                                   )}
-                          {visibleColumns.has('specSheet') && (
+                          {effectiveVisibleColumns.has('specSheet') && (
                             <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase">Spec</th>
                           )}
-                          {visibleColumns.has('outsideReps') && (
+                          {effectiveVisibleColumns.has('outsideReps') && showCommissionSplits && (
                             <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">Outside Reps</th>
                           )}
-                          {visibleColumns.has('divisor') && (
+                          {effectiveVisibleColumns.has('commissionDiscountPercent') && (
+                            <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">Comm Disc %</th>
+                          )}
+                          {effectiveVisibleColumns.has('commissionDiscountAmount') && (
+                            <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">Comm Disc $</th>
+                          )}
+                          {effectiveVisibleColumns.has('lineDiscountPercent') && (
+                            <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">Line Disc %</th>
+                          )}
+                          {effectiveVisibleColumns.has('lineDiscountAmount') && (
+                            <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">Line Disc $</th>
+                          )}
+                          {effectiveVisibleColumns.has('leadTime') && (
+                            <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">Lead Time</th>
+                          )}
+                          {effectiveVisibleColumns.has('divisor') && (
                             <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">Multiplier</th>
                           )}
+                          {/* Empty header for expand/more button column */}
+                          <th className="px-2 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase w-10"></th>
                         </tr>
                       </thead>
                       <tbody>
-                        {mockSections.map(section => {
+                        {/* Overage View - Sections with headers and totals */}
+                        {quoteViewMode === 'overage' && mockSections.map(section => {
                           const sectionItems = quoteLineItems.filter(li => li.sectionId === section.id);
                           if (sectionItems.length === 0) return null;
 
@@ -5579,7 +6095,7 @@ export default function QuotesContent() {
                           );
 
                           // Calculate total columns for colspan
-                          const totalColumns = 1 + visibleColumns.size; // checkbox + visible columns
+                          const totalColumns = 1 + effectiveVisibleColumns.size; // checkbox + visible columns
 
                           // Filter and sort section items
                           const filteredSortedItems = sectionItems
@@ -5678,18 +6194,22 @@ export default function QuotesContent() {
                                         <span className="text-[var(--muted-foreground)]">
                                           Sell Price: <span className="font-semibold text-[var(--foreground)]">${sectionTotals.sellTotal.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
                                         </span>
-                                        <span className="text-[var(--muted-foreground)]">|</span>
-                                        <span className="text-[var(--muted-foreground)]">
-                                          Commission: <span className="font-medium text-purple-600">${sectionTotals.commissionTotal.toLocaleString(undefined, {maximumFractionDigits: 0})} ({sectionTotals.sellTotal > 0 ? ((sectionTotals.commissionTotal / sectionTotals.sellTotal) * 100).toFixed(1) : 0}%)</span>
-                                        </span>
-                                        <span className="text-[var(--muted-foreground)]">|</span>
-                                        <span className="text-[var(--muted-foreground)]">
-                                          Overage: <span className="font-medium text-orange-600">${sectionTotals.overageTotal.toLocaleString(undefined, {maximumFractionDigits: 0})} ({sectionTotals.baseTotal > 0 ? ((sectionTotals.overageTotal / sectionTotals.baseTotal) * 100).toFixed(1) : 0}%)</span>
-                                        </span>
-                                        <span className="text-[var(--muted-foreground)]">|</span>
-                                        <span className="text-[var(--muted-foreground)]">
-                                          Earnings: <span className="font-semibold text-green-600">${(sectionTotals.overageTotal + sectionTotals.commissionTotal).toLocaleString(undefined, {maximumFractionDigits: 0})} ({sectionTotals.sellTotal > 0 ? (((sectionTotals.overageTotal + sectionTotals.commissionTotal) / sectionTotals.sellTotal) * 100).toFixed(1) : 0}%)</span>
-                                        </span>
+                                        {quoteViewMode === 'overage' && (
+                                          <>
+                                            <span className="text-[var(--muted-foreground)]">|</span>
+                                            <span className="text-[var(--muted-foreground)]">
+                                              Commission: <span className="font-medium text-purple-600">${sectionTotals.commissionTotal.toLocaleString(undefined, {maximumFractionDigits: 0})} ({sectionTotals.sellTotal > 0 ? ((sectionTotals.commissionTotal / sectionTotals.sellTotal) * 100).toFixed(1) : 0}%)</span>
+                                            </span>
+                                            <span className="text-[var(--muted-foreground)]">|</span>
+                                            <span className="text-[var(--muted-foreground)]">
+                                              Overage: <span className="font-medium text-orange-600">${sectionTotals.overageTotal.toLocaleString(undefined, {maximumFractionDigits: 0})} ({sectionTotals.baseTotal > 0 ? ((sectionTotals.overageTotal / sectionTotals.baseTotal) * 100).toFixed(1) : 0}%)</span>
+                                            </span>
+                                            <span className="text-[var(--muted-foreground)]">|</span>
+                                            <span className="text-[var(--muted-foreground)]">
+                                              Earnings: <span className="font-semibold text-green-600">${(sectionTotals.overageTotal + sectionTotals.commissionTotal).toLocaleString(undefined, {maximumFractionDigits: 0})} ({sectionTotals.sellTotal > 0 ? (((sectionTotals.overageTotal + sectionTotals.commissionTotal) / sectionTotals.sellTotal) * 100).toFixed(1) : 0}%)</span>
+                                            </span>
+                                          </>
+                                        )}
                                       </div>
                                       <button
                                         onClick={(e) => { e.stopPropagation(); }}
@@ -5773,7 +6293,7 @@ export default function QuotesContent() {
                                         </button>
                                       </div>
                                     </td>
-                                    {visibleColumns.has('partNumber') && (
+                                    {effectiveVisibleColumns.has('partNumber') && (
                                       <td className="px-3 py-2 font-mono text-sm text-[var(--foreground)]">
                                         {editingCell?.itemId === item.id && editingCell?.column === 'partNumber' ? (
                                           <input
@@ -5792,7 +6312,7 @@ export default function QuotesContent() {
                                         )}
                                       </td>
                                     )}
-                                    {visibleColumns.has('description') && (
+                                    {effectiveVisibleColumns.has('description') && (
                                       <td className="px-3 py-2 text-sm text-[var(--foreground)] max-w-[300px]">
                                         {editingCell?.itemId === item.id && editingCell?.column === 'description' ? (
                                           <input
@@ -5832,7 +6352,7 @@ export default function QuotesContent() {
                                         </select>
                                       </td>
                                     )}
-                                    {visibleColumns.has('manufacturer') && (
+                                    {effectiveVisibleColumns.has('manufacturer') && (
                                       <td className="px-3 py-2">
                                         <div className="flex items-center gap-1">
                                           <LineApprovalIcon status={item.manufacturers[0].approvalStatus} />
@@ -5842,7 +6362,7 @@ export default function QuotesContent() {
                                         </div>
                                       </td>
                                     )}
-                                    {visibleColumns.has('quantity') && (
+                                    {effectiveVisibleColumns.has('quantity') && (
                                       <td className="px-3 py-2 text-right text-sm text-[var(--foreground)]">
                                         {editingCell?.itemId === item.id && editingCell?.column === 'quantity' ? (
                                           <input
@@ -5862,28 +6382,14 @@ export default function QuotesContent() {
                                         )}
                                       </td>
                                     )}
-                                    {visibleColumns.has('base') && (
+                                    {effectiveVisibleColumns.has('uom') && (
+                                      <td className="px-3 py-2 text-center text-sm text-[var(--muted-foreground)]">
+                                        {item.uom || 'EA'}
+                                      </td>
+                                    )}
+                                    {effectiveVisibleColumns.has('base') && (
                                       <td className="px-3 py-2 text-right text-sm text-[var(--muted-foreground)]">
-                                        {editingCell?.itemId === item.id && editingCell?.column === 'base' ? (
-                                          <input
-                                            type="text"
-                                            inputMode="decimal"
-                                            value={editValue}
-                                            onChange={(e) => setEditValue(e.target.value)}
-                                            onBlur={() => saveEdit()}
-                                            onKeyDown={(e) => e.key === 'Enter' ? saveEdit() : e.key === 'Escape' && cancelEdit()}
-                                            className="w-24 px-2 py-1 text-sm border border-[var(--primary)] rounded focus:outline-none text-right"
-                                            autoFocus
-                                          />
-                                        ) : (
-                                          <span
-                                            className="cursor-pointer hover:bg-[var(--muted)]/50 px-1 rounded"
-                                            onClick={() => startEditing(item.id, 'base', item.basePrice.toFixed(2))}
-                                            title="Click to edit base price"
-                                          >
-                                            ${item.basePrice.toFixed(2)}
-                                          </span>
-                                        )}
+                                        ${item.basePrice.toFixed(2)}
                                       </td>
                                     )}
                                     {/* Show single Price column when recipient selected, otherwise show all price columns */}
@@ -5925,7 +6431,7 @@ export default function QuotesContent() {
                                       </td>
                                     ) : (
                                       <>
-                                        {visibleColumns.has('overage') && (
+                                        {effectiveVisibleColumns.has('overage') && (
                                           <td className="px-3 py-2 text-right">
                                             {editingCell?.itemId === item.id && editingCell?.column === 'overage' ? (
                                               <input
@@ -5950,7 +6456,7 @@ export default function QuotesContent() {
                                             )}
                                           </td>
                                         )}
-                                        {visibleColumns.has('sell') && (
+                                        {effectiveVisibleColumns.has('sell') && (
                                           <td className="px-3 py-2 text-right text-sm font-medium text-[var(--foreground)]">
                                             {editingCell?.itemId === item.id && editingCell?.column === 'sell' ? (
                                               <input
@@ -5971,12 +6477,12 @@ export default function QuotesContent() {
                                             )}
                                           </td>
                                         )}
-                                        {visibleColumns.has('sellTotal') && (
+                                        {effectiveVisibleColumns.has('sellTotal') && (
                                           <td className="px-3 py-2 text-right text-sm font-medium text-[var(--foreground)]">
                                             ${(item.sellPrice * item.quantity).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                                           </td>
                                         )}
-                                        {visibleColumns.has('l1') && (
+                                        {effectiveVisibleColumns.has('l1') && (
                                           <td className="px-3 py-2 text-right text-sm text-[var(--muted-foreground)]">
                                             {editingCell?.itemId === item.id && editingCell?.column === 'l1' ? (
                                               <input
@@ -5997,7 +6503,7 @@ export default function QuotesContent() {
                                             )}
                                           </td>
                                         )}
-                                        {visibleColumns.has('l2') && (
+                                        {effectiveVisibleColumns.has('l2') && (
                                           <td className="px-3 py-2 text-right text-sm text-[var(--muted-foreground)]">
                                             {editingCell?.itemId === item.id && editingCell?.column === 'l2' ? (
                                               <input
@@ -6018,7 +6524,7 @@ export default function QuotesContent() {
                                             )}
                                           </td>
                                         )}
-                                        {visibleColumns.has('l3') && (
+                                        {effectiveVisibleColumns.has('l3') && (
                                           <td className="px-3 py-2 text-right text-sm text-[var(--muted-foreground)]">
                                             ${item.level3Price.toFixed(2)}
                                           </td>
@@ -6042,32 +6548,32 @@ export default function QuotesContent() {
 
                                       return (
                                         <>
-                                          {visibleColumns.has('commRate') && (
+                                          {effectiveVisibleColumns.has('commRate') && (
                                             <td className="px-3 py-2 text-right text-sm text-purple-600 font-medium">
                                               {(mfr.commissionRate * 100).toFixed(0)}%
                                             </td>
                                           )}
-                                          {visibleColumns.has('baseComm') && (
+                                          {effectiveVisibleColumns.has('baseComm') && (
                                             <td className="px-3 py-2 text-right text-sm text-purple-600 font-medium">
                                               ${lineBaseComm.toFixed(2)}
                                             </td>
                                           )}
-                                          {visibleColumns.has('overageShare') && (
+                                          {effectiveVisibleColumns.has('overageShare') && (
                                             <td className="px-3 py-2 text-right text-sm text-orange-600 font-medium">
                                               {(mfr.overageShare * 100).toFixed(0)}%
                                             </td>
                                           )}
-                                          {visibleColumns.has('overageComm') && (
+                                          {effectiveVisibleColumns.has('overageComm') && (
                                             <td className="px-3 py-2 text-right text-sm text-orange-600 font-medium">
                                               ${lineOverageComm.toFixed(2)}
                                             </td>
                                           )}
-                                          {visibleColumns.has('effRate') && (
+                                          {effectiveVisibleColumns.has('effRate') && (
                                             <td className="px-3 py-2 text-right text-sm font-medium text-green-600">
                                               {effRate.toFixed(1)}%
                                             </td>
                                           )}
-                                          {visibleColumns.has('totalEarn') && (
+                                          {effectiveVisibleColumns.has('totalEarn') && (
                                             <td className="px-3 py-2 text-right text-sm text-green-600 font-bold">
                                               ${lineTotalEarn.toFixed(2)}
                                             </td>
@@ -6075,7 +6581,7 @@ export default function QuotesContent() {
                                         </>
                                       );
                                     })()}
-                                    {visibleColumns.has('trend') && (
+                                    {effectiveVisibleColumns.has('trend') && (
                                       <td className="px-3 py-2">
                                         <div className="flex items-center justify-center gap-1">
                                           <Sparkline manufacturerPriceHistory={item.priceHistory} quotedPriceHistory={item.quotedPriceHistory} productNumber={item.productNumber} />
@@ -6092,7 +6598,7 @@ export default function QuotesContent() {
                                         </div>
                                       </td>
                                     )}
-                                    {visibleColumns.has('specSheet') && (
+                                    {effectiveVisibleColumns.has('specSheet') && (
                                       <td className="px-3 py-2 text-center">
                                         {item.hasSpecSheet ? (
                                           <button
@@ -6129,13 +6635,14 @@ export default function QuotesContent() {
                                         )}
                                       </td>
                                     )}
-                                    {/* Outside Reps Column */}
-                                    {visibleColumns.has('outsideReps') && (
+                                    {/* Outside Reps Column - Only visible when showCommissionSplits is enabled */}
+                                    {effectiveVisibleColumns.has('outsideReps') && showCommissionSplits && (
                                       <td className="px-3 py-2">
                                         <button
                                           onClick={(e) => {
                                             e.stopPropagation();
-                                            setRepSplitModalItem(item);
+                                            setCommissionSplitsModalItem(item);
+                                            setShowCommissionSplitsModal(true);
                                           }}
                                           className="flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-[var(--muted)] transition-colors group"
                                         >
@@ -6154,39 +6661,61 @@ export default function QuotesContent() {
                                         </button>
                                       </td>
                                     )}
-                                    {/* Multiplier/Divisor Column */}
-                                    {visibleColumns.has('divisor') && (
-                                      <td className="px-3 py-2 text-center">
-                                        <div className="flex items-center justify-center gap-1">
-                                          <input
-                                            type="checkbox"
-                                            checked={item.useDivisor}
-                                            onChange={() => {
-                                              // TODO: Update line item divisor state
-                                            }}
-                                            className="rounded border-[var(--border)] w-3 h-3"
-                                            title="Enable divisor for unit pricing (e.g., per 100, per 1000)"
-                                          />
-                                          {item.useDivisor && (
-                                            <input
-                                              type="number"
-                                              value={item.divisor}
-                                              onChange={() => {
-                                                // TODO: Update divisor value
-                                              }}
-                                              className="w-12 px-1 py-0.5 text-xs text-center border border-[var(--border)] rounded bg-[var(--background)]"
-                                              min="1"
-                                              placeholder="÷"
-                                            />
-                                          )}
-                                        </div>
+                                    {/* Discount columns */}
+                                    {effectiveVisibleColumns.has('commissionDiscountPercent') && (
+                                      <td className="px-3 py-2 text-sm text-center text-[var(--muted-foreground)]">
+                                        {item.commissionDiscountPercent ? `${item.commissionDiscountPercent}%` : '—'}
                                       </td>
                                     )}
+                                    {effectiveVisibleColumns.has('commissionDiscountAmount') && (
+                                      <td className="px-3 py-2 text-sm text-right text-[var(--muted-foreground)]">
+                                        {item.commissionDiscountAmount ? `$${item.commissionDiscountAmount.toFixed(2)}` : '—'}
+                                      </td>
+                                    )}
+                                    {effectiveVisibleColumns.has('lineDiscountPercent') && (
+                                      <td className="px-3 py-2 text-sm text-center text-[var(--muted-foreground)]">
+                                        {item.lineDiscountPercent ? `${item.lineDiscountPercent}%` : '—'}
+                                      </td>
+                                    )}
+                                    {effectiveVisibleColumns.has('lineDiscountAmount') && (
+                                      <td className="px-3 py-2 text-sm text-right text-[var(--muted-foreground)]">
+                                        {item.lineDiscountAmount ? `$${item.lineDiscountAmount.toFixed(2)}` : '—'}
+                                      </td>
+                                    )}
+                                    {effectiveVisibleColumns.has('leadTime') && (
+                                      <td className="px-3 py-2 text-sm text-center text-[var(--muted-foreground)]">
+                                        {item.leadTime || '—'}
+                                      </td>
+                                    )}
+                                    {/* Multiplier/Divisor Column */}
+                                    {effectiveVisibleColumns.has('divisor') && (
+                                      <td className="px-3 py-2 text-center text-sm text-[var(--muted-foreground)]">
+                                        {item.useDivisor ? `÷${item.divisor}` : '—'}
+                                      </td>
+                                    )}
+                                    {/* Expand/More Actions Button */}
+                                    <td className="px-2 py-2 text-center">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setLineDetailsModalItem(item);
+                                          setShowLineDetailsModal(true);
+                                        }}
+                                        className="p-1.5 hover:bg-[var(--muted)] rounded transition-colors"
+                                        title="More details"
+                                      >
+                                        <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" className="text-[var(--muted-foreground)]">
+                                          <circle cx="4" cy="10" r="2"/>
+                                          <circle cx="10" cy="10" r="2"/>
+                                          <circle cx="16" cy="10" r="2"/>
+                                        </svg>
+                                      </button>
+                                    </td>
                                   </tr>
                                   {/* Expanded Product Details Row */}
                                   {expandedLineItems.has(item.id) && (
                                     <tr className="bg-[var(--muted)]/30 border-b border-[var(--border)]">
-                                      <td colSpan={visibleColumns.size + 1} className="px-0 py-0">
+                                      <td colSpan={effectiveVisibleColumns.size + 1} className="px-0 py-0">
                                         <div className="px-8 py-3">
                                           {/* Product & Manufacturer Info Grid */}
                                           <div className="grid grid-cols-3 gap-4 max-w-6xl">
@@ -6448,14 +6977,15 @@ export default function QuotesContent() {
                                         </div>
                                       </td>
                                     </tr>
-                              )}
-                              </React.Fragment>
+                                  )}
+                                </React.Fragment>
                               ))}
                             </React.Fragment>
                           );
                         })}
                       </tbody>
                     </table>
+                    )}
                   </div>
                 </div>
 
@@ -7543,9 +8073,9 @@ export default function QuotesContent() {
                           />
                         </div>
                         <div className="bg-[var(--muted)]/30 rounded-lg p-4">
-                          <h4 className="text-sm font-medium text-[var(--foreground)] mb-2">Columns Included ({visibleColumns.size})</h4>
+                          <h4 className="text-sm font-medium text-[var(--foreground)] mb-2">Columns Included ({effectiveVisibleColumns.size})</h4>
                           <div className="flex flex-wrap gap-2">
-                            {columnDefinitions.filter(c => visibleColumns.has(c.key)).map(col => (
+                            {columnDefinitions.filter(c => effectiveVisibleColumns.has(c.key)).map(col => (
                               <span key={col.key} className="px-2 py-1 bg-white border border-[var(--border)] rounded text-xs text-[var(--foreground)]">
                                 {col.label}
                               </span>
@@ -9245,11 +9775,589 @@ export default function QuotesContent() {
                     </button>
                     <span className="text-sm font-medium text-[var(--foreground)]">Specify end user per line item</span>
                   </div>
+
+                  {/* Commission Splits Toggle */}
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setShowCommissionSplits(!showCommissionSplits)}
+                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 ${
+                        showCommissionSplits ? 'bg-[var(--primary)]' : 'bg-[var(--muted)]'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform ${
+                          showCommissionSplits ? 'translate-x-5' : 'translate-x-0.5'
+                        }`}
+                      />
+                    </button>
+                    <span className="text-sm font-medium text-[var(--foreground)]">Enable commission splits per line</span>
+                  </div>
                 </div>
               </div>
             )}
           </div>
         </div>
+
+        {/* Commission Splits Modal */}
+        {showCommissionSplitsModal && commissionSplitsModalItem && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-lg w-full">
+              <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-[var(--foreground)]">Commission Splits</h2>
+                  <p className="text-sm text-[var(--muted-foreground)]">{commissionSplitsModalItem.productNumber} - {commissionSplitsModalItem.description.slice(0, 40)}...</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowCommissionSplitsModal(false);
+                    setCommissionSplitsModalItem(null);
+                    setApplyToAllLines(false);
+                  }}
+                  className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
+                >
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                  </svg>
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                {/* Current Splits */}
+                <div className="space-y-3">
+                  {commissionSplitsModalItem.outsideRepSplits.map((split, index) => (
+                    <div key={split.repId} className="flex items-center gap-3">
+                      <select
+                        value={split.repId}
+                        onChange={(e) => {
+                          const rep = availableOutsideReps.find(r => r.id === e.target.value);
+                          if (rep) {
+                            setQuoteLineItems(prev => prev.map(item =>
+                              item.id === commissionSplitsModalItem.id
+                                ? {
+                                    ...item,
+                                    outsideRepSplits: item.outsideRepSplits.map((s, i) =>
+                                      i === index ? { ...s, repId: rep.id, repName: rep.name } : s
+                                    )
+                                  }
+                                : item
+                            ));
+                            setCommissionSplitsModalItem(prev => prev ? {
+                              ...prev,
+                              outsideRepSplits: prev.outsideRepSplits.map((s, i) =>
+                                i === index ? { ...s, repId: rep.id, repName: rep.name } : s
+                              )
+                            } : null);
+                          }
+                        }}
+                        className="flex-1 px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                      >
+                        {availableOutsideReps.map(rep => (
+                          <option key={rep.id} value={rep.id}>{rep.name}</option>
+                        ))}
+                      </select>
+                      <div className="relative w-24">
+                        <input
+                          type="number"
+                          value={split.percentage}
+                          onChange={(e) => {
+                            const newPercentage = parseFloat(e.target.value) || 0;
+                            setQuoteLineItems(prev => prev.map(item =>
+                              item.id === commissionSplitsModalItem.id
+                                ? {
+                                    ...item,
+                                    outsideRepSplits: item.outsideRepSplits.map((s, i) =>
+                                      i === index ? { ...s, percentage: newPercentage } : s
+                                    )
+                                  }
+                                : item
+                            ));
+                            setCommissionSplitsModalItem(prev => prev ? {
+                              ...prev,
+                              outsideRepSplits: prev.outsideRepSplits.map((s, i) =>
+                                i === index ? { ...s, percentage: newPercentage } : s
+                              )
+                            } : null);
+                          }}
+                          className="w-full px-3 py-2 pr-7 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--muted-foreground)]">%</span>
+                      </div>
+                      {commissionSplitsModalItem.outsideRepSplits.length > 1 && (
+                        <button
+                          onClick={() => {
+                            setQuoteLineItems(prev => prev.map(item =>
+                              item.id === commissionSplitsModalItem.id
+                                ? {
+                                    ...item,
+                                    outsideRepSplits: item.outsideRepSplits.filter((_, i) => i !== index)
+                                  }
+                                : item
+                            ));
+                            setCommissionSplitsModalItem(prev => prev ? {
+                              ...prev,
+                              outsideRepSplits: prev.outsideRepSplits.filter((_, i) => i !== index)
+                            } : null);
+                          }}
+                          className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Add Rep Button */}
+                <button
+                  onClick={() => {
+                    const usedRepIds = commissionSplitsModalItem.outsideRepSplits.map(s => s.repId);
+                    const availableRep = availableOutsideReps.find(r => !usedRepIds.includes(r.id));
+                    if (availableRep) {
+                      const newSplit = { repId: availableRep.id, repName: availableRep.name, percentage: 0 };
+                      setQuoteLineItems(prev => prev.map(item =>
+                        item.id === commissionSplitsModalItem.id
+                          ? { ...item, outsideRepSplits: [...item.outsideRepSplits, newSplit] }
+                          : item
+                      ));
+                      setCommissionSplitsModalItem(prev => prev ? {
+                        ...prev,
+                        outsideRepSplits: [...prev.outsideRepSplits, newSplit]
+                      } : null);
+                    }
+                  }}
+                  className="flex items-center gap-2 text-sm text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M10 4v12M4 10h12" strokeLinecap="round"/>
+                  </svg>
+                  Add Rep
+                </button>
+
+                {/* Total Percentage Warning */}
+                {(() => {
+                  const total = commissionSplitsModalItem.outsideRepSplits.reduce((sum, s) => sum + s.percentage, 0);
+                  if (total !== 100) {
+                    return (
+                      <div className={`text-sm px-3 py-2 rounded-lg ${total > 100 ? 'bg-red-50 text-red-700' : 'bg-yellow-50 text-yellow-700'}`}>
+                        Total: {total}% — {total > 100 ? 'Exceeds' : 'Does not equal'} 100%
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="text-sm px-3 py-2 rounded-lg bg-green-50 text-green-700">
+                      Total: 100% ✓
+                    </div>
+                  );
+                })()}
+              </div>
+              <div className="px-6 py-4 border-t border-[var(--border)] flex items-center justify-between">
+                <label className="flex items-center gap-2 text-sm text-[var(--muted-foreground)]">
+                  <input
+                    type="checkbox"
+                    checked={applyToAllLines}
+                    onChange={(e) => setApplyToAllLines(e.target.checked)}
+                    className="accent-[var(--primary)]"
+                  />
+                  Apply to all line items
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setShowCommissionSplitsModal(false);
+                      setCommissionSplitsModalItem(null);
+                      setApplyToAllLines(false);
+                    }}
+                    className="px-4 py-2 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (applyToAllLines) {
+                        setQuoteLineItems(prev => prev.map(item => ({
+                          ...item,
+                          outsideRepSplits: [...commissionSplitsModalItem.outsideRepSplits]
+                        })));
+                      }
+                      setShowCommissionSplitsModal(false);
+                      setCommissionSplitsModalItem(null);
+                      setApplyToAllLines(false);
+                    }}
+                    className="px-4 py-2 text-sm bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Columns Configuration Modal */}
+        {showColumnsMenu && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col">
+              <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-[var(--foreground)]">Configure Columns</h2>
+                  <p className="text-sm text-[var(--muted-foreground)]">Drag to reorder, check to show in table</p>
+                </div>
+                <button
+                  onClick={() => setShowColumnsMenu(false)}
+                  className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
+                >
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                  </svg>
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6">
+                <div className="space-y-1">
+                  {columnOrder
+                    .filter(colKey => {
+                      // In simple view, filter out overage/commission/levels columns
+                      if (quoteViewMode === 'simple') {
+                        const col = columnDefinitions.find(c => c.key === colKey);
+                        if (col && ['Overage', 'Commission', 'Levels'].includes(col.group)) {
+                          return false;
+                        }
+                      }
+                      return true;
+                    })
+                    .map((colKey, index) => {
+                      const col = columnDefinitions.find(c => c.key === colKey);
+                      if (!col) return null;
+                      const isChecked = quoteViewMode === 'simple' ? simpleViewColumns.has(colKey) : visibleColumns.has(colKey);
+                      return (
+                        <div
+                          key={colKey}
+                          draggable
+                          onDragStart={(e) => {
+                            setDraggingColumn(colKey);
+                            e.dataTransfer.effectAllowed = 'move';
+                          }}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            if (!draggingColumn || draggingColumn === colKey) return;
+                            const filteredOrder = columnOrder.filter(ck => {
+                              if (quoteViewMode === 'simple') {
+                                const c = columnDefinitions.find(cd => cd.key === ck);
+                                if (c && ['Overage', 'Commission', 'Levels'].includes(c.group)) return false;
+                              }
+                              return true;
+                            });
+                            const dragIndex = filteredOrder.indexOf(draggingColumn);
+                            const targetIndex = filteredOrder.indexOf(colKey);
+                            if (dragIndex !== -1 && targetIndex !== -1) {
+                              const newOrder = [...columnOrder];
+                              const actualDragIndex = newOrder.indexOf(draggingColumn);
+                              const actualTargetIndex = newOrder.indexOf(colKey);
+                              newOrder.splice(actualDragIndex, 1);
+                              newOrder.splice(actualTargetIndex, 0, draggingColumn);
+                              setColumnOrder(newOrder);
+                            }
+                          }}
+                          onDragEnd={() => setDraggingColumn(null)}
+                          className={`flex items-center gap-3 px-4 py-3 rounded-lg border transition-all cursor-grab active:cursor-grabbing ${
+                            draggingColumn === colKey
+                              ? 'bg-[var(--primary)]/10 border-[var(--primary)] shadow-lg scale-[1.02]'
+                              : 'bg-[var(--card)] border-[var(--border)] hover:bg-[var(--muted)]/50'
+                          }`}
+                        >
+                          {/* Drag Handle */}
+                          <div className="text-[var(--muted-foreground)]">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                              <circle cx="5" cy="3" r="1.5"/>
+                              <circle cx="11" cy="3" r="1.5"/>
+                              <circle cx="5" cy="8" r="1.5"/>
+                              <circle cx="11" cy="8" r="1.5"/>
+                              <circle cx="5" cy="13" r="1.5"/>
+                              <circle cx="11" cy="13" r="1.5"/>
+                            </svg>
+                          </div>
+                          {/* Checkbox */}
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => toggleColumn(colKey)}
+                            className="w-5 h-5 accent-[var(--primary)] cursor-pointer"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          {/* Label */}
+                          <span className="flex-1 text-sm font-medium">{col.label}</span>
+                          {/* Group Badge */}
+                          <span className="px-2 py-0.5 text-xs rounded bg-[var(--muted)] text-[var(--muted-foreground)]">
+                            {col.group}
+                          </span>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+              <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end">
+                <button
+                  onClick={() => setShowColumnsMenu(false)}
+                  className="px-4 py-2 text-sm bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Line Item Details Modal (shows only columns NOT visible in table) */}
+        {showLineDetailsModal && lineDetailsModalItem && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-md w-full">
+              <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-[var(--foreground)]">Additional Details</h2>
+                  <p className="text-sm text-[var(--muted-foreground)]">{lineDetailsModalItem.productNumber} - {lineDetailsModalItem.description}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowLineDetailsModal(false);
+                    setLineDetailsModalItem(null);
+                  }}
+                  className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
+                >
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                  </svg>
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                {/* Only show fields that are NOT visible in the table */}
+
+                {/* Quantity - only show if not in table */}
+                {!effectiveVisibleColumns.has('quantity') && (
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm text-[var(--muted-foreground)]">Quantity</label>
+                    <input
+                      type="number"
+                      value={lineDetailsModalItem.quantity}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 0;
+                        setQuoteLineItems(prev => prev.map(li =>
+                          li.id === lineDetailsModalItem.id ? { ...li, quantity: val } : li
+                        ));
+                        setLineDetailsModalItem(prev => prev ? { ...prev, quantity: val } : null);
+                      }}
+                      className="w-24 px-3 py-2 border border-[var(--border)] rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                    />
+                  </div>
+                )}
+
+                {/* Manufacturer - only show if not in table */}
+                {!effectiveVisibleColumns.has('manufacturer') && (
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm text-[var(--muted-foreground)]">Manufacturer</label>
+                    <span className="text-sm text-[var(--foreground)]">{lineDetailsModalItem.manufacturers[0]?.name || '—'}</span>
+                  </div>
+                )}
+
+                {/* Base Price - only show if not in table */}
+                {!effectiveVisibleColumns.has('base') && (
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm text-[var(--muted-foreground)]">Base Price</label>
+                    <span className="text-sm text-[var(--foreground)]">${lineDetailsModalItem.basePrice.toFixed(2)}</span>
+                  </div>
+                )}
+
+                {/* Sell Price - only show if not in table */}
+                {!effectiveVisibleColumns.has('sell') && (
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm text-[var(--muted-foreground)]">Sell Price</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={lineDetailsModalItem.sellPrice}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0;
+                        setQuoteLineItems(prev => prev.map(li =>
+                          li.id === lineDetailsModalItem.id ? { ...li, sellPrice: val } : li
+                        ));
+                        setLineDetailsModalItem(prev => prev ? { ...prev, sellPrice: val } : null);
+                      }}
+                      className="w-28 px-3 py-2 border border-[var(--border)] rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                    />
+                  </div>
+                )}
+
+                {/* Sell Total - only show if not in table */}
+                {!effectiveVisibleColumns.has('sellTotal') && (
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm text-[var(--muted-foreground)]">Sell Total</label>
+                    <span className="text-sm text-[var(--foreground)]">${(lineDetailsModalItem.sellPrice * lineDetailsModalItem.quantity).toFixed(2)}</span>
+                  </div>
+                )}
+
+                {/* End User - only show if End User Per Line is enabled AND not visible in table */}
+                {showEndUserPerLine && !effectiveVisibleColumns.has('endUser') && (
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm text-[var(--muted-foreground)]">End User</label>
+                    <input
+                      type="text"
+                      value={lineDetailsModalItem.endUser || ''}
+                      onChange={(e) => {
+                        setQuoteLineItems(prev => prev.map(li =>
+                          li.id === lineDetailsModalItem.id ? { ...li, endUser: e.target.value } : li
+                        ));
+                        setLineDetailsModalItem(prev => prev ? { ...prev, endUser: e.target.value } : null);
+                      }}
+                      placeholder="Enter end user"
+                      className="w-40 px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                    />
+                  </div>
+                )}
+
+                {/* Commission Discount % - only show if not in table */}
+                {!effectiveVisibleColumns.has('commissionDiscountPercent') && (
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm text-[var(--muted-foreground)]">Commission Discount %</label>
+                    <div className="relative w-24">
+                      <input
+                        type="number"
+                        value={lineDetailsModalItem.commissionDiscountPercent || 0}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setQuoteLineItems(prev => prev.map(li =>
+                            li.id === lineDetailsModalItem.id ? { ...li, commissionDiscountPercent: val } : li
+                          ));
+                          setLineDetailsModalItem(prev => prev ? { ...prev, commissionDiscountPercent: val } : null);
+                        }}
+                        className="w-full px-3 py-2 pr-7 border border-[var(--border)] rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--muted-foreground)]">%</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Commission Discount $ - only show if not in table */}
+                {!effectiveVisibleColumns.has('commissionDiscountAmount') && (
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm text-[var(--muted-foreground)]">Commission Discount $</label>
+                    <div className="relative w-24">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--muted-foreground)]">$</span>
+                      <input
+                        type="number"
+                        value={lineDetailsModalItem.commissionDiscountAmount || 0}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setQuoteLineItems(prev => prev.map(li =>
+                            li.id === lineDetailsModalItem.id ? { ...li, commissionDiscountAmount: val } : li
+                          ));
+                          setLineDetailsModalItem(prev => prev ? { ...prev, commissionDiscountAmount: val } : null);
+                        }}
+                        className="w-full px-3 py-2 pl-7 border border-[var(--border)] rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Line Discount % - only show if not in table */}
+                {!effectiveVisibleColumns.has('lineDiscountPercent') && (
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm text-[var(--muted-foreground)]">Line Discount %</label>
+                    <div className="relative w-24">
+                      <input
+                        type="number"
+                        value={lineDetailsModalItem.lineDiscountPercent || 0}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setQuoteLineItems(prev => prev.map(li =>
+                            li.id === lineDetailsModalItem.id ? { ...li, lineDiscountPercent: val } : li
+                          ));
+                          setLineDetailsModalItem(prev => prev ? { ...prev, lineDiscountPercent: val } : null);
+                        }}
+                        className="w-full px-3 py-2 pr-7 border border-[var(--border)] rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--muted-foreground)]">%</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Line Discount $ - only show if not in table */}
+                {!effectiveVisibleColumns.has('lineDiscountAmount') && (
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm text-[var(--muted-foreground)]">Line Discount $</label>
+                    <div className="relative w-24">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--muted-foreground)]">$</span>
+                      <input
+                        type="number"
+                        value={lineDetailsModalItem.lineDiscountAmount || 0}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setQuoteLineItems(prev => prev.map(li =>
+                            li.id === lineDetailsModalItem.id ? { ...li, lineDiscountAmount: val } : li
+                          ));
+                          setLineDetailsModalItem(prev => prev ? { ...prev, lineDiscountAmount: val } : null);
+                        }}
+                        className="w-full px-3 py-2 pl-7 border border-[var(--border)] rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Lead Time - only show if not in table */}
+                {!effectiveVisibleColumns.has('leadTime') && (
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm text-[var(--muted-foreground)]">Lead Time</label>
+                    <input
+                      type="text"
+                      value={lineDetailsModalItem.leadTime || ''}
+                      onChange={(e) => {
+                        setQuoteLineItems(prev => prev.map(li =>
+                          li.id === lineDetailsModalItem.id ? { ...li, leadTime: e.target.value } : li
+                        ));
+                        setLineDetailsModalItem(prev => prev ? { ...prev, leadTime: e.target.value } : null);
+                      }}
+                      placeholder="e.g. 2-3 weeks"
+                      className="w-32 px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                    />
+                  </div>
+                )}
+
+                {/* UOM - only show if not in table */}
+                {!effectiveVisibleColumns.has('uom') && (
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm text-[var(--muted-foreground)]">UOM</label>
+                    <span className="text-sm text-[var(--foreground)]">{lineDetailsModalItem.uom || 'EA'}</span>
+                  </div>
+                )}
+
+                {/* Multiplier/Divisor - only show if not in table */}
+                {!effectiveVisibleColumns.has('divisor') && lineDetailsModalItem.useDivisor && (
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm text-[var(--muted-foreground)]">Multiplier</label>
+                    <span className="text-sm text-[var(--foreground)]">{lineDetailsModalItem.divisor}</span>
+                  </div>
+                )}
+
+                {/* Spec Sheet - only show if not in table */}
+                {!effectiveVisibleColumns.has('specSheet') && lineDetailsModalItem.hasSpecSheet && lineDetailsModalItem.specSheetUrl && (
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm text-[var(--muted-foreground)]">Spec Sheet</label>
+                    <a href={lineDetailsModalItem.specSheetUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-[var(--primary)] hover:underline">View</a>
+                  </div>
+                )}
+              </div>
+              <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end">
+                <button
+                  onClick={() => {
+                    setShowLineDetailsModal(false);
+                    setLineDetailsModalItem(null);
+                  }}
+                  className="px-4 py-2 text-sm bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Approval Request Modal - Enhanced */}
         {showApprovalRequestModal && (
