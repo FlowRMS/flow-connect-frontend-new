@@ -587,6 +587,12 @@ type OutsideRepSplit = {
   percentage: number; // 0-100
 };
 
+type InsideRepSplit = {
+  repId: string;
+  repName: string;
+  percentage: number; // 0-100
+};
+
 type LineItem = {
   id: string;
   quoteId: string;
@@ -620,6 +626,8 @@ type LineItem = {
   specSheetUrl?: string;
   // Outside rep splits for commission
   outsideRepSplits: OutsideRepSplit[];
+  // Inside rep splits for commission
+  insideRepSplits: InsideRepSplit[];
   // Divisor for unit of measure (e.g., per 100, per 1000)
   useDivisor: boolean;
   divisor: number; // Default 1, can be 100, 1000, etc.
@@ -1324,6 +1332,7 @@ const mockLineItems: LineItem[] = [
       { repId: 'or-1', repName: 'Richard Utley', percentage: 60 },
       { repId: 'or-2', repName: 'Mike Thompson', percentage: 40 },
     ],
+    insideRepSplits: [{ repId: 'ir-1', repName: 'Jennifer Adams', percentage: 100 }],
     useDivisor: false,
     divisor: 1,
   },
@@ -1367,7 +1376,7 @@ const mockLineItems: LineItem[] = [
     priceHistory: [165, 170, 172, 175, 178, 180, 182, 183, 184, 185, 185, 185],
     quotedPriceHistory: [190, 195, 198, 200, 204, 206, 208, 209, 210, 210, 210, 210],
     hasSpecSheet: true,
-    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }],
+    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }], insideRepSplits: [{ repId: "ir-1", repName: "Jennifer Adams", percentage: 100 }],
     useDivisor: false,
     divisor: 1,
     specSheetUrl: '/specs/PLX-200-DIM.pdf',
@@ -1407,6 +1416,7 @@ const mockLineItems: LineItem[] = [
       { repId: 'or-3', repName: 'Sarah Williams', percentage: 50 },
       { repId: 'or-4', repName: 'Tom Davis', percentage: 50 },
     ],
+    insideRepSplits: [{ repId: 'ir-2', repName: 'Mark Stevens', percentage: 100 }],
     useDivisor: true,
     divisor: 100,
   },
@@ -1441,7 +1451,7 @@ const mockLineItems: LineItem[] = [
     priceHistory: [145, 148, 150, 152, 155, 158, 160, 162, 163, 164, 165, 165],
     quotedPriceHistory: [168, 172, 175, 178, 181, 184, 186, 188, 189, 189, 189, 189],
     hasSpecSheet: true,
-    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }],
+    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }], insideRepSplits: [{ repId: "ir-1", repName: "Jennifer Adams", percentage: 100 }],
     useDivisor: false,
     divisor: 1,
   },
@@ -1476,7 +1486,7 @@ const mockLineItems: LineItem[] = [
     priceHistory: [110, 112, 114, 116, 118, 120, 121, 122, 123, 124, 125, 125],
     quotedPriceHistory: [126, 128, 130, 133, 135, 137, 139, 140, 141, 142, 142, 142],
     hasSpecSheet: true,
-    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }],
+    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }], insideRepSplits: [{ repId: "ir-1", repName: "Jennifer Adams", percentage: 100 }],
     useDivisor: false,
     divisor: 1,
   },
@@ -1511,7 +1521,7 @@ const mockLineItems: LineItem[] = [
     priceHistory: [340, 345, 350, 355, 360, 365, 370, 375, 380, 382, 384, 385],
     quotedPriceHistory: [395, 400, 405, 412, 418, 425, 430, 436, 442, 444, 445, 445],
     hasSpecSheet: true,
-    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }],
+    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }], insideRepSplits: [{ repId: "ir-1", repName: "Jennifer Adams", percentage: 100 }],
     useDivisor: false,
     divisor: 1,
   },
@@ -1547,7 +1557,7 @@ const mockLineItems: LineItem[] = [
     priceHistory: [68, 70, 71, 72, 73, 74, 75, 76, 77, 77, 78, 78],
     quotedPriceHistory: [78, 80, 82, 83, 84, 85, 86, 87, 88, 88, 89, 89],
     hasSpecSheet: true,
-    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }],
+    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }], insideRepSplits: [{ repId: "ir-1", repName: "Jennifer Adams", percentage: 100 }],
     useDivisor: false,
     divisor: 1,
   },
@@ -1582,7 +1592,7 @@ const mockLineItems: LineItem[] = [
     priceHistory: [24, 25, 25, 26, 26, 27, 27, 27, 28, 28, 28, 28],
     quotedPriceHistory: [28, 29, 29, 30, 30, 31, 31, 31, 32, 32, 32, 32],
     hasSpecSheet: true,
-    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }],
+    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }], insideRepSplits: [{ repId: "ir-1", repName: "Jennifer Adams", percentage: 100 }],
     useDivisor: false,
     divisor: 1,
   },
@@ -1620,7 +1630,7 @@ const mockLineItems: LineItem[] = [
     priceHistory: [480, 485, 490, 495, 500, 505, 510, 512, 515, 518, 520, 520],
     quotedPriceHistory: [552, 558, 564, 570, 576, 581, 587, 590, 593, 596, 598, 598],
     hasSpecSheet: true,
-    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }],
+    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }], insideRepSplits: [{ repId: "ir-1", repName: "Jennifer Adams", percentage: 100 }],
     useDivisor: false,
     divisor: 1,
   },
@@ -1655,7 +1665,7 @@ const mockLineItems: LineItem[] = [
     priceHistory: [255, 260, 265, 268, 272, 275, 278, 280, 282, 284, 285, 285],
     quotedPriceHistory: [293, 299, 305, 308, 313, 316, 320, 322, 325, 327, 328, 328],
     hasSpecSheet: true,
-    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }],
+    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }], insideRepSplits: [{ repId: "ir-1", repName: "Jennifer Adams", percentage: 100 }],
     useDivisor: false,
     divisor: 1,
   },
@@ -1690,7 +1700,7 @@ const mockLineItems: LineItem[] = [
     priceHistory: [820, 830, 840, 850, 860, 870, 875, 880, 885, 888, 890, 890],
     quotedPriceHistory: [960, 975, 985, 998, 1010, 1020, 1028, 1035, 1040, 1043, 1045, 1045],
     hasSpecSheet: true,
-    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }],
+    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }], insideRepSplits: [{ repId: "ir-1", repName: "Jennifer Adams", percentage: 100 }],
     useDivisor: false,
     divisor: 1,
   },
@@ -1725,7 +1735,7 @@ const mockLineItems: LineItem[] = [
     priceHistory: [400, 408, 415, 420, 425, 430, 435, 438, 440, 443, 445, 445],
     quotedPriceHistory: [460, 469, 478, 483, 489, 495, 501, 504, 506, 510, 512, 512],
     hasSpecSheet: true,
-    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }],
+    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }], insideRepSplits: [{ repId: "ir-1", repName: "Jennifer Adams", percentage: 100 }],
     useDivisor: false,
     divisor: 1,
   },
@@ -1760,7 +1770,7 @@ const mockLineItems: LineItem[] = [
     priceHistory: [325, 330, 335, 340, 345, 350, 355, 358, 360, 363, 365, 365],
     quotedPriceHistory: [374, 380, 386, 391, 397, 403, 409, 412, 414, 418, 420, 420],
     hasSpecSheet: true,
-    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }],
+    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }], insideRepSplits: [{ repId: "ir-1", repName: "Jennifer Adams", percentage: 100 }],
     useDivisor: false,
     divisor: 1,
   },
@@ -1795,7 +1805,7 @@ const mockLineItems: LineItem[] = [
     priceHistory: [128, 130, 132, 134, 136, 138, 140, 142, 143, 144, 145, 145],
     quotedPriceHistory: [147, 150, 152, 154, 157, 159, 161, 164, 165, 166, 167, 167],
     hasSpecSheet: true,
-    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }],
+    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }], insideRepSplits: [{ repId: "ir-1", repName: "Jennifer Adams", percentage: 100 }],
     useDivisor: false,
     divisor: 1,
   },
@@ -1832,7 +1842,7 @@ const mockLineItems: LineItem[] = [
     priceHistory: [58, 59, 60, 61, 62, 63, 63, 64, 64, 65, 65, 65],
     quotedPriceHistory: [64, 65, 67, 68, 69, 70, 70, 71, 71, 72, 72, 72],
     hasSpecSheet: true,
-    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }],
+    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }], insideRepSplits: [{ repId: "ir-1", repName: "Jennifer Adams", percentage: 100 }],
     useDivisor: false,
     divisor: 1,
   },
@@ -1867,7 +1877,7 @@ const mockLineItems: LineItem[] = [
     priceHistory: [380, 385, 390, 395, 400, 405, 410, 415, 418, 422, 425, 425],
     quotedPriceHistory: [437, 443, 449, 454, 460, 466, 472, 478, 481, 486, 489, 489],
     hasSpecSheet: true,
-    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }],
+    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }], insideRepSplits: [{ repId: "ir-1", repName: "Jennifer Adams", percentage: 100 }],
     useDivisor: false,
     divisor: 1,
   },
@@ -1902,7 +1912,7 @@ const mockLineItems: LineItem[] = [
     priceHistory: [1120, 1140, 1160, 1180, 1200, 1210, 1220, 1230, 1240, 1245, 1250, 1250],
     quotedPriceHistory: [1288, 1311, 1334, 1357, 1380, 1392, 1403, 1415, 1426, 1432, 1438, 1438],
     hasSpecSheet: true,
-    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }],
+    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }], insideRepSplits: [{ repId: "ir-1", repName: "Jennifer Adams", percentage: 100 }],
     useDivisor: false,
     divisor: 1,
   },
@@ -1937,7 +1947,7 @@ const mockLineItems: LineItem[] = [
     priceHistory: [38, 39, 40, 41, 42, 42, 43, 44, 44, 45, 45, 45],
     quotedPriceHistory: [44, 45, 46, 47, 48, 48, 50, 51, 51, 52, 52, 52],
     hasSpecSheet: true,
-    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }],
+    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }], insideRepSplits: [{ repId: "ir-1", repName: "Jennifer Adams", percentage: 100 }],
     useDivisor: false,
     divisor: 1,
   },
@@ -1972,7 +1982,7 @@ const mockLineItems: LineItem[] = [
     priceHistory: [24, 25, 25, 26, 26, 27, 27, 27, 28, 28, 28, 28],
     quotedPriceHistory: [28, 29, 29, 30, 30, 31, 31, 31, 32, 32, 32, 32],
     hasSpecSheet: true,
-    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }],
+    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }], insideRepSplits: [{ repId: "ir-1", repName: "Jennifer Adams", percentage: 100 }],
     useDivisor: false,
     divisor: 1,
   },
@@ -2007,7 +2017,7 @@ const mockLineItems: LineItem[] = [
     priceHistory: [165, 168, 170, 173, 175, 178, 180, 182, 183, 184, 185, 185],
     quotedPriceHistory: [190, 193, 196, 199, 201, 205, 207, 209, 211, 212, 213, 213],
     hasSpecSheet: true,
-    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }],
+    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }], insideRepSplits: [{ repId: "ir-1", repName: "Jennifer Adams", percentage: 100 }],
     useDivisor: false,
     divisor: 1,
   },
@@ -2044,7 +2054,7 @@ const mockLineItems: LineItem[] = [
     priceHistory: [75, 77, 78, 79, 80, 81, 82, 83, 84, 84, 85, 85],
     quotedPriceHistory: [86, 89, 90, 91, 92, 93, 94, 96, 97, 97, 98, 98],
     hasSpecSheet: true,
-    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }],
+    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }], insideRepSplits: [{ repId: "ir-1", repName: "Jennifer Adams", percentage: 100 }],
     useDivisor: false,
     divisor: 1,
   },
@@ -2079,7 +2089,7 @@ const mockLineItems: LineItem[] = [
     priceHistory: [110, 112, 114, 116, 118, 120, 121, 122, 123, 124, 125, 125],
     quotedPriceHistory: [127, 129, 131, 134, 136, 138, 139, 141, 142, 143, 144, 144],
     hasSpecSheet: true,
-    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }],
+    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }], insideRepSplits: [{ repId: "ir-1", repName: "Jennifer Adams", percentage: 100 }],
     useDivisor: false,
     divisor: 1,
   },
@@ -2114,7 +2124,7 @@ const mockLineItems: LineItem[] = [
     priceHistory: [145, 148, 150, 153, 155, 158, 160, 162, 163, 164, 165, 165],
     quotedPriceHistory: [167, 170, 173, 176, 179, 182, 184, 187, 188, 189, 190, 190],
     hasSpecSheet: true,
-    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }],
+    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }], insideRepSplits: [{ repId: "ir-1", repName: "Jennifer Adams", percentage: 100 }],
     useDivisor: false,
     divisor: 1,
   },
@@ -2149,7 +2159,7 @@ const mockLineItems: LineItem[] = [
     priceHistory: [11200, 11400, 11600, 11800, 12000, 12100, 12200, 12300, 12400, 12450, 12500, 12500],
     quotedPriceHistory: [12880, 13110, 13340, 13570, 13800, 13915, 14030, 14145, 14260, 14318, 14375, 14375],
     hasSpecSheet: true,
-    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }],
+    outsideRepSplits: [{ repId: "or-1", repName: "Richard Utley", percentage: 100 }], insideRepSplits: [{ repId: "ir-1", repName: "Jennifer Adams", percentage: 100 }],
     useDivisor: false,
     divisor: 1,
   },
@@ -2164,7 +2174,7 @@ const mockLineItems: LineItem[] = [
     endUser: 'Metro Airport Authority',
     quantity: 200,
     manufacturers: [{ name: 'Acuity Brands', basePrice: 485.00, commissionRate: 0.10, overageShare: 0.90, approvalStatus: 'approved', approvalDate: '2023-08-01', approvalNotes: 'Approved for all airport projects' }],
-    basePrice: 485.00, sellPrice: 545.00, level1Price: 599.50, level2Price: 626.75, level3Price: 654.00, overagePercent: 12.4, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [450, 455, 460, 468, 475, 480, 482, 483, 484, 485, 485, 485], quotedPriceHistory: [506, 512, 518, 526, 534, 540, 542, 543, 544, 545, 545, 545],
+    basePrice: 485.00, sellPrice: 545.00, level1Price: 599.50, level2Price: 626.75, level3Price: 654.00, overagePercent: 12.4, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], insideRepSplits: [{ repId: 'ir-1', repName: 'Jennifer Adams', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [450, 455, 460, 468, 475, 480, 482, 483, 484, 485, 485, 485], quotedPriceHistory: [506, 512, 518, 526, 534, 540, 542, 543, 544, 545, 545, 545],
   },
   {
     id: 'LI-026',
@@ -2176,7 +2186,7 @@ const mockLineItems: LineItem[] = [
     endUser: 'Metro Airport Authority',
     quantity: 500,
     manufacturers: [{ name: 'ADB Safegate', basePrice: 125.00, commissionRate: 0.08, overageShare: 0.85, approvalStatus: 'approved', approvalDate: '2023-07-15', approvalNotes: null }],
-    basePrice: 125.00, sellPrice: 142.50, level1Price: 156.75, level2Price: 163.88, level3Price: 171.00, overagePercent: 14.0, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [115, 117, 118, 120, 121, 122, 123, 124, 124, 125, 125, 125], quotedPriceHistory: [131, 133, 135, 137, 138, 139, 140, 141, 141, 143, 143, 143],
+    basePrice: 125.00, sellPrice: 142.50, level1Price: 156.75, level2Price: 163.88, level3Price: 171.00, overagePercent: 14.0, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], insideRepSplits: [{ repId: 'ir-1', repName: 'Jennifer Adams', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [115, 117, 118, 120, 121, 122, 123, 124, 124, 125, 125, 125], quotedPriceHistory: [131, 133, 135, 137, 138, 139, 140, 141, 141, 143, 143, 143],
   },
   {
     id: 'LI-027',
@@ -2188,7 +2198,7 @@ const mockLineItems: LineItem[] = [
     endUser: 'Metro Airport Authority',
     quantity: 4,
     manufacturers: [{ name: 'Honeywell', basePrice: 18500.00, commissionRate: 0.06, overageShare: 0.80, approvalStatus: 'conditional', approvalDate: '2024-01-20', approvalNotes: 'FAA certification required' }],
-    basePrice: 18500.00, sellPrice: 21275.00, level1Price: 23402.50, level2Price: 24466.38, level3Price: 25530.00, overagePercent: 15.0, commissionable: true, locked: true, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [17000, 17200, 17500, 17800, 18000, 18100, 18200, 18300, 18400, 18450, 18500, 18500], quotedPriceHistory: [19550, 19780, 20125, 20470, 20700, 20815, 20930, 21045, 21160, 21218, 21275, 21275],
+    basePrice: 18500.00, sellPrice: 21275.00, level1Price: 23402.50, level2Price: 24466.38, level3Price: 25530.00, overagePercent: 15.0, commissionable: true, locked: true, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], insideRepSplits: [{ repId: 'ir-1', repName: 'Jennifer Adams', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [17000, 17200, 17500, 17800, 18000, 18100, 18200, 18300, 18400, 18450, 18500, 18500], quotedPriceHistory: [19550, 19780, 20125, 20470, 20700, 20815, 20930, 21045, 21160, 21218, 21275, 21275],
   },
   {
     id: 'LI-028',
@@ -2200,7 +2210,7 @@ const mockLineItems: LineItem[] = [
     endUser: 'Metro Airport Authority',
     quantity: 150,
     manufacturers: [{ name: 'Lutron', basePrice: 95.00, commissionRate: 0.08, overageShare: 0.85, approvalStatus: 'approved', approvalDate: '2023-09-10', approvalNotes: null }],
-    basePrice: 95.00, sellPrice: 108.00, level1Price: 118.80, level2Price: 124.20, level3Price: 129.60, overagePercent: 13.7, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [88, 89, 90, 91, 92, 93, 93, 94, 94, 95, 95, 95], quotedPriceHistory: [100, 101, 102, 103, 105, 106, 106, 107, 107, 108, 108, 108],
+    basePrice: 95.00, sellPrice: 108.00, level1Price: 118.80, level2Price: 124.20, level3Price: 129.60, overagePercent: 13.7, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], insideRepSplits: [{ repId: 'ir-1', repName: 'Jennifer Adams', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [88, 89, 90, 91, 92, 93, 93, 94, 94, 95, 95, 95], quotedPriceHistory: [100, 101, 102, 103, 105, 106, 106, 107, 107, 108, 108, 108],
   },
   // Quote Q-2024-003 Line Items (Tech Campus Phase 2)
   {
@@ -2213,7 +2223,7 @@ const mockLineItems: LineItem[] = [
     endUser: 'TechCorp Inc',
     quantity: 400,
     manufacturers: [{ name: 'Philips', basePrice: 195.00, commissionRate: 0.09, overageShare: 0.88, approvalStatus: 'approved', approvalDate: '2023-05-20', approvalNotes: null }],
-    basePrice: 195.00, sellPrice: 220.00, level1Price: 242.00, level2Price: 253.00, level3Price: 264.00, overagePercent: 12.8, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [180, 182, 185, 187, 190, 191, 192, 193, 194, 195, 195, 195], quotedPriceHistory: [203, 205, 209, 211, 214, 216, 217, 218, 219, 220, 220, 220],
+    basePrice: 195.00, sellPrice: 220.00, level1Price: 242.00, level2Price: 253.00, level3Price: 264.00, overagePercent: 12.8, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], insideRepSplits: [{ repId: 'ir-1', repName: 'Jennifer Adams', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [180, 182, 185, 187, 190, 191, 192, 193, 194, 195, 195, 195], quotedPriceHistory: [203, 205, 209, 211, 214, 216, 217, 218, 219, 220, 220, 220],
   },
   {
     id: 'LI-030',
@@ -2225,7 +2235,7 @@ const mockLineItems: LineItem[] = [
     endUser: 'TechCorp Inc',
     quantity: 600,
     manufacturers: [{ name: 'Finelite', basePrice: 85.00, commissionRate: 0.07, overageShare: 0.82, approvalStatus: 'approved', approvalDate: '2023-06-01', approvalNotes: null }],
-    basePrice: 85.00, sellPrice: 96.00, level1Price: 105.60, level2Price: 110.40, level3Price: 115.20, overagePercent: 12.9, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [78, 79, 80, 81, 82, 83, 84, 84, 85, 85, 85, 85], quotedPriceHistory: [88, 89, 90, 91, 93, 94, 95, 95, 96, 96, 96, 96],
+    basePrice: 85.00, sellPrice: 96.00, level1Price: 105.60, level2Price: 110.40, level3Price: 115.20, overagePercent: 12.9, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], insideRepSplits: [{ repId: 'ir-1', repName: 'Jennifer Adams', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [78, 79, 80, 81, 82, 83, 84, 84, 85, 85, 85, 85], quotedPriceHistory: [88, 89, 90, 91, 93, 94, 95, 95, 96, 96, 96, 96],
   },
   {
     id: 'LI-031',
@@ -2237,7 +2247,7 @@ const mockLineItems: LineItem[] = [
     endUser: 'TechCorp Inc',
     quantity: 50,
     manufacturers: [{ name: 'Lutron', basePrice: 1250.00, commissionRate: 0.08, overageShare: 0.85, approvalStatus: 'approved', approvalDate: '2023-07-15', approvalNotes: null }],
-    basePrice: 1250.00, sellPrice: 1437.50, level1Price: 1581.25, level2Price: 1653.13, level3Price: 1725.00, overagePercent: 15.0, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [1150, 1170, 1190, 1200, 1210, 1220, 1230, 1240, 1245, 1250, 1250, 1250], quotedPriceHistory: [1323, 1346, 1369, 1380, 1392, 1403, 1415, 1426, 1432, 1438, 1438, 1438],
+    basePrice: 1250.00, sellPrice: 1437.50, level1Price: 1581.25, level2Price: 1653.13, level3Price: 1725.00, overagePercent: 15.0, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], insideRepSplits: [{ repId: 'ir-1', repName: 'Jennifer Adams', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [1150, 1170, 1190, 1200, 1210, 1220, 1230, 1240, 1245, 1250, 1250, 1250], quotedPriceHistory: [1323, 1346, 1369, 1380, 1392, 1403, 1415, 1426, 1432, 1438, 1438, 1438],
   },
   // Quote Q-2024-004 Line Items (Downtown Medical Center)
   {
@@ -2250,7 +2260,7 @@ const mockLineItems: LineItem[] = [
     endUser: 'St. Mary Medical Center',
     quantity: 250,
     manufacturers: [{ name: 'Visa Lighting', basePrice: 425.00, commissionRate: 0.09, overageShare: 0.87, approvalStatus: 'approved', approvalDate: '2024-01-05', approvalNotes: 'Healthcare certified' }],
-    basePrice: 425.00, sellPrice: 488.75, level1Price: 537.63, level2Price: 562.06, level3Price: 586.50, overagePercent: 15.0, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [395, 400, 405, 410, 415, 418, 420, 422, 424, 425, 425, 425], quotedPriceHistory: [454, 460, 466, 472, 477, 481, 483, 486, 488, 489, 489, 489],
+    basePrice: 425.00, sellPrice: 488.75, level1Price: 537.63, level2Price: 562.06, level3Price: 586.50, overagePercent: 15.0, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], insideRepSplits: [{ repId: 'ir-1', repName: 'Jennifer Adams', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [395, 400, 405, 410, 415, 418, 420, 422, 424, 425, 425, 425], quotedPriceHistory: [454, 460, 466, 472, 477, 481, 483, 486, 488, 489, 489, 489],
   },
   {
     id: 'LI-033',
@@ -2262,7 +2272,7 @@ const mockLineItems: LineItem[] = [
     endUser: 'St. Mary Medical Center',
     quantity: 120,
     manufacturers: [{ name: 'Steris', basePrice: 1850.00, commissionRate: 0.06, overageShare: 0.80, approvalStatus: 'approved', approvalDate: '2024-01-10', approvalNotes: null }],
-    basePrice: 1850.00, sellPrice: 2127.50, level1Price: 2340.25, level2Price: 2446.63, level3Price: 2553.00, overagePercent: 15.0, commissionable: true, locked: true, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [1720, 1750, 1780, 1800, 1820, 1830, 1840, 1845, 1848, 1850, 1850, 1850], quotedPriceHistory: [1978, 2013, 2047, 2070, 2093, 2105, 2116, 2122, 2125, 2128, 2128, 2128],
+    basePrice: 1850.00, sellPrice: 2127.50, level1Price: 2340.25, level2Price: 2446.63, level3Price: 2553.00, overagePercent: 15.0, commissionable: true, locked: true, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], insideRepSplits: [{ repId: 'ir-1', repName: 'Jennifer Adams', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [1720, 1750, 1780, 1800, 1820, 1830, 1840, 1845, 1848, 1850, 1850, 1850], quotedPriceHistory: [1978, 2013, 2047, 2070, 2093, 2105, 2116, 2122, 2125, 2128, 2128, 2128],
   },
   {
     id: 'LI-034',
@@ -2274,7 +2284,7 @@ const mockLineItems: LineItem[] = [
     endUser: 'St. Mary Medical Center',
     quantity: 8,
     manufacturers: [{ name: 'Stryker', basePrice: 45000.00, commissionRate: 0.04, overageShare: 0.70, approvalStatus: 'approved', approvalDate: '2023-12-15', approvalNotes: 'Medical device approved' }],
-    basePrice: 45000.00, sellPrice: 51750.00, level1Price: 56925.00, level2Price: 59512.50, level3Price: 62100.00, overagePercent: 15.0, commissionable: true, locked: true, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [42000, 42500, 43000, 43500, 44000, 44200, 44500, 44700, 44850, 45000, 45000, 45000], quotedPriceHistory: [48300, 48875, 49450, 50025, 50600, 50830, 51175, 51405, 51578, 51750, 51750, 51750],
+    basePrice: 45000.00, sellPrice: 51750.00, level1Price: 56925.00, level2Price: 59512.50, level3Price: 62100.00, overagePercent: 15.0, commissionable: true, locked: true, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], insideRepSplits: [{ repId: 'ir-1', repName: 'Jennifer Adams', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [42000, 42500, 43000, 43500, 44000, 44200, 44500, 44700, 44850, 45000, 45000, 45000], quotedPriceHistory: [48300, 48875, 49450, 50025, 50600, 50830, 51175, 51405, 51578, 51750, 51750, 51750],
   },
   // Quote Q-2024-005 Line Items (University Science Building)
   {
@@ -2287,7 +2297,7 @@ const mockLineItems: LineItem[] = [
     endUser: 'State University',
     quantity: 180,
     manufacturers: [{ name: 'Kenall', basePrice: 685.00, commissionRate: 0.08, overageShare: 0.85, approvalStatus: 'approved', approvalDate: '2023-11-01', approvalNotes: null }],
-    basePrice: 685.00, sellPrice: 787.75, level1Price: 866.53, level2Price: 905.91, level3Price: 945.30, overagePercent: 15.0, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [640, 650, 660, 668, 675, 680, 682, 683, 684, 685, 685, 685], quotedPriceHistory: [736, 748, 759, 768, 776, 782, 784, 786, 787, 788, 788, 788],
+    basePrice: 685.00, sellPrice: 787.75, level1Price: 866.53, level2Price: 905.91, level3Price: 945.30, overagePercent: 15.0, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], insideRepSplits: [{ repId: 'ir-1', repName: 'Jennifer Adams', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [640, 650, 660, 668, 675, 680, 682, 683, 684, 685, 685, 685], quotedPriceHistory: [736, 748, 759, 768, 776, 782, 784, 786, 787, 788, 788, 788],
   },
   {
     id: 'LI-036',
@@ -2299,7 +2309,7 @@ const mockLineItems: LineItem[] = [
     endUser: 'State University',
     quantity: 45,
     manufacturers: [{ name: 'Waldmann', basePrice: 345.00, commissionRate: 0.07, overageShare: 0.82, approvalStatus: 'not_approved', approvalDate: null, approvalNotes: null }],
-    basePrice: 345.00, sellPrice: 396.75, level1Price: 436.43, level2Price: 456.26, level3Price: 476.10, overagePercent: 15.0, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [320, 325, 330, 335, 338, 340, 342, 343, 344, 345, 345, 345], quotedPriceHistory: [368, 374, 380, 385, 389, 391, 393, 395, 396, 397, 397, 397],
+    basePrice: 345.00, sellPrice: 396.75, level1Price: 436.43, level2Price: 456.26, level3Price: 476.10, overagePercent: 15.0, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], insideRepSplits: [{ repId: 'ir-1', repName: 'Jennifer Adams', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [320, 325, 330, 335, 338, 340, 342, 343, 344, 345, 345, 345], quotedPriceHistory: [368, 374, 380, 385, 389, 391, 393, 395, 396, 397, 397, 397],
   },
   {
     id: 'LI-037',
@@ -2311,7 +2321,7 @@ const mockLineItems: LineItem[] = [
     endUser: 'State University',
     quantity: 300,
     manufacturers: [{ name: 'Cooper Lighting', basePrice: 145.00, commissionRate: 0.09, overageShare: 0.88, approvalStatus: 'approved', approvalDate: '2023-10-15', approvalNotes: null }],
-    basePrice: 145.00, sellPrice: 166.75, level1Price: 183.43, level2Price: 191.76, level3Price: 200.10, overagePercent: 15.0, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [135, 137, 139, 140, 141, 142, 143, 144, 144, 145, 145, 145], quotedPriceHistory: [155, 158, 160, 161, 162, 164, 165, 166, 166, 167, 167, 167],
+    basePrice: 145.00, sellPrice: 166.75, level1Price: 183.43, level2Price: 191.76, level3Price: 200.10, overagePercent: 15.0, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], insideRepSplits: [{ repId: 'ir-1', repName: 'Jennifer Adams', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [135, 137, 139, 140, 141, 142, 143, 144, 144, 145, 145, 145], quotedPriceHistory: [155, 158, 160, 161, 162, 164, 165, 166, 166, 167, 167, 167],
   },
   // Quote Q-2024-006 Line Items (Retail Plaza Renovation)
   {
@@ -2324,7 +2334,7 @@ const mockLineItems: LineItem[] = [
     endUser: 'Plaza Retail Group',
     quantity: 350,
     manufacturers: [{ name: 'WAC Lighting', basePrice: 165.00, commissionRate: 0.10, overageShare: 0.90, approvalStatus: 'approved', approvalDate: '2024-02-01', approvalNotes: null }],
-    basePrice: 165.00, sellPrice: 189.75, level1Price: 208.73, level2Price: 218.21, level3Price: 227.70, overagePercent: 15.0, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [155, 157, 159, 160, 162, 163, 164, 164, 165, 165, 165, 165], quotedPriceHistory: [178, 181, 183, 184, 186, 188, 189, 189, 190, 190, 190, 190],
+    basePrice: 165.00, sellPrice: 189.75, level1Price: 208.73, level2Price: 218.21, level3Price: 227.70, overagePercent: 15.0, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], insideRepSplits: [{ repId: 'ir-1', repName: 'Jennifer Adams', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [155, 157, 159, 160, 162, 163, 164, 164, 165, 165, 165, 165], quotedPriceHistory: [178, 181, 183, 184, 186, 188, 189, 189, 190, 190, 190, 190],
   },
   {
     id: 'LI-039',
@@ -2336,7 +2346,7 @@ const mockLineItems: LineItem[] = [
     endUser: 'Plaza Retail Group',
     quantity: 200,
     manufacturers: [{ name: 'Bruck Lighting', basePrice: 225.00, commissionRate: 0.09, overageShare: 0.87, approvalStatus: 'approved', approvalDate: '2024-02-05', approvalNotes: null }],
-    basePrice: 225.00, sellPrice: 258.75, level1Price: 284.63, level2Price: 297.56, level3Price: 310.50, overagePercent: 15.0, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [210, 213, 216, 218, 220, 221, 222, 223, 224, 225, 225, 225], quotedPriceHistory: [242, 245, 248, 251, 253, 254, 256, 257, 258, 259, 259, 259],
+    basePrice: 225.00, sellPrice: 258.75, level1Price: 284.63, level2Price: 297.56, level3Price: 310.50, overagePercent: 15.0, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], insideRepSplits: [{ repId: 'ir-1', repName: 'Jennifer Adams', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [210, 213, 216, 218, 220, 221, 222, 223, 224, 225, 225, 225], quotedPriceHistory: [242, 245, 248, 251, 253, 254, 256, 257, 258, 259, 259, 259],
   },
   {
     id: 'LI-040',
@@ -2348,7 +2358,7 @@ const mockLineItems: LineItem[] = [
     endUser: 'Plaza Retail Group',
     quantity: 80,
     manufacturers: [{ name: 'Tech Lighting', basePrice: 485.00, commissionRate: 0.08, overageShare: 0.85, approvalStatus: 'approved', approvalDate: '2024-01-28', approvalNotes: null }],
-    basePrice: 485.00, sellPrice: 557.75, level1Price: 613.53, level2Price: 641.41, level3Price: 669.30, overagePercent: 15.0, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [455, 460, 465, 470, 475, 478, 480, 482, 484, 485, 485, 485], quotedPriceHistory: [523, 529, 535, 541, 546, 550, 552, 554, 557, 558, 558, 558],
+    basePrice: 485.00, sellPrice: 557.75, level1Price: 613.53, level2Price: 641.41, level3Price: 669.30, overagePercent: 15.0, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], insideRepSplits: [{ repId: 'ir-1', repName: 'Jennifer Adams', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [455, 460, 465, 470, 475, 478, 480, 482, 484, 485, 485, 485], quotedPriceHistory: [523, 529, 535, 541, 546, 550, 552, 554, 557, 558, 558, 558],
   },
   // Quote Q-2024-007 Line Items (Convention Center)
   {
@@ -2361,7 +2371,7 @@ const mockLineItems: LineItem[] = [
     endUser: 'Metro Convention Center',
     quantity: 150,
     manufacturers: [{ name: 'Cree Lighting', basePrice: 895.00, commissionRate: 0.08, overageShare: 0.85, approvalStatus: 'approved', approvalDate: '2024-02-10', approvalNotes: null }],
-    basePrice: 895.00, sellPrice: 1029.25, level1Price: 1132.18, level2Price: 1183.64, level3Price: 1235.10, overagePercent: 15.0, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [840, 850, 860, 870, 878, 885, 890, 892, 894, 895, 895, 895], quotedPriceHistory: [966, 978, 989, 1001, 1010, 1018, 1024, 1026, 1028, 1029, 1029, 1029],
+    basePrice: 895.00, sellPrice: 1029.25, level1Price: 1132.18, level2Price: 1183.64, level3Price: 1235.10, overagePercent: 15.0, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], insideRepSplits: [{ repId: 'ir-1', repName: 'Jennifer Adams', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [840, 850, 860, 870, 878, 885, 890, 892, 894, 895, 895, 895], quotedPriceHistory: [966, 978, 989, 1001, 1010, 1018, 1024, 1026, 1028, 1029, 1029, 1029],
   },
   {
     id: 'LI-042',
@@ -2373,7 +2383,7 @@ const mockLineItems: LineItem[] = [
     endUser: 'Metro Convention Center',
     quantity: 60,
     manufacturers: [{ name: 'Lightolier', basePrice: 1250.00, commissionRate: 0.07, overageShare: 0.82, approvalStatus: 'conditional', approvalDate: '2024-02-12', approvalNotes: 'Only for convention use' }],
-    basePrice: 1250.00, sellPrice: 1437.50, level1Price: 1581.25, level2Price: 1653.13, level3Price: 1725.00, overagePercent: 15.0, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [1180, 1195, 1210, 1220, 1230, 1238, 1245, 1248, 1250, 1250, 1250, 1250], quotedPriceHistory: [1357, 1374, 1392, 1403, 1415, 1424, 1432, 1435, 1438, 1438, 1438, 1438],
+    basePrice: 1250.00, sellPrice: 1437.50, level1Price: 1581.25, level2Price: 1653.13, level3Price: 1725.00, overagePercent: 15.0, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], insideRepSplits: [{ repId: 'ir-1', repName: 'Jennifer Adams', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [1180, 1195, 1210, 1220, 1230, 1238, 1245, 1248, 1250, 1250, 1250, 1250], quotedPriceHistory: [1357, 1374, 1392, 1403, 1415, 1424, 1432, 1435, 1438, 1438, 1438, 1438],
   },
   {
     id: 'LI-043',
@@ -2385,7 +2395,7 @@ const mockLineItems: LineItem[] = [
     endUser: 'Metro Convention Center',
     quantity: 200,
     manufacturers: [{ name: 'Armstrong', basePrice: 285.00, commissionRate: 0.09, overageShare: 0.88, approvalStatus: 'approved', approvalDate: '2024-02-08', approvalNotes: null }],
-    basePrice: 285.00, sellPrice: 327.75, level1Price: 360.53, level2Price: 376.91, level3Price: 393.30, overagePercent: 15.0, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [265, 270, 275, 278, 280, 282, 283, 284, 285, 285, 285, 285], quotedPriceHistory: [305, 311, 316, 320, 322, 325, 326, 327, 328, 328, 328, 328],
+    basePrice: 285.00, sellPrice: 327.75, level1Price: 360.53, level2Price: 376.91, level3Price: 393.30, overagePercent: 15.0, commissionable: true, locked: false, outsideRepSplits: [{ repId: 'or-1', repName: 'Richard Utley', percentage: 100 }], insideRepSplits: [{ repId: 'ir-1', repName: 'Jennifer Adams', percentage: 100 }], useDivisor: false, divisor: 1, hasSpecSheet: true, priceHistory: [265, 270, 275, 278, 280, 282, 283, 284, 285, 285, 285, 285], quotedPriceHistory: [305, 311, 316, 320, 322, 325, 326, 327, 328, 328, 328, 328],
   },
 ];
 
@@ -3501,6 +3511,16 @@ export default function QuotesContent() {
   const [lineItemRepSplitsTarget, setLineItemRepSplitsTarget] = useState<string | null>(null);
   const [lineItemRepSplits, setLineItemRepSplits] = useState<{repId: string; repName: string; percentage: number}[]>([]);
 
+  // Inside rep commission splits settings
+  const [showInsideRepSplits, setShowInsideRepSplits] = useState(false);
+
+  // Line item inside rep splits
+  const [lineItemInsideRepDropdown, setLineItemInsideRepDropdown] = useState<string | null>(null);
+  const [lineItemInsideRepSearch, setLineItemInsideRepSearch] = useState('');
+  const [showLineItemInsideRepSplitsModal, setShowLineItemInsideRepSplitsModal] = useState(false);
+  const [lineItemInsideRepSplitsTarget, setLineItemInsideRepSplitsTarget] = useState<string | null>(null);
+  const [lineItemInsideRepSplits, setLineItemInsideRepSplits] = useState<{repId: string; repName: string; percentage: number}[]>([]);
+
   // Line item details modal (for hidden columns in simple view)
   const [showLineDetailsModal, setShowLineDetailsModal] = useState(false);
   const [lineDetailsModalItem, setLineDetailsModalItem] = useState<LineItem | null>(null);
@@ -3602,6 +3622,18 @@ export default function QuotesContent() {
     { id: 'or-8', name: 'Amy Johnson' },
     { id: 'or-9', name: 'Michelle Lee' },
     { id: 'or-10', name: 'Kevin White' },
+  ];
+
+  // Available inside reps for selection
+  const availableInsideReps = [
+    { id: 'ir-1', name: 'Jennifer Adams' },
+    { id: 'ir-2', name: 'Mark Stevens' },
+    { id: 'ir-3', name: 'Rachel Green' },
+    { id: 'ir-4', name: 'David Miller' },
+    { id: 'ir-5', name: 'Emily Chen' },
+    { id: 'ir-6', name: 'Jason Park' },
+    { id: 'ir-7', name: 'Nicole Turner' },
+    { id: 'ir-8', name: 'Andrew Scott' },
   ];
 
   // Saved views
@@ -5259,6 +5291,7 @@ export default function QuotesContent() {
       quotedPriceHistory: [],
       hasSpecSheet: false,
       outsideRepSplits: [],
+      insideRepSplits: [],
       useDivisor: false,
       divisor: 1,
     };
@@ -5304,6 +5337,7 @@ export default function QuotesContent() {
       quotedPriceHistory: [],
       hasSpecSheet: false,
       outsideRepSplits: [],
+      insideRepSplits: [],
       useDivisor: false,
       divisor: 1,
     };
@@ -6351,6 +6385,10 @@ export default function QuotesContent() {
                           {showCommissionSplits && (
                             <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">Outside Reps</th>
                           )}
+                          {/* Inside Reps column - only when inside rep splits enabled */}
+                          {showInsideRepSplits && (
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">Inside Reps</th>
+                          )}
                           {/* Empty header for expand/more button column - always last */}
                           <th className="px-2 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase w-10"></th>
                         </tr>
@@ -6567,6 +6605,92 @@ export default function QuotesContent() {
                                         </td>
                                       );
                                     })()}
+                                    {/* Inside Reps Column - Only visible when showInsideRepSplits is enabled */}
+                                    {showInsideRepSplits && (() => {
+                                      const currentRep = item.insideRepSplits.length === 1 ? item.insideRepSplits[0] : null;
+                                      const hasMultiple = item.insideRepSplits.length > 1;
+                                      const displayText = hasMultiple ? 'Multiple' : (currentRep?.repName || 'Select...');
+                                      const filteredReps = availableInsideReps.filter(rep =>
+                                        rep.name.toLowerCase().includes(lineItemInsideRepSearch.toLowerCase())
+                                      );
+                                      return (
+                                        <td className="px-3 py-2 text-sm relative">
+                                          <div className="line-item-inside-rep-container">
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setLineItemInsideRepDropdown(lineItemInsideRepDropdown === item.id ? null : item.id);
+                                                setLineItemInsideRepSearch('');
+                                              }}
+                                              className={`w-full text-left px-2 py-1 rounded hover:bg-[var(--muted)] transition-colors flex items-center gap-1 text-xs ${hasMultiple ? 'text-[var(--primary)] font-medium' : ''}`}
+                                            >
+                                              <span className="flex-1 truncate">{displayText}</span>
+                                              <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-[var(--muted-foreground)] flex-shrink-0">
+                                                <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                                              </svg>
+                                            </button>
+                                            {lineItemInsideRepDropdown === item.id && (
+                                              <div className="absolute top-full left-0 mt-1 w-64 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                                                <div className="p-2 border-b border-[var(--border)]">
+                                                  <input
+                                                    type="text"
+                                                    value={lineItemInsideRepSearch}
+                                                    onChange={(e) => setLineItemInsideRepSearch(e.target.value)}
+                                                    placeholder="Search reps..."
+                                                    className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                                                    autoFocus
+                                                    onClick={(e) => e.stopPropagation()}
+                                                  />
+                                                </div>
+                                                <div className="max-h-48 overflow-y-auto">
+                                                  {/* Multiple option */}
+                                                  <button
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setLineItemInsideRepSplitsTarget(item.id);
+                                                      setLineItemInsideRepSplits(item.insideRepSplits.length > 0
+                                                        ? item.insideRepSplits.map(s => ({ repId: s.repId, repName: s.repName, percentage: s.percentage }))
+                                                        : [{ repId: availableInsideReps[0]?.id || '', repName: availableInsideReps[0]?.name || '', percentage: 100 }]
+                                                      );
+                                                      setShowLineItemInsideRepSplitsModal(true);
+                                                      setLineItemInsideRepDropdown(null);
+                                                    }}
+                                                    className="w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors border-b border-[var(--border)] flex items-center gap-2"
+                                                  >
+                                                    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--primary)]">
+                                                      <path d="M12 4.5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zM19 8.5a2 2 0 11-4 0 2 2 0 014 0zM5 8.5a2 2 0 11-4 0 2 2 0 014 0zM10 10v6M6 14h8" strokeLinecap="round" strokeLinejoin="round"/>
+                                                    </svg>
+                                                    <span className="font-medium text-[var(--primary)] text-sm">Multiple (Split Commission)</span>
+                                                  </button>
+                                                  {filteredReps.map(rep => (
+                                                    <button
+                                                      key={rep.id}
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setQuoteLineItems(prev => prev.map(li =>
+                                                          li.id === item.id ? {
+                                                            ...li,
+                                                            insideRepSplits: [{ repId: rep.id, repName: rep.name, percentage: 100 }]
+                                                          } : li
+                                                        ));
+                                                        setLineItemInsideRepDropdown(null);
+                                                        setLineItemInsideRepSearch('');
+                                                      }}
+                                                      className={`w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors ${currentRep?.repId === rep.id ? 'bg-[var(--muted)]' : ''}`}
+                                                    >
+                                                      <div className="text-sm">{rep.name}</div>
+                                                    </button>
+                                                  ))}
+                                                  {filteredReps.length === 0 && (
+                                                    <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">No reps found</div>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
+                                        </td>
+                                      );
+                                    })()}
                                     <td className="px-2 py-2 text-center">
                                       <button
                                         onClick={() => {
@@ -6588,7 +6712,7 @@ export default function QuotesContent() {
                                 {/* Add Line Row for this section */}
                                 {!isCollapsed && (
                                   <tr className="border-b border-[var(--border)] hover:bg-[var(--muted)]/20 transition-colors">
-                                    <td colSpan={totalColumns + (showCommissionSplits ? 1 : 0)} className="px-4 py-2">
+                                    <td colSpan={totalColumns + (showCommissionSplits ? 1 : 0) + (showInsideRepSplits ? 1 : 0)} className="px-4 py-2">
                                       <button
                                         className="flex items-center gap-2 text-sm text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors"
                                         onClick={() => addLineItem(section.id)}
@@ -6608,7 +6732,7 @@ export default function QuotesContent() {
                         {/* Add Section row at the very bottom in shelf mode */}
                         {showSections && sectionDisplayMode === 'lineShelf' && (
                           <tr className="hover:bg-[var(--muted)]/20 transition-colors">
-                            <td colSpan={1 + getOrderedVisibleColumns().length + (showCommissionSplits ? 1 : 0) + 1} className="px-4 py-3 border-t border-[var(--border)]">
+                            <td colSpan={1 + getOrderedVisibleColumns().length + (showCommissionSplits ? 1 : 0) + (showInsideRepSplits ? 1 : 0) + 1} className="px-4 py-3 border-t border-[var(--border)]">
                               <button
                                 className="flex items-center gap-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
                                 onClick={() => addSection()}
@@ -6849,6 +6973,92 @@ export default function QuotesContent() {
                                     </td>
                                   );
                                 })()}
+                                {/* Inside Reps Column - Only visible when showInsideRepSplits is enabled */}
+                                {showInsideRepSplits && (() => {
+                                  const currentRep = item.insideRepSplits.length === 1 ? item.insideRepSplits[0] : null;
+                                  const hasMultiple = item.insideRepSplits.length > 1;
+                                  const displayText = hasMultiple ? 'Multiple' : (currentRep?.repName || 'Select...');
+                                  const filteredReps = availableInsideReps.filter(rep =>
+                                    rep.name.toLowerCase().includes(lineItemInsideRepSearch.toLowerCase())
+                                  );
+                                  return (
+                                    <td className="px-3 py-2 text-sm relative">
+                                      <div className="line-item-inside-rep-container">
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setLineItemInsideRepDropdown(lineItemInsideRepDropdown === item.id ? null : item.id);
+                                            setLineItemInsideRepSearch('');
+                                          }}
+                                          className={`w-full text-left px-2 py-1 rounded hover:bg-[var(--muted)] transition-colors flex items-center gap-1 text-xs ${hasMultiple ? 'text-[var(--primary)] font-medium' : ''}`}
+                                        >
+                                          <span className="flex-1 truncate">{displayText}</span>
+                                          <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-[var(--muted-foreground)] flex-shrink-0">
+                                            <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                                          </svg>
+                                        </button>
+                                        {lineItemInsideRepDropdown === item.id && (
+                                          <div className="absolute top-full left-0 mt-1 w-64 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                                            <div className="p-2 border-b border-[var(--border)]">
+                                              <input
+                                                type="text"
+                                                value={lineItemInsideRepSearch}
+                                                onChange={(e) => setLineItemInsideRepSearch(e.target.value)}
+                                                placeholder="Search reps..."
+                                                className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                                                autoFocus
+                                                onClick={(e) => e.stopPropagation()}
+                                              />
+                                            </div>
+                                            <div className="max-h-48 overflow-y-auto">
+                                              {/* Multiple option */}
+                                              <button
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setLineItemInsideRepSplitsTarget(item.id);
+                                                  setLineItemInsideRepSplits(item.insideRepSplits.length > 0
+                                                    ? item.insideRepSplits.map(s => ({ repId: s.repId, repName: s.repName, percentage: s.percentage }))
+                                                    : [{ repId: availableInsideReps[0]?.id || '', repName: availableInsideReps[0]?.name || '', percentage: 100 }]
+                                                  );
+                                                  setShowLineItemInsideRepSplitsModal(true);
+                                                  setLineItemInsideRepDropdown(null);
+                                                }}
+                                                className="w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors border-b border-[var(--border)] flex items-center gap-2"
+                                              >
+                                                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--primary)]">
+                                                  <path d="M12 4.5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zM19 8.5a2 2 0 11-4 0 2 2 0 014 0zM5 8.5a2 2 0 11-4 0 2 2 0 014 0zM10 10v6M6 14h8" strokeLinecap="round" strokeLinejoin="round"/>
+                                                </svg>
+                                                <span className="font-medium text-[var(--primary)] text-sm">Multiple (Split Commission)</span>
+                                              </button>
+                                              {filteredReps.map(rep => (
+                                                <button
+                                                  key={rep.id}
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setQuoteLineItems(prev => prev.map(li =>
+                                                      li.id === item.id ? {
+                                                        ...li,
+                                                        insideRepSplits: [{ repId: rep.id, repName: rep.name, percentage: 100 }]
+                                                      } : li
+                                                    ));
+                                                    setLineItemInsideRepDropdown(null);
+                                                    setLineItemInsideRepSearch('');
+                                                  }}
+                                                  className={`w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors ${currentRep?.repId === rep.id ? 'bg-[var(--muted)]' : ''}`}
+                                                >
+                                                  <div className="text-sm">{rep.name}</div>
+                                                </button>
+                                              ))}
+                                              {filteredReps.length === 0 && (
+                                                <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">No reps found</div>
+                                              )}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </td>
+                                  );
+                                })()}
                                 <td className="px-2 py-2 text-center">
                                   <button
                                     onClick={() => {
@@ -6871,7 +7081,7 @@ export default function QuotesContent() {
                         {/* Add Line Row at the bottom (for column mode or no sections) */}
                         {!(showSections && sectionDisplayMode === 'lineShelf') && (
                           <tr className="hover:bg-[var(--muted)]/20 transition-colors">
-                            <td colSpan={1 + (showSections && sectionDisplayMode === 'column' ? 1 : 0) + getOrderedVisibleColumns().length + (showCommissionSplits ? 1 : 0) + 1} className="px-4 py-2">
+                            <td colSpan={1 + (showSections && sectionDisplayMode === 'column' ? 1 : 0) + getOrderedVisibleColumns().length + (showCommissionSplits ? 1 : 0) + (showInsideRepSplits ? 1 : 0) + 1} className="px-4 py-2">
                               <button
                                 className="flex items-center gap-2 text-sm text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors"
                                 onClick={() => addLineItem()}
@@ -7206,6 +7416,9 @@ export default function QuotesContent() {
                           )}
                           {showCommissionSplits && (
                             <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">Outside Reps</th>
+                          )}
+                          {showInsideRepSplits && (
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">Inside Reps</th>
                           )}
                           {effectiveVisibleColumns.has('commissionDiscountPercent') && (
                             <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">Comm Disc %</th>
@@ -7869,6 +8082,92 @@ export default function QuotesContent() {
                                         </td>
                                       );
                                     })()}
+                                    {/* Inside Reps Column - Only visible when showInsideRepSplits is enabled */}
+                                    {showInsideRepSplits && (() => {
+                                      const currentRep = item.insideRepSplits.length === 1 ? item.insideRepSplits[0] : null;
+                                      const hasMultiple = item.insideRepSplits.length > 1;
+                                      const displayText = hasMultiple ? 'Multiple' : (currentRep?.repName || 'Select...');
+                                      const filteredReps = availableInsideReps.filter(rep =>
+                                        rep.name.toLowerCase().includes(lineItemInsideRepSearch.toLowerCase())
+                                      );
+                                      return (
+                                        <td className="px-3 py-2 text-sm relative">
+                                          <div className="line-item-inside-rep-container">
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setLineItemInsideRepDropdown(lineItemInsideRepDropdown === item.id ? null : item.id);
+                                                setLineItemInsideRepSearch('');
+                                              }}
+                                              className={`w-full text-left px-2 py-1 rounded hover:bg-[var(--muted)] transition-colors flex items-center gap-1 text-xs ${hasMultiple ? 'text-[var(--primary)] font-medium' : ''}`}
+                                            >
+                                              <span className="flex-1 truncate">{displayText}</span>
+                                              <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-[var(--muted-foreground)] flex-shrink-0">
+                                                <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                                              </svg>
+                                            </button>
+                                            {lineItemInsideRepDropdown === item.id && (
+                                              <div className="absolute top-full left-0 mt-1 w-64 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                                                <div className="p-2 border-b border-[var(--border)]">
+                                                  <input
+                                                    type="text"
+                                                    value={lineItemInsideRepSearch}
+                                                    onChange={(e) => setLineItemInsideRepSearch(e.target.value)}
+                                                    placeholder="Search reps..."
+                                                    className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                                                    autoFocus
+                                                    onClick={(e) => e.stopPropagation()}
+                                                  />
+                                                </div>
+                                                <div className="max-h-48 overflow-y-auto">
+                                                  {/* Multiple option */}
+                                                  <button
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setLineItemInsideRepSplitsTarget(item.id);
+                                                      setLineItemInsideRepSplits(item.insideRepSplits.length > 0
+                                                        ? item.insideRepSplits.map(s => ({ repId: s.repId, repName: s.repName, percentage: s.percentage }))
+                                                        : [{ repId: availableInsideReps[0]?.id || '', repName: availableInsideReps[0]?.name || '', percentage: 100 }]
+                                                      );
+                                                      setShowLineItemInsideRepSplitsModal(true);
+                                                      setLineItemInsideRepDropdown(null);
+                                                    }}
+                                                    className="w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors border-b border-[var(--border)] flex items-center gap-2"
+                                                  >
+                                                    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--primary)]">
+                                                      <path d="M12 4.5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zM19 8.5a2 2 0 11-4 0 2 2 0 014 0zM5 8.5a2 2 0 11-4 0 2 2 0 014 0zM10 10v6M6 14h8" strokeLinecap="round" strokeLinejoin="round"/>
+                                                    </svg>
+                                                    <span className="font-medium text-[var(--primary)] text-sm">Multiple (Split Commission)</span>
+                                                  </button>
+                                                  {filteredReps.map(rep => (
+                                                    <button
+                                                      key={rep.id}
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setQuoteLineItems(prev => prev.map(li =>
+                                                          li.id === item.id ? {
+                                                            ...li,
+                                                            insideRepSplits: [{ repId: rep.id, repName: rep.name, percentage: 100 }]
+                                                          } : li
+                                                        ));
+                                                        setLineItemInsideRepDropdown(null);
+                                                        setLineItemInsideRepSearch('');
+                                                      }}
+                                                      className={`w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors ${currentRep?.repId === rep.id ? 'bg-[var(--muted)]' : ''}`}
+                                                    >
+                                                      <div className="text-sm">{rep.name}</div>
+                                                    </button>
+                                                  ))}
+                                                  {filteredReps.length === 0 && (
+                                                    <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">No reps found</div>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
+                                        </td>
+                                      );
+                                    })()}
                                     {/* Discount columns */}
                                     {effectiveVisibleColumns.has('commissionDiscountPercent') && (
                                       <td className="px-3 py-2 text-sm text-center text-[var(--muted-foreground)]">
@@ -8212,7 +8511,7 @@ export default function QuotesContent() {
                         {/* Add Section row at the very bottom in shelf mode */}
                         {showSections && sectionDisplayMode === 'lineShelf' && (
                           <tr className="hover:bg-[var(--muted)]/20 transition-colors">
-                            <td colSpan={1 + effectiveVisibleColumns.size + (showCommissionSplits ? 1 : 0) + 1} className="px-4 py-3 border-t border-[var(--border)]">
+                            <td colSpan={1 + effectiveVisibleColumns.size + (showCommissionSplits ? 1 : 0) + (showInsideRepSplits ? 1 : 0) + 1} className="px-4 py-3 border-t border-[var(--border)]">
                               <button
                                 className="flex items-center gap-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
                                 onClick={() => addSection()}
@@ -10909,7 +11208,7 @@ export default function QuotesContent() {
                     <span className="text-sm font-medium text-[var(--foreground)]">Specify end user per line item</span>
                   </div>
 
-                  {/* Commission Splits Toggle */}
+                  {/* Outside Rep Commission Splits Toggle */}
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => setShowCommissionSplits(!showCommissionSplits)}
@@ -10923,7 +11222,24 @@ export default function QuotesContent() {
                         }`}
                       />
                     </button>
-                    <span className="text-sm font-medium text-[var(--foreground)]">Enable commission splits per line</span>
+                    <span className="text-sm font-medium text-[var(--foreground)]">Enable outside rep splits per line</span>
+                  </div>
+
+                  {/* Inside Rep Commission Splits Toggle */}
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setShowInsideRepSplits(!showInsideRepSplits)}
+                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 ${
+                        showInsideRepSplits ? 'bg-[var(--primary)]' : 'bg-[var(--muted)]'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform ${
+                          showInsideRepSplits ? 'translate-x-5' : 'translate-x-0.5'
+                        }`}
+                      />
+                    </button>
+                    <span className="text-sm font-medium text-[var(--foreground)]">Enable inside rep splits per line</span>
                   </div>
 
                   {/* Divider */}
@@ -11688,6 +12004,211 @@ export default function QuotesContent() {
                     setLineItemRepSplits([]);
                   }}
                   disabled={lineItemRepSplits.reduce((sum, s) => sum + s.percentage, 0) !== 100}
+                  className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Line Item Inside Rep Commission Splits Modal */}
+        {showLineItemInsideRepSplitsModal && lineItemInsideRepSplitsTarget && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-lg w-full">
+              <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-[var(--foreground)]">Inside Rep Commission Splits</h2>
+                  <p className="text-sm text-[var(--muted-foreground)]">Divide inside rep commission for this line item</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowLineItemInsideRepSplitsModal(false);
+                    setLineItemInsideRepSplitsTarget(null);
+                  }}
+                  className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
+                >
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                  </svg>
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                {/* Total percentage indicator */}
+                {(() => {
+                  const totalPercentage = lineItemInsideRepSplits.reduce((sum, split) => sum + split.percentage, 0);
+                  const isValid = totalPercentage === 100;
+                  return (
+                    <div className={`flex items-center justify-between p-3 rounded-lg ${
+                      isValid ? 'bg-green-50 border border-green-200' : 'bg-yellow-50 border border-yellow-200'
+                    }`}>
+                      <span className={`text-sm font-medium ${isValid ? 'text-green-700' : 'text-yellow-700'}`}>
+                        Total: {totalPercentage}%
+                      </span>
+                      {!isValid && (
+                        <span className="text-xs text-yellow-600">
+                          Must equal 100%
+                        </span>
+                      )}
+                      {isValid && (
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-600">
+                          <path d="M5 10l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Rep splits list */}
+                <div className="space-y-3">
+                  {lineItemInsideRepSplits.map((split, index) => (
+                    <div key={split.repId + index} className="flex items-center gap-3 p-3 border border-[var(--border)] rounded-lg">
+                      <div className="flex-1">
+                        <select
+                          value={split.repId}
+                          onChange={(e) => {
+                            const newRep = availableInsideReps.find(r => r.id === e.target.value);
+                            if (newRep) {
+                              setLineItemInsideRepSplits(prev => prev.map((s, i) =>
+                                i === index ? { ...s, repId: newRep.id, repName: newRep.name } : s
+                              ));
+                            }
+                          }}
+                          className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
+                        >
+                          {availableInsideReps.map(rep => (
+                            <option
+                              key={rep.id}
+                              value={rep.id}
+                              disabled={lineItemInsideRepSplits.some(s => s.repId === rep.id && s.repId !== split.repId)}
+                            >
+                              {rep.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="w-24 flex items-center gap-1">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={split.percentage}
+                          onChange={(e) => {
+                            const rawValue = e.target.value.replace(/[^0-9]/g, '');
+                            const value = Math.min(100, Math.max(0, parseInt(rawValue) || 0));
+                            const otherRepsCount = lineItemInsideRepSplits.length - 1;
+                            if (otherRepsCount > 0) {
+                              const remaining = 100 - value;
+                              const perRep = Math.floor(remaining / otherRepsCount);
+                              const remainder = remaining - (perRep * otherRepsCount);
+                              let extraAssigned = 0;
+                              setLineItemInsideRepSplits(prev => prev.map((s, i) => {
+                                if (i === index) {
+                                  return { ...s, percentage: value };
+                                } else {
+                                  const extraPercent = extraAssigned < remainder ? 1 : 0;
+                                  extraAssigned++;
+                                  return { ...s, percentage: Math.max(0, perRep + extraPercent) };
+                                }
+                              }));
+                            } else {
+                              setLineItemInsideRepSplits(prev => prev.map((s, i) =>
+                                i === index ? { ...s, percentage: value } : s
+                              ));
+                            }
+                          }}
+                          onFocus={(e) => e.target.select()}
+                          className="w-16 px-2 py-2 bg-white border border-[var(--border)] rounded-md text-sm text-center focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent [appearance:textfield]"
+                        />
+                        <span className="text-sm text-[var(--muted-foreground)]">%</span>
+                      </div>
+                      {lineItemInsideRepSplits.length > 1 && (
+                        <button
+                          onClick={() => {
+                            const remaining = lineItemInsideRepSplits.filter((_, i) => i !== index);
+                            const newCount = remaining.length;
+                            const perRep = Math.floor(100 / newCount);
+                            const remainder = 100 - (perRep * newCount);
+                            let extraAssigned = 0;
+                            setLineItemInsideRepSplits(remaining.map(s => {
+                              const extraPercent = extraAssigned < remainder ? 1 : 0;
+                              extraAssigned++;
+                              return { ...s, percentage: perRep + extraPercent };
+                            }));
+                          }}
+                          className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Remove rep"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Add rep button */}
+                {lineItemInsideRepSplits.length < availableInsideReps.length && (
+                  <button
+                    onClick={() => {
+                      const usedRepIds = new Set(lineItemInsideRepSplits.map(s => s.repId));
+                      const availableRep = availableInsideReps.find(r => !usedRepIds.has(r.id));
+                      if (availableRep) {
+                        const newCount = lineItemInsideRepSplits.length + 1;
+                        const perRep = Math.floor(100 / newCount);
+                        const remainder = 100 - (perRep * newCount);
+                        let extraAssigned = 0;
+                        const updatedSplits = lineItemInsideRepSplits.map(s => {
+                          const extraPercent = extraAssigned < remainder ? 1 : 0;
+                          extraAssigned++;
+                          return { ...s, percentage: perRep + extraPercent };
+                        });
+                        const newRepPercent = perRep + (extraAssigned < remainder ? 1 : 0);
+                        setLineItemInsideRepSplits([...updatedSplits, { repId: availableRep.id, repName: availableRep.name, percentage: newRepPercent }]);
+                      }
+                    }}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-dashed border-[var(--border)] rounded-lg text-sm text-[var(--muted-foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)] transition-colors"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                    </svg>
+                    Add Rep
+                  </button>
+                )}
+              </div>
+              <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3">
+                <button
+                  onClick={() => {
+                    setShowLineItemInsideRepSplitsModal(false);
+                    setLineItemInsideRepSplitsTarget(null);
+                    setLineItemInsideRepSplits([]);
+                  }}
+                  className="px-4 py-2 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors text-sm font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    // Save the splits to the line item
+                    if (lineItemInsideRepSplitsTarget) {
+                      setQuoteLineItems(prev => prev.map(li =>
+                        li.id === lineItemInsideRepSplitsTarget ? {
+                          ...li,
+                          insideRepSplits: lineItemInsideRepSplits.map(s => ({
+                            repId: s.repId,
+                            repName: s.repName,
+                            percentage: s.percentage
+                          }))
+                        } : li
+                      ));
+                    }
+                    setShowLineItemInsideRepSplitsModal(false);
+                    setLineItemInsideRepSplitsTarget(null);
+                    setLineItemInsideRepSplits([]);
+                  }}
+                  disabled={lineItemInsideRepSplits.reduce((sum, s) => sum + s.percentage, 0) !== 100}
                   className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Save
