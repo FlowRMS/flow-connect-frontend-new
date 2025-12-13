@@ -904,7 +904,7 @@ export default function CompanyDetailView({
                       <input
                         type="text"
                         value={isEditing ? (editFormData.name ?? company.name) : company.name}
-                        onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                        onChange={(e) => onFieldChange('name', e.target.value)}
                         className={isEditing ? inputClass : readOnlyClass}
                         readOnly={!isEditing}
                       />

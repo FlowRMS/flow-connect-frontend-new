@@ -48,9 +48,9 @@ type ActivityRule = {
   tagModifiers: { tag: string; multiplier: number }[];
 };
 
-type TabType = 'takeoffs' | 'credit-for-sale' | 'sidebar' | 'default-views' | 'manufacturer-integrations' | 'general' | 'team' | 'permissions' | 'flowbot' | 'categories' | 'sales-reps';
+type TabType = 'takeoffs' | 'credit-for-sale' | 'sidebar' | 'default-views' | 'manufacturer-integrations' | 'general' | 'team' | 'permissions' | 'flowbot' | 'categories' | 'sales-reps' | 'product-categories';
 
-const allTabIds: TabType[] = ['takeoffs', 'credit-for-sale', 'sidebar', 'default-views', 'manufacturer-integrations', 'general', 'team', 'permissions', 'flowbot', 'categories', 'sales-reps'];
+const allTabIds: TabType[] = ['takeoffs', 'credit-for-sale', 'sidebar', 'default-views', 'manufacturer-integrations', 'general', 'team', 'permissions', 'flowbot', 'categories', 'sales-reps', 'product-categories'];
 
 export default function SettingsContent() {
   const searchParams = useSearchParams();
@@ -170,6 +170,12 @@ export default function SettingsContent() {
         { id: 'sales-reps' as TabType, label: 'Rep Assignments' },
         { id: 'credit-for-sale' as TabType, label: 'Credit for Sale' },
         { id: 'categories' as TabType, label: 'Categories' },
+      ],
+    },
+    {
+      label: 'Products',
+      tabs: [
+        { id: 'product-categories' as TabType, label: 'Product Categories' },
       ],
     },
     {
@@ -633,6 +639,7 @@ export default function SettingsContent() {
       {activeTab === 'flowbot' && <FlowBotSettingsTab />}
       {activeTab === 'categories' && <CategoriesTab />}
       {activeTab === 'sales-reps' && <SalesRepSelectionsTab />}
+      {activeTab === 'product-categories' && <ProductCategoriesTab />}
       </div>
     </main>
   );
@@ -1863,6 +1870,171 @@ function CategorySection({
         >
           Add
         </button>
+      </div>
+    </div>
+  );
+}
+
+// Product Categories Tab
+function ProductCategoriesTab() {
+  // Mock data for manufacturers
+  const [manufacturers] = useState([
+    { id: 'all', name: 'All Manufacturers (Tenant-Wide)' },
+    { id: 'signify', name: 'Signify' },
+    { id: 'rab', name: 'RAB Lighting' },
+    { id: 'acuity', name: 'Acuity Brands' },
+    { id: 'lutron', name: 'Lutron' },
+  ]);
+
+  const [selectedManufacturer, setSelectedManufacturer] = useState('all');
+
+  // Categories per manufacturer (mock data)
+  const [categoriesByManufacturer, setCategoriesByManufacturer] = useState<Record<string, string[]>>({
+    all: ['Indoor Lighting', 'Outdoor Lighting', 'Controls', 'Emergency', 'Accessories', 'LED Retrofit'],
+    signify: ['Philips Indoor', 'Philips Outdoor', 'Philips Controls'],
+    rab: ['Area Lights', 'Flood Lights', 'Wall Packs', 'High Bays'],
+    acuity: ['Lithonia', 'Juno', 'Holophane', 'Gotham'],
+    lutron: ['Dimmers', 'Sensors', 'Shades', 'Keypads'],
+  });
+
+  const [newCategory, setNewCategory] = useState('');
+
+  const currentCategories = categoriesByManufacturer[selectedManufacturer] || [];
+
+  const handleAddCategory = () => {
+    if (newCategory.trim() && !currentCategories.includes(newCategory.trim())) {
+      setCategoriesByManufacturer(prev => ({
+        ...prev,
+        [selectedManufacturer]: [...(prev[selectedManufacturer] || []), newCategory.trim()]
+      }));
+      setNewCategory('');
+    }
+  };
+
+  const handleRemoveCategory = (category: string) => {
+    setCategoriesByManufacturer(prev => ({
+      ...prev,
+      [selectedManufacturer]: (prev[selectedManufacturer] || []).filter(c => c !== category)
+    }));
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddCategory();
+    }
+  };
+
+  return (
+    <div className="max-w-3xl space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold text-[var(--foreground)]">Product Categories</h2>
+        <p className="text-sm text-[var(--muted-foreground)] mt-1">
+          Configure product categories tenant-wide or create manufacturer-specific categories
+        </p>
+      </div>
+
+      {/* Manufacturer Selector */}
+      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-5">
+        <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+          Select Scope
+        </label>
+        <select
+          value={selectedManufacturer}
+          onChange={(e) => setSelectedManufacturer(e.target.value)}
+          className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+        >
+          {manufacturers.map(m => (
+            <option key={m.id} value={m.id}>{m.name}</option>
+          ))}
+        </select>
+        <p className="text-xs text-[var(--muted-foreground)] mt-2">
+          {selectedManufacturer === 'all'
+            ? 'These categories will apply to all products across all manufacturers.'
+            : `These categories are specific to ${manufacturers.find(m => m.id === selectedManufacturer)?.name}.`
+          }
+        </p>
+      </div>
+
+      {/* Categories List */}
+      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-5">
+        <div className="flex items-start justify-between mb-3">
+          <div>
+            <h3 className="font-semibold text-[var(--foreground)]">
+              {selectedManufacturer === 'all' ? 'Tenant-Wide Categories' : `${manufacturers.find(m => m.id === selectedManufacturer)?.name} Categories`}
+            </h3>
+            <p className="text-sm text-[var(--muted-foreground)]">
+              {selectedManufacturer === 'all'
+                ? 'Categories available for all products'
+                : 'Manufacturer-specific product categories'
+              }
+            </p>
+          </div>
+          <span className="text-xs text-[var(--muted-foreground)] bg-[var(--muted)] px-2 py-1 rounded">
+            {currentCategories.length} categories
+          </span>
+        </div>
+
+        {/* Current Categories */}
+        <div className="flex flex-wrap gap-2 mb-4 min-h-[40px]">
+          {currentCategories.length === 0 ? (
+            <p className="text-sm text-[var(--muted-foreground)] italic">No categories defined yet</p>
+          ) : (
+            currentCategories.map((category) => (
+              <span
+                key={category}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[var(--muted)] rounded-full text-sm"
+              >
+                {category}
+                <button
+                  onClick={() => handleRemoveCategory(category)}
+                  className="text-[var(--muted-foreground)] hover:text-red-500 transition-colors"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M18 6L6 18M6 6l12 12"/>
+                  </svg>
+                </button>
+              </span>
+            ))
+          )}
+        </div>
+
+        {/* Add New Category */}
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={newCategory}
+            onChange={(e) => setNewCategory(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Add new category..."
+            className="flex-1 px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+          />
+          <button
+            onClick={handleAddCategory}
+            disabled={!newCategory.trim()}
+            className="px-3 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-[var(--primary-hover)] transition-colors"
+          >
+            Add
+          </button>
+        </div>
+      </div>
+
+      {/* Info Card */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="flex gap-3">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600 flex-shrink-0 mt-0.5">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 16v-4M12 8h.01"/>
+          </svg>
+          <div className="text-sm text-blue-800">
+            <p className="font-medium mb-1">How categories work</p>
+            <ul className="list-disc list-inside space-y-1 text-blue-700">
+              <li>Tenant-wide categories apply to all products by default</li>
+              <li>Manufacturer-specific categories override tenant-wide settings for that manufacturer</li>
+              <li>Products can be assigned to one or more categories</li>
+            </ul>
+          </div>
+        </div>
       </div>
     </div>
   );

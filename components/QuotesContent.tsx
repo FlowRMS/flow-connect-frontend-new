@@ -3532,6 +3532,21 @@ export default function QuotesContent() {
   const [showStageDropdown, setShowStageDropdown] = useState(false);
   const [showVersionDropdown, setShowVersionDropdown] = useState(false);
 
+  // Actions dropdown and modals
+  const [showActionsDropdown, setShowActionsDropdown] = useState(false);
+  const [showDuplicateQuoteModal, setShowDuplicateQuoteModal] = useState(false);
+  const [showCreateOrderFromQuoteModal, setShowCreateOrderFromQuoteModal] = useState(false);
+
+  // Duplicate quote modal state
+  const [duplicateQuoteNumber, setDuplicateQuoteNumber] = useState('');
+  const [duplicateCustomer, setDuplicateCustomer] = useState('');
+  const [duplicatePercentIncrease, setDuplicatePercentIncrease] = useState(0);
+  const [duplicateCopyNotes, setDuplicateCopyNotes] = useState(true);
+
+  // Create order from quote modal state
+  const [createOrderSelectAll, setCreateOrderSelectAll] = useState(true);
+  const [createOrderSelectedItems, setCreateOrderSelectedItems] = useState<{id: string; selected: boolean; quantity: number}[]>([]);
+
   // Available end users (would come from contacts/companies in real app)
   const availableEndUsers = [
     'Turner Construction',
@@ -3599,13 +3614,13 @@ export default function QuotesContent() {
   }, [lineItemRepDropdown]);
 
   // Column visibility state
-  type ColumnKey = 'partNumber' | 'customerPartNumber' | 'description' | 'quantity' | 'uom' | 'endUser' | 'manufacturer' | 'base' | 'sell' | 'sellTotal' | 'overage' | 'overageAmt' | 'commRate' | 'baseComm' | 'overageShare' | 'overageComm' | 'totalEarn' | 'effRate' | 'l1' | 'l2' | 'l3' | 'trend' | 'specSheet' | 'outsideReps' | 'divisor' | 'commissionDiscountPercent' | 'commissionDiscountAmount' | 'lineDiscountPercent' | 'lineDiscountAmount' | 'leadTime';
-  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(new Set(['partNumber', 'customerPartNumber', 'description', 'quantity', 'uom', 'manufacturer', 'base', 'sell', 'sellTotal', 'overage', 'overageAmt', 'commRate', 'baseComm', 'overageShare', 'overageComm', 'totalEarn', 'effRate', 'outsideReps', 'divisor']));
+  type ColumnKey = 'partNumber' | 'customerPartNumber' | 'description' | 'manufacturer' | 'quantity' | 'uom' | 'divisor' | 'unitPrice' | 'endUser' | 'sellTotal' | 'commissionPercent' | 'commission' | 'commissionTotal' | 'overage' | 'overageAmt' | 'commRate' | 'baseComm' | 'overageShare' | 'overageComm' | 'totalEarn' | 'effRate' | 'l1' | 'l2' | 'l3' | 'trend' | 'specSheet' | 'outsideReps' | 'commissionDiscountPercent' | 'commissionDiscountAmount' | 'lineDiscountPercent' | 'lineDiscountAmount' | 'leadTime';
+  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(new Set(['partNumber', 'customerPartNumber', 'description', 'manufacturer', 'quantity', 'uom', 'divisor', 'unitPrice', 'sellTotal', 'commissionPercent', 'commission', 'commissionTotal', 'overage', 'overageAmt', 'commRate', 'baseComm', 'overageShare', 'overageComm', 'totalEarn', 'effRate', 'outsideReps']));
 
   // Column order state for drag-and-drop reordering
   const [columnOrder, setColumnOrder] = useState<ColumnKey[]>([
-    'partNumber', 'customerPartNumber', 'description', 'quantity', 'uom', 'endUser', 'manufacturer',
-    'base', 'sell', 'sellTotal', 'divisor',
+    'partNumber', 'customerPartNumber', 'description', 'manufacturer', 'quantity', 'uom', 'divisor', 'unitPrice', 'endUser',
+    'sellTotal', 'commissionPercent', 'commission', 'commissionTotal',
     'overage', 'overageAmt',
     'commRate', 'baseComm', 'overageShare', 'overageComm', 'totalEarn', 'effRate', 'outsideReps',
     'l1', 'l2', 'l3',
@@ -3643,14 +3658,37 @@ export default function QuotesContent() {
     { id: 'ir-8', name: 'Andrew Scott' },
   ];
 
+  // Available manufacturers for selection
+  const availableManufacturers = [
+    { id: 'mfr-1', name: 'Acuity Brands' },
+    { id: 'mfr-2', name: 'Cree Lighting' },
+    { id: 'mfr-3', name: 'RAB Lighting' },
+    { id: 'mfr-4', name: 'Lithonia' },
+    { id: 'mfr-5', name: 'Lutron' },
+    { id: 'mfr-6', name: 'Cooper Lighting' },
+    { id: 'mfr-7', name: 'Signify' },
+    { id: 'mfr-8', name: 'Eaton' },
+    { id: 'mfr-9', name: 'Schneider Electric' },
+    { id: 'mfr-10', name: 'ABB' },
+    { id: 'mfr-11', name: 'Kenall' },
+    { id: 'mfr-12', name: 'Waldmann' },
+    { id: 'mfr-13', name: 'Kichler' },
+    { id: 'mfr-14', name: 'WAC Lighting' },
+    { id: 'mfr-15', name: 'Hubbell' },
+  ];
+
+  // Manufacturer search state
+  const [manufacturerDropdown, setManufacturerDropdown] = useState<string | null>(null);
+  const [manufacturerSearch, setManufacturerSearch] = useState('');
+
   // Saved views
   type SavedView = { id: string; name: string; columns: ColumnKey[] };
   const [savedViews, setSavedViews] = useState<SavedView[]>([
-    { id: 'default', name: 'Default', columns: ['partNumber', 'description', 'quantity', 'manufacturer', 'base', 'sell', 'sellTotal', 'overage', 'l1', 'l2', 'trend'] },
-    { id: 'compact', name: 'Compact', columns: ['partNumber', 'description', 'quantity', 'sell', 'sellTotal'] },
-    { id: 'earnings', name: 'Earnings View', columns: ['partNumber', 'description', 'quantity', 'manufacturer', 'base', 'sell', 'sellTotal', 'overage', 'overageAmt', 'commRate', 'baseComm', 'overageShare', 'overageComm', 'totalEarn', 'effRate'] },
-    { id: 'pricing', name: 'Full Pricing', columns: ['partNumber', 'description', 'quantity', 'manufacturer', 'base', 'sell', 'sellTotal', 'overage', 'overageAmt', 'l1', 'l2', 'l3', 'commRate', 'baseComm', 'overageShare', 'overageComm', 'totalEarn', 'effRate', 'trend'] },
-    { id: 'approval', name: 'Approval Focus', columns: ['partNumber', 'description', 'manufacturer', 'base', 'sell', 'sellTotal', 'commRate', 'totalEarn'] },
+    { id: 'default', name: 'Default', columns: ['partNumber', 'description', 'manufacturer', 'quantity', 'uom', 'divisor', 'unitPrice', 'sellTotal', 'commissionPercent', 'commission', 'commissionTotal'] },
+    { id: 'compact', name: 'Compact', columns: ['partNumber', 'description', 'quantity', 'unitPrice', 'sellTotal'] },
+    { id: 'earnings', name: 'Earnings View', columns: ['partNumber', 'description', 'quantity', 'manufacturer', 'unitPrice', 'sellTotal', 'commissionPercent', 'commissionTotal', 'overage', 'overageAmt', 'commRate', 'baseComm', 'overageShare', 'overageComm', 'totalEarn', 'effRate'] },
+    { id: 'pricing', name: 'Full Pricing', columns: ['partNumber', 'description', 'quantity', 'manufacturer', 'unitPrice', 'sellTotal', 'overage', 'overageAmt', 'l1', 'l2', 'l3', 'commRate', 'baseComm', 'overageShare', 'overageComm', 'totalEarn', 'effRate', 'trend'] },
+    { id: 'approval', name: 'Approval Focus', columns: ['partNumber', 'description', 'manufacturer', 'unitPrice', 'sellTotal', 'commRate', 'totalEarn'] },
   ]);
   const [activeView, setActiveView] = useState('earnings');
   const [showSaveViewModal, setShowSaveViewModal] = useState(false);
@@ -3660,14 +3698,16 @@ export default function QuotesContent() {
     { key: 'partNumber', label: 'Part #', group: 'Basic' },
     { key: 'customerPartNumber', label: 'Cust Part #', group: 'Basic' },
     { key: 'description', label: 'Description', group: 'Basic' },
+    { key: 'manufacturer', label: 'Manufacturer', group: 'Basic' },
     { key: 'quantity', label: 'Qty', group: 'Basic' },
     { key: 'uom', label: 'UOM', group: 'Basic' },
+    { key: 'divisor', label: 'Divisor', group: 'Basic' },
+    { key: 'unitPrice', label: 'Unit Price', group: 'Pricing' },
     { key: 'endUser', label: 'End User', group: 'Basic' },
-    { key: 'manufacturer', label: 'Manufacturer', group: 'Basic' },
-    { key: 'base', label: 'Base', group: 'Pricing' },
-    { key: 'sell', label: 'Sell', group: 'Pricing' },
     { key: 'sellTotal', label: 'Sell Total', group: 'Pricing' },
-    { key: 'divisor', label: 'Multiplier', group: 'Pricing' },
+    { key: 'commissionPercent', label: 'Commission %', group: 'Commission' },
+    { key: 'commission', label: 'Commission', group: 'Commission' },
+    { key: 'commissionTotal', label: 'Commission Total', group: 'Commission' },
     { key: 'overage', label: 'Over %', group: 'Overage' },
     { key: 'overageAmt', label: 'Over $', group: 'Overage' },
     { key: 'commRate', label: 'Comm %', group: 'Commission' },
@@ -3759,7 +3799,7 @@ export default function QuotesContent() {
     if (!col) return null;
 
     // Map column keys to their sortable names
-    const sortableColumns = ['partNumber', 'description', 'quantity', 'manufacturer', 'base', 'sell', 'endUser'];
+    const sortableColumns = ['partNumber', 'description', 'quantity', 'manufacturer', 'unitPrice', 'sellTotal', 'endUser'];
     const filterableColumns = ['partNumber', 'description', 'manufacturer', 'endUser'];
     const isSortable = sortableColumns.includes(colKey);
     const isFilterable = filterableColumns.includes(colKey);
@@ -3768,11 +3808,11 @@ export default function QuotesContent() {
     if (colKey === 'endUser' && !showEndUserPerLine) return null;
 
     return (
-      <th key={colKey} className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase relative whitespace-nowrap">
-        <div className="flex items-center gap-1">
+      <th key={colKey} className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase relative whitespace-nowrap">
+        <div className="flex items-center justify-center gap-1">
           <span
             className={isSortable ? "cursor-pointer hover:text-[var(--foreground)]" : ""}
-            onClick={isSortable ? () => handleSort(colKey as 'partNumber' | 'description' | 'quantity' | 'manufacturer' | 'base' | 'sell') : undefined}
+            onClick={isSortable ? () => handleSort(colKey as 'partNumber' | 'description' | 'quantity' | 'manufacturer' | 'unitPrice' | 'sellTotal') : undefined}
           >
             {col.label}
           </span>
@@ -3825,7 +3865,7 @@ export default function QuotesContent() {
     switch (colKey) {
       case 'partNumber':
         return (
-          <td key={colKey} className="px-3 py-2 font-mono text-sm relative">
+          <td key={colKey} className="px-3 py-2 font-mono text-sm text-center relative">
             <div className="product-search-container">
               <button
                 onClick={() => {
@@ -3834,7 +3874,7 @@ export default function QuotesContent() {
                   setProductSearchQuery(item.productNumber || '');
                   setShowCreateProduct(false);
                 }}
-                className="w-full text-left px-2 py-1 rounded hover:bg-[var(--muted)] transition-colors flex items-center gap-1"
+                className="w-full text-center px-2 py-1 rounded hover:bg-[var(--muted)] transition-colors flex items-center justify-center gap-1"
               >
                 <span className="flex-1 truncate">{item.productNumber || 'Select...'}</span>
                 <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-[var(--muted-foreground)] flex-shrink-0">
@@ -3923,7 +3963,7 @@ export default function QuotesContent() {
         );
       case 'customerPartNumber':
         return (
-          <td key={colKey} className="px-3 py-2 font-mono text-sm relative">
+          <td key={colKey} className="px-3 py-2 font-mono text-sm text-center relative">
             <div className="product-search-container">
               <button
                 onClick={() => {
@@ -3932,7 +3972,7 @@ export default function QuotesContent() {
                   setProductSearchQuery((item as LineItem & { customerPartNumber?: string }).customerPartNumber || '');
                   setShowCreateProduct(false);
                 }}
-                className="w-full text-left px-2 py-1 rounded hover:bg-[var(--muted)] transition-colors flex items-center gap-1"
+                className="w-full text-center px-2 py-1 rounded hover:bg-[var(--muted)] transition-colors flex items-center justify-center gap-1"
               >
                 <span className="flex-1 truncate">{(item as LineItem & { customerPartNumber?: string }).customerPartNumber || 'Select...'}</span>
                 <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-[var(--muted-foreground)] flex-shrink-0">
@@ -4018,7 +4058,7 @@ export default function QuotesContent() {
         );
       case 'description':
         return (
-          <td key={colKey} className="px-3 py-2 text-sm max-w-[200px] relative">
+          <td key={colKey} className="px-3 py-2 text-sm text-center max-w-[200px] relative">
             <div className="product-search-container">
               <button
                 onClick={() => {
@@ -4027,7 +4067,7 @@ export default function QuotesContent() {
                   setProductSearchQuery(item.description || '');
                   setShowCreateProduct(false);
                 }}
-                className="w-full text-left px-2 py-1 rounded hover:bg-[var(--muted)] transition-colors flex items-center gap-1"
+                className="w-full text-center px-2 py-1 rounded hover:bg-[var(--muted)] transition-colors flex items-center justify-center gap-1"
               >
                 <span className="flex-1 truncate">{item.description || 'Select...'}</span>
                 <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-[var(--muted-foreground)] flex-shrink-0">
@@ -4118,8 +4158,9 @@ export default function QuotesContent() {
         return (
           <td key={colKey} className="px-3 py-2 text-sm text-center">
             <input
-              type="number"
+              type="text"
               value={item.quantity}
+              onFocus={(e) => e.target.select()}
               onChange={(e) => {
                 setQuoteLineItems(prev => prev.map(li =>
                   li.id === item.id ? { ...li, quantity: parseInt(e.target.value) || 1 } : li
@@ -4130,45 +4171,206 @@ export default function QuotesContent() {
           </td>
         );
       case 'uom':
-        return <td key={colKey} className="px-3 py-2 text-sm text-center text-[var(--muted-foreground)]">{item.uom || 'EA'}</td>;
+        return (
+          <td key={colKey} className="px-3 py-2 text-sm text-center">
+            <input
+              type="text"
+              value={item.uom || 'EA'}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => {
+                setQuoteLineItems(prev => prev.map(li =>
+                  li.id === item.id ? { ...li, uom: e.target.value } : li
+                ));
+              }}
+              className="w-14 px-2 py-1 text-center border border-transparent hover:border-[var(--border)] focus:border-[var(--primary)] rounded bg-transparent focus:bg-white focus:outline-none text-sm"
+            />
+          </td>
+        );
       case 'endUser':
         return (
-          <td key={colKey} className="px-3 py-2 text-sm">
+          <td key={colKey} className="px-3 py-2 text-sm text-center">
             <input
               type="text"
               value={item.endUser || ''}
+              onFocus={(e) => e.target.select()}
               onChange={(e) => {
                 setQuoteLineItems(prev => prev.map(li =>
                   li.id === item.id ? { ...li, endUser: e.target.value } : li
                 ));
               }}
               placeholder="—"
-              className="w-24 px-2 py-1 border border-transparent hover:border-[var(--border)] focus:border-[var(--primary)] rounded bg-transparent focus:bg-white focus:outline-none text-sm"
+              className="w-24 px-2 py-1 text-center border border-transparent hover:border-[var(--border)] focus:border-[var(--primary)] rounded bg-transparent focus:bg-white focus:outline-none text-sm"
             />
           </td>
         );
       case 'manufacturer':
-        return <td key={colKey} className="px-3 py-2 text-sm">{item.manufacturers[0]?.name || '—'}</td>;
-      case 'base':
-        return <td key={colKey} className="px-3 py-2 text-sm text-right text-[var(--muted-foreground)]">${item.basePrice.toLocaleString()}</td>;
-      case 'sell':
+        const currentMfr = item.manufacturers[0]?.name || '';
+        const filteredMfrs = availableManufacturers.filter(mfr =>
+          mfr.name.toLowerCase().includes(manufacturerSearch.toLowerCase())
+        );
         return (
-          <td key={colKey} className="px-3 py-2 text-sm text-right">
+          <td key={colKey} className="px-3 py-2 text-sm text-center relative">
+            <div className="manufacturer-dropdown-container">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setManufacturerDropdown(manufacturerDropdown === item.id ? null : item.id);
+                  setManufacturerSearch('');
+                }}
+                className="w-full text-center px-2 py-1 rounded hover:bg-[var(--muted)] transition-colors flex items-center justify-center gap-1"
+              >
+                <span className="flex-1 truncate">{currentMfr || 'Select...'}</span>
+                <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-[var(--muted-foreground)] flex-shrink-0">
+                  <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                </svg>
+              </button>
+              {manufacturerDropdown === item.id && (
+                <div className="absolute top-full left-0 mt-1 w-56 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                  <div className="p-2 border-b border-[var(--border)]">
+                    <input
+                      type="text"
+                      value={manufacturerSearch}
+                      onChange={(e) => setManufacturerSearch(e.target.value)}
+                      placeholder="Search manufacturers..."
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                      autoFocus
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                  <div className="max-h-48 overflow-y-auto">
+                    {filteredMfrs.map(mfr => (
+                      <button
+                        key={mfr.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setQuoteLineItems(prev => prev.map(li =>
+                            li.id === item.id ? {
+                              ...li,
+                              manufacturers: [{ ...li.manufacturers[0], name: mfr.name }]
+                            } : li
+                          ));
+                          setManufacturerDropdown(null);
+                          setManufacturerSearch('');
+                        }}
+                        className={`w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors ${currentMfr === mfr.name ? 'bg-[var(--muted)]' : ''}`}
+                      >
+                        <div className="text-sm">{mfr.name}</div>
+                      </button>
+                    ))}
+                    {filteredMfrs.length === 0 && (
+                      <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">No manufacturers found</div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </td>
+        );
+      case 'unitPrice':
+        return (
+          <td key={colKey} className="px-3 py-2 text-sm text-center">
             <input
               type="text"
               value={`$${item.sellPrice.toLocaleString()}`}
+              onFocus={(e) => e.target.select()}
               onChange={(e) => {
                 const val = parseFloat(e.target.value.replace(/[$,]/g, '')) || 0;
                 setQuoteLineItems(prev => prev.map(li =>
                   li.id === item.id ? { ...li, sellPrice: val } : li
                 ));
               }}
-              className="w-24 px-2 py-1 text-right border border-transparent hover:border-[var(--border)] focus:border-[var(--primary)] rounded bg-transparent focus:bg-white focus:outline-none"
+              className="w-24 px-2 py-1 text-center border border-transparent hover:border-[var(--border)] focus:border-[var(--primary)] rounded bg-transparent focus:bg-white focus:outline-none"
             />
           </td>
         );
       case 'sellTotal':
-        return <td key={colKey} className="px-3 py-2 text-sm text-right font-medium">${(item.sellPrice * item.quantity).toLocaleString()}</td>;
+        // Sell Total = qty * unit price / divisor
+        const divisorVal = item.divisor || 1;
+        const sellTotalCalc = (item.quantity * item.sellPrice) / divisorVal;
+        return <td key={colKey} className="px-3 py-2 text-sm text-center font-medium">${sellTotalCalc.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>;
+      case 'commissionPercent':
+        // Commission % - editable, updates commission and commission total
+        const commPctVal = item.manufacturers[0]?.commissionRate || 8;
+        return (
+          <td key={colKey} className="px-3 py-2 text-sm text-center">
+            <input
+              type="text"
+              value={commPctVal}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value) || 0;
+                setQuoteLineItems(prev => prev.map(li =>
+                  li.id === item.id ? {
+                    ...li,
+                    manufacturers: [{ ...li.manufacturers[0], commissionRate: val }]
+                  } : li
+                ));
+              }}
+              className="w-16 px-2 py-1 text-center border border-transparent hover:border-[var(--border)] focus:border-[var(--primary)] rounded bg-transparent focus:bg-white focus:outline-none text-sm text-purple-600"
+            />
+          </td>
+        );
+      case 'commission':
+        // Commission = Commission Total / Qty
+        const commDivisor = item.divisor || 1;
+        const commSellTotal = (item.quantity * item.sellPrice) / commDivisor;
+        const commPctForCalc = (item.manufacturers[0]?.commissionRate || 8) / 100;
+        const commTotal = commSellTotal * commPctForCalc;
+        const commPerUnit = item.quantity > 0 ? commTotal / item.quantity : 0;
+        return (
+          <td key={colKey} className="px-3 py-2 text-sm text-center">
+            <input
+              type="text"
+              value={`$${commPerUnit.toFixed(2)}`}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value.replace(/[$,]/g, '')) || 0;
+                // Commission = Commission Total / Qty, so Commission Total = Commission * Qty
+                // Commission Total = Commission % * Sell Total, so Commission % = Commission Total / Sell Total
+                const newCommTotal = val * item.quantity;
+                const divVal = item.divisor || 1;
+                const sellTot = (item.quantity * item.sellPrice) / divVal;
+                const newCommPct = sellTot > 0 ? (newCommTotal / sellTot) * 100 : 0;
+                setQuoteLineItems(prev => prev.map(li =>
+                  li.id === item.id ? {
+                    ...li,
+                    manufacturers: [{ ...li.manufacturers[0], commissionRate: newCommPct }]
+                  } : li
+                ));
+              }}
+              className="w-20 px-2 py-1 text-center border border-transparent hover:border-[var(--border)] focus:border-[var(--primary)] rounded bg-transparent focus:bg-white focus:outline-none text-sm text-purple-600"
+            />
+          </td>
+        );
+      case 'commissionTotal':
+        // Commission Total = Commission % * Sell Total
+        const ctDivisor = item.divisor || 1;
+        const ctSellTotal = (item.quantity * item.sellPrice) / ctDivisor;
+        const ctCommPct = (item.manufacturers[0]?.commissionRate || 8) / 100;
+        const ctCommTotal = ctSellTotal * ctCommPct;
+        return (
+          <td key={colKey} className="px-3 py-2 text-sm text-center">
+            <input
+              type="text"
+              value={`$${ctCommTotal.toFixed(2)}`}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value.replace(/[$,]/g, '')) || 0;
+                // Commission Total = Commission % * Sell Total, so Commission % = Commission Total / Sell Total * 100
+                const divVal = item.divisor || 1;
+                const sellTot = (item.quantity * item.sellPrice) / divVal;
+                const newCommPct = sellTot > 0 ? (val / sellTot) * 100 : 0;
+                setQuoteLineItems(prev => prev.map(li =>
+                  li.id === item.id ? {
+                    ...li,
+                    manufacturers: [{ ...li.manufacturers[0], commissionRate: newCommPct }]
+                  } : li
+                ));
+              }}
+              className="w-24 px-2 py-1 text-center border border-transparent hover:border-[var(--border)] focus:border-[var(--primary)] rounded bg-transparent focus:bg-white focus:outline-none text-sm font-medium text-purple-600"
+            />
+          </td>
+        );
       case 'commissionDiscountPercent':
         return <td key={colKey} className="px-3 py-2 text-sm text-center text-[var(--muted-foreground)]">{item.commissionDiscountPercent ? `${item.commissionDiscountPercent}%` : '—'}</td>;
       case 'commissionDiscountAmount':
@@ -4180,7 +4382,22 @@ export default function QuotesContent() {
       case 'leadTime':
         return <td key={colKey} className="px-3 py-2 text-sm text-center text-[var(--muted-foreground)]">{item.leadTime || '—'}</td>;
       case 'divisor':
-        return <td key={colKey} className="px-3 py-2 text-sm text-center text-[var(--muted-foreground)]">{item.useDivisor ? item.divisor : '—'}</td>;
+        return (
+          <td key={colKey} className="px-3 py-2 text-sm text-center">
+            <input
+              type="text"
+              value={item.divisor || 1}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value) || 1;
+                setQuoteLineItems(prev => prev.map(li =>
+                  li.id === item.id ? { ...li, divisor: val, useDivisor: true } : li
+                ));
+              }}
+              className="w-16 px-2 py-1 text-center border border-transparent hover:border-[var(--border)] focus:border-[var(--primary)] rounded bg-transparent focus:bg-white focus:outline-none text-sm"
+            />
+          </td>
+        );
       case 'trend':
         return <td key={colKey} className="px-3 py-2 text-sm text-center text-[var(--muted-foreground)]">—</td>;
       case 'specSheet':
@@ -4195,29 +4412,29 @@ export default function QuotesContent() {
       case 'overage':
         return <td key={colKey} className="px-3 py-2 text-sm text-center">{item.overagePercent}%</td>;
       case 'overageAmt':
-        return <td key={colKey} className="px-3 py-2 text-sm text-right">${((item.sellPrice - item.basePrice) * item.quantity).toLocaleString()}</td>;
+        return <td key={colKey} className="px-3 py-2 text-sm text-center">${((item.sellPrice - item.basePrice) * item.quantity).toLocaleString()}</td>;
       case 'commRate':
         return <td key={colKey} className="px-3 py-2 text-sm text-center">{item.manufacturers[0]?.commissionRate || 0}%</td>;
       case 'baseComm':
-        return <td key={colKey} className="px-3 py-2 text-sm text-right">${(item.basePrice * item.quantity * (item.manufacturers[0]?.commissionRate || 0) / 100).toLocaleString()}</td>;
+        return <td key={colKey} className="px-3 py-2 text-sm text-center">${(item.basePrice * item.quantity * (item.manufacturers[0]?.commissionRate || 0) / 100).toLocaleString()}</td>;
       case 'overageShare':
         return <td key={colKey} className="px-3 py-2 text-sm text-center">{item.manufacturers[0]?.overageShare || 0}%</td>;
       case 'overageComm':
-        return <td key={colKey} className="px-3 py-2 text-sm text-right">${(((item.sellPrice - item.basePrice) * item.quantity) * (item.manufacturers[0]?.overageShare || 0) / 100).toLocaleString()}</td>;
+        return <td key={colKey} className="px-3 py-2 text-sm text-center">${(((item.sellPrice - item.basePrice) * item.quantity) * (item.manufacturers[0]?.overageShare || 0) / 100).toLocaleString()}</td>;
       case 'totalEarn':
         const baseCommVal = item.basePrice * item.quantity * (item.manufacturers[0]?.commissionRate || 0) / 100;
         const overageCommVal = ((item.sellPrice - item.basePrice) * item.quantity) * (item.manufacturers[0]?.overageShare || 0) / 100;
-        return <td key={colKey} className="px-3 py-2 text-sm text-right font-medium">${(baseCommVal + overageCommVal).toLocaleString()}</td>;
+        return <td key={colKey} className="px-3 py-2 text-sm text-center font-medium">${(baseCommVal + overageCommVal).toLocaleString()}</td>;
       case 'effRate':
         const totalEarnVal = (item.basePrice * item.quantity * (item.manufacturers[0]?.commissionRate || 0) / 100) + (((item.sellPrice - item.basePrice) * item.quantity) * (item.manufacturers[0]?.overageShare || 0) / 100);
         const sellTotalVal = item.sellPrice * item.quantity;
         return <td key={colKey} className="px-3 py-2 text-sm text-center">{sellTotalVal > 0 ? ((totalEarnVal / sellTotalVal) * 100).toFixed(1) : 0}%</td>;
       case 'l1':
-        return <td key={colKey} className="px-3 py-2 text-sm text-right text-[var(--muted-foreground)]">${item.level1Price.toLocaleString()}</td>;
+        return <td key={colKey} className="px-3 py-2 text-sm text-center text-[var(--muted-foreground)]">${item.level1Price.toLocaleString()}</td>;
       case 'l2':
-        return <td key={colKey} className="px-3 py-2 text-sm text-right text-[var(--muted-foreground)]">${item.level2Price.toLocaleString()}</td>;
+        return <td key={colKey} className="px-3 py-2 text-sm text-center text-[var(--muted-foreground)]">${item.level2Price.toLocaleString()}</td>;
       case 'l3':
-        return <td key={colKey} className="px-3 py-2 text-sm text-right text-[var(--muted-foreground)]">${item.level3Price.toLocaleString()}</td>;
+        return <td key={colKey} className="px-3 py-2 text-sm text-center text-[var(--muted-foreground)]">${item.level3Price.toLocaleString()}</td>;
       case 'outsideReps':
         // Only show if commission splits is enabled
         if (!showCommissionSplits) return null;
@@ -4228,14 +4445,14 @@ export default function QuotesContent() {
           rep.name.toLowerCase().includes(lineItemRepSearch.toLowerCase())
         );
         return (
-          <td key={colKey} className="px-3 py-2 text-sm relative">
+          <td key={colKey} className="px-3 py-2 text-sm text-center relative">
             <div className="line-item-rep-container">
               <button
                 onClick={() => {
                   setLineItemRepDropdown(lineItemRepDropdown === item.id ? null : item.id);
                   setLineItemRepSearch('');
                 }}
-                className={`w-full text-left px-2 py-1 rounded hover:bg-[var(--muted)] transition-colors flex items-center gap-1 ${hasMultiple ? 'text-[var(--primary)] font-medium' : ''}`}
+                className={`w-full text-center px-2 py-1 rounded hover:bg-[var(--muted)] transition-colors flex items-center justify-center gap-1 ${hasMultiple ? 'text-[var(--primary)] font-medium' : ''}`}
               >
                 <span className="flex-1 truncate">{displayText}</span>
                 <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-[var(--muted-foreground)] flex-shrink-0">
@@ -4385,7 +4602,7 @@ export default function QuotesContent() {
   };
 
   // Columns for Simple View (basic pricing only - no overage/commission columns)
-  const [simpleViewColumns, setSimpleViewColumns] = useState<Set<ColumnKey>>(new Set(['partNumber', 'customerPartNumber', 'description', 'quantity', 'uom', 'manufacturer', 'base', 'sell', 'sellTotal']));
+  const [simpleViewColumns, setSimpleViewColumns] = useState<Set<ColumnKey>>(new Set(['partNumber', 'customerPartNumber', 'description', 'manufacturer', 'quantity', 'uom', 'divisor', 'unitPrice', 'sellTotal', 'commissionPercent', 'commission', 'commissionTotal']));
 
   // For backward compatibility
   const simpleQuoteColumns = simpleViewColumns;
@@ -4888,7 +5105,7 @@ export default function QuotesContent() {
   const editInputRef = useRef<HTMLInputElement>(null);
 
   // Editable columns in order for navigation
-  const editableColumns: ColumnKey[] = ['sell', 'overage', 'l1', 'l2'];
+  const editableColumns: ColumnKey[] = ['unitPrice', 'overage', 'l1', 'l2'];
 
   const handleSort = (column: ColumnKey) => {
     if (sortColumn === column) {
@@ -4914,11 +5131,10 @@ export default function QuotesContent() {
 
   const getItemValue = (item: LineItem, column: ColumnKey): string => {
     switch (column) {
-      case 'sell': return item.sellPrice.toFixed(2);
+      case 'unitPrice': return item.sellPrice.toFixed(2);
       case 'overage': return item.overagePercent.toFixed(1);
       case 'l1': return item.level1Price.toFixed(2);
       case 'l2': return item.level2Price.toFixed(2);
-      case 'base': return item.basePrice.toFixed(2);
       case 'quantity': return String(item.quantity);
       case 'partNumber': return item.productNumber;
       case 'description': return item.description;
@@ -5414,16 +5630,86 @@ export default function QuotesContent() {
         <div className="border-b border-[var(--border)] bg-[var(--card)] px-6 py-4 flex-shrink-0">
           <div className="flex items-start justify-between">
             <div>
-              <div className="flex items-center gap-3 mb-2">
-                <h1 className="text-2xl font-semibold text-[var(--foreground)]">{selectedQuote.name}</h1>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setSelectedQuote(null)}
+                  className="p-1 hover:bg-[var(--muted)] rounded-lg transition-colors"
+                  title="Back to Quotes"
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M19 12H5M12 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+                <h1 className="text-2xl font-semibold text-[var(--foreground)]">{selectedQuote.id}</h1>
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {/* Actions Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setShowActionsDropdown(!showActionsDropdown);
+                    setShowStageDropdown(false);
+                    setShowVersionDropdown(false);
+                    setShowViewModeDropdown(false);
+                  }}
+                  className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
+                >
+                  Actions
+                  <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+                {showActionsDropdown && (
+                  <div className="absolute top-full left-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                    <button
+                      onClick={() => {
+                        // Initialize create order modal with all line items
+                        setCreateOrderSelectedItems(quoteLineItems.map(item => ({
+                          id: item.id,
+                          selected: true,
+                          quantity: item.quantity
+                        })));
+                        setCreateOrderSelectAll(true);
+                        setShowCreateOrderFromQuoteModal(true);
+                        setShowActionsDropdown(false);
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-t-lg flex items-center gap-2"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M3 7l7 7 7-7" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M10 4v10" strokeLinecap="round"/>
+                      </svg>
+                      Create Order
+                    </button>
+                    <button
+                      onClick={() => {
+                        // Initialize duplicate modal with default values
+                        setDuplicateQuoteNumber(`${selectedQuote.name}-1`);
+                        setDuplicateCustomer('');
+                        setDuplicatePercentIncrease(0);
+                        setDuplicateCopyNotes(true);
+                        setShowDuplicateQuoteModal(true);
+                        setShowActionsDropdown(false);
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-b-lg flex items-center gap-2"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="6" y="6" width="12" height="12" rx="2"/>
+                        <path d="M4 14V4a2 2 0 012-2h10"/>
+                      </svg>
+                      Duplicate Quote
+                    </button>
+                  </div>
+                )}
+              </div>
+
               {/* Stage Dropdown - styled like a button */}
               <div className="relative">
                 <button
                   onClick={() => {
                     setShowStageDropdown(!showStageDropdown);
+                    setShowActionsDropdown(false);
                     setShowVersionDropdown(false);
                     setShowViewModeDropdown(false);
                   }}
@@ -5466,6 +5752,7 @@ export default function QuotesContent() {
                 <button
                   onClick={() => {
                     setShowVersionDropdown(!showVersionDropdown);
+                    setShowActionsDropdown(false);
                     setShowStageDropdown(false);
                     setShowViewModeDropdown(false);
                   }}
@@ -5520,6 +5807,7 @@ export default function QuotesContent() {
                 <button
                   onClick={() => {
                     setShowViewModeDropdown(!showViewModeDropdown);
+                    setShowActionsDropdown(false);
                     setShowStageDropdown(false);
                     setShowVersionDropdown(false);
                   }}
@@ -5659,12 +5947,12 @@ export default function QuotesContent() {
               <span className="text-[var(--muted-foreground)]">
                 Sell Price: <span className="font-semibold text-[var(--foreground)]">${totals.sellTotal.toLocaleString()}</span>
               </span>
+              <span className="text-[var(--muted-foreground)]">|</span>
+              <span className="text-[var(--muted-foreground)]">
+                Commission: <span className="font-medium text-purple-600">${totals.commission.toLocaleString()}</span>
+              </span>
               {quoteViewMode === 'overage' && (
                 <>
-                  <span className="text-[var(--muted-foreground)]">|</span>
-                  <span className="text-[var(--muted-foreground)]">
-                    Commission: <span className="font-medium text-purple-600">${totals.commission.toLocaleString()} ({totals.sellTotal > 0 ? ((totals.commission / totals.sellTotal) * 100).toFixed(1) : 0}%)</span>
-                  </span>
                   <span className="text-[var(--muted-foreground)]">|</span>
                   <span className="text-[var(--muted-foreground)]">
                     Overage: <span className="font-medium text-orange-600">${totals.overage.toLocaleString()} ({totals.baseTotal > 0 ? ((totals.overage / totals.baseTotal) * 100).toFixed(1) : 0}%)</span>
@@ -6430,7 +6718,7 @@ export default function QuotesContent() {
                           </th>
                           {/* Section column - only in simple view with sections enabled in column mode */}
                           {quoteViewMode === 'simple' && showSections && sectionDisplayMode === 'column' && (
-                            <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">
+                            <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">
                               Section
                             </th>
                           )}
@@ -6438,11 +6726,11 @@ export default function QuotesContent() {
                           {getOrderedVisibleColumns().map(colKey => renderHeaderCell(colKey))}
                           {/* Outside Reps column - only when commission splits enabled */}
                           {showCommissionSplits && (
-                            <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">Outside Reps</th>
+                            <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">Outside Reps</th>
                           )}
                           {/* Inside Reps column - only when inside rep splits enabled */}
                           {showInsideRepSplits && (
-                            <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">Inside Reps</th>
+                            <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">Inside Reps</th>
                           )}
                           {/* Empty header for expand/more button column - always last */}
                           <th className="px-2 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase w-10"></th>
@@ -6486,8 +6774,8 @@ export default function QuotesContent() {
                                   case 'description': aVal = a.description; bVal = b.description; break;
                                   case 'quantity': aVal = a.quantity; bVal = b.quantity; break;
                                   case 'manufacturer': aVal = a.manufacturers[0].name; bVal = b.manufacturers[0].name; break;
-                                  case 'base': aVal = a.basePrice; bVal = b.basePrice; break;
-                                  case 'sell': aVal = a.sellPrice; bVal = b.sellPrice; break;
+                                  case 'unitPrice': aVal = a.sellPrice; bVal = b.sellPrice; break;
+                                  case 'sellTotal': aVal = a.sellPrice * a.quantity; bVal = b.sellPrice * b.quantity; break;
                                 }
                                 if (typeof aVal === 'string') {
                                   return sortDirection === 'asc' ? aVal.localeCompare(bVal as string) : (bVal as string).localeCompare(aVal);
@@ -6822,8 +7110,8 @@ export default function QuotesContent() {
                                 case 'description': aVal = a.description; bVal = b.description; break;
                                 case 'quantity': aVal = a.quantity; bVal = b.quantity; break;
                                 case 'manufacturer': aVal = a.manufacturers[0].name; bVal = b.manufacturers[0].name; break;
-                                case 'base': aVal = a.basePrice; bVal = b.basePrice; break;
-                                case 'sell': aVal = a.sellPrice; bVal = b.sellPrice; break;
+                                case 'unitPrice': aVal = a.sellPrice; bVal = b.sellPrice; break;
+                                case 'sellTotal': aVal = a.sellPrice * a.quantity; bVal = b.sellPrice * b.quantity; break;
                               }
                               if (typeof aVal === 'string') {
                                 return sortDirection === 'asc' ? aVal.localeCompare(bVal as string) : (bVal as string).localeCompare(aVal);
@@ -7173,8 +7461,8 @@ export default function QuotesContent() {
                             />
                           </th>
                           {effectiveVisibleColumns.has('partNumber') && (
-                            <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase relative">
-                                      <div className="flex items-center gap-1">
+                            <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase relative">
+                                      <div className="flex items-center justify-center gap-1">
                                         <span className="cursor-pointer hover:text-[var(--foreground)]" onClick={() => handleSort('partNumber')}>Part #</span>
                                         {sortColumn === 'partNumber' && (
                                           <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className={sortDirection === 'desc' ? 'rotate-180' : ''}>
@@ -7214,8 +7502,8 @@ export default function QuotesContent() {
                                     </th>
                                   )}
                                   {effectiveVisibleColumns.has('description') && (
-                                    <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase relative">
-                                      <div className="flex items-center gap-1">
+                                    <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase relative">
+                                      <div className="flex items-center justify-center gap-1">
                                         <span className="cursor-pointer hover:text-[var(--foreground)]" onClick={() => handleSort('description')}>Description</span>
                                         {sortColumn === 'description' && (
                                           <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className={sortDirection === 'desc' ? 'rotate-180' : ''}>
@@ -7255,8 +7543,8 @@ export default function QuotesContent() {
                                     </th>
                                   )}
                                   {showEndUserPerLine && (
-                                    <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase relative">
-                                      <div className="flex items-center gap-1">
+                                    <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase relative">
+                                      <div className="flex items-center justify-center gap-1">
                                         <span className="cursor-pointer hover:text-[var(--foreground)]" onClick={() => handleSort('endUser')}>End User</span>
                                         {sortColumn === 'endUser' && (
                                           <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className={sortDirection === 'desc' ? 'rotate-180' : ''}>
@@ -7296,8 +7584,8 @@ export default function QuotesContent() {
                                     </th>
                                   )}
                                   {effectiveVisibleColumns.has('manufacturer') && (
-                                    <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase relative">
-                                      <div className="flex items-center gap-1">
+                                    <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase relative">
+                                      <div className="flex items-center justify-center gap-1">
                                         <span className="cursor-pointer hover:text-[var(--foreground)]" onClick={() => handleSort('manufacturer')}>Mfr</span>
                                         {sortColumn === 'manufacturer' && (
                                           <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className={sortDirection === 'desc' ? 'rotate-180' : ''}>
@@ -7353,11 +7641,11 @@ export default function QuotesContent() {
                                       UOM
                                     </th>
                                   )}
-                                  {effectiveVisibleColumns.has('base') && (
-                                    <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase cursor-pointer hover:text-[var(--foreground)] whitespace-nowrap" onClick={() => handleSort('base')}>
+                                  {effectiveVisibleColumns.has('unitPrice') && (
+                                    <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase cursor-pointer hover:text-[var(--foreground)] whitespace-nowrap" onClick={() => handleSort('unitPrice')}>
                                       <div className="flex items-center justify-center gap-1">
-                                        Base Unit $
-                                        {sortColumn === 'base' && (
+                                        Unit Price
+                                        {sortColumn === 'unitPrice' && (
                                           <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className={sortDirection === 'desc' ? 'rotate-180' : ''}>
                                             <path d="M6 12l4-4 4 4" strokeLinecap="round" strokeLinejoin="round"/>
                                           </svg>
@@ -7385,18 +7673,6 @@ export default function QuotesContent() {
                                           <div className="flex items-center justify-center gap-1">
                                             % Over
                                             {sortColumn === 'overage' && (
-                                              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className={sortDirection === 'desc' ? 'rotate-180' : ''}>
-                                                <path d="M6 12l4-4 4 4" strokeLinecap="round" strokeLinejoin="round"/>
-                                              </svg>
-                                            )}
-                                          </div>
-                                        </th>
-                                      )}
-                                      {effectiveVisibleColumns.has('sell') && (
-                                        <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase cursor-pointer hover:text-[var(--foreground)] whitespace-nowrap" onClick={() => handleSort('sell')}>
-                                          <div className="flex items-center justify-center gap-1">
-                                            Sell Unit $
-                                            {sortColumn === 'sell' && (
                                               <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className={sortDirection === 'desc' ? 'rotate-180' : ''}>
                                                 <path d="M6 12l4-4 4 4" strokeLinecap="round" strokeLinejoin="round"/>
                                               </svg>
@@ -7470,10 +7746,10 @@ export default function QuotesContent() {
                             <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase">Spec</th>
                           )}
                           {showCommissionSplits && (
-                            <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">Outside Reps</th>
+                            <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">Outside Reps</th>
                           )}
                           {showInsideRepSplits && (
-                            <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">Inside Reps</th>
+                            <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">Inside Reps</th>
                           )}
                           {effectiveVisibleColumns.has('commissionDiscountPercent') && (
                             <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">Comm Disc %</th>
@@ -7563,8 +7839,8 @@ export default function QuotesContent() {
                                 case 'description': aVal = a.description; bVal = b.description; break;
                                 case 'quantity': aVal = a.quantity; bVal = b.quantity; break;
                                 case 'manufacturer': aVal = a.manufacturers[0].name; bVal = b.manufacturers[0].name; break;
-                                case 'base': aVal = a.basePrice; bVal = b.basePrice; break;
-                                case 'sell': aVal = a.sellPrice; bVal = b.sellPrice; break;
+                                case 'unitPrice': aVal = a.sellPrice; bVal = b.sellPrice; break;
+                                case 'sellTotal': aVal = a.sellPrice * a.quantity; bVal = b.sellPrice * b.quantity; break;
                                 case 'overage': aVal = a.overagePercent; bVal = b.overagePercent; break;
                                 case 'l1': aVal = a.level1Price; bVal = b.level1Price; break;
                                 case 'l2': aVal = a.level2Price; bVal = b.level2Price; break;
@@ -7803,9 +8079,9 @@ export default function QuotesContent() {
                                         {item.uom || 'EA'}
                                       </td>
                                     )}
-                                    {effectiveVisibleColumns.has('base') && (
-                                      <td className="px-3 py-2 text-right text-sm text-[var(--muted-foreground)]">
-                                        ${item.basePrice.toFixed(2)}
+                                    {effectiveVisibleColumns.has('unitPrice') && (
+                                      <td className="px-3 py-2 text-center text-sm font-medium text-[var(--foreground)]">
+                                        ${item.sellPrice.toFixed(2)}
                                       </td>
                                     )}
                                     {/* Show single Price column when recipient selected, otherwise show all price columns */}
@@ -7868,27 +8144,6 @@ export default function QuotesContent() {
                                                 title="Click to edit"
                                               >
                                                 {item.overagePercent.toFixed(1)}%
-                                              </span>
-                                            )}
-                                          </td>
-                                        )}
-                                        {effectiveVisibleColumns.has('sell') && (
-                                          <td className="px-3 py-2 text-right text-sm font-medium text-[var(--foreground)]">
-                                            {editingCell?.itemId === item.id && editingCell?.column === 'sell' ? (
-                                              <input
-                                                type="text"
-                                                inputMode="decimal"
-                                                value={editValue}
-                                                onChange={(e) => setEditValue(e.target.value)}
-                                                onBlur={() => saveEdit()}
-                                                onKeyDown={handleEditKeyDown}
-                                                onFocus={(e) => e.target.select()}
-                                                className="w-24 px-2 py-1 text-sm border border-[var(--primary)] rounded focus:outline-none text-right bg-white"
-                                                autoFocus
-                                              />
-                                            ) : (
-                                              <span className="cursor-pointer hover:bg-[var(--muted)]/50 px-1 rounded" onClick={() => startEditing(item.id, 'sell', item.sellPrice.toFixed(2))}>
-                                                ${item.sellPrice.toFixed(2)}
                                               </span>
                                             )}
                                           </td>
@@ -12273,6 +12528,257 @@ export default function QuotesContent() {
           </div>
         )}
 
+        {/* Duplicate Quote Modal */}
+        {showDuplicateQuoteModal && selectedQuote && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-3xl w-full">
+              <div className="px-6 py-4 flex items-start gap-4">
+                <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
+                    <rect x="6" y="6" width="14" height="14" rx="2"/>
+                    <path d="M4 16V6a2 2 0 012-2h10"/>
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h2 className="text-lg font-semibold text-[var(--foreground)]">
+                    Duplicate Quote # <span className="text-[var(--primary)]">{selectedQuote.name}</span>
+                  </h2>
+                  <div className="mt-3 space-y-2">
+                    <div>
+                      <span className="text-sm font-medium text-orange-600">Note:</span>
+                      <p className="text-sm text-[var(--muted-foreground)]">
+                        If you change the End User, all detail lines on the new Quote(s) will be changed and the associated sales reps will be defaulted to the ones listed on the End User's profile.
+                      </p>
+                    </div>
+                    <p className="text-sm text-[var(--muted-foreground)]">
+                      After submitting, you can find your new Quotes on the Quotes Landing page. <span className="font-medium text-[var(--foreground)]">Hint:</span> Filter by just your Quotes for only Today to see these results quickly.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-6 py-4 border-t border-[var(--border)]">
+                <div className="flex items-end gap-4">
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-[var(--foreground)] mb-1">New Quote Number *</label>
+                    <input
+                      type="text"
+                      value={duplicateQuoteNumber}
+                      onChange={(e) => setDuplicateQuoteNumber(e.target.value)}
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Customer*</label>
+                    <select
+                      value={duplicateCustomer}
+                      onChange={(e) => setDuplicateCustomer(e.target.value)}
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-white"
+                    >
+                      <option value="">Select...</option>
+                      {availableEndUsers.map(user => (
+                        <option key={user} value={user}>{user}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="w-32">
+                    <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Percent Increase*</label>
+                    <input
+                      type="number"
+                      value={duplicatePercentIncrease}
+                      onChange={(e) => setDuplicatePercentIncrease(parseFloat(e.target.value) || 0)}
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                    />
+                  </div>
+                  <div className="flex flex-col items-center">
+                    <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Copy Notes</label>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setDuplicateCopyNotes(!duplicateCopyNotes)}
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                          duplicateCopyNotes ? 'bg-[var(--primary)]' : 'bg-[var(--muted)]'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform ${
+                            duplicateCopyNotes ? 'translate-x-5' : 'translate-x-0.5'
+                          }`}
+                        />
+                      </button>
+                      <span className="text-sm text-[var(--muted-foreground)]">Yes</span>
+                    </div>
+                  </div>
+                  <button className="p-2 text-green-600 hover:bg-green-50 rounded-full transition-colors">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end">
+                <button
+                  onClick={() => setShowDuplicateQuoteModal(false)}
+                  className="px-6 py-2 border border-[var(--border)] rounded-full hover:bg-[var(--muted)] transition-colors text-sm font-medium"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Create Order from Quote Modal */}
+        {showCreateOrderFromQuoteModal && selectedQuote && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-4xl w-full max-h-[80vh] flex flex-col">
+              <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-[var(--foreground)]">Create Order from Quote</h2>
+                  <p className="text-sm text-[var(--muted-foreground)]">Select line items to include in the order</p>
+                </div>
+                <button
+                  onClick={() => setShowCreateOrderFromQuoteModal(false)}
+                  className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
+                >
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                  </svg>
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6">
+                {/* Select All Option */}
+                <div className="mb-4 flex items-center gap-3 p-3 bg-[var(--muted)]/30 rounded-lg">
+                  <input
+                    type="checkbox"
+                    checked={createOrderSelectAll}
+                    onChange={(e) => {
+                      setCreateOrderSelectAll(e.target.checked);
+                      setCreateOrderSelectedItems(prev => prev.map(item => ({
+                        ...item,
+                        selected: e.target.checked
+                      })));
+                    }}
+                    className="w-4 h-4 rounded border-[var(--border)] text-[var(--primary)] focus:ring-[var(--primary)]"
+                  />
+                  <span className="text-sm font-medium text-[var(--foreground)]">All line items</span>
+                  <span className="text-sm text-[var(--muted-foreground)]">({createOrderSelectedItems.filter(i => i.selected).length} of {createOrderSelectedItems.length} selected)</span>
+                </div>
+
+                {/* Line Items List */}
+                <div className="border border-[var(--border)] rounded-lg overflow-hidden">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-[var(--muted)]/30 border-b border-[var(--border)]">
+                        <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase w-10"></th>
+                        <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase">Part Number</th>
+                        <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase">Description</th>
+                        <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase w-24">Quote Qty</th>
+                        <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase w-28">Order Qty</th>
+                        <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase">Sell Price</th>
+                        <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {quoteLineItems.map((item) => {
+                        const itemState = createOrderSelectedItems.find(i => i.id === item.id);
+                        const isSelected = itemState?.selected ?? true;
+                        const orderQuantity = itemState?.quantity ?? item.quantity;
+                        return (
+                          <tr key={item.id} className={`border-b border-[var(--border)] hover:bg-[var(--muted)]/20 ${!isSelected ? 'opacity-50' : ''}`}>
+                            <td className="px-3 py-2">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  setCreateOrderSelectedItems(prev => prev.map(i =>
+                                    i.id === item.id ? { ...i, selected: e.target.checked } : i
+                                  ));
+                                  // Update select all state
+                                  const newItems = createOrderSelectedItems.map(i =>
+                                    i.id === item.id ? { ...i, selected: e.target.checked } : i
+                                  );
+                                  setCreateOrderSelectAll(newItems.every(i => i.selected));
+                                }}
+                                className="w-4 h-4 rounded border-[var(--border)] text-[var(--primary)] focus:ring-[var(--primary)]"
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-sm font-medium text-[var(--foreground)]">{item.productNumber}</td>
+                            <td className="px-3 py-2 text-sm text-[var(--muted-foreground)]">{item.description}</td>
+                            <td className="px-3 py-2 text-sm text-center text-[var(--muted-foreground)]">{item.quantity}</td>
+                            <td className="px-3 py-2">
+                              <input
+                                type="number"
+                                min="1"
+                                value={orderQuantity}
+                                onChange={(e) => {
+                                  const newQty = parseInt(e.target.value) || 1;
+                                  setCreateOrderSelectedItems(prev => prev.map(i =>
+                                    i.id === item.id ? { ...i, quantity: newQty } : i
+                                  ));
+                                }}
+                                disabled={!isSelected}
+                                className="w-full px-2 py-1 border border-[var(--border)] rounded text-sm text-center focus:outline-none focus:ring-2 focus:ring-[var(--primary)] disabled:bg-[var(--muted)]"
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-sm text-right text-[var(--muted-foreground)]">${item.sellPrice.toFixed(2)}</td>
+                            <td className="px-3 py-2 text-sm text-right font-medium text-[var(--foreground)]">
+                              ${(item.sellPrice * orderQuantity).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Summary */}
+                <div className="mt-4 flex justify-end">
+                  <div className="bg-[var(--muted)]/30 rounded-lg p-4 min-w-[250px]">
+                    <div className="flex justify-between text-sm mb-2">
+                      <span className="text-[var(--muted-foreground)]">Selected Items:</span>
+                      <span className="font-medium">{createOrderSelectedItems.filter(i => i.selected).length}</span>
+                    </div>
+                    <div className="flex justify-between text-sm border-t border-[var(--border)] pt-2">
+                      <span className="text-[var(--muted-foreground)]">Order Total:</span>
+                      <span className="font-semibold text-[var(--foreground)]">
+                        ${createOrderSelectedItems
+                          .filter(i => i.selected)
+                          .reduce((sum, i) => {
+                            const item = quoteLineItems.find(li => li.id === i.id);
+                            return sum + (item ? item.sellPrice * i.quantity : 0);
+                          }, 0)
+                          .toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3">
+                <button
+                  onClick={() => setShowCreateOrderFromQuoteModal(false)}
+                  className="px-4 py-2 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors text-sm font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    // Create order logic would go here
+                    alert('Order created successfully!');
+                    setShowCreateOrderFromQuoteModal(false);
+                  }}
+                  disabled={createOrderSelectedItems.filter(i => i.selected).length === 0}
+                  className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Create Order
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Columns Configuration Modal */}
         {showColumnsMenu && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -12395,16 +12901,8 @@ export default function QuotesContent() {
                   </div>
                 )}
 
-                {/* Base Price - only show if not in table */}
-                {!effectiveVisibleColumns.has('base') && (
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm text-[var(--muted-foreground)]">Base Price</label>
-                    <span className="text-sm text-[var(--foreground)]">${lineDetailsModalItem.basePrice.toFixed(2)}</span>
-                  </div>
-                )}
-
-                {/* Sell Price - only show if not in table */}
-                {!effectiveVisibleColumns.has('sell') && (
+                {/* Unit Price - only show if not in table */}
+                {!effectiveVisibleColumns.has('unitPrice') && (
                   <div className="flex items-center justify-between">
                     <label className="text-sm text-[var(--muted-foreground)]">Sell Price</label>
                     <input

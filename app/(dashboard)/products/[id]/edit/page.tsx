@@ -94,6 +94,7 @@ interface ProductWithRelations extends Product {
   baseProductId?: string;
   baseProductPartNumber?: string;
   configurations?: ProductConfiguration[];
+  tags?: string[];
 }
 
 // Mock data for dropdowns
@@ -340,7 +341,9 @@ export default function ProductEditPage() {
     files: [],
     notes: [],
     activities: [],
+    tags: [],
   });
+  const [tagInput, setTagInput] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -586,6 +589,32 @@ export default function ProductEditPage() {
     }));
   };
 
+  // Tag management functions
+  const addTag = () => {
+    const tag = tagInput.trim();
+    if (tag && !formData.tags?.includes(tag)) {
+      setFormData(prev => ({
+        ...prev,
+        tags: [...(prev.tags || []), tag],
+      }));
+      setTagInput('');
+    }
+  };
+
+  const removeTag = (tagToRemove: string) => {
+    setFormData(prev => ({
+      ...prev,
+      tags: (prev.tags || []).filter(tag => tag !== tagToRemove),
+    }));
+  };
+
+  const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addTag();
+    }
+  };
+
   // Use mock data if not available from formData
   const specSheets = formData.specSheets || mockSpecSheets;
   const manufacturerPriceHistory = formData.manufacturerPriceHistory || mockManufacturerPriceHistory;
@@ -656,9 +685,14 @@ export default function ProductEditPage() {
     { id: 'activity' as TabId, label: 'Activity Feed', count: null },
   ];
 
-  const inputClass = "w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400";
+  const inputClass = "w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
   const labelClass = "block text-sm font-medium text-gray-700 mb-1.5";
   const selectClass = "w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all appearance-none cursor-pointer";
+
+  // Helper to select all text on focus
+  const handleInputFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    e.target.select();
+  };
 
   if (isLoading) {
     return (
@@ -779,18 +813,45 @@ export default function ProductEditPage() {
 
           {/* Basic Info Fields */}
           <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
-            <div className="grid grid-cols-6 gap-4">
-              {/* Row 1 */}
-              <div>
+            {/* Product Identification */}
+            <div className="grid grid-cols-4 gap-4 mb-6">
+              <div className="col-span-2">
                 <label className={labelClass}>Part Number*</label>
                 <input
                   type="text"
                   value={formData.partNumber}
                   onChange={(e) => handleFieldChange('partNumber', e.target.value)}
+                  onFocus={handleInputFocus}
                   className={inputClass}
                   placeholder="Enter part number"
                 />
               </div>
+              <div>
+                <label className={labelClass}>UPC</label>
+                <input
+                  type="text"
+                  value={formData.upc || ''}
+                  onChange={(e) => handleFieldChange('upc', e.target.value)}
+                  onFocus={handleInputFocus}
+                  className={inputClass}
+                  placeholder="Universal Product Code"
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Lead Time (Days)</label>
+                <input
+                  type="number"
+                  value={formData.leadTimeDays || ''}
+                  onChange={(e) => handleFieldChange('leadTimeDays', e.target.value ? parseInt(e.target.value) : undefined)}
+                  onFocus={handleInputFocus}
+                  className={inputClass}
+                  placeholder="0"
+                />
+              </div>
+            </div>
+
+            {/* Classification */}
+            <div className="grid grid-cols-4 gap-4 mb-6">
               <div>
                 <label className={labelClass}>Factory*</label>
                 <div className="relative">
@@ -813,37 +874,30 @@ export default function ProductEditPage() {
                   </svg>
                 </div>
               </div>
-              <div className="flex items-end gap-2">
-                <div className="flex-1">
-                  <label className={labelClass}>Category*</label>
-                  <div className="relative">
-                    <select
-                      value={formData.categoryId || ''}
-                      onChange={(e) => {
-                        const category = mockCategories.find(c => c.id === e.target.value);
-                        handleFieldChange('categoryId', e.target.value);
-                        if (category) handleFieldChange('category', category.name);
-                      }}
-                      className={selectClass}
-                    >
-                      <option value="">Select category</option>
-                      {mockCategories.map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
-                    <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </div>
-                </div>
-                <button className="p-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              <div>
+                <label className={labelClass}>Category</label>
+                <div className="relative">
+                  <select
+                    value={formData.categoryId || ''}
+                    onChange={(e) => {
+                      const category = mockCategories.find(c => c.id === e.target.value);
+                      handleFieldChange('categoryId', e.target.value);
+                      if (category) handleFieldChange('category', category.name);
+                    }}
+                    className={selectClass}
+                  >
+                    <option value="">Select category</option>
+                    {mockCategories.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                  <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
-                </button>
+                </div>
               </div>
               <div>
-                <label className={labelClass}>UOM*</label>
+                <label className={labelClass}>UOM</label>
                 <div className="relative">
                   <select
                     value={formData.uom || 'ea'}
@@ -860,27 +914,74 @@ export default function ProductEditPage() {
                 </div>
               </div>
               <div>
-                <label className={labelClass}>Lead Time</label>
+                <label className={labelClass}>Min Order Qty</label>
                 <input
                   type="number"
-                  value={formData.leadTimeDays || ''}
-                  onChange={(e) => handleFieldChange('leadTimeDays', e.target.value ? parseInt(e.target.value) : undefined)}
+                  value={formData.minOrderQty || ''}
+                  onChange={(e) => handleFieldChange('minOrderQty', e.target.value ? parseInt(e.target.value) : undefined)}
+                  onFocus={handleInputFocus}
                   className={inputClass}
-                  placeholder="Days"
+                  placeholder="0"
                 />
               </div>
-              <div>
-                <label className={labelClass}>Description</label>
+            </div>
+
+            {/* Description - Full Width */}
+            <div className="mb-6">
+              <label className={labelClass}>Description</label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => handleFieldChange('description', e.target.value)}
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400 resize-y"
+                rows={4}
+                placeholder="Enter detailed product description"
+              />
+            </div>
+
+            {/* Tags */}
+            <div className="mb-6">
+              <label className={labelClass}>Tags</label>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {(formData.tags || []).map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full text-sm"
+                  >
+                    {tag}
+                    <button
+                      type="button"
+                      onClick={() => removeTag(tag)}
+                      className="hover:text-blue-900 transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <div className="flex gap-2">
                 <input
                   type="text"
-                  value={formData.description}
-                  onChange={(e) => handleFieldChange('description', e.target.value)}
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={handleTagKeyDown}
+                  onFocus={handleInputFocus}
                   className={inputClass}
-                  placeholder="Product description"
+                  placeholder="Add a tag and press Enter"
                 />
+                <button
+                  type="button"
+                  onClick={addTag}
+                  className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+                >
+                  Add
+                </button>
               </div>
+            </div>
 
-              {/* Row 2 */}
+            {/* Pricing */}
+            <div className="grid grid-cols-4 gap-4 mb-6">
               <div>
                 <label className={labelClass}>Unit Price</label>
                 <input
@@ -888,16 +989,31 @@ export default function ProductEditPage() {
                   step="0.01"
                   value={formData.unitPrice || ''}
                   onChange={(e) => handleFieldChange('unitPrice', parseFloat(e.target.value) || 0)}
+                  onFocus={handleInputFocus}
                   className={inputClass}
                   placeholder="0.00"
                 />
               </div>
               <div>
-                <label className={labelClass}>Min Order Qty</label>
+                <label className={labelClass}>Cost</label>
                 <input
                   type="number"
-                  value={formData.minOrderQty || ''}
-                  onChange={(e) => handleFieldChange('minOrderQty', e.target.value ? parseInt(e.target.value) : undefined)}
+                  step="0.01"
+                  value={formData.cost || ''}
+                  onChange={(e) => handleFieldChange('cost', e.target.value ? parseFloat(e.target.value) : undefined)}
+                  onFocus={handleInputFocus}
+                  className={inputClass}
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Unit Price Discount %</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={formData.unitPriceDiscountRate != null ? (formData.unitPriceDiscountRate * 100).toFixed(1) : ''}
+                  onChange={(e) => handleFieldChange('unitPriceDiscountRate', e.target.value ? parseFloat(e.target.value) / 100 : undefined)}
+                  onFocus={handleInputFocus}
                   className={inputClass}
                   placeholder="0"
                 />
@@ -909,53 +1025,25 @@ export default function ProductEditPage() {
                   step="0.1"
                   value={formData.standardCommissionRate != null ? (formData.standardCommissionRate * 100).toFixed(1) : ''}
                   onChange={(e) => handleFieldChange('standardCommissionRate', e.target.value ? parseFloat(e.target.value) / 100 : undefined)}
+                  onFocus={handleInputFocus}
                   className={inputClass}
                   placeholder="0"
                 />
               </div>
+            </div>
+
+            {/* Commission Discount */}
+            <div className="grid grid-cols-4 gap-4 mb-6">
               <div>
-                <label className={labelClass}>Commission Discount Rate</label>
+                <label className={labelClass}>Commission Discount %</label>
                 <input
                   type="number"
                   step="0.1"
                   value={formData.commissionDiscountRate != null ? (formData.commissionDiscountRate * 100).toFixed(1) : ''}
                   onChange={(e) => handleFieldChange('commissionDiscountRate', e.target.value ? parseFloat(e.target.value) / 100 : undefined)}
+                  onFocus={handleInputFocus}
                   className={inputClass}
                   placeholder="0"
-                />
-              </div>
-              <div>
-                <label className={labelClass}>Unit Price Discount Rate</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={formData.unitPriceDiscountRate != null ? (formData.unitPriceDiscountRate * 100).toFixed(1) : ''}
-                  onChange={(e) => handleFieldChange('unitPriceDiscountRate', e.target.value ? parseFloat(e.target.value) / 100 : undefined)}
-                  className={inputClass}
-                  placeholder="0"
-                />
-              </div>
-              <div>
-                <label className={labelClass}>Cost</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formData.cost || ''}
-                  onChange={(e) => handleFieldChange('cost', e.target.value ? parseFloat(e.target.value) : undefined)}
-                  className={inputClass}
-                  placeholder="0.00"
-                />
-              </div>
-
-              {/* Row 3 */}
-              <div>
-                <label className={labelClass}>UPC</label>
-                <input
-                  type="text"
-                  value={formData.upc || ''}
-                  onChange={(e) => handleFieldChange('upc', e.target.value)}
-                  className={inputClass}
-                  placeholder="Universal Product Code"
                 />
               </div>
               <div>
@@ -973,6 +1061,7 @@ export default function ProductEditPage() {
                   type="text"
                   value={formData.approvalComments || ''}
                   onChange={(e) => handleFieldChange('approvalComments', e.target.value)}
+                  onFocus={handleInputFocus}
                   className={inputClass}
                   placeholder="Enter approval comments"
                 />
@@ -980,38 +1069,8 @@ export default function ProductEditPage() {
             </div>
           </div>
 
-          {/* Description */}
+          {/* Stats Section */}
           <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-6">
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-2">Description</h3>
-              <textarea
-                value={formData.description}
-                onChange={(e) => handleFieldChange('description', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                rows={3}
-                placeholder="Enter product description"
-              />
-            </div>
-
-            {/* Current Commission Pricing */}
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-3">Current Commission Pricing</h3>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
-                  <div className="text-xs text-gray-500 mb-1">10% Commission</div>
-                  <div className="text-2xl font-semibold text-gray-900">{formatCurrency(formData.commission10 || 0)}</div>
-                </div>
-                <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
-                  <div className="text-xs text-gray-500 mb-1">8% Commission</div>
-                  <div className="text-2xl font-semibold text-gray-900">{formatCurrency(formData.commission8 || 0)}</div>
-                </div>
-                <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
-                  <div className="text-xs text-gray-500 mb-1">5% Commission</div>
-                  <div className="text-2xl font-semibold text-gray-900">{formatCurrency(formData.commission5 || 0)}</div>
-                </div>
-              </div>
-            </div>
-
             {/* Commission Rates */}
             <div>
               <h3 className="text-sm font-semibold text-gray-900 mb-3">Commission Rates</h3>
