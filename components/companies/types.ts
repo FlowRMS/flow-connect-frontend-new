@@ -7,6 +7,15 @@ import type { CompanyLandingPage, CompanySourceType, Company as APICompany } fro
 // Address type for company addresses
 export type AddressType = 'shipping' | 'billing' | 'mailing';
 
+// Sales Rep assignment with commission split
+export interface SalesRepAssignment {
+  id: string;
+  repId: string;
+  repName: string;
+  repType: 'inside' | 'outside';
+  commissionSplit: number; // Percentage as decimal (0.5 = 50%)
+}
+
 // Company Address interface
 export interface CompanyAddress {
   id: string;
@@ -61,6 +70,8 @@ export interface Company {
   // Extended fields
   addresses?: CompanyAddress[];
   manufacturerInfo?: ManufacturerInfo;
+  // Sales rep assignments
+  salesReps?: SalesRepAssignment[];
 }
 
 // View mode type

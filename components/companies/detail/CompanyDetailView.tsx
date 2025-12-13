@@ -5,7 +5,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import type { Company, CompanyAddress, AddressType, ManufacturerInfo } from '../types';
+import type { Company, CompanyAddress, AddressType, ManufacturerInfo, SalesRepAssignment } from '../types';
 import type { CompanySourceType, Contact as APIContact, Job as APIJob } from '../../lib/crm-graphql';
 import CompanyRelatedEntities from './CompanyRelatedEntities';
 import ConnectedNotesSection from '../../notes/ConnectedNotesSection';
@@ -14,7 +14,7 @@ import DeleteConfirmModal from './DeleteConfirmModal';
 import { AddTaskNoteLinkModal } from '../modals/AddTaskNoteLinkModal';
 import { AddAddressModal, type Address } from '../../shared/AddAddressModal';
 
-type TabId = 'overview' | 'factory-info' | 'addresses' | 'contacts' | 'pre-quotes' | 'emails' | 'meetings' | 'tasks' | 'notes' | 'tags';
+type TabId = 'overview' | 'factory-info' | 'sales-reps' | 'addresses' | 'contacts' | 'pre-quotes' | 'emails' | 'meetings' | 'tasks' | 'notes' | 'tags';
 
 // US States list
 const US_STATES = [
@@ -51,7 +51,7 @@ interface CompanyDetailViewProps {
   onDeleteClick: () => void;
   onDeleteConfirm: () => void;
   onDeleteCancel: () => void;
-  onFieldChange: (field: string, value: string | number | CompanySourceType | CompanyAddress[] | ManufacturerInfo) => void;
+  onFieldChange: (field: string, value: string | number | CompanySourceType | CompanyAddress[] | ManufacturerInfo | SalesRepAssignment[]) => void;
   onContactClick?: (contact: APIContact) => void;
   onJobClick?: (job: APIJob) => void;
 }
@@ -383,6 +383,7 @@ export default function CompanyDetailView({
   const sectionRefs = useRef<Record<TabId, HTMLDivElement | null>>({
     'overview': null,
     'factory-info': null,
+    'sales-reps': null,
     'addresses': null,
     'contacts': null,
     'pre-quotes': null,
@@ -495,12 +496,65 @@ export default function CompanyDetailView({
     onFieldChange('manufacturerInfo', { ...manufacturerInfo, [field]: value });
   };
 
+  // Get sales reps
+  const salesReps = isEditing ? (editFormData.salesReps || company.salesReps || []) : (company.salesReps || []);
+
+  // Mock available reps for dropdown (in production, this would come from API)
+  const availableReps = [
+    { id: 'rep1', name: 'John Smith' },
+    { id: 'rep2', name: 'Jane Doe' },
+    { id: 'rep3', name: 'Bob Johnson' },
+    { id: 'rep4', name: 'Alice Williams' },
+    { id: 'rep5', name: 'Charlie Brown' },
+  ];
+
+  // Sales rep handlers
+  const handleAddSalesRep = (repType: 'inside' | 'outside') => {
+    const newRep: SalesRepAssignment = {
+      id: `rep-${Date.now()}`,
+      repId: '',
+      repName: '',
+      repType,
+      commissionSplit: salesReps.length === 0 ? 1 : 0, // First rep gets 100%, others start at 0
+    };
+    onFieldChange('salesReps', [...salesReps, newRep]);
+  };
+
+  const updateSalesRep = (index: number, updates: Partial<SalesRepAssignment>) => {
+    const newReps = [...salesReps];
+    newReps[index] = { ...newReps[index], ...updates };
+
+    // If repId changed, update repName
+    if (updates.repId) {
+      const rep = availableReps.find(r => r.id === updates.repId);
+      if (rep) {
+        newReps[index].repName = rep.name;
+      }
+    }
+
+    onFieldChange('salesReps', newReps);
+  };
+
+  const deleteSalesRep = (index: number) => {
+    const newReps = salesReps.filter((_, i) => i !== index);
+    // Redistribute commission if needed
+    if (newReps.length === 1) {
+      newReps[0].commissionSplit = 1; // Give remaining rep 100%
+    }
+    onFieldChange('salesReps', newReps);
+  };
+
+  // Calculate total commission split
+  const totalCommissionSplit = salesReps.reduce((sum, rep) => sum + (rep.commissionSplit || 0), 0);
+  const isCommissionValid = Math.abs(totalCommissionSplit - 1) < 0.001; // Allow small floating point errors
+
   // Build tabs based on company type
   const tabs: { id: TabId; label: string }[] = [
     ...(isManufacturer
       ? [{ id: 'factory-info' as TabId, label: 'Factory Info' }]
       : [{ id: 'overview' as TabId, label: 'Overview' }]
     ),
+    { id: 'sales-reps', label: 'Sales Reps' },
     { id: 'addresses', label: 'Addresses' },
     { id: 'contacts', label: 'Contacts' },
     { id: 'pre-quotes', label: 'Pre-Quotes' },
@@ -702,201 +756,433 @@ export default function CompanyDetailView({
         {/* ============ FACTORY INFO SECTION (Manufacturers only) ============ */}
         {isManufacturer && (
           <div ref={el => { sectionRefs.current['factory-info'] = el; }} id="section-factory-info">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Factory Information</h2>
-
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-              {/* Row 1 */}
-              <div className="grid grid-cols-6 gap-4 mb-4">
-                <div>
-                  <label className={labelClass}>Name of Factory*</label>
-                  <input
-                    type="text"
-                    value={company.name}
-                    className={readOnlyClass}
-                    readOnly
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Factory Account Number</label>
-                  <input
-                    type="text"
-                    value={isEditing ? manufacturerInfo.factoryAccountNumber || '' : (manufacturerInfo.factoryAccountNumber || '')}
-                    onChange={(e) => updateManufacturerInfo('factoryAccountNumber', e.target.value)}
-                    className={isEditing ? inputClass : readOnlyClass}
-                    readOnly={!isEditing}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Factory Email</label>
-                  <input
-                    type="email"
-                    value={isEditing ? manufacturerInfo.factoryEmail || '' : (manufacturerInfo.factoryEmail || '')}
-                    onChange={(e) => updateManufacturerInfo('factoryEmail', e.target.value)}
-                    className={isEditing ? inputClass : readOnlyClass}
-                    readOnly={!isEditing}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Phone</label>
-                  <input
-                    type="text"
-                    value={isEditing ? editFormData.phone || '' : (company.phone || '')}
-                    onChange={(e) => onFieldChange('phone', e.target.value)}
-                    className={isEditing ? inputClass : readOnlyClass}
-                    readOnly={!isEditing}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Logo URL</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={isEditing ? manufacturerInfo.logoUrl || '' : (manufacturerInfo.logoUrl || '')}
-                      onChange={(e) => updateManufacturerInfo('logoUrl', e.target.value)}
-                      className={isEditing ? inputClass : readOnlyClass}
-                      readOnly={!isEditing}
-                    />
-                    {isEditing && (
-                      <button className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
-                        <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <label className={labelClass}>Freight Discount Type*</label>
-                  {isEditing ? (
-                    <select
-                      value={manufacturerInfo.freightDiscountType || 'ADD'}
-                      onChange={(e) => updateManufacturerInfo('freightDiscountType', e.target.value)}
-                      className={inputClass}
-                    >
-                      <option value="ADD">ADD</option>
-                      <option value="SUBTRACT">SUBTRACT</option>
-                      <option value="NONE">NONE</option>
-                    </select>
-                  ) : (
-                    <div className={readOnlyClass}>{manufacturerInfo.freightDiscountType || 'ADD'}</div>
-                  )}
-                </div>
+            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+              <div className="px-6 py-4 border-b border-[var(--border)]">
+                <h2 className="text-lg font-semibold text-[var(--foreground)]">Factory Information</h2>
               </div>
+              <div className="p-6 space-y-6">
+                {/* Basic Information */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Basic Information</h3>
+                  <div className="grid grid-cols-5 gap-4">
+                    <div>
+                      <label className={labelClass}>Factory Name*</label>
+                      <input
+                        type="text"
+                        value={company.name}
+                        className={readOnlyClass}
+                        readOnly
+                      />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Account Number</label>
+                      <input
+                        type="text"
+                        value={isEditing ? manufacturerInfo.factoryAccountNumber || '' : (manufacturerInfo.factoryAccountNumber || '')}
+                        onChange={(e) => updateManufacturerInfo('factoryAccountNumber', e.target.value)}
+                        className={isEditing ? inputClass : readOnlyClass}
+                        readOnly={!isEditing}
+                      />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Phone</label>
+                      <input
+                        type="text"
+                        value={isEditing ? editFormData.phone || '' : (company.phone || '')}
+                        onChange={(e) => onFieldChange('phone', e.target.value)}
+                        className={isEditing ? inputClass : readOnlyClass}
+                        readOnly={!isEditing}
+                      />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Email</label>
+                      <input
+                        type="email"
+                        value={isEditing ? manufacturerInfo.factoryEmail || '' : (manufacturerInfo.factoryEmail || '')}
+                        onChange={(e) => updateManufacturerInfo('factoryEmail', e.target.value)}
+                        className={isEditing ? inputClass : readOnlyClass}
+                        readOnly={!isEditing}
+                      />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Logo URL</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={isEditing ? manufacturerInfo.logoUrl || '' : (manufacturerInfo.logoUrl || '')}
+                          onChange={(e) => updateManufacturerInfo('logoUrl', e.target.value)}
+                          className={isEditing ? inputClass : readOnlyClass}
+                          readOnly={!isEditing}
+                        />
+                        {isEditing && (
+                          <button className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex-shrink-0">
+                            <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
-              {/* Row 2 - Commission rates */}
-              <div className="grid grid-cols-6 gap-4 mb-4">
+                {/* Commission & Discounts */}
                 <div>
-                  <label className={labelClass}>Lead Time</label>
-                  <input
-                    type="text"
-                    value={isEditing ? manufacturerInfo.leadTime || '' : (manufacturerInfo.leadTime || '')}
-                    onChange={(e) => updateManufacturerInfo('leadTime', e.target.value)}
-                    className={isEditing ? inputClass : readOnlyClass}
-                    readOnly={!isEditing}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Payment Terms</label>
-                  <input
-                    type="text"
-                    value={isEditing ? manufacturerInfo.paymentTerms || '' : (manufacturerInfo.paymentTerms || '')}
-                    onChange={(e) => updateManufacturerInfo('paymentTerms', e.target.value)}
-                    className={isEditing ? inputClass : readOnlyClass}
-                    readOnly={!isEditing}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Base Commission Rate*</label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={isEditing
-                        ? (manufacturerInfo.baseCommissionRate != null ? (manufacturerInfo.baseCommissionRate * 100).toFixed(1) : '')
-                        : (manufacturerInfo.baseCommissionRate != null ? (manufacturerInfo.baseCommissionRate * 100).toFixed(1) : '')}
-                      onChange={(e) => updateManufacturerInfo('baseCommissionRate', parseFloat(e.target.value) / 100)}
-                      className={`${isEditing ? inputClass : readOnlyClass} pr-8`}
-                      readOnly={!isEditing}
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Commission & Discounts</h3>
+                  <div className="grid grid-cols-4 gap-4">
+                    <div>
+                      <label className={labelClass}>Base Commission Rate*</label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={isEditing
+                            ? (manufacturerInfo.baseCommissionRate != null ? (manufacturerInfo.baseCommissionRate * 100).toFixed(1) : '')
+                            : (manufacturerInfo.baseCommissionRate != null ? (manufacturerInfo.baseCommissionRate * 100).toFixed(1) : '')}
+                          onChange={(e) => updateManufacturerInfo('baseCommissionRate', parseFloat(e.target.value) / 100)}
+                          className={`${isEditing ? inputClass : readOnlyClass} pr-8`}
+                          readOnly={!isEditing}
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className={labelClass}>Commission Discount Rate</label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={isEditing
+                            ? (manufacturerInfo.commissionDiscountRate != null ? (manufacturerInfo.commissionDiscountRate * 100).toFixed(1) : '0')
+                            : (manufacturerInfo.commissionDiscountRate != null ? (manufacturerInfo.commissionDiscountRate * 100).toFixed(1) : '0')}
+                          onChange={(e) => updateManufacturerInfo('commissionDiscountRate', parseFloat(e.target.value) / 100)}
+                          className={`${isEditing ? inputClass : readOnlyClass} pr-8`}
+                          readOnly={!isEditing}
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className={labelClass}>Overall Discount Rate</label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={isEditing
+                            ? (manufacturerInfo.overallDiscountRate != null ? (manufacturerInfo.overallDiscountRate * 100).toFixed(1) : '0')
+                            : (manufacturerInfo.overallDiscountRate != null ? (manufacturerInfo.overallDiscountRate * 100).toFixed(1) : '0')}
+                          onChange={(e) => updateManufacturerInfo('overallDiscountRate', parseFloat(e.target.value) / 100)}
+                          className={`${isEditing ? inputClass : readOnlyClass} pr-8`}
+                          readOnly={!isEditing}
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className={labelClass}>Freight Discount Type*</label>
+                      {isEditing ? (
+                        <select
+                          value={manufacturerInfo.freightDiscountType || 'ADD'}
+                          onChange={(e) => updateManufacturerInfo('freightDiscountType', e.target.value)}
+                          className={inputClass}
+                        >
+                          <option value="ADD">ADD</option>
+                          <option value="SUBTRACT">SUBTRACT</option>
+                          <option value="NONE">NONE</option>
+                        </select>
+                      ) : (
+                        <div className={readOnlyClass}>{manufacturerInfo.freightDiscountType || 'ADD'}</div>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <label className={labelClass}>Commission Discount Rate</label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={isEditing
-                        ? (manufacturerInfo.commissionDiscountRate != null ? (manufacturerInfo.commissionDiscountRate * 100).toFixed(1) : '0')
-                        : (manufacturerInfo.commissionDiscountRate != null ? (manufacturerInfo.commissionDiscountRate * 100).toFixed(1) : '0')}
-                      onChange={(e) => updateManufacturerInfo('commissionDiscountRate', parseFloat(e.target.value) / 100)}
-                      className={`${isEditing ? inputClass : readOnlyClass} pr-8`}
-                      readOnly={!isEditing}
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
-                  </div>
-                </div>
-                <div>
-                  <label className={labelClass}>Overall Discount Rate</label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={isEditing
-                        ? (manufacturerInfo.overallDiscountRate != null ? (manufacturerInfo.overallDiscountRate * 100).toFixed(1) : '0')
-                        : (manufacturerInfo.overallDiscountRate != null ? (manufacturerInfo.overallDiscountRate * 100).toFixed(1) : '0')}
-                      onChange={(e) => updateManufacturerInfo('overallDiscountRate', parseFloat(e.target.value) / 100)}
-                      className={`${isEditing ? inputClass : readOnlyClass} pr-8`}
-                      readOnly={!isEditing}
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
-                  </div>
-                </div>
-                <div>
-                  <label className={labelClass}>External Terms</label>
-                  <textarea
-                    value={isEditing ? manufacturerInfo.externalTerms || '' : (manufacturerInfo.externalTerms || '')}
-                    onChange={(e) => updateManufacturerInfo('externalTerms', e.target.value)}
-                    className={isEditing ? textareaClass : `${readOnlyClass} min-h-[80px]`}
-                    readOnly={!isEditing}
-                  />
-                </div>
-              </div>
 
-              {/* Row 3 - Text areas */}
-              <div className="grid grid-cols-3 gap-4">
+                {/* Operations */}
                 <div>
-                  <label className={labelClass}>Additional Information</label>
-                  <textarea
-                    value={isEditing ? manufacturerInfo.additionalInformation || '' : (manufacturerInfo.additionalInformation || '')}
-                    onChange={(e) => updateManufacturerInfo('additionalInformation', e.target.value)}
-                    className={isEditing ? textareaClass : `${readOnlyClass} min-h-[80px]`}
-                    readOnly={!isEditing}
-                  />
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Operations</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className={labelClass}>Lead Time</label>
+                      <input
+                        type="text"
+                        value={isEditing ? manufacturerInfo.leadTime || '' : (manufacturerInfo.leadTime || '')}
+                        onChange={(e) => updateManufacturerInfo('leadTime', e.target.value)}
+                        className={isEditing ? inputClass : readOnlyClass}
+                        readOnly={!isEditing}
+                      />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Payment Terms</label>
+                      <input
+                        type="text"
+                        value={isEditing ? manufacturerInfo.paymentTerms || '' : (manufacturerInfo.paymentTerms || '')}
+                        onChange={(e) => updateManufacturerInfo('paymentTerms', e.target.value)}
+                        className={isEditing ? inputClass : readOnlyClass}
+                        readOnly={!isEditing}
+                      />
+                    </div>
+                  </div>
                 </div>
+
+                {/* Terms & Notes */}
                 <div>
-                  <label className={labelClass}>Freight Terms</label>
-                  <textarea
-                    value={isEditing ? manufacturerInfo.freightTerms || '' : (manufacturerInfo.freightTerms || '')}
-                    onChange={(e) => updateManufacturerInfo('freightTerms', e.target.value)}
-                    className={isEditing ? textareaClass : `${readOnlyClass} min-h-[80px]`}
-                    readOnly={!isEditing}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>External Payment Terms</label>
-                  <textarea
-                    value={isEditing ? manufacturerInfo.externalPaymentTerms || '' : (manufacturerInfo.externalPaymentTerms || '')}
-                    onChange={(e) => updateManufacturerInfo('externalPaymentTerms', e.target.value)}
-                    className={isEditing ? textareaClass : `${readOnlyClass} min-h-[80px]`}
-                    readOnly={!isEditing}
-                  />
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Terms & Notes</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className={labelClass}>External Terms</label>
+                      <textarea
+                        value={isEditing ? manufacturerInfo.externalTerms || '' : (manufacturerInfo.externalTerms || '')}
+                        onChange={(e) => updateManufacturerInfo('externalTerms', e.target.value)}
+                        className={isEditing ? textareaClass : `${readOnlyClass} min-h-[80px]`}
+                        readOnly={!isEditing}
+                      />
+                    </div>
+                    <div>
+                      <label className={labelClass}>External Payment Terms</label>
+                      <textarea
+                        value={isEditing ? manufacturerInfo.externalPaymentTerms || '' : (manufacturerInfo.externalPaymentTerms || '')}
+                        onChange={(e) => updateManufacturerInfo('externalPaymentTerms', e.target.value)}
+                        className={isEditing ? textareaClass : `${readOnlyClass} min-h-[80px]`}
+                        readOnly={!isEditing}
+                      />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Freight Terms</label>
+                      <textarea
+                        value={isEditing ? manufacturerInfo.freightTerms || '' : (manufacturerInfo.freightTerms || '')}
+                        onChange={(e) => updateManufacturerInfo('freightTerms', e.target.value)}
+                        className={isEditing ? textareaClass : `${readOnlyClass} min-h-[80px]`}
+                        readOnly={!isEditing}
+                      />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Additional Information</label>
+                      <textarea
+                        value={isEditing ? manufacturerInfo.additionalInformation || '' : (manufacturerInfo.additionalInformation || '')}
+                        onChange={(e) => updateManufacturerInfo('additionalInformation', e.target.value)}
+                        className={isEditing ? textareaClass : `${readOnlyClass} min-h-[80px]`}
+                        readOnly={!isEditing}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         )}
+
+        {/* ============ SALES REPS SECTION ============ */}
+        <div ref={el => { sectionRefs.current['sales-reps'] = el; }} id="section-sales-reps">
+          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-semibold text-[var(--foreground)]">Sales Reps</h2>
+                <span className="px-2 py-0.5 text-xs font-medium bg-[var(--muted)] text-[var(--muted-foreground)] rounded-full">
+                  {salesReps.length}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleAddSalesRep('inside')}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                  </svg>
+                  Add Inside Rep
+                </button>
+                <button
+                  onClick={() => handleAddSalesRep('outside')}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                  </svg>
+                  Add Outside Rep
+                </button>
+              </div>
+            </div>
+            <div className="p-6">
+              {salesReps.length > 0 ? (
+                <div className="space-y-4">
+                  {/* Commission Split Warning */}
+                  {salesReps.length > 1 && !isCommissionValid && (
+                    <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 text-sm">
+                      <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                      <span>Commission splits must total 100%. Current total: {(totalCommissionSplit * 100).toFixed(0)}%</span>
+                    </div>
+                  )}
+
+                  {/* Inside Reps */}
+                  {salesReps.filter(r => r.repType === 'inside').length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Inside Reps</h3>
+                      <div className="space-y-3">
+                        {salesReps.map((rep, index) => rep.repType === 'inside' && (
+                          <div key={rep.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200 group">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-medium text-sm flex-shrink-0">
+                              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                              </svg>
+                            </div>
+                            <div className="flex-1 grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1">Rep Name</label>
+                                {isEditing ? (
+                                  <select
+                                    value={rep.repId}
+                                    onChange={(e) => updateSalesRep(index, { repId: e.target.value })}
+                                    className={inputClass}
+                                  >
+                                    <option value="">Select a rep</option>
+                                    {availableReps.map(r => (
+                                      <option key={r.id} value={r.id}>{r.name}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <div className={readOnlyClass}>{rep.repName || '-'}</div>
+                                )}
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1">Commission Split</label>
+                                {isEditing ? (
+                                  <div className="relative">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max="100"
+                                      step="1"
+                                      value={(rep.commissionSplit * 100).toFixed(0)}
+                                      onChange={(e) => updateSalesRep(index, { commissionSplit: parseFloat(e.target.value) / 100 })}
+                                      className={`${inputClass} pr-8`}
+                                    />
+                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
+                                  </div>
+                                ) : (
+                                  <div className={readOnlyClass}>{(rep.commissionSplit * 100).toFixed(0)}%</div>
+                                )}
+                              </div>
+                            </div>
+                            {isEditing && (
+                              <button
+                                onClick={() => deleteSalesRep(index)}
+                                className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                title="Remove rep"
+                              >
+                                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Outside Reps */}
+                  {salesReps.filter(r => r.repType === 'outside').length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Outside Reps</h3>
+                      <div className="space-y-3">
+                        {salesReps.map((rep, index) => rep.repType === 'outside' && (
+                          <div key={rep.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200 group">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-medium text-sm flex-shrink-0">
+                              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                              </svg>
+                            </div>
+                            <div className="flex-1 grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1">Rep Name</label>
+                                {isEditing ? (
+                                  <select
+                                    value={rep.repId}
+                                    onChange={(e) => updateSalesRep(index, { repId: e.target.value })}
+                                    className={inputClass}
+                                  >
+                                    <option value="">Select a rep</option>
+                                    {availableReps.map(r => (
+                                      <option key={r.id} value={r.id}>{r.name}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <div className={readOnlyClass}>{rep.repName || '-'}</div>
+                                )}
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1">Commission Split</label>
+                                {isEditing ? (
+                                  <div className="relative">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max="100"
+                                      step="1"
+                                      value={(rep.commissionSplit * 100).toFixed(0)}
+                                      onChange={(e) => updateSalesRep(index, { commissionSplit: parseFloat(e.target.value) / 100 })}
+                                      className={`${inputClass} pr-8`}
+                                    />
+                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
+                                  </div>
+                                ) : (
+                                  <div className={readOnlyClass}>{(rep.commissionSplit * 100).toFixed(0)}%</div>
+                                )}
+                              </div>
+                            </div>
+                            {isEditing && (
+                              <button
+                                onClick={() => deleteSalesRep(index)}
+                                className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                title="Remove rep"
+                              >
+                                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Commission Split Summary */}
+                  {salesReps.length > 1 && (
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium text-gray-700">Total Commission Split:</span>
+                        <span className={`font-semibold ${isCommissionValid ? 'text-green-600' : 'text-red-600'}`}>
+                          {(totalCommissionSplit * 100).toFixed(0)}%
+                          {isCommissionValid && (
+                            <svg className="inline-block w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-4 text-[var(--muted-foreground)]">
+                  <svg className="w-12 h-12 text-[var(--muted-foreground)]/30 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                  <p className="text-sm">No sales reps assigned</p>
+                  <button
+                    onClick={() => handleAddSalesRep('inside')}
+                    className="mt-2 text-sm text-[var(--primary)] hover:underline"
+                  >
+                    + Add a sales rep
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
 
         {/* ============ ADDRESSES SECTION ============ */}
         <div ref={el => { sectionRefs.current['addresses'] = el; }} id="section-addresses">

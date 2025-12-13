@@ -3447,6 +3447,12 @@ export default function QuotesContent() {
   const [commissionSplitsModalItem, setCommissionSplitsModalItem] = useState<LineItem | null>(null);
   const [applyToAllLines, setApplyToAllLines] = useState(false);
 
+  // Quote-level outside rep commission splits
+  const [quoteOutsideRep, setQuoteOutsideRep] = useState<string>('');
+  const [splitCommission, setSplitCommission] = useState(false);
+  const [showRepSplitsModal, setShowRepSplitsModal] = useState(false);
+  const [repCommissionSplits, setRepCommissionSplits] = useState<{repId: string; repName: string; percentage: number}[]>([]);
+
   // Line item details modal (for hidden columns in simple view)
   const [showLineDetailsModal, setShowLineDetailsModal] = useState(false);
   const [lineDetailsModalItem, setLineDetailsModalItem] = useState<LineItem | null>(null);
@@ -3465,13 +3471,53 @@ export default function QuotesContent() {
     'Brasfield & Gorrie',
   ];
 
+  // Product catalog for searchable part/description fields
+  const [productCatalog, setProductCatalog] = useState([
+    { id: 'prod-1', partNumber: 'LUM-4FT-LED', description: '4ft LED Linear Fixture', manufacturer: 'Acuity Brands', basePrice: 125 },
+    { id: 'prod-2', partNumber: 'LUM-2X4-TRF', description: '2x4 LED Troffer Panel', manufacturer: 'Acuity Brands', basePrice: 185 },
+    { id: 'prod-3', partNumber: 'DOW-6IN-REC', description: '6" Recessed Downlight', manufacturer: 'Cree Lighting', basePrice: 65 },
+    { id: 'prod-4', partNumber: 'DOW-4IN-ADJ', description: '4" Adjustable Gimbal Downlight', manufacturer: 'Cree Lighting', basePrice: 85 },
+    { id: 'prod-5', partNumber: 'EXT-WAL-PAK', description: 'LED Wall Pack 50W', manufacturer: 'RAB Lighting', basePrice: 145 },
+    { id: 'prod-6', partNumber: 'EXT-FLD-100', description: 'LED Flood Light 100W', manufacturer: 'RAB Lighting', basePrice: 225 },
+    { id: 'prod-7', partNumber: 'EXT-POL-150', description: 'LED Pole Light 150W', manufacturer: 'RAB Lighting', basePrice: 385 },
+    { id: 'prod-8', partNumber: 'EMG-EXIT-RD', description: 'Exit Sign LED Red', manufacturer: 'Lithonia', basePrice: 45 },
+    { id: 'prod-9', partNumber: 'EMG-EXIT-GR', description: 'Exit Sign LED Green', manufacturer: 'Lithonia', basePrice: 45 },
+    { id: 'prod-10', partNumber: 'EMG-COMBO-1', description: 'Exit/Emergency Combo Unit', manufacturer: 'Lithonia', basePrice: 95 },
+    { id: 'prod-11', partNumber: 'CTL-DIM-0-10', description: '0-10V Dimmer Switch', manufacturer: 'Lutron', basePrice: 55 },
+    { id: 'prod-12', partNumber: 'CTL-OCC-PIR', description: 'PIR Occupancy Sensor', manufacturer: 'Lutron', basePrice: 75 },
+    { id: 'prod-13', partNumber: 'CTL-DAY-SNR', description: 'Daylight Sensor', manufacturer: 'Lutron', basePrice: 85 },
+    { id: 'prod-14', partNumber: 'HBY-UFO-150', description: 'UFO High Bay 150W', manufacturer: 'Cooper Lighting', basePrice: 275 },
+    { id: 'prod-15', partNumber: 'HBY-LIN-200', description: 'Linear High Bay 200W', manufacturer: 'Cooper Lighting', basePrice: 325 },
+  ]);
+
+  // Product search state for part number and description dropdowns
+  const [productSearchOpen, setProductSearchOpen] = useState<string | null>(null); // lineItemId
+  const [productSearchField, setProductSearchField] = useState<'partNumber' | 'customerPartNumber' | 'description' | null>(null);
+  const [productSearchQuery, setProductSearchQuery] = useState('');
+  const [showCreateProduct, setShowCreateProduct] = useState(false);
+  const [newProductData, setNewProductData] = useState({ partNumber: '', description: '', manufacturer: '', basePrice: 0 });
+
+  // Close product search dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (productSearchOpen && !(e.target as Element).closest('.product-search-container')) {
+        setProductSearchOpen(null);
+        setProductSearchField(null);
+        setProductSearchQuery('');
+        setShowCreateProduct(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [productSearchOpen]);
+
   // Column visibility state
-  type ColumnKey = 'partNumber' | 'description' | 'quantity' | 'uom' | 'endUser' | 'manufacturer' | 'base' | 'sell' | 'sellTotal' | 'overage' | 'overageAmt' | 'commRate' | 'baseComm' | 'overageShare' | 'overageComm' | 'totalEarn' | 'effRate' | 'l1' | 'l2' | 'l3' | 'trend' | 'specSheet' | 'outsideReps' | 'divisor' | 'commissionDiscountPercent' | 'commissionDiscountAmount' | 'lineDiscountPercent' | 'lineDiscountAmount' | 'leadTime';
-  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(new Set(['partNumber', 'description', 'quantity', 'uom', 'manufacturer', 'base', 'sell', 'sellTotal', 'overage', 'overageAmt', 'commRate', 'baseComm', 'overageShare', 'overageComm', 'totalEarn', 'effRate', 'outsideReps', 'divisor']));
+  type ColumnKey = 'partNumber' | 'customerPartNumber' | 'description' | 'quantity' | 'uom' | 'endUser' | 'manufacturer' | 'base' | 'sell' | 'sellTotal' | 'overage' | 'overageAmt' | 'commRate' | 'baseComm' | 'overageShare' | 'overageComm' | 'totalEarn' | 'effRate' | 'l1' | 'l2' | 'l3' | 'trend' | 'specSheet' | 'outsideReps' | 'divisor' | 'commissionDiscountPercent' | 'commissionDiscountAmount' | 'lineDiscountPercent' | 'lineDiscountAmount' | 'leadTime';
+  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(new Set(['partNumber', 'customerPartNumber', 'description', 'quantity', 'uom', 'manufacturer', 'base', 'sell', 'sellTotal', 'overage', 'overageAmt', 'commRate', 'baseComm', 'overageShare', 'overageComm', 'totalEarn', 'effRate', 'outsideReps', 'divisor']));
 
   // Column order state for drag-and-drop reordering
   const [columnOrder, setColumnOrder] = useState<ColumnKey[]>([
-    'partNumber', 'description', 'quantity', 'uom', 'endUser', 'manufacturer',
+    'partNumber', 'customerPartNumber', 'description', 'quantity', 'uom', 'endUser', 'manufacturer',
     'base', 'sell', 'sellTotal', 'divisor',
     'overage', 'overageAmt',
     'commRate', 'baseComm', 'overageShare', 'overageComm', 'totalEarn', 'effRate', 'outsideReps',
@@ -3513,6 +3559,7 @@ export default function QuotesContent() {
 
   const columnDefinitions: { key: ColumnKey; label: string; group: string }[] = [
     { key: 'partNumber', label: 'Part #', group: 'Basic' },
+    { key: 'customerPartNumber', label: 'Cust Part #', group: 'Basic' },
     { key: 'description', label: 'Description', group: 'Basic' },
     { key: 'quantity', label: 'Qty', group: 'Basic' },
     { key: 'uom', label: 'UOM', group: 'Basic' },
@@ -3678,9 +3725,296 @@ export default function QuotesContent() {
 
     switch (colKey) {
       case 'partNumber':
-        return <td key={colKey} className="px-3 py-2 font-mono text-sm">{item.productNumber}</td>;
+        return (
+          <td key={colKey} className="px-3 py-2 font-mono text-sm relative">
+            <div className="product-search-container">
+              <button
+                onClick={() => {
+                  setProductSearchOpen(productSearchOpen === item.id && productSearchField === 'partNumber' ? null : item.id);
+                  setProductSearchField('partNumber');
+                  setProductSearchQuery(item.productNumber || '');
+                  setShowCreateProduct(false);
+                }}
+                className="w-full text-left px-2 py-1 rounded hover:bg-[var(--muted)] transition-colors flex items-center gap-1"
+              >
+                <span className="flex-1 truncate">{item.productNumber || 'Select...'}</span>
+                <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-[var(--muted-foreground)] flex-shrink-0">
+                  <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                </svg>
+              </button>
+              {productSearchOpen === item.id && productSearchField === 'partNumber' && (
+                <div className="absolute top-full left-0 mt-1 w-80 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                  <div className="p-2 border-b border-[var(--border)]">
+                    <input
+                      type="text"
+                      value={productSearchQuery}
+                      onChange={(e) => setProductSearchQuery(e.target.value)}
+                      placeholder="Search by part # or description..."
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="max-h-48 overflow-y-auto">
+                    {getFilteredProducts().map(product => (
+                      <button
+                        key={product.id}
+                        onClick={() => selectProductForLineItem(item.id, product)}
+                        className="w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors"
+                      >
+                        <div className="font-mono text-sm font-medium">{product.partNumber}</div>
+                        <div className="text-xs text-[var(--muted-foreground)] truncate">{product.description}</div>
+                      </button>
+                    ))}
+                    {getFilteredProducts().length === 0 && (
+                      <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">No products found</div>
+                    )}
+                  </div>
+                  <div className="border-t border-[var(--border)] p-2">
+                    {!showCreateProduct ? (
+                      <button
+                        onClick={() => {
+                          setShowCreateProduct(true);
+                          setNewProductData({ ...newProductData, partNumber: productSearchQuery });
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--primary)] hover:bg-[var(--muted)] rounded transition-colors"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                        </svg>
+                        Create New Product
+                      </button>
+                    ) : (
+                      <div className="space-y-2">
+                        <input
+                          type="text"
+                          value={newProductData.partNumber}
+                          onChange={(e) => setNewProductData(prev => ({ ...prev, partNumber: e.target.value }))}
+                          placeholder="Part Number *"
+                          className="w-full px-2 py-1.5 text-sm border border-[var(--border)] rounded"
+                        />
+                        <input
+                          type="text"
+                          value={newProductData.description}
+                          onChange={(e) => setNewProductData(prev => ({ ...prev, description: e.target.value }))}
+                          placeholder="Description *"
+                          className="w-full px-2 py-1.5 text-sm border border-[var(--border)] rounded"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => createNewProduct(item.id)}
+                            disabled={!newProductData.partNumber.trim() || !newProductData.description.trim()}
+                            className="flex-1 px-2 py-1.5 text-xs bg-[var(--primary)] text-white rounded hover:bg-[var(--primary-hover)] disabled:opacity-50"
+                          >
+                            Create
+                          </button>
+                          <button
+                            onClick={() => setShowCreateProduct(false)}
+                            className="flex-1 px-2 py-1.5 text-xs border border-[var(--border)] rounded hover:bg-[var(--muted)]"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </td>
+        );
+      case 'customerPartNumber':
+        return (
+          <td key={colKey} className="px-3 py-2 font-mono text-sm relative">
+            <div className="product-search-container">
+              <button
+                onClick={() => {
+                  setProductSearchOpen(productSearchOpen === item.id && productSearchField === 'customerPartNumber' ? null : item.id);
+                  setProductSearchField('customerPartNumber');
+                  setProductSearchQuery((item as LineItem & { customerPartNumber?: string }).customerPartNumber || '');
+                  setShowCreateProduct(false);
+                }}
+                className="w-full text-left px-2 py-1 rounded hover:bg-[var(--muted)] transition-colors flex items-center gap-1"
+              >
+                <span className="flex-1 truncate">{(item as LineItem & { customerPartNumber?: string }).customerPartNumber || 'Select...'}</span>
+                <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-[var(--muted-foreground)] flex-shrink-0">
+                  <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                </svg>
+              </button>
+              {productSearchOpen === item.id && productSearchField === 'customerPartNumber' && (
+                <div className="absolute top-full left-0 mt-1 w-80 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                  <div className="p-2 border-b border-[var(--border)]">
+                    <input
+                      type="text"
+                      value={productSearchQuery}
+                      onChange={(e) => setProductSearchQuery(e.target.value)}
+                      placeholder="Search or enter customer part #..."
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="max-h-48 overflow-y-auto">
+                    {getFilteredProducts().map(product => (
+                      <button
+                        key={product.id}
+                        onClick={() => {
+                          // For customer part number, just set the customer part number field, don't change the product
+                          setQuoteLineItems(prev => prev.map(li =>
+                            li.id === item.id ? { ...li, customerPartNumber: product.partNumber } : li
+                          ));
+                          setProductSearchOpen(null);
+                          setProductSearchField(null);
+                          setProductSearchQuery('');
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors"
+                      >
+                        <div className="font-mono text-sm font-medium">{product.partNumber}</div>
+                        <div className="text-xs text-[var(--muted-foreground)] truncate">{product.description}</div>
+                      </button>
+                    ))}
+                    {getFilteredProducts().length === 0 && productSearchQuery.trim() && (
+                      <button
+                        onClick={() => {
+                          // Allow setting a custom customer part number that's not in the catalog
+                          setQuoteLineItems(prev => prev.map(li =>
+                            li.id === item.id ? { ...li, customerPartNumber: productSearchQuery.trim() } : li
+                          ));
+                          setProductSearchOpen(null);
+                          setProductSearchField(null);
+                          setProductSearchQuery('');
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors"
+                      >
+                        <div className="text-sm text-[var(--primary)]">Use "{productSearchQuery.trim()}"</div>
+                        <div className="text-xs text-[var(--muted-foreground)]">Custom customer part number</div>
+                      </button>
+                    )}
+                    {getFilteredProducts().length === 0 && !productSearchQuery.trim() && (
+                      <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">Type to search or enter custom part #</div>
+                    )}
+                  </div>
+                  {productSearchQuery.trim() && getFilteredProducts().length > 0 && (
+                    <div className="border-t border-[var(--border)] p-2">
+                      <button
+                        onClick={() => {
+                          setQuoteLineItems(prev => prev.map(li =>
+                            li.id === item.id ? { ...li, customerPartNumber: productSearchQuery.trim() } : li
+                          ));
+                          setProductSearchOpen(null);
+                          setProductSearchField(null);
+                          setProductSearchQuery('');
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--primary)] hover:bg-[var(--muted)] rounded transition-colors"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                        </svg>
+                        Use "{productSearchQuery.trim()}" as custom
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </td>
+        );
       case 'description':
-        return <td key={colKey} className="px-3 py-2 text-sm max-w-[200px] truncate">{item.description}</td>;
+        return (
+          <td key={colKey} className="px-3 py-2 text-sm max-w-[200px] relative">
+            <div className="product-search-container">
+              <button
+                onClick={() => {
+                  setProductSearchOpen(productSearchOpen === item.id && productSearchField === 'description' ? null : item.id);
+                  setProductSearchField('description');
+                  setProductSearchQuery(item.description || '');
+                  setShowCreateProduct(false);
+                }}
+                className="w-full text-left px-2 py-1 rounded hover:bg-[var(--muted)] transition-colors flex items-center gap-1"
+              >
+                <span className="flex-1 truncate">{item.description || 'Select...'}</span>
+                <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-[var(--muted-foreground)] flex-shrink-0">
+                  <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                </svg>
+              </button>
+              {productSearchOpen === item.id && productSearchField === 'description' && (
+                <div className="absolute top-full left-0 mt-1 w-80 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                  <div className="p-2 border-b border-[var(--border)]">
+                    <input
+                      type="text"
+                      value={productSearchQuery}
+                      onChange={(e) => setProductSearchQuery(e.target.value)}
+                      placeholder="Search by description or part #..."
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="max-h-48 overflow-y-auto">
+                    {getFilteredProducts().map(product => (
+                      <button
+                        key={product.id}
+                        onClick={() => selectProductForLineItem(item.id, product)}
+                        className="w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors"
+                      >
+                        <div className="text-sm">{product.description}</div>
+                        <div className="font-mono text-xs text-[var(--muted-foreground)]">{product.partNumber}</div>
+                      </button>
+                    ))}
+                    {getFilteredProducts().length === 0 && (
+                      <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">No products found</div>
+                    )}
+                  </div>
+                  <div className="border-t border-[var(--border)] p-2">
+                    {!showCreateProduct ? (
+                      <button
+                        onClick={() => {
+                          setShowCreateProduct(true);
+                          setNewProductData({ ...newProductData, description: productSearchQuery });
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--primary)] hover:bg-[var(--muted)] rounded transition-colors"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                        </svg>
+                        Create New Product
+                      </button>
+                    ) : (
+                      <div className="space-y-2">
+                        <input
+                          type="text"
+                          value={newProductData.partNumber}
+                          onChange={(e) => setNewProductData(prev => ({ ...prev, partNumber: e.target.value }))}
+                          placeholder="Part Number *"
+                          className="w-full px-2 py-1.5 text-sm border border-[var(--border)] rounded"
+                        />
+                        <input
+                          type="text"
+                          value={newProductData.description}
+                          onChange={(e) => setNewProductData(prev => ({ ...prev, description: e.target.value }))}
+                          placeholder="Description *"
+                          className="w-full px-2 py-1.5 text-sm border border-[var(--border)] rounded"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => createNewProduct(item.id)}
+                            disabled={!newProductData.partNumber.trim() || !newProductData.description.trim()}
+                            className="flex-1 px-2 py-1.5 text-xs bg-[var(--primary)] text-white rounded hover:bg-[var(--primary-hover)] disabled:opacity-50"
+                          >
+                            Create
+                          </button>
+                          <button
+                            onClick={() => setShowCreateProduct(false)}
+                            className="flex-1 px-2 py-1.5 text-xs border border-[var(--border)] rounded hover:bg-[var(--muted)]"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </td>
+        );
       case 'quantity':
         return (
           <td key={colKey} className="px-3 py-2 text-sm text-center">
@@ -3792,6 +4126,60 @@ export default function QuotesContent() {
     }
   };
 
+  // Helper to select a product from catalog and update line item
+  const selectProductForLineItem = (itemId: string, product: typeof productCatalog[0]) => {
+    setQuoteLineItems(prev => prev.map(li =>
+      li.id === itemId ? {
+        ...li,
+        productNumber: product.partNumber,
+        description: product.description,
+        basePrice: product.basePrice,
+        sellPrice: product.basePrice, // Default sell to base
+        manufacturers: [{
+          ...li.manufacturers[0],
+          name: product.manufacturer,
+        }]
+      } : li
+    ));
+    setProductSearchOpen(null);
+    setProductSearchField(null);
+    setProductSearchQuery('');
+  };
+
+  // Helper to create a new product and add it to the catalog
+  const createNewProduct = (itemId: string) => {
+    if (!newProductData.partNumber.trim() || !newProductData.description.trim()) return;
+
+    const newProduct = {
+      id: `prod-${Date.now()}`,
+      partNumber: newProductData.partNumber.trim(),
+      description: newProductData.description.trim(),
+      manufacturer: newProductData.manufacturer.trim() || 'Unknown',
+      basePrice: newProductData.basePrice || 0,
+    };
+
+    // Add to catalog
+    setProductCatalog(prev => [...prev, newProduct]);
+
+    // Update line item
+    selectProductForLineItem(itemId, newProduct);
+
+    // Reset form
+    setNewProductData({ partNumber: '', description: '', manufacturer: '', basePrice: 0 });
+    setShowCreateProduct(false);
+  };
+
+  // Filter products based on search query
+  const getFilteredProducts = () => {
+    if (!productSearchQuery.trim()) return productCatalog;
+    const query = productSearchQuery.toLowerCase();
+    return productCatalog.filter(p =>
+      p.partNumber.toLowerCase().includes(query) ||
+      p.description.toLowerCase().includes(query) ||
+      p.manufacturer.toLowerCase().includes(query)
+    );
+  };
+
   const applyView = (viewId: string) => {
     const view = savedViews.find(v => v.id === viewId);
     if (view) {
@@ -3816,7 +4204,7 @@ export default function QuotesContent() {
   };
 
   // Columns for Simple View (basic pricing only - no overage/commission columns)
-  const [simpleViewColumns, setSimpleViewColumns] = useState<Set<ColumnKey>>(new Set(['partNumber', 'description', 'quantity', 'uom', 'manufacturer', 'base', 'sell', 'sellTotal']));
+  const [simpleViewColumns, setSimpleViewColumns] = useState<Set<ColumnKey>>(new Set(['partNumber', 'customerPartNumber', 'description', 'quantity', 'uom', 'manufacturer', 'base', 'sell', 'sellTotal']));
 
   // For backward compatibility
   const simpleQuoteColumns = simpleViewColumns;
@@ -4389,7 +4777,7 @@ export default function QuotesContent() {
 
     // Get visible line items in current order
     const visibleItems = quoteLineItems.filter(item => {
-      const section = mockSections.find(s => s.id === item.sectionId);
+      const section = quoteSections.find(s => s.id === item.sectionId);
       return section && !collapsedSections.has(section.id);
     });
 
@@ -4643,6 +5031,9 @@ export default function QuotesContent() {
   // Get line items for selected quote - using state so they can be modified
   const [quoteLineItems, setQuoteLineItems] = useState<LineItem[]>([]);
 
+  // Sections state - so they can be modified
+  const [quoteSections, setQuoteSections] = useState<Section[]>(mockSections);
+
   // Sync line items when selected quote changes
   useEffect(() => {
     if (selectedQuote) {
@@ -4652,12 +5043,93 @@ export default function QuotesContent() {
     }
   }, [selectedQuote?.id]);
 
+  // Get sections that are used in the current quote's line items
+  const currentQuoteSections = useMemo(() => {
+    const sectionIds = new Set(quoteLineItems.map(li => li.sectionId));
+    return quoteSections.filter(s => sectionIds.has(s.id));
+  }, [quoteLineItems, quoteSections]);
+
+  // State for section dropdown with "add new" feature
+  const [sectionDropdownOpen, setSectionDropdownOpen] = useState<string | null>(null);
+  const [newSectionName, setNewSectionName] = useState('');
+  const [showNewSectionInput, setShowNewSectionInput] = useState(false);
+
+  // Close section dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (sectionDropdownOpen && !(e.target as Element).closest('.section-dropdown-container')) {
+        setSectionDropdownOpen(null);
+        setShowNewSectionInput(false);
+        setNewSectionName('');
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [sectionDropdownOpen]);
+
+  // Function to add a new section with a line item
+  const addSection = () => {
+    if (!selectedQuote) return;
+
+    const newSectionId = `SEC-${Date.now()}`;
+    const newSectionName = `New Section ${quoteSections.length + 1}`;
+    const newOrder = Math.max(...quoteSections.map(s => s.order), 0) + 1;
+
+    // Create the new section
+    const newSection: Section = {
+      id: newSectionId,
+      name: newSectionName,
+      order: newOrder,
+    };
+
+    // Add the section to state
+    setQuoteSections(prev => [...prev, newSection]);
+
+    // Add a new line item to the section
+    const newItem: LineItem = {
+      id: `li-${Date.now()}`,
+      quoteId: selectedQuote.id,
+      sectionId: newSectionId,
+      sectionName: newSectionName,
+      productNumber: '',
+      description: 'New Line Item',
+      endUser: '',
+      quantity: 1,
+      uom: 'EA',
+      manufacturers: [{
+        name: '',
+        basePrice: 0,
+        commissionRate: 0.08,
+        overageShare: 0.85,
+        approvalStatus: 'unknown',
+        approvalDate: null,
+        approvalNotes: null,
+      }],
+      basePrice: 0,
+      sellPrice: 0,
+      level1Price: 0,
+      level2Price: 0,
+      level3Price: 0,
+      overagePercent: 0,
+      commissionable: true,
+      locked: false,
+      priceHistory: [],
+      quotedPriceHistory: [],
+      hasSpecSheet: false,
+      outsideRepSplits: [],
+      useDivisor: false,
+      divisor: 1,
+    };
+
+    setQuoteLineItems(prev => [...prev, newItem]);
+  };
+
   // Function to add a new line item
   const addLineItem = (sectionId?: string) => {
     if (!selectedQuote) return;
 
-    const targetSectionId = sectionId || mockSections[0]?.id || 'section-1';
-    const targetSection = mockSections.find(s => s.id === targetSectionId);
+    const targetSectionId = sectionId || quoteSections[0]?.id || 'section-1';
+    const targetSection = quoteSections.find(s => s.id === targetSectionId);
 
     const newItem: LineItem = {
       id: `li-${Date.now()}`,
@@ -4695,6 +5167,34 @@ export default function QuotesContent() {
     };
 
     setQuoteLineItems(prev => [...prev, newItem]);
+  };
+
+  // Function to create a new section and move a line item to it
+  const createSectionAndMoveItem = (itemId: string, sectionName: string) => {
+    if (!sectionName.trim()) return;
+
+    const newSectionId = `SEC-${Date.now()}`;
+    const newOrder = Math.max(...quoteSections.map(s => s.order), 0) + 1;
+
+    // Create the new section
+    const newSection: Section = {
+      id: newSectionId,
+      name: sectionName.trim(),
+      order: newOrder,
+    };
+
+    // Add the section to state
+    setQuoteSections(prev => [...prev, newSection]);
+
+    // Move the line item to the new section
+    setQuoteLineItems(prev => prev.map(li =>
+      li.id === itemId ? { ...li, sectionId: newSectionId, sectionName: sectionName.trim() } : li
+    ));
+
+    // Reset the dropdown state
+    setSectionDropdownOpen(null);
+    setNewSectionName('');
+    setShowNewSectionInput(false);
   };
 
   // Get distributor quotes for selected quote - memoized
@@ -5191,8 +5691,8 @@ export default function QuotesContent() {
                 </div>
               </div>
 
-              {/* Row 2: Quote Date, Expiration Date, Revised Date, Accept Date */}
-              <div className="grid grid-cols-4 gap-4">
+              {/* Row 2: Quote Date, Expiration Date, Revised Date, Accept Date, Outside Rep */}
+              <div className="grid grid-cols-5 gap-4">
                 {/* Quote Date */}
                 <div>
                   <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
@@ -5256,6 +5756,68 @@ export default function QuotesContent() {
                     className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
                   />
                 </div>
+
+                {/* Outside Rep */}
+                <div>
+                  <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
+                    Outside Rep
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={quoteOutsideRep}
+                      onChange={(e) => {
+                        setQuoteOutsideRep(e.target.value);
+                        if (!e.target.value) {
+                          setSplitCommission(false);
+                          setRepCommissionSplits([]);
+                        }
+                      }}
+                      className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none cursor-pointer pr-8"
+                    >
+                      <option value="">Select Rep...</option>
+                      {availableOutsideReps.map(rep => (
+                        <option key={rep.id} value={rep.id}>{rep.name}</option>
+                      ))}
+                    </select>
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]">
+                      <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
+                  {quoteOutsideRep && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="splitCommission"
+                        checked={splitCommission}
+                        onChange={(e) => {
+                          setSplitCommission(e.target.checked);
+                          if (e.target.checked) {
+                            // Initialize with the selected rep at 100%
+                            const rep = availableOutsideReps.find(r => r.id === quoteOutsideRep);
+                            if (rep) {
+                              setRepCommissionSplits([{ repId: rep.id, repName: rep.name, percentage: 100 }]);
+                            }
+                            setShowRepSplitsModal(true);
+                          } else {
+                            setRepCommissionSplits([]);
+                          }
+                        }}
+                        className="accent-[var(--primary)]"
+                      />
+                      <label htmlFor="splitCommission" className="text-xs text-[var(--muted-foreground)] cursor-pointer">
+                        Split Commission
+                      </label>
+                      {splitCommission && repCommissionSplits.length > 0 && (
+                        <button
+                          onClick={() => setShowRepSplitsModal(true)}
+                          className="text-xs text-[var(--primary)] hover:underline ml-1"
+                        >
+                          ({repCommissionSplits.length} reps)
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -5265,40 +5827,136 @@ export default function QuotesContent() {
           {/* Main Content */}
           <div className="flex-1 flex flex-col p-6 min-w-0 overflow-hidden">
             {/* Tabs */}
-            <div className="flex gap-1 mb-6 border-b border-[var(--border)] flex-shrink-0 bg-white -mx-6 px-6 pt-4 -mt-6">
-              {[
-                { id: 'lines', label: 'Line Items', count: quoteLineItems.length },
-                { id: 'approvals', label: 'Approvals', count: selectedQuote.pendingApprovals, hideInSimple: true },
-                { id: 'recipients', label: 'Recipients', count: 4, hideInSimple: true },
-                { id: 'submittals', label: 'Submittals', hideInSimple: true },
-                { id: 'notes', label: 'Notes' },
-                { id: 'tasks', label: 'Tasks' },
-                { id: 'activity', label: 'Activity' },
-                { id: 'files', label: 'Files', count: quoteFiles.filter(f => f.quoteId === selectedQuote.id).length },
-                { id: 'versions', label: 'Versions' },
-                { id: 'settings', label: 'Settings' },
-              ].filter(tab => !(quoteViewMode === 'simple' && tab.hideInSimple)).map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setDetailTab(tab.id as typeof detailTab)}
-                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                    detailTab === tab.id
-                      ? 'border-[var(--primary)] text-[var(--primary)]'
-                      : 'border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
-                  }`}
-                >
-                  {tab.label}
-                  {tab.count !== undefined && tab.count > 0 && (
-                    <span className={`ml-2 px-1.5 py-0.5 rounded text-xs ${
-                      tab.id === 'approvals' && selectedQuote.approvalStatus !== 'clear'
-                        ? 'bg-yellow-100 text-yellow-700'
-                        : 'bg-gray-100 text-gray-600'
-                    }`}>
-                      {tab.count}
-                    </span>
-                  )}
-                </button>
-              ))}
+            <div className="flex items-center justify-between gap-1 mb-6 border-b border-[var(--border)] flex-shrink-0 bg-white -mx-6 px-6 pt-4 -mt-6">
+              <div className="flex gap-1">
+                {[
+                  { id: 'lines', label: 'Line Items', count: quoteLineItems.length },
+                  { id: 'approvals', label: 'Approvals', count: selectedQuote.pendingApprovals, hideInSimple: true },
+                  { id: 'recipients', label: 'Recipients', count: 4, hideInSimple: true },
+                  { id: 'submittals', label: 'Submittals', hideInSimple: true },
+                  { id: 'notes', label: 'Notes' },
+                  { id: 'tasks', label: 'Tasks' },
+                  { id: 'activity', label: 'Activity' },
+                  { id: 'files', label: 'Files', count: quoteFiles.filter(f => f.quoteId === selectedQuote.id).length },
+                  { id: 'versions', label: 'Versions' },
+                  { id: 'settings', label: 'Settings' },
+                ].filter(tab => !(quoteViewMode === 'simple' && tab.hideInSimple)).map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setDetailTab(tab.id as typeof detailTab)}
+                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                      detailTab === tab.id
+                        ? 'border-[var(--primary)] text-[var(--primary)]'
+                        : 'border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+                    }`}
+                  >
+                    {tab.label}
+                    {tab.count !== undefined && tab.count > 0 && (
+                      <span className={`ml-2 px-1.5 py-0.5 rounded text-xs ${
+                        tab.id === 'approvals' && selectedQuote.approvalStatus !== 'clear'
+                          ? 'bg-yellow-100 text-yellow-700'
+                          : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {tab.count}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {/* View Controls - moved to tab row */}
+              {detailTab === 'lines' && (
+                <div className="flex items-center gap-3 pb-2">
+                  {/* Views Dropdown */}
+                  <div className="relative">
+                    <button
+                      onClick={() => { setShowViewsMenu(!showViewsMenu); setShowColumnsMenu(false); }}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="3" y="3" width="14" height="14" rx="2"/>
+                        <path d="M3 8h14M8 8v9"/>
+                      </svg>
+                      {savedViews.find(v => v.id === activeView)?.name || 'Custom'}
+                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </button>
+                    {showViewsMenu && (
+                      <div className="absolute top-full right-0 mt-1 w-56 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20">
+                        <div className="p-2 border-b border-[var(--border)]">
+                          <p className="text-xs font-semibold text-[var(--muted-foreground)] uppercase px-2">Saved Views</p>
+                        </div>
+                        {savedViews.map(view => (
+                          <div key={view.id} className="flex items-center justify-between hover:bg-[var(--muted)] transition-colors">
+                            <button
+                              onClick={() => applyView(view.id)}
+                              className={`flex-1 text-left px-4 py-2 text-sm ${activeView === view.id ? 'text-[var(--primary)] font-medium' : ''}`}
+                            >
+                              {view.name}
+                              {activeView === view.id && (
+                                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5" className="inline ml-2">
+                                  <path d="M5 10l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                              )}
+                            </button>
+                            {!['default', 'compact', 'pricing', 'approval'].includes(view.id) && (
+                              <button
+                                onClick={() => deleteView(view.id)}
+                                className="p-2 text-red-500 hover:bg-red-50 rounded mr-1"
+                                title="Delete view"
+                              >
+                                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                        <div className="border-t border-[var(--border)] p-2">
+                          <button
+                            onClick={() => { setShowSaveViewModal(true); setShowViewsMenu(false); }}
+                            className="w-full text-left px-2 py-1.5 text-sm text-[var(--primary)] hover:bg-[var(--muted)] rounded transition-colors flex items-center gap-2"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M10 6v8M6 10h8" strokeLinecap="round"/>
+                            </svg>
+                            Save Current View...
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Sections Button */}
+                  <button
+                    onClick={() => setShowSectionsModal(true)}
+                    className={`flex items-center gap-2 px-3 py-1.5 text-sm border rounded-lg transition-colors ${
+                      showSections
+                        ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]'
+                        : 'border-[var(--border)] hover:bg-[var(--muted)]'
+                    }`}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="3" width="14" height="4" rx="1"/>
+                      <rect x="3" y="10" width="14" height="7" rx="1"/>
+                    </svg>
+                    Sections
+                  </button>
+
+                  {/* Columns Button */}
+                  <button
+                    onClick={() => { setShowColumnsMenu(true); setShowViewsMenu(false); }}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M4 6h12M4 10h12M4 14h12" strokeLinecap="round"/>
+                    </svg>
+                    Columns
+                    <span className="px-1.5 py-0.5 bg-[var(--muted)] rounded text-xs">{effectiveVisibleColumns.size}</span>
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Line Items Tab */}
@@ -5511,96 +6169,6 @@ export default function QuotesContent() {
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-3">
-                    {/* Views Dropdown */}
-                    <div className="relative">
-                      <button
-                        onClick={() => { setShowViewsMenu(!showViewsMenu); setShowColumnsMenu(false); }}
-                        className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                          <rect x="3" y="3" width="14" height="14" rx="2"/>
-                          <path d="M3 8h14M8 8v9"/>
-                        </svg>
-                        {savedViews.find(v => v.id === activeView)?.name || 'Custom'}
-                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                      </button>
-                      {showViewsMenu && (
-                        <div className="absolute top-full right-0 mt-1 w-56 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20">
-                          <div className="p-2 border-b border-[var(--border)]">
-                            <p className="text-xs font-semibold text-[var(--muted-foreground)] uppercase px-2">Saved Views</p>
-                          </div>
-                          {savedViews.map(view => (
-                            <div key={view.id} className="flex items-center justify-between hover:bg-[var(--muted)] transition-colors">
-                              <button
-                                onClick={() => applyView(view.id)}
-                                className={`flex-1 text-left px-4 py-2 text-sm ${activeView === view.id ? 'text-[var(--primary)] font-medium' : ''}`}
-                              >
-                                {view.name}
-                                {activeView === view.id && (
-                                  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5" className="inline ml-2">
-                                    <path d="M5 10l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
-                                  </svg>
-                                )}
-                              </button>
-                              {!['default', 'compact', 'pricing', 'approval'].includes(view.id) && (
-                                <button
-                                  onClick={() => deleteView(view.id)}
-                                  className="p-2 text-red-500 hover:bg-red-50 rounded mr-1"
-                                  title="Delete view"
-                                >
-                                  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
-                                  </svg>
-                                </button>
-                              )}
-                            </div>
-                          ))}
-                          <div className="border-t border-[var(--border)] p-2">
-                            <button
-                              onClick={() => { setShowSaveViewModal(true); setShowViewsMenu(false); }}
-                              className="w-full text-left px-2 py-1.5 text-sm text-[var(--primary)] hover:bg-[var(--muted)] rounded transition-colors flex items-center gap-2"
-                            >
-                              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M10 6v8M6 10h8" strokeLinecap="round"/>
-                              </svg>
-                              Save Current View...
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Sections Button - Opens Settings Modal */}
-                    <button
-                      onClick={() => setShowSectionsModal(true)}
-                      className={`flex items-center gap-2 px-3 py-1.5 text-sm border rounded-lg transition-colors ${
-                        showSections
-                          ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]'
-                          : 'border-[var(--border)] hover:bg-[var(--muted)]'
-                      }`}
-                    >
-                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                        <rect x="3" y="3" width="14" height="4" rx="1"/>
-                        <rect x="3" y="10" width="14" height="7" rx="1"/>
-                      </svg>
-                      Sections
-                    </button>
-
-                    {/* Columns Button - Opens Modal */}
-                    <button
-                      onClick={() => { setShowColumnsMenu(true); setShowViewsMenu(false); }}
-                      className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M4 6h12M4 10h12M4 14h12" strokeLinecap="round"/>
-                      </svg>
-                      Columns
-                      <span className="px-1.5 py-0.5 bg-[var(--muted)] rounded text-xs">{effectiveVisibleColumns.size}</span>
-                    </button>
-                  </div>
                 </div>
 
                 {/* Sections with Line Items - Single Scrollable Table */}
@@ -5642,7 +6210,7 @@ export default function QuotesContent() {
                       <tbody>
                         {/* Simple View - Shelf Mode: Group by sections with header rows */}
                         {showSections && sectionDisplayMode === 'lineShelf' && (
-                          mockSections.map(section => {
+                          quoteSections.map(section => {
                             const sectionItems = quoteLineItems.filter(li => li.sectionId === section.id);
                             if (sectionItems.length === 0) return null;
 
@@ -5809,12 +6377,7 @@ export default function QuotesContent() {
                             <td colSpan={1 + getOrderedVisibleColumns().length + 1} className="px-4 py-3 border-t border-[var(--border)]">
                               <button
                                 className="flex items-center gap-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
-                                onClick={() => {
-                                  // Create a new section and add a line to it
-                                  const newSectionId = `section-${Date.now()}`;
-                                  // For now, just add to a "New Section" - in real implementation would create the section
-                                  addLineItem(newSectionId);
-                                }}
+                                onClick={() => addSection()}
                               >
                                 <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                                   <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
@@ -5871,20 +6434,98 @@ export default function QuotesContent() {
                                 </td>
                                 {/* Section selector - only in column mode */}
                                 {showSections && sectionDisplayMode === 'column' && (
-                                  <td className="px-3 py-2 text-sm text-[var(--muted-foreground)]">
-                                    <select
-                                      value={item.sectionId}
-                                      onChange={(e) => {
-                                        setQuoteLineItems(prev => prev.map(li =>
-                                          li.id === item.id ? { ...li, sectionId: e.target.value } : li
-                                        ));
+                                  <td className="px-3 py-2 text-sm text-[var(--muted-foreground)] relative section-dropdown-container">
+                                    <button
+                                      onClick={() => {
+                                        setSectionDropdownOpen(sectionDropdownOpen === item.id ? null : item.id);
+                                        setShowNewSectionInput(false);
+                                        setNewSectionName('');
                                       }}
-                                      className="bg-transparent border-none text-sm text-[var(--foreground)] cursor-pointer hover:bg-[var(--muted)] rounded px-1 py-0.5 -ml-1"
+                                      className="flex items-center gap-1 text-sm text-[var(--foreground)] cursor-pointer hover:bg-[var(--muted)] rounded px-2 py-1 -ml-1"
                                     >
-                                      {mockSections.map(s => (
-                                        <option key={s.id} value={s.id}>{s.name}</option>
-                                      ))}
-                                    </select>
+                                      {currentQuoteSections.find(s => s.id === item.sectionId)?.name || 'Select Section'}
+                                      <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-[var(--muted-foreground)]">
+                                        <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                                      </svg>
+                                    </button>
+                                    {sectionDropdownOpen === item.id && (
+                                      <div className="absolute top-full left-0 mt-1 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50 min-w-[200px]">
+                                        <div className="py-1 max-h-[200px] overflow-y-auto">
+                                          {currentQuoteSections.map(s => (
+                                            <button
+                                              key={s.id}
+                                              onClick={() => {
+                                                setQuoteLineItems(prev => prev.map(li =>
+                                                  li.id === item.id ? { ...li, sectionId: s.id, sectionName: s.name } : li
+                                                ));
+                                                setSectionDropdownOpen(null);
+                                              }}
+                                              className={`w-full text-left px-3 py-2 text-sm hover:bg-[var(--muted)] transition-colors flex items-center gap-2 ${
+                                                item.sectionId === s.id ? 'text-[var(--primary)] font-medium' : 'text-[var(--foreground)]'
+                                              }`}
+                                            >
+                                              {item.sectionId === s.id && (
+                                                <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                </svg>
+                                              )}
+                                              {item.sectionId !== s.id && <span className="w-[14px]" />}
+                                              {s.name}
+                                            </button>
+                                          ))}
+                                        </div>
+                                        <div className="border-t border-[var(--border)]">
+                                          {!showNewSectionInput ? (
+                                            <button
+                                              onClick={() => setShowNewSectionInput(true)}
+                                              className="w-full text-left px-3 py-2 text-sm text-[var(--primary)] hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
+                                            >
+                                              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                                <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                                              </svg>
+                                              Add New Section
+                                            </button>
+                                          ) : (
+                                            <div className="p-2">
+                                              <input
+                                                type="text"
+                                                value={newSectionName}
+                                                onChange={(e) => setNewSectionName(e.target.value)}
+                                                placeholder="Section name"
+                                                className="w-full px-2 py-1.5 text-sm border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] mb-2"
+                                                autoFocus
+                                                onKeyDown={(e) => {
+                                                  if (e.key === 'Enter') {
+                                                    createSectionAndMoveItem(item.id, newSectionName);
+                                                  } else if (e.key === 'Escape') {
+                                                    setShowNewSectionInput(false);
+                                                    setNewSectionName('');
+                                                  }
+                                                }}
+                                              />
+                                              <div className="flex gap-2">
+                                                <button
+                                                  onClick={() => createSectionAndMoveItem(item.id, newSectionName)}
+                                                  disabled={!newSectionName.trim()}
+                                                  className="flex-1 px-2 py-1 text-xs bg-[var(--primary)] text-white rounded hover:bg-[var(--primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
+                                                >
+                                                  Create
+                                                </button>
+                                                <button
+                                                  onClick={() => {
+                                                    setShowNewSectionInput(false);
+                                                    setNewSectionName('');
+                                                  }}
+                                                  className="flex-1 px-2 py-1 text-xs border border-[var(--border)] rounded hover:bg-[var(--muted)]"
+                                                >
+                                                  Cancel
+                                                </button>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
                                   </td>
                                 )}
                                 {getOrderedVisibleColumns().map(colKey => renderBodyCell(colKey, item))}
@@ -6270,7 +6911,7 @@ export default function QuotesContent() {
                       </thead>
                       <tbody>
                         {/* Overage View - Sections with headers and totals */}
-                        {quoteViewMode === 'overage' && mockSections.map(section => {
+                        {quoteViewMode === 'overage' && quoteSections.map(section => {
                           const sectionItems = quoteLineItems.filter(li => li.sectionId === section.id);
                           if (sectionItems.length === 0) return null;
 
@@ -6913,7 +7554,7 @@ export default function QuotesContent() {
                                                 <div className="bg-[var(--card)] rounded border border-[var(--border)] p-3 space-y-2">
                                                   <div className="flex justify-between items-center">
                                                     <span className="text-sm text-[var(--muted-foreground)]">Product Category</span>
-                                                    <span className="text-sm font-medium text-[var(--foreground)]">{mockSections.find(s => s.id === item.sectionId)?.name || 'General Lighting'}</span>
+                                                    <span className="text-sm font-medium text-[var(--foreground)]">{quoteSections.find(s => s.id === item.sectionId)?.name || 'General Lighting'}</span>
                                                   </div>
                                                   <div className="flex justify-between items-center">
                                                     <span className="text-sm text-[var(--muted-foreground)]">Category Base Commission</span>
@@ -7194,10 +7835,7 @@ export default function QuotesContent() {
                             <td colSpan={1 + effectiveVisibleColumns.size + 1} className="px-4 py-3 border-t border-[var(--border)]">
                               <button
                                 className="flex items-center gap-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
-                                onClick={() => {
-                                  const newSectionId = `section-${Date.now()}`;
-                                  addLineItem(newSectionId);
-                                }}
+                                onClick={() => addSection()}
                               >
                                 <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                                   <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
@@ -10293,6 +10931,195 @@ export default function QuotesContent() {
                   className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors text-sm font-medium"
                 >
                   Done
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Rep Commission Splits Modal */}
+        {showRepSplitsModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-lg w-full">
+              <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-[var(--foreground)]">Commission Splits</h2>
+                  <p className="text-sm text-[var(--muted-foreground)]">Divide commission among outside reps</p>
+                </div>
+                <button
+                  onClick={() => setShowRepSplitsModal(false)}
+                  className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
+                >
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                  </svg>
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                {/* Total percentage indicator */}
+                {(() => {
+                  const totalPercentage = repCommissionSplits.reduce((sum, split) => sum + split.percentage, 0);
+                  const isValid = totalPercentage === 100;
+                  return (
+                    <div className={`flex items-center justify-between p-3 rounded-lg ${
+                      isValid ? 'bg-green-50 border border-green-200' : 'bg-yellow-50 border border-yellow-200'
+                    }`}>
+                      <span className={`text-sm font-medium ${isValid ? 'text-green-700' : 'text-yellow-700'}`}>
+                        Total: {totalPercentage}%
+                      </span>
+                      {!isValid && (
+                        <span className="text-xs text-yellow-600">
+                          Must equal 100%
+                        </span>
+                      )}
+                      {isValid && (
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-600">
+                          <path d="M5 10l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Rep splits list */}
+                <div className="space-y-3">
+                  {repCommissionSplits.map((split, index) => (
+                    <div key={split.repId} className="flex items-center gap-3 p-3 border border-[var(--border)] rounded-lg">
+                      <div className="flex-1">
+                        <select
+                          value={split.repId}
+                          onChange={(e) => {
+                            const newRep = availableOutsideReps.find(r => r.id === e.target.value);
+                            if (newRep) {
+                              setRepCommissionSplits(prev => prev.map((s, i) =>
+                                i === index ? { ...s, repId: newRep.id, repName: newRep.name } : s
+                              ));
+                            }
+                          }}
+                          className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
+                        >
+                          {availableOutsideReps.map(rep => (
+                            <option
+                              key={rep.id}
+                              value={rep.id}
+                              disabled={repCommissionSplits.some(s => s.repId === rep.id && s.repId !== split.repId)}
+                            >
+                              {rep.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="w-24 flex items-center gap-1">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={split.percentage}
+                          onChange={(e) => {
+                            const rawValue = e.target.value.replace(/[^0-9]/g, '');
+                            const value = Math.min(100, Math.max(0, parseInt(rawValue) || 0));
+                            // Calculate what the other reps should get
+                            const otherRepsCount = repCommissionSplits.length - 1;
+                            if (otherRepsCount > 0) {
+                              const remaining = 100 - value;
+                              const perRep = Math.floor(remaining / otherRepsCount);
+                              const remainder = remaining - (perRep * otherRepsCount);
+                              let extraAssigned = 0;
+                              setRepCommissionSplits(prev => prev.map((s, i) => {
+                                if (i === index) {
+                                  return { ...s, percentage: value };
+                                } else {
+                                  // Distribute remaining evenly, with any remainder going to first other reps
+                                  const extraPercent = extraAssigned < remainder ? 1 : 0;
+                                  extraAssigned++;
+                                  return { ...s, percentage: Math.max(0, perRep + extraPercent) };
+                                }
+                              }));
+                            } else {
+                              setRepCommissionSplits(prev => prev.map((s, i) =>
+                                i === index ? { ...s, percentage: value } : s
+                              ));
+                            }
+                          }}
+                          onFocus={(e) => e.target.select()}
+                          className="w-16 px-2 py-2 bg-white border border-[var(--border)] rounded-md text-sm text-center focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent [appearance:textfield]"
+                        />
+                        <span className="text-sm text-[var(--muted-foreground)]">%</span>
+                      </div>
+                      {repCommissionSplits.length > 1 && (
+                        <button
+                          onClick={() => {
+                            // Remove the rep and recalculate percentages
+                            const remaining = repCommissionSplits.filter((_, i) => i !== index);
+                            const newCount = remaining.length;
+                            const perRep = Math.floor(100 / newCount);
+                            const remainder = 100 - (perRep * newCount);
+                            let extraAssigned = 0;
+                            setRepCommissionSplits(remaining.map(s => {
+                              const extraPercent = extraAssigned < remainder ? 1 : 0;
+                              extraAssigned++;
+                              return { ...s, percentage: perRep + extraPercent };
+                            }));
+                          }}
+                          className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Remove rep"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Add rep button */}
+                {repCommissionSplits.length < availableOutsideReps.length && (
+                  <button
+                    onClick={() => {
+                      const usedRepIds = new Set(repCommissionSplits.map(s => s.repId));
+                      const availableRep = availableOutsideReps.find(r => !usedRepIds.has(r.id));
+                      if (availableRep) {
+                        // Recalculate percentages evenly across all reps including new one
+                        const newCount = repCommissionSplits.length + 1;
+                        const perRep = Math.floor(100 / newCount);
+                        const remainder = 100 - (perRep * newCount);
+                        let extraAssigned = 0;
+                        const updatedSplits = repCommissionSplits.map(s => {
+                          const extraPercent = extraAssigned < remainder ? 1 : 0;
+                          extraAssigned++;
+                          return { ...s, percentage: perRep + extraPercent };
+                        });
+                        const newRepPercent = perRep + (extraAssigned < remainder ? 1 : 0);
+                        setRepCommissionSplits([...updatedSplits, { repId: availableRep.id, repName: availableRep.name, percentage: newRepPercent }]);
+                      }
+                    }}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-dashed border-[var(--border)] rounded-lg text-sm text-[var(--muted-foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)] transition-colors"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                    </svg>
+                    Add Rep
+                  </button>
+                )}
+              </div>
+              <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3">
+                <button
+                  onClick={() => {
+                    setSplitCommission(false);
+                    setRepCommissionSplits([]);
+                    setShowRepSplitsModal(false);
+                  }}
+                  className="px-4 py-2 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors text-sm font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => setShowRepSplitsModal(false)}
+                  disabled={repCommissionSplits.reduce((sum, s) => sum + s.percentage, 0) !== 100}
+                  className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Save
                 </button>
               </div>
             </div>

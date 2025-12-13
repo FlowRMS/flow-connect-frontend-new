@@ -19,7 +19,8 @@ export function useCompaniesState(
 
   // Company selection and editing
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
+  // Always editable by default
+  const [isEditing, setIsEditing] = useState(true);
   const [editFormData, setEditFormData] = useState<Partial<Company>>({});
 
   // Modals
