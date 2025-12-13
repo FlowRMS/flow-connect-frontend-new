@@ -20,13 +20,32 @@ export interface ContactAddress {
   isPrimary?: boolean;
 }
 
+// Custom field types
+export type CustomFieldType = 'text' | 'single-select' | 'multi-select';
+
+// Custom field definition
+export interface CustomFieldDefinition {
+  id: string;
+  name: string;
+  type: CustomFieldType;
+  options?: string[];  // For single-select and multi-select
+}
+
+// Custom field value
+export interface CustomFieldValue {
+  fieldId: string;
+  value: string | string[];  // string for text/single-select, string[] for multi-select
+}
+
 // UI Contact type (display format)
 export interface Contact {
   id: string;
   name: string;
   email: string;
   phone: string;
+  linkedIn?: string;
   company: string;
+  companyId?: string;
   role: string;
   contactType: string[];
   tags: string[];
@@ -38,6 +57,7 @@ export interface Contact {
   createdBy: string;
   // Extended fields
   addresses?: ContactAddress[];
+  customFields?: CustomFieldValue[];
 }
 
 // Duplicate group type

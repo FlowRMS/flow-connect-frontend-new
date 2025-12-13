@@ -201,8 +201,15 @@ const iconMap: Record<string, React.ReactNode> = {
   ),
   'integrations': (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-      <circle cx="12" cy="12" r="4"/>
+      <rect x="2" y="4" width="20" height="16" rx="2"/>
+      <path d="M22 7l-10 7L2 7"/>
+    </svg>
+  ),
+  'manufacturer-integrations': (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M2 20h20M4 20V10l8-6 8 6v10"/>
+      <path d="M9 20v-6h6v6"/>
+      <path d="M9 10h.01M15 10h.01"/>
     </svg>
   ),
   'pdf-templates': (

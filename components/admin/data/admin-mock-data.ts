@@ -232,6 +232,12 @@ export const mockExpenseCategories: string[] = ['Generic', 'hello', 'Cost of Goo
 // Mock Credit Reasons
 export const mockCreditReasons: string[] = ['Test'];
 
+// Mock Manufacturer Types
+export const mockManufacturerTypes: string[] = ['Lighting', 'Electrical', 'Plumbing', 'HVAC'];
+
+// Mock Customer Types
+export const mockCustomerTypes: string[] = ['Contractor', 'Distributor', 'End User', 'OEM'];
+
 // Mock Factories
 export const mockFactories: Factory[] = [
   { id: 'f-1', name: 'Test Factory' },
@@ -244,6 +250,54 @@ export const mockCustomers: Customer[] = [
   { id: 'c-1', name: 'ANDALUISA UTILITIES' },
   { id: 'c-2', name: 'Metro Electric' },
   { id: 'c-3', name: 'City Power Co' },
+  { id: 'c-4', name: 'Pacific Power' },
+  { id: 'c-5', name: 'Eastern Distributors' },
+  { id: 'c-6', name: 'Midwest Supply Co' },
+];
+
+// Mock End Users
+export interface EndUser {
+  id: string;
+  name: string;
+}
+
+export const mockEndUsers: EndUser[] = [
+  { id: 'eu-1', name: 'ABC Construction' },
+  { id: 'eu-2', name: 'BuildRight Inc' },
+  { id: 'eu-3', name: 'Premier Contractors' },
+  { id: 'eu-4', name: 'Delta Engineering' },
+  { id: 'eu-5', name: 'Sunrise Builders' },
+];
+
+// Mock Customer Rep Assignments
+export interface RepSplit {
+  repId: string;
+  repName: string;
+  percentage: number;
+}
+
+export interface RepAssignment {
+  id: string;
+  entityId: string;
+  entityName: string;
+  reps: RepSplit[]; // Support multiple reps with percentage splits
+}
+
+export const mockCustomerRepAssignments: RepAssignment[] = [
+  { id: 'cra-1', entityId: 'c-1', entityName: 'ANDALUISA UTILITIES', reps: [{ repId: 'or-1', repName: 'Outside Rep', percentage: 100 }] },
+  { id: 'cra-2', entityId: 'c-2', entityName: 'Metro Electric', reps: [{ repId: 'or-3', repName: 'John Smith', percentage: 100 }] },
+  { id: 'cra-3', entityId: 'c-3', entityName: 'City Power Co', reps: [{ repId: 'or-4', repName: 'Sarah Johnson', percentage: 60 }, { repId: 'or-3', repName: 'John Smith', percentage: 40 }] },
+  { id: 'cra-4', entityId: 'c-4', entityName: 'Pacific Power', reps: [{ repId: 'or-1', repName: 'Outside Rep', percentage: 100 }] },
+  { id: 'cra-5', entityId: 'c-5', entityName: 'Eastern Distributors', reps: [{ repId: 'or-3', repName: 'John Smith', percentage: 100 }] },
+  { id: 'cra-6', entityId: 'c-6', entityName: 'Midwest Supply Co', reps: [{ repId: 'or-4', repName: 'Sarah Johnson', percentage: 100 }] },
+];
+
+export const mockEndUserRepAssignments: RepAssignment[] = [
+  { id: 'eura-1', entityId: 'eu-1', entityName: 'ABC Construction', reps: [{ repId: 'or-1', repName: 'Outside Rep', percentage: 100 }] },
+  { id: 'eura-2', entityId: 'eu-2', entityName: 'BuildRight Inc', reps: [{ repId: 'or-3', repName: 'John Smith', percentage: 50 }, { repId: 'or-4', repName: 'Sarah Johnson', percentage: 50 }] },
+  { id: 'eura-3', entityId: 'eu-3', entityName: 'Premier Contractors', reps: [{ repId: 'or-4', repName: 'Sarah Johnson', percentage: 100 }] },
+  { id: 'eura-4', entityId: 'eu-4', entityName: 'Delta Engineering', reps: [{ repId: 'or-1', repName: 'Outside Rep', percentage: 100 }] },
+  { id: 'eura-5', entityId: 'eu-5', entityName: 'Sunrise Builders', reps: [{ repId: 'or-3', repName: 'John Smith', percentage: 100 }] },
 ];
 
 // Mock Sales Rep Selections

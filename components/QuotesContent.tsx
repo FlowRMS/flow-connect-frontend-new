@@ -3525,6 +3525,13 @@ export default function QuotesContent() {
   const [showLineDetailsModal, setShowLineDetailsModal] = useState(false);
   const [lineDetailsModalItem, setLineDetailsModalItem] = useState<LineItem | null>(null);
 
+  // Admin setting for sales credit visibility (would come from admin settings in real app)
+  const [adminShowSalesCredit, setAdminShowSalesCredit] = useState(false);
+
+  // Dropdown states for stage and version
+  const [showStageDropdown, setShowStageDropdown] = useState(false);
+  const [showVersionDropdown, setShowVersionDropdown] = useState(false);
+
   // Available end users (would come from contacts/companies in real app)
   const availableEndUsers = [
     'Turner Construction',
@@ -5409,65 +5416,113 @@ export default function QuotesContent() {
             <div>
               <div className="flex items-center gap-3 mb-2">
                 <h1 className="text-2xl font-semibold text-[var(--foreground)]">{selectedQuote.name}</h1>
-                {/* Editable Stage Dropdown */}
-                <div className="relative">
-                  <select
-                    value={selectedQuote.stage}
-                    onChange={(e) => {
-                      const newStage = e.target.value as Quote['stage'];
-                      setSelectedQuote({ ...selectedQuote, stage: newStage });
-                      // Also update in the quotes list
-                      setQuotes(prev => prev.map(q => q.id === selectedQuote.id ? { ...q, stage: newStage } : q));
-                    }}
-                    className={`appearance-none px-3 py-1 pr-8 rounded-full text-sm font-medium cursor-pointer border-0 focus:ring-2 focus:ring-offset-1 ${getStageColor(selectedQuote.stage)}`}
-                  >
-                    <option value="Draft">Draft</option>
-                    <option value="Review">Review</option>
-                    <option value="Sent">Sent</option>
-                    <option value="Negotiating">Negotiating</option>
-                    <option value="Won">Won</option>
-                    <option value="Lost">Lost</option>
-                  </select>
-                  <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {/* Stage Dropdown - styled like a button */}
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setShowStageDropdown(!showStageDropdown);
+                    setShowVersionDropdown(false);
+                    setShowViewModeDropdown(false);
+                  }}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${getStageColor(selectedQuote.stage)}`}
+                >
+                  {selectedQuote.stage}
+                  <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
-                </div>
-                {/* Version Dropdown */}
-                <div className="relative">
-                  <select
-                    value={selectedQuote.version}
-                    onChange={(e) => {
-                      const newVersion = parseInt(e.target.value);
-                      setSelectedQuote({ ...selectedQuote, version: newVersion });
-                      setQuotes(prev => prev.map(q => q.id === selectedQuote.id ? { ...q, version: newVersion } : q));
-                    }}
-                    className="appearance-none px-2 py-1 pr-6 bg-gray-100 text-gray-600 rounded text-sm cursor-pointer border-0 focus:ring-2 focus:ring-gray-300"
-                  >
-                    {[...Array(selectedQuote.version)].map((_, i) => (
-                      <option key={i + 1} value={i + 1}>v{i + 1}</option>
+                </button>
+                {showStageDropdown && (
+                  <div className="absolute top-full left-0 mt-1 w-40 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                    {['Draft', 'Review', 'Sent', 'Negotiating', 'Won', 'Lost'].map((stage) => (
+                      <button
+                        key={stage}
+                        onClick={() => {
+                          const newStage = stage as Quote['stage'];
+                          setSelectedQuote({ ...selectedQuote, stage: newStage });
+                          setQuotes(prev => prev.map(q => q.id === selectedQuote.id ? { ...q, stage: newStage } : q));
+                          setShowStageDropdown(false);
+                        }}
+                        className={`w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors first:rounded-t-lg last:rounded-b-lg flex items-center justify-between ${
+                          selectedQuote.stage === stage ? 'bg-[var(--primary)]/10 text-[var(--primary)]' : ''
+                        }`}
+                      >
+                        {stage}
+                        {selectedQuote.stage === stage && (
+                          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M4 10l4 4 8-8" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        )}
+                      </button>
                     ))}
-                  </select>
-                  <svg width="10" height="10" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
+                  </div>
+                )}
+              </div>
+
+              {/* Version Dropdown - styled like a button */}
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setShowVersionDropdown(!showVersionDropdown);
+                    setShowStageDropdown(false);
+                    setShowViewModeDropdown(false);
+                  }}
+                  className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
+                >
+                  v{selectedQuote.version}
+                  <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
-                </div>
-                {/* Sale Credit Button */}
+                </button>
+                {showVersionDropdown && (
+                  <div className="absolute top-full left-0 mt-1 w-32 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                    {[...Array(selectedQuote.version)].map((_, i) => (
+                      <button
+                        key={i + 1}
+                        onClick={() => {
+                          setSelectedQuote({ ...selectedQuote, version: i + 1 });
+                          setQuotes(prev => prev.map(q => q.id === selectedQuote.id ? { ...q, version: i + 1 } : q));
+                          setShowVersionDropdown(false);
+                        }}
+                        className={`w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors first:rounded-t-lg last:rounded-b-lg flex items-center justify-between ${
+                          selectedQuote.version === i + 1 ? 'bg-[var(--primary)]/10 text-[var(--primary)]' : ''
+                        }`}
+                      >
+                        v{i + 1}
+                        {selectedQuote.version === i + 1 && (
+                          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M4 10l4 4 8-8" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Sale Credit Button - only show when admin setting is enabled */}
+              {adminShowSalesCredit && (
                 <button
                   onClick={() => setShowCreditModal(true)}
-                  className="flex items-center gap-1.5 px-2.5 py-1 bg-purple-50 text-purple-700 rounded text-sm hover:bg-purple-100 transition-colors border border-purple-200"
+                  className="flex items-center gap-1.5 px-3 py-2 bg-purple-50 text-purple-700 rounded-lg text-sm font-medium hover:bg-purple-100 transition-colors border border-purple-200"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                   Sale Credit
                 </button>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
+              )}
+
               {/* View Mode Dropdown */}
               <div className="relative">
                 <button
-                  onClick={() => setShowViewModeDropdown(!showViewModeDropdown)}
+                  onClick={() => {
+                    setShowViewModeDropdown(!showViewModeDropdown);
+                    setShowStageDropdown(false);
+                    setShowVersionDropdown(false);
+                  }}
                   className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
                 >
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">

@@ -117,6 +117,7 @@ const defaultConfig: SidebarConfig = {
 };
 
 const STORAGE_KEY = 'sidebar-config';
+const CONFIG_VERSION = 5; // Increment this to force a reset of cached sidebar config
 
 const SidebarConfigContext = createContext<SidebarConfigContextType | undefined>(undefined);
 
@@ -128,6 +129,16 @@ export function SidebarConfigProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
+      const storedVersion = localStorage.getItem(STORAGE_KEY + '-version');
+
+      // If version doesn't match, reset to defaults
+      if (storedVersion !== String(CONFIG_VERSION)) {
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.setItem(STORAGE_KEY + '-version', String(CONFIG_VERSION));
+        setIsLoaded(true);
+        return;
+      }
+
       if (stored) {
         const parsed = JSON.parse(stored) as SidebarConfig;
         
@@ -142,15 +153,26 @@ export function SidebarConfigProvider({ children }: { children: ReactNode }) {
           parsed.groups.splice(insertIndex, 0, ...newGroups);
         }
         
-        // Merge: add any new items within existing groups
+        // Merge: add any new items within existing groups and update names/hrefs from defaults
         parsed.groups = parsed.groups.map(group => {
           const defaultGroup = defaultConfig.groups.find(g => g.id === group.id);
           if (defaultGroup) {
             const existingItemIds = new Set(group.items.map(i => i.id));
             const newItems = defaultGroup.items.filter(i => !existingItemIds.has(i.id));
+
+            // Update existing items' names and hrefs from defaults (in case they changed)
+            const updatedItems = group.items.map(item => {
+              const defaultItem = defaultGroup.items.find(i => i.id === item.id);
+              if (defaultItem) {
+                return { ...item, name: defaultItem.name, href: defaultItem.href };
+              }
+              return item;
+            });
+
             if (newItems.length > 0) {
-              return { ...group, items: [...group.items, ...newItems] };
+              return { ...group, items: [...updatedItems, ...newItems] };
             }
+            return { ...group, items: updatedItems };
           }
           return group;
         });

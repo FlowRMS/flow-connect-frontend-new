@@ -14,7 +14,7 @@ import DeleteConfirmModal from './DeleteConfirmModal';
 import { AddTaskNoteLinkModal } from '../modals/AddTaskNoteLinkModal';
 import { AddAddressModal, type Address } from '../../shared/AddAddressModal';
 
-type TabId = 'overview' | 'factory-info' | 'sales-reps' | 'addresses' | 'contacts' | 'pre-quotes' | 'emails' | 'meetings' | 'tasks' | 'notes';
+type TabId = 'overview' | 'factory-info' | 'sales-reps' | 'addresses' | 'contacts' | 'jobs' | 'quotes' | 'orders' | 'invoices' | 'commission-statements' | 'pre-quotes' | 'emails' | 'meetings' | 'tasks' | 'notes';
 
 // US States list
 const US_STATES = [
@@ -448,6 +448,10 @@ export default function CompanyDetailView({
   const [notesSectionKey, setNotesSectionKey] = useState(0);
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [showAddAddressModal, setShowAddAddressModal] = useState(false);
+  const [showAddTagModal, setShowAddTagModal] = useState(false);
+  const [newTagName, setNewTagName] = useState('');
+  const [showAddListModal, setShowAddListModal] = useState(false);
+  const [newListName, setNewListName] = useState('');
 
   // Get current company type
   const currentCompanyType = isEditing ? (editFormData.companySourceType || company.companySourceType) : company.companySourceType;
@@ -460,6 +464,11 @@ export default function CompanyDetailView({
     'sales-reps': null,
     'addresses': null,
     'contacts': null,
+    'jobs': null,
+    'quotes': null,
+    'orders': null,
+    'invoices': null,
+    'commission-statements': null,
     'pre-quotes': null,
     'emails': null,
     'meetings': null,
@@ -624,17 +633,22 @@ export default function CompanyDetailView({
   // Build tabs based on company type
   const tabs: { id: TabId; label: string }[] = [
     ...(isManufacturer
-      ? [{ id: 'factory-info' as TabId, label: 'Factory Info' }]
+      ? [{ id: 'factory-info' as TabId, label: 'Overview' }]
       : [{ id: 'overview' as TabId, label: 'Overview' }]
     ),
     { id: 'sales-reps', label: 'Sales Reps' },
     { id: 'addresses', label: 'Addresses' },
     { id: 'contacts', label: 'Contacts' },
-    { id: 'pre-quotes', label: 'Pre-Quotes' },
     { id: 'emails', label: 'Emails' },
     { id: 'meetings', label: 'Meetings' },
     { id: 'tasks', label: 'Tasks' },
     { id: 'notes', label: 'Notes' },
+    { id: 'jobs', label: 'Jobs' },
+    { id: 'pre-quotes', label: 'Pre-Quotes' },
+    { id: 'quotes', label: 'Quotes' },
+    { id: 'orders', label: 'Orders' },
+    { id: 'invoices', label: 'Invoices' },
+    { id: 'commission-statements', label: 'Commissions' },
   ];
 
   const inputClass = "w-full px-4 py-3 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400";
@@ -797,18 +811,16 @@ export default function CompanyDetailView({
                           {currentTags.map((tag, idx) => (
                             <span key={idx} className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
                               {tag}
-                              {isEditing && (
-                                <button
-                                  onClick={() => {
-                                    onFieldChange('tags', currentTags.filter((_, i) => i !== idx));
-                                  }}
-                                  className="ml-1 text-blue-500 hover:text-blue-700"
-                                >
-                                  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
-                                  </svg>
-                                </button>
-                              )}
+                              <button
+                                onClick={() => {
+                                  onFieldChange('tags', currentTags.filter((_, i) => i !== idx));
+                                }}
+                                className="ml-1 text-blue-500 hover:text-blue-700"
+                              >
+                                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                                </svg>
+                              </button>
                             </span>
                           ))}
                         </>
@@ -816,23 +828,58 @@ export default function CompanyDetailView({
                         <span className="text-gray-400 text-sm">No tags</span>
                       );
                     })()}
-                    {isEditing && (
-                      <button
-                        onClick={() => {
-                          const tagName = prompt('Enter tag name:');
-                          if (tagName?.trim()) {
-                            const currentTags = editFormData.tags ?? company.tags;
-                            onFieldChange('tags', [...currentTags, tagName.trim()]);
-                          }
-                        }}
-                        className="inline-flex items-center gap-1 px-2 py-1 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-                        </svg>
-                        Add tag
-                      </button>
-                    )}
+                    <button
+                      onClick={() => setShowAddTagModal(true)}
+                      className="inline-flex items-center gap-1 px-2 py-1 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                      </svg>
+                      Add tag
+                    </button>
+                  </div>
+                </div>
+
+                {/* Lists */}
+                <div>
+                  <label className={labelClass}>Lists</label>
+                  <div className="flex flex-wrap gap-2 min-h-[42px] p-3 border border-gray-200 rounded-lg bg-gray-50">
+                    {(() => {
+                      const currentLists = isEditing ? (editFormData.lists ?? company.lists) : company.lists;
+                      return currentLists && currentLists.length > 0 ? (
+                        <>
+                          {currentLists.map((list, idx) => (
+                            <span key={idx} className="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                              </svg>
+                              {list}
+                              <button
+                                onClick={() => {
+                                  onFieldChange('lists', currentLists.filter((_, i) => i !== idx));
+                                }}
+                                className="ml-1 text-purple-500 hover:text-purple-700"
+                              >
+                                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                                </svg>
+                              </button>
+                            </span>
+                          ))}
+                        </>
+                      ) : (
+                        <span className="text-gray-400 text-sm">No lists</span>
+                      );
+                    })()}
+                    <button
+                      onClick={() => setShowAddListModal(true)}
+                      className="inline-flex items-center gap-1 px-2 py-1 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                      </svg>
+                      Add to list
+                    </button>
                   </div>
                 </div>
               </div>
@@ -845,7 +892,7 @@ export default function CompanyDetailView({
           <div ref={el => { sectionRefs.current['factory-info'] = el; }} id="section-factory-info">
             <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
               <div className="px-6 py-4 border-b border-[var(--border)]">
-                <h2 className="text-lg font-semibold text-[var(--foreground)]">Factory Information</h2>
+                <h2 className="text-lg font-semibold text-[var(--foreground)]">Overview</h2>
               </div>
               <div className="p-6 space-y-6">
                 {/* Basic Information */}
@@ -853,12 +900,13 @@ export default function CompanyDetailView({
                   <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Basic Information</h3>
                   <div className="grid grid-cols-5 gap-4">
                     <div>
-                      <label className={labelClass}>Factory Name*</label>
+                      <label className={labelClass}>Manufacturer Name*</label>
                       <input
                         type="text"
-                        value={company.name}
-                        className={readOnlyClass}
-                        readOnly
+                        value={isEditing ? (editFormData.name ?? company.name) : company.name}
+                        onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                        className={isEditing ? inputClass : readOnlyClass}
+                        readOnly={!isEditing}
                       />
                     </div>
                     <div>
@@ -893,22 +941,13 @@ export default function CompanyDetailView({
                     </div>
                     <div>
                       <label className={labelClass}>Logo URL</label>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={isEditing ? manufacturerInfo.logoUrl || '' : (manufacturerInfo.logoUrl || '')}
-                          onChange={(e) => updateManufacturerInfo('logoUrl', e.target.value)}
-                          className={isEditing ? inputClass : readOnlyClass}
-                          readOnly={!isEditing}
-                        />
-                        {isEditing && (
-                          <button className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex-shrink-0">
-                            <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                            </svg>
-                          </button>
-                        )}
-                      </div>
+                      <input
+                        type="text"
+                        value={isEditing ? manufacturerInfo.logoUrl || '' : (manufacturerInfo.logoUrl || '')}
+                        onChange={(e) => updateManufacturerInfo('logoUrl', e.target.value)}
+                        className={isEditing ? inputClass : readOnlyClass}
+                        readOnly={!isEditing}
+                      />
                     </div>
                   </div>
                 </div>
@@ -1083,18 +1122,16 @@ export default function CompanyDetailView({
                               {currentTags.map((tag, idx) => (
                                 <span key={idx} className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
                                   {tag}
-                                  {isEditing && (
-                                    <button
-                                      onClick={() => {
-                                        onFieldChange('tags', currentTags.filter((_, i) => i !== idx));
-                                      }}
-                                      className="ml-1 text-blue-500 hover:text-blue-700"
-                                    >
-                                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                                        <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
-                                      </svg>
-                                    </button>
-                                  )}
+                                  <button
+                                    onClick={() => {
+                                      onFieldChange('tags', currentTags.filter((_, i) => i !== idx));
+                                    }}
+                                    className="ml-1 text-blue-500 hover:text-blue-700"
+                                  >
+                                    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                      <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                                    </svg>
+                                  </button>
                                 </span>
                               ))}
                             </>
@@ -1102,23 +1139,58 @@ export default function CompanyDetailView({
                             <span className="text-gray-400 text-sm">No tags</span>
                           );
                         })()}
-                        {isEditing && (
-                          <button
-                            onClick={() => {
-                              const tagName = prompt('Enter tag name:');
-                              if (tagName?.trim()) {
-                                const currentTags = editFormData.tags ?? company.tags;
-                                onFieldChange('tags', [...currentTags, tagName.trim()]);
-                              }
-                            }}
-                            className="inline-flex items-center gap-1 px-2 py-1 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
-                          >
-                            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-                            </svg>
-                            Add tag
-                          </button>
-                        )}
+                        <button
+                          onClick={() => setShowAddTagModal(true)}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                          </svg>
+                          Add tag
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Lists */}
+                    <div>
+                      <label className={labelClass}>Lists</label>
+                      <div className="flex flex-wrap gap-2 min-h-[42px] p-3 border border-gray-200 rounded-lg bg-gray-50">
+                        {(() => {
+                          const currentLists = isEditing ? (editFormData.lists ?? company.lists) : company.lists;
+                          return currentLists && currentLists.length > 0 ? (
+                            <>
+                              {currentLists.map((list, idx) => (
+                                <span key={idx} className="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                  </svg>
+                                  {list}
+                                  <button
+                                    onClick={() => {
+                                      onFieldChange('lists', currentLists.filter((_, i) => i !== idx));
+                                    }}
+                                    className="ml-1 text-purple-500 hover:text-purple-700"
+                                  >
+                                    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                      <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                                    </svg>
+                                  </button>
+                                </span>
+                              ))}
+                            </>
+                          ) : (
+                            <span className="text-gray-400 text-sm">No lists</span>
+                          );
+                        })()}
+                        <button
+                          onClick={() => setShowAddListModal(true)}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                          </svg>
+                          Add to list
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -1416,6 +1488,251 @@ export default function CompanyDetailView({
           />
         </div>
 
+        {/* ============ JOBS SECTION ============ */}
+        <div ref={el => { sectionRefs.current['jobs'] = el; }} id="section-jobs">
+          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-semibold text-[var(--foreground)]">Jobs</h2>
+                <span className="px-2 py-0.5 text-xs font-medium bg-[var(--muted)] text-[var(--muted-foreground)] rounded-full">
+                  0
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {/* TODO: Link job modal */}}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  Link Job
+                </button>
+                <button
+                  onClick={() => {/* TODO: New job modal */}}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                  </svg>
+                  New Job
+                </button>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="text-center py-4 text-[var(--muted-foreground)]">
+                <svg className="w-12 h-12 text-[var(--muted-foreground)]/30 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <p className="text-sm">No jobs linked</p>
+                <button
+                  onClick={() => {/* TODO: New job modal */}}
+                  className="mt-2 text-sm text-[var(--primary)] hover:underline"
+                >
+                  + Add a job
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ============ QUOTES SECTION ============ */}
+        <div ref={el => { sectionRefs.current['quotes'] = el; }} id="section-quotes">
+          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-semibold text-[var(--foreground)]">Quotes</h2>
+                <span className="px-2 py-0.5 text-xs font-medium bg-[var(--muted)] text-[var(--muted-foreground)] rounded-full">
+                  0
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {/* TODO: Link quote modal */}}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  Link Quote
+                </button>
+                <button
+                  onClick={() => {/* TODO: New quote modal */}}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                  </svg>
+                  New Quote
+                </button>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="text-center py-4 text-[var(--muted-foreground)]">
+                <svg className="w-12 h-12 text-[var(--muted-foreground)]/30 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p className="text-sm">No quotes linked</p>
+                <button
+                  onClick={() => {/* TODO: New quote modal */}}
+                  className="mt-2 text-sm text-[var(--primary)] hover:underline"
+                >
+                  + Add a quote
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ============ ORDERS SECTION ============ */}
+        <div ref={el => { sectionRefs.current['orders'] = el; }} id="section-orders">
+          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-semibold text-[var(--foreground)]">Orders</h2>
+                <span className="px-2 py-0.5 text-xs font-medium bg-[var(--muted)] text-[var(--muted-foreground)] rounded-full">
+                  0
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {/* TODO: Link order modal */}}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  Link Order
+                </button>
+                <button
+                  onClick={() => {/* TODO: New order modal */}}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                  </svg>
+                  New Order
+                </button>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="text-center py-4 text-[var(--muted-foreground)]">
+                <svg className="w-12 h-12 text-[var(--muted-foreground)]/30 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                </svg>
+                <p className="text-sm">No orders linked</p>
+                <button
+                  onClick={() => {/* TODO: New order modal */}}
+                  className="mt-2 text-sm text-[var(--primary)] hover:underline"
+                >
+                  + Add an order
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ============ INVOICES SECTION ============ */}
+        <div ref={el => { sectionRefs.current['invoices'] = el; }} id="section-invoices">
+          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-semibold text-[var(--foreground)]">Invoices</h2>
+                <span className="px-2 py-0.5 text-xs font-medium bg-[var(--muted)] text-[var(--muted-foreground)] rounded-full">
+                  0
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {/* TODO: Link invoice modal */}}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  Link Invoice
+                </button>
+                <button
+                  onClick={() => {/* TODO: New invoice modal */}}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                  </svg>
+                  New Invoice
+                </button>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="text-center py-4 text-[var(--muted-foreground)]">
+                <svg className="w-12 h-12 text-[var(--muted-foreground)]/30 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2zM10 8.5a.5.5 0 11-1 0 .5.5 0 011 0zm5 5a.5.5 0 11-1 0 .5.5 0 011 0z" />
+                </svg>
+                <p className="text-sm">No invoices linked</p>
+                <button
+                  onClick={() => {/* TODO: New invoice modal */}}
+                  className="mt-2 text-sm text-[var(--primary)] hover:underline"
+                >
+                  + Add an invoice
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ============ COMMISSION STATEMENTS SECTION ============ */}
+        <div ref={el => { sectionRefs.current['commission-statements'] = el; }} id="section-commission-statements">
+          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-semibold text-[var(--foreground)]">Commissions</h2>
+                <span className="px-2 py-0.5 text-xs font-medium bg-[var(--muted)] text-[var(--muted-foreground)] rounded-full">
+                  0
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {/* TODO: Link commission statement modal */}}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  Link Statement
+                </button>
+                <button
+                  onClick={() => {/* TODO: New commission statement modal */}}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                  </svg>
+                  New Statement
+                </button>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="text-center py-4 text-[var(--muted-foreground)]">
+                <svg className="w-12 h-12 text-[var(--muted-foreground)]/30 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-sm">No commission statements linked</p>
+                <button
+                  onClick={() => {/* TODO: New commission statement modal */}}
+                  className="mt-2 text-sm text-[var(--primary)] hover:underline"
+                >
+                  + Add a statement
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* ============ PRE-QUOTES SECTION ============ */}
         <div ref={el => { sectionRefs.current['pre-quotes'] = el; }} id="section-pre-quotes">
           <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
@@ -1614,6 +1931,128 @@ export default function CompanyDetailView({
           onConfirm={onDeleteConfirm}
           onCancel={onDeleteCancel}
         />
+      )}
+
+      {/* Add Tag Modal */}
+      {showAddTagModal && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowAddTagModal(false)} />
+          <div className="relative bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Add Tag</h3>
+            <input
+              type="text"
+              value={newTagName}
+              onChange={(e) => setNewTagName(e.target.value)}
+              placeholder="Enter tag name..."
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newTagName.trim()) {
+                  const currentTags = isEditing ? (editFormData.tags ?? company.tags) : company.tags;
+                  if (!currentTags.includes(newTagName.trim())) {
+                    onFieldChange('tags', [...currentTags, newTagName.trim()]);
+                  }
+                  setNewTagName('');
+                  setShowAddTagModal(false);
+                }
+                if (e.key === 'Escape') {
+                  setNewTagName('');
+                  setShowAddTagModal(false);
+                }
+              }}
+            />
+            <div className="flex justify-end gap-3 mt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setNewTagName('');
+                  setShowAddTagModal(false);
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (newTagName.trim()) {
+                    const currentTags = isEditing ? (editFormData.tags ?? company.tags) : company.tags;
+                    if (!currentTags.includes(newTagName.trim())) {
+                      onFieldChange('tags', [...currentTags, newTagName.trim()]);
+                    }
+                    setNewTagName('');
+                    setShowAddTagModal(false);
+                  }
+                }}
+                disabled={!newTagName.trim()}
+                className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+              >
+                Add
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add List Modal */}
+      {showAddListModal && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowAddListModal(false)} />
+          <div className="relative bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Add to List</h3>
+            <input
+              type="text"
+              value={newListName}
+              onChange={(e) => setNewListName(e.target.value)}
+              placeholder="Enter list name..."
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newListName.trim()) {
+                  const currentLists = isEditing ? (editFormData.lists ?? company.lists) : company.lists;
+                  if (!currentLists.includes(newListName.trim())) {
+                    onFieldChange('lists', [...currentLists, newListName.trim()]);
+                  }
+                  setNewListName('');
+                  setShowAddListModal(false);
+                }
+                if (e.key === 'Escape') {
+                  setNewListName('');
+                  setShowAddListModal(false);
+                }
+              }}
+            />
+            <div className="flex justify-end gap-3 mt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setNewListName('');
+                  setShowAddListModal(false);
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (newListName.trim()) {
+                    const currentLists = isEditing ? (editFormData.lists ?? company.lists) : company.lists;
+                    if (!currentLists.includes(newListName.trim())) {
+                      onFieldChange('lists', [...currentLists, newListName.trim()]);
+                    }
+                    setNewListName('');
+                    setShowAddListModal(false);
+                  }
+                }}
+                disabled={!newListName.trim()}
+                className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+              >
+                Add
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </main>
   );
