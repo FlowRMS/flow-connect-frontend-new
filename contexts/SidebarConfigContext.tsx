@@ -108,7 +108,8 @@ const defaultConfig: SidebarConfig = {
       collapsed: false,
       items: [
         { id: 'settings', name: 'Settings', href: '/settings', enabled: true },
-        { id: 'integrations', name: 'Integrations', href: '/integrations', enabled: true },
+        { id: 'email-integrations', name: 'Email Integrations', href: '/integrations', enabled: true },
+        { id: 'data-integrations', name: 'Data Integrations', href: '/data-integrations', enabled: true },
         { id: 'pdf-templates', name: 'PDF Templates', href: '/pdf-templates', enabled: true },
         { id: 'report-scheduler', name: 'Report Scheduler', href: '/report-scheduler', enabled: true },
       ]
@@ -117,7 +118,7 @@ const defaultConfig: SidebarConfig = {
 };
 
 const STORAGE_KEY = 'sidebar-config';
-const CONFIG_VERSION = 5; // Increment this to force a reset of cached sidebar config
+const CONFIG_VERSION = 6; // Increment this to force a reset of cached sidebar config
 
 const SidebarConfigContext = createContext<SidebarConfigContextType | undefined>(undefined);
 

@@ -1155,10 +1155,10 @@ function ManufacturerIntegrationCard({ integration, onActivate, onDeactivate, on
 }
 
 // ============================================================================
-// Manufacturer Integrations Section Component
+// Data Integrations Section Component
 // ============================================================================
 
-function ManufacturerIntegrationsSection() {
+function DataIntegrationsSection() {
   const [integrations, setIntegrations] = useState<ManufacturerIntegration[]>(initialManufacturerIntegrations);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [newIntegrationName, setNewIntegrationName] = useState('');
@@ -1227,7 +1227,7 @@ function ManufacturerIntegrationsSection() {
         {/* Header with Request button */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-xl font-semibold text-[var(--foreground)]">Manufacturer Integrations</h2>
+            <h2 className="text-xl font-semibold text-[var(--foreground)]">Data Integrations</h2>
             <p className="text-sm text-[var(--muted-foreground)] mt-1">
               Connect to manufacturers to automatically stream quotes, orders, invoices, and commission data
             </p>
@@ -1443,24 +1443,17 @@ function ManufacturerIntegrationsSection() {
 export default function IntegrationsContent() {
   return (
     <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
-      {/* Email Integrations Section */}
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-[var(--foreground)]">Email Integration</h1>
+        <h1 className="text-2xl font-semibold text-[var(--foreground)]">Email Integrations</h1>
         <p className="text-sm text-[var(--muted-foreground)] mt-1">
-          Connect external services such as Microsoft 365 or Gmail to send emails from your own mailbox
+          Connect Microsoft 365 or Gmail to send emails from your own mailbox
         </p>
       </div>
 
-      <div className="grid gap-6 max-w-3xl mb-12">
+      <div className="grid gap-6 max-w-3xl">
         <Microsoft365Card />
         <GmailCard />
       </div>
-
-      {/* Divider */}
-      <div className="border-t border-[var(--border)] mb-8"></div>
-
-      {/* Manufacturer Integrations Section */}
-      <ManufacturerIntegrationsSection />
     </main>
   );
 }
