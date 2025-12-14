@@ -94,9 +94,9 @@ export const mockTeamMembers: TeamMember[] = [
   { id: 'admin-1', name: 'Admin User', roleDisplay: 'Administrator', email: 'admin@flowrms.com', role: 'administrator', status: 'active' },
   { id: 'admin-2', name: 'System Admin', roleDisplay: 'Administrator', email: 'sysadmin@flowrms.com', role: 'administrator', status: 'active' },
   // Inside Reps (3)
-  { id: 'ir-1', name: 'Outside Rep', roleDisplay: 'Inside rep', email: 'nicolas.inside@flowrms.com', role: 'inside_rep', status: 'active' },
-  { id: 'ir-2', name: 'Outside Rep', roleDisplay: 'Inside rep', email: 'nicolas.test@flowrms.com', role: 'inside_rep', status: 'active' },
-  { id: 'ir-3', name: 'Inside Rep', roleDisplay: 'Inside rep', email: 'support+inside@flowrms.com', role: 'inside_rep', status: 'active' },
+  { id: 'ir-1', name: 'Nicolas Garcia', roleDisplay: 'Inside rep', email: 'nicolas.inside@flowrms.com', role: 'inside_rep', status: 'active' },
+  { id: 'ir-2', name: 'Maria Santos', roleDisplay: 'Inside rep', email: 'maria.santos@flowrms.com', role: 'inside_rep', status: 'active' },
+  { id: 'ir-3', name: 'Alex Chen', roleDisplay: 'Inside rep', email: 'alex.chen@flowrms.com', role: 'inside_rep', status: 'active' },
   // Owners (1)
   { id: 'owner-1', name: 'Company Owner', roleDisplay: 'Owner', email: 'owner@flowrms.com', role: 'owner', status: 'active' },
   // Warehouse
@@ -298,6 +298,22 @@ export const mockEndUserRepAssignments: RepAssignment[] = [
   { id: 'eura-3', entityId: 'eu-3', entityName: 'Premier Contractors', reps: [{ repId: 'or-4', repName: 'Sarah Johnson', percentage: 100 }] },
   { id: 'eura-4', entityId: 'eu-4', entityName: 'Delta Engineering', reps: [{ repId: 'or-1', repName: 'Outside Rep', percentage: 100 }] },
   { id: 'eura-5', entityId: 'eu-5', entityName: 'Sunrise Builders', reps: [{ repId: 'or-3', repName: 'John Smith', percentage: 100 }] },
+];
+
+// Inside Rep Assignments - by Customer
+export const mockInsideRepCustomerAssignments: RepAssignment[] = [
+  { id: 'irca-1', entityId: 'c-1', entityName: 'ANDALUISA UTILITIES', reps: [{ repId: 'ir-1', repName: 'Nicolas Garcia', percentage: 100 }] },
+  { id: 'irca-2', entityId: 'c-2', entityName: 'Metro Electric', reps: [{ repId: 'ir-2', repName: 'Maria Santos', percentage: 100 }] },
+  { id: 'irca-3', entityId: 'c-3', entityName: 'City Power Co', reps: [{ repId: 'ir-3', repName: 'Alex Chen', percentage: 100 }] },
+  { id: 'irca-4', entityId: 'c-4', entityName: 'Pacific Power', reps: [{ repId: 'ir-1', repName: 'Nicolas Garcia', percentage: 100 }] },
+  { id: 'irca-5', entityId: 'c-5', entityName: 'Eastern Distributors', reps: [{ repId: 'ir-2', repName: 'Maria Santos', percentage: 100 }] },
+];
+
+// Inside Rep Assignments - by Factory/Manufacturer
+export const mockInsideRepFactoryAssignments: RepAssignment[] = [
+  { id: 'irfa-1', entityId: 'f-1', entityName: 'Test Factory', reps: [{ repId: 'ir-1', repName: 'Nicolas Garcia', percentage: 100 }] },
+  { id: 'irfa-2', entityId: 'f-2', entityName: 'Acme Manufacturing', reps: [{ repId: 'ir-2', repName: 'Maria Santos', percentage: 100 }] },
+  { id: 'irfa-3', entityId: 'f-3', entityName: 'Global Industries', reps: [{ repId: 'ir-3', repName: 'Alex Chen', percentage: 100 }] },
 ];
 
 // Mock Sales Rep Selections

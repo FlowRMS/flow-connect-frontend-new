@@ -634,9 +634,9 @@ export default function OrdersContent() {
                               // Initialize acknowledgement line items from selected orders
                               const selectedOrders = orders.filter(o => selectedOrdersForBulk.has(o.id));
                               const lineItems = selectedOrders.flatMap(o =>
-                                o.lineItems.map(li => ({
+                                o.lineItems.filter(li => !li.isCredit).map(li => ({
                                   lineId: li.id,
-                                  partNumber: li.partNumber,
+                                  partNumber: li.partNumber || '',
                                   orderedQty: li.quantity,
                                   acknowledgedQty: li.quantity
                                 }))

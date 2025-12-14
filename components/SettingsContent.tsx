@@ -21,6 +21,8 @@ import {
   mockEndUsers,
   mockCustomerRepAssignments,
   mockEndUserRepAssignments,
+  mockInsideRepCustomerAssignments,
+  mockInsideRepFactoryAssignments,
   mockRepTerritories,
   usStates,
   stateCounties,
@@ -2048,10 +2050,10 @@ function ProductCategoriesTab() {
 
 // Sales Reps Default Selections Tab
 function SalesRepSelectionsTab() {
-  type AssignmentType = 'customer' | 'end-user' | 'geography';
+  type AssignmentType = 'customer' | 'geography';
+  type InsideRepAllocation = 'customer' | 'factory';
   const [assignmentType, setAssignmentType] = useState<AssignmentType>('customer');
   const [customerAssignments, setCustomerAssignments] = useState<RepAssignment[]>(mockCustomerRepAssignments);
-  const [endUserAssignments, setEndUserAssignments] = useState<RepAssignment[]>(mockEndUserRepAssignments);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [splitModalAssignment, setSplitModalAssignment] = useState<RepAssignment | null>(null);
@@ -2059,12 +2061,30 @@ function SalesRepSelectionsTab() {
   const [showBulkSplitModal, setShowBulkSplitModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [insideRepAllocation, setInsideRepAllocation] = useState<InsideRepAllocation>('customer');
+
+  // Inside rep state
+  const [insideRepCustomerAssignments, setInsideRepCustomerAssignments] = useState<RepAssignment[]>(mockInsideRepCustomerAssignments);
+  const [insideRepFactoryAssignments, setInsideRepFactoryAssignments] = useState<RepAssignment[]>(mockInsideRepFactoryAssignments);
+  const [showInsideUploadModal, setShowInsideUploadModal] = useState(false);
+  const [insideSelectedIds, setInsideSelectedIds] = useState<Set<string>>(new Set());
+  const [insideSplitModalAssignment, setInsideSplitModalAssignment] = useState<RepAssignment | null>(null);
+  const [insideBulkUpdateRepId, setInsideBulkUpdateRepId] = useState<string>('');
+  const [showInsideBulkSplitModal, setShowInsideBulkSplitModal] = useState(false);
+  const [insideSearchTerm, setInsideSearchTerm] = useState('');
+  const [insideSortDirection, setInsideSortDirection] = useState<'asc' | 'desc'>('asc');
 
   const outsideReps = mockTeamMembers.filter(m => m.role === 'outside_rep' && m.status === 'active');
+  const insideReps = mockTeamMembers.filter(m => m.role === 'inside_rep' && m.status === 'active');
 
-  const baseAssignments = assignmentType === 'customer' ? customerAssignments : endUserAssignments;
-  const setCurrentAssignments = assignmentType === 'customer' ? setCustomerAssignments : setEndUserAssignments;
-  const entityLabel = assignmentType === 'customer' ? 'Customer' : 'End User';
+  const baseAssignments = customerAssignments;
+  const setCurrentAssignments = setCustomerAssignments;
+  const entityLabel = 'Customer';
+
+  // Inside rep assignments based on allocation type
+  const insideBaseAssignments = insideRepAllocation === 'customer' ? insideRepCustomerAssignments : insideRepFactoryAssignments;
+  const setInsideCurrentAssignments = insideRepAllocation === 'customer' ? setInsideRepCustomerAssignments : setInsideRepFactoryAssignments;
+  const insideEntityLabel = insideRepAllocation === 'customer' ? 'Customer' : 'Manufacturer';
 
   // Filter and sort assignments
   const currentAssignments = useMemo(() => {
@@ -2185,37 +2205,151 @@ function SalesRepSelectionsTab() {
     return `${assignment.reps[0].repName} +${assignment.reps.length - 1}`;
   };
 
+  // Inside rep handlers
+  const insideCurrentAssignments = useMemo(() => {
+    let filtered = insideBaseAssignments;
+
+    if (insideSearchTerm.trim()) {
+      const term = insideSearchTerm.toLowerCase();
+      filtered = filtered.filter(a => a.entityName.toLowerCase().includes(term));
+    }
+
+    return [...filtered].sort((a, b) => {
+      const nameA = a.entityName.toLowerCase();
+      const nameB = b.entityName.toLowerCase();
+      if (insideSortDirection === 'asc') {
+        return nameA.localeCompare(nameB);
+      } else {
+        return nameB.localeCompare(nameA);
+      }
+    });
+  }, [insideBaseAssignments, insideSearchTerm, insideSortDirection]);
+
+  const handleInsideUpdateRep = (assignmentId: string, repId: string) => {
+    const rep = insideReps.find(r => r.id === repId);
+    if (!rep) return;
+
+    setInsideCurrentAssignments(prev => prev.map(a =>
+      a.id === assignmentId
+        ? { ...a, reps: [{ repId: rep.id, repName: rep.name, percentage: 100 }] }
+        : a
+    ));
+  };
+
+  const handleInsideUpdateSplit = (assignmentId: string, reps: RepSplit[]) => {
+    setInsideCurrentAssignments(prev => prev.map(a =>
+      a.id === assignmentId ? { ...a, reps } : a
+    ));
+  };
+
+  const handleInsideToggleSelect = (id: string) => {
+    setInsideSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleInsideSelectAll = () => {
+    if (insideSelectedIds.size === insideCurrentAssignments.length) {
+      setInsideSelectedIds(new Set());
+    } else {
+      setInsideSelectedIds(new Set(insideCurrentAssignments.map(a => a.id)));
+    }
+  };
+
+  const handleInsideBulkUpdate = () => {
+    if (!insideBulkUpdateRepId || insideSelectedIds.size === 0) return;
+    const rep = insideReps.find(r => r.id === insideBulkUpdateRepId);
+    if (!rep) return;
+
+    setInsideCurrentAssignments(prev => prev.map(a =>
+      insideSelectedIds.has(a.id)
+        ? { ...a, reps: [{ repId: rep.id, repName: rep.name, percentage: 100 }] }
+        : a
+    ));
+    setInsideSelectedIds(new Set());
+    setInsideBulkUpdateRepId('');
+  };
+
+  const handleInsideBulkSplit = (reps: RepSplit[]) => {
+    if (insideSelectedIds.size === 0) return;
+
+    setInsideCurrentAssignments(prev => prev.map(a =>
+      insideSelectedIds.has(a.id) ? { ...a, reps } : a
+    ));
+    setInsideSelectedIds(new Set());
+    setShowInsideBulkSplitModal(false);
+  };
+
+  const handleInsideDownload = () => {
+    const headers = [insideEntityLabel, 'Inside Rep', 'Split %'];
+    const rows = insideCurrentAssignments.flatMap(a =>
+      a.reps.map(r => [a.entityName, r.repName, r.percentage.toString()])
+    );
+    const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `inside-rep-${insideRepAllocation}-assignments.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleInsideUploadComplete = (data: { manufacturer: string; manufacturerId?: string; customer: string; customerId?: string; salesRep: string }[]) => {
+    const newAssignments: RepAssignment[] = data.map((row, index) => {
+      const rep = insideReps.find(r => r.name.toLowerCase() === row.salesRep.toLowerCase());
+      return {
+        id: `inside-upload-${Date.now()}-${index}`,
+        entityId: row.customerId || row.manufacturerId || `entity-${index}`,
+        entityName: insideRepAllocation === 'customer' ? (row.customer || row.manufacturer) : (row.manufacturer || row.customer),
+        reps: rep ? [{ repId: rep.id, repName: rep.name, percentage: 100 }] : [],
+      };
+    });
+    setInsideCurrentAssignments(newAssignments);
+    setShowInsideUploadModal(false);
+  };
+
   return (
     <div className="max-w-4xl">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-semibold text-[var(--foreground)]">Rep Assignments</h2>
       </div>
 
-      {/* Assignment Type Toggle */}
-      <div className="flex gap-1 p-1 bg-[var(--muted)]/50 rounded-lg w-fit mb-6">
-        {[
-          { id: 'customer' as AssignmentType, label: 'by Customer' },
-          { id: 'end-user' as AssignmentType, label: 'by End User' },
-          { id: 'geography' as AssignmentType, label: 'by Geography' },
-        ].map((option) => (
-          <button
-            key={option.id}
-            onClick={() => { setAssignmentType(option.id); setSelectedIds(new Set()); }}
-            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              assignmentType === option.id
-                ? 'bg-white text-[var(--foreground)] shadow-sm'
-                : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
-            }`}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
+      {/* Outside Reps Section */}
+      <div className="mb-8">
+        <h3 className="text-lg font-semibold text-[var(--foreground)] mb-4">Outside Reps</h3>
 
-      {assignmentType === 'geography' ? (
-        <GeographyTab outsideReps={outsideReps} />
-      ) : (
-        <>
+        {/* Assignment Type Toggle */}
+        <div className="flex gap-1 p-1 bg-[var(--muted)]/50 rounded-lg w-fit mb-6">
+          {[
+            { id: 'customer' as AssignmentType, label: 'by Customer' },
+            { id: 'geography' as AssignmentType, label: 'by Geography' },
+          ].map((option) => (
+            <button
+              key={option.id}
+              onClick={() => { setAssignmentType(option.id); setSelectedIds(new Set()); }}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                assignmentType === option.id
+                  ? 'bg-white text-[var(--foreground)] shadow-sm'
+                  : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+
+        {assignmentType === 'geography' ? (
+          <GeographyTab outsideReps={outsideReps} />
+        ) : (
+          <>
           {/* Action Buttons */}
           <div className="flex items-center gap-3 mb-4">
             <button
@@ -2395,10 +2529,233 @@ function SalesRepSelectionsTab() {
           </div>
 
           <p className="mt-3 text-xs text-[var(--muted-foreground)]">
-            Showing {currentAssignments.length} {assignmentType === 'customer' ? 'customers' : 'end users'}
+            Showing {currentAssignments.length} customers
           </p>
         </>
-      )}
+        )}
+      </div>
+
+      {/* Inside Reps Section */}
+      <div className="mb-8 pt-8 border-t border-[var(--border)]">
+        <h3 className="text-lg font-semibold text-[var(--foreground)] mb-4">Inside Reps</h3>
+
+        {/* Inside Rep Allocation Card */}
+        <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6 mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-base font-semibold text-[var(--foreground)]">Inside Rep Allocation</h4>
+          </div>
+          <p className="text-sm text-[var(--muted-foreground)] mb-4">
+            Decide how you want to associate your Inside Reps within Flow. The choices are factory or customer.
+          </p>
+
+          {/* Customer/Factory Toggle */}
+          <div className="flex gap-1 p-1 bg-[var(--muted)]/50 rounded-lg w-fit mb-4">
+            {[
+              { id: 'customer' as InsideRepAllocation, label: 'Customer' },
+              { id: 'factory' as InsideRepAllocation, label: 'Manufacturer' },
+            ].map((option) => (
+              <button
+                key={option.id}
+                onClick={() => { setInsideRepAllocation(option.id); setInsideSelectedIds(new Set()); }}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                  insideRepAllocation === option.id
+                    ? 'bg-[var(--primary)] text-white shadow-sm'
+                    : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Warning Message */}
+          <p className="text-sm text-red-600">
+            <strong>Important!</strong> If you change this setting it will not change existing quotes, orders, or invoices in the app! Change this with caution, and notify your team if you do so.
+          </p>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-3 mb-4">
+          <button
+            onClick={handleInsideDownload}
+            className="flex items-center gap-2 px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)]/50 transition-colors"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+            </svg>
+            Download List
+          </button>
+          <button
+            onClick={() => setShowInsideUploadModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+            </svg>
+            Upload List
+          </button>
+        </div>
+
+        {/* Bulk Update Bar */}
+        {insideSelectedIds.size > 0 && (
+          <div className="mb-4 p-3 bg-[var(--primary)]/10 border border-[var(--primary)]/30 rounded-lg flex items-center gap-4">
+            <span className="text-sm font-medium text-[var(--foreground)]">
+              {insideSelectedIds.size} selected
+            </span>
+            <div className="flex items-center gap-2 flex-1">
+              <span className="text-sm text-[var(--muted-foreground)]">Assign to:</span>
+              <select
+                value={insideBulkUpdateRepId}
+                onChange={(e) => setInsideBulkUpdateRepId(e.target.value)}
+                className="px-3 py-1.5 border border-[var(--border)] rounded-lg text-sm bg-[var(--background)] min-w-[200px]"
+              >
+                <option value="">Select rep...</option>
+                {insideReps.map(r => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </select>
+              <button
+                onClick={handleInsideBulkUpdate}
+                disabled={!insideBulkUpdateRepId}
+                className="px-3 py-1.5 bg-[var(--primary)] text-white rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-[var(--primary-hover)] transition-colors"
+              >
+                Apply
+              </button>
+              <span className="text-[var(--muted-foreground)]">|</span>
+              <button
+                onClick={() => setShowInsideBulkSplitModal(true)}
+                className="text-sm text-[var(--primary)] hover:underline"
+              >
+                Split
+              </button>
+            </div>
+            <button
+              onClick={() => setInsideSelectedIds(new Set())}
+              className="text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
+        {/* Note about historical data */}
+        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <p className="text-sm text-amber-800">
+            <strong>Note:</strong> Uploading a new list will replace current assignments. This does not update the history of your data - it only changes assignments going forward.
+          </p>
+        </div>
+
+        {/* Search Bar */}
+        <div className="mb-4">
+          <div className="relative">
+            <svg
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <path d="M21 21l-4.35-4.35" />
+            </svg>
+            <input
+              type="text"
+              value={insideSearchTerm}
+              onChange={(e) => setInsideSearchTerm(e.target.value)}
+              placeholder={`Search ${insideEntityLabel.toLowerCase()}s...`}
+              className="w-full pl-10 pr-4 py-2 border border-[var(--border)] rounded-lg text-sm bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+            />
+            {insideSearchTerm && (
+              <button
+                onClick={() => setInsideSearchTerm('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+              >
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Assignments Table */}
+        <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
+          {/* Header */}
+          <div className="grid grid-cols-[auto_1fr_1fr_auto] gap-4 px-4 py-3 border-b border-[var(--border)] bg-[var(--muted)]/30 items-center">
+            <input
+              type="checkbox"
+              checked={insideSelectedIds.size === insideCurrentAssignments.length && insideCurrentAssignments.length > 0}
+              onChange={handleInsideSelectAll}
+              className="w-4 h-4 rounded border-[var(--border)]"
+            />
+            <button
+              onClick={() => setInsideSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
+              className="flex items-center gap-1 text-sm font-medium text-[var(--foreground)] hover:text-[var(--primary)] transition-colors text-left"
+            >
+              {insideEntityLabel}
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className={`transition-transform ${insideSortDirection === 'desc' ? 'rotate-180' : ''}`}
+              >
+                <path d="M12 5v14M5 12l7-7 7 7" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+            <div className="text-sm font-medium text-[var(--foreground)]">Inside Rep</div>
+            <div className="w-12"></div>
+          </div>
+
+          {/* Rows */}
+          <div className="divide-y divide-[var(--border)] max-h-[500px] overflow-y-auto">
+            {insideCurrentAssignments.map((assignment) => (
+              <div key={assignment.id} className={`grid grid-cols-[auto_1fr_1fr_auto] gap-4 px-4 py-3 items-center ${insideSelectedIds.has(assignment.id) ? 'bg-[var(--primary)]/5' : ''}`}>
+                <input
+                  type="checkbox"
+                  checked={insideSelectedIds.has(assignment.id)}
+                  onChange={() => handleInsideToggleSelect(assignment.id)}
+                  className="w-4 h-4 rounded border-[var(--border)]"
+                />
+                <div className="text-sm text-[var(--foreground)]">{assignment.entityName}</div>
+                <div className="flex items-center gap-2">
+                  {assignment.reps.length <= 1 ? (
+                    <SearchableDropdown
+                      options={insideReps.map(r => ({ id: r.id, label: r.name }))}
+                      value={assignment.reps[0]?.repId || ''}
+                      onChange={(value) => handleInsideUpdateRep(assignment.id, value)}
+                      placeholder="Select rep..."
+                    />
+                  ) : (
+                    <div className="flex-1 px-3 py-2 bg-[var(--muted)]/30 rounded-lg text-sm">
+                      {assignment.reps.map((r, i) => (
+                        <span key={r.repId}>
+                          {r.repName} ({r.percentage}%)
+                          {i < assignment.reps.length - 1 && ', '}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => setInsideSplitModalAssignment(assignment)}
+                  className="text-sm text-[var(--primary)] hover:underline whitespace-nowrap"
+                >
+                  Split
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <p className="mt-3 text-xs text-[var(--muted-foreground)]">
+          Showing {insideCurrentAssignments.length} {insideEntityLabel.toLowerCase()}s
+        </p>
+      </div>
 
       {/* Upload Modal */}
       {showUploadModal && (
@@ -2429,6 +2786,38 @@ function SalesRepSelectionsTab() {
           outsideReps={outsideReps}
           onClose={() => setShowBulkSplitModal(false)}
           onSave={handleBulkSplit}
+        />
+      )}
+
+      {/* Inside Rep Upload Modal */}
+      {showInsideUploadModal && (
+        <RepAssignmentUploadModal
+          entityLabel={insideEntityLabel}
+          onClose={() => setShowInsideUploadModal(false)}
+          onUpload={handleInsideUploadComplete}
+        />
+      )}
+
+      {/* Inside Rep Split Modal */}
+      {insideSplitModalAssignment && (
+        <RepSplitModal
+          assignment={insideSplitModalAssignment}
+          outsideReps={insideReps}
+          onClose={() => setInsideSplitModalAssignment(null)}
+          onSave={(reps) => {
+            handleInsideUpdateSplit(insideSplitModalAssignment.id, reps);
+            setInsideSplitModalAssignment(null);
+          }}
+        />
+      )}
+
+      {/* Inside Rep Bulk Split Modal */}
+      {showInsideBulkSplitModal && (
+        <BulkRepSplitModal
+          selectedCount={insideSelectedIds.size}
+          outsideReps={insideReps}
+          onClose={() => setShowInsideBulkSplitModal(false)}
+          onSave={handleInsideBulkSplit}
         />
       )}
     </div>

@@ -52,6 +52,9 @@ const columnLabels: Record<ColumnKey, string> = {
 };
 
 const defaultVisibleColumns: ColumnKey[] = [
+  'partNumber',
+  'custPartNumber',
+  'description',
   'quantity',
   'uom',
   'divisor',
@@ -76,9 +79,9 @@ const getLineShipStatus = (quantity: number, shippedQty: number): { label: strin
 };
 
 // Helper function to get overall order shipping status
-const getOrderShipStatus = (lineItems: { quantity: number; quantityShipped: number; partNumber: string }[]): { label: string; color: string } => {
-  // Filter out freight lines
-  const productLines = lineItems.filter(item => item.partNumber !== 'FREIGHT');
+const getOrderShipStatus = (lineItems: { quantity: number; quantityShipped: number; partNumber?: string; isCredit?: boolean }[]): { label: string; color: string } => {
+  // Filter out freight lines and credit lines
+  const productLines = lineItems.filter(item => item.partNumber !== 'FREIGHT' && !item.isCredit);
   if (productLines.length === 0) return { label: 'No Items', color: 'bg-gray-100 text-gray-700' };
 
   const totalQty = productLines.reduce((sum, item) => sum + item.quantity, 0);
@@ -137,12 +140,55 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   // Credit modal state
   const [creditName, setCreditName] = useState('');
   const [creditDate, setCreditDate] = useState(new Date().toLocaleDateString('en-US'));
-  const [creditLineItems, setCreditLineItems] = useState<{partNumber: string; amount: number; quantity: number; unitCredit: number; commissionPercent: number; commissionAmount: number; reason: string}[]>([]);
+  const [creditNote, setCreditNote] = useState('');
+  const [creditLineItems, setCreditLineItems] = useState<{
+    partNumber: string;
+    linkedLineItemId: string | null; // null = order-level credit (not taggable to a line item)
+    creditType: '' | 'return' | 'short_ship' | 'cancel' | 'damage'; // empty = not selected (required)
+    quantity: number; // Always negative for credits
+    unitPrice: number;
+    creditAmount: number; // quantity * unitPrice (will be negative)
+    commissionPercent: number;
+    commissionAmount: number;
+  }[]>([]);
 
   // Acknowledgement modal state
   const [ackNumber, setAckNumber] = useState('');
   const [ackDate, setAckDate] = useState('');
   const [ackLineItems, setAckLineItems] = useState<{lineId: string; partNumber: string; orderedQty: number; acknowledgedQty: number; shipDate: string}[]>([]);
+
+  // Mock data for line item acknowledgements (in real app, this would be part of the order data)
+  const [lineItemAcknowledgements] = useState<Record<string, { ackNumber: string; shipDate: string; acknowledgedQty: number }>>({
+    // Order 001
+    'OLI-001-1': { ackNumber: 'ACK-2024-010', shipDate: '2024-12-15', acknowledgedQty: 50 },
+    // Order 002
+    'OLI-002-1': { ackNumber: 'ACK-2024-011', shipDate: '2024-12-18', acknowledgedQty: 75 },
+    'OLI-002-2': { ackNumber: 'ACK-2024-011', shipDate: '2024-12-18', acknowledgedQty: 30 },
+    // Order 003
+    'OLI-003-1': { ackNumber: 'ACK-2024-012', shipDate: '2024-12-20', acknowledgedQty: 100 },
+    // Order 004
+    'OLI-004-1': { ackNumber: 'ACK-2024-013', shipDate: '2024-12-22', acknowledgedQty: 200 },
+    // Order 005
+    'OLI-005-1': { ackNumber: 'ACK-2024-001', shipDate: '2024-12-20', acknowledgedQty: 100 },
+    'OLI-005-2': { ackNumber: 'ACK-2024-004', shipDate: '2024-12-28', acknowledgedQty: 30 },  // Partial: 30 of 45 acknowledged
+    'OLI-005-3': { ackNumber: 'ACK-2024-002', shipDate: '2024-12-22', acknowledgedQty: 200 },
+    'OLI-005-4': { ackNumber: 'ACK-2024-003', shipDate: '2024-12-18', acknowledgedQty: 30 },
+    // Order 006
+    'OLI-006-1': { ackNumber: 'ACK-2024-014', shipDate: '2024-12-25', acknowledgedQty: 150 },
+  });
+
+  // Mock data for line item credits (in real app, this would be part of the order data)
+  const [lineItemCredits] = useState<Record<string, { creditName: string; creditType: string; creditQty: number; originalQty: number; originalTotal: number }>>({
+    // Order 001
+    'OLI-001-2': { creditName: 'CR-2024-010', creditType: 'Short Ship', creditQty: 3, originalQty: 25, originalTotal: 4125 },
+    // Order 003
+    'OLI-003-2': { creditName: 'CR-2024-011', creditType: 'Cancel', creditQty: 10, originalQty: 40, originalTotal: 8800 },
+    // Order 005 - quantities reflect post-credit values (original - credit)
+    'OLI-005-2': { creditName: 'CR-2024-001', creditType: 'Return', creditQty: 5, originalQty: 50, originalTotal: 7250 },  // Now shows 45 qty, $6,525
+    'OLI-005-5': { creditName: 'CR-2024-002', creditType: 'Damage', creditQty: 2, originalQty: 15, originalTotal: 6750 },  // Now shows 13 qty, $5,850
+    // Order 006
+    'OLI-006-1': { creditName: 'CR-2024-015', creditType: 'Return', creditQty: 10, originalQty: 150, originalTotal: 24750 },
+  });
 
   // Views state
   const [showViewsMenu, setShowViewsMenu] = useState(false);
@@ -1297,17 +1343,20 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                             <div className="border-t border-[var(--border)] my-1"></div>
                             <button
                               onClick={() => {
-                                // Initialize credit line items from selected line items
+                                // Initialize credit line items from selected line items (tagged to line items)
                                 const items = order.lineItems.filter(li => selectedLineItems.has(li.id)).map(li => ({
-                                  partNumber: `${li.partNumber} (${formatCurrency(li.unitPrice * li.quantity)})`,
-                                  amount: li.unitPrice * li.quantity,
-                                  quantity: li.quantity,
-                                  unitCredit: li.unitPrice * li.quantity,
-                                  commissionPercent: 0.75,
-                                  commissionAmount: li.unitPrice * li.quantity * 0.0075,
-                                  reason: ''
+                                  partNumber: li.partNumber || '',
+                                  linkedLineItemId: li.id, // Tagged to this line item
+                                  creditType: '' as const, // Required - user must select
+                                  quantity: 0, // User must input credit quantity
+                                  unitPrice: li.unitPrice,
+                                  creditAmount: 0,
+                                  commissionPercent: (li.commissionRate || 0.08) * 100,
+                                  commissionAmount: 0,
                                 }));
                                 setCreditLineItems(items);
+                                setCreditName('');
+                                setCreditNote('');
                                 setShowLineCreditModal(true);
                                 setShowLineItemsBulkActionsMenu(false);
                               }}
@@ -1324,7 +1373,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                                 // Initialize acknowledgement line items from selected line items
                                 const items = order.lineItems.filter(li => selectedLineItems.has(li.id)).map(li => ({
                                   lineId: li.id,
-                                  partNumber: li.partNumber,
+                                  partNumber: li.partNumber || '',
                                   orderedQty: li.quantity,
                                   acknowledgedQty: li.quantity,
                                   shipDate: ''
@@ -1387,6 +1436,8 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                           className="accent-[var(--primary)]"
                         />
                       </th>
+                      {/* Indicator column for acknowledgements and credits */}
+                      <th className="px-1 py-2 w-16"></th>
                       {/* Dynamic columns */}
                       {visibleColumns.has('partNumber') && (
                         <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">
@@ -1513,7 +1564,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                         key={item.id}
                         className={`border-b border-[var(--border)] hover:bg-[var(--muted)]/20 transition-colors ${
                           selectedLineItems.has(item.id) ? 'bg-[var(--primary)]/5' : ''
-                        }`}
+                        } ${item.isCredit ? 'bg-red-50' : ''}`}
                       >
                         <td className="px-3 py-2">
                           <input
@@ -1523,19 +1574,123 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                             className="accent-[var(--primary)]"
                           />
                         </td>
+                        {/* Indicator cell for acknowledgements and credits - two column layout */}
+                        <td className="px-1 py-2">
+                          <div className="flex items-center gap-1">
+                            {/* Acknowledgement indicator column */}
+                            <div className="w-7 flex justify-center">
+                              {lineItemAcknowledgements[item.id] && (() => {
+                                const ack = lineItemAcknowledgements[item.id];
+                                const isPartial = ack.acknowledgedQty < item.quantity;
+                                return (
+                                  <div className="relative group">
+                                    <div className={`w-6 h-6 rounded flex items-center justify-center cursor-help ${isPartial ? 'bg-yellow-100' : 'bg-blue-100'}`}>
+                                      {isPartial ? (
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-yellow-600">
+                                          <path d="M9 12l2 2 4-4"/>
+                                          <rect x="3" y="4" width="18" height="16" rx="2"/>
+                                          <path d="M3 12h4" strokeLinecap="round"/>
+                                        </svg>
+                                      ) : (
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
+                                          <path d="M9 12l2 2 4-4"/>
+                                          <rect x="3" y="4" width="18" height="16" rx="2"/>
+                                        </svg>
+                                      )}
+                                    </div>
+                                    <div className="fixed transform -translate-y-full -mt-2 ml-8 px-4 py-3 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-[9999] pointer-events-none shadow-xl min-w-[220px]">
+                                      <div className={`font-semibold mb-2 text-base ${isPartial ? 'text-yellow-400' : 'text-blue-400'}`}>
+                                        {isPartial ? 'Partial Acknowledgement' : 'Fully Acknowledged'}
+                                      </div>
+                                      <div className="space-y-1">
+                                        <div className="flex justify-between gap-4">
+                                          <span className="text-gray-400">Ship Date:</span>
+                                          <span className="font-medium">{ack.shipDate}</span>
+                                        </div>
+                                        <div className="flex justify-between gap-4">
+                                          <span className="text-gray-400">Ack #:</span>
+                                          <span className="font-medium">{ack.ackNumber}</span>
+                                        </div>
+                                        <div className="flex justify-between gap-4">
+                                          <span className="text-gray-400">Acknowledged:</span>
+                                          <span className="font-medium">{ack.acknowledgedQty} of {item.quantity}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                            {/* Credit indicator column */}
+                            <div className="w-7 flex justify-center">
+                              {lineItemCredits[item.id] && (() => {
+                                const credit = lineItemCredits[item.id];
+                                return (
+                                  <div className="relative group">
+                                    <div className="w-6 h-6 rounded bg-red-100 flex items-center justify-center cursor-help">
+                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-600">
+                                        <circle cx="12" cy="12" r="10"/>
+                                        <path d="M8 12h8"/>
+                                      </svg>
+                                    </div>
+                                    <div className="fixed transform -translate-y-full -mt-2 ml-8 px-4 py-3 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-[9999] pointer-events-none shadow-xl min-w-[220px]">
+                                      <div className="font-semibold mb-2 text-base text-red-400">Credit Applied</div>
+                                      <div className="space-y-1">
+                                        <div className="flex justify-between gap-4">
+                                          <span className="text-gray-400">Type:</span>
+                                          <span className="font-medium">{credit.creditType}</span>
+                                        </div>
+                                        <div className="flex justify-between gap-4">
+                                          <span className="text-gray-400">Credit Qty:</span>
+                                          <span className="font-medium text-red-400">-{credit.creditQty}</span>
+                                        </div>
+                                      </div>
+                                      <div className="border-t border-gray-700 mt-2 pt-2">
+                                        <div className="text-gray-500 text-xs uppercase tracking-wide mb-1">Original Values</div>
+                                        <div className="space-y-1">
+                                          <div className="flex justify-between gap-4">
+                                            <span className="text-gray-400">Qty:</span>
+                                            <span className="font-medium">{credit.originalQty}</span>
+                                          </div>
+                                          <div className="flex justify-between gap-4">
+                                            <span className="text-gray-400">Total:</span>
+                                            <span className="font-medium">{formatCurrency(credit.originalTotal)}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          </div>
+                        </td>
                         {visibleColumns.has('partNumber') && (
                           <td className="px-3 py-2 text-sm">
-                            <div className="relative">
-                              <input
-                                type="text"
-                                value={item.partNumber}
-                                className="w-full px-2 py-1 bg-transparent border-0 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--primary)] rounded"
-                                readOnly
-                              />
-                              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-1 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]/50">
-                                <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-                              </svg>
-                            </div>
+                            {item.isCredit ? (
+                              <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-medium">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <circle cx="12" cy="12" r="10"/>
+                                  <path d="M8 12h8"/>
+                                </svg>
+                                {item.creditType === 'return' ? 'RETURN' :
+                                 item.creditType === 'short_ship' ? 'SHORT SHIP' :
+                                 item.creditType === 'cancel' ? 'CANCEL' :
+                                 item.creditType === 'damage' ? 'DAMAGE' : 'CREDIT'}
+                              </span>
+                            ) : (
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  value={item.partNumber || ''}
+                                  className="w-full px-2 py-1 bg-transparent border-0 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--primary)] rounded"
+                                  readOnly
+                                />
+                                <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-1 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]/50">
+                                  <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                              </div>
+                            )}
                           </td>
                         )}
                         {visibleColumns.has('custPartNumber') && (
@@ -1551,7 +1706,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                           </td>
                         )}
                         {visibleColumns.has('description') && (
-                          <td className="px-3 py-2 text-sm max-w-[200px]">
+                          <td className="px-3 py-2 text-sm min-w-[300px] max-w-[400px]">
                             <div className="relative">
                               <input
                                 type="text"
@@ -1576,7 +1731,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                           <td className="px-3 py-2 text-sm text-right">{formatCurrency(item.unitPrice)}</td>
                         )}
                         {visibleColumns.has('quantity') && (
-                          <td className="px-3 py-2 text-sm text-center">{item.quantity}</td>
+                          <td className={`px-3 py-2 text-sm text-center ${item.isCredit ? 'text-red-600 font-medium' : ''}`}>{item.quantity}</td>
                         )}
                         {visibleColumns.has('shippedQty') && (
                           <td className="px-3 py-2 text-sm text-center">
@@ -1596,7 +1751,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                           </td>
                         )}
                         {visibleColumns.has('sellTotal') && (
-                          <td className="px-3 py-2 text-sm text-right font-medium">{formatCurrency(item.extendedPrice)}</td>
+                          <td className={`px-3 py-2 text-sm text-right font-medium ${item.isCredit ? 'text-red-600' : ''}`}>{formatCurrency(item.extendedPrice)}</td>
                         )}
                         {visibleColumns.has('commissionPercent') && viewMode === 'simple' && (
                           <td className="px-3 py-2 text-sm text-right text-purple-600">
@@ -1604,13 +1759,13 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                           </td>
                         )}
                         {visibleColumns.has('commission') && (
-                          <td className="px-3 py-2 text-sm text-right text-purple-600">
-                            {item.partNumber === 'FREIGHT' ? '' : formatCurrency(item.extendedPrice * (item.commissionRate || 0.08))}
+                          <td className={`px-3 py-2 text-sm text-right ${item.isCredit ? 'text-red-600' : 'text-purple-600'}`}>
+                            {item.partNumber === 'FREIGHT' && !item.isCredit ? '' : formatCurrency(item.extendedPrice * (item.commissionRate || 0.08))}
                           </td>
                         )}
                         {visibleColumns.has('commissionTotal') && (
-                          <td className="px-3 py-2 text-sm text-right text-purple-600 font-medium">
-                            {item.partNumber === 'FREIGHT' ? '' : formatCurrency(item.extendedPrice * (item.commissionRate || 0.08))}
+                          <td className={`px-3 py-2 text-sm text-right font-medium ${item.isCredit ? 'text-red-600' : 'text-purple-600'}`}>
+                            {item.partNumber === 'FREIGHT' && !item.isCredit ? '' : formatCurrency(item.extendedPrice * (item.commissionRate || 0.08))}
                           </td>
                         )}
                         {visibleColumns.has('invoiced') && (
@@ -2194,6 +2349,8 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                 <button
                   onClick={() => {
                     setCreditLineItems([]);
+                    setCreditName('');
+                    setCreditNote('');
                     setShowLineCreditModal(true);
                   }}
                   className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors text-sm font-medium"
@@ -2283,9 +2440,9 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               <div className="flex justify-end">
                 <button
                   onClick={() => {
-                    const items = order.lineItems.map(li => ({
+                    const items = order.lineItems.filter(li => !li.isCredit).map(li => ({
                       lineId: li.id,
-                      partNumber: li.partNumber,
+                      partNumber: li.partNumber || '',
                       orderedQty: li.quantity,
                       acknowledgedQty: li.quantity,
                       shipDate: ''
@@ -3041,19 +3198,19 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
       {/* Line Item Credit Modal */}
       {showLineCreditModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
+          <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] flex flex-col">
             <div className="px-6 py-4 border-b border-[var(--border)] flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-600">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-600">
                   <circle cx="12" cy="12" r="10"/>
-                  <path d="M12 6v12M6 12h12"/>
+                  <path d="M8 12h8"/>
                 </svg>
               </div>
               <div className="flex-1">
                 <h2 className="text-lg font-semibold text-[var(--foreground)]">
-                  Creating Credit <span className="text-green-600">({formatCurrency(creditLineItems.reduce((sum, li) => sum + li.unitCredit, 0))})</span>
+                  Creating Credit <span className="text-red-600">({formatCurrency(creditLineItems.reduce((sum, li) => sum + li.creditAmount, 0))})</span>
                 </h2>
-                <p className="text-sm text-[var(--muted-foreground)]">Enter credit information, verify your entries, and save</p>
+                <p className="text-sm text-[var(--muted-foreground)]">Credits are applied as negative quantities against the order</p>
               </div>
               <button
                 onClick={() => setShowLineCreditModal(false)}
@@ -3098,116 +3255,286 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                   </div>
                 </div>
               </div>
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                  Note
+                </label>
+                <textarea
+                  value={creditNote}
+                  onChange={(e) => setCreditNote(e.target.value)}
+                  rows={2}
+                  placeholder="Add any additional notes about this credit..."
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 resize-none"
+                />
+              </div>
 
               {/* Credit Line Items */}
               <div>
-                <div className="grid grid-cols-[1fr_80px_140px_120px_140px_140px] gap-4 px-2 py-2 bg-[var(--muted)]/30 rounded-t-lg text-xs font-semibold text-[var(--muted-foreground)] uppercase">
-                  <div>Part Number</div>
-                  <div>Quantity *</div>
-                  <div>Unit Credit *</div>
-                  <div>Commission % *</div>
-                  <div>Commission Amount *</div>
-                  <div>Reason *</div>
-                </div>
-                <div className="border border-[var(--border)] rounded-b-lg divide-y divide-[var(--border)]">
-                  {creditLineItems.map((item, index) => (
-                    <div key={index} className="grid grid-cols-[1fr_80px_140px_120px_140px_140px] gap-4 px-2 py-3 items-center">
-                      <input
-                        type="text"
-                        value={item.partNumber}
-                        onChange={(e) => {
-                          const newItems = [...creditLineItems];
-                          newItems[index].partNumber = e.target.value;
-                          setCreditLineItems(newItems);
-                        }}
-                        className="px-2 py-1.5 border border-[var(--border)] rounded text-sm bg-[var(--background)] w-full"
-                        placeholder="Enter part number"
-                      />
-                      <input
-                        type="number"
-                        value={item.quantity}
-                        onChange={(e) => {
-                          const newItems = [...creditLineItems];
-                          newItems[index].quantity = parseInt(e.target.value) || 0;
-                          setCreditLineItems(newItems);
-                        }}
-                        className="px-2 py-1.5 border border-[var(--border)] rounded text-sm bg-[var(--background)]"
-                      />
-                      <input
-                        type="text"
-                        value={`$${item.unitCredit.toFixed(2)}`}
-                        onChange={(e) => {
-                          const newItems = [...creditLineItems];
-                          newItems[index].unitCredit = parseFloat(e.target.value.replace('$', '')) || 0;
-                          setCreditLineItems(newItems);
-                        }}
-                        className="px-2 py-1.5 border border-[var(--border)] rounded text-sm bg-[var(--background)]"
-                      />
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={item.commissionPercent}
-                          onChange={(e) => {
-                            const newItems = [...creditLineItems];
-                            newItems[index].commissionPercent = parseFloat(e.target.value) || 0;
-                            newItems[index].commissionAmount = newItems[index].unitCredit * (newItems[index].commissionPercent / 100);
-                            setCreditLineItems(newItems);
-                          }}
-                          className="px-2 py-1.5 border border-[var(--border)] rounded text-sm bg-[var(--background)] w-20"
-                        />
-                        <span className="text-sm text-[var(--muted-foreground)]">%</span>
+                <div className="border border-[var(--border)] rounded-lg divide-y divide-[var(--border)]">
+                  {creditLineItems.map((item, index) => {
+                    const linkedLineItem = item.linkedLineItemId
+                      ? order?.lineItems.find(li => li.id === item.linkedLineItemId)
+                      : null;
+
+                    return (
+                      <div key={index} className="p-4 space-y-3">
+                        {/* Row 1: Line Item Selection, Credit Type, Delete */}
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1">
+                            <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Line Item</label>
+                            <select
+                              value={item.linkedLineItemId || 'order-level'}
+                              onChange={(e) => {
+                                const newItems = [...creditLineItems];
+                                const selectedValue = e.target.value;
+                                if (selectedValue === 'order-level') {
+                                  newItems[index].linkedLineItemId = null;
+                                  newItems[index].partNumber = '';
+                                  newItems[index].unitPrice = 0;
+                                  newItems[index].quantity = 0;
+                                  newItems[index].creditAmount = 0;
+                                  newItems[index].commissionAmount = 0;
+                                } else {
+                                  const lineItem = order?.lineItems.find(li => li.id === selectedValue);
+                                  if (lineItem) {
+                                    newItems[index].linkedLineItemId = lineItem.id;
+                                    newItems[index].partNumber = lineItem.partNumber || '';
+                                    newItems[index].unitPrice = lineItem.unitPrice;
+                                    newItems[index].quantity = 0; // Start at 0, user inputs credit qty
+                                    newItems[index].creditAmount = 0;
+                                    newItems[index].commissionPercent = (lineItem.commissionRate || 0.08) * 100;
+                                    newItems[index].commissionAmount = 0;
+                                  }
+                                }
+                                setCreditLineItems(newItems);
+                              }}
+                              className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm bg-[var(--background)]"
+                            >
+                              <option value="order-level">Order-Level Credit (not tied to a line item)</option>
+                              {order?.lineItems.filter(li => li.partNumber !== 'FREIGHT').map(li => (
+                                <option key={li.id} value={li.id}>
+                                  {li.partNumber} - {li.description?.substring(0, 40)}{li.description && li.description.length > 40 ? '...' : ''}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="w-40">
+                            <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Credit Type *</label>
+                            <select
+                              value={item.creditType}
+                              onChange={(e) => {
+                                const newItems = [...creditLineItems];
+                                newItems[index].creditType = e.target.value as '' | 'return' | 'short_ship' | 'cancel' | 'damage';
+                                setCreditLineItems(newItems);
+                              }}
+                              className={`w-full px-3 py-2 border rounded-lg text-sm bg-[var(--background)] ${
+                                !item.creditType ? 'border-red-500' : 'border-[var(--border)]'
+                              }`}
+                            >
+                              <option value="">Select Type</option>
+                              <option value="return">Return</option>
+                              <option value="short_ship">Short Ship</option>
+                              <option value="cancel">Cancel</option>
+                              <option value="damage">Damage</option>
+                            </select>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setCreditLineItems(creditLineItems.filter((_, i) => i !== index));
+                            }}
+                            className="mt-5 p-2 hover:bg-red-100 rounded-lg transition-colors text-red-500"
+                          >
+                            <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                            </svg>
+                          </button>
+                        </div>
+
+                        {/* Row 2: Show original line item info if linked */}
+                        {linkedLineItem && (
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                            <div className="text-xs font-medium text-blue-700 mb-2">Original Line Item</div>
+                            <div className="grid grid-cols-5 gap-4 text-sm">
+                              <div>
+                                <span className="text-[var(--muted-foreground)]">Qty Ordered:</span>
+                                <span className="ml-1 font-medium">{linkedLineItem.quantity}</span>
+                              </div>
+                              <div>
+                                <span className="text-[var(--muted-foreground)]">Unit Price:</span>
+                                <span className="ml-1 font-medium">{formatCurrency(linkedLineItem.unitPrice)}</span>
+                              </div>
+                              <div>
+                                <span className="text-[var(--muted-foreground)]">Line Total:</span>
+                                <span className="ml-1 font-medium">{formatCurrency(linkedLineItem.extendedPrice)}</span>
+                              </div>
+                              <div>
+                                <span className="text-[var(--muted-foreground)]">Shipped:</span>
+                                <span className="ml-1 font-medium">{linkedLineItem.quantityShipped}</span>
+                              </div>
+                              <div>
+                                <span className="text-[var(--muted-foreground)]">Invoiced:</span>
+                                <span className="ml-1 font-medium">{linkedLineItem.quantityInvoiced}</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Row 3: Credit Input Fields */}
+                        <div className="grid grid-cols-5 gap-4">
+                          <div>
+                            <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
+                              Credit Qty *
+                            </label>
+                            <input
+                              type="number"
+                              value={item.quantity === 0 ? '' : Math.abs(item.quantity)}
+                              min={1}
+                              max={linkedLineItem?.quantity}
+                              placeholder={linkedLineItem ? `Max: ${linkedLineItem.quantity}` : ''}
+                              onChange={(e) => {
+                                const newItems = [...creditLineItems];
+                                const qty = parseInt(e.target.value) || 0;
+                                // Store as negative
+                                newItems[index].quantity = -Math.abs(qty);
+                                newItems[index].creditAmount = newItems[index].quantity * newItems[index].unitPrice;
+                                newItems[index].commissionAmount = newItems[index].creditAmount * (newItems[index].commissionPercent / 100);
+                                setCreditLineItems(newItems);
+                              }}
+                              className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm bg-[var(--background)]"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Unit Price</label>
+                            <input
+                              type="text"
+                              value={formatCurrency(item.unitPrice)}
+                              onChange={(e) => {
+                                const newItems = [...creditLineItems];
+                                newItems[index].unitPrice = parseFloat(e.target.value.replace(/[$,]/g, '')) || 0;
+                                newItems[index].creditAmount = newItems[index].quantity * newItems[index].unitPrice;
+                                newItems[index].commissionAmount = newItems[index].creditAmount * (newItems[index].commissionPercent / 100);
+                                setCreditLineItems(newItems);
+                              }}
+                              className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm bg-[var(--background)]"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Credit Amount</label>
+                            <div className="px-3 py-2 border border-[var(--border)] rounded-lg text-sm bg-[var(--muted)]/30 text-red-600 font-medium">
+                              {formatCurrency(item.creditAmount)}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Com %</label>
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                step="0.1"
+                                value={item.commissionPercent}
+                                onChange={(e) => {
+                                  const newItems = [...creditLineItems];
+                                  newItems[index].commissionPercent = parseFloat(e.target.value) || 0;
+                                  newItems[index].commissionAmount = newItems[index].creditAmount * (newItems[index].commissionPercent / 100);
+                                  setCreditLineItems(newItems);
+                                }}
+                                className="flex-1 px-3 py-2 border border-[var(--border)] rounded-lg text-sm bg-[var(--background)]"
+                              />
+                              <span className="text-sm text-[var(--muted-foreground)]">%</span>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Com Amount</label>
+                            <div className="px-3 py-2 border border-[var(--border)] rounded-lg text-sm bg-[var(--muted)]/30 text-red-600">
+                              {formatCurrency(item.commissionAmount)}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Row 4: Impact Summary for linked line items */}
+                        {linkedLineItem && item.quantity !== 0 && (
+                          <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                            <div className="text-xs font-medium text-orange-700 mb-2">Impact After Credit</div>
+                            <div className="grid grid-cols-3 gap-4 text-sm">
+                              <div>
+                                <span className="text-[var(--muted-foreground)]">New Qty:</span>
+                                <span className="ml-1 font-medium">{linkedLineItem.quantity + item.quantity}</span>
+                                <span className="ml-1 text-red-600">({item.quantity})</span>
+                              </div>
+                              <div>
+                                <span className="text-[var(--muted-foreground)]">New Line Total:</span>
+                                <span className="ml-1 font-medium">{formatCurrency(linkedLineItem.extendedPrice + item.creditAmount)}</span>
+                                <span className="ml-1 text-red-600">({formatCurrency(item.creditAmount)})</span>
+                              </div>
+                              <div>
+                                <span className="text-[var(--muted-foreground)]">Commission Impact:</span>
+                                <span className="ml-1 text-red-600 font-medium">{formatCurrency(item.commissionAmount)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      <input
-                        type="text"
-                        value={`$${item.commissionAmount.toFixed(2)}`}
-                        readOnly
-                        className="px-2 py-1.5 border border-[var(--border)] rounded text-sm bg-[var(--muted)]/30"
-                      />
-                      <select
-                        value={item.reason}
-                        onChange={(e) => {
-                          const newItems = [...creditLineItems];
-                          newItems[index].reason = e.target.value;
-                          setCreditLineItems(newItems);
+                    );
+                  })}
+                  {creditLineItems.length === 0 && (
+                    <div className="px-4 py-8 text-center">
+                      <p className="text-sm text-[var(--muted-foreground)] mb-3">No credit lines added.</p>
+                      <button
+                        onClick={() => {
+                          setCreditLineItems([...creditLineItems, {
+                            partNumber: '',
+                            linkedLineItemId: null,
+                            creditType: '',
+                            quantity: 0,
+                            unitPrice: 0,
+                            creditAmount: 0,
+                            commissionPercent: 8,
+                            commissionAmount: 0,
+                          }]);
                         }}
-                        className="px-2 py-1.5 border border-[var(--border)] rounded text-sm bg-[var(--background)]"
+                        className="inline-flex items-center gap-1 text-sm text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors font-medium"
                       >
-                        <option value="">Choose</option>
-                        <option value="price_adjustment">Price Adjustment</option>
-                        <option value="return">Return</option>
-                        <option value="damaged">Damaged</option>
-                        <option value="wrong_item">Wrong Item</option>
-                        <option value="other">Other</option>
-                      </select>
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                        </svg>
+                        Add Credit Line
+                      </button>
                     </div>
-                  ))}
+                  )}
                 </div>
-                <div className="flex items-center justify-between mt-2 px-2">
-                  <button
-                    onClick={() => {
-                      setCreditLineItems([...creditLineItems, {
-                        partNumber: '',
-                        amount: 0,
-                        quantity: 1,
-                        unitCredit: 0,
-                        commissionPercent: 0.75,
-                        commissionAmount: 0,
-                        reason: ''
-                      }]);
-                    }}
-                    className="flex items-center gap-1 text-sm text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-                    </svg>
-                    Add Line
-                  </button>
-                  <span className="text-xs text-[var(--muted-foreground)]">
-                    {creditLineItems.length > 0 && `${creditLineItems.length} line${creditLineItems.length !== 1 ? 's' : ''}`}
-                  </span>
+                <div className="flex items-center justify-between mt-3 px-2">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setCreditLineItems([...creditLineItems, {
+                          partNumber: '',
+                          linkedLineItemId: null, // Order-level credit
+                          creditType: '', // Required - user must select
+                          quantity: 0, // User must input quantity
+                          unitPrice: 0,
+                          creditAmount: 0,
+                          commissionPercent: 8,
+                          commissionAmount: 0,
+                        }]);
+                      }}
+                      className="flex items-center gap-1 text-sm text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                      </svg>
+                      Add Credit Line
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-xs text-[var(--muted-foreground)]">
+                      {creditLineItems.length > 0 && `${creditLineItems.length} line${creditLineItems.length !== 1 ? 's' : ''}`}
+                    </span>
+                    <span className="text-sm font-semibold text-red-600">
+                      Total: {formatCurrency(creditLineItems.reduce((sum, li) => sum + li.creditAmount, 0))}
+                    </span>
+                  </div>
                 </div>
               </div>
+
             </div>
             <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3">
               <button
@@ -3218,11 +3545,35 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               </button>
               <button
                 onClick={() => {
+                  // Validate all credit lines have a type and quantity
+                  const hasInvalidType = creditLineItems.some(li => !li.creditType);
+                  const hasInvalidQty = creditLineItems.some(li => li.quantity === 0);
+                  if (hasInvalidType) {
+                    alert('Please select a credit type for all lines');
+                    return;
+                  }
+                  if (hasInvalidQty) {
+                    alert('Please enter a credit quantity for all lines');
+                    return;
+                  }
+                  if (!creditName) {
+                    alert('Please enter a credit name');
+                    return;
+                  }
+                  if (creditLineItems.length === 0) {
+                    alert('Please add at least one credit line');
+                    return;
+                  }
                   alert('Credit created successfully');
                   setShowLineCreditModal(false);
                   setSelectedLineItems(new Set());
                 }}
-                className="px-4 py-2 text-sm bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+                disabled={!creditName || creditLineItems.length === 0 || creditLineItems.some(li => !li.creditType || li.quantity === 0)}
+                className={`px-4 py-2 text-sm rounded-lg transition-colors ${
+                  !creditName || creditLineItems.length === 0 || creditLineItems.some(li => !li.creditType || li.quantity === 0)
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)]'
+                }`}
               >
                 Save Credit
               </button>
@@ -3438,55 +3789,126 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               </div>
 
               {/* Line Item Quantities */}
-              {ackLineItems.length > 0 && (
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-                    Acknowledged Quantity per Line Item
-                  </label>
-                  <p className="text-xs text-[var(--muted-foreground)] mb-3">
-                    The acknowledged quantity may be less than the full ordered quantity for partial acknowledgements.
-                  </p>
-                  <div className="border border-[var(--border)] rounded-lg overflow-hidden">
-                    <div className="grid grid-cols-[1fr_80px_80px_120px] gap-2 px-3 py-2 bg-[var(--muted)]/30 text-xs font-semibold text-[var(--muted-foreground)] uppercase">
-                      <div>Part Number</div>
-                      <div>Ordered Qty</div>
-                      <div>Ack. Qty</div>
-                      <div>Ship Date</div>
-                    </div>
-                    <div className="divide-y divide-[var(--border)]">
-                      {ackLineItems.map((item, index) => (
-                        <div key={index} className="grid grid-cols-[1fr_80px_80px_120px] gap-2 px-3 py-2 items-center">
-                          <span className="text-sm">{item.partNumber}</span>
-                          <span className="text-sm text-[var(--muted-foreground)]">{item.orderedQty}</span>
-                          <input
-                            type="number"
-                            value={item.acknowledgedQty}
-                            onChange={(e) => {
-                              const newItems = [...ackLineItems];
-                              const newQty = parseInt(e.target.value) || 0;
-                              newItems[index].acknowledgedQty = Math.min(newQty, item.orderedQty);
-                              setAckLineItems(newItems);
-                            }}
-                            max={item.orderedQty}
-                            min={0}
-                            className="px-2 py-1 border border-[var(--border)] rounded text-sm bg-[var(--background)] w-full"
-                          />
-                          <input
-                            type="date"
-                            value={item.shipDate}
-                            onChange={(e) => {
-                              const newItems = [...ackLineItems];
-                              newItems[index].shipDate = e.target.value;
-                              setAckLineItems(newItems);
-                            }}
-                            className="px-2 py-1 border border-[var(--border)] rounded text-sm bg-[var(--background)] w-full"
-                          />
-                        </div>
-                      ))}
-                    </div>
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                  Acknowledged Quantity per Line Item
+                </label>
+                <p className="text-xs text-[var(--muted-foreground)] mb-3">
+                  The acknowledged quantity may be less than the full ordered quantity for partial acknowledgements.
+                </p>
+                <div className="border border-[var(--border)] rounded-lg overflow-hidden">
+                  <div className="grid grid-cols-[1fr_80px_80px_120px_40px] gap-2 px-3 py-2 bg-[var(--muted)]/30 text-xs font-semibold text-[var(--muted-foreground)] uppercase">
+                    <div>Part Number</div>
+                    <div>Ordered Qty</div>
+                    <div>Ack. Qty</div>
+                    <div>Ship Date</div>
+                    <div></div>
+                  </div>
+                  <div className="divide-y divide-[var(--border)]">
+                    {ackLineItems.map((item, index) => (
+                      <div key={index} className="grid grid-cols-[1fr_80px_80px_120px_40px] gap-2 px-3 py-2 items-center">
+                        <select
+                          value={item.lineId}
+                          onChange={(e) => {
+                            const newItems = [...ackLineItems];
+                            const selectedLineItem = order?.lineItems.find(li => li.id === e.target.value);
+                            if (selectedLineItem) {
+                              newItems[index].lineId = selectedLineItem.id;
+                              newItems[index].partNumber = selectedLineItem.partNumber || '';
+                              newItems[index].orderedQty = selectedLineItem.quantity;
+                              newItems[index].acknowledgedQty = selectedLineItem.quantity;
+                            }
+                            setAckLineItems(newItems);
+                          }}
+                          className="px-2 py-1 border border-[var(--border)] rounded text-sm bg-[var(--background)] w-full"
+                        >
+                          <option value="">Select line item...</option>
+                          {order?.lineItems.filter(li => li.partNumber !== 'FREIGHT').map(li => (
+                            <option key={li.id} value={li.id}>
+                              {li.partNumber}
+                            </option>
+                          ))}
+                        </select>
+                        <span className="text-sm text-[var(--muted-foreground)]">{item.orderedQty}</span>
+                        <input
+                          type="number"
+                          value={item.acknowledgedQty}
+                          onChange={(e) => {
+                            const newItems = [...ackLineItems];
+                            const newQty = parseInt(e.target.value) || 0;
+                            newItems[index].acknowledgedQty = Math.min(newQty, item.orderedQty);
+                            setAckLineItems(newItems);
+                          }}
+                          max={item.orderedQty}
+                          min={0}
+                          className="px-2 py-1 border border-[var(--border)] rounded text-sm bg-[var(--background)] w-full"
+                        />
+                        <input
+                          type="date"
+                          value={item.shipDate}
+                          onChange={(e) => {
+                            const newItems = [...ackLineItems];
+                            newItems[index].shipDate = e.target.value;
+                            setAckLineItems(newItems);
+                          }}
+                          className="px-2 py-1 border border-[var(--border)] rounded text-sm bg-[var(--background)] w-full"
+                        />
+                        <button
+                          onClick={() => {
+                            setAckLineItems(ackLineItems.filter((_, i) => i !== index));
+                          }}
+                          className="p-1 hover:bg-red-100 rounded transition-colors text-red-500"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                    {ackLineItems.length === 0 && (
+                      <div className="px-4 py-6 text-center">
+                        <p className="text-sm text-[var(--muted-foreground)] mb-2">No lines added.</p>
+                        <button
+                          onClick={() => {
+                            setAckLineItems([...ackLineItems, {
+                              lineId: '',
+                              partNumber: '',
+                              orderedQty: 0,
+                              acknowledgedQty: 0,
+                              shipDate: '',
+                            }]);
+                          }}
+                          className="inline-flex items-center gap-1 text-sm text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors font-medium"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                          </svg>
+                          Add Line
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
-              )}
+                {ackLineItems.length > 0 && (
+                  <button
+                    onClick={() => {
+                      setAckLineItems([...ackLineItems, {
+                        lineId: '',
+                        partNumber: '',
+                        orderedQty: 0,
+                        acknowledgedQty: 0,
+                        shipDate: '',
+                      }]);
+                    }}
+                    className="mt-2 flex items-center gap-1 text-sm text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                    </svg>
+                    Add Line
+                  </button>
+                )}
+              </div>
             </div>
             <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3">
               <button

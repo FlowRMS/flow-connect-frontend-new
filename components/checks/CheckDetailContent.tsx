@@ -17,11 +17,25 @@ interface CheckDetailContentProps {
 
 type TabType = 'line-items' | 'deductions' | 'notes' | 'tasks' | 'activity' | 'linked-objects' | 'settings';
 
+type AllocationMethod = 'rep-split' | 'customer' | 'even-distribution';
+
+interface RepSplit {
+  repName: string;
+  percentage: number;
+}
+
 interface Adjustment {
   id: string;
-  description: string;
-  amount: number;
-  type: 'credit' | 'debit';
+  factory: string; // Read-only, from the check
+  amount: number; // Always negative for deductions
+  reason: string;
+  source: 'manual' | 'upload';
+  uploadId?: string; // If source is upload, link to the upload
+  uploadName?: string; // Display name for the upload
+  createdAt: Date; // Read-only creation date
+  allocationMethod: AllocationMethod;
+  allocationTarget: string; // Customer name for 'customer' method
+  repSplits: RepSplit[]; // For 'rep-split' method
 }
 type CheckStatus = 'posted' | 'unposted';
 
@@ -137,6 +151,7 @@ export default function CheckDetailContent({ checkId }: CheckDetailContentProps)
   const [commissionAmount, setCommissionAmount] = useState(check?.netAmount || 0);
   const [checkDate, setCheckDate] = useState(check?.checkDate || '');
   const [status, setStatus] = useState<CheckStatus>(check?.status === 'posted' ? 'posted' : 'unposted');
+  const [postedDate, setPostedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [isTotalStatedCommission, setIsTotalStatedCommission] = useState(false);
   const [isTiedToCommissionUpload, setIsTiedToCommissionUpload] = useState(true); // Default to true if check is associated
 
@@ -147,9 +162,14 @@ export default function CheckDetailContent({ checkId }: CheckDetailContentProps)
     const newId = `adj-${Date.now()}`;
     setAdjustments(prev => [...prev, {
       id: newId,
-      description: '',
+      factory: check?.manufacturerName || '',
       amount: 0,
-      type: 'debit',
+      reason: '',
+      source: 'manual',
+      createdAt: new Date(),
+      allocationMethod: 'rep-split',
+      allocationTarget: '',
+      repSplits: [],
     }]);
   };
 
@@ -157,16 +177,56 @@ export default function CheckDetailContent({ checkId }: CheckDetailContentProps)
     setAdjustments(prev => prev.filter(adj => adj.id !== id));
   };
 
-  const updateAdjustment = (id: string, field: keyof Adjustment, value: string | number) => {
+  const updateAdjustment = (id: string, field: keyof Adjustment, value: string | number | RepSplit[]) => {
     setAdjustments(prev => prev.map(adj =>
       adj.id === id ? { ...adj, [field]: value } : adj
     ));
   };
 
+  // Rep splits modal state
+  const [showRepSplitsModal, setShowRepSplitsModal] = useState(false);
+  const [editingAdjustmentId, setEditingAdjustmentId] = useState<string | null>(null);
+  const [tempRepSplits, setTempRepSplits] = useState<RepSplit[]>([]);
+
+  const openRepSplitsModal = (adjustmentId: string) => {
+    const adj = adjustments.find(a => a.id === adjustmentId);
+    setEditingAdjustmentId(adjustmentId);
+    setTempRepSplits(adj?.repSplits.length ? [...adj.repSplits] : [{ repName: '', percentage: 100 }]);
+    setShowRepSplitsModal(true);
+  };
+
+  const addRepToSplit = () => {
+    setTempRepSplits(prev => [...prev, { repName: '', percentage: 0 }]);
+  };
+
+  const removeRepFromSplit = (index: number) => {
+    setTempRepSplits(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const updateRepSplit = (index: number, field: keyof RepSplit, value: string | number) => {
+    setTempRepSplits(prev => prev.map((split, i) =>
+      i === index ? { ...split, [field]: value } : split
+    ));
+  };
+
+  const saveRepSplits = () => {
+    if (editingAdjustmentId) {
+      updateAdjustment(editingAdjustmentId, 'repSplits', tempRepSplits);
+    }
+    setShowRepSplitsModal(false);
+    setEditingAdjustmentId(null);
+  };
+
+  const totalSplitPercentage = useMemo(() => {
+    return tempRepSplits.reduce((sum, split) => sum + (split.percentage || 0), 0);
+  }, [tempRepSplits]);
+
+  // Mock reps for dropdown
+  const availableReps = ['Chris Martin', 'John Smith', 'Jane Doe', 'Mike Johnson', 'Sarah Wilson'];
+
   const totalAdjustments = useMemo(() => {
-    return adjustments.reduce((sum, adj) => {
-      return sum + (adj.type === 'debit' ? -adj.amount : adj.amount);
-    }, 0);
+    // Deductions are always negative (subtracting from balance)
+    return adjustments.reduce((sum, adj) => sum - Math.abs(adj.amount), 0);
   }, [adjustments]);
 
   // Mock line items
@@ -373,10 +433,28 @@ export default function CheckDetailContent({ checkId }: CheckDetailContentProps)
               {showActionsDropdown && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowActionsDropdown(false)} />
-                  <div className="absolute top-full right-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20">
-                    <button onClick={() => setShowActionsDropdown(false)} className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-t-lg">Import Items</button>
-                    <button onClick={() => setShowActionsDropdown(false)} className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors">Export</button>
-                    <button onClick={() => setShowActionsDropdown(false)} className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-b-lg">Duplicate Check</button>
+                  <div className="absolute top-full right-0 mt-1 w-72 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20 py-1">
+                    <button onClick={() => setShowActionsDropdown(false)} className="w-full px-4 py-3 text-left hover:bg-[var(--muted)] transition-colors rounded-t-lg flex items-start gap-3">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted-foreground)] mt-0.5">
+                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M14 2v6h6M8 13h8M8 17h8M8 9h2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      <div>
+                        <div className="text-sm font-medium text-[var(--foreground)]">Export Check Details</div>
+                        <div className="text-xs text-[var(--muted-foreground)]">Export to Excel</div>
+                      </div>
+                    </button>
+                    <button onClick={() => setShowActionsDropdown(false)} className="w-full px-4 py-3 text-left hover:bg-[var(--muted)] transition-colors rounded-b-lg flex items-start gap-3">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted-foreground)] mt-0.5">
+                        <path d="M12 3l1.5 3.5L17 8l-3.5 1.5L12 13l-1.5-3.5L7 8l3.5-1.5L12 3z" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M5 17l1 2 2 1-2 1-1 2-1-2-2-1 2-1 1-2z" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M19 13l1 2 2 1-2 1-1 2-1-2-2-1 2-1 1-2z" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      <div>
+                        <div className="text-sm font-medium text-[var(--foreground)]">Reconcile Check</div>
+                        <div className="text-xs text-[var(--muted-foreground)]">AI-powered automatic reconciliation</div>
+                      </div>
+                    </button>
                   </div>
                 </>
               )}
@@ -523,6 +601,12 @@ export default function CheckDetailContent({ checkId }: CheckDetailContentProps)
                     <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Check Date</label>
                     <input type="date" value={checkDate} onChange={(e) => setCheckDate(e.target.value)} className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm"/>
                   </div>
+                  {status === 'posted' && (
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Posted Date</label>
+                      <input type="date" value={postedDate} onChange={(e) => setPostedDate(e.target.value)} className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm"/>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Check Amount<span className="text-red-500">*</span></label>
                     <div className="relative">
@@ -547,7 +631,8 @@ export default function CheckDetailContent({ checkId }: CheckDetailContentProps)
                   </div>
                 </div>
 
-                {/* Lines to Reconcile Section */}
+                {/* Lines to Reconcile Section - Only show when unposted */}
+                {status === 'unposted' && (
                 <div className="mt-4">
                   <span className="text-sm font-medium text-[var(--muted-foreground)]">Lines to Reconcile</span>
                   <div className="grid grid-cols-4 gap-4 mt-2">
@@ -673,6 +758,7 @@ export default function CheckDetailContent({ checkId }: CheckDetailContentProps)
                 </div>
               </div>
             </div>
+                )}
               </div>
 
               {/* Right side - Reconciliation Summary */}
@@ -693,7 +779,7 @@ export default function CheckDetailContent({ checkId }: CheckDetailContentProps)
                             <span className="text-sm font-medium text-[var(--foreground)]">-${summary.paidTotal.toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-sm text-[var(--muted-foreground)]">Adjustments</span>
+                            <span className="text-sm text-[var(--muted-foreground)]">Deductions</span>
                             <span className={`text-sm font-medium ${totalAdjustments === 0 ? 'text-[var(--foreground)]' : totalAdjustments < 0 ? 'text-red-500' : 'text-green-600'}`}>
                               {totalAdjustments < 0 ? '-' : totalAdjustments > 0 ? '+' : ''}${Math.abs(totalAdjustments).toFixed(2)}
                             </span>
@@ -934,12 +1020,20 @@ export default function CheckDetailContent({ checkId }: CheckDetailContentProps)
                         )}
                         {visibleColumns.has('paid') && (
                           <td className="px-4 py-3 text-center">
-                            <input
-                              type="checkbox"
-                              checked={item.paid}
-                              onChange={() => togglePaid(item.id)}
-                              className="w-4 h-4 accent-[var(--primary)] cursor-pointer"
-                            />
+                            {status === 'posted' ? (
+                              item.paid ? (
+                                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="mx-auto text-green-600">
+                                  <path d="M5 10l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                              ) : null
+                            ) : (
+                              <input
+                                type="checkbox"
+                                checked={item.paid}
+                                onChange={() => togglePaid(item.id)}
+                                className="w-4 h-4 accent-[var(--primary)] cursor-pointer"
+                              />
+                            )}
                           </td>
                         )}
                       </tr>
@@ -968,89 +1062,161 @@ export default function CheckDetailContent({ checkId }: CheckDetailContentProps)
 
           {activeTab === 'deductions' && (
             <div className="space-y-4">
-              {/* Adjustments Table */}
+              {/* Deductions Table */}
               <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
                 {adjustments.length > 0 ? (
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-[var(--border)]">
-                        <th className="px-4 py-3 text-left text-sm font-medium text-[var(--foreground)]">Description</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-[var(--foreground)] w-32">Type</th>
-                        <th className="px-4 py-3 text-right text-sm font-medium text-[var(--foreground)] w-40">Amount</th>
-                        <th className="px-4 py-3 text-center text-sm font-medium text-[var(--foreground)] w-16"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {adjustments.map(adj => (
-                        <tr key={adj.id} className="border-b border-[var(--border)] hover:bg-[var(--muted)]/30">
-                          <td className="px-4 py-3">
-                            <input
-                              type="text"
-                              value={adj.description}
-                              onChange={(e) => updateAdjustment(adj.id, 'description', e.target.value)}
-                              placeholder="Enter description..."
-                              className="w-full px-2 py-1 bg-transparent border border-[var(--border)] rounded text-sm focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
-                            />
-                          </td>
-                          <td className="px-4 py-3">
-                            <select
-                              value={adj.type}
-                              onChange={(e) => updateAdjustment(adj.id, 'type', e.target.value)}
-                              className="w-full px-2 py-1 bg-white border border-[var(--border)] rounded text-sm focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
-                            >
-                              <option value="debit">Debit (-)</option>
-                              <option value="credit">Credit (+)</option>
-                            </select>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="relative">
-                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm text-[var(--muted-foreground)]">$</span>
-                              <input
-                                type="number"
-                                value={adj.amount}
-                                onChange={(e) => updateAdjustment(adj.id, 'amount', Number(e.target.value))}
-                                className="w-full pl-6 pr-2 py-1 bg-transparent border border-[var(--border)] rounded text-sm text-right focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
-                              />
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <button
-                              onClick={() => deleteAdjustment(adj.id)}
-                              className="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors"
-                            >
-                              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M6 6h8M8 6V4h4v2M4 6h12v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6z" strokeLinecap="round" strokeLinejoin="round"/>
-                              </svg>
-                            </button>
-                          </td>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[1000px]">
+                      <thead>
+                        <tr className="border-b border-[var(--border)]">
+                          <th className="px-3 py-3 text-left text-sm font-medium text-[var(--foreground)] w-28">Factory</th>
+                          <th className="px-3 py-3 text-right text-sm font-medium text-[var(--foreground)] w-28">Amount</th>
+                          <th className="px-3 py-3 text-left text-sm font-medium text-[var(--foreground)]">Reason</th>
+                          <th className="px-3 py-3 text-left text-sm font-medium text-[var(--foreground)] w-24">Source</th>
+                          <th className="px-3 py-3 text-left text-sm font-medium text-[var(--foreground)] w-28">Created</th>
+                          <th className="px-3 py-3 text-left text-sm font-medium text-[var(--foreground)] w-36">Allocation</th>
+                          <th className="px-3 py-3 text-left text-sm font-medium text-[var(--foreground)] w-40">Target</th>
+                          <th className="px-3 py-3 text-center text-sm font-medium text-[var(--foreground)] w-12"></th>
                         </tr>
-                      ))}
-                    </tbody>
-                    {adjustments.length > 0 && (
+                      </thead>
+                      <tbody>
+                        {adjustments.map(adj => (
+                          <tr key={adj.id} className="border-b border-[var(--border)] hover:bg-[var(--muted)]/30">
+                            {/* Factory - Read Only */}
+                            <td className="px-3 py-3">
+                              <span className="text-sm text-[var(--muted-foreground)]">{adj.factory || check?.manufacturerName || '-'}</span>
+                            </td>
+                            {/* Amount - Always negative */}
+                            <td className="px-3 py-3">
+                              <div className="relative">
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm text-red-500">-$</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={Math.abs(adj.amount)}
+                                  onChange={(e) => updateAdjustment(adj.id, 'amount', Math.abs(Number(e.target.value)))}
+                                  className="w-full pl-7 pr-2 py-1 bg-transparent border border-[var(--border)] rounded text-sm text-right text-red-500 focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                                />
+                              </div>
+                            </td>
+                            {/* Reason/Type */}
+                            <td className="px-3 py-3">
+                              <input
+                                type="text"
+                                value={adj.reason}
+                                onChange={(e) => updateAdjustment(adj.id, 'reason', e.target.value)}
+                                placeholder="Enter reason..."
+                                className="w-full px-2 py-1 bg-transparent border border-[var(--border)] rounded text-sm focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                              />
+                            </td>
+                            {/* Source */}
+                            <td className="px-3 py-3">
+                              {adj.source === 'upload' && adj.uploadId ? (
+                                <a
+                                  href={`/uploads/${adj.uploadId}`}
+                                  className="text-sm text-[var(--primary)] hover:underline"
+                                >
+                                  {adj.uploadName || 'Upload'}
+                                </a>
+                              ) : (
+                                <span className="text-sm text-[var(--muted-foreground)]">Manual</span>
+                              )}
+                            </td>
+                            {/* Created Date - Read Only */}
+                            <td className="px-3 py-3">
+                              <span className="text-sm text-[var(--muted-foreground)]">
+                                {adj.createdAt.toLocaleDateString()}
+                              </span>
+                            </td>
+                            {/* Allocation Method */}
+                            <td className="px-3 py-3">
+                              <select
+                                value={adj.allocationMethod}
+                                onChange={(e) => {
+                                  updateAdjustment(adj.id, 'allocationMethod', e.target.value);
+                                  updateAdjustment(adj.id, 'allocationTarget', '');
+                                  if (e.target.value !== 'rep-split') {
+                                    updateAdjustment(adj.id, 'repSplits', []);
+                                  }
+                                }}
+                                className="w-full px-2 py-1 bg-white border border-[var(--border)] rounded text-sm focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                              >
+                                <option value="rep-split">Rep Split</option>
+                                <option value="customer">Customer</option>
+                                <option value="even-distribution">Even Distribution</option>
+                              </select>
+                            </td>
+                            {/* Allocation Target */}
+                            <td className="px-3 py-3">
+                              {adj.allocationMethod === 'rep-split' && (
+                                <button
+                                  onClick={() => openRepSplitsModal(adj.id)}
+                                  className="w-full px-2 py-1 bg-white border border-[var(--border)] rounded text-sm text-left hover:bg-[var(--muted)] transition-colors flex items-center justify-between"
+                                >
+                                  <span className={adj.repSplits.length > 0 ? 'text-[var(--foreground)]' : 'text-[var(--muted-foreground)]'}>
+                                    {adj.repSplits.length > 0
+                                      ? adj.repSplits.map(s => `${s.repName} (${s.percentage}%)`).join(', ')
+                                      : 'Configure splits...'}
+                                  </span>
+                                  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M7 8l3 3 3-3" strokeLinecap="round" strokeLinejoin="round"/>
+                                  </svg>
+                                </button>
+                              )}
+                              {adj.allocationMethod === 'customer' && (
+                                <select
+                                  value={adj.allocationTarget}
+                                  onChange={(e) => updateAdjustment(adj.id, 'allocationTarget', e.target.value)}
+                                  className="w-full px-2 py-1 bg-white border border-[var(--border)] rounded text-sm focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                                >
+                                  <option value="">Select customer...</option>
+                                  <option value="Acme Corp">Acme Corp</option>
+                                  <option value="TechFlow Inc">TechFlow Inc</option>
+                                  <option value="Global Systems">Global Systems</option>
+                                </select>
+                              )}
+                              {adj.allocationMethod === 'even-distribution' && (
+                                <span className="text-sm text-[var(--muted-foreground)]">Distributed evenly across check</span>
+                              )}
+                            </td>
+                            {/* Delete Button */}
+                            <td className="px-3 py-3 text-center">
+                              <button
+                                onClick={() => deleteAdjustment(adj.id)}
+                                className="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors"
+                              >
+                                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M6 6h8M8 6V4h4v2M4 6h12v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6z" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
                       <tfoot>
                         <tr className="bg-[var(--muted)]/30">
-                          <td className="px-4 py-3 text-sm font-medium text-[var(--foreground)]" colSpan={2}>Total Adjustments</td>
-                          <td className={`px-4 py-3 text-sm font-semibold text-right ${totalAdjustments < 0 ? 'text-red-500' : 'text-green-600'}`}>
-                            {totalAdjustments < 0 ? '-' : ''}${Math.abs(totalAdjustments).toFixed(2)}
+                          <td className="px-3 py-3 text-sm font-medium text-[var(--foreground)]">Total Deductions</td>
+                          <td className="px-3 py-3 text-sm font-semibold text-right text-red-500">
+                            -${Math.abs(totalAdjustments).toFixed(2)}
                           </td>
-                          <td></td>
+                          <td colSpan={6}></td>
                         </tr>
                       </tfoot>
-                    )}
-                  </table>
+                    </table>
+                  </div>
                 ) : (
                   <div className="text-center py-8">
-                    <p className="text-[var(--muted-foreground)] text-sm">No adjustments yet</p>
+                    <p className="text-[var(--muted-foreground)] text-sm">No deductions yet</p>
                   </div>
                 )}
 
-                {/* Add Adjustment Button */}
+                {/* Add Deduction Button */}
                 <div className="border-t border-[var(--border)]">
                   <button onClick={addAdjustment} className="w-full px-4 py-3 text-sm text-[var(--primary)] hover:bg-[var(--muted)] transition-colors flex items-center gap-2">
                     <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M10 6v8M6 10h8" strokeLinecap="round"/>
                     </svg>
-                    Add Adjustment
+                    Add Deduction
                   </button>
                 </div>
               </div>
@@ -1131,6 +1297,110 @@ export default function CheckDetailContent({ checkId }: CheckDetailContentProps)
           )}
         </div>
       </div>
+
+      {/* Rep Splits Modal */}
+      {showRepSplitsModal && (
+        <>
+          <div className="fixed inset-0 bg-black/50 z-40" onClick={() => setShowRepSplitsModal(false)} />
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] bg-[var(--card)] rounded-lg shadow-xl z-50">
+            <div className="p-4 border-b border-[var(--border)] flex items-start justify-between">
+              <div>
+                <h3 className="font-semibold text-lg">Outside Rep Commission Splits</h3>
+                <p className="text-sm text-[var(--muted-foreground)] mt-1">Divide commission among outside reps</p>
+              </div>
+              <button onClick={() => setShowRepSplitsModal(false)} className="p-1 hover:bg-[var(--muted)] rounded">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+            <div className="p-4">
+              {/* Total Percentage Indicator */}
+              <div className={`mb-4 px-4 py-3 rounded-lg flex items-center justify-between ${
+                totalSplitPercentage === 100
+                  ? 'bg-green-50 border border-green-200'
+                  : 'bg-red-50 border border-red-200'
+              }`}>
+                <span className={`font-medium ${totalSplitPercentage === 100 ? 'text-green-700' : 'text-red-700'}`}>
+                  Total: {totalSplitPercentage}%
+                </span>
+                {totalSplitPercentage === 100 && (
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-600">
+                    <path d="M5 10l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                )}
+              </div>
+
+              {/* Rep Split Rows */}
+              <div className="space-y-3">
+                {tempRepSplits.map((split, index) => (
+                  <div key={index} className="flex items-center gap-3">
+                    <select
+                      value={split.repName}
+                      onChange={(e) => updateRepSplit(index, 'repName', e.target.value)}
+                      className="flex-1 px-3 py-2 bg-white border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                    >
+                      <option value="">Select rep...</option>
+                      {availableReps.map(rep => (
+                        <option key={rep} value={rep}>{rep}</option>
+                      ))}
+                    </select>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={split.percentage}
+                        onChange={(e) => updateRepSplit(index, 'percentage', Number(e.target.value))}
+                        className="w-20 px-3 py-2 bg-white border border-[var(--border)] rounded-lg text-sm text-right focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                      />
+                      <span className="text-sm text-[var(--muted-foreground)]">%</span>
+                    </div>
+                    {tempRepSplits.length > 1 && (
+                      <button
+                        onClick={() => removeRepFromSplit(index)}
+                        className="p-2 text-red-500 hover:bg-red-50 rounded transition-colors"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M6 6h8M8 6V4h4v2M4 6h12v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6z" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Add Rep Button */}
+              <button
+                onClick={addRepToSplit}
+                className="mt-4 w-full px-4 py-3 border-2 border-dashed border-[var(--border)] rounded-lg text-sm text-[var(--muted-foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)] transition-colors flex items-center justify-center gap-2"
+              >
+                <span className="text-lg">+</span>
+                Add Rep
+              </button>
+            </div>
+            <div className="p-4 border-t border-[var(--border)] flex justify-end gap-3">
+              <button
+                onClick={() => setShowRepSplitsModal(false)}
+                className="px-4 py-2 border border-[var(--border)] rounded-lg text-sm hover:bg-[var(--muted)] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveRepSplits}
+                disabled={totalSplitPercentage !== 100}
+                className={`px-4 py-2 rounded-lg text-sm text-white transition-colors ${
+                  totalSplitPercentage === 100
+                    ? 'bg-[var(--primary)] hover:bg-[var(--primary)]/90'
+                    : 'bg-gray-300 cursor-not-allowed'
+                }`}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Columns Modal */}
       {showColumnsModal && (

@@ -203,8 +203,9 @@ export interface Order {
 export interface OrderLineItem {
   id: string;
   lineNumber: number;
-  productId: string;
-  partNumber: string;
+  productId?: string;  // Optional for order-level credits
+  partNumber?: string; // Optional for order-level credits
+  custPartNumber?: string;
   description: string;
   quantity: number;
   unitPrice: number;
@@ -218,6 +219,10 @@ export interface OrderLineItem {
   isCancelled: boolean;
   // Consignment tracking
   isConsignment: boolean;
+  // Credit line fields
+  isCredit?: boolean;
+  creditType?: 'return' | 'short_ship' | 'cancel' | 'damage';
+  linkedLineItemId?: string | null;  // null = order-level credit
   // Optional overrides
   splitRateOverride?: OrderSplitRate[];
   notes?: string;

@@ -10,11 +10,36 @@ export default function TopBar() {
   const loginUrl = process.env.NEXT_PUBLIC_LOGIN_URL || 'https://app2.flowrms.com';
   const { setIsOpen, isMobile } = React.useContext(MobileSidebarContext);
   const [isUploaderOpen, setIsUploaderOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   return (
-    <div className="bg-[var(--card)] border-b border-[var(--border)] px-3 sm:px-6 py-3 flex items-center justify-between">
-      {/* Left: Mobile hamburger & logo */}
+    <div className="relative">
+      {/* Main TopBar Content */}
+      <div
+        className={`bg-[var(--card)] border-b border-[var(--border)] px-3 sm:px-6 py-3 flex items-center justify-between transition-all duration-300 ease-in-out ${
+          isCollapsed ? 'h-0 py-0 overflow-hidden opacity-0' : 'h-auto opacity-100'
+        }`}
+      >
+      {/* Left: Collapse button, Mobile hamburger & logo */}
       <div className="flex items-center gap-3">
+        {/* Collapse Toggle Button */}
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="p-1 hover:bg-[var(--muted)] rounded transition-colors"
+          aria-label={isCollapsed ? 'Expand top bar' : 'Collapse top bar'}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            className={`transition-transform duration-300 ${isCollapsed ? 'rotate-180' : ''}`}
+          >
+            <path d="M18 15l-6-6-6 6" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
         {isMobile && (
           <>
             <button
@@ -84,6 +109,28 @@ export default function TopBar() {
           </svg>
         </button>
       </div>
+      </div>
+
+      {/* Expand button (visible when collapsed) */}
+      {isCollapsed && (
+        <button
+          onClick={() => setIsCollapsed(false)}
+          className="absolute left-3 top-1 p-1 hover:bg-[var(--muted)] rounded transition-colors z-10"
+          aria-label="Expand top bar"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            className="rotate-180"
+          >
+            <path d="M18 15l-6-6-6 6" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
+      )}
 
       {/* AI Uploader Modal */}
       <AIUploaderModal

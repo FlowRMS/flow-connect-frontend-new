@@ -117,7 +117,7 @@ export default function CreateInvoiceModal({ onClose, onSave, preselectedOrderId
         id: `ILI-NEW-${idx + 1}`,
         orderLineItemId: item.id,
         lineNumber: idx + 1,
-        partNumber: item.partNumber,
+        partNumber: item.partNumber || '',
         description: item.description,
         quantity: quantities[item.id] || 0,
         unitPrice: item.unitPrice,
