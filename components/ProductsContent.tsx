@@ -1,7 +1,174 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+
+// Sort direction type
+type SortDirection = 'asc' | 'desc' | null;
+
+// Column sort state
+interface SortState {
+  column: string;
+  direction: SortDirection;
+}
+
+// Column filter state
+interface ColumnFilter {
+  column: string;
+  value: string;
+  type: 'text' | 'dropdown';
+}
+
+// Sortable/Filterable column header component
+interface ColumnHeaderProps {
+  label: string;
+  columnKey: string;
+  sortState: SortState | null;
+  onSort: (column: string) => void;
+  filterType: 'text' | 'dropdown';
+  filterValue: string;
+  onFilterChange: (column: string, value: string) => void;
+  filterOptions?: string[];
+  colSpan: number;
+  textAlign?: 'left' | 'center';
+}
+
+function ColumnHeader({
+  label,
+  columnKey,
+  sortState,
+  onSort,
+  filterType,
+  filterValue,
+  onFilterChange,
+  filterOptions = [],
+  colSpan,
+  textAlign = 'left',
+}: ColumnHeaderProps) {
+  const [showFilter, setShowFilter] = useState(false);
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const filterRef = useRef<HTMLDivElement>(null);
+
+  // Close filter dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
+        setShowFilter(false);
+        setDropdownSearch('');
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const isSorted = sortState?.column === columnKey;
+  const sortDirection = isSorted ? sortState.direction : null;
+
+  const filteredOptions = filterOptions.filter(opt =>
+    opt.toLowerCase().includes(dropdownSearch.toLowerCase())
+  );
+
+  return (
+    <div className={`col-span-${colSpan} relative`} ref={filterRef}>
+      <div className={`flex items-center gap-1 ${textAlign === 'center' ? 'justify-center' : ''}`}>
+        <button
+          onClick={() => onSort(columnKey)}
+          className="flex items-center gap-1 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider hover:text-[var(--foreground)] transition-colors"
+        >
+          {label}
+          <span className="flex flex-col">
+            <svg
+              width="8"
+              height="8"
+              viewBox="0 0 8 8"
+              className={`${sortDirection === 'asc' ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)]/40'}`}
+            >
+              <path d="M4 0L8 4H0L4 0Z" fill="currentColor" />
+            </svg>
+            <svg
+              width="8"
+              height="8"
+              viewBox="0 0 8 8"
+              className={`-mt-0.5 ${sortDirection === 'desc' ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)]/40'}`}
+            >
+              <path d="M4 8L0 4H8L4 8Z" fill="currentColor" />
+            </svg>
+          </span>
+        </button>
+        <button
+          onClick={() => setShowFilter(!showFilter)}
+          className={`p-0.5 rounded hover:bg-[var(--muted)] transition-colors ${filterValue ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)]/60'}`}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Filter Dropdown */}
+      {showFilter && (
+        <div className="absolute top-full left-0 mt-1 z-50 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg min-w-[180px]">
+          {filterType === 'text' ? (
+            <div className="p-2">
+              <input
+                type="text"
+                placeholder={`Filter ${label.toLowerCase()}...`}
+                value={filterValue}
+                onChange={(e) => onFilterChange(columnKey, e.target.value)}
+                className="w-full px-2 py-1.5 text-sm border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                autoFocus
+              />
+              {filterValue && (
+                <button
+                  onClick={() => onFilterChange(columnKey, '')}
+                  className="mt-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                >
+                  Clear filter
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="p-2">
+              <input
+                type="text"
+                placeholder="Search..."
+                value={dropdownSearch}
+                onChange={(e) => setDropdownSearch(e.target.value)}
+                className="w-full px-2 py-1.5 text-sm border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] mb-2"
+                autoFocus
+              />
+              <div className="max-h-[200px] overflow-y-auto">
+                <button
+                  onClick={() => {
+                    onFilterChange(columnKey, '');
+                    setShowFilter(false);
+                    setDropdownSearch('');
+                  }}
+                  className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-[var(--muted)] ${!filterValue ? 'bg-[var(--muted)] font-medium' : ''}`}
+                >
+                  All
+                </button>
+                {filteredOptions.map((option) => (
+                  <button
+                    key={option}
+                    onClick={() => {
+                      onFilterChange(columnKey, option);
+                      setShowFilter(false);
+                      setDropdownSearch('');
+                    }}
+                    className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-[var(--muted)] ${filterValue === option ? 'bg-[var(--muted)] font-medium' : ''}`}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Mock product data based on the image structure
 interface Product {
@@ -225,12 +392,55 @@ export default function ProductsContent() {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedManufacturer, setSelectedManufacturer] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Column sorting state
+  const [sortState, setSortState] = useState<SortState | null>(null);
+
+  // Column filter state
+  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({
+    partNumber: '',
+    description: '',
+    manufacturer: '',
+    category: '',
+    productType: '',
+    isDocumentSpecific: '',
+  });
+
+  // Get unique values for dropdown filters
+  const filterOptions = useMemo(() => {
+    return {
+      manufacturer: [...new Set(products.map(p => p.manufacturer))].sort(),
+      category: [...new Set(products.map(p => p.category))].sort(),
+      productType: ['Base', 'Configured'],
+      isDocumentSpecific: ['Yes', 'No'],
+    };
+  }, [products]);
+
   const stats = useMemo(() => {
     return {
       totalProducts: products.length,
+      activeProducts: products.filter(p => p.productType === 'base').length,
       configurableProducts: products.filter(p => p.hasConfigurator).length,
     };
   }, [products]);
+
+  // Handle sort toggle
+  const handleSort = (column: string) => {
+    setSortState((prev) => {
+      if (prev?.column !== column) {
+        return { column, direction: 'asc' };
+      }
+      if (prev.direction === 'asc') {
+        return { column, direction: 'desc' };
+      }
+      return null; // Reset to no sort
+    });
+  };
+
+  // Handle filter change
+  const handleFilterChange = (column: string, value: string) => {
+    setColumnFilters((prev) => ({ ...prev, [column]: value }));
+  };
 
   const filteredProducts = useMemo(() => {
     let result = products;
@@ -252,8 +462,79 @@ export default function ProductsContent() {
       );
     }
 
+    // Apply column filters
+    if (columnFilters.partNumber) {
+      const query = columnFilters.partNumber.toLowerCase();
+      result = result.filter(p => p.partNumber.toLowerCase().includes(query));
+    }
+    if (columnFilters.description) {
+      const query = columnFilters.description.toLowerCase();
+      result = result.filter(p => p.description.toLowerCase().includes(query));
+    }
+    if (columnFilters.manufacturer) {
+      result = result.filter(p => p.manufacturer === columnFilters.manufacturer);
+    }
+    if (columnFilters.category) {
+      result = result.filter(p => p.category === columnFilters.category);
+    }
+    if (columnFilters.productType) {
+      const isConfigured = columnFilters.productType === 'Configured';
+      result = result.filter(p => (p.productType === 'configured') === isConfigured);
+    }
+    if (columnFilters.isDocumentSpecific) {
+      const isDocSpecific = columnFilters.isDocumentSpecific === 'Yes';
+      result = result.filter(p => (p.isDocumentSpecific ?? false) === isDocSpecific);
+    }
+
+    // Apply sorting
+    if (sortState) {
+      result = [...result].sort((a, b) => {
+        let aVal: string | boolean | undefined;
+        let bVal: string | boolean | undefined;
+
+        switch (sortState.column) {
+          case 'partNumber':
+            aVal = a.partNumber;
+            bVal = b.partNumber;
+            break;
+          case 'description':
+            aVal = a.description;
+            bVal = b.description;
+            break;
+          case 'manufacturer':
+            aVal = a.manufacturer;
+            bVal = b.manufacturer;
+            break;
+          case 'category':
+            aVal = a.category;
+            bVal = b.category;
+            break;
+          case 'productType':
+            aVal = a.productType;
+            bVal = b.productType;
+            break;
+          case 'isDocumentSpecific':
+            aVal = a.isDocumentSpecific ?? false;
+            bVal = b.isDocumentSpecific ?? false;
+            break;
+          default:
+            return 0;
+        }
+
+        if (typeof aVal === 'boolean' && typeof bVal === 'boolean') {
+          const cmp = aVal === bVal ? 0 : aVal ? -1 : 1;
+          return sortState.direction === 'asc' ? cmp : -cmp;
+        }
+
+        const aStr = String(aVal ?? '').toLowerCase();
+        const bStr = String(bVal ?? '').toLowerCase();
+        const cmp = aStr.localeCompare(bStr);
+        return sortState.direction === 'asc' ? cmp : -cmp;
+      });
+    }
+
     return result;
-  }, [products, selectedCategory, selectedManufacturer, searchQuery]);
+  }, [products, selectedCategory, selectedManufacturer, searchQuery, columnFilters, sortState]);
 
   const handleProductClick = (product: Product) => {
     // Navigate directly to the product edit page
@@ -364,24 +645,71 @@ export default function ProductsContent() {
           <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
             {/* Table Header */}
             <div className="grid grid-cols-12 gap-4 px-6 py-3 border-b border-[var(--border)] bg-[var(--muted)]/30">
-              <div className="col-span-3 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-                Part Number
-              </div>
-              <div className="col-span-3 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-                Description
-              </div>
-              <div className="col-span-2 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-                Factory
-              </div>
-              <div className="col-span-2 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-                Category
-              </div>
-              <div className="col-span-1 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-                Type
-              </div>
-              <div className="col-span-1 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider text-center">
-                Doc Specific
-              </div>
+              <ColumnHeader
+                label="Part Number"
+                columnKey="partNumber"
+                sortState={sortState}
+                onSort={handleSort}
+                filterType="text"
+                filterValue={columnFilters.partNumber}
+                onFilterChange={handleFilterChange}
+                colSpan={3}
+              />
+              <ColumnHeader
+                label="Description"
+                columnKey="description"
+                sortState={sortState}
+                onSort={handleSort}
+                filterType="text"
+                filterValue={columnFilters.description}
+                onFilterChange={handleFilterChange}
+                colSpan={3}
+              />
+              <ColumnHeader
+                label="Factory"
+                columnKey="manufacturer"
+                sortState={sortState}
+                onSort={handleSort}
+                filterType="dropdown"
+                filterValue={columnFilters.manufacturer}
+                onFilterChange={handleFilterChange}
+                filterOptions={filterOptions.manufacturer}
+                colSpan={2}
+              />
+              <ColumnHeader
+                label="Category"
+                columnKey="category"
+                sortState={sortState}
+                onSort={handleSort}
+                filterType="dropdown"
+                filterValue={columnFilters.category}
+                onFilterChange={handleFilterChange}
+                filterOptions={filterOptions.category}
+                colSpan={2}
+              />
+              <ColumnHeader
+                label="Type"
+                columnKey="productType"
+                sortState={sortState}
+                onSort={handleSort}
+                filterType="dropdown"
+                filterValue={columnFilters.productType}
+                onFilterChange={handleFilterChange}
+                filterOptions={filterOptions.productType}
+                colSpan={1}
+              />
+              <ColumnHeader
+                label="Doc Specific"
+                columnKey="isDocumentSpecific"
+                sortState={sortState}
+                onSort={handleSort}
+                filterType="dropdown"
+                filterValue={columnFilters.isDocumentSpecific}
+                onFilterChange={handleFilterChange}
+                filterOptions={filterOptions.isDocumentSpecific}
+                colSpan={1}
+                textAlign="center"
+              />
             </div>
 
             {/* Table Body */}

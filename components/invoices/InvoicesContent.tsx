@@ -8,7 +8,6 @@ import {
   mockManufacturers,
   mockCustomers,
   mockSalesReps,
-  getInvoiceSummaryStats,
 } from '../../lib/data/rms-mock';
 import type { OrderSplitRate } from '../../lib/types/rms';
 import {
@@ -21,7 +20,6 @@ import RecordPaymentModal from './RecordPaymentModal';
 
 type SortField = 'invoiceNumber' | 'customerName' | 'manufacturerName' | 'invoiceDate' | 'dueDate' | 'total' | 'balance' | 'status';
 type SortDirection = 'asc' | 'desc';
-type StatFilter = 'all' | 'open' | 'paid' | 'overdue';
 
 interface DateRange {
   start: string;
@@ -42,14 +40,11 @@ interface ColumnFilters {
 export default function InvoicesContent() {
   const router = useRouter();
   const [invoices, setInvoices] = useState<Invoice[]>(mockInvoices);
-  const [selectedStatus, setSelectedStatus] = useState<string>('All');
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [sortField, setSortField] = useState<SortField>('invoiceDate');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-  const [statFilter, setStatFilter] = useState<StatFilter>('all');
   const [columnFilters, setColumnFilters] = useState<ColumnFilters>({
     invoiceNumber: '',
     customerName: [],
@@ -63,8 +58,6 @@ export default function InvoicesContent() {
   const [openFilter, setOpenFilter] = useState<string | null>(null);
   const [editingSplits, setEditingSplits] = useState(false);
   const [editedSplits, setEditedSplits] = useState<OrderSplitRate[]>([]);
-
-  const stats = useMemo(() => getInvoiceSummaryStats(), []);
 
   // Get unique values for filter dropdowns
   const uniqueCustomers = useMemo(() =>
@@ -178,30 +171,8 @@ export default function InvoicesContent() {
 
   const splitPercentageTotal = editedSplits.reduce((sum, s) => sum + s.splitPercentage, 0);
 
-  const statusTabs = [
-    { label: 'All', value: 'All', count: invoices.length },
-    { label: 'Open', value: 'open', count: invoices.filter(i => i.status === 'open').length },
-    { label: 'Paid', value: 'paid', count: invoices.filter(i => i.status === 'paid').length },
-    { label: 'Partial', value: 'partial_paid', count: invoices.filter(i => i.status === 'partial_paid').length },
-    { label: 'Void', value: 'void', count: invoices.filter(i => i.status === 'void').length },
-  ];
-
   const filteredInvoices = useMemo(() => {
     let result = invoices;
-
-    // Apply stat card filter
-    if (statFilter === 'open') {
-      result = result.filter(i => i.status === 'open' || i.status === 'partial_paid');
-    } else if (statFilter === 'paid') {
-      result = result.filter(i => i.status === 'paid');
-    } else if (statFilter === 'overdue') {
-      result = result.filter(i => isOverdue(i));
-    }
-
-    // Apply status tab filter (only if no stat filter is active)
-    if (statFilter === 'all' && selectedStatus !== 'All') {
-      result = result.filter(i => i.status === selectedStatus);
-    }
 
     // Apply column filters
     if (columnFilters.invoiceNumber) {
@@ -241,16 +212,6 @@ export default function InvoicesContent() {
       result = result.filter(i => columnFilters.balance.includes(i.balance.toString()));
     }
 
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(i =>
-        i.invoiceNumber.toLowerCase().includes(query) ||
-        i.orderNumber.toLowerCase().includes(query) ||
-        i.customerName.toLowerCase().includes(query) ||
-        i.manufacturerName.toLowerCase().includes(query)
-      );
-    }
-
     // Apply sorting
     result = [...result].sort((a, b) => {
       let comparison = 0;
@@ -284,7 +245,7 @@ export default function InvoicesContent() {
     });
 
     return result;
-  }, [invoices, selectedStatus, searchQuery, sortField, sortDirection, statFilter, columnFilters]);
+  }, [invoices, sortField, sortDirection, columnFilters]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -292,16 +253,6 @@ export default function InvoicesContent() {
     } else {
       setSortField(field);
       setSortDirection('asc');
-    }
-  };
-
-  const handleStatCardClick = (filter: StatFilter) => {
-    if (statFilter === filter) {
-      setStatFilter('all');
-      setSelectedStatus('All');
-    } else {
-      setStatFilter(filter);
-      setSelectedStatus('All');
     }
   };
 
@@ -629,111 +580,6 @@ export default function InvoicesContent() {
             </div>
           </div>
 
-          {/* Stats Cards */}
-          <div className="grid grid-cols-4 gap-4 mb-6">
-            <button
-              onClick={() => handleStatCardClick('all')}
-              className={`bg-[var(--card)] rounded-lg border p-4 text-left transition-all hover:shadow-md ${
-                statFilter === 'all' ? 'border-[var(--primary)] ring-2 ring-[var(--primary)]/20' : 'border-[var(--border)]'
-              }`}
-            >
-              <div className="text-sm text-[var(--muted-foreground)]">Total Invoices</div>
-              <div className="text-2xl font-semibold text-[var(--foreground)] mt-1">{stats.totalInvoices}</div>
-              <div className="text-xs text-[var(--muted-foreground)] mt-1">
-                {formatCurrency(stats.totalValue)} total value
-              </div>
-            </button>
-            <button
-              onClick={() => handleStatCardClick('open')}
-              className={`bg-[var(--card)] rounded-lg border p-4 text-left transition-all hover:shadow-md ${
-                statFilter === 'open' ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-[var(--border)]'
-              }`}
-            >
-              <div className="text-sm text-[var(--muted-foreground)]">Open Invoices</div>
-              <div className="text-2xl font-semibold text-blue-600 mt-1">{stats.openInvoices}</div>
-              <div className="text-xs text-[var(--muted-foreground)] mt-1">
-                {formatCurrency(stats.totalOutstanding)} outstanding
-              </div>
-            </button>
-            <button
-              onClick={() => handleStatCardClick('paid')}
-              className={`bg-[var(--card)] rounded-lg border p-4 text-left transition-all hover:shadow-md ${
-                statFilter === 'paid' ? 'border-green-500 ring-2 ring-green-500/20' : 'border-[var(--border)]'
-              }`}
-            >
-              <div className="text-sm text-[var(--muted-foreground)]">Paid Invoices</div>
-              <div className="text-2xl font-semibold text-green-600 mt-1">{stats.paidInvoices}</div>
-              <div className="text-xs text-[var(--muted-foreground)] mt-1">
-                Commission available
-              </div>
-            </button>
-            <button
-              onClick={() => handleStatCardClick('overdue')}
-              className={`bg-[var(--card)] rounded-lg border p-4 text-left transition-all hover:shadow-md ${
-                statFilter === 'overdue' ? 'border-red-500 ring-2 ring-red-500/20' : 'border-[var(--border)]'
-              }`}
-            >
-              <div className="text-sm text-[var(--muted-foreground)]">Overdue</div>
-              <div className="text-2xl font-semibold text-red-600 mt-1">{stats.overdueCount}</div>
-              <div className="text-xs text-red-600 mt-1">
-                {formatCurrency(stats.overdueValue)} overdue
-              </div>
-            </button>
-          </div>
-
-          {/* Search */}
-          <div className="flex items-center gap-4 mb-4">
-            <div className="relative flex-1 max-w-md">
-              <svg
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <circle cx="11" cy="11" r="8"/>
-                <path d="M21 21l-4.35-4.35"/>
-              </svg>
-              <input
-                type="text"
-                placeholder="Search invoices..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-              />
-            </div>
-            {hasActiveFilters && (
-              <button
-                onClick={clearAllFilters}
-                className="text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-              >
-                Clear filters
-              </button>
-            )}
-          </div>
-
-          {/* Status Tabs */}
-          <div className="flex gap-2 border-b border-[var(--border)]">
-            {statusTabs.map((tab) => (
-              <button
-                key={tab.value}
-                onClick={() => setSelectedStatus(tab.value)}
-                className={`px-4 py-2 text-sm font-medium transition-colors relative ${
-                  selectedStatus === tab.value
-                    ? 'text-[var(--primary)]'
-                    : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
-                }`}
-              >
-                {tab.label}
-                <span className="ml-2 text-xs opacity-70">({tab.count})</span>
-                {selectedStatus === tab.value && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--primary)]" />
-                )}
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Invoices Table */}

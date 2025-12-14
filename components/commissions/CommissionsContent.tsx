@@ -13,12 +13,42 @@ import {
   checkStatusColors,
 } from '../../lib/types/rms';
 
+type SortField = 'checkNumber' | 'status' | 'netAmount' | 'commissionMonth' | 'manufacturerName' | 'postDate' | 'checkDate' | 'entryDate' | 'checkBalance';
+type SortDirection = 'asc' | 'desc';
+
+interface DateRange {
+  start: string;
+  end: string;
+}
+
+interface ColumnFilters {
+  checkNumber: string;
+  status: string[];
+  manufacturerName: string[];
+  commissionMonth: DateRange;
+  postDate: DateRange;
+  checkDate: DateRange;
+  entryDate: DateRange;
+}
+
 export default function CommissionsContent() {
   const router = useRouter();
   const [checks] = useState<CommissionCheck[]>(mockChecks);
   const [selectedStatus, setSelectedStatus] = useState<string>('All');
   const [selectedCheck, setSelectedCheck] = useState<CommissionCheck | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortField, setSortField] = useState<SortField>('entryDate');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [columnFilters, setColumnFilters] = useState<ColumnFilters>({
+    checkNumber: '',
+    status: [],
+    manufacturerName: [],
+    commissionMonth: { start: '', end: '' },
+    postDate: { start: '', end: '' },
+    checkDate: { start: '', end: '' },
+    entryDate: { start: '', end: '' },
+  });
+  const [openFilter, setOpenFilter] = useState<string | null>(null);
 
   const statusTabs = [
     { label: 'All', value: 'All', count: checks.length },
@@ -27,11 +57,86 @@ export default function CommissionsContent() {
     { label: 'Void', value: 'void', count: checks.filter(c => c.status === 'void').length },
   ];
 
+  // Get unique values for filter dropdowns
+  const uniqueStatuses = useMemo(() =>
+    [...new Set(checks.map(c => c.status))].sort(), [checks]);
+  const uniqueManufacturers = useMemo(() =>
+    [...new Set(checks.filter(c => c.manufacturerName).map(c => c.manufacturerName!))].sort(), [checks]);
+
+  const hasActiveFilters = useMemo(() => {
+    return columnFilters.checkNumber !== '' ||
+      columnFilters.status.length > 0 ||
+      columnFilters.manufacturerName.length > 0 ||
+      columnFilters.commissionMonth.start !== '' || columnFilters.commissionMonth.end !== '' ||
+      columnFilters.postDate.start !== '' || columnFilters.postDate.end !== '' ||
+      columnFilters.checkDate.start !== '' || columnFilters.checkDate.end !== '' ||
+      columnFilters.entryDate.start !== '' || columnFilters.entryDate.end !== '';
+  }, [columnFilters]);
+
+  const clearAllFilters = () => {
+    setColumnFilters({
+      checkNumber: '',
+      status: [],
+      manufacturerName: [],
+      commissionMonth: { start: '', end: '' },
+      postDate: { start: '', end: '' },
+      checkDate: { start: '', end: '' },
+      entryDate: { start: '', end: '' },
+    });
+  };
+
   const filteredChecks = useMemo(() => {
     let result = checks;
 
     if (selectedStatus !== 'All') {
       result = result.filter(c => c.status === selectedStatus);
+    }
+
+    // Apply column filters
+    if (columnFilters.checkNumber) {
+      result = result.filter(c =>
+        c.checkNumber.toLowerCase().includes(columnFilters.checkNumber.toLowerCase())
+      );
+    }
+    if (columnFilters.status.length > 0) {
+      result = result.filter(c => columnFilters.status.includes(c.status));
+    }
+    if (columnFilters.manufacturerName.length > 0) {
+      result = result.filter(c => c.manufacturerName && columnFilters.manufacturerName.includes(c.manufacturerName));
+    }
+    if (columnFilters.commissionMonth.start || columnFilters.commissionMonth.end) {
+      result = result.filter(c => {
+        const month = c.commissionMonth; // Format: "2025-01"
+        if (columnFilters.commissionMonth.start && month < columnFilters.commissionMonth.start.substring(0, 7)) return false;
+        if (columnFilters.commissionMonth.end && month > columnFilters.commissionMonth.end.substring(0, 7)) return false;
+        return true;
+      });
+    }
+    if (columnFilters.postDate.start || columnFilters.postDate.end) {
+      result = result.filter(c => {
+        if (!c.postDate) return false;
+        const date = new Date(c.postDate);
+        if (columnFilters.postDate.start && date < new Date(columnFilters.postDate.start)) return false;
+        if (columnFilters.postDate.end && date > new Date(columnFilters.postDate.end)) return false;
+        return true;
+      });
+    }
+    if (columnFilters.checkDate.start || columnFilters.checkDate.end) {
+      result = result.filter(c => {
+        if (!c.checkDate) return false;
+        const date = new Date(c.checkDate);
+        if (columnFilters.checkDate.start && date < new Date(columnFilters.checkDate.start)) return false;
+        if (columnFilters.checkDate.end && date > new Date(columnFilters.checkDate.end)) return false;
+        return true;
+      });
+    }
+    if (columnFilters.entryDate.start || columnFilters.entryDate.end) {
+      result = result.filter(c => {
+        const date = new Date(c.entryDate);
+        if (columnFilters.entryDate.start && date < new Date(columnFilters.entryDate.start)) return false;
+        if (columnFilters.entryDate.end && date > new Date(columnFilters.entryDate.end)) return false;
+        return true;
+      });
     }
 
     if (searchQuery) {
@@ -44,24 +149,43 @@ export default function CommissionsContent() {
       );
     }
 
+    // Apply sorting
+    result = [...result].sort((a, b) => {
+      let comparison = 0;
+      switch (sortField) {
+        case 'checkNumber':
+          comparison = a.checkNumber.localeCompare(b.checkNumber);
+          break;
+        case 'status':
+          comparison = a.status.localeCompare(b.status);
+          break;
+        case 'netAmount':
+          comparison = a.netAmount - b.netAmount;
+          break;
+        case 'commissionMonth':
+          comparison = a.commissionMonth.localeCompare(b.commissionMonth);
+          break;
+        case 'manufacturerName':
+          comparison = (a.manufacturerName || '').localeCompare(b.manufacturerName || '');
+          break;
+        case 'postDate':
+          comparison = (a.postDate || '').localeCompare(b.postDate || '');
+          break;
+        case 'checkDate':
+          comparison = (a.checkDate || '').localeCompare(b.checkDate || '');
+          break;
+        case 'entryDate':
+          comparison = a.entryDate.localeCompare(b.entryDate);
+          break;
+        case 'checkBalance':
+          comparison = a.checkBalance - b.checkBalance;
+          break;
+      }
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+
     return result;
-  }, [checks, selectedStatus, searchQuery]);
-
-  const totalAmount = useMemo(() => {
-    return checks.filter(c => c.status === 'posted').reduce((sum, c) => sum + c.netAmount, 0);
-  }, [checks]);
-
-  const totalCommission = useMemo(() => {
-    return checks.reduce((sum, c) => sum + c.netAmount, 0);
-  }, [checks]);
-
-  const totalBalance = useMemo(() => {
-    return checks.reduce((sum, c) => sum + c.checkBalance, 0);
-  }, [checks]);
-
-  const draftAmount = useMemo(() => {
-    return checks.filter(c => c.status === 'draft').reduce((sum, c) => sum + c.netAmount, 0);
-  }, [checks]);
+  }, [checks, selectedStatus, searchQuery, sortField, sortDirection, columnFilters]);
 
   const filterOptions = [
     { id: 'check-number', label: 'Check Number', type: 'text' as const },
@@ -90,6 +214,279 @@ export default function CommissionsContent() {
     const month = date.toLocaleDateString('en-US', { month: 'short' });
     const year = date.getFullYear();
     return `${month} - ${year}`;
+  };
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const SortIcon = ({ field }: { field: SortField }) => (
+    <span className="ml-1 inline-flex flex-col">
+      <svg
+        className={`w-2 h-2 ${sortField === field && sortDirection === 'asc' ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)]/50'}`}
+        viewBox="0 0 8 4"
+        fill="currentColor"
+      >
+        <path d="M4 0L8 4H0L4 0Z" />
+      </svg>
+      <svg
+        className={`w-2 h-2 -mt-0.5 ${sortField === field && sortDirection === 'desc' ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)]/50'}`}
+        viewBox="0 0 8 4"
+        fill="currentColor"
+      >
+        <path d="M4 4L0 0H8L4 4Z" />
+      </svg>
+    </span>
+  );
+
+  const MultiSelectFilterDropdown = ({
+    filterId,
+    options,
+    value,
+    onChange,
+    placeholder = 'All'
+  }: {
+    filterId: string;
+    options: { value: string; label: string }[];
+    value: string[];
+    onChange: (value: string[]) => void;
+    placeholder?: string;
+  }) => {
+    const isOpen = openFilter === filterId;
+    const hasValue = value.length > 0;
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const filteredOptions = options.filter(opt =>
+      opt.label.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    const toggleOption = (optValue: string) => {
+      if (value.includes(optValue)) {
+        onChange(value.filter(v => v !== optValue));
+      } else {
+        onChange([...value, optValue]);
+      }
+    };
+
+    return (
+      <div className="relative">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpenFilter(isOpen ? null : filterId);
+            setSearchTerm('');
+          }}
+          className={`ml-1.5 p-1 rounded hover:bg-[var(--muted)] transition-colors ${hasValue ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)]/50'}`}
+          title="Filter"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+          </svg>
+          {hasValue && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 bg-[var(--primary)] text-white text-[10px] rounded-full flex items-center justify-center">
+              {value.length}
+            </span>
+          )}
+        </button>
+        {isOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-10"
+              onClick={() => setOpenFilter(null)}
+            />
+            <div className="absolute top-full left-0 mt-1 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20 min-w-[200px] max-h-[300px] flex flex-col">
+              <div className="p-2 border-b border-[var(--border)]">
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search..."
+                  className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]/50"
+                  autoFocus
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+              <div className="overflow-y-auto flex-1 py-1">
+                {filteredOptions.length === 0 ? (
+                  <div className="px-3 py-2 text-xs text-[var(--muted-foreground)]">No results</div>
+                ) : (
+                  filteredOptions.map(opt => (
+                    <label
+                      key={opt.value}
+                      className="flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-[var(--muted)] transition-colors cursor-pointer"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={value.includes(opt.value)}
+                        onChange={() => toggleOption(opt.value)}
+                        className="rounded border-[var(--border)] text-[var(--primary)] focus:ring-[var(--primary)]/50"
+                      />
+                      <span className={value.includes(opt.value) ? 'text-[var(--primary)] font-medium' : 'text-[var(--foreground)]'}>
+                        {opt.label}
+                      </span>
+                    </label>
+                  ))
+                )}
+              </div>
+              {hasValue && (
+                <div className="p-2 border-t border-[var(--border)]">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onChange([]);
+                    }}
+                    className="w-full px-2 py-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)] rounded transition-colors"
+                  >
+                    Clear all
+                  </button>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  const DateRangeFilterDropdown = ({
+    filterId,
+    value,
+    onChange,
+  }: {
+    filterId: string;
+    value: DateRange;
+    onChange: (value: DateRange) => void;
+  }) => {
+    const isOpen = openFilter === filterId;
+    const hasValue = value.start !== '' || value.end !== '';
+
+    return (
+      <div className="relative">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpenFilter(isOpen ? null : filterId);
+          }}
+          className={`ml-1.5 p-1 rounded hover:bg-[var(--muted)] transition-colors ${hasValue ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)]/50'}`}
+          title="Filter by date range"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+          </svg>
+        </button>
+        {isOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-10"
+              onClick={() => setOpenFilter(null)}
+            />
+            <div className="absolute top-full left-0 mt-1 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20 p-3 min-w-[200px]">
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">From</label>
+                  <input
+                    type="date"
+                    value={value.start}
+                    onChange={(e) => onChange({ ...value, start: e.target.value })}
+                    className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]/50"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">To</label>
+                  <input
+                    type="date"
+                    value={value.end}
+                    onChange={(e) => onChange({ ...value, end: e.target.value })}
+                    className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]/50"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+                {hasValue && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onChange({ start: '', end: '' });
+                    }}
+                    className="w-full px-2 py-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)] rounded transition-colors"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  const TextFilterDropdown = ({
+    filterId,
+    value,
+    onChange,
+    placeholder = 'Filter...'
+  }: {
+    filterId: string;
+    value: string;
+    onChange: (value: string) => void;
+    placeholder?: string;
+  }) => {
+    const isOpen = openFilter === filterId;
+    const hasValue = value !== '';
+
+    return (
+      <div className="relative">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpenFilter(isOpen ? null : filterId);
+          }}
+          className={`ml-1.5 p-1 rounded hover:bg-[var(--muted)] transition-colors ${hasValue ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)]/50'}`}
+          title="Filter"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+          </svg>
+        </button>
+        {isOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-10"
+              onClick={() => setOpenFilter(null)}
+            />
+            <div className="absolute top-full left-0 mt-1 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20 min-w-[180px] p-2">
+              <input
+                type="text"
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                placeholder={placeholder}
+                className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]/50"
+                autoFocus
+                onClick={(e) => e.stopPropagation()}
+              />
+              {hasValue && (
+                <button
+                  onClick={() => {
+                    onChange('');
+                    setOpenFilter(null);
+                  }}
+                  className="w-full mt-1 px-2 py-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)] rounded transition-colors"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -134,31 +531,6 @@ export default function CommissionsContent() {
             </div>
           </div>
 
-          {/* Summary Cards */}
-          <div className="grid grid-cols-4 gap-4 mb-6">
-            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
-              <div className="text-sm text-[var(--muted-foreground)]">Total Checks</div>
-              <div className="text-2xl font-semibold text-[var(--foreground)] mt-1">{checks.length}</div>
-            </div>
-            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
-              <div className="text-sm text-[var(--muted-foreground)]">Total Commission</div>
-              <div className="text-2xl font-semibold text-[var(--foreground)] mt-1">
-                {formatCurrency(totalCommission)}
-              </div>
-            </div>
-            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
-              <div className="text-sm text-[var(--muted-foreground)]">Posted Amount</div>
-              <div className="text-2xl font-semibold text-green-600 mt-1">
-                {formatCurrency(totalAmount)}
-              </div>
-            </div>
-            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
-              <div className="text-sm text-[var(--muted-foreground)]">Total Balance</div>
-              <div className="text-2xl font-semibold text-blue-600 mt-1">
-                {formatCurrency(totalBalance)}
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Checks Table */}
@@ -172,32 +544,126 @@ export default function CommissionsContent() {
               <div className="w-8">
                 <input type="checkbox" className="rounded border-[var(--border)]" />
               </div>
-              <div className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-                Check Number
+              <div className="flex items-center">
+                <button
+                  onClick={() => handleSort('checkNumber')}
+                  className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
+                >
+                  Check Number
+                  <SortIcon field="checkNumber" />
+                </button>
+                <TextFilterDropdown
+                  filterId="checkNumber"
+                  value={columnFilters.checkNumber}
+                  onChange={(value) => setColumnFilters(prev => ({ ...prev, checkNumber: value }))}
+                  placeholder="Search checks..."
+                />
               </div>
-              <div className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-                Posted Status
+              <div className="flex items-center">
+                <button
+                  onClick={() => handleSort('status')}
+                  className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
+                >
+                  Posted Status
+                  <SortIcon field="status" />
+                </button>
+                <MultiSelectFilterDropdown
+                  filterId="status"
+                  options={uniqueStatuses.map(s => ({ value: s, label: checkStatusLabels[s as keyof typeof checkStatusLabels] }))}
+                  value={columnFilters.status}
+                  onChange={(value) => setColumnFilters(prev => ({ ...prev, status: value }))}
+                  placeholder="All Statuses"
+                />
               </div>
-              <div className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-                Commission
+              <div className="flex items-center">
+                <button
+                  onClick={() => handleSort('netAmount')}
+                  className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
+                >
+                  Commission
+                  <SortIcon field="netAmount" />
+                </button>
               </div>
-              <div className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-                Commission Month
+              <div className="flex items-center">
+                <button
+                  onClick={() => handleSort('commissionMonth')}
+                  className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
+                >
+                  Commission Month
+                  <SortIcon field="commissionMonth" />
+                </button>
+                <DateRangeFilterDropdown
+                  filterId="commissionMonth"
+                  value={columnFilters.commissionMonth}
+                  onChange={(value) => setColumnFilters(prev => ({ ...prev, commissionMonth: value }))}
+                />
               </div>
-              <div className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-                Factory
+              <div className="flex items-center">
+                <button
+                  onClick={() => handleSort('manufacturerName')}
+                  className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
+                >
+                  Factory
+                  <SortIcon field="manufacturerName" />
+                </button>
+                <MultiSelectFilterDropdown
+                  filterId="manufacturerName"
+                  options={uniqueManufacturers.map(m => ({ value: m, label: m }))}
+                  value={columnFilters.manufacturerName}
+                  onChange={(value) => setColumnFilters(prev => ({ ...prev, manufacturerName: value }))}
+                  placeholder="All Factories"
+                />
               </div>
-              <div className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-                Post Date
+              <div className="flex items-center">
+                <button
+                  onClick={() => handleSort('postDate')}
+                  className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
+                >
+                  Post Date
+                  <SortIcon field="postDate" />
+                </button>
+                <DateRangeFilterDropdown
+                  filterId="postDate"
+                  value={columnFilters.postDate}
+                  onChange={(value) => setColumnFilters(prev => ({ ...prev, postDate: value }))}
+                />
               </div>
-              <div className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-                Check Date
+              <div className="flex items-center">
+                <button
+                  onClick={() => handleSort('checkDate')}
+                  className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
+                >
+                  Check Date
+                  <SortIcon field="checkDate" />
+                </button>
+                <DateRangeFilterDropdown
+                  filterId="checkDate"
+                  value={columnFilters.checkDate}
+                  onChange={(value) => setColumnFilters(prev => ({ ...prev, checkDate: value }))}
+                />
               </div>
-              <div className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-                Entry Date
+              <div className="flex items-center">
+                <button
+                  onClick={() => handleSort('entryDate')}
+                  className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
+                >
+                  Entry Date
+                  <SortIcon field="entryDate" />
+                </button>
+                <DateRangeFilterDropdown
+                  filterId="entryDate"
+                  value={columnFilters.entryDate}
+                  onChange={(value) => setColumnFilters(prev => ({ ...prev, entryDate: value }))}
+                />
               </div>
-              <div className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider text-right">
-                Check Balance
+              <div className="flex items-center justify-end">
+                <button
+                  onClick={() => handleSort('checkBalance')}
+                  className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
+                >
+                  Check Balance
+                  <SortIcon field="checkBalance" />
+                </button>
               </div>
             </div>
 

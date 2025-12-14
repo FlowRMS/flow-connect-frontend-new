@@ -8,7 +8,6 @@ import {
   mockManufacturers,
   mockCustomers,
   mockSalesReps,
-  getOrderSummaryStats,
 } from '../../lib/data/rms-mock';
 import type { OrderSplitRate } from '../../lib/types/rms';
 import {
@@ -27,7 +26,6 @@ import CreateOrderModal from './CreateOrderModal';
 
 type SortField = 'orderNumber' | 'customerName' | 'manufacturerName' | 'orderDate' | 'total' | 'totalCommission' | 'status';
 type SortDirection = 'asc' | 'desc';
-type StatFilter = 'all' | 'open' | 'value' | 'thisMonth';
 
 interface DateRange {
   start: string;
@@ -47,13 +45,10 @@ interface ColumnFilters {
 export default function OrdersContent() {
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>(mockOrders);
-  const [selectedStatus, setSelectedStatus] = useState<string>('All');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState<SortField>('orderDate');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-  const [statFilter, setStatFilter] = useState<StatFilter>('all');
   const [columnFilters, setColumnFilters] = useState<ColumnFilters>({
     orderNumber: '',
     customerName: [],
@@ -66,8 +61,6 @@ export default function OrdersContent() {
   const [openFilter, setOpenFilter] = useState<string | null>(null);
   const [editingSplits, setEditingSplits] = useState(false);
   const [editedSplits, setEditedSplits] = useState<OrderSplitRate[]>([]);
-
-  const stats = useMemo(() => getOrderSummaryStats(), []);
 
   // Get unique values for filter dropdowns
   const uniqueCustomers = useMemo(() =>
@@ -103,21 +96,6 @@ export default function OrdersContent() {
       totalCommission: [],
       status: [],
     });
-  };
-
-  const statusTabs: { label: string; value: string; count: number }[] = [
-    { label: 'All', value: 'All', count: orders.length },
-    { label: 'Draft', value: 'draft', count: orders.filter(o => o.status === 'draft').length },
-    { label: 'Open', value: 'open', count: orders.filter(o => o.status === 'open').length },
-    { label: 'Partial', value: 'partial_shipped', count: orders.filter(o => o.status === 'partial_shipped').length },
-    { label: 'Shipped', value: 'shipped', count: orders.filter(o => o.status === 'shipped').length },
-    { label: 'Cancelled', value: 'cancelled', count: orders.filter(o => o.status === 'cancelled').length },
-  ];
-
-  const isThisMonth = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
   };
 
   // Commission split editing functions
@@ -190,18 +168,6 @@ export default function OrdersContent() {
   const filteredOrders = useMemo(() => {
     let result = orders;
 
-    // Apply stat card filter
-    if (statFilter === 'open') {
-      result = result.filter(o => o.status === 'open' || o.status === 'partial_shipped');
-    } else if (statFilter === 'thisMonth') {
-      result = result.filter(o => isThisMonth(o.orderDate));
-    }
-
-    // Apply status tab filter (only if no stat filter is active)
-    if (statFilter === 'all' && selectedStatus !== 'All') {
-      result = result.filter(o => o.status === selectedStatus);
-    }
-
     // Apply column filters
     if (columnFilters.orderNumber) {
       result = result.filter(o =>
@@ -230,17 +196,6 @@ export default function OrdersContent() {
     }
     if (columnFilters.totalCommission.length > 0) {
       result = result.filter(o => columnFilters.totalCommission.includes(o.totalCommission.toString()));
-    }
-
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(o =>
-        o.orderNumber.toLowerCase().includes(query) ||
-        o.customerName.toLowerCase().includes(query) ||
-        o.manufacturerName.toLowerCase().includes(query) ||
-        o.jobName?.toLowerCase().includes(query) ||
-        o.poNumber?.toLowerCase().includes(query)
-      );
     }
 
     // Apply sorting
@@ -273,7 +228,7 @@ export default function OrdersContent() {
     });
 
     return result;
-  }, [orders, selectedStatus, searchQuery, sortField, sortDirection, statFilter, columnFilters]);
+  }, [orders, sortField, sortDirection, columnFilters]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -281,16 +236,6 @@ export default function OrdersContent() {
     } else {
       setSortField(field);
       setSortDirection('asc');
-    }
-  };
-
-  const handleStatCardClick = (filter: StatFilter) => {
-    if (statFilter === filter) {
-      setStatFilter('all');
-      setSelectedStatus('All');
-    } else {
-      setStatFilter(filter);
-      setSelectedStatus('All');
     }
   };
 
@@ -615,113 +560,6 @@ export default function OrdersContent() {
             </div>
           </div>
 
-          {/* Stats Cards */}
-          <div className="grid grid-cols-4 gap-4 mb-6">
-            <button
-              onClick={() => handleStatCardClick('all')}
-              className={`bg-[var(--card)] rounded-lg border p-4 text-left transition-all hover:shadow-md ${
-                statFilter === 'all' ? 'border-[var(--primary)] ring-2 ring-[var(--primary)]/20' : 'border-[var(--border)]'
-              }`}
-            >
-              <div className="text-sm text-[var(--muted-foreground)]">Total Orders</div>
-              <div className="text-2xl font-semibold text-[var(--foreground)] mt-1">{stats.totalOrders}</div>
-              <div className="text-xs text-[var(--muted-foreground)] mt-1">
-                {stats.thisMonthCount} this month
-              </div>
-            </button>
-            <button
-              onClick={() => handleStatCardClick('open')}
-              className={`bg-[var(--card)] rounded-lg border p-4 text-left transition-all hover:shadow-md ${
-                statFilter === 'open' ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-[var(--border)]'
-              }`}
-            >
-              <div className="text-sm text-[var(--muted-foreground)]">Open Orders</div>
-              <div className="text-2xl font-semibold text-blue-600 mt-1">{stats.openOrders}</div>
-              <div className="text-xs text-[var(--muted-foreground)] mt-1">
-                Awaiting fulfillment
-              </div>
-            </button>
-            <button
-              onClick={() => handleStatCardClick('value')}
-              className={`bg-[var(--card)] rounded-lg border p-4 text-left transition-all hover:shadow-md ${
-                statFilter === 'value' ? 'border-green-500 ring-2 ring-green-500/20' : 'border-[var(--border)]'
-              }`}
-            >
-              <div className="text-sm text-[var(--muted-foreground)]">Total Value</div>
-              <div className="text-2xl font-semibold text-[var(--foreground)] mt-1">
-                {formatCurrency(stats.totalValue)}
-              </div>
-              <div className="text-xs text-[var(--muted-foreground)] mt-1">
-                {formatCurrency(stats.thisMonthValue)} this month
-              </div>
-            </button>
-            <button
-              onClick={() => handleStatCardClick('thisMonth')}
-              className={`bg-[var(--card)] rounded-lg border p-4 text-left transition-all hover:shadow-md ${
-                statFilter === 'thisMonth' ? 'border-purple-500 ring-2 ring-purple-500/20' : 'border-[var(--border)]'
-              }`}
-            >
-              <div className="text-sm text-[var(--muted-foreground)]">This Month</div>
-              <div className="text-2xl font-semibold text-purple-600 mt-1">{stats.thisMonthCount}</div>
-              <div className="text-xs text-[var(--muted-foreground)] mt-1">
-                {formatCurrency(stats.thisMonthValue)} value
-              </div>
-            </button>
-          </div>
-
-          {/* Search */}
-          <div className="flex items-center gap-4 mb-4">
-            <div className="relative flex-1 max-w-md">
-              <svg
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <circle cx="11" cy="11" r="8"/>
-                <path d="M21 21l-4.35-4.35"/>
-              </svg>
-              <input
-                type="text"
-                placeholder="Search orders..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-              />
-            </div>
-            {hasActiveFilters && (
-              <button
-                onClick={clearAllFilters}
-                className="text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-              >
-                Clear all
-              </button>
-            )}
-          </div>
-
-          {/* Status Tabs */}
-          <div className="flex gap-2 border-b border-[var(--border)]">
-            {statusTabs.map((tab) => (
-              <button
-                key={tab.value}
-                onClick={() => setSelectedStatus(tab.value)}
-                className={`px-4 py-2 text-sm font-medium transition-colors relative ${
-                  selectedStatus === tab.value
-                    ? 'text-[var(--primary)]'
-                    : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
-                }`}
-              >
-                {tab.label}
-                <span className="ml-2 text-xs opacity-70">({tab.count})</span>
-                {selectedStatus === tab.value && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--primary)]" />
-                )}
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Orders Table */}

@@ -15596,6 +15596,10 @@ FlowConnect Lighting`}
                       }}
                     />
                   </th>
+                  {/* Preview */}
+                  <th className="w-10 px-3 py-3 text-center">
+                    {/* Preview column header - empty */}
+                  </th>
                   {/* Quote Number */}
                   <th className="px-3 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider relative">
                     <div className="flex items-center gap-1">
@@ -15983,6 +15987,22 @@ FlowConnect Lighting`}
                           });
                         }}
                       />
+                    </td>
+                    {/* Preview */}
+                    <td className="px-3 py-3 text-center">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedQuote(quote);
+                        }}
+                        className="p-1.5 hover:bg-[var(--muted)] rounded transition-colors"
+                        title="Quick preview"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <circle cx="11" cy="11" r="8"/>
+                          <path d="M21 21l-4.35-4.35"/>
+                        </svg>
+                      </button>
                     </td>
                     {/* Quote Number */}
                     <td className="px-3 py-3">
