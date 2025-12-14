@@ -132,7 +132,8 @@ export type OrderStatus =
   | 'open'
   | 'partial_shipped'
   | 'shipped'
-  | 'cancelled';
+  | 'cancelled'
+  | 'dormant';
 
 export type FulfillmentStatus =
   | 'not_started'
@@ -239,7 +240,7 @@ export interface OrderSplitRate {
 // Invoice Types
 // -----------------------------------------------------------------------------
 
-export type InvoiceStatus = 'open' | 'paid' | 'partial_paid' | 'void';
+export type InvoiceStatus = 'open' | 'paid' | 'partial_paid' | 'void' | 'dormant';
 
 export interface Invoice {
   id: string;
@@ -546,6 +547,7 @@ export const orderStatusLabels: Record<OrderStatus, string> = {
   partial_shipped: 'Partial Shipped',
   shipped: 'Shipped',
   cancelled: 'Cancelled',
+  dormant: 'Dormant',
 };
 
 export const orderStatusColors: Record<OrderStatus, string> = {
@@ -554,6 +556,7 @@ export const orderStatusColors: Record<OrderStatus, string> = {
   partial_shipped: 'bg-yellow-100 text-yellow-700',
   shipped: 'bg-green-100 text-green-700',
   cancelled: 'bg-red-100 text-red-700',
+  dormant: 'bg-purple-100 text-purple-700',
 };
 
 export const fulfillmentStatusLabels: Record<FulfillmentStatus, string> = {
@@ -599,6 +602,7 @@ export const invoiceStatusLabels: Record<InvoiceStatus, string> = {
   paid: 'Paid',
   partial_paid: 'Partial Paid',
   void: 'Void',
+  dormant: 'Dormant',
 };
 
 export const invoiceStatusColors: Record<InvoiceStatus, string> = {
@@ -606,6 +610,7 @@ export const invoiceStatusColors: Record<InvoiceStatus, string> = {
   paid: 'bg-green-100 text-green-700',
   partial_paid: 'bg-yellow-100 text-yellow-700',
   void: 'bg-red-100 text-red-700',
+  dormant: 'bg-purple-100 text-purple-700',
 };
 
 export const creditStatusLabels: Record<CreditStatus, string> = {

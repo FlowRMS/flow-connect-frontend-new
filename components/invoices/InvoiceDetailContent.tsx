@@ -239,6 +239,7 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
       paid: 'bg-green-100 text-green-700',
       partial_paid: 'bg-yellow-100 text-yellow-700',
       void: 'bg-gray-100 text-gray-700',
+      dormant: 'bg-purple-100 text-purple-700',
     };
     return colors[status] || 'bg-gray-100 text-gray-700';
   };
@@ -416,7 +417,7 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
               </button>
               {showStatusDropdown && (
                 <div className="absolute top-full left-0 mt-1 w-40 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
-                  {(['open', 'paid', 'partial_paid', 'void'] as Invoice['status'][]).map((status) => (
+                  {(['open', 'paid', 'partial_paid', 'void', 'dormant'] as Invoice['status'][]).map((status) => (
                     <button
                       key={status}
                       onClick={() => {

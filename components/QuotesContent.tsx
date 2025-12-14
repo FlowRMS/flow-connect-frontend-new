@@ -32,6 +32,7 @@ import CreditModal from './CreditModal';
 import ConvertQuoteToOrderModal from './orders/ConvertQuoteToOrderModal';
 import type { Order } from '../lib/types/rms';
 import QuotePdfPreviewModal from './quotes/QuotePdfPreviewModal';
+import CreateProductModal from './quotes/CreateProductModal';
 import type { QuoteData } from '../lib/utils/generatePdfFromTemplate';
 
 // ============================================
@@ -556,7 +557,7 @@ type Quote = {
   soldToCustomer: string;
   jobId: string;
   jobName: string;
-  stage: 'Draft' | 'Review' | 'Sent' | 'Negotiating' | 'Won' | 'Lost';
+  stage: 'Draft' | 'Review' | 'Sent' | 'Negotiating' | 'Won' | 'Lost' | 'Dormant';
   status: 'Open' | 'Closed' | 'Expired' | 'Pending';
   quoteType: 'NORMAL' | 'TAG' | 'BLANKET' | 'STORM';
   value: string;
@@ -3621,6 +3622,11 @@ export default function QuotesContent() {
   const [showCreateProduct, setShowCreateProduct] = useState(false);
   const [newProductData, setNewProductData] = useState({ partNumber: '', description: '', manufacturer: '', basePrice: 0 });
 
+  // Create Product Modal state (for creating official products)
+  const [showCreateProductModal, setShowCreateProductModal] = useState(false);
+  const [createProductForLineItem, setCreateProductForLineItem] = useState<string | null>(null);
+  const [createProductInitialData, setCreateProductInitialData] = useState({ partNumber: '', description: '' });
+
   // Close product search dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -3898,6 +3904,11 @@ export default function QuotesContent() {
 
     switch (colKey) {
       case 'partNumber':
+        const filteredProducts = getFilteredProducts();
+        const hasSearchQuery = productSearchQuery.trim().length > 0;
+        const queryMatchesExact = hasSearchQuery && filteredProducts.some(p =>
+          p.partNumber.toLowerCase() === productSearchQuery.toLowerCase().trim()
+        );
         return (
           <td key={colKey} className="px-3 py-2 font-mono text-sm text-center relative">
             <div className="product-search-container">
@@ -3922,13 +3933,13 @@ export default function QuotesContent() {
                       type="text"
                       value={productSearchQuery}
                       onChange={(e) => setProductSearchQuery(e.target.value)}
-                      placeholder="Search by part # or description..."
+                      placeholder="Search FPN, CPN, or description..."
                       className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                       autoFocus
                     />
                   </div>
                   <div className="max-h-48 overflow-y-auto">
-                    {getFilteredProducts().map(product => (
+                    {filteredProducts.map(product => (
                       <button
                         key={product.id}
                         onClick={() => selectProductForLineItem(item.id, product)}
@@ -3938,57 +3949,64 @@ export default function QuotesContent() {
                         <div className="text-xs text-[var(--muted-foreground)] truncate">{product.description}</div>
                       </button>
                     ))}
-                    {getFilteredProducts().length === 0 && (
+                    {filteredProducts.length === 0 && !hasSearchQuery && (
+                      <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">No products found</div>
+                    )}
+                    {filteredProducts.length === 0 && hasSearchQuery && (
                       <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">No products found</div>
                     )}
                   </div>
-                  <div className="border-t border-[var(--border)] p-2">
-                    {!showCreateProduct ? (
+                  {/* Option to use typed text as document-specific product */}
+                  {hasSearchQuery && !queryMatchesExact && (
+                    <div className="border-t border-[var(--border)]">
                       <button
                         onClick={() => {
-                          setShowCreateProduct(true);
-                          setNewProductData({ ...newProductData, partNumber: productSearchQuery });
+                          // Use typed text as document-specific product (not added to catalog)
+                          setQuoteLineItems(prev => prev.map(li =>
+                            li.id === item.id ? {
+                              ...li,
+                              productNumber: productSearchQuery.trim(),
+                              isDocumentSpecific: true, // Mark as document-specific
+                            } : li
+                          ));
+                          setProductSearchOpen(null);
+                          setProductSearchField(null);
+                          setProductSearchQuery('');
                         }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--primary)] hover:bg-[var(--muted)] rounded transition-colors"
+                        className="w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
                       >
-                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--primary)] flex-shrink-0">
                           <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
                         </svg>
-                        Create New Product
-                      </button>
-                    ) : (
-                      <div className="space-y-2">
-                        <input
-                          type="text"
-                          value={newProductData.partNumber}
-                          onChange={(e) => setNewProductData(prev => ({ ...prev, partNumber: e.target.value }))}
-                          placeholder="Part Number *"
-                          className="w-full px-2 py-1.5 text-sm border border-[var(--border)] rounded"
-                        />
-                        <input
-                          type="text"
-                          value={newProductData.description}
-                          onChange={(e) => setNewProductData(prev => ({ ...prev, description: e.target.value }))}
-                          placeholder="Description *"
-                          className="w-full px-2 py-1.5 text-sm border border-[var(--border)] rounded"
-                        />
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => createNewProduct(item.id)}
-                            disabled={!newProductData.partNumber.trim() || !newProductData.description.trim()}
-                            className="flex-1 px-2 py-1.5 text-xs bg-[var(--primary)] text-white rounded hover:bg-[var(--primary-hover)] disabled:opacity-50"
-                          >
-                            Create
-                          </button>
-                          <button
-                            onClick={() => setShowCreateProduct(false)}
-                            className="flex-1 px-2 py-1.5 text-xs border border-[var(--border)] rounded hover:bg-[var(--muted)]"
-                          >
-                            Cancel
-                          </button>
+                        <div>
+                          <div className="font-mono text-sm font-medium text-[var(--primary)]">{productSearchQuery.trim()}</div>
+                          <div className="text-xs text-[var(--muted-foreground)]">Use as document-specific product</div>
                         </div>
-                      </div>
-                    )}
+                      </button>
+                    </div>
+                  )}
+                  {/* Button to open Create Product Modal */}
+                  <div className="border-t border-[var(--border)] p-2">
+                    <button
+                      onClick={() => {
+                        // Open the Create Product Modal
+                        setCreateProductForLineItem(item.id);
+                        setCreateProductInitialData({
+                          partNumber: productSearchQuery.trim(),
+                          description: ''
+                        });
+                        setShowCreateProductModal(true);
+                        setProductSearchOpen(null);
+                        setProductSearchField(null);
+                        setProductSearchQuery('');
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--primary)] hover:bg-[var(--muted)] rounded transition-colors"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                      </svg>
+                      Create Official Product
+                    </button>
                   </div>
                 </div>
               )}
@@ -4091,6 +4109,11 @@ export default function QuotesContent() {
           </td>
         );
       case 'description':
+        const descFilteredProducts = getFilteredProducts();
+        const descHasSearchQuery = productSearchQuery.trim().length > 0;
+        const descQueryMatchesExact = descHasSearchQuery && descFilteredProducts.some(p =>
+          p.description.toLowerCase() === productSearchQuery.toLowerCase().trim()
+        );
         return (
           <td key={colKey} className="px-3 py-2 text-sm text-center max-w-[200px] relative">
             <div className="product-search-container">
@@ -4115,13 +4138,13 @@ export default function QuotesContent() {
                       type="text"
                       value={productSearchQuery}
                       onChange={(e) => setProductSearchQuery(e.target.value)}
-                      placeholder="Search by description or part #..."
+                      placeholder="Search FPN, CPN, or description..."
                       className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                       autoFocus
                     />
                   </div>
                   <div className="max-h-48 overflow-y-auto">
-                    {getFilteredProducts().map(product => (
+                    {descFilteredProducts.map(product => (
                       <button
                         key={product.id}
                         onClick={() => selectProductForLineItem(item.id, product)}
@@ -4131,57 +4154,64 @@ export default function QuotesContent() {
                         <div className="font-mono text-xs text-[var(--muted-foreground)]">{product.partNumber}</div>
                       </button>
                     ))}
-                    {getFilteredProducts().length === 0 && (
+                    {descFilteredProducts.length === 0 && !descHasSearchQuery && (
+                      <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">No products found</div>
+                    )}
+                    {descFilteredProducts.length === 0 && descHasSearchQuery && (
                       <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">No products found</div>
                     )}
                   </div>
-                  <div className="border-t border-[var(--border)] p-2">
-                    {!showCreateProduct ? (
+                  {/* Option to use typed text as document-specific description */}
+                  {descHasSearchQuery && !descQueryMatchesExact && (
+                    <div className="border-t border-[var(--border)]">
                       <button
                         onClick={() => {
-                          setShowCreateProduct(true);
-                          setNewProductData({ ...newProductData, description: productSearchQuery });
+                          // Use typed text as document-specific description (not added to catalog)
+                          setQuoteLineItems(prev => prev.map(li =>
+                            li.id === item.id ? {
+                              ...li,
+                              description: productSearchQuery.trim(),
+                              isDocumentSpecific: true, // Mark as document-specific
+                            } : li
+                          ));
+                          setProductSearchOpen(null);
+                          setProductSearchField(null);
+                          setProductSearchQuery('');
                         }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--primary)] hover:bg-[var(--muted)] rounded transition-colors"
+                        className="w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
                       >
-                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--primary)] flex-shrink-0">
                           <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
                         </svg>
-                        Create New Product
-                      </button>
-                    ) : (
-                      <div className="space-y-2">
-                        <input
-                          type="text"
-                          value={newProductData.partNumber}
-                          onChange={(e) => setNewProductData(prev => ({ ...prev, partNumber: e.target.value }))}
-                          placeholder="Part Number *"
-                          className="w-full px-2 py-1.5 text-sm border border-[var(--border)] rounded"
-                        />
-                        <input
-                          type="text"
-                          value={newProductData.description}
-                          onChange={(e) => setNewProductData(prev => ({ ...prev, description: e.target.value }))}
-                          placeholder="Description *"
-                          className="w-full px-2 py-1.5 text-sm border border-[var(--border)] rounded"
-                        />
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => createNewProduct(item.id)}
-                            disabled={!newProductData.partNumber.trim() || !newProductData.description.trim()}
-                            className="flex-1 px-2 py-1.5 text-xs bg-[var(--primary)] text-white rounded hover:bg-[var(--primary-hover)] disabled:opacity-50"
-                          >
-                            Create
-                          </button>
-                          <button
-                            onClick={() => setShowCreateProduct(false)}
-                            className="flex-1 px-2 py-1.5 text-xs border border-[var(--border)] rounded hover:bg-[var(--muted)]"
-                          >
-                            Cancel
-                          </button>
+                        <div>
+                          <div className="text-sm font-medium text-[var(--primary)]">{productSearchQuery.trim()}</div>
+                          <div className="text-xs text-[var(--muted-foreground)]">Use as document-specific description</div>
                         </div>
-                      </div>
-                    )}
+                      </button>
+                    </div>
+                  )}
+                  {/* Button to open Create Product Modal */}
+                  <div className="border-t border-[var(--border)] p-2">
+                    <button
+                      onClick={() => {
+                        // Open the Create Product Modal
+                        setCreateProductForLineItem(item.id);
+                        setCreateProductInitialData({
+                          partNumber: '',
+                          description: productSearchQuery.trim()
+                        });
+                        setShowCreateProductModal(true);
+                        setProductSearchOpen(null);
+                        setProductSearchField(null);
+                        setProductSearchQuery('');
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--primary)] hover:bg-[var(--muted)] rounded transition-colors"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                      </svg>
+                      Create Official Product
+                    </button>
                   </div>
                 </div>
               )}
@@ -5388,6 +5418,7 @@ export default function QuotesContent() {
     { name: 'Negotiating' },
     { name: 'Won' },
     { name: 'Lost' },
+    { name: 'Dormant' },
   ], []);
 
   const getStageColor = (stage: string) => {
@@ -5398,8 +5429,26 @@ export default function QuotesContent() {
       case 'Negotiating': return 'bg-yellow-500 text-white';
       case 'Won': return 'bg-green-500 text-white';
       case 'Lost': return 'bg-red-500 text-white';
+      case 'Dormant': return 'bg-purple-300 text-purple-900';
       default: return 'bg-gray-500 text-white';
     }
+  };
+
+  // Check if a quote is linked to other entities (orders, etc.)
+  const isQuoteLinked = (quote: Quote) => {
+    // Quote is linked if it's been Won (converted to order) or is Closed
+    return quote.stage === 'Won' || quote.status === 'Closed';
+  };
+
+  const getQuoteLinkedReason = (quote: Quote) => {
+    const reasons: string[] = [];
+    if (quote.stage === 'Won') {
+      reasons.push('has been converted to an order');
+    }
+    if (quote.status === 'Closed') {
+      reasons.push('is closed');
+    }
+    return `Cannot select: Quote ${reasons.join(' and ')}`;
   };
 
   const getQuotesByStage = useCallback((stage: string) => {
@@ -5756,7 +5805,7 @@ export default function QuotesContent() {
                 </button>
                 {showStageDropdown && (
                   <div className="absolute top-full left-0 mt-1 w-40 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
-                    {['Draft', 'Review', 'Sent', 'Negotiating', 'Won', 'Lost'].map((stage) => (
+                    {['Draft', 'Review', 'Sent', 'Negotiating', 'Won', 'Lost', 'Dormant'].map((stage) => (
                       <button
                         key={stage}
                         onClick={() => {
@@ -14691,6 +14740,40 @@ FlowConnect Lighting`}
           />
         )}
 
+        {/* Create Product Modal */}
+        <CreateProductModal
+          isOpen={showCreateProductModal}
+          onClose={() => {
+            setShowCreateProductModal(false);
+            setCreateProductForLineItem(null);
+            setCreateProductInitialData({ partNumber: '', description: '' });
+          }}
+          onSave={(newProduct) => {
+            // Add to catalog
+            setProductCatalog(prev => [...prev, newProduct]);
+            // Update line item if we have one
+            if (createProductForLineItem) {
+              setQuoteLineItems(prev => prev.map(li =>
+                li.id === createProductForLineItem ? {
+                  ...li,
+                  productNumber: newProduct.partNumber,
+                  description: newProduct.description,
+                  basePrice: newProduct.basePrice,
+                  sellPrice: newProduct.basePrice,
+                  manufacturers: [{
+                    ...li.manufacturers[0],
+                    name: newProduct.manufacturer,
+                  }]
+                } : li
+              ));
+            }
+            setCreateProductForLineItem(null);
+            setCreateProductInitialData({ partNumber: '', description: '' });
+          }}
+          initialData={createProductInitialData}
+          manufacturers={availableManufacturers}
+        />
+
         {/* Generate Distributor Quotes Modal */}
         {showDistributorModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -15485,85 +15568,63 @@ FlowConnect Lighting`}
                   {showQuotesBulkActionsMenu && (
                     <>
                       <div className="fixed inset-0 z-10" onClick={() => setShowQuotesBulkActionsMenu(false)} />
-                      <div className="absolute top-full right-0 mt-1 w-48 bg-white border border-[var(--border)] rounded-lg shadow-xl z-50 py-1">
+                      <div className="absolute top-full right-0 mt-1 w-56 bg-white border border-[var(--border)] rounded-lg shadow-xl z-50 py-1">
+                        {/* Set Status submenu */}
+                        <div className="relative group">
+                          <button
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors flex items-center justify-between"
+                          >
+                            <span className="flex items-center gap-2">
+                              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                <circle cx="10" cy="10" r="8"/>
+                                <path d="M10 6v4l2 2" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                              Set Stage
+                            </span>
+                            <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M8 6l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          </button>
+                          <div className="absolute left-full top-0 ml-1 w-48 bg-white border border-[var(--border)] rounded-lg shadow-xl py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
+                            {(['Draft', 'Review', 'Sent', 'Negotiating', 'Won', 'Lost', 'Dormant'] as const).map((stage) => (
+                              <button
+                                key={stage}
+                                onClick={() => {
+                                  if (stage === 'Lost') {
+                                    setShowMarkAsLostModal(true);
+                                    setShowQuotesBulkActionsMenu(false);
+                                  } else {
+                                    setQuotes(prev => prev.map(q =>
+                                      selectedQuotesForBulk.has(q.id) ? { ...q, stage } : q
+                                    ));
+                                    setSelectedQuotesForBulk(new Set());
+                                    setShowQuotesBulkActionsMenu(false);
+                                  }
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors"
+                              >
+                                <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${getStageColor(stage)}`}>
+                                  {stage}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="border-t border-[var(--border)] my-1"></div>
                         <button
                           onClick={() => {
-                            setShowMarkAsLostModal(true);
-                            setShowQuotesBulkActionsMenu(false);
+                            if (confirm(`Are you sure you want to delete ${selectedQuotesForBulk.size} quote(s)? This action cannot be undone.`)) {
+                              setQuotes(prev => prev.filter(q => !selectedQuotesForBulk.has(q.id)));
+                              setSelectedQuotesForBulk(new Set());
+                              setShowQuotesBulkActionsMenu(false);
+                            }
                           }}
                           className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors flex items-center gap-2 text-red-600"
                         >
                           <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                            <circle cx="10" cy="10" r="8"/>
-                            <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                            <path d="M3 6h14M8 6V4a1 1 0 011-1h2a1 1 0 011 1v2M5 6v11a2 2 0 002 2h6a2 2 0 002-2V6" strokeLinecap="round" strokeLinejoin="round"/>
                           </svg>
-                          Mark as Lost
-                        </button>
-                        <button
-                          onClick={() => {
-                            // Mark as Won
-                            setQuotes(prev => prev.map(q =>
-                              selectedQuotesForBulk.has(q.id) ? { ...q, stage: 'Won' as const } : q
-                            ));
-                            setSelectedQuotesForBulk(new Set());
-                            setShowQuotesBulkActionsMenu(false);
-                          }}
-                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors flex items-center gap-2 text-green-600"
-                        >
-                          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                            <circle cx="10" cy="10" r="8"/>
-                            <path d="M6 10l3 3 5-5" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
-                          Mark as Won
-                        </button>
-                        <div className="border-t border-[var(--border)] my-1"></div>
-                        <button
-                          onClick={() => {
-                            setQuotes(prev => prev.map(q =>
-                              selectedQuotesForBulk.has(q.id) ? { ...q, stage: 'Draft' as const } : q
-                            ));
-                            setSelectedQuotesForBulk(new Set());
-                            setShowQuotesBulkActionsMenu(false);
-                          }}
-                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors"
-                        >
-                          Move to Draft
-                        </button>
-                        <button
-                          onClick={() => {
-                            setQuotes(prev => prev.map(q =>
-                              selectedQuotesForBulk.has(q.id) ? { ...q, stage: 'Review' as const } : q
-                            ));
-                            setSelectedQuotesForBulk(new Set());
-                            setShowQuotesBulkActionsMenu(false);
-                          }}
-                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors"
-                        >
-                          Move to Review
-                        </button>
-                        <button
-                          onClick={() => {
-                            setQuotes(prev => prev.map(q =>
-                              selectedQuotesForBulk.has(q.id) ? { ...q, stage: 'Sent' as const } : q
-                            ));
-                            setSelectedQuotesForBulk(new Set());
-                            setShowQuotesBulkActionsMenu(false);
-                          }}
-                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors"
-                        >
-                          Move to Sent
-                        </button>
-                        <button
-                          onClick={() => {
-                            setQuotes(prev => prev.map(q =>
-                              selectedQuotesForBulk.has(q.id) ? { ...q, stage: 'Negotiating' as const } : q
-                            ));
-                            setSelectedQuotesForBulk(new Set());
-                            setShowQuotesBulkActionsMenu(false);
-                          }}
-                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors"
-                        >
-                          Move to Negotiating
+                          Delete
                         </button>
                       </div>
                     </>
@@ -15588,10 +15649,11 @@ FlowConnect Lighting`}
                     <input
                       type="checkbox"
                       className="rounded border-[var(--border)] accent-[var(--primary)]"
-                      checked={sortedQuotes.length > 0 && sortedQuotes.every(q => selectedQuotesForBulk.has(q.id))}
+                      checked={sortedQuotes.filter(q => !isQuoteLinked(q)).length > 0 && sortedQuotes.filter(q => !isQuoteLinked(q)).every(q => selectedQuotesForBulk.has(q.id))}
                       onChange={(e) => {
                         if (e.target.checked) {
-                          setSelectedQuotesForBulk(new Set(sortedQuotes.map(q => q.id)));
+                          // Only select quotes that are not linked to other entities
+                          setSelectedQuotesForBulk(new Set(sortedQuotes.filter(q => !isQuoteLinked(q)).map(q => q.id)));
                         } else {
                           setSelectedQuotesForBulk(new Set());
                         }
@@ -15972,11 +16034,12 @@ FlowConnect Lighting`}
                     className="hover:bg-[var(--muted)]/20 transition-colors cursor-pointer"
                   >
                     {/* Checkbox */}
-                    <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-3 py-3 relative group" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
-                        className="rounded border-[var(--border)] accent-[var(--primary)]"
+                        className={`rounded border-[var(--border)] accent-[var(--primary)] ${isQuoteLinked(quote) ? 'opacity-40 cursor-not-allowed' : ''}`}
                         checked={selectedQuotesForBulk.has(quote.id)}
+                        disabled={isQuoteLinked(quote)}
                         onChange={(e) => {
                           setSelectedQuotesForBulk(prev => {
                             const newSet = new Set(prev);
@@ -15989,6 +16052,12 @@ FlowConnect Lighting`}
                           });
                         }}
                       />
+                      {isQuoteLinked(quote) && (
+                        <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none">
+                          {getQuoteLinkedReason(quote)}
+                          <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-900"></div>
+                        </div>
+                      )}
                     </td>
                     {/* Preview */}
                     <td className="px-3 py-3 text-center">

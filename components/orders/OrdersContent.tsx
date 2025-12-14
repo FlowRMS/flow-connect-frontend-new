@@ -548,6 +548,23 @@ export default function OrdersContent() {
     setShowCreateModal(false);
   };
 
+  // Check if an order is linked to other entities (invoices, checks, etc.)
+  const isOrderLinked = (order: Order) => {
+    // Order is linked if it has invoices or is on a commission check
+    return order.billingStatus !== 'not_invoiced' || order.commissionStatus === 'paid';
+  };
+
+  const getOrderLinkedReason = (order: Order) => {
+    const reasons: string[] = [];
+    if (order.billingStatus !== 'not_invoiced') {
+      reasons.push('has invoices');
+    }
+    if (order.commissionStatus === 'paid') {
+      reasons.push('is on a commission check');
+    }
+    return `Cannot select: Order ${reasons.join(' and ')}`;
+  };
+
   return (
     <main className="flex-1 overflow-hidden bg-[var(--background)] flex">
       {/* Main Content */}
@@ -602,93 +619,57 @@ export default function OrdersContent() {
                       <>
                         <div className="fixed inset-0 z-10" onClick={() => setShowOrdersBulkActionsMenu(false)} />
                         <div className="absolute top-full right-0 mt-1 w-56 bg-white border border-[var(--border)] rounded-lg shadow-xl z-50 py-1">
-                          <button
-                            onClick={() => {
-                              // Initialize credit line items from selected orders
-                              const selectedOrders = orders.filter(o => selectedOrdersForBulk.has(o.id));
-                              const lineItems = selectedOrders.flatMap(o =>
-                                o.lineItems.map(li => ({
-                                  partNumber: `${li.partNumber} (${formatCurrency(li.unitPrice * li.quantity)})`,
-                                  amount: li.unitPrice * li.quantity,
-                                  quantity: li.quantity,
-                                  unitCredit: li.unitPrice * li.quantity,
-                                  commissionPercent: 0.75,
-                                  commissionAmount: li.unitPrice * li.quantity * 0.0075,
-                                  reason: ''
-                                }))
-                              );
-                              setCreditLineItems(lineItems);
-                              setShowCreditModal(true);
-                              setShowOrdersBulkActionsMenu(false);
-                            }}
-                            className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors flex items-center gap-2 text-green-600"
-                          >
-                            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                              <circle cx="10" cy="10" r="8"/>
-                              <path d="M7 10h6M10 7v6" strokeLinecap="round"/>
-                            </svg>
-                            Add Credit
-                          </button>
-                          <button
-                            onClick={() => {
-                              // Initialize acknowledgement line items from selected orders
-                              const selectedOrders = orders.filter(o => selectedOrdersForBulk.has(o.id));
-                              const lineItems = selectedOrders.flatMap(o =>
-                                o.lineItems.filter(li => !li.isCredit).map(li => ({
-                                  lineId: li.id,
-                                  partNumber: li.partNumber || '',
-                                  orderedQty: li.quantity,
-                                  acknowledgedQty: li.quantity
-                                }))
-                              );
-                              setAckLineItems(lineItems);
-                              setShowAcknowledgementModal(true);
-                              setShowOrdersBulkActionsMenu(false);
-                            }}
-                            className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors flex items-center gap-2 text-blue-600"
-                          >
-                            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" strokeLinecap="round" strokeLinejoin="round"/>
-                              <path d="M9 12l2 2 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
-                            Add Order Acknowledgement
-                          </button>
+                          {/* Set Status submenu */}
+                          <div className="relative group">
+                            <button
+                              className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors flex items-center justify-between"
+                            >
+                              <span className="flex items-center gap-2">
+                                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <circle cx="10" cy="10" r="8"/>
+                                  <path d="M10 6v4l2 2" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                                Set Status
+                              </span>
+                              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M8 6l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            </button>
+                            <div className="absolute left-full top-0 ml-1 w-48 bg-white border border-[var(--border)] rounded-lg shadow-xl py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
+                              {(['draft', 'open', 'partial_shipped', 'shipped', 'cancelled', 'dormant'] as OrderStatus[]).map((status) => (
+                                <button
+                                  key={status}
+                                  onClick={() => {
+                                    setOrders(prev => prev.map(o =>
+                                      selectedOrdersForBulk.has(o.id) ? { ...o, status } : o
+                                    ));
+                                    setSelectedOrdersForBulk(new Set());
+                                    setShowOrdersBulkActionsMenu(false);
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors"
+                                >
+                                  <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${orderStatusColors[status]}`}>
+                                    {orderStatusLabels[status]}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
                           <div className="border-t border-[var(--border)] my-1"></div>
                           <button
                             onClick={() => {
-                              setOrders(prev => prev.map(o =>
-                                selectedOrdersForBulk.has(o.id) ? { ...o, status: 'open' as const } : o
-                              ));
-                              setSelectedOrdersForBulk(new Set());
-                              setShowOrdersBulkActionsMenu(false);
+                              if (confirm(`Are you sure you want to delete ${selectedOrdersForBulk.size} order(s)? This action cannot be undone.`)) {
+                                setOrders(prev => prev.filter(o => !selectedOrdersForBulk.has(o.id)));
+                                setSelectedOrdersForBulk(new Set());
+                                setShowOrdersBulkActionsMenu(false);
+                              }
                             }}
-                            className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors"
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors flex items-center gap-2 text-red-600"
                           >
-                            Move to Open
-                          </button>
-                          <button
-                            onClick={() => {
-                              setOrders(prev => prev.map(o =>
-                                selectedOrdersForBulk.has(o.id) ? { ...o, status: 'shipped' as const } : o
-                              ));
-                              setSelectedOrdersForBulk(new Set());
-                              setShowOrdersBulkActionsMenu(false);
-                            }}
-                            className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors"
-                          >
-                            Move to Shipped
-                          </button>
-                          <button
-                            onClick={() => {
-                              setOrders(prev => prev.map(o =>
-                                selectedOrdersForBulk.has(o.id) ? { ...o, status: 'cancelled' as const } : o
-                              ));
-                              setSelectedOrdersForBulk(new Set());
-                              setShowOrdersBulkActionsMenu(false);
-                            }}
-                            className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors text-red-600"
-                          >
-                            Cancel Orders
+                            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M3 6h14M8 6V4a1 1 0 011-1h2a1 1 0 011 1v2M5 6v11a2 2 0 002 2h6a2 2 0 002-2V6" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                            Delete
                           </button>
                         </div>
                       </>
@@ -711,10 +692,11 @@ export default function OrdersContent() {
                 <div className="flex items-center justify-center">
                   <input
                     type="checkbox"
-                    checked={filteredOrders.length > 0 && filteredOrders.every(o => selectedOrdersForBulk.has(o.id))}
+                    checked={filteredOrders.filter(o => !isOrderLinked(o)).length > 0 && filteredOrders.filter(o => !isOrderLinked(o)).every(o => selectedOrdersForBulk.has(o.id))}
                     onChange={(e) => {
                       if (e.target.checked) {
-                        setSelectedOrdersForBulk(new Set(filteredOrders.map(o => o.id)));
+                        // Only select orders that are not linked to other entities
+                        setSelectedOrdersForBulk(new Set(filteredOrders.filter(o => !isOrderLinked(o)).map(o => o.id)));
                       } else {
                         setSelectedOrdersForBulk(new Set());
                       }
@@ -898,10 +880,11 @@ export default function OrdersContent() {
                         } ${selectedOrdersForBulk.has(order.id) ? 'bg-[var(--primary)]/5' : ''}`}
                       >
                         {/* Checkbox */}
-                        <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-center relative group" onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
                             checked={selectedOrdersForBulk.has(order.id)}
+                            disabled={isOrderLinked(order)}
                             onChange={(e) => {
                               setSelectedOrdersForBulk(prev => {
                                 const newSet = new Set(prev);
@@ -913,8 +896,14 @@ export default function OrdersContent() {
                                 return newSet;
                               });
                             }}
-                            className="w-4 h-4 accent-[var(--primary)]"
+                            className={`w-4 h-4 accent-[var(--primary)] ${isOrderLinked(order) ? 'opacity-40 cursor-not-allowed' : ''}`}
                           />
+                          {isOrderLinked(order) && (
+                            <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none">
+                              {getOrderLinkedReason(order)}
+                              <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-900"></div>
+                            </div>
+                          )}
                         </div>
                         <div className="flex items-center justify-center">
                           <button

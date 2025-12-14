@@ -399,6 +399,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
       partial_shipped: 'bg-orange-100 text-orange-700',
       shipped: 'bg-green-100 text-green-700',
       cancelled: 'bg-red-100 text-red-700',
+      dormant: 'bg-purple-100 text-purple-700',
     };
     return colors[status] || 'bg-gray-100 text-gray-700';
   };
@@ -515,7 +516,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               </button>
               {showStatusDropdown && (
                 <div className="absolute top-full left-0 mt-1 w-40 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
-                  {(['draft', 'open', 'partial_shipped', 'shipped', 'cancelled'] as Order['status'][]).map((status) => (
+                  {(['draft', 'open', 'partial_shipped', 'shipped', 'cancelled', 'dormant'] as Order['status'][]).map((status) => (
                     <button
                       key={status}
                       onClick={() => {

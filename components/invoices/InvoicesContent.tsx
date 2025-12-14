@@ -12,6 +12,7 @@ import {
 import type { OrderSplitRate } from '../../lib/types/rms';
 import {
   Invoice,
+  InvoiceStatus,
   invoiceStatusLabels,
   invoiceStatusColors,
 } from '../../lib/types/rms';
@@ -58,6 +59,10 @@ export default function InvoicesContent() {
   const [openFilter, setOpenFilter] = useState<string | null>(null);
   const [editingSplits, setEditingSplits] = useState(false);
   const [editedSplits, setEditedSplits] = useState<OrderSplitRate[]>([]);
+
+  // Bulk actions state
+  const [selectedInvoicesForBulk, setSelectedInvoicesForBulk] = useState<Set<string>>(new Set());
+  const [showInvoicesBulkActionsMenu, setShowInvoicesBulkActionsMenu] = useState(false);
 
   // Get unique values for filter dropdowns
   const uniqueCustomers = useMemo(() =>
@@ -552,6 +557,23 @@ export default function InvoicesContent() {
     return diffDays;
   };
 
+  // Check if an invoice is linked to other entities (commission checks, etc.)
+  const isInvoiceLinked = (invoice: Invoice) => {
+    // Invoice is linked if it's on a commission check or is locked
+    return invoice.isLocked || invoice.status === 'paid';
+  };
+
+  const getInvoiceLinkedReason = (invoice: Invoice) => {
+    const reasons: string[] = [];
+    if (invoice.isLocked) {
+      reasons.push('is locked');
+    }
+    if (invoice.status === 'paid') {
+      reasons.push('has been paid');
+    }
+    return `Cannot select: Invoice ${reasons.join(' and ')}`;
+  };
+
   return (
     <main className="flex-1 overflow-hidden bg-[var(--background)] flex">
       {/* Main Content */}
@@ -584,10 +606,113 @@ export default function InvoicesContent() {
 
         {/* Invoices Table */}
         <div className="flex-1 overflow-auto p-6 pt-4">
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-x-auto">
-            <div className="min-w-[1600px]">
+          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
+            {/* Bulk Actions Bar */}
+            {selectedInvoicesForBulk.size > 0 && (
+              <div className="px-4 py-2 bg-[var(--primary)]/5 border-b border-[var(--border)] flex items-center justify-between">
+                <span className="text-sm text-[var(--foreground)]">
+                  <strong>{selectedInvoicesForBulk.size}</strong> invoice{selectedInvoicesForBulk.size !== 1 ? 's' : ''} selected
+                </span>
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowInvoicesBulkActionsMenu(!showInvoicesBulkActionsMenu)}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+                    >
+                      Bulk Actions
+                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </button>
+                    {showInvoicesBulkActionsMenu && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setShowInvoicesBulkActionsMenu(false)} />
+                        <div className="absolute top-full right-0 mt-1 w-56 bg-white border border-[var(--border)] rounded-lg shadow-xl z-50 py-1">
+                          {/* Set Status submenu */}
+                          <div className="relative group">
+                            <button
+                              className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors flex items-center justify-between"
+                            >
+                              <span className="flex items-center gap-2">
+                                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <circle cx="10" cy="10" r="8"/>
+                                  <path d="M10 6v4l2 2" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                                Set Status
+                              </span>
+                              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M8 6l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            </button>
+                            <div className="absolute left-full top-0 ml-1 w-48 bg-white border border-[var(--border)] rounded-lg shadow-xl py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
+                              {(['open', 'paid', 'partial_paid', 'void', 'dormant'] as InvoiceStatus[]).map((status) => (
+                                <button
+                                  key={status}
+                                  onClick={() => {
+                                    setInvoices(prev => prev.map(i =>
+                                      selectedInvoicesForBulk.has(i.id) ? { ...i, status } : i
+                                    ));
+                                    setSelectedInvoicesForBulk(new Set());
+                                    setShowInvoicesBulkActionsMenu(false);
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors"
+                                >
+                                  <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${invoiceStatusColors[status]}`}>
+                                    {invoiceStatusLabels[status]}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="border-t border-[var(--border)] my-1"></div>
+                          <button
+                            onClick={() => {
+                              if (confirm(`Are you sure you want to delete ${selectedInvoicesForBulk.size} invoice(s)? This action cannot be undone.`)) {
+                                setInvoices(prev => prev.filter(i => !selectedInvoicesForBulk.has(i.id)));
+                                setSelectedInvoicesForBulk(new Set());
+                                setShowInvoicesBulkActionsMenu(false);
+                              }
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors flex items-center gap-2 text-red-600"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M3 6h14M8 6V4a1 1 0 011-1h2a1 1 0 011 1v2M5 6v11a2 2 0 002 2h6a2 2 0 002-2V6" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                            Delete
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setSelectedInvoicesForBulk(new Set())}
+                    className="px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                  >
+                    Clear Selection
+                  </button>
+                </div>
+              </div>
+            )}
+            <div className="overflow-x-auto">
+            <div className="min-w-[1640px]">
               {/* Table Header */}
-              <div className="grid grid-cols-[40px_120px_80px_100px_90px_100px_100px_120px_100px_120px_90px_90px_60px] gap-2 px-4 py-3 border-b border-[var(--border)] bg-[var(--muted)]/30">
+              <div className="grid grid-cols-[40px_40px_120px_80px_100px_90px_100px_100px_120px_100px_120px_90px_90px_60px] gap-2 px-4 py-3 border-b border-[var(--border)] bg-[var(--muted)]/30">
+                {/* Checkbox column */}
+                <div className="flex items-center justify-center">
+                  <input
+                    type="checkbox"
+                    checked={filteredInvoices.filter(i => !isInvoiceLinked(i)).length > 0 && filteredInvoices.filter(i => !isInvoiceLinked(i)).every(i => selectedInvoicesForBulk.has(i.id))}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        // Only select invoices that are not linked to other entities
+                        setSelectedInvoicesForBulk(new Set(filteredInvoices.filter(i => !isInvoiceLinked(i)).map(i => i.id)));
+                      } else {
+                        setSelectedInvoicesForBulk(new Set());
+                      }
+                    }}
+                    className="w-4 h-4 accent-[var(--primary)]"
+                  />
+                </div>
                 <div className="flex items-center justify-center">
                   {/* Preview column header - empty */}
                 </div>
@@ -732,10 +857,36 @@ export default function InvoicesContent() {
                     <div
                       key={invoice.id}
                       onClick={() => router.push(`/invoices/${invoice.id}`)}
-                      className={`grid grid-cols-[40px_120px_80px_100px_90px_100px_100px_120px_100px_120px_90px_90px_60px] gap-2 px-4 py-3 hover:bg-[var(--muted)]/20 transition-colors cursor-pointer ${
+                      className={`grid grid-cols-[40px_40px_120px_80px_100px_90px_100px_100px_120px_100px_120px_90px_90px_60px] gap-2 px-4 py-3 hover:bg-[var(--muted)]/20 transition-colors cursor-pointer ${
                         selectedInvoice?.id === invoice.id ? 'bg-[var(--muted)]/30' : ''
-                      }`}
+                      } ${selectedInvoicesForBulk.has(invoice.id) ? 'bg-[var(--primary)]/5' : ''}`}
                     >
+                      {/* Checkbox */}
+                      <div className="flex items-center justify-center relative group" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedInvoicesForBulk.has(invoice.id)}
+                          disabled={isInvoiceLinked(invoice)}
+                          onChange={(e) => {
+                            setSelectedInvoicesForBulk(prev => {
+                              const newSet = new Set(prev);
+                              if (e.target.checked) {
+                                newSet.add(invoice.id);
+                              } else {
+                                newSet.delete(invoice.id);
+                              }
+                              return newSet;
+                            });
+                          }}
+                          className={`w-4 h-4 accent-[var(--primary)] ${isInvoiceLinked(invoice) ? 'opacity-40 cursor-not-allowed' : ''}`}
+                        />
+                        {isInvoiceLinked(invoice) && (
+                          <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none">
+                            {getInvoiceLinkedReason(invoice)}
+                            <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-900"></div>
+                          </div>
+                        )}
+                      </div>
                       <div className="flex items-center justify-center">
                         <button
                           onClick={(e) => {
@@ -806,6 +957,7 @@ export default function InvoicesContent() {
                   );
                 })
               )}
+            </div>
             </div>
             </div>
           </div>

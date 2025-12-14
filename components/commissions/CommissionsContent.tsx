@@ -9,6 +9,7 @@ import {
 } from '../../lib/data/rms-mock';
 import {
   CommissionCheck,
+  CheckStatus,
   checkStatusLabels,
   checkStatusColors,
 } from '../../lib/types/rms';
@@ -33,7 +34,7 @@ interface ColumnFilters {
 
 export default function CommissionsContent() {
   const router = useRouter();
-  const [checks] = useState<CommissionCheck[]>(mockChecks);
+  const [checks, setChecks] = useState<CommissionCheck[]>(mockChecks);
   const [selectedStatus, setSelectedStatus] = useState<string>('All');
   const [selectedCheck, setSelectedCheck] = useState<CommissionCheck | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -49,6 +50,10 @@ export default function CommissionsContent() {
     entryDate: { start: '', end: '' },
   });
   const [openFilter, setOpenFilter] = useState<string | null>(null);
+
+  // Bulk actions state
+  const [selectedChecksForBulk, setSelectedChecksForBulk] = useState<Set<string>>(new Set());
+  const [showChecksBulkActionsMenu, setShowChecksBulkActionsMenu] = useState(false);
 
   const statusTabs = [
     { label: 'All', value: 'All', count: checks.length },
@@ -223,6 +228,19 @@ export default function CommissionsContent() {
       setSortField(field);
       setSortDirection('asc');
     }
+  };
+
+  // Check if a commission check is linked to other entities
+  const isCheckLinked = (check: CommissionCheck) => {
+    // Check is linked if it's posted (has been finalized)
+    return check.status === 'posted';
+  };
+
+  const getCheckLinkedReason = (check: CommissionCheck) => {
+    if (check.status === 'posted') {
+      return 'Cannot select: Check has been posted';
+    }
+    return 'Cannot select: Check is linked to other entities';
   };
 
   const SortIcon = ({ field }: { field: SortField }) => (
@@ -536,13 +554,111 @@ export default function CommissionsContent() {
         {/* Checks Table */}
         <div className="flex-1 overflow-auto p-6 pt-4">
           <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
+            {/* Bulk Actions Bar */}
+            {selectedChecksForBulk.size > 0 && (
+              <div className="px-4 py-2 bg-[var(--primary)]/5 border-b border-[var(--border)] flex items-center justify-between">
+                <span className="text-sm text-[var(--foreground)]">
+                  <strong>{selectedChecksForBulk.size}</strong> check{selectedChecksForBulk.size !== 1 ? 's' : ''} selected
+                </span>
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowChecksBulkActionsMenu(!showChecksBulkActionsMenu)}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+                    >
+                      Bulk Actions
+                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </button>
+                    {showChecksBulkActionsMenu && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setShowChecksBulkActionsMenu(false)} />
+                        <div className="absolute top-full right-0 mt-1 w-56 bg-white border border-[var(--border)] rounded-lg shadow-xl z-50 py-1">
+                          {/* Set Status submenu */}
+                          <div className="relative group">
+                            <button
+                              className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors flex items-center justify-between"
+                            >
+                              <span className="flex items-center gap-2">
+                                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <circle cx="10" cy="10" r="8"/>
+                                  <path d="M10 6v4l2 2" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                                Set Status
+                              </span>
+                              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M8 6l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            </button>
+                            <div className="absolute left-full top-0 ml-1 w-48 bg-white border border-[var(--border)] rounded-lg shadow-xl py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
+                              {(['draft', 'posted', 'void'] as CheckStatus[]).map((status) => (
+                                <button
+                                  key={status}
+                                  onClick={() => {
+                                    setChecks(prev => prev.map(c =>
+                                      selectedChecksForBulk.has(c.id) ? { ...c, status } : c
+                                    ));
+                                    setSelectedChecksForBulk(new Set());
+                                    setShowChecksBulkActionsMenu(false);
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors"
+                                >
+                                  <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${checkStatusColors[status]}`}>
+                                    {checkStatusLabels[status]}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="border-t border-[var(--border)] my-1"></div>
+                          <button
+                            onClick={() => {
+                              if (confirm(`Are you sure you want to delete ${selectedChecksForBulk.size} check(s)? This action cannot be undone.`)) {
+                                setChecks(prev => prev.filter(c => !selectedChecksForBulk.has(c.id)));
+                                setSelectedChecksForBulk(new Set());
+                                setShowChecksBulkActionsMenu(false);
+                              }
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors flex items-center gap-2 text-red-600"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M3 6h14M8 6V4a1 1 0 011-1h2a1 1 0 011 1v2M5 6v11a2 2 0 002 2h6a2 2 0 002-2V6" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                            Delete
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setSelectedChecksForBulk(new Set())}
+                    className="px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                  >
+                    Clear Selection
+                  </button>
+                </div>
+              </div>
+            )}
             {/* Table Header */}
             <div className="grid grid-cols-[40px_auto_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr] gap-4 px-6 py-3 border-b border-[var(--border)] bg-[var(--muted)]/30 min-w-[1200px]">
               <div className="flex items-center justify-center">
                 {/* Preview column header - empty */}
               </div>
               <div className="w-8">
-                <input type="checkbox" className="rounded border-[var(--border)]" />
+                <input
+                  type="checkbox"
+                  className="rounded border-[var(--border)]"
+                  checked={filteredChecks.filter(c => !isCheckLinked(c)).length > 0 && filteredChecks.filter(c => !isCheckLinked(c)).every(c => selectedChecksForBulk.has(c.id))}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      // Only select checks that are not linked to other entities
+                      setSelectedChecksForBulk(new Set(filteredChecks.filter(c => !isCheckLinked(c)).map(c => c.id)));
+                    } else {
+                      setSelectedChecksForBulk(new Set());
+                    }
+                  }}
+                />
               </div>
               <div className="flex items-center">
                 <button
@@ -680,7 +796,7 @@ export default function CommissionsContent() {
                     onClick={() => router.push(`/commissions/${check.id}`)}
                     className={`grid grid-cols-[40px_auto_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr] gap-4 px-6 py-4 hover:bg-[var(--muted)]/20 transition-colors cursor-pointer min-w-[1200px] ${
                       selectedCheck?.id === check.id ? 'bg-[var(--muted)]/30' : ''
-                    }`}
+                    } ${selectedChecksForBulk.has(check.id) ? 'bg-[var(--primary)]/5' : ''}`}
                   >
                     <div className="flex items-center justify-center">
                       <button
@@ -697,8 +813,30 @@ export default function CommissionsContent() {
                         </svg>
                       </button>
                     </div>
-                    <div className="w-8 flex items-center">
-                      <input type="checkbox" className="rounded border-[var(--border)]" onClick={(e) => e.stopPropagation()} />
+                    <div className="w-8 flex items-center relative group" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        className={`rounded border-[var(--border)] ${isCheckLinked(check) ? 'opacity-40 cursor-not-allowed' : ''}`}
+                        checked={selectedChecksForBulk.has(check.id)}
+                        disabled={isCheckLinked(check)}
+                        onChange={(e) => {
+                          setSelectedChecksForBulk(prev => {
+                            const newSet = new Set(prev);
+                            if (e.target.checked) {
+                              newSet.add(check.id);
+                            } else {
+                              newSet.delete(check.id);
+                            }
+                            return newSet;
+                          });
+                        }}
+                      />
+                      {isCheckLinked(check) && (
+                        <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none">
+                          {getCheckLinkedReason(check)}
+                          <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-900"></div>
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center">
                       <span className="font-medium text-[var(--foreground)]">{check.checkNumber}</span>
