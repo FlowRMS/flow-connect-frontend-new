@@ -3483,6 +3483,13 @@ export default function QuotesContent() {
   const [selectedQuotesForBulk, setSelectedQuotesForBulk] = useState<Set<string>>(new Set());
   const [showQuotesBulkActionsMenu, setShowQuotesBulkActionsMenu] = useState(false);
   const [showMarkAsLostModal, setShowMarkAsLostModal] = useState(false);
+
+  // Quick date filter state
+  type QuickDatePreset = 'all' | 'today' | 'this_week' | 'last_week';
+  type QuickDateField = 'entryDate' | 'quoteDate';
+  const [quickDatePreset, setQuickDatePreset] = useState<QuickDatePreset>('all');
+  const [quickDateField, setQuickDateField] = useState<QuickDateField>('entryDate');
+  const [showQuickDateFieldDropdown, setShowQuickDateFieldDropdown] = useState(false);
   const [lostReason, setLostReason] = useState('');
   const [customLostReason, setCustomLostReason] = useState('');
   const [lostReasons, setLostReasons] = useState(['Price too high', 'Lost to competitor', 'Project cancelled', 'Project delayed', 'Spec changed to different brand', 'Customer went with another supplier', 'No response from customer', 'Budget constraints', 'Other']);
@@ -3626,6 +3633,10 @@ export default function QuotesContent() {
   const [showCreateProductModal, setShowCreateProductModal] = useState(false);
   const [createProductForLineItem, setCreateProductForLineItem] = useState<string | null>(null);
   const [createProductInitialData, setCreateProductInitialData] = useState({ partNumber: '', description: '' });
+
+  // Product dropdown portal position state
+  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number } | null>(null);
+  const productDropdownRef = useRef<HTMLDivElement>(null);
 
   // Close product search dropdown when clicking outside
   useEffect(() => {
@@ -3911,9 +3922,11 @@ export default function QuotesContent() {
         );
         return (
           <td key={colKey} className="px-3 py-2 font-mono text-sm text-center relative">
-            <div className="product-search-container">
+            <div className="product-search-container" ref={productSearchOpen === item.id && productSearchField === 'partNumber' ? productDropdownRef : undefined}>
               <button
-                onClick={() => {
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setDropdownPosition({ top: rect.bottom + 4, left: rect.left });
                   setProductSearchOpen(productSearchOpen === item.id && productSearchField === 'partNumber' ? null : item.id);
                   setProductSearchField('partNumber');
                   setProductSearchQuery(item.productNumber || '');
@@ -3926,8 +3939,11 @@ export default function QuotesContent() {
                   <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
                 </svg>
               </button>
-              {productSearchOpen === item.id && productSearchField === 'partNumber' && (
-                <div className="absolute top-full left-0 mt-1 w-80 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+              {productSearchOpen === item.id && productSearchField === 'partNumber' && dropdownPosition && createPortal(
+                <div
+                  className="product-search-container fixed w-80 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-[9999]"
+                  style={{ top: dropdownPosition.top, left: dropdownPosition.left }}
+                >
                   <div className="p-2 border-b border-[var(--border)]">
                     <input
                       type="text"
@@ -4008,7 +4024,8 @@ export default function QuotesContent() {
                       Create Official Product
                     </button>
                   </div>
-                </div>
+                </div>,
+                document.body
               )}
             </div>
           </td>
@@ -4118,7 +4135,9 @@ export default function QuotesContent() {
           <td key={colKey} className="px-3 py-2 text-sm text-center max-w-[200px] relative">
             <div className="product-search-container">
               <button
-                onClick={() => {
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setDropdownPosition({ top: rect.bottom + 4, left: rect.left });
                   setProductSearchOpen(productSearchOpen === item.id && productSearchField === 'description' ? null : item.id);
                   setProductSearchField('description');
                   setProductSearchQuery(item.description || '');
@@ -4131,8 +4150,11 @@ export default function QuotesContent() {
                   <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
                 </svg>
               </button>
-              {productSearchOpen === item.id && productSearchField === 'description' && (
-                <div className="absolute top-full left-0 mt-1 w-80 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+              {productSearchOpen === item.id && productSearchField === 'description' && dropdownPosition && createPortal(
+                <div
+                  className="product-search-container fixed w-80 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-[9999]"
+                  style={{ top: dropdownPosition.top, left: dropdownPosition.left }}
+                >
                   <div className="p-2 border-b border-[var(--border)]">
                     <input
                       type="text"
@@ -4213,7 +4235,8 @@ export default function QuotesContent() {
                       Create Official Product
                     </button>
                   </div>
-                </div>
+                </div>,
+                document.body
               )}
             </div>
           </td>
@@ -5004,10 +5027,57 @@ export default function QuotesContent() {
     }
   };
 
+  // Helper function to get date range for quick date filter
+  const getQuickDateRange = (preset: QuickDatePreset): { start: Date | null; end: Date | null } => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    switch (preset) {
+      case 'today':
+        return { start: today, end: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1) };
+      case 'this_week': {
+        const dayOfWeek = today.getDay();
+        const startOfWeek = new Date(today);
+        startOfWeek.setDate(today.getDate() - dayOfWeek);
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        endOfWeek.setHours(23, 59, 59, 999);
+        return { start: startOfWeek, end: endOfWeek };
+      }
+      case 'last_week': {
+        const dayOfWeek = today.getDay();
+        const startOfThisWeek = new Date(today);
+        startOfThisWeek.setDate(today.getDate() - dayOfWeek);
+        const startOfLastWeek = new Date(startOfThisWeek);
+        startOfLastWeek.setDate(startOfThisWeek.getDate() - 7);
+        const endOfLastWeek = new Date(startOfLastWeek);
+        endOfLastWeek.setDate(startOfLastWeek.getDate() + 6);
+        endOfLastWeek.setHours(23, 59, 59, 999);
+        return { start: startOfLastWeek, end: endOfLastWeek };
+      }
+      default:
+        return { start: null, end: null };
+    }
+  };
+
   // Sorted and filtered quotes for list view
   const sortedQuotes = useMemo(() => {
-    // First apply filters
-    let result = quotes.filter(quote => {
+    // First apply quick date filter
+    let result = quotes;
+    if (quickDatePreset !== 'all') {
+      const { start, end } = getQuickDateRange(quickDatePreset);
+      if (start && end) {
+        result = result.filter(q => {
+          const dateStr = quickDateField === 'entryDate' ? q.entryDate : q.quoteDate;
+          if (!dateStr) return false;
+          const date = new Date(dateStr);
+          return date >= start && date <= end;
+        });
+      }
+    }
+
+    // Then apply column filters
+    result = result.filter(quote => {
       for (const [column, filter] of Object.entries(quoteColumnFilters)) {
         if (!filter) continue;
 
@@ -5162,7 +5232,7 @@ export default function QuotesContent() {
     }
 
     return result;
-  }, [quotes, quotesSortColumn, quotesSortDirection, quoteColumnFilters]);
+  }, [quotes, quotesSortColumn, quotesSortDirection, quoteColumnFilters, quickDatePreset, quickDateField]);
   const [activeFilterColumn, setActiveFilterColumn] = useState<ColumnKey | null>(null);
   const [editingCell, setEditingCell] = useState<{ itemId: string; column: ColumnKey } | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -15481,6 +15551,68 @@ FlowConnect Lighting`}
               New Quote
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* Quick Date Filter */}
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-sm text-[var(--muted-foreground)]">Quick filter:</span>
+        <div className="flex items-center bg-[var(--muted)]/30 rounded-lg p-1">
+          {[
+            { value: 'all', label: 'All' },
+            { value: 'today', label: 'Today' },
+            { value: 'this_week', label: 'This Week' },
+            { value: 'last_week', label: 'Last Week' },
+          ].map((option) => (
+            <button
+              key={option.value}
+              onClick={() => setQuickDatePreset(option.value as QuickDatePreset)}
+              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                quickDatePreset === option.value
+                  ? 'bg-white shadow-sm text-[var(--foreground)] font-medium'
+                  : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+        {/* Date Field Selector */}
+        <div className="relative">
+          <button
+            onClick={() => setShowQuickDateFieldDropdown(!showQuickDateFieldDropdown)}
+            className="flex items-center gap-1 px-2 py-1.5 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] border border-[var(--border)] rounded-lg transition-colors"
+          >
+            <span>{quickDateField === 'entryDate' ? 'Entry Date' : 'Quote Date'}</span>
+            <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+          {showQuickDateFieldDropdown && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setShowQuickDateFieldDropdown(false)} />
+              <div className="absolute top-full left-0 mt-1 bg-white border border-[var(--border)] rounded-lg shadow-lg z-20 py-1 min-w-[120px]">
+                <button
+                  onClick={() => {
+                    setQuickDateField('entryDate');
+                    setShowQuickDateFieldDropdown(false);
+                  }}
+                  className={`w-full text-left px-3 py-1.5 text-sm hover:bg-gray-100 transition-colors ${quickDateField === 'entryDate' ? 'text-[var(--primary)] font-medium' : ''}`}
+                >
+                  Entry Date
+                </button>
+                <button
+                  onClick={() => {
+                    setQuickDateField('quoteDate');
+                    setShowQuickDateFieldDropdown(false);
+                  }}
+                  className={`w-full text-left px-3 py-1.5 text-sm hover:bg-gray-100 transition-colors ${quickDateField === 'quoteDate' ? 'text-[var(--primary)] font-medium' : ''}`}
+                >
+                  Quote Date
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
