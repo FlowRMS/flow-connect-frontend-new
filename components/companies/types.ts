@@ -72,6 +72,8 @@ export interface Company {
   manufacturerInfo?: ManufacturerInfo;
   // Sales rep assignments
   salesReps?: SalesRepAssignment[];
+  // Document-specific flag - excludes from searches when creating quotes, orders, invoices
+  isDocumentSpecific?: boolean;
 }
 
 // View mode type

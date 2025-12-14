@@ -13,6 +13,7 @@ import ConnectedTasksSection from '../../tasks/ConnectedTasksSection';
 import DeleteConfirmModal from './DeleteConfirmModal';
 import { AddTaskNoteLinkModal } from '../modals/AddTaskNoteLinkModal';
 import { AddAddressModal, type Address } from '../../shared/AddAddressModal';
+import AliasesModal, { CompanyAlias } from '../../AliasesModal';
 
 type TabId = 'overview' | 'factory-info' | 'sales-reps' | 'addresses' | 'contacts' | 'jobs' | 'quotes' | 'orders' | 'invoices' | 'commission-statements' | 'pre-quotes' | 'emails' | 'meetings' | 'tasks' | 'notes';
 
@@ -51,7 +52,7 @@ interface CompanyDetailViewProps {
   onDeleteClick: () => void;
   onDeleteConfirm: () => void;
   onDeleteCancel: () => void;
-  onFieldChange: (field: string, value: string | number | string[] | CompanySourceType | CompanyAddress[] | ManufacturerInfo | SalesRepAssignment[]) => void;
+  onFieldChange: (field: string, value: string | number | boolean | string[] | CompanySourceType | CompanyAddress[] | ManufacturerInfo | SalesRepAssignment[]) => void;
   onContactClick?: (contact: APIContact) => void;
   onJobClick?: (job: APIJob) => void;
 }
@@ -452,6 +453,35 @@ export default function CompanyDetailView({
   const [newTagName, setNewTagName] = useState('');
   const [showAddListModal, setShowAddListModal] = useState(false);
   const [newListName, setNewListName] = useState('');
+  const [showAliasesModal, setShowAliasesModal] = useState(false);
+  const [companyAliases, setCompanyAliases] = useState<CompanyAlias[]>([
+    // Mock aliases for demonstration
+    {
+      id: 'alias-1',
+      type: 'name',
+      name: company.name?.toUpperCase() || '',
+      createdAt: '2024-01-15T10:00:00Z',
+      createdBy: 'System Import',
+    },
+  ]);
+
+  // Company alias handlers
+  const addCompanyAlias = (alias: Omit<import('../../../components/AliasesModal').ProductAlias, 'id' | 'createdAt'> | Omit<CompanyAlias, 'id' | 'createdAt'>) => {
+    // Only handle CompanyAlias since this is a company page
+    if ('name' in alias) {
+      const newAlias: CompanyAlias = {
+        ...(alias as Omit<CompanyAlias, 'id' | 'createdAt'>),
+        id: `alias-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        createdBy: 'Current User',
+      };
+      setCompanyAliases(prev => [...prev, newAlias]);
+    }
+  };
+
+  const deleteCompanyAlias = (aliasId: string) => {
+    setCompanyAliases(prev => prev.filter(a => a.id !== aliasId));
+  };
 
   // Get current company type
   const currentCompanyType = isEditing ? (editFormData.companySourceType || company.companySourceType) : company.companySourceType;
@@ -752,6 +782,48 @@ export default function CompanyDetailView({
 
       {/* Scrollable Content */}
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-6 space-y-8 relative">
+        {/* Document-Specific Company Banner */}
+        {company.isDocumentSpecific && (
+          <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <svg className="w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-purple-800">Document-Specific Company</span>
+                    <div className="relative group">
+                      <svg className="w-4 h-4 text-purple-600 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50">
+                        Document-specific companies are excluded from searches and<br />matching when creating quotes, orders, and invoices.
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-sm text-purple-700 mt-0.5">
+                    This company will not appear in company searches or data matching
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => onFieldChange('isDocumentSpecific', false)}
+                className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Convert to Full Company
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* ============ OVERVIEW SECTION (Non-manufacturers only) ============ */}
         {!isManufacturer && (
           <div ref={el => { sectionRefs.current['overview'] = el; }} id="section-overview">
@@ -764,7 +836,19 @@ export default function CompanyDetailView({
                 <div className="grid grid-cols-3 gap-4">
                   {/* Company Name */}
                   <div>
-                    <label className={labelClass}>Company Name*</label>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-sm font-medium text-gray-700">Company Name*</label>
+                      <button
+                        type="button"
+                        onClick={() => setShowAliasesModal(true)}
+                        className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 transition-colors"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                        </svg>
+                        Aliases ({companyAliases.length})
+                      </button>
+                    </div>
                     <input
                       type="text"
                       value={isEditing ? (editFormData.name ?? company.name) : company.name}
@@ -879,6 +963,40 @@ export default function CompanyDetailView({
                         <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
                       </svg>
                       Add to list
+                    </button>
+                  </div>
+                </div>
+
+                {/* Company Settings */}
+                <div className="border-t border-gray-200 pt-6">
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Company Settings</h3>
+                  <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-gray-50">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-700">Document-Specific Company</span>
+                        <div className="relative group">
+                          <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 w-64 z-50">
+                            When enabled, this company will be excluded from searches and matching when creating quotes, orders, and invoices. Use this for one-off companies that should not appear in general company lookups.
+                            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onFieldChange('isDocumentSpecific', !company.isDocumentSpecific)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        company.isDocumentSpecific ? 'bg-purple-600' : 'bg-gray-300'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          company.isDocumentSpecific ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
                     </button>
                   </div>
                 </div>
@@ -1193,6 +1311,40 @@ export default function CompanyDetailView({
                         </button>
                       </div>
                     </div>
+                  </div>
+                </div>
+
+                {/* Company Settings */}
+                <div className="border-t border-gray-200 pt-6">
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Company Settings</h3>
+                  <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-gray-50">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-700">Document-Specific Company</span>
+                        <div className="relative group">
+                          <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 w-64 z-50">
+                            When enabled, this company will be excluded from searches and matching when creating quotes, orders, and invoices. Use this for one-off companies that should not appear in general company lookups.
+                            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onFieldChange('isDocumentSpecific', !company.isDocumentSpecific)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        company.isDocumentSpecific ? 'bg-purple-600' : 'bg-gray-300'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          company.isDocumentSpecific ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -2053,6 +2205,18 @@ export default function CompanyDetailView({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Company Aliases Modal */}
+      {showAliasesModal && (
+        <AliasesModal
+          type="company"
+          entityName={company.name}
+          aliases={companyAliases}
+          onAdd={addCompanyAlias}
+          onDelete={deleteCompanyAlias}
+          onClose={() => setShowAliasesModal(false)}
+        />
       )}
     </main>
   );

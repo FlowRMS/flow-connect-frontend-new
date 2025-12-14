@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import AliasesModal, { ProductAlias } from '../AliasesModal';
 
 interface SpecSheet {
   id: string;
@@ -232,6 +233,35 @@ export default function ProductDetailModal({ product, onClose, onOpenConfigurato
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'overview' | 'specs' | 'manufacturer-pricing' | 'quote-history'>('overview');
   const [showAddSpecSheet, setShowAddSpecSheet] = useState(false);
+  const [showAliasesModal, setShowAliasesModal] = useState(false);
+  const [productAliases, setProductAliases] = useState<ProductAlias[]>([
+    // Mock aliases for demonstration
+    {
+      id: 'alias-1',
+      type: 'part_number',
+      value: product.partNumber.replace(/ /g, '-'),
+      createdAt: '2024-01-15T10:00:00Z',
+      createdBy: 'System Import',
+    },
+  ]);
+
+  // Product alias handlers
+  const addProductAlias = (alias: Omit<ProductAlias, 'id' | 'createdAt'> | Omit<import('../AliasesModal').CompanyAlias, 'id' | 'createdAt'>) => {
+    // Only handle ProductAlias since this is a product modal
+    if ('value' in alias && ('type' in alias && (alias.type === 'part_number' || alias.type === 'description'))) {
+      const newAlias: ProductAlias = {
+        ...(alias as Omit<ProductAlias, 'id' | 'createdAt'>),
+        id: `alias-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        createdBy: 'Current User',
+      };
+      setProductAliases(prev => [...prev, newAlias]);
+    }
+  };
+
+  const deleteProductAlias = (aliasId: string) => {
+    setProductAliases(prev => prev.filter(a => a.id !== aliasId));
+  };
 
   const handleEditProduct = () => {
     onClose();
@@ -336,7 +366,19 @@ export default function ProductDetailModal({ product, onClose, onOpenConfigurato
               </svg>
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-[var(--foreground)]">{product.partNumber}</h2>
+              <div className="flex items-center gap-3">
+                <h2 className="text-xl font-semibold text-[var(--foreground)]">{product.partNumber}</h2>
+                <button
+                  type="button"
+                  onClick={() => setShowAliasesModal(true)}
+                  className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  </svg>
+                  Aliases ({productAliases.length})
+                </button>
+              </div>
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-sm text-[var(--muted-foreground)]">{product.manufacturer}</span>
                 <span className="text-[var(--muted-foreground)]">•</span>
@@ -758,6 +800,18 @@ export default function ProductDetailModal({ product, onClose, onOpenConfigurato
           </div>
         </div>
       </div>
+
+      {/* Product Aliases Modal */}
+      {showAliasesModal && (
+        <AliasesModal
+          type="product"
+          entityName={product.partNumber}
+          aliases={productAliases}
+          onAdd={addProductAlias}
+          onDelete={deleteProductAlias}
+          onClose={() => setShowAliasesModal(false)}
+        />
+      )}
     </div>
   );
 }

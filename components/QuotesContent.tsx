@@ -558,6 +558,7 @@ type Quote = {
   jobName: string;
   stage: 'Draft' | 'Review' | 'Sent' | 'Negotiating' | 'Won' | 'Lost';
   status: 'Open' | 'Closed' | 'Expired' | 'Pending';
+  quoteType: 'Regular' | 'Blanket';
   value: string;
   valueNumber: number;
   winProbability: number;
@@ -579,6 +580,7 @@ type Quote = {
   insideReps: Rep[];
   outsideReps: Rep[];
   published: boolean;
+  lostReason?: string;
 };
 
 type OutsideRepSplit = {
@@ -751,6 +753,7 @@ const mockQuotes: Quote[] = [
     jobName: 'Downtown Medical Center',
     stage: 'Negotiating',
     status: 'Open',
+    quoteType: 'Regular',
     value: '$2,450,000',
     valueNumber: 2450000,
     winProbability: 72,
@@ -792,6 +795,7 @@ const mockQuotes: Quote[] = [
     jobName: 'TechCorp HQ Expansion',
     stage: 'Sent',
     status: 'Open',
+    quoteType: 'Blanket',
     value: '$1,850,000',
     valueNumber: 1850000,
     winProbability: 58,
@@ -826,6 +830,7 @@ const mockQuotes: Quote[] = [
     jobName: 'University Lab Building',
     stage: 'Draft',
     status: 'Pending',
+    quoteType: 'Regular',
     value: '$890,000',
     valueNumber: 890000,
     winProbability: 45,
@@ -857,6 +862,7 @@ const mockQuotes: Quote[] = [
     jobName: 'Harbor View Apartments',
     stage: 'Won',
     status: 'Closed',
+    quoteType: 'Regular',
     value: '$445,000',
     valueNumber: 445000,
     winProbability: 100,
@@ -891,6 +897,7 @@ const mockQuotes: Quote[] = [
     jobName: 'Airport Terminal Expansion',
     stage: 'Review',
     status: 'Open',
+    quoteType: 'Blanket',
     value: '$5,200,000',
     valueNumber: 5200000,
     winProbability: 35,
@@ -929,6 +936,7 @@ const mockQuotes: Quote[] = [
     jobName: 'Westside Mall Renovation',
     stage: 'Lost',
     status: 'Closed',
+    quoteType: 'Regular',
     value: '$720,000',
     valueNumber: 720000,
     winProbability: 0,
@@ -960,6 +968,7 @@ const mockQuotes: Quote[] = [
     jobName: 'City Hall Renovation',
     stage: 'Draft',
     status: 'Open',
+    quoteType: 'Regular',
     value: '$1,125,000',
     valueNumber: 1125000,
     winProbability: 62,
@@ -994,6 +1003,7 @@ const mockQuotes: Quote[] = [
     jobName: 'Riverside Office Tower',
     stage: 'Negotiating',
     status: 'Open',
+    quoteType: 'Blanket',
     value: '$3,750,000',
     valueNumber: 3750000,
     winProbability: 68,
@@ -1031,6 +1041,7 @@ const mockQuotes: Quote[] = [
     jobName: 'Metro Transit Hub',
     stage: 'Sent',
     status: 'Open',
+    quoteType: 'Regular',
     value: '$980,000',
     valueNumber: 980000,
     winProbability: 51,
@@ -1062,6 +1073,7 @@ const mockQuotes: Quote[] = [
     jobName: 'Grand Luxury Hotel',
     stage: 'Won',
     status: 'Closed',
+    quoteType: 'Blanket',
     value: '$1,680,000',
     valueNumber: 1680000,
     winProbability: 100,
@@ -1100,6 +1112,7 @@ const mockQuotes: Quote[] = [
     jobName: 'TechCore Data Center',
     stage: 'Review',
     status: 'Open',
+    quoteType: 'Regular',
     value: '$4,200,000',
     valueNumber: 4200000,
     winProbability: 42,
@@ -1134,6 +1147,7 @@ const mockQuotes: Quote[] = [
     jobName: 'Municipal Sports Arena',
     stage: 'Draft',
     status: 'Pending',
+    quoteType: 'Regular',
     value: '$2,100,000',
     valueNumber: 2100000,
     winProbability: 55,
@@ -1168,6 +1182,7 @@ const mockQuotes: Quote[] = [
     jobName: 'Community College Expansion',
     stage: 'Lost',
     status: 'Closed',
+    quoteType: 'Regular',
     value: '$560,000',
     valueNumber: 560000,
     winProbability: 0,
@@ -1199,6 +1214,7 @@ const mockQuotes: Quote[] = [
     jobName: 'Biotech Research Campus',
     stage: 'Negotiating',
     status: 'Open',
+    quoteType: 'Blanket',
     value: '$6,800,000',
     valueNumber: 6800000,
     winProbability: 78,
@@ -1240,6 +1256,7 @@ const mockQuotes: Quote[] = [
     jobName: 'Mercy Hospital ICU Wing',
     stage: 'Sent',
     status: 'Open',
+    quoteType: 'Regular',
     value: '$1,450,000',
     valueNumber: 1450000,
     winProbability: 64,
@@ -3461,6 +3478,16 @@ export default function QuotesContent() {
   const [showColumnsMenu, setShowColumnsMenu] = useState(false);
   const [showViewsMenu, setShowViewsMenu] = useState(false);
 
+  // Bulk actions for quotes list
+  const [selectedQuotesForBulk, setSelectedQuotesForBulk] = useState<Set<string>>(new Set());
+  const [showQuotesBulkActionsMenu, setShowQuotesBulkActionsMenu] = useState(false);
+  const [showMarkAsLostModal, setShowMarkAsLostModal] = useState(false);
+  const [lostReason, setLostReason] = useState('');
+  const [customLostReason, setCustomLostReason] = useState('');
+  const [lostReasons, setLostReasons] = useState(['Price too high', 'Lost to competitor', 'Project cancelled', 'Project delayed', 'Spec changed to different brand', 'Customer went with another supplier', 'No response from customer', 'Budget constraints', 'Other']);
+  const [showAddReasonInput, setShowAddReasonInput] = useState(false);
+  const [newReasonText, setNewReasonText] = useState('');
+
   // Quote settings - price level percentages (dynamic array)
   const [quotePriceLevels, setQuotePriceLevels] = useState([
     { id: 1, percent: 10, description: 'Standard contractor' },
@@ -3504,6 +3531,12 @@ export default function QuotesContent() {
   const [showRepSplitsModal, setShowRepSplitsModal] = useState(false);
   const [repCommissionSplits, setRepCommissionSplits] = useState<{repId: string; repName: string; percentage: number}[]>([]);
 
+  // Quote-level inside rep commission splits
+  const [quoteInsideRep, setQuoteInsideRep] = useState<string>('');
+  const [splitInsideCommission, setSplitInsideCommission] = useState(false);
+  const [showInsideRepSplitsModal, setShowInsideRepSplitsModal] = useState(false);
+  const [insideRepCommissionSplits, setInsideRepCommissionSplits] = useState<{repId: string; repName: string; percentage: number}[]>([]);
+
   // Line item outside rep splits
   const [lineItemRepDropdown, setLineItemRepDropdown] = useState<string | null>(null);
   const [lineItemRepSearch, setLineItemRepSearch] = useState('');
@@ -3530,6 +3563,7 @@ export default function QuotesContent() {
 
   // Dropdown states for stage and version
   const [showStageDropdown, setShowStageDropdown] = useState(false);
+  const [showTypeDropdown, setShowTypeDropdown] = useState(false);
   const [showVersionDropdown, setShowVersionDropdown] = useState(false);
 
   // Actions dropdown and modals
@@ -5726,14 +5760,21 @@ export default function QuotesContent() {
                       <button
                         key={stage}
                         onClick={() => {
-                          const newStage = stage as Quote['stage'];
-                          setSelectedQuote({ ...selectedQuote, stage: newStage });
-                          setQuotes(prev => prev.map(q => q.id === selectedQuote.id ? { ...q, stage: newStage } : q));
-                          setShowStageDropdown(false);
+                          if (stage === 'Lost') {
+                            // Open Mark as Lost modal for single quote
+                            setSelectedQuotesForBulk(new Set([selectedQuote.id]));
+                            setShowMarkAsLostModal(true);
+                            setShowStageDropdown(false);
+                          } else {
+                            const newStage = stage as Quote['stage'];
+                            setSelectedQuote({ ...selectedQuote, stage: newStage });
+                            setQuotes(prev => prev.map(q => q.id === selectedQuote.id ? { ...q, stage: newStage } : q));
+                            setShowStageDropdown(false);
+                          }
                         }}
                         className={`w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors first:rounded-t-lg last:rounded-b-lg flex items-center justify-between ${
                           selectedQuote.stage === stage ? 'bg-[var(--primary)]/10 text-[var(--primary)]' : ''
-                        }`}
+                        } ${stage === 'Lost' ? 'text-red-600' : ''}`}
                       >
                         {stage}
                         {selectedQuote.stage === stage && (
@@ -6036,8 +6077,8 @@ export default function QuotesContent() {
           </button>
           {showHeaderFields && (
             <div className="px-6 pb-4">
-              {/* Row 1: Quote Number, Sold To, Bill To, End User (conditional), Job, Payment Terms, Freight Terms */}
-              <div className={`grid gap-4 mb-4 ${!showEndUserPerLine ? 'grid-cols-7' : 'grid-cols-6'}`}>
+              {/* Row 1: Quote Number, Quote Type, Sold To, Bill To, End User (conditional), Job, Payment Terms, Freight Terms */}
+              <div className={`grid gap-4 mb-4 ${!showEndUserPerLine ? 'grid-cols-8' : 'grid-cols-7'}`}>
                 {/* Quote Number */}
                 <div>
                   <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
@@ -6052,6 +6093,32 @@ export default function QuotesContent() {
                     }}
                     className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
                   />
+                </div>
+
+                {/* Quote Type */}
+                <div>
+                  <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
+                    Quote Type
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={selectedQuote.quoteType}
+                      onChange={(e) => {
+                        const newType = e.target.value as 'Regular' | 'Blanket';
+                        setSelectedQuote({ ...selectedQuote, quoteType: newType });
+                        setQuotes(prev => prev.map(q => q.id === selectedQuote.id ? { ...q, quoteType: newType } : q));
+                      }}
+                      className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none cursor-pointer pr-8 ${
+                        selectedQuote.quoteType === 'Blanket' ? 'bg-purple-50 text-purple-700' : 'bg-white'
+                      }`}
+                    >
+                      <option value="Regular">Regular</option>
+                      <option value="Blanket">Blanket</option>
+                    </select>
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]">
+                      <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
                 </div>
 
                 {/* Sold To Customer */}
@@ -6210,8 +6277,8 @@ export default function QuotesContent() {
                 </div>
               </div>
 
-              {/* Row 2: Quote Date, Expiration Date, Revised Date, Accept Date, Outside Rep */}
-              <div className="grid grid-cols-5 gap-4">
+              {/* Row 2: Quote Date, Expiration Date, Revised Date, Accept Date, Outside Rep, Inside Rep */}
+              <div className={`grid gap-4 ${!showEndUserPerLine ? 'grid-cols-8' : 'grid-cols-7'}`}>
                 {/* Quote Date */}
                 <div>
                   <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
@@ -6333,6 +6400,70 @@ export default function QuotesContent() {
                             className="text-xs text-[var(--primary)] hover:underline ml-1"
                           >
                             ({repCommissionSplits.length} reps)
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Inside Rep - Hidden when inside rep splits per line is enabled */}
+                {!showInsideRepSplits && (
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
+                      Inside Rep
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={quoteInsideRep}
+                        onChange={(e) => {
+                          setQuoteInsideRep(e.target.value);
+                          if (!e.target.value) {
+                            setSplitInsideCommission(false);
+                            setInsideRepCommissionSplits([]);
+                          }
+                        }}
+                        className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none cursor-pointer pr-8"
+                      >
+                        <option value="">Select Rep...</option>
+                        {availableInsideReps.map(rep => (
+                          <option key={rep.id} value={rep.id}>{rep.name}</option>
+                        ))}
+                      </select>
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]">
+                        <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </div>
+                    {quoteInsideRep && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="splitInsideCommission"
+                          checked={splitInsideCommission}
+                          onChange={(e) => {
+                            setSplitInsideCommission(e.target.checked);
+                            if (e.target.checked) {
+                              // Initialize with the selected rep at 100%
+                              const rep = availableInsideReps.find(r => r.id === quoteInsideRep);
+                              if (rep) {
+                                setInsideRepCommissionSplits([{ repId: rep.id, repName: rep.name, percentage: 100 }]);
+                              }
+                              setShowInsideRepSplitsModal(true);
+                            } else {
+                              setInsideRepCommissionSplits([]);
+                            }
+                          }}
+                          className="accent-[var(--primary)]"
+                        />
+                        <label htmlFor="splitInsideCommission" className="text-xs text-[var(--muted-foreground)] cursor-pointer">
+                          Split Commission
+                        </label>
+                        {splitInsideCommission && insideRepCommissionSplits.length > 0 && (
+                          <button
+                            onClick={() => setShowInsideRepSplitsModal(true)}
+                            className="text-xs text-[var(--primary)] hover:underline ml-1"
+                          >
+                            ({insideRepCommissionSplits.length} reps)
                           </button>
                         )}
                       </div>
@@ -6684,6 +6815,23 @@ export default function QuotesContent() {
                               className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors"
                             >
                               Set Outside Rep Splits
+                            </button>
+                            <div className="border-t border-[var(--border)] my-1"></div>
+                            <button
+                              onClick={() => {
+                                if (selectedQuote) {
+                                  setSelectedQuotesForBulk(new Set([selectedQuote.id]));
+                                  setShowMarkAsLostModal(true);
+                                }
+                                setShowBulkActionsMenu(false);
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors text-red-600 flex items-center gap-2"
+                            >
+                              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                <circle cx="10" cy="10" r="8"/>
+                                <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                              </svg>
+                              Mark as Lost
                             </button>
                           </div>
                         )}
@@ -11532,7 +11680,10 @@ export default function QuotesContent() {
                         }`}
                       />
                     </button>
-                    <span className="text-sm font-medium text-[var(--foreground)]">Enable outside rep splits per line</span>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium text-[var(--foreground)]">Outside rep at line item level</span>
+                      <span className="text-xs text-[var(--muted-foreground)]">{showCommissionSplits ? 'Set outside rep per line item' : 'Set outside rep in header'}</span>
+                    </div>
                   </div>
 
                   {/* Inside Rep Commission Splits Toggle */}
@@ -11549,7 +11700,10 @@ export default function QuotesContent() {
                         }`}
                       />
                     </button>
-                    <span className="text-sm font-medium text-[var(--foreground)]">Enable inside rep splits per line</span>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium text-[var(--foreground)]">Inside rep at line item level</span>
+                      <span className="text-xs text-[var(--muted-foreground)]">{showInsideRepSplits ? 'Set inside rep per line item' : 'Set inside rep in header'}</span>
+                    </div>
                   </div>
 
                   {/* Divider */}
@@ -12109,6 +12263,191 @@ export default function QuotesContent() {
                 <button
                   onClick={() => setShowRepSplitsModal(false)}
                   disabled={repCommissionSplits.reduce((sum, s) => sum + s.percentage, 0) !== 100}
+                  className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Quote-Level Inside Rep Commission Splits Modal */}
+        {showInsideRepSplitsModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-lg w-full">
+              <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-[var(--foreground)]">Inside Rep Commission Splits</h2>
+                  <p className="text-sm text-[var(--muted-foreground)]">Divide commission among inside reps</p>
+                </div>
+                <button
+                  onClick={() => setShowInsideRepSplitsModal(false)}
+                  className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
+                >
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                  </svg>
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                {/* Total percentage indicator */}
+                {(() => {
+                  const totalPercentage = insideRepCommissionSplits.reduce((sum, split) => sum + split.percentage, 0);
+                  const isValid = totalPercentage === 100;
+                  return (
+                    <div className={`flex items-center justify-between p-3 rounded-lg ${
+                      isValid ? 'bg-green-50 border border-green-200' : 'bg-yellow-50 border border-yellow-200'
+                    }`}>
+                      <span className={`text-sm font-medium ${isValid ? 'text-green-700' : 'text-yellow-700'}`}>
+                        Total: {totalPercentage}%
+                      </span>
+                      {!isValid && (
+                        <span className="text-xs text-yellow-600">
+                          Must equal 100%
+                        </span>
+                      )}
+                      {isValid && (
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-600">
+                          <path d="M5 10l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Rep splits list */}
+                <div className="space-y-3">
+                  {insideRepCommissionSplits.map((split, index) => (
+                    <div key={split.repId} className="flex items-center gap-3 p-3 border border-[var(--border)] rounded-lg">
+                      <div className="flex-1">
+                        <select
+                          value={split.repId}
+                          onChange={(e) => {
+                            const newRep = availableInsideReps.find(r => r.id === e.target.value);
+                            if (newRep) {
+                              setInsideRepCommissionSplits(prev => prev.map((s, i) =>
+                                i === index ? { ...s, repId: newRep.id, repName: newRep.name } : s
+                              ));
+                            }
+                          }}
+                          className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
+                        >
+                          {availableInsideReps.map(rep => (
+                            <option
+                              key={rep.id}
+                              value={rep.id}
+                              disabled={insideRepCommissionSplits.some(s => s.repId === rep.id && s.repId !== split.repId)}
+                            >
+                              {rep.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="w-24 flex items-center gap-1">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={split.percentage}
+                          onChange={(e) => {
+                            const rawValue = e.target.value.replace(/[^0-9]/g, '');
+                            const value = Math.min(100, Math.max(0, parseInt(rawValue) || 0));
+                            const otherRepsCount = insideRepCommissionSplits.length - 1;
+                            if (otherRepsCount > 0) {
+                              const remaining = 100 - value;
+                              const perRep = Math.floor(remaining / otherRepsCount);
+                              const remainder = remaining - (perRep * otherRepsCount);
+                              let extraAssigned = 0;
+                              setInsideRepCommissionSplits(prev => prev.map((s, i) => {
+                                if (i === index) {
+                                  return { ...s, percentage: value };
+                                } else {
+                                  const extraPercent = extraAssigned < remainder ? 1 : 0;
+                                  extraAssigned++;
+                                  return { ...s, percentage: Math.max(0, perRep + extraPercent) };
+                                }
+                              }));
+                            } else {
+                              setInsideRepCommissionSplits(prev => prev.map((s, i) =>
+                                i === index ? { ...s, percentage: value } : s
+                              ));
+                            }
+                          }}
+                          onFocus={(e) => e.target.select()}
+                          className="w-16 px-2 py-2 bg-white border border-[var(--border)] rounded-md text-sm text-center focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent [appearance:textfield]"
+                        />
+                        <span className="text-sm text-[var(--muted-foreground)]">%</span>
+                      </div>
+                      {insideRepCommissionSplits.length > 1 && (
+                        <button
+                          onClick={() => {
+                            const remaining = insideRepCommissionSplits.filter((_, i) => i !== index);
+                            const newCount = remaining.length;
+                            const perRep = Math.floor(100 / newCount);
+                            const remainder = 100 - (perRep * newCount);
+                            let extraAssigned = 0;
+                            setInsideRepCommissionSplits(remaining.map(s => {
+                              const extraPercent = extraAssigned < remainder ? 1 : 0;
+                              extraAssigned++;
+                              return { ...s, percentage: perRep + extraPercent };
+                            }));
+                          }}
+                          className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Remove rep"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Add rep button */}
+                {insideRepCommissionSplits.length < availableInsideReps.length && (
+                  <button
+                    onClick={() => {
+                      const usedRepIds = new Set(insideRepCommissionSplits.map(s => s.repId));
+                      const availableRep = availableInsideReps.find(r => !usedRepIds.has(r.id));
+                      if (availableRep) {
+                        const newCount = insideRepCommissionSplits.length + 1;
+                        const perRep = Math.floor(100 / newCount);
+                        const remainder = 100 - (perRep * newCount);
+                        let extraAssigned = 0;
+                        const updatedSplits = insideRepCommissionSplits.map(s => {
+                          const extraPercent = extraAssigned < remainder ? 1 : 0;
+                          extraAssigned++;
+                          return { ...s, percentage: perRep + extraPercent };
+                        });
+                        const newRepPercent = perRep + (extraAssigned < remainder ? 1 : 0);
+                        setInsideRepCommissionSplits([...updatedSplits, { repId: availableRep.id, repName: availableRep.name, percentage: newRepPercent }]);
+                      }
+                    }}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-dashed border-[var(--border)] rounded-lg text-sm text-[var(--muted-foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)] transition-colors"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                    </svg>
+                    Add Rep
+                  </button>
+                )}
+              </div>
+              <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3">
+                <button
+                  onClick={() => {
+                    setSplitInsideCommission(false);
+                    setInsideRepCommissionSplits([]);
+                    setShowInsideRepSplitsModal(false);
+                  }}
+                  className="px-4 py-2 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors text-sm font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => setShowInsideRepSplitsModal(false)}
+                  disabled={insideRepCommissionSplits.reduce((sum, s) => sum + s.percentage, 0) !== 100}
                   className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Save
@@ -12801,9 +13140,14 @@ export default function QuotesContent() {
                 <div className="space-y-1">
                   {columnOrder
                     .filter(colKey => {
-                      // In simple view, filter out overage/commission/levels columns
+                      // In simple view, filter out overage/levels columns and advanced commission columns
                       if (quoteViewMode === 'simple') {
                         const col = columnDefinitions.find(c => c.key === colKey);
+                        // Allow basic commission columns in simple view
+                        const simpleCommissionColumns: ColumnKey[] = ['commissionPercent', 'commission', 'commissionTotal'];
+                        if (simpleCommissionColumns.includes(colKey)) {
+                          return true;
+                        }
                         if (col && ['Overage', 'Commission', 'Levels'].includes(col.group)) {
                           return false;
                         }
@@ -12844,6 +13188,171 @@ export default function QuotesContent() {
                   className="px-4 py-2 text-sm bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
                 >
                   Done
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Mark as Lost Modal */}
+        {showMarkAsLostModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-md w-full">
+              <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-[var(--foreground)]">Mark as Lost</h2>
+                <button
+                  onClick={() => {
+                    setShowMarkAsLostModal(false);
+                    setLostReason('');
+                    setCustomLostReason('');
+                    setShowAddReasonInput(false);
+                    setNewReasonText('');
+                  }}
+                  className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
+                >
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                  </svg>
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                    Reason for Loss <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={lostReason}
+                    onChange={(e) => setLostReason(e.target.value)}
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent bg-white"
+                  >
+                    <option value="">Select a reason...</option>
+                    {lostReasons.map(reason => (
+                      <option key={reason} value={reason}>{reason}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {lostReason === 'Other' && (
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                      Please specify <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      value={customLostReason}
+                      onChange={(e) => setCustomLostReason(e.target.value)}
+                      placeholder="Enter the reason..."
+                      rows={3}
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent resize-none"
+                    />
+                  </div>
+                )}
+
+                {/* Add New Reason */}
+                {!showAddReasonInput ? (
+                  <button
+                    onClick={() => setShowAddReasonInput(true)}
+                    className="flex items-center gap-2 text-sm text-[var(--primary)] hover:text-[var(--primary)]/80 transition-colors"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M8 3v10M3 8h10" strokeLinecap="round"/>
+                    </svg>
+                    Add new reason to list
+                  </button>
+                ) : (
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-[var(--foreground)]">
+                      New Reason
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newReasonText}
+                        onChange={(e) => setNewReasonText(e.target.value)}
+                        placeholder="Enter new reason..."
+                        className="flex-1 px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
+                        autoFocus
+                      />
+                      <button
+                        onClick={() => {
+                          if (newReasonText.trim() && !lostReasons.includes(newReasonText.trim())) {
+                            // Insert the new reason before "Other"
+                            const otherIndex = lostReasons.indexOf('Other');
+                            const newReasons = [...lostReasons];
+                            if (otherIndex !== -1) {
+                              newReasons.splice(otherIndex, 0, newReasonText.trim());
+                            } else {
+                              newReasons.push(newReasonText.trim());
+                            }
+                            setLostReasons(newReasons);
+                            setLostReason(newReasonText.trim());
+                            setNewReasonText('');
+                            setShowAddReasonInput(false);
+                          }
+                        }}
+                        disabled={!newReasonText.trim() || lostReasons.includes(newReasonText.trim())}
+                        className="px-3 py-2 text-sm bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary)]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Add
+                      </button>
+                      <button
+                        onClick={() => {
+                          setNewReasonText('');
+                          setShowAddReasonInput(false);
+                        }}
+                        className="px-3 py-2 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    {newReasonText.trim() && lostReasons.includes(newReasonText.trim()) && (
+                      <p className="text-xs text-red-500">This reason already exists in the list</p>
+                    )}
+                  </div>
+                )}
+
+              </div>
+              <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3">
+                <button
+                  onClick={() => {
+                    setShowMarkAsLostModal(false);
+                    setLostReason('');
+                    setCustomLostReason('');
+                    setShowAddReasonInput(false);
+                    setNewReasonText('');
+                  }}
+                  className="px-4 py-2 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    const finalReason = lostReason === 'Other' ? customLostReason : lostReason;
+                    if (!finalReason) return;
+
+                    // Update quotes to Lost stage
+                    setQuotes(prev => prev.map(q =>
+                      selectedQuotesForBulk.has(q.id)
+                        ? { ...q, stage: 'Lost' as const, lostReason: finalReason }
+                        : q
+                    ));
+
+                    // Update selectedQuote if it's being marked as lost
+                    if (selectedQuote && selectedQuotesForBulk.has(selectedQuote.id)) {
+                      setSelectedQuote({ ...selectedQuote, stage: 'Lost' as const, lostReason: finalReason });
+                    }
+
+                    // Reset state
+                    setSelectedQuotesForBulk(new Set());
+                    setShowMarkAsLostModal(false);
+                    setLostReason('');
+                    setCustomLostReason('');
+                    setShowAddReasonInput(false);
+                    setNewReasonText('');
+                  }}
+                  disabled={!lostReason || (lostReason === 'Other' && !customLostReason)}
+                  className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Mark as Lost
                 </button>
               </div>
             </div>
@@ -14954,6 +15463,119 @@ FlowConnect Lighting`}
       ) : (
         /* List View */
         <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
+          {/* Bulk Actions Bar */}
+          {selectedQuotesForBulk.size > 0 && (
+            <div className="px-4 py-2 bg-[var(--primary)]/5 border-b border-[var(--border)] flex items-center justify-between">
+              <span className="text-sm text-[var(--foreground)]">
+                <strong>{selectedQuotesForBulk.size}</strong> quote{selectedQuotesForBulk.size !== 1 ? 's' : ''} selected
+              </span>
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <button
+                    onClick={() => setShowQuotesBulkActionsMenu(!showQuotesBulkActionsMenu)}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+                  >
+                    Bulk Actions
+                    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
+                  {showQuotesBulkActionsMenu && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setShowQuotesBulkActionsMenu(false)} />
+                      <div className="absolute top-full right-0 mt-1 w-48 bg-white border border-[var(--border)] rounded-lg shadow-xl z-50 py-1">
+                        <button
+                          onClick={() => {
+                            setShowMarkAsLostModal(true);
+                            setShowQuotesBulkActionsMenu(false);
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors flex items-center gap-2 text-red-600"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                            <circle cx="10" cy="10" r="8"/>
+                            <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                          </svg>
+                          Mark as Lost
+                        </button>
+                        <button
+                          onClick={() => {
+                            // Mark as Won
+                            setQuotes(prev => prev.map(q =>
+                              selectedQuotesForBulk.has(q.id) ? { ...q, stage: 'Won' as const } : q
+                            ));
+                            setSelectedQuotesForBulk(new Set());
+                            setShowQuotesBulkActionsMenu(false);
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors flex items-center gap-2 text-green-600"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                            <circle cx="10" cy="10" r="8"/>
+                            <path d="M6 10l3 3 5-5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                          Mark as Won
+                        </button>
+                        <div className="border-t border-[var(--border)] my-1"></div>
+                        <button
+                          onClick={() => {
+                            setQuotes(prev => prev.map(q =>
+                              selectedQuotesForBulk.has(q.id) ? { ...q, stage: 'Draft' as const } : q
+                            ));
+                            setSelectedQuotesForBulk(new Set());
+                            setShowQuotesBulkActionsMenu(false);
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors"
+                        >
+                          Move to Draft
+                        </button>
+                        <button
+                          onClick={() => {
+                            setQuotes(prev => prev.map(q =>
+                              selectedQuotesForBulk.has(q.id) ? { ...q, stage: 'Review' as const } : q
+                            ));
+                            setSelectedQuotesForBulk(new Set());
+                            setShowQuotesBulkActionsMenu(false);
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors"
+                        >
+                          Move to Review
+                        </button>
+                        <button
+                          onClick={() => {
+                            setQuotes(prev => prev.map(q =>
+                              selectedQuotesForBulk.has(q.id) ? { ...q, stage: 'Sent' as const } : q
+                            ));
+                            setSelectedQuotesForBulk(new Set());
+                            setShowQuotesBulkActionsMenu(false);
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors"
+                        >
+                          Move to Sent
+                        </button>
+                        <button
+                          onClick={() => {
+                            setQuotes(prev => prev.map(q =>
+                              selectedQuotesForBulk.has(q.id) ? { ...q, stage: 'Negotiating' as const } : q
+                            ));
+                            setSelectedQuotesForBulk(new Set());
+                            setShowQuotesBulkActionsMenu(false);
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors"
+                        >
+                          Move to Negotiating
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+                <button
+                  onClick={() => setSelectedQuotesForBulk(new Set())}
+                  className="px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                >
+                  Clear Selection
+                </button>
+              </div>
+            </div>
+          )}
           {/* Table */}
           <div className="overflow-x-auto">
             <table className="w-full min-w-[2200px]">
@@ -14961,7 +15583,18 @@ FlowConnect Lighting`}
                 <tr>
                   {/* Checkbox */}
                   <th className="w-10 px-3 py-3 text-left">
-                    <input type="checkbox" className="rounded border-[var(--border)]" />
+                    <input
+                      type="checkbox"
+                      className="rounded border-[var(--border)] accent-[var(--primary)]"
+                      checked={sortedQuotes.length > 0 && sortedQuotes.every(q => selectedQuotesForBulk.has(q.id))}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedQuotesForBulk(new Set(sortedQuotes.map(q => q.id)));
+                        } else {
+                          setSelectedQuotesForBulk(new Set());
+                        }
+                      }}
+                    />
                   </th>
                   {/* Quote Number */}
                   <th className="px-3 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider relative">
@@ -15334,7 +15967,22 @@ FlowConnect Lighting`}
                   >
                     {/* Checkbox */}
                     <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
-                      <input type="checkbox" className="rounded border-[var(--border)]" />
+                      <input
+                        type="checkbox"
+                        className="rounded border-[var(--border)] accent-[var(--primary)]"
+                        checked={selectedQuotesForBulk.has(quote.id)}
+                        onChange={(e) => {
+                          setSelectedQuotesForBulk(prev => {
+                            const newSet = new Set(prev);
+                            if (e.target.checked) {
+                              newSet.add(quote.id);
+                            } else {
+                              newSet.delete(quote.id);
+                            }
+                            return newSet;
+                          });
+                        }}
+                      />
                     </td>
                     {/* Quote Number */}
                     <td className="px-3 py-3">

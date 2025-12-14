@@ -340,3 +340,264 @@ export function getTeamCounts(members: TeamMember[]) {
     totalInactive: inactive.length,
   };
 }
+
+// Territory Management Types
+export type TerritoryLevel = 'state' | 'city' | 'zip';
+
+export interface TerritoryLocation {
+  type: TerritoryLevel;
+  value: string; // State code (e.g., "NC"), City name, or Zip code
+  state?: string; // Required for city and zip
+  city?: string; // Optional for zip
+}
+
+export interface Territory {
+  id: string;
+  name: string;
+  color: string; // For map visualization
+  locations: TerritoryLocation[];
+  reps: RepSplit[];
+  createdAt: string;
+}
+
+// Rep Territory - territory config per rep
+export interface RepTerritory {
+  repId: string;
+  // Counties by state - if empty array for a state, means ALL counties in that state
+  // Format: { stateCode: ['County Name', ...] } - empty array means whole state
+  counties: { [stateCode: string]: string[] };
+}
+
+// County data for each state (subset of counties for demo purposes)
+export const stateCounties: { [stateCode: string]: { name: string; fips: string }[] } = {
+  'NC': [
+    { name: 'Mecklenburg', fips: '119' },
+    { name: 'Wake', fips: '183' },
+    { name: 'Guilford', fips: '081' },
+    { name: 'Forsyth', fips: '067' },
+    { name: 'Durham', fips: '063' },
+    { name: 'Cumberland', fips: '051' },
+    { name: 'Buncombe', fips: '021' },
+    { name: 'Gaston', fips: '071' },
+    { name: 'New Hanover', fips: '129' },
+    { name: 'Cabarrus', fips: '025' },
+    { name: 'Union', fips: '179' },
+    { name: 'Iredell', fips: '097' },
+    { name: 'Catawba', fips: '035' },
+    { name: 'Rowan', fips: '159' },
+    { name: 'Davidson', fips: '057' },
+  ],
+  'SC': [
+    { name: 'Greenville', fips: '045' },
+    { name: 'Richland', fips: '079' },
+    { name: 'Charleston', fips: '019' },
+    { name: 'Horry', fips: '051' },
+    { name: 'Spartanburg', fips: '083' },
+    { name: 'Lexington', fips: '063' },
+    { name: 'York', fips: '091' },
+    { name: 'Anderson', fips: '007' },
+    { name: 'Berkeley', fips: '015' },
+    { name: 'Dorchester', fips: '035' },
+  ],
+  'GA': [
+    { name: 'Fulton', fips: '121' },
+    { name: 'Gwinnett', fips: '135' },
+    { name: 'Cobb', fips: '067' },
+    { name: 'DeKalb', fips: '089' },
+    { name: 'Chatham', fips: '051' },
+    { name: 'Clayton', fips: '063' },
+    { name: 'Cherokee', fips: '057' },
+    { name: 'Forsyth', fips: '117' },
+    { name: 'Henry', fips: '151' },
+    { name: 'Richmond', fips: '245' },
+  ],
+  'TX': [
+    { name: 'Harris', fips: '201' },
+    { name: 'Dallas', fips: '113' },
+    { name: 'Tarrant', fips: '439' },
+    { name: 'Bexar', fips: '029' },
+    { name: 'Travis', fips: '453' },
+    { name: 'Collin', fips: '085' },
+    { name: 'Hidalgo', fips: '215' },
+    { name: 'El Paso', fips: '141' },
+    { name: 'Denton', fips: '121' },
+    { name: 'Fort Bend', fips: '157' },
+    { name: 'Montgomery', fips: '339' },
+    { name: 'Williamson', fips: '491' },
+  ],
+  'OK': [
+    { name: 'Oklahoma', fips: '109' },
+    { name: 'Tulsa', fips: '143' },
+    { name: 'Cleveland', fips: '027' },
+    { name: 'Canadian', fips: '017' },
+    { name: 'Comanche', fips: '031' },
+    { name: 'Rogers', fips: '131' },
+    { name: 'Wagoner', fips: '145' },
+    { name: 'Payne', fips: '119' },
+  ],
+  'NY': [
+    { name: 'Kings', fips: '047' },
+    { name: 'Queens', fips: '081' },
+    { name: 'New York', fips: '061' },
+    { name: 'Suffolk', fips: '103' },
+    { name: 'Bronx', fips: '005' },
+    { name: 'Nassau', fips: '059' },
+    { name: 'Westchester', fips: '119' },
+    { name: 'Erie', fips: '029' },
+    { name: 'Monroe', fips: '055' },
+    { name: 'Richmond', fips: '085' },
+    { name: 'Onondaga', fips: '067' },
+    { name: 'Albany', fips: '001' },
+  ],
+  'NJ': [
+    { name: 'Bergen', fips: '003' },
+    { name: 'Middlesex', fips: '023' },
+    { name: 'Essex', fips: '013' },
+    { name: 'Hudson', fips: '017' },
+    { name: 'Monmouth', fips: '025' },
+    { name: 'Ocean', fips: '029' },
+    { name: 'Union', fips: '039' },
+    { name: 'Passaic', fips: '031' },
+    { name: 'Camden', fips: '007' },
+    { name: 'Morris', fips: '027' },
+  ],
+  'CT': [
+    { name: 'Fairfield', fips: '001' },
+    { name: 'Hartford', fips: '003' },
+    { name: 'New Haven', fips: '009' },
+    { name: 'New London', fips: '011' },
+    { name: 'Litchfield', fips: '005' },
+    { name: 'Middlesex', fips: '007' },
+    { name: 'Tolland', fips: '013' },
+    { name: 'Windham', fips: '015' },
+  ],
+  'FL': [
+    { name: 'Miami-Dade', fips: '086' },
+    { name: 'Broward', fips: '011' },
+    { name: 'Palm Beach', fips: '099' },
+    { name: 'Hillsborough', fips: '057' },
+    { name: 'Orange', fips: '095' },
+    { name: 'Pinellas', fips: '103' },
+    { name: 'Duval', fips: '031' },
+    { name: 'Lee', fips: '071' },
+    { name: 'Polk', fips: '105' },
+    { name: 'Brevard', fips: '009' },
+  ],
+  'CA': [
+    { name: 'Los Angeles', fips: '037' },
+    { name: 'San Diego', fips: '073' },
+    { name: 'Orange', fips: '059' },
+    { name: 'Riverside', fips: '065' },
+    { name: 'San Bernardino', fips: '071' },
+    { name: 'Santa Clara', fips: '085' },
+    { name: 'Alameda', fips: '001' },
+    { name: 'Sacramento', fips: '067' },
+    { name: 'Contra Costa', fips: '013' },
+    { name: 'Fresno', fips: '019' },
+    { name: 'San Francisco', fips: '075' },
+    { name: 'Ventura', fips: '111' },
+  ],
+};
+
+// US States for selection
+export const usStates = [
+  { code: 'AL', name: 'Alabama' },
+  { code: 'AK', name: 'Alaska' },
+  { code: 'AZ', name: 'Arizona' },
+  { code: 'AR', name: 'Arkansas' },
+  { code: 'CA', name: 'California' },
+  { code: 'CO', name: 'Colorado' },
+  { code: 'CT', name: 'Connecticut' },
+  { code: 'DE', name: 'Delaware' },
+  { code: 'FL', name: 'Florida' },
+  { code: 'GA', name: 'Georgia' },
+  { code: 'HI', name: 'Hawaii' },
+  { code: 'ID', name: 'Idaho' },
+  { code: 'IL', name: 'Illinois' },
+  { code: 'IN', name: 'Indiana' },
+  { code: 'IA', name: 'Iowa' },
+  { code: 'KS', name: 'Kansas' },
+  { code: 'KY', name: 'Kentucky' },
+  { code: 'LA', name: 'Louisiana' },
+  { code: 'ME', name: 'Maine' },
+  { code: 'MD', name: 'Maryland' },
+  { code: 'MA', name: 'Massachusetts' },
+  { code: 'MI', name: 'Michigan' },
+  { code: 'MN', name: 'Minnesota' },
+  { code: 'MS', name: 'Mississippi' },
+  { code: 'MO', name: 'Missouri' },
+  { code: 'MT', name: 'Montana' },
+  { code: 'NE', name: 'Nebraska' },
+  { code: 'NV', name: 'Nevada' },
+  { code: 'NH', name: 'New Hampshire' },
+  { code: 'NJ', name: 'New Jersey' },
+  { code: 'NM', name: 'New Mexico' },
+  { code: 'NY', name: 'New York' },
+  { code: 'NC', name: 'North Carolina' },
+  { code: 'ND', name: 'North Dakota' },
+  { code: 'OH', name: 'Ohio' },
+  { code: 'OK', name: 'Oklahoma' },
+  { code: 'OR', name: 'Oregon' },
+  { code: 'PA', name: 'Pennsylvania' },
+  { code: 'RI', name: 'Rhode Island' },
+  { code: 'SC', name: 'South Carolina' },
+  { code: 'SD', name: 'South Dakota' },
+  { code: 'TN', name: 'Tennessee' },
+  { code: 'TX', name: 'Texas' },
+  { code: 'UT', name: 'Utah' },
+  { code: 'VT', name: 'Vermont' },
+  { code: 'VA', name: 'Virginia' },
+  { code: 'WA', name: 'Washington' },
+  { code: 'WV', name: 'West Virginia' },
+  { code: 'WI', name: 'Wisconsin' },
+  { code: 'WY', name: 'Wyoming' },
+  { code: 'DC', name: 'District of Columbia' },
+];
+
+// Territory colors palette
+export const territoryColors = [
+  '#3B82F6', // blue
+  '#10B981', // emerald
+  '#F59E0B', // amber
+  '#EF4444', // red
+  '#8B5CF6', // violet
+  '#EC4899', // pink
+  '#06B6D4', // cyan
+  '#84CC16', // lime
+  '#F97316', // orange
+  '#6366F1', // indigo
+];
+
+// Mock Territories (legacy - keeping for backwards compatibility)
+export const mockTerritories: Territory[] = [];
+
+// Mock Rep Territories - territory config per rep
+// counties: { stateCode: ['County1', 'County2', ...] } - empty array means ALL counties in that state
+export const mockRepTerritories: RepTerritory[] = [
+  {
+    repId: 'or-3', // John Smith
+    // All counties in NC, SC, GA
+    counties: {
+      'NC': [], // empty = all counties
+      'SC': [],
+      'GA': [],
+    },
+  },
+  {
+    repId: 'or-4', // Sarah Johnson
+    // Specific counties in TX and OK
+    counties: {
+      'TX': ['Harris', 'Dallas', 'Travis'], // Houston, Dallas, Austin areas
+      'OK': ['Oklahoma', 'Tulsa'],
+    },
+  },
+  {
+    repId: 'or-1', // Outside Rep
+    // Specific counties in NY, all of NJ and CT
+    counties: {
+      'NY': ['Kings', 'Queens', 'New York', 'Bronx', 'Richmond'], // NYC boroughs
+      'NJ': [],
+      'CT': [],
+    },
+  },
+];

@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { ComposableMap, Geographies, Geography, ZoomableGroup } from 'react-simple-maps';
 import TagSearchSelect from './TagSearchSelect';
 import SidebarSettings from './SidebarSettings';
 import {
@@ -20,6 +21,10 @@ import {
   mockEndUsers,
   mockCustomerRepAssignments,
   mockEndUserRepAssignments,
+  mockRepTerritories,
+  usStates,
+  stateCounties,
+  territoryColors,
   permissionEntities,
   permissionRoles,
   getPermissionStatus,
@@ -31,6 +36,7 @@ import {
   type SalesRepSelection,
   type RepAssignment,
   type RepSplit,
+  type RepTerritory,
 } from './admin/data/admin-mock-data';
 
 type RepType = {
@@ -2207,9 +2213,7 @@ function SalesRepSelectionsTab() {
       </div>
 
       {assignmentType === 'geography' ? (
-        <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-8 text-center">
-          <p className="text-[var(--muted-foreground)]">Geography-based rep assignments coming soon</p>
-        </div>
+        <GeographyTab outsideReps={outsideReps} />
       ) : (
         <>
           {/* Action Buttons */}
@@ -2813,6 +2817,1787 @@ function BulkRepSplitModal({
           >
             Apply Split
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Geography Tab Component - Rep-centric Territory Management with County Selection
+function GeographyTab({ outsideReps }: { outsideReps: { id: string; name: string }[] }) {
+  const [repTerritories, setRepTerritories] = useState<RepTerritory[]>(mockRepTerritories);
+  const [editingRepId, setEditingRepId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showUploadModal, setShowUploadModal] = useState(false);
+
+  // Get territory for a rep
+  const getRepTerritory = (repId: string): RepTerritory | undefined => {
+    return repTerritories.find(t => t.repId === repId);
+  };
+
+  // Check if rep has territory configured
+  const hasTerritory = (repId: string): boolean => {
+    const territory = getRepTerritory(repId);
+    return !!territory && Object.keys(territory.counties).length > 0;
+  };
+
+  // Get territory summary for display
+  const getTerritoryStatus = (repId: string): { configured: boolean; summary: string } => {
+    const territory = getRepTerritory(repId);
+    if (!territory || Object.keys(territory.counties).length === 0) {
+      return { configured: false, summary: 'Not configured' };
+    }
+
+    const stateCount = Object.keys(territory.counties).length;
+    let totalCounties = 0;
+    let wholeStates = 0;
+
+    Object.entries(territory.counties).forEach(([stateCode, counties]) => {
+      if (counties.length === 0) {
+        wholeStates++;
+      } else {
+        totalCounties += counties.length;
+      }
+    });
+
+    const parts: string[] = [];
+    if (wholeStates > 0) {
+      parts.push(`${wholeStates} full state${wholeStates !== 1 ? 's' : ''}`);
+    }
+    if (totalCounties > 0) {
+      parts.push(`${totalCounties} count${totalCounties !== 1 ? 'ies' : 'y'}`);
+    }
+    return { configured: true, summary: parts.join(', ') };
+  };
+
+  const handleEditTerritory = (repId: string) => {
+    setEditingRepId(repId);
+  };
+
+  const handleSaveTerritory = (territory: RepTerritory) => {
+    setRepTerritories(prev => {
+      const existing = prev.find(t => t.repId === territory.repId);
+      if (existing) {
+        return prev.map(t => t.repId === territory.repId ? territory : t);
+      }
+      return [...prev, territory];
+    });
+    setEditingRepId(null);
+  };
+
+  const handleClearTerritory = (repId: string) => {
+    if (confirm('Are you sure you want to clear this rep\'s territory?')) {
+      setRepTerritories(prev => prev.filter(t => t.repId !== repId));
+    }
+  };
+
+  // Filter reps by search term
+  const filteredReps = outsideReps.filter(rep =>
+    rep.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const editingRep = editingRepId ? outsideReps.find(r => r.id === editingRepId) : null;
+  const editingTerritory = editingRepId ? getRepTerritory(editingRepId) : undefined;
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="space-y-3">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-2 flex-1">
+            <p className="text-sm text-[var(--muted-foreground)]">
+              Configure geographic territories for each sales rep. Select a state to view its county map, then click or drag to select counties.
+            </p>
+            <p className="text-sm text-[var(--muted-foreground)] bg-[var(--muted)]/50 p-3 rounded-lg border border-[var(--border)]">
+              <span className="font-medium text-[var(--foreground)]">Note:</span> Rep assignments will be based on the customer&apos;s billing address when matching against territories.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowUploadModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-medium hover:bg-[var(--primary-hover)] transition-colors whitespace-nowrap"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+            </svg>
+            Upload CSV
+          </button>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <svg
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <circle cx="11" cy="11" r="8" />
+          <path d="M21 21l-4.35-4.35" />
+        </svg>
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search reps..."
+          className="w-full pl-10 pr-4 py-2 border border-[var(--border)] rounded-lg text-sm bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+        />
+      </div>
+
+      {/* Rep List */}
+      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
+        {/* Header */}
+        <div className="grid grid-cols-[1fr_1fr_auto] gap-4 px-4 py-3 border-b border-[var(--border)] bg-[var(--muted)]/30">
+          <div className="text-sm font-medium text-[var(--foreground)]">Rep</div>
+          <div className="text-sm font-medium text-[var(--foreground)]">Territory Status</div>
+          <div className="w-20"></div>
+        </div>
+
+        {/* Rows */}
+        <div className="divide-y divide-[var(--border)]">
+          {filteredReps.map((rep) => {
+            const status = getTerritoryStatus(rep.id);
+            return (
+              <div key={rep.id} className="grid grid-cols-[1fr_1fr_auto] gap-4 px-4 py-3 items-center hover:bg-[var(--muted)]/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-[var(--primary)]/10 flex items-center justify-center">
+                    <span className="text-sm font-medium text-[var(--primary)]">
+                      {rep.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                    </span>
+                  </div>
+                  <span className="text-sm text-[var(--foreground)]">{rep.name}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs ${
+                    status.configured
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {status.configured ? (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M20 6L9 17l-5-5"/>
+                      </svg>
+                    ) : (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 8v4M12 16h.01"/>
+                      </svg>
+                    )}
+                    {status.summary}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleEditTerritory(rep.id)}
+                    className="px-3 py-1.5 text-sm text-[var(--primary)] hover:bg-[var(--primary)]/10 rounded transition-colors"
+                  >
+                    {status.configured ? 'Edit' : 'Configure'}
+                  </button>
+                  {status.configured && (
+                    <button
+                      onClick={() => handleClearTerritory(rep.id)}
+                      className="p-1.5 text-[var(--muted-foreground)] hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                      title="Clear territory"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Summary */}
+      <div className="flex items-center justify-between text-xs text-[var(--muted-foreground)]">
+        <span>{filteredReps.length} rep{filteredReps.length !== 1 ? 's' : ''}</span>
+        <span>{repTerritories.filter(t => Object.keys(t.counties).length > 0).length} with territories configured</span>
+      </div>
+
+      {/* Rep Territory Modal */}
+      {editingRepId && editingRep && (
+        <RepTerritoryModal
+          repId={editingRepId}
+          repName={editingRep.name}
+          territory={editingTerritory}
+          allTerritories={repTerritories}
+          allReps={outsideReps}
+          onClose={() => setEditingRepId(null)}
+          onSave={handleSaveTerritory}
+        />
+      )}
+
+      {/* CSV Upload Modal */}
+      {showUploadModal && (
+        <ZipCodeUploadModal
+          outsideReps={outsideReps}
+          onClose={() => setShowUploadModal(false)}
+          onImport={(imports) => {
+            // Process the imports and update territories
+            setRepTerritories(prev => {
+              const newTerritories = [...prev];
+              imports.forEach(({ repId, stateCode, countyName }) => {
+                let territory = newTerritories.find(t => t.repId === repId);
+                if (!territory) {
+                  territory = { repId, counties: {} };
+                  newTerritories.push(territory);
+                }
+                if (!territory.counties[stateCode]) {
+                  territory.counties[stateCode] = [];
+                }
+                // Only add if not already "all counties" and not already in list
+                if (territory.counties[stateCode].length > 0 || territory.counties[stateCode] === undefined) {
+                  if (!territory.counties[stateCode].includes(countyName)) {
+                    territory.counties[stateCode].push(countyName);
+                  }
+                }
+              });
+              return newTerritories;
+            });
+            setShowUploadModal(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Zip Code Upload Modal - Bulk import territories from CSV
+function ZipCodeUploadModal({
+  outsideReps,
+  onClose,
+  onImport,
+}: {
+  outsideReps: { id: string; name: string }[];
+  onClose: () => void;
+  onImport: (imports: { repId: string; stateCode: string; countyName: string }[]) => void;
+}) {
+  const [csvContent, setCsvContent] = useState('');
+  const [parseResults, setParseResults] = useState<{
+    valid: { repName: string; repId: string; zipCode: string; stateCode: string; countyName: string }[];
+    errors: { line: number; error: string; content: string }[];
+  } | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Simple zip code to state/county mapping (in real app, would use a proper API or database)
+  // This is a simplified demo mapping
+  const zipToLocation: { [zip: string]: { state: string; county: string } } = {
+    // NC zip codes
+    '28201': { state: 'NC', county: 'Mecklenburg' },
+    '28202': { state: 'NC', county: 'Mecklenburg' },
+    '28203': { state: 'NC', county: 'Mecklenburg' },
+    '27601': { state: 'NC', county: 'Wake' },
+    '27602': { state: 'NC', county: 'Wake' },
+    '27701': { state: 'NC', county: 'Durham' },
+    // TX zip codes
+    '77001': { state: 'TX', county: 'Harris' },
+    '77002': { state: 'TX', county: 'Harris' },
+    '75201': { state: 'TX', county: 'Dallas' },
+    '75202': { state: 'TX', county: 'Dallas' },
+    '78701': { state: 'TX', county: 'Travis' },
+    // NY zip codes
+    '10001': { state: 'NY', county: 'New York' },
+    '10002': { state: 'NY', county: 'New York' },
+    '11201': { state: 'NY', county: 'Kings' },
+    '11101': { state: 'NY', county: 'Queens' },
+    // GA zip codes
+    '30301': { state: 'GA', county: 'Fulton' },
+    '30302': { state: 'GA', county: 'Fulton' },
+    '30033': { state: 'GA', county: 'DeKalb' },
+    // FL zip codes
+    '33101': { state: 'FL', county: 'Miami-Dade' },
+    '33301': { state: 'FL', county: 'Broward' },
+    // CA zip codes
+    '90001': { state: 'CA', county: 'Los Angeles' },
+    '90210': { state: 'CA', county: 'Los Angeles' },
+    '92101': { state: 'CA', county: 'San Diego' },
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      setCsvContent(content);
+      parseCSV(content);
+    };
+    reader.readAsText(file);
+  };
+
+  const parseCSV = (content: string) => {
+    setIsProcessing(true);
+    const lines = content.trim().split('\n');
+    const valid: { repName: string; repId: string; zipCode: string; stateCode: string; countyName: string }[] = [];
+    const errors: { line: number; error: string; content: string }[] = [];
+
+    // Skip header if present
+    const startIdx = lines[0]?.toLowerCase().includes('zip') || lines[0]?.toLowerCase().includes('rep') ? 1 : 0;
+
+    for (let i = startIdx; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+
+      const parts = line.split(',').map(p => p.trim().replace(/"/g, ''));
+
+      if (parts.length < 2) {
+        errors.push({ line: i + 1, error: 'Invalid format - expected zip_code,rep_name', content: line });
+        continue;
+      }
+
+      const [zipCode, repName] = parts;
+
+      // Validate zip code format
+      if (!/^\d{5}$/.test(zipCode)) {
+        errors.push({ line: i + 1, error: 'Invalid zip code format (must be 5 digits)', content: line });
+        continue;
+      }
+
+      // Find rep by name (case-insensitive partial match)
+      const rep = outsideReps.find(r =>
+        r.name.toLowerCase().includes(repName.toLowerCase()) ||
+        repName.toLowerCase().includes(r.name.toLowerCase())
+      );
+
+      if (!rep) {
+        errors.push({ line: i + 1, error: `Rep not found: "${repName}"`, content: line });
+        continue;
+      }
+
+      // Look up zip code location
+      const location = zipToLocation[zipCode];
+      if (!location) {
+        errors.push({ line: i + 1, error: `Zip code not in database: ${zipCode}`, content: line });
+        continue;
+      }
+
+      valid.push({
+        repName: rep.name,
+        repId: rep.id,
+        zipCode,
+        stateCode: location.state,
+        countyName: location.county,
+      });
+    }
+
+    setParseResults({ valid, errors });
+    setIsProcessing(false);
+  };
+
+  const handleImport = () => {
+    if (!parseResults?.valid.length) return;
+
+    // Group by rep and deduplicate
+    const imports = parseResults.valid.map(v => ({
+      repId: v.repId,
+      stateCode: v.stateCode,
+      countyName: v.countyName,
+    }));
+
+    onImport(imports);
+  };
+
+  const downloadTemplate = () => {
+    const template = 'zip_code,rep_name\n28201,John Smith\n77001,Sarah Johnson\n10001,Outside Rep';
+    const blob = new Blob([template], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'territory_template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-[var(--card)] rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between flex-shrink-0">
+          <div>
+            <h2 className="text-lg font-semibold text-[var(--foreground)]">
+              Import Territory Assignments
+            </h2>
+            <p className="text-sm text-[var(--muted-foreground)]">
+              Upload a CSV file with zip codes and sales rep names
+            </p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-[var(--muted)] rounded-lg">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* Instructions */}
+          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <h3 className="text-sm font-medium text-blue-800 mb-2">CSV Format</h3>
+            <p className="text-sm text-blue-700 mb-2">
+              Your CSV should have two columns: <code className="bg-blue-100 px-1 rounded">zip_code</code> and <code className="bg-blue-100 px-1 rounded">rep_name</code>
+            </p>
+            <button
+              onClick={downloadTemplate}
+              className="text-sm text-blue-600 hover:text-blue-800 underline"
+            >
+              Download template CSV
+            </button>
+          </div>
+
+          {/* File Upload */}
+          <div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="border-2 border-dashed border-[var(--border)] rounded-lg p-8 text-center cursor-pointer hover:border-[var(--primary)] transition-colors"
+            >
+              <svg className="mx-auto mb-3 text-[var(--muted-foreground)]" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+              </svg>
+              <p className="text-sm text-[var(--foreground)] mb-1">
+                Click to upload or drag and drop
+              </p>
+              <p className="text-xs text-[var(--muted-foreground)]">
+                CSV files only
+              </p>
+            </div>
+          </div>
+
+          {/* Or paste CSV */}
+          <div>
+            <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+              Or paste CSV content directly
+            </label>
+            <textarea
+              value={csvContent}
+              onChange={(e) => {
+                setCsvContent(e.target.value);
+                if (e.target.value.trim()) {
+                  parseCSV(e.target.value);
+                } else {
+                  setParseResults(null);
+                }
+              }}
+              placeholder="zip_code,rep_name&#10;28201,John Smith&#10;77001,Sarah Johnson"
+              rows={4}
+              className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 font-mono"
+            />
+          </div>
+
+          {/* Parse Results */}
+          {parseResults && (
+            <div className="space-y-4">
+              {/* Summary */}
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-sm">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M20 6L9 17l-5-5"/>
+                  </svg>
+                  {parseResults.valid.length} valid row{parseResults.valid.length !== 1 ? 's' : ''}
+                </div>
+                {parseResults.errors.length > 0 && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-sm">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10"/>
+                      <path d="M12 8v4M12 16h.01"/>
+                    </svg>
+                    {parseResults.errors.length} error{parseResults.errors.length !== 1 ? 's' : ''}
+                  </div>
+                )}
+              </div>
+
+              {/* Valid entries preview */}
+              {parseResults.valid.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium text-[var(--foreground)] mb-2">
+                    Preview ({Math.min(5, parseResults.valid.length)} of {parseResults.valid.length})
+                  </h4>
+                  <div className="border border-[var(--border)] rounded-lg overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-[var(--muted)]/30">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-[var(--foreground)]">Zip Code</th>
+                          <th className="px-3 py-2 text-left text-[var(--foreground)]">Rep</th>
+                          <th className="px-3 py-2 text-left text-[var(--foreground)]">State</th>
+                          <th className="px-3 py-2 text-left text-[var(--foreground)]">County</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[var(--border)]">
+                        {parseResults.valid.slice(0, 5).map((row, idx) => (
+                          <tr key={idx}>
+                            <td className="px-3 py-2 text-[var(--muted-foreground)] font-mono">{row.zipCode}</td>
+                            <td className="px-3 py-2 text-[var(--foreground)]">{row.repName}</td>
+                            <td className="px-3 py-2 text-[var(--muted-foreground)]">{row.stateCode}</td>
+                            <td className="px-3 py-2 text-[var(--muted-foreground)]">{row.countyName}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Errors */}
+              {parseResults.errors.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium text-red-600 mb-2">Errors</h4>
+                  <div className="space-y-2 max-h-32 overflow-y-auto">
+                    {parseResults.errors.map((err, idx) => (
+                      <div key={idx} className="p-2 bg-red-50 border border-red-200 rounded text-xs">
+                        <span className="font-medium text-red-700">Line {err.line}:</span>{' '}
+                        <span className="text-red-600">{err.error}</span>
+                        <div className="text-red-500 font-mono mt-1">{err.content}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-[var(--border)] flex items-center justify-between flex-shrink-0">
+          <p className="text-xs text-[var(--muted-foreground)]">
+            Zip codes will be mapped to counties for territory assignment
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleImport}
+              disabled={!parseResults?.valid.length}
+              className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-[var(--primary-hover)] transition-colors"
+            >
+              Import {parseResults?.valid.length || 0} Assignment{parseResults?.valid.length !== 1 ? 's' : ''}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Rep Territory Modal - Configure territory with county selection
+function RepTerritoryModal({
+  repId,
+  repName,
+  territory,
+  allTerritories,
+  allReps,
+  onClose,
+  onSave,
+}: {
+  repId: string;
+  repName: string;
+  territory: RepTerritory | undefined;
+  allTerritories: RepTerritory[];
+  allReps: { id: string; name: string }[];
+  onClose: () => void;
+  onSave: (territory: RepTerritory) => void;
+}) {
+  // counties: { stateCode: ['County1', ...] } - empty array means ALL counties
+  const [counties, setCounties] = useState<{ [stateCode: string]: string[] }>(territory?.counties || {});
+  const [selectedState, setSelectedState] = useState<string | null>(null);
+  const [showOverwriteModal, setShowOverwriteModal] = useState(false);
+  const [conflictingCounties, setConflictingCounties] = useState<{ county: string; state: string; repName: string }[]>([]);
+
+  const configuredStates = Object.keys(counties);
+  const isValid = configuredStates.length > 0;
+
+  // Build a map of counties already taken by other reps
+  const otherRepCounties = useMemo(() => {
+    const map: { [key: string]: { repId: string; repName: string } } = {};
+    allTerritories.forEach(t => {
+      if (t.repId === repId) return; // Skip current rep
+      const rep = allReps.find(r => r.id === t.repId);
+      const repNameStr = rep?.name || 'Unknown Rep';
+      Object.entries(t.counties).forEach(([stateCode, countyList]) => {
+        if (countyList.length === 0) {
+          // Whole state - mark all counties
+          const stateCountyList = stateCounties[stateCode] || [];
+          stateCountyList.forEach(c => {
+            const key = `${stateCode}:${c.name}`;
+            map[key] = { repId: t.repId, repName: repNameStr };
+          });
+        } else {
+          // Specific counties
+          countyList.forEach(countyName => {
+            const key = `${stateCode}:${countyName}`;
+            map[key] = { repId: t.repId, repName: repNameStr };
+          });
+        }
+      });
+    });
+    return map;
+  }, [allTerritories, allReps, repId]);
+
+  // Check if a county is taken by another rep
+  const getCountyOwner = (stateCode: string, countyName: string): { repId: string; repName: string } | null => {
+    const key = `${stateCode}:${countyName}`;
+    return otherRepCounties[key] || null;
+  };
+
+  // Get total count of selected items
+  const getTotalCount = () => {
+    let wholeStates = 0;
+    let totalCounties = 0;
+    Object.entries(counties).forEach(([, countyList]) => {
+      if (countyList.length === 0) {
+        wholeStates++;
+      } else {
+        totalCounties += countyList.length;
+      }
+    });
+    return { wholeStates, totalCounties };
+  };
+
+  // Add entire state (all counties)
+  const handleAddWholeState = (stateCode: string) => {
+    setCounties(prev => ({
+      ...prev,
+      [stateCode]: [], // Empty array means all counties
+    }));
+  };
+
+  // Remove a state entirely
+  const handleRemoveState = (stateCode: string) => {
+    setCounties(prev => {
+      const newCounties = { ...prev };
+      delete newCounties[stateCode];
+      return newCounties;
+    });
+    if (selectedState === stateCode) {
+      setSelectedState(null);
+    }
+  };
+
+  // Toggle a county within a state
+  const handleToggleCounty = (stateCode: string, countyName: string) => {
+    setCounties(prev => {
+      const current = prev[stateCode] || [];
+      // If currently "all counties" (empty array), switch to specific selection
+      if (current.length === 0 && prev[stateCode] !== undefined) {
+        // Select all counties except this one
+        const allCounties = stateCounties[stateCode]?.map(c => c.name) || [];
+        return {
+          ...prev,
+          [stateCode]: allCounties.filter(c => c !== countyName),
+        };
+      }
+      // Toggle county in the list
+      if (current.includes(countyName)) {
+        const newList = current.filter(c => c !== countyName);
+        // If no counties left, remove the state entirely
+        if (newList.length === 0) {
+          const newCounties = { ...prev };
+          delete newCounties[stateCode];
+          return newCounties;
+        }
+        return { ...prev, [stateCode]: newList };
+      }
+      return { ...prev, [stateCode]: [...current, countyName] };
+    });
+  };
+
+  // Select all counties in a state
+  const handleSelectAllCounties = (stateCode: string) => {
+    setCounties(prev => ({
+      ...prev,
+      [stateCode]: [], // Empty array means all counties
+    }));
+  };
+
+  // Clear all counties in a state (but keep in selection mode)
+  const handleClearStateCounties = (stateCode: string) => {
+    setCounties(prev => {
+      const newCounties = { ...prev };
+      delete newCounties[stateCode];
+      return newCounties;
+    });
+  };
+
+  // Find all conflicts with current selection
+  const findConflicts = (): { county: string; state: string; repName: string }[] => {
+    const conflicts: { county: string; state: string; repName: string }[] = [];
+    Object.entries(counties).forEach(([stateCode, countyList]) => {
+      if (countyList.length === 0) {
+        // Whole state selected - check all counties in state
+        const stateCountyList = stateCounties[stateCode] || [];
+        stateCountyList.forEach(c => {
+          const owner = getCountyOwner(stateCode, c.name);
+          if (owner) {
+            conflicts.push({ county: c.name, state: stateCode, repName: owner.repName });
+          }
+        });
+      } else {
+        // Specific counties
+        countyList.forEach(countyName => {
+          const owner = getCountyOwner(stateCode, countyName);
+          if (owner) {
+            conflicts.push({ county: countyName, state: stateCode, repName: owner.repName });
+          }
+        });
+      }
+    });
+    return conflicts;
+  };
+
+  const handleSave = () => {
+    if (!isValid) return;
+
+    // Check for conflicts
+    const conflicts = findConflicts();
+    if (conflicts.length > 0) {
+      setConflictingCounties(conflicts);
+      setShowOverwriteModal(true);
+      return;
+    }
+
+    onSave({ repId, counties });
+  };
+
+  const handleConfirmOverwrite = () => {
+    setShowOverwriteModal(false);
+    onSave({ repId, counties });
+  };
+
+  const { wholeStates, totalCounties } = getTotalCount();
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-[var(--card)] rounded-xl shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between flex-shrink-0">
+          <div>
+            <h2 className="text-lg font-semibold text-[var(--foreground)]">
+              Configure Territory for {repName}
+            </h2>
+            <p className="text-sm text-[var(--muted-foreground)]">
+              {selectedState
+                ? `Selecting counties in ${usStates.find(s => s.code === selectedState)?.name || selectedState}`
+                : 'Select a state to configure counties, or add entire states'
+              }
+            </p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-[var(--muted)] rounded-lg">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-hidden flex">
+          {/* Left sidebar - State list */}
+          <div className="w-64 border-r border-[var(--border)] flex flex-col">
+            <div className="p-3 border-b border-[var(--border)]">
+              <select
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setSelectedState(e.target.value);
+                  }
+                }}
+                className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm bg-[var(--background)]"
+              >
+                <option value="">Add a state...</option>
+                {usStates.filter(s => !configuredStates.includes(s.code)).map(s => (
+                  <option key={s.code} value={s.code}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2">
+              <div className="text-xs font-medium text-[var(--muted-foreground)] px-2 py-1">
+                Configured States ({configuredStates.length})
+              </div>
+              {configuredStates.length === 0 ? (
+                <div className="px-2 py-4 text-sm text-[var(--muted-foreground)] text-center">
+                  No states configured yet
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {configuredStates.map((stateCode) => {
+                    const state = usStates.find(s => s.code === stateCode);
+                    const countyList = counties[stateCode];
+                    const isWholeState = countyList.length === 0;
+                    const isActive = selectedState === stateCode;
+                    return (
+                      <div
+                        key={stateCode}
+                        className={`flex items-center justify-between px-2 py-1.5 rounded-lg cursor-pointer transition-colors ${
+                          isActive
+                            ? 'bg-[var(--primary)]/10 border border-[var(--primary)]/30'
+                            : 'hover:bg-[var(--muted)]'
+                        }`}
+                        onClick={() => setSelectedState(stateCode)}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-[var(--foreground)] truncate">
+                            {state?.name || stateCode}
+                          </div>
+                          <div className="text-xs text-[var(--muted-foreground)]">
+                            {isWholeState ? 'All counties' : `${countyList.length} counties`}
+                          </div>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveState(stateCode);
+                          }}
+                          className="p-1 hover:bg-red-100 rounded text-[var(--muted-foreground)] hover:text-red-500"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M6 6l12 12M18 6l-12 12"/>
+                          </svg>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Main content - County map */}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {selectedState ? (
+              <>
+                {/* State header */}
+                <div className="px-4 py-3 border-b border-[var(--border)] bg-[var(--muted)]/20 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setSelectedState(null)}
+                      className="p-1 hover:bg-[var(--muted)] rounded"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M15 18l-6-6 6-6"/>
+                      </svg>
+                    </button>
+                    <span className="font-medium text-[var(--foreground)]">
+                      {usStates.find(s => s.code === selectedState)?.name}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    {/* Select All Counties Toggle */}
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <span className="text-sm text-[var(--foreground)]">Select all counties</span>
+                      <button
+                        onClick={() => {
+                          const isCurrentlyAll = counties[selectedState]?.length === 0 && counties[selectedState] !== undefined;
+                          if (isCurrentlyAll) {
+                            handleClearStateCounties(selectedState);
+                          } else {
+                            handleSelectAllCounties(selectedState);
+                          }
+                        }}
+                        className={`relative w-11 h-6 rounded-full transition-colors ${
+                          counties[selectedState]?.length === 0 && counties[selectedState] !== undefined
+                            ? 'bg-[var(--primary)]'
+                            : 'bg-gray-300'
+                        }`}
+                      >
+                        <span
+                          className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                            counties[selectedState]?.length === 0 && counties[selectedState] !== undefined
+                              ? 'translate-x-5'
+                              : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </label>
+                  </div>
+                </div>
+
+                {/* County Map with interactive selection */}
+                <div className="flex-1 overflow-y-auto p-4">
+                  <div className="mb-3 text-sm text-[var(--muted-foreground)]">
+                    Click counties to select them, or drag to select multiple.
+                    {counties[selectedState]?.length === 0 && (
+                      <span className="ml-1 text-green-600 font-medium">All counties selected</span>
+                    )}
+                  </div>
+                  <StateCountyMap
+                    stateCode={selectedState}
+                    selectedCounties={counties[selectedState] || []}
+                    isWholeState={counties[selectedState]?.length === 0 && counties[selectedState] !== undefined}
+                    onToggleCounty={(countyName) => handleToggleCounty(selectedState, countyName)}
+                    onSelectMultiple={(countyNames) => {
+                      setCounties(prev => {
+                        const current = prev[selectedState] || [];
+                        // If currently whole state, convert to specific
+                        if (current.length === 0 && prev[selectedState] !== undefined) {
+                          return prev;
+                        }
+                        const newSet = new Set([...current, ...countyNames]);
+                        return { ...prev, [selectedState]: Array.from(newSet) };
+                      });
+                    }}
+                    otherRepCounties={
+                      // Filter otherRepCounties to only include counties in this state
+                      Object.fromEntries(
+                        Object.entries(otherRepCounties)
+                          .filter(([key]) => key.startsWith(`${selectedState}:`))
+                          .map(([key, value]) => [key.split(':')[1], value])
+                      )
+                    }
+                  />
+                </div>
+              </>
+            ) : (
+              /* State selection - no map, just instructions */
+              <div className="flex-1 overflow-y-auto p-6">
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[var(--muted)]/50 flex items-center justify-center">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--muted-foreground)" strokeWidth="1.5">
+                      <path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-medium text-[var(--foreground)] mb-2">
+                    {configuredStates.length === 0 ? 'No states configured yet' : 'Select a state to configure'}
+                  </h3>
+                  <p className="text-sm text-[var(--muted-foreground)] mb-6 max-w-sm mx-auto">
+                    Use the dropdown on the left to add a state, then configure which counties to include in this rep&apos;s territory.
+                  </p>
+                </div>
+
+                {/* Configured territories summary */}
+                {configuredStates.length > 0 && (
+                  <div className="p-4 bg-[var(--muted)]/30 rounded-lg">
+                    <div className="text-sm font-medium text-[var(--foreground)] mb-3">
+                      Configured Territories ({configuredStates.length} state{configuredStates.length !== 1 ? 's' : ''})
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {configuredStates.map((stateCode) => {
+                        const state = usStates.find(s => s.code === stateCode);
+                        const countyList = counties[stateCode];
+                        return (
+                          <span
+                            key={stateCode}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-[var(--primary)]/10 text-[var(--primary)] rounded-lg text-sm cursor-pointer hover:bg-[var(--primary)]/20"
+                            onClick={() => setSelectedState(stateCode)}
+                          >
+                            {state?.name}: {countyList.length === 0 ? 'All counties' : `${countyList.length} count${countyList.length !== 1 ? 'ies' : 'y'}`}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveState(stateCode);
+                              }}
+                              className="ml-1 hover:opacity-70"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                              </svg>
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-[var(--border)] flex items-center justify-between flex-shrink-0">
+          <div className="text-sm text-[var(--muted-foreground)]">
+            {configuredStates.length === 0
+              ? 'No territories configured'
+              : `${wholeStates > 0 ? `${wholeStates} full state${wholeStates !== 1 ? 's' : ''}` : ''}${wholeStates > 0 && totalCounties > 0 ? ', ' : ''}${totalCounties > 0 ? `${totalCounties} count${totalCounties !== 1 ? 'ies' : 'y'}` : ''}`
+            }
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={!isValid}
+              className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-[var(--primary-hover)] transition-colors"
+            >
+              Save Territory
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Overwrite Confirmation Modal */}
+      {showOverwriteModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-[var(--card)] rounded-xl shadow-xl w-full max-w-md">
+            <div className="px-6 py-4 border-b border-[var(--border)]">
+              <h3 className="text-lg font-semibold text-[var(--foreground)]">
+                Overwrite Existing Territory?
+              </h3>
+            </div>
+            <div className="p-6">
+              <p className="text-sm text-[var(--foreground)] mb-4">
+                The following counties are already assigned to other reps. Saving will reassign them to <strong>{repName}</strong>:
+              </p>
+              <div className="max-h-48 overflow-y-auto space-y-2 mb-4">
+                {/* Group conflicts by rep */}
+                {Object.entries(
+                  conflictingCounties.reduce((acc, c) => {
+                    if (!acc[c.repName]) acc[c.repName] = [];
+                    acc[c.repName].push(c);
+                    return acc;
+                  }, {} as { [repName: string]: typeof conflictingCounties })
+                ).map(([otherRepName, conflicts]) => (
+                  <div key={otherRepName} className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <div className="text-sm font-medium text-red-800 mb-1">
+                      Currently assigned to {otherRepName}:
+                    </div>
+                    <div className="text-xs text-red-700">
+                      {conflicts.map(c => `${c.county}, ${c.state}`).join(' • ')}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-[var(--muted-foreground)]">
+                This action will remove these counties from the other rep&apos;s territory.
+              </p>
+            </div>
+            <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3">
+              <button
+                onClick={() => setShowOverwriteModal(false)}
+                className="px-4 py-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmOverwrite}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+              >
+                Overwrite Territory
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// FIPS code mappings for state abbreviation to state FIPS code
+const stateFipsMap: Record<string, string> = {
+  AL: '01', AK: '02', AZ: '04', AR: '05', CA: '06',
+  CO: '08', CT: '09', DE: '10', DC: '11', FL: '12',
+  GA: '13', HI: '15', ID: '16', IL: '17', IN: '18',
+  IA: '19', KS: '20', KY: '21', LA: '22', ME: '23',
+  MD: '24', MA: '25', MI: '26', MN: '27', MS: '28',
+  MO: '29', MT: '30', NE: '31', NV: '32', NH: '33',
+  NJ: '34', NM: '35', NY: '36', NC: '37', ND: '38',
+  OH: '39', OK: '40', OR: '41', PA: '42', RI: '44',
+  SC: '45', SD: '46', TN: '47', TX: '48', UT: '49',
+  VT: '50', VA: '51', WA: '53', WV: '54', WI: '55',
+  WY: '56', PR: '72',
+};
+
+// County TopoJSON URL
+const countyGeoUrl = 'https://cdn.jsdelivr.net/npm/us-atlas@3/counties-10m.json';
+
+// State County Map - Interactive SVG map of counties for a state
+function StateCountyMap({
+  stateCode,
+  selectedCounties,
+  isWholeState,
+  onToggleCounty,
+  onSelectMultiple,
+  otherRepCounties = {},
+}: {
+  stateCode: string;
+  selectedCounties: string[];  // County names (not FIPS)
+  isWholeState: boolean;
+  onToggleCounty: (countyName: string) => void;
+  onSelectMultiple: (countyNames: string[]) => void;
+  otherRepCounties?: { [countyName: string]: { repId: string; repName: string } };
+}) {
+  const [hoveredCounty, setHoveredCounty] = useState<{ fips: string; name: string; owner?: string } | null>(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [center, setCenter] = useState<[number, number]>([0, 0]);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+
+  // Mode: 'select' for drag selection, 'pan' for map navigation
+  const [mode, setMode] = useState<'select' | 'pan'>('select');
+
+  // Drag selection state
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
+  const [dragEnd, setDragEnd] = useState<{ x: number; y: number } | null>(null);
+  const [countyElements, setCountyElements] = useState<Map<string, { name: string; element: Element }>>(new Map());
+
+  const stateFips = stateFipsMap[stateCode];
+
+  // State center coordinates for initial zoom
+  const stateCoordinates: Record<string, { center: [number, number]; zoom: number }> = {
+    AL: { center: [-86.9, 32.8], zoom: 6 },
+    AK: { center: [-154, 64], zoom: 2.5 },
+    AZ: { center: [-111.9, 34.2], zoom: 5 },
+    AR: { center: [-92.4, 34.9], zoom: 6 },
+    CA: { center: [-119.4, 37.2], zoom: 4.5 },
+    CO: { center: [-105.5, 39], zoom: 5.5 },
+    CT: { center: [-72.7, 41.6], zoom: 10 },
+    DE: { center: [-75.5, 39], zoom: 10 },
+    FL: { center: [-81.5, 28.5], zoom: 5 },
+    GA: { center: [-83.5, 32.7], zoom: 5.5 },
+    HI: { center: [-155.5, 20], zoom: 5 },
+    ID: { center: [-114.7, 44.1], zoom: 4.5 },
+    IL: { center: [-89.4, 40], zoom: 5 },
+    IN: { center: [-86.3, 39.8], zoom: 6 },
+    IA: { center: [-93.5, 42], zoom: 5.5 },
+    KS: { center: [-98.4, 38.5], zoom: 5.5 },
+    KY: { center: [-85.8, 37.8], zoom: 6 },
+    LA: { center: [-91.9, 31], zoom: 6 },
+    ME: { center: [-69, 45.3], zoom: 5.5 },
+    MD: { center: [-76.6, 39.05], zoom: 7.5 },
+    MA: { center: [-71.8, 42.2], zoom: 8 },
+    MI: { center: [-85.6, 44.3], zoom: 4.5 },
+    MN: { center: [-94.6, 46.4], zoom: 4.5 },
+    MS: { center: [-89.7, 32.7], zoom: 5.5 },
+    MO: { center: [-92.6, 38.5], zoom: 5 },
+    MT: { center: [-110, 47], zoom: 4.5 },
+    NE: { center: [-99.9, 41.5], zoom: 5 },
+    NV: { center: [-116.6, 39], zoom: 4.5 },
+    NH: { center: [-71.6, 43.7], zoom: 7 },
+    NJ: { center: [-74.4, 40.1], zoom: 8 },
+    NM: { center: [-106.2, 34.5], zoom: 5 },
+    NY: { center: [-75.5, 43], zoom: 5 },
+    NC: { center: [-79.4, 35.5], zoom: 5.5 },
+    ND: { center: [-100.5, 47.4], zoom: 5.5 },
+    OH: { center: [-82.8, 40.2], zoom: 6 },
+    OK: { center: [-97.5, 35.5], zoom: 5.5 },
+    OR: { center: [-120.5, 44], zoom: 5 },
+    PA: { center: [-77.2, 41], zoom: 6 },
+    RI: { center: [-71.5, 41.7], zoom: 12 },
+    SC: { center: [-81, 33.8], zoom: 6 },
+    SD: { center: [-100, 44.4], zoom: 5.5 },
+    TN: { center: [-86, 35.8], zoom: 5.5 },
+    TX: { center: [-99.9, 31.5], zoom: 3.8 },
+    UT: { center: [-111.5, 39.3], zoom: 5 },
+    VT: { center: [-72.7, 44], zoom: 7 },
+    VA: { center: [-79.4, 37.5], zoom: 5.5 },
+    WA: { center: [-120.7, 47.4], zoom: 5 },
+    WV: { center: [-80.5, 38.9], zoom: 6.5 },
+    WI: { center: [-89.8, 44.5], zoom: 5 },
+    WY: { center: [-107.5, 43], zoom: 5 },
+    DC: { center: [-77, 38.9], zoom: 50 },
+    PR: { center: [-66.5, 18.2], zoom: 8 },
+  };
+
+  const stateConfig = stateCoordinates[stateCode] || { center: [-98, 39], zoom: 4 };
+
+  useEffect(() => {
+    setCenter(stateConfig.center);
+    setZoom(stateConfig.zoom);
+  }, [stateCode]);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (mode !== 'select') return;
+    if (e.button !== 0) return;
+    const rect = mapContainerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setIsDragging(true);
+    const pos = { x: e.clientX, y: e.clientY };
+    setDragStart(pos);
+    setDragEnd(pos);
+  }, [mode]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (mode !== 'select' || !isDragging) return;
+    setDragEnd({ x: e.clientX, y: e.clientY });
+  }, [mode, isDragging]);
+
+  const handleMouseUp = useCallback(() => {
+    if (!isDragging || !dragStart || !dragEnd) {
+      setIsDragging(false);
+      return;
+    }
+
+    const selRect = {
+      left: Math.min(dragStart.x, dragEnd.x),
+      right: Math.max(dragStart.x, dragEnd.x),
+      top: Math.min(dragStart.y, dragEnd.y),
+      bottom: Math.max(dragStart.y, dragEnd.y),
+    };
+
+    const dragDistance = Math.sqrt(
+      Math.pow(dragEnd.x - dragStart.x, 2) + Math.pow(dragEnd.y - dragStart.y, 2)
+    );
+
+    if (dragDistance > 10) {
+      const selectedNames: string[] = [];
+      countyElements.forEach((county) => {
+        const rect = county.element.getBoundingClientRect();
+        if (
+          rect.left < selRect.right &&
+          rect.right > selRect.left &&
+          rect.top < selRect.bottom &&
+          rect.bottom > selRect.top
+        ) {
+          selectedNames.push(county.name);
+        }
+      });
+
+      if (selectedNames.length > 0) {
+        onSelectMultiple(selectedNames);
+      }
+    }
+
+    setIsDragging(false);
+    setDragStart(null);
+    setDragEnd(null);
+  }, [isDragging, dragStart, dragEnd, countyElements, onSelectMultiple]);
+
+  const selectionRect = isDragging && dragStart && dragEnd ? {
+    left: Math.min(dragStart.x, dragEnd.x),
+    top: Math.min(dragStart.y, dragEnd.y),
+    width: Math.abs(dragEnd.x - dragStart.x),
+    height: Math.abs(dragEnd.y - dragStart.y),
+  } : null;
+
+  if (!stateFips) {
+    return (
+      <div className="text-center py-8 text-[var(--muted-foreground)]">
+        <p>County data not available for this state.</p>
+        <p className="text-sm mt-2">The entire state will be included in the territory.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={mapContainerRef}
+      className="relative select-none"
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+    >
+      {/* Mode toggle and zoom controls */}
+      <div className="absolute top-2 right-2 z-10 flex flex-col gap-1">
+        {/* Mode toggle */}
+        <div className="flex bg-white border border-[var(--border)] rounded shadow-sm overflow-hidden mb-1">
+          <button
+            onClick={() => setMode('select')}
+            className={`w-8 h-8 flex items-center justify-center transition-colors ${
+              mode === 'select' ? 'bg-[var(--primary)] text-white' : 'hover:bg-[var(--muted)]'
+            }`}
+            title="Select mode - drag to select multiple counties"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M5 3l14 9-8 4-2 7-4-20z"/>
+            </svg>
+          </button>
+          <button
+            onClick={() => setMode('pan')}
+            className={`w-8 h-8 flex items-center justify-center transition-colors ${
+              mode === 'pan' ? 'bg-[var(--primary)] text-white' : 'hover:bg-[var(--muted)]'
+            }`}
+            title="Pan mode - drag to move the map"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/>
+            </svg>
+          </button>
+        </div>
+        <button
+          onClick={() => setZoom(z => Math.min(z * 1.5, 20))}
+          className="w-8 h-8 bg-white border border-[var(--border)] rounded shadow-sm flex items-center justify-center hover:bg-[var(--muted)] transition-colors"
+          title="Zoom in"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+        </button>
+        <button
+          onClick={() => setZoom(z => Math.max(z / 1.5, 1))}
+          className="w-8 h-8 bg-white border border-[var(--border)] rounded shadow-sm flex items-center justify-center hover:bg-[var(--muted)] transition-colors"
+          title="Zoom out"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+        </button>
+        <button
+          onClick={() => {
+            setZoom(stateConfig.zoom);
+            setCenter(stateConfig.center);
+          }}
+          className="w-8 h-8 bg-white border border-[var(--border)] rounded shadow-sm flex items-center justify-center hover:bg-[var(--muted)] transition-colors text-xs font-medium"
+          title="Reset view"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+            <path d="M3 3v5h5"/>
+          </svg>
+        </button>
+      </div>
+
+      {/* Map */}
+      <div
+        className={`border border-[var(--border)] rounded-lg overflow-hidden bg-[var(--muted)]/20 ${mode === 'select' ? 'cursor-crosshair' : 'cursor-grab'}`}
+        style={{ height: '400px' }}
+      >
+        <ComposableMap
+          projection="geoAlbersUsa"
+          style={{ width: '100%', height: '100%' }}
+        >
+          <ZoomableGroup
+            zoom={zoom}
+            center={center}
+            onMoveEnd={({ coordinates, zoom: newZoom }) => {
+              if (mode === 'pan') {
+                setCenter(coordinates);
+                setZoom(newZoom);
+              }
+            }}
+            filterZoomEvent={(evt) => mode === 'pan'}
+          >
+            <Geographies geography={countyGeoUrl}>
+              {({ geographies }) => {
+                // Filter to only show counties for this state
+                const stateCounties = geographies.filter(geo => {
+                  const fips = String(geo.id).padStart(5, '0');
+                  return fips.startsWith(stateFips);
+                });
+
+                return stateCounties.map((geo) => {
+                  const fips = String(geo.id).padStart(5, '0');
+                  const countyName = geo.properties.name || 'Unknown';
+                  // Check if selected by county name (matching existing data structure)
+                  const isSelected = isWholeState || selectedCounties.includes(countyName);
+                  const isHovered = hoveredCounty?.fips === fips;
+                  // Check if owned by another rep
+                  const otherOwner = otherRepCounties[countyName];
+                  const isOwnedByOther = !!otherOwner;
+
+                  // Determine fill color: selected (blue), owned by other (red), or default (gray)
+                  let fillColor = '#e5e7eb'; // default gray
+                  let hoverFillColor = '#d1d5db';
+                  if (isSelected) {
+                    fillColor = 'var(--primary)';
+                    hoverFillColor = 'var(--primary)';
+                  } else if (isOwnedByOther) {
+                    fillColor = '#fecaca'; // red-200
+                    hoverFillColor = '#fca5a5'; // red-300
+                  }
+
+                  return (
+                    <Geography
+                      key={geo.rsmKey}
+                      geography={geo}
+                      fill={fillColor}
+                      stroke={isHovered ? (isOwnedByOther && !isSelected ? '#ef4444' : '#1f2937') : (isOwnedByOther && !isSelected ? '#f87171' : '#9ca3af')}
+                      strokeWidth={isHovered ? 1.5 : (isOwnedByOther && !isSelected ? 1 : 0.5)}
+                      style={{
+                        default: {
+                          outline: 'none',
+                          opacity: isSelected ? 0.8 : (isOwnedByOther ? 0.9 : 0.6),
+                          transition: 'all 150ms',
+                          cursor: 'pointer',
+                        },
+                        hover: {
+                          outline: 'none',
+                          opacity: 1,
+                          fill: hoverFillColor,
+                        },
+                        pressed: {
+                          outline: 'none',
+                        },
+                      }}
+                      onClick={() => onToggleCounty(countyName)}
+                      onMouseEnter={(e) => {
+                        setHoveredCounty({
+                          fips,
+                          name: countyName,
+                          owner: otherOwner?.repName
+                        });
+                        const rect = (e.target as Element).getBoundingClientRect();
+                        const containerRect = mapContainerRef.current?.getBoundingClientRect();
+                        if (containerRect) {
+                          setTooltipPos({
+                            x: rect.left - containerRect.left + rect.width / 2,
+                            y: rect.top - containerRect.top - 10,
+                          });
+                        }
+                        // Store element reference for drag selection
+                        setCountyElements(prev => {
+                          const newMap = new Map(prev);
+                          newMap.set(fips, { name: countyName, element: e.target as Element });
+                          return newMap;
+                        });
+                      }}
+                      onMouseLeave={() => setHoveredCounty(null)}
+                    />
+                  );
+                });
+              }}
+            </Geographies>
+          </ZoomableGroup>
+        </ComposableMap>
+      </div>
+
+      {/* Tooltip */}
+      {hoveredCounty && (
+        <div
+          className={`absolute ${hoveredCounty.owner ? 'bg-red-50 border-red-200' : 'bg-[var(--card)] border-[var(--border)]'} border rounded-lg shadow-lg px-3 py-2 pointer-events-none z-20 text-sm`}
+          style={{
+            left: Math.max(10, Math.min(tooltipPos.x - 50, 250)),
+            top: Math.max(10, tooltipPos.y - (hoveredCounty.owner ? 50 : 35)),
+            transform: 'translateX(-50%)',
+          }}
+        >
+          <div>
+            <span className="font-medium">{hoveredCounty.name}</span>
+            <span className="text-[var(--muted-foreground)] ml-1">County</span>
+          </div>
+          {hoveredCounty.owner && (
+            <div className="text-xs text-red-600 mt-1">
+              Assigned to: {hoveredCounty.owner}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Selection rectangle overlay */}
+      {selectionRect && selectionRect.width > 5 && selectionRect.height > 5 && (
+        <div
+          className="fixed border-2 border-[var(--primary)] bg-[var(--primary)]/10 pointer-events-none z-50"
+          style={{
+            left: selectionRect.left,
+            top: selectionRect.top,
+            width: selectionRect.width,
+            height: selectionRect.height,
+          }}
+        />
+      )}
+
+      {/* Legend */}
+      <div className="flex items-center gap-4 mt-3 text-xs text-[var(--muted-foreground)]">
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'var(--primary)', opacity: 0.8 }}></div>
+          <span>Selected</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-sm bg-gray-200"></div>
+          <span>Available</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-sm bg-red-200 border border-red-300"></div>
+          <span>Other rep</span>
+        </div>
+        <span className="ml-auto">
+          {mode === 'select' ? 'Click county to select, drag to select multiple' : 'Drag to pan, use +/- to zoom'}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// County Map Grid - Visual grid of counties with drag-to-select
+function CountyMapGrid({
+  stateCode,
+  selectedCounties,
+  isWholeState,
+  onToggleCounty,
+  onSelectMultiple,
+}: {
+  stateCode: string;
+  selectedCounties: string[];
+  isWholeState: boolean;
+  onToggleCounty: (county: string) => void;
+  onSelectMultiple: (counties: string[]) => void;
+}) {
+  const counties = stateCounties[stateCode] || [];
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
+  const [dragEnd, setDragEnd] = useState<{ x: number; y: number } | null>(null);
+  const [countyRects, setCountyRects] = useState<Map<string, DOMRect>>(new Map());
+
+  // Update county positions on mount and resize
+  React.useEffect(() => {
+    const updateRects = () => {
+      const newRects = new Map<string, DOMRect>();
+      counties.forEach(county => {
+        const el = document.getElementById(`county-${stateCode}-${county.name}`);
+        if (el) {
+          newRects.set(county.name, el.getBoundingClientRect());
+        }
+      });
+      setCountyRects(newRects);
+    };
+    updateRects();
+    window.addEventListener('resize', updateRects);
+    return () => window.removeEventListener('resize', updateRects);
+  }, [stateCode, counties]);
+
+  // Handle mouse events for drag selection
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return; // Only left click
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setIsDragging(true);
+    const pos = { x: e.clientX, y: e.clientY };
+    setDragStart(pos);
+    setDragEnd(pos);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return;
+    setDragEnd({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleMouseUp = () => {
+    if (!isDragging || !dragStart || !dragEnd) {
+      setIsDragging(false);
+      return;
+    }
+
+    // Calculate selection rectangle
+    const selRect = {
+      left: Math.min(dragStart.x, dragEnd.x),
+      right: Math.max(dragStart.x, dragEnd.x),
+      top: Math.min(dragStart.y, dragEnd.y),
+      bottom: Math.max(dragStart.y, dragEnd.y),
+    };
+
+    // Only process if drag was significant (not just a click)
+    const dragDistance = Math.sqrt(
+      Math.pow(dragEnd.x - dragStart.x, 2) + Math.pow(dragEnd.y - dragStart.y, 2)
+    );
+
+    if (dragDistance > 10) {
+      // Find counties that intersect with selection
+      const selected: string[] = [];
+      countyRects.forEach((rect, countyName) => {
+        if (
+          rect.left < selRect.right &&
+          rect.right > selRect.left &&
+          rect.top < selRect.bottom &&
+          rect.bottom > selRect.top
+        ) {
+          selected.push(countyName);
+        }
+      });
+
+      if (selected.length > 0) {
+        onSelectMultiple(selected);
+      }
+    }
+
+    setIsDragging(false);
+    setDragStart(null);
+    setDragEnd(null);
+  };
+
+  // Calculate selection rectangle for display
+  const selectionRect = isDragging && dragStart && dragEnd ? {
+    left: Math.min(dragStart.x, dragEnd.x),
+    top: Math.min(dragStart.y, dragEnd.y),
+    width: Math.abs(dragEnd.x - dragStart.x),
+    height: Math.abs(dragEnd.y - dragStart.y),
+  } : null;
+
+  if (counties.length === 0) {
+    return (
+      <div className="text-center py-8 text-[var(--muted-foreground)]">
+        <p>County data not available for this state.</p>
+        <p className="text-sm mt-2">The entire state will be included in the territory.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative select-none"
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+    >
+      {/* County grid */}
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+        {counties.map((county) => {
+          const isSelected = isWholeState || selectedCounties.includes(county.name);
+          return (
+            <div
+              key={county.name}
+              id={`county-${stateCode}-${county.name}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleCounty(county.name);
+              }}
+              className={`
+                px-3 py-2 rounded-lg text-sm cursor-pointer transition-all border-2
+                ${isSelected
+                  ? 'bg-[var(--primary)]/20 border-[var(--primary)] text-[var(--primary)] font-medium'
+                  : 'bg-[var(--muted)]/30 border-transparent hover:border-[var(--border)] text-[var(--foreground)]'
+                }
+              `}
+            >
+              <div className="flex items-center gap-2">
+                <div className={`w-3 h-3 rounded-sm border ${isSelected ? 'bg-[var(--primary)] border-[var(--primary)]' : 'border-[var(--muted-foreground)]'}`}>
+                  {isSelected && (
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="white">
+                      <path d="M10 3L4.5 8.5L2 6" stroke="white" strokeWidth="2" fill="none"/>
+                    </svg>
+                  )}
+                </div>
+                <span className="truncate">{county.name}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Selection rectangle overlay */}
+      {selectionRect && selectionRect.width > 5 && selectionRect.height > 5 && (
+        <div
+          className="fixed border-2 border-[var(--primary)] bg-[var(--primary)]/10 pointer-events-none z-50"
+          style={{
+            left: selectionRect.left,
+            top: selectionRect.top,
+            width: selectionRect.width,
+            height: selectionRect.height,
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// US Map SVG Component for State Selection
+function USMapSelector({
+  selectedStates,
+  color,
+  onStateClick,
+  disabled,
+}: {
+  selectedStates: string[];
+  color: string;
+  onStateClick: (stateCode: string) => void;
+  disabled: boolean;
+}) {
+  const statePaths: { [key: string]: { path: string; cx: number; cy: number } } = {
+    WA: { path: 'M125,35 L180,35 L185,80 L125,80 Z', cx: 155, cy: 57 },
+    OR: { path: 'M125,80 L185,80 L185,130 L125,130 Z', cx: 155, cy: 105 },
+    CA: { path: 'M125,130 L165,130 L165,230 L125,230 Z', cx: 145, cy: 180 },
+    NV: { path: 'M165,100 L210,100 L210,180 L165,180 Z', cx: 187, cy: 140 },
+    ID: { path: 'M185,35 L230,35 L230,130 L185,130 Z', cx: 207, cy: 82 },
+    MT: { path: 'M230,35 L330,35 L330,85 L230,85 Z', cx: 280, cy: 60 },
+    WY: { path: 'M230,85 L330,85 L330,140 L230,140 Z', cx: 280, cy: 112 },
+    UT: { path: 'M210,100 L260,100 L260,180 L210,180 Z', cx: 235, cy: 140 },
+    AZ: { path: 'M165,180 L230,180 L230,270 L165,270 Z', cx: 197, cy: 225 },
+    CO: { path: 'M260,140 L355,140 L355,200 L260,200 Z', cx: 307, cy: 170 },
+    NM: { path: 'M230,200 L310,200 L310,280 L230,280 Z', cx: 270, cy: 240 },
+    ND: { path: 'M330,35 L420,35 L420,75 L330,75 Z', cx: 375, cy: 55 },
+    SD: { path: 'M330,75 L420,75 L420,120 L330,120 Z', cx: 375, cy: 97 },
+    NE: { path: 'M330,120 L430,120 L430,165 L330,165 Z', cx: 380, cy: 142 },
+    KS: { path: 'M355,165 L455,165 L455,210 L355,210 Z', cx: 405, cy: 187 },
+    OK: { path: 'M355,210 L480,210 L480,260 L355,260 Z', cx: 417, cy: 235 },
+    TX: { path: 'M310,260 L440,260 L440,380 L310,380 Z', cx: 375, cy: 320 },
+    MN: { path: 'M420,35 L485,35 L485,110 L420,110 Z', cx: 452, cy: 72 },
+    IA: { path: 'M430,110 L505,110 L505,160 L430,160 Z', cx: 467, cy: 135 },
+    MO: { path: 'M455,160 L535,160 L535,230 L455,230 Z', cx: 495, cy: 195 },
+    AR: { path: 'M480,230 L545,230 L545,285 L480,285 Z', cx: 512, cy: 257 },
+    LA: { path: 'M480,285 L545,285 L545,350 L480,350 Z', cx: 512, cy: 317 },
+    WI: { path: 'M485,60 L555,60 L555,130 L485,130 Z', cx: 520, cy: 95 },
+    IL: { path: 'M505,130 L555,130 L555,220 L505,220 Z', cx: 530, cy: 175 },
+    MS: { path: 'M545,250 L585,250 L585,330 L545,330 Z', cx: 565, cy: 290 },
+    MI: { path: 'M530,45 L600,45 L600,130 L530,130 Z', cx: 565, cy: 87 },
+    IN: { path: 'M555,130 L600,130 L600,200 L555,200 Z', cx: 577, cy: 165 },
+    KY: { path: 'M535,190 L630,190 L630,235 L535,235 Z', cx: 582, cy: 212 },
+    TN: { path: 'M535,235 L660,235 L660,270 L535,270 Z', cx: 597, cy: 252 },
+    AL: { path: 'M585,270 L630,270 L630,340 L585,340 Z', cx: 607, cy: 305 },
+    OH: { path: 'M600,130 L660,130 L660,195 L600,195 Z', cx: 630, cy: 162 },
+    WV: { path: 'M630,165 L680,165 L680,215 L630,215 Z', cx: 655, cy: 190 },
+    VA: { path: 'M630,195 L720,195 L720,235 L630,235 Z', cx: 675, cy: 215 },
+    NC: { path: 'M630,235 L750,235 L750,275 L630,275 Z', cx: 690, cy: 255 },
+    SC: { path: 'M660,275 L720,275 L720,320 L660,320 Z', cx: 690, cy: 297 },
+    GA: { path: 'M630,290 L690,290 L690,360 L630,360 Z', cx: 660, cy: 325 },
+    FL: { path: 'M630,340 L720,340 L720,430 L630,430 Z', cx: 675, cy: 385 },
+    PA: { path: 'M660,115 L740,115 L740,165 L660,165 Z', cx: 700, cy: 140 },
+    NY: { path: 'M680,60 L760,60 L760,115 L680,115 Z', cx: 720, cy: 87 },
+    VT: { path: 'M735,45 L755,45 L755,85 L735,85 Z', cx: 745, cy: 65 },
+    NH: { path: 'M755,45 L775,45 L775,90 L755,90 Z', cx: 765, cy: 67 },
+    ME: { path: 'M775,20 L810,20 L810,90 L775,90 Z', cx: 792, cy: 55 },
+    MA: { path: 'M755,85 L800,85 L800,105 L755,105 Z', cx: 777, cy: 95 },
+    RI: { path: 'M780,100 L795,100 L795,115 L780,115 Z', cx: 787, cy: 107 },
+    CT: { path: 'M755,105 L785,105 L785,125 L755,125 Z', cx: 770, cy: 115 },
+    NJ: { path: 'M740,125 L770,125 L770,175 L740,175 Z', cx: 755, cy: 150 },
+    DE: { path: 'M735,165 L755,165 L755,195 L735,195 Z', cx: 745, cy: 180 },
+    MD: { path: 'M680,175 L740,175 L740,205 L680,205 Z', cx: 710, cy: 190 },
+    DC: { path: 'M715,190 L725,190 L725,200 L715,200 Z', cx: 720, cy: 195 },
+    AK: { path: 'M80,320 L200,320 L200,420 L80,420 Z', cx: 140, cy: 370 },
+    HI: { path: 'M250,380 L330,380 L330,420 L250,420 Z', cx: 290, cy: 400 },
+  };
+
+  return (
+    <div className={`relative ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
+      <svg viewBox="0 0 850 450" className="w-full h-auto">
+        <rect width="850" height="450" fill="var(--background)" rx="8" />
+        {Object.entries(statePaths).map(([code, { path, cx, cy }]) => {
+          const isSelected = selectedStates.includes(code);
+          return (
+            <g key={code}>
+              <path
+                d={path}
+                fill={isSelected ? `${color}40` : 'var(--muted)'}
+                stroke={isSelected ? color : 'var(--border)'}
+                strokeWidth={isSelected ? 2 : 1}
+                className={`transition-all cursor-pointer ${!disabled ? 'hover:opacity-80' : ''}`}
+                onClick={() => !disabled && onStateClick(code)}
+              />
+              <text
+                x={cx}
+                y={cy}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fontSize="10"
+                fontWeight={isSelected ? 'bold' : 'normal'}
+                fill={isSelected ? color : 'var(--muted-foreground)'}
+                className="pointer-events-none select-none"
+              >
+                {code}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+      <div className="flex items-center justify-center gap-4 mt-2 text-xs text-[var(--muted-foreground)]">
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 rounded" style={{ backgroundColor: `${color}40`, border: `2px solid ${color}` }} />
+          <span>Selected</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 rounded bg-[var(--muted)] border border-[var(--border)]" />
+          <span>Available</span>
         </div>
       </div>
     </div>
