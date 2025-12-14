@@ -23,7 +23,7 @@ interface OrderDetailContentProps {
   orderId: string;
 }
 
-type TabType = 'line-items' | 'notes' | 'tasks' | 'activity' | 'linked-objects' | 'settings';
+type TabType = 'line-items' | 'credits' | 'acknowledgements' | 'notes' | 'tasks' | 'activity' | 'linked-objects' | 'settings';
 
 // Column definitions for the line items table
 type ColumnKey = 'partNumber' | 'custPartNumber' | 'description' | 'uom' | 'divisor' | 'unitPrice' | 'quantity' | 'shippedQty' | 'lineStatus' | 'sellTotal' | 'commission' | 'invoiced';
@@ -119,6 +119,26 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   const [showColumnsModal, setShowColumnsModal] = useState(false);
   const [showActionsDropdown, setShowActionsDropdown] = useState(false);
 
+  // Line item bulk actions state
+  const [showLineItemsBulkActionsMenu, setShowLineItemsBulkActionsMenu] = useState(false);
+  const [showLineCreditModal, setShowLineCreditModal] = useState(false);
+  const [showLineAcknowledgementModal, setShowLineAcknowledgementModal] = useState(false);
+  const [showSetOverageModal, setShowSetOverageModal] = useState(false);
+  const [showSetEndUserModal, setShowSetEndUserModal] = useState(false);
+  const [showSetOutsideRepSplitsModal, setShowSetOutsideRepSplitsModal] = useState(false);
+  const [bulkOveragePercent, setBulkOveragePercent] = useState('');
+  const [bulkEndUser, setBulkEndUser] = useState('');
+
+  // Credit modal state
+  const [creditName, setCreditName] = useState('');
+  const [creditDate, setCreditDate] = useState(new Date().toLocaleDateString('en-US'));
+  const [creditLineItems, setCreditLineItems] = useState<{partNumber: string; amount: number; quantity: number; unitCredit: number; commissionPercent: number; commissionAmount: number; reason: string}[]>([]);
+
+  // Acknowledgement modal state
+  const [ackNumber, setAckNumber] = useState('');
+  const [ackDate, setAckDate] = useState('');
+  const [ackLineItems, setAckLineItems] = useState<{lineId: string; partNumber: string; orderedQty: number; acknowledgedQty: number; shipDate: string}[]>([]);
+
   // Views state
   const [showViewsMenu, setShowViewsMenu] = useState(false);
   const [activeView, setActiveView] = useState('default');
@@ -134,6 +154,13 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   const [sectionDisplayMode, setSectionDisplayMode] = useState<'column' | 'lineShelf'>('column');
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [showSaveDropdown, setShowSaveDropdown] = useState(false);
+
+  // Version state
+  const [currentVersion, setCurrentVersion] = useState<number>(1);
+  const [showVersionDropdown, setShowVersionDropdown] = useState(false);
+  const [availableVersions, setAvailableVersions] = useState<{version: number; date: string; isLatest: boolean}[]>([
+    { version: 1, date: '12/14/2024', isLatest: true }
+  ]);
 
   // Settings state
   const [showEndUserPerLine, setShowEndUserPerLine] = useState(false);
@@ -152,6 +179,15 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   const [splitInsideCommission, setSplitInsideCommission] = useState(false);
   const [showInsideRepSplitsModal, setShowInsideRepSplitsModal] = useState(false);
   const [insideRepSplits, setInsideRepSplits] = useState<{repId: string; repName: string; percentage: number}[]>([]);
+
+  // Quote lookup modal state
+  const [showQuoteLookupModal, setShowQuoteLookupModal] = useState(false);
+  const [quoteLookupPartNumber, setQuoteLookupPartNumber] = useState('');
+  const [quoteLookupQuoteNumber, setQuoteLookupQuoteNumber] = useState('');
+  const [quoteLookupStartDate, setQuoteLookupStartDate] = useState('12/2024');
+  const [quoteLookupEndDate, setQuoteLookupEndDate] = useState('12/2025');
+  const [quoteLookupOpenOnly, setQuoteLookupOpenOnly] = useState(false);
+  const [quoteLookupBlanketOnly, setQuoteLookupBlanketOnly] = useState(false);
 
   const order = useMemo(() => orders.find(o => o.id === orderId), [orders, orderId]);
 
@@ -385,16 +421,15 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                   </button>
                   <button
                     onClick={() => {
-                      alert('Print order');
+                      setShowQuoteLookupModal(true);
                       setShowActionsDropdown(false);
                     }}
                     className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-b-lg flex items-center gap-2"
                   >
                     <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M6 9V2h8v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h12a2 2 0 012 2v5a2 2 0 01-2 2h-2" strokeLinecap="round" strokeLinejoin="round"/>
-                      <rect x="6" y="14" width="8" height="4"/>
+                      <path d="M12 5v14M5 12h14" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
-                    Print Order
+                    Add New Lines from Quotes
                   </button>
                 </div>
               )}
@@ -437,6 +472,51 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                     </button>
                   ))}
                 </div>
+              )}
+            </div>
+
+            {/* Version Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setShowVersionDropdown(!showVersionDropdown);
+                  setShowActionsDropdown(false);
+                  setShowStatusDropdown(false);
+                  setShowSaveDropdown(false);
+                }}
+                className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
+              >
+                v{currentVersion}
+                <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+              {showVersionDropdown && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowVersionDropdown(false)} />
+                  <div className="absolute top-full left-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                    {availableVersions.map((v) => (
+                      <button
+                        key={v.version}
+                        onClick={() => {
+                          setCurrentVersion(v.version);
+                          setShowVersionDropdown(false);
+                        }}
+                        className={`w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors first:rounded-t-lg last:rounded-b-lg flex items-center justify-between ${
+                          currentVersion === v.version ? 'bg-[var(--primary)]/10 text-[var(--primary)]' : ''
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span>v{v.version}</span>
+                          {v.isLatest && (
+                            <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-xs">Latest</span>
+                          )}
+                        </div>
+                        <span className="text-xs text-[var(--muted-foreground)]">{v.date}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
 
@@ -487,27 +567,36 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                 </button>
               </div>
               {showSaveDropdown && (
-                <div className="absolute top-full right-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-10">
-                  <button
-                    onClick={() => { alert('Order saved!'); setShowSaveDropdown(false); }}
-                    className="w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors rounded-t-lg"
-                  >
-                    Save
-                  </button>
-                  <button
-                    onClick={() => {
-                      alert('Saved and emailed');
-                      setShowSaveDropdown(false);
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors rounded-b-lg flex items-center gap-2"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                      <path d="M22 6l-10 7L2 6"/>
-                    </svg>
-                    Save & Email Customer
-                  </button>
-                </div>
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowSaveDropdown(false)} />
+                  <div className="absolute top-full right-0 mt-1 w-52 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                    <button
+                      onClick={() => { alert('Order saved!'); setShowSaveDropdown(false); }}
+                      className="w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors rounded-t-lg"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={() => {
+                        const newVersion = Math.max(...availableVersions.map(v => v.version)) + 1;
+                        const today = new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+                        setAvailableVersions(prev => [
+                          ...prev.map(v => ({ ...v, isLatest: false })),
+                          { version: newVersion, date: today, isLatest: true }
+                        ]);
+                        setCurrentVersion(newVersion);
+                        setShowSaveDropdown(false);
+                        alert(`Saved as version ${newVersion}`);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                      </svg>
+                      Save as New Version
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -930,6 +1019,8 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
             <div className="flex gap-1">
               {[
                 { id: 'line-items', label: 'Line Items', count: order.lineItems.length },
+                { id: 'credits', label: 'Credits' },
+                { id: 'acknowledgements', label: 'Acknowledgements' },
                 { id: 'notes', label: 'Notes' },
                 { id: 'tasks', label: 'Tasks' },
                 { id: 'activity', label: 'Activity' },
@@ -1039,6 +1130,153 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           {/* Tab Content */}
           {activeTab === 'line-items' && (
             <div className="space-y-4">
+              {/* Bulk Actions Bar for Line Items */}
+              {selectedLineItems.size > 0 && (
+                <div className="px-4 py-2 bg-[var(--primary)]/5 border border-[var(--border)] rounded-lg flex items-center justify-between">
+                  <span className="text-sm text-[var(--foreground)]">
+                    <strong>{selectedLineItems.size}</strong> line item{selectedLineItems.size !== 1 ? 's' : ''} selected
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowLineItemsBulkActionsMenu(!showLineItemsBulkActionsMenu)}
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+                      >
+                        Bulk Actions
+                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </button>
+                      {showLineItemsBulkActionsMenu && (
+                        <>
+                          <div className="fixed inset-0 z-10" onClick={() => setShowLineItemsBulkActionsMenu(false)} />
+                          <div className="fixed right-[200px] top-1/2 -translate-y-1/2 w-56 bg-white border border-[var(--border)] rounded-lg shadow-xl z-50 py-1">
+                            <button
+                              onClick={() => {
+                                setShowSetOverageModal(true);
+                                setShowLineItemsBulkActionsMenu(false);
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors"
+                            >
+                              Set Overage %
+                            </button>
+                            <button
+                              onClick={() => {
+                                // Lock overage for selected line items
+                                alert('Overage locked for selected items');
+                                setShowLineItemsBulkActionsMenu(false);
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors"
+                            >
+                              Lock Overage
+                            </button>
+                            <button
+                              onClick={() => {
+                                // Unlock overage for selected line items
+                                alert('Overage unlocked for selected items');
+                                setShowLineItemsBulkActionsMenu(false);
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors"
+                            >
+                              Unlock Overage
+                            </button>
+                            <button
+                              onClick={() => {
+                                setShowSetEndUserModal(true);
+                                setShowLineItemsBulkActionsMenu(false);
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors"
+                            >
+                              Set End User
+                            </button>
+                            <button
+                              onClick={() => {
+                                setShowSetOutsideRepSplitsModal(true);
+                                setShowLineItemsBulkActionsMenu(false);
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors"
+                            >
+                              Set Outside Rep Splits
+                            </button>
+                            <div className="border-t border-[var(--border)] my-1"></div>
+                            <button
+                              onClick={() => {
+                                // Initialize credit line items from selected line items
+                                const items = order.lineItems.filter(li => selectedLineItems.has(li.id)).map(li => ({
+                                  partNumber: `${li.partNumber} (${formatCurrency(li.sellPrice * li.quantity)})`,
+                                  amount: li.sellPrice * li.quantity,
+                                  quantity: li.quantity,
+                                  unitCredit: li.sellPrice * li.quantity,
+                                  commissionPercent: 0.75,
+                                  commissionAmount: li.sellPrice * li.quantity * 0.0075,
+                                  reason: ''
+                                }));
+                                setCreditLineItems(items);
+                                setShowLineCreditModal(true);
+                                setShowLineItemsBulkActionsMenu(false);
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors flex items-center gap-2 text-green-600"
+                            >
+                              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                <circle cx="10" cy="10" r="8"/>
+                                <path d="M7 10h6M10 7v6" strokeLinecap="round"/>
+                              </svg>
+                              Add Credit
+                            </button>
+                            <button
+                              onClick={() => {
+                                // Initialize acknowledgement line items from selected line items
+                                const items = order.lineItems.filter(li => selectedLineItems.has(li.id)).map(li => ({
+                                  lineId: li.id,
+                                  partNumber: li.partNumber,
+                                  orderedQty: li.quantity,
+                                  acknowledgedQty: li.quantity,
+                                  shipDate: ''
+                                }));
+                                setAckLineItems(items);
+                                setShowLineAcknowledgementModal(true);
+                                setShowLineItemsBulkActionsMenu(false);
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors flex items-center gap-2 text-blue-600"
+                            >
+                              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M9 12l2 2 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                              Add Order Acknowledgement
+                            </button>
+                            <div className="border-t border-[var(--border)] my-1"></div>
+                            <button
+                              onClick={() => {
+                                // Delete selected line items
+                                setOrders(orders.map(o =>
+                                  o.id === order.id
+                                    ? { ...o, lineItems: o.lineItems.filter(li => !selectedLineItems.has(li.id)) }
+                                    : o
+                                ));
+                                setSelectedLineItems(new Set());
+                                setShowLineItemsBulkActionsMenu(false);
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors flex items-center gap-2 text-red-600"
+                            >
+                              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M4 6h12M6 6V4a2 2 0 012-2h4a2 2 0 012 2v2M8 10v6M12 10v6M5 6l1 12a2 2 0 002 2h4a2 2 0 002-2l1-12" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                              Delete Lines
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => setSelectedLineItems(new Set())}
+                      className="px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                    >
+                      Clear Selection
+                    </button>
+                  </div>
+                </div>
+              )}
               {/* Line Items Table */}
               <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-x-auto">
                 <table className="w-full min-w-[1200px]">
@@ -1256,69 +1494,629 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
 
           {activeTab === 'notes' && (
             <div className="space-y-4">
-              {order.notes ? (
-                <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
-                  <p className="text-sm text-[var(--foreground)]">{order.notes}</p>
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-[var(--foreground)]">Notes</h3>
+                  <p className="text-sm text-[var(--muted-foreground)]">Internal notes for this order</p>
                 </div>
-              ) : (
-                <div className="text-center py-12">
-                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="mx-auto text-[var(--muted-foreground)] mb-4">
-                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" strokeLinecap="round" strokeLinejoin="round"/>
+                <button className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors text-sm font-medium">
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
                   </svg>
-                  <p className="text-[var(--muted-foreground)]">No notes for this order</p>
-                  <button className="mt-4 px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors">
-                    Add Note
-                  </button>
+                  Add Note
+                </button>
+              </div>
+
+              {/* Notes List */}
+              <div className="space-y-3">
+                <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-sm font-medium flex-shrink-0">
+                      SC
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm text-[var(--foreground)]">Sarah Chen</span>
+                        <span className="text-xs text-[var(--muted-foreground)]">Mar 20, 2024 at 2:34 PM</span>
+                      </div>
+                      <p className="text-sm text-[var(--foreground)] mt-1">
+                        Customer asked for 5% discount on corridor fixtures. Applied 4% - need manager approval for more.
+                      </p>
+                    </div>
+                    <button className="p-1 hover:bg-[var(--muted)] rounded transition-colors">
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" className="text-[var(--muted-foreground)]">
+                        <circle cx="10" cy="4" r="1.5"/>
+                        <circle cx="10" cy="10" r="1.5"/>
+                        <circle cx="10" cy="16" r="1.5"/>
+                      </svg>
+                    </button>
+                  </div>
                 </div>
-              )}
+
+                <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-medium flex-shrink-0">
+                      MT
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm text-[var(--foreground)]">Mike Torres</span>
+                        <span className="text-xs text-[var(--muted-foreground)]">Mar 18, 2024 at 4:15 PM</span>
+                      </div>
+                      <p className="text-sm text-[var(--foreground)] mt-1">
+                        Spoke with Turner Construction - they prefer Lutron but are open to alternatives if pricing is better. Deadline for approval response is end of month.
+                      </p>
+                    </div>
+                    <button className="p-1 hover:bg-[var(--muted)] rounded transition-colors">
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" className="text-[var(--muted-foreground)]">
+                        <circle cx="10" cy="4" r="1.5"/>
+                        <circle cx="10" cy="10" r="1.5"/>
+                        <circle cx="10" cy="16" r="1.5"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-sm font-medium flex-shrink-0">
+                      SC
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm text-[var(--foreground)]">Sarah Chen</span>
+                        <span className="text-xs text-[var(--muted-foreground)]">Mar 10, 2024 at 9:15 AM</span>
+                      </div>
+                      <p className="text-sm text-[var(--foreground)] mt-1">
+                        Customer has expressed interest in upgrading to premium fixtures. May need to adjust lead times based on manufacturer availability. Follow up with Turner Construction regarding approval timeline.
+                      </p>
+                    </div>
+                    <button className="p-1 hover:bg-[var(--muted)] rounded transition-colors">
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" className="text-[var(--muted-foreground)]">
+                        <circle cx="10" cy="4" r="1.5"/>
+                        <circle cx="10" cy="10" r="1.5"/>
+                        <circle cx="10" cy="16" r="1.5"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
           {activeTab === 'tasks' && (
-            <div className="text-center py-12">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="mx-auto text-[var(--muted-foreground)] mb-4">
-                <path d="M9 11l3 3L22 4" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              <p className="text-[var(--muted-foreground)]">No tasks for this order</p>
-              <button className="mt-4 px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors">
-                Add Task
-              </button>
+            <div className="space-y-4">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-[var(--foreground)]">Tasks</h3>
+                  <p className="text-sm text-[var(--muted-foreground)]">Track action items and follow-ups for this order</p>
+                </div>
+                <button className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors text-sm font-medium">
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                  </svg>
+                  Add Task
+                </button>
+              </div>
+
+              {/* Tasks List */}
+              <div className="space-y-3">
+                {/* Overdue Task */}
+                <div className="bg-[var(--card)] border-l-4 border-l-red-500 border border-[var(--border)] rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <input type="checkbox" className="mt-1 w-4 h-4 rounded border-[var(--border)]" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm text-[var(--foreground)]">Follow up with Turner Construction</span>
+                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">Overdue</span>
+                      </div>
+                      <p className="text-sm text-[var(--muted-foreground)] mt-1">
+                        Confirm approval timeline for Lutron fixtures
+                      </p>
+                      <div className="flex items-center gap-4 mt-2 text-xs text-[var(--muted-foreground)]">
+                        <span>Due: Mar 25, 2024</span>
+                        <span>Assigned: Sarah Chen</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Due Soon Task */}
+                <div className="bg-[var(--card)] border-l-4 border-l-yellow-500 border border-[var(--border)] rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <input type="checkbox" className="mt-1 w-4 h-4 rounded border-[var(--border)]" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm text-[var(--foreground)]">Send revised pricing to customer</span>
+                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-700">Due Soon</span>
+                      </div>
+                      <p className="text-sm text-[var(--muted-foreground)] mt-1">
+                        Include updated overage calculations
+                      </p>
+                      <div className="flex items-center gap-4 mt-2 text-xs text-[var(--muted-foreground)]">
+                        <span>Due: Mar 28, 2024</span>
+                        <span>Assigned: Mike Torres</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Completed Task */}
+                <div className="bg-[var(--card)] border-l-4 border-l-green-500 border border-[var(--border)] rounded-lg p-4 opacity-75">
+                  <div className="flex items-start gap-3">
+                    <input type="checkbox" checked className="mt-1 w-4 h-4 rounded border-[var(--border)] accent-[var(--primary)]" readOnly />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm text-[var(--foreground)] line-through">Submit approval request to Philips</span>
+                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">Completed</span>
+                      </div>
+                      <p className="text-sm text-[var(--muted-foreground)] mt-1 line-through">
+                        Request approval for LED panels
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
           {activeTab === 'activity' && (
             <div className="space-y-4">
-              {activities.map((activity) => (
-                <div key={activity.id} className="flex gap-4">
-                  <div className="w-8 h-8 rounded-full bg-[var(--muted)] flex items-center justify-center flex-shrink-0">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M12 8v4l3 3" strokeLinecap="round"/>
-                      <circle cx="12" cy="12" r="10"/>
-                    </svg>
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm text-[var(--foreground)]">
-                      <span className="font-medium">{activity.user}</span> {activity.description}
-                    </p>
-                    <p className="text-xs text-[var(--muted-foreground)] mt-1">{formatDate(activity.date)}</p>
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-[var(--foreground)]">Activity Feed</h3>
+                  <p className="text-sm text-[var(--muted-foreground)]">All activity and changes on this order</p>
+                </div>
+                <select className="px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)]">
+                  <option>All Activity</option>
+                  <option>Price Updates</option>
+                  <option>Approvals</option>
+                  <option>Status Changes</option>
+                </select>
+              </div>
+
+              {/* Activity List */}
+              <div className="space-y-3">
+                {/* Price Update */}
+                <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-full bg-yellow-100 flex items-center justify-center flex-shrink-0">
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-yellow-600">
+                        <path d="M10 4v12M6 8l4-4 4 4" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-700">PRICE UPDATE</span>
+                        <span className="text-xs text-[var(--muted-foreground)]">2 hours ago</span>
+                      </div>
+                      <p className="font-medium text-sm text-[var(--foreground)] mt-1">Sarah Chen updated pricing</p>
+                      <p className="text-sm text-[var(--muted-foreground)]">Changed overage from 10% to 12.8% on LED Troffer items</p>
+                    </div>
                   </div>
                 </div>
-              ))}
+
+                {/* Approval Update */}
+                <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-600">
+                        <circle cx="10" cy="10" r="8"/>
+                        <path d="M10 6v4l2 2" strokeLinecap="round"/>
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">APPROVAL UPDATE</span>
+                        <span className="text-xs text-[var(--muted-foreground)]">Yesterday at 4:30 PM</span>
+                      </div>
+                      <p className="font-medium text-sm text-[var(--foreground)] mt-1">Lutron approval status changed</p>
+                      <p className="text-sm text-[var(--muted-foreground)]">Status changed to "Conditional" - specific products only approved</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Approval Sent */}
+                <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-600">
+                        <path d="M4 4h12v12H4z" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M4 8h12M8 4v12" strokeLinecap="round"/>
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">APPROVAL SENT</span>
+                        <span className="text-xs text-[var(--muted-foreground)]">Mar 18, 2024 at 2:15 PM</span>
+                      </div>
+                      <p className="font-medium text-sm text-[var(--foreground)] mt-1">Mike Torres sent approval request</p>
+                      <p className="text-sm text-[var(--muted-foreground)]">Sent to Lutron via email at approvals@lutron.com</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
           {activeTab === 'linked-objects' && (
-            <div className="text-center py-12">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="mx-auto text-[var(--muted-foreground)] mb-4">
-                <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              <p className="text-[var(--muted-foreground)]">No linked objects</p>
-              <button className="mt-4 px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors">
-                Link Object
-              </button>
+            <div className="space-y-4">
+              {/* Header */}
+              <div>
+                <h3 className="text-lg font-semibold text-[var(--foreground)]">Linked Objects</h3>
+                <p className="text-sm text-[var(--muted-foreground)]">Related entities connected to this order</p>
+              </div>
+
+              {/* Quotes Section */}
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg overflow-hidden">
+                <div className="px-4 py-3 flex items-center justify-between border-b border-[var(--border)]">
+                  <div className="flex items-center gap-2">
+                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-orange-500">
+                      <path d="M14 2H6a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V4a2 2 0 00-2-2z"/>
+                      <path d="M8 6h4M8 10h4M8 14h2"/>
+                    </svg>
+                    <span className="font-medium">Quotes</span>
+                    <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">2</span>
+                  </div>
+                  <button className="text-sm text-[var(--primary)] hover:text-[var(--primary-hover)]">+ Link Quote</button>
+                </div>
+                <div className="divide-y divide-[var(--border)]">
+                  <div className="px-4 py-3 flex items-center justify-between hover:bg-[var(--muted)]/20">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm text-[var(--muted-foreground)] font-mono">QT-2024-001</span>
+                      <span className="text-sm">Downtown Office Complex</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-medium">$125,000</span>
+                      <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">active</span>
+                    </div>
+                  </div>
+                  <div className="px-4 py-3 flex items-center justify-between hover:bg-[var(--muted)]/20">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm text-[var(--muted-foreground)] font-mono">QT-2024-003</span>
+                      <span className="text-sm">Residential Tower Project</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-medium">$85,000</span>
+                      <span className="px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-700">pending</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Invoices Section */}
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg overflow-hidden">
+                <div className="px-4 py-3 flex items-center justify-between border-b border-[var(--border)]">
+                  <div className="flex items-center gap-2">
+                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-500">
+                      <path d="M14 2H6a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V4a2 2 0 00-2-2z"/>
+                      <path d="M8 10h4M8 14h4"/>
+                    </svg>
+                    <span className="font-medium">Invoices</span>
+                    <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">2</span>
+                  </div>
+                  <button className="text-sm text-[var(--primary)] hover:text-[var(--primary-hover)]">+ Link Invoice</button>
+                </div>
+                <div className="divide-y divide-[var(--border)]">
+                  <div className="px-4 py-3 flex items-center justify-between hover:bg-[var(--muted)]/20">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm text-[var(--muted-foreground)] font-mono">INV-2024-0892</span>
+                      <span className="text-sm">Downtown Office - Deposit</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-medium">$25,000</span>
+                      <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">paid</span>
+                    </div>
+                  </div>
+                  <div className="px-4 py-3 flex items-center justify-between hover:bg-[var(--muted)]/20">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm text-[var(--muted-foreground)] font-mono">INV-2024-0923</span>
+                      <span className="text-sm">Downtown Office - Progress 1</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-medium">$35,000</span>
+                      <span className="px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-700">pending</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Commission Statements Section */}
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg overflow-hidden">
+                <div className="px-4 py-3 flex items-center justify-between border-b border-[var(--border)]">
+                  <div className="flex items-center gap-2">
+                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-yellow-500">
+                      <path d="M10 4v12M6 8l4-4 4 4"/>
+                    </svg>
+                    <span className="font-medium">Commission Statements</span>
+                    <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">1</span>
+                  </div>
+                  <button className="text-sm text-[var(--primary)] hover:text-[var(--primary-hover)]">+ Link Statement</button>
+                </div>
+                <div className="divide-y divide-[var(--border)]">
+                  <div className="px-4 py-3 flex items-center justify-between hover:bg-[var(--muted)]/20">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm text-[var(--muted-foreground)] font-mono">CS-2024-03</span>
+                      <span className="text-sm">March 2024 Statement</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-medium text-green-600">$4,250</span>
+                      <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">processed</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Contacts Section */}
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg overflow-hidden">
+                <div className="px-4 py-3 flex items-center justify-between border-b border-[var(--border)]">
+                  <div className="flex items-center gap-2">
+                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-500">
+                      <path d="M16 14v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2"/>
+                      <circle cx="10" cy="7" r="3"/>
+                    </svg>
+                    <span className="font-medium">Contacts</span>
+                    <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">3</span>
+                  </div>
+                  <button className="text-sm text-[var(--primary)] hover:text-[var(--primary-hover)]">+ Link Contact</button>
+                </div>
+                <div className="divide-y divide-[var(--border)]">
+                  <div className="px-4 py-3 flex items-center justify-between hover:bg-[var(--muted)]/20">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-medium">JS</div>
+                      <div>
+                        <div className="text-sm font-medium">John Smith</div>
+                        <div className="text-xs text-[var(--muted-foreground)]">Project Manager</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm">Turner Construction</div>
+                      <div className="text-xs text-[var(--muted-foreground)]">jsmith@turner.com</div>
+                    </div>
+                  </div>
+                  <div className="px-4 py-3 flex items-center justify-between hover:bg-[var(--muted)]/20">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-xs font-medium">ED</div>
+                      <div>
+                        <div className="text-sm font-medium">Emily Davis</div>
+                        <div className="text-xs text-[var(--muted-foreground)]">Purchasing Agent</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm">Turner Construction</div>
+                      <div className="text-xs text-[var(--muted-foreground)]">edavis@turner.com</div>
+                    </div>
+                  </div>
+                  <div className="px-4 py-3 flex items-center justify-between hover:bg-[var(--muted)]/20">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-medium">MC</div>
+                      <div>
+                        <div className="text-sm font-medium">Michael Chen</div>
+                        <div className="text-xs text-[var(--muted-foreground)]">Electrical Engineer</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm">MEP Associates</div>
+                      <div className="text-xs text-[var(--muted-foreground)]">mchen@mep.com</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Companies Section */}
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg overflow-hidden">
+                <div className="px-4 py-3 flex items-center justify-between border-b border-[var(--border)]">
+                  <div className="flex items-center gap-2">
+                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-500">
+                      <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                    </svg>
+                    <span className="font-medium">Companies</span>
+                    <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">2</span>
+                  </div>
+                  <button className="text-sm text-[var(--primary)] hover:text-[var(--primary-hover)]">+ Link Company</button>
+                </div>
+                <div className="divide-y divide-[var(--border)]">
+                  <div className="px-4 py-3 flex items-center justify-between hover:bg-[var(--muted)]/20">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-xs font-medium">TU</div>
+                      <div>
+                        <div className="text-sm font-medium">Turner Construction</div>
+                        <div className="text-xs text-[var(--muted-foreground)]">New York, NY</div>
+                      </div>
+                    </div>
+                    <span className="text-sm text-[var(--primary)]">Customer</span>
+                  </div>
+                  <div className="px-4 py-3 flex items-center justify-between hover:bg-[var(--muted)]/20">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-medium">ME</div>
+                      <div>
+                        <div className="text-sm font-medium">MEP Associates</div>
+                        <div className="text-xs text-[var(--muted-foreground)]">Chicago, IL</div>
+                      </div>
+                    </div>
+                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">Consultant</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'credits' && (
+            <div className="space-y-4">
+              {/* Credits Table */}
+              <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-[var(--muted)]/30 border-b border-[var(--border)]">
+                      <th className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Credit #</th>
+                      <th className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Date</th>
+                      <th className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Part Number</th>
+                      <th className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Reason</th>
+                      <th className="text-right px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Qty</th>
+                      <th className="text-right px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Credit Amount</th>
+                      <th className="text-right px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Comm. %</th>
+                      <th className="text-right px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Comm. Amount</th>
+                      <th className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border)]">
+                    {/* Mock credit data */}
+                    <tr className="hover:bg-[var(--muted)]/20">
+                      <td className="px-4 py-3 font-medium text-[var(--primary)]">CR-001234</td>
+                      <td className="px-4 py-3">12/10/2024</td>
+                      <td className="px-4 py-3">LBL4-LP840</td>
+                      <td className="px-4 py-3">Defective unit</td>
+                      <td className="px-4 py-3 text-right">2</td>
+                      <td className="px-4 py-3 text-right text-red-600">-$570.00</td>
+                      <td className="px-4 py-3 text-right">0.75%</td>
+                      <td className="px-4 py-3 text-right text-red-600">-$4.28</td>
+                      <td className="px-4 py-3">
+                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">Posted</span>
+                      </td>
+                    </tr>
+                    <tr className="hover:bg-[var(--muted)]/20">
+                      <td className="px-4 py-3 font-medium text-[var(--primary)]">CR-001235</td>
+                      <td className="px-4 py-3">12/12/2024</td>
+                      <td className="px-4 py-3">LBL4-LP840</td>
+                      <td className="px-4 py-3">Price adjustment</td>
+                      <td className="px-4 py-3 text-right">5</td>
+                      <td className="px-4 py-3 text-right text-red-600">-$142.50</td>
+                      <td className="px-4 py-3 text-right">0.75%</td>
+                      <td className="px-4 py-3 text-right text-red-600">-$1.07</td>
+                      <td className="px-4 py-3">
+                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">Pending</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                  <tfoot className="bg-[var(--muted)]/20 border-t border-[var(--border)]">
+                    <tr>
+                      <td colSpan={5} className="px-4 py-3 text-right font-semibold">Totals:</td>
+                      <td className="px-4 py-3 text-right font-semibold text-red-600">-$712.50</td>
+                      <td className="px-4 py-3"></td>
+                      <td className="px-4 py-3 text-right font-semibold text-red-600">-$5.35</td>
+                      <td className="px-4 py-3"></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              {/* Add Credit Button */}
+              <div className="flex justify-end">
+                <button
+                  onClick={() => {
+                    setCreditLineItems([]);
+                    setShowLineCreditModal(true);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors text-sm font-medium"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                  </svg>
+                  Add Credit
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'acknowledgements' && (
+            <div className="space-y-4">
+              {/* Acknowledgements Table */}
+              <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-[var(--muted)]/30 border-b border-[var(--border)]">
+                      <th className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Ack #</th>
+                      <th className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Ack Date</th>
+                      <th className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Part Number</th>
+                      <th className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Description</th>
+                      <th className="text-right px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Ordered Qty</th>
+                      <th className="text-right px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Ack Qty</th>
+                      <th className="text-right px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Remaining</th>
+                      <th className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Ship Date</th>
+                      <th className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border)]">
+                    {/* Mock acknowledgement data */}
+                    <tr className="hover:bg-[var(--muted)]/20">
+                      <td className="px-4 py-3 font-medium text-[var(--primary)]">ACK-78901</td>
+                      <td className="px-4 py-3">12/05/2024</td>
+                      <td className="px-4 py-3">LBL4-LP840</td>
+                      <td className="px-4 py-3 text-[var(--muted-foreground)]">4ft LED Low Bay, 4000K</td>
+                      <td className="px-4 py-3 text-right">100</td>
+                      <td className="px-4 py-3 text-right">50</td>
+                      <td className="px-4 py-3 text-right text-amber-600">50</td>
+                      <td className="px-4 py-3">12/15/2024</td>
+                      <td className="px-4 py-3">
+                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">Partial</span>
+                      </td>
+                    </tr>
+                    <tr className="hover:bg-[var(--muted)]/20">
+                      <td className="px-4 py-3 font-medium text-[var(--primary)]">ACK-78902</td>
+                      <td className="px-4 py-3">12/08/2024</td>
+                      <td className="px-4 py-3">LBL4-LP840</td>
+                      <td className="px-4 py-3 text-[var(--muted-foreground)]">4ft LED Low Bay, 4000K</td>
+                      <td className="px-4 py-3 text-right">100</td>
+                      <td className="px-4 py-3 text-right">50</td>
+                      <td className="px-4 py-3 text-right text-green-600">0</td>
+                      <td className="px-4 py-3">12/20/2024</td>
+                      <td className="px-4 py-3">
+                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">Complete</span>
+                      </td>
+                    </tr>
+                    <tr className="hover:bg-[var(--muted)]/20">
+                      <td className="px-4 py-3 font-medium text-[var(--primary)]">ACK-78903</td>
+                      <td className="px-4 py-3">12/10/2024</td>
+                      <td className="px-4 py-3">WHL-2X4-35</td>
+                      <td className="px-4 py-3 text-[var(--muted-foreground)]">2x4 LED Panel, 3500K</td>
+                      <td className="px-4 py-3 text-right">25</td>
+                      <td className="px-4 py-3 text-right">25</td>
+                      <td className="px-4 py-3 text-right text-green-600">0</td>
+                      <td className="px-4 py-3">12/18/2024</td>
+                      <td className="px-4 py-3">
+                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">Complete</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                  <tfoot className="bg-[var(--muted)]/20 border-t border-[var(--border)]">
+                    <tr>
+                      <td colSpan={4} className="px-4 py-3 text-right font-semibold">Totals:</td>
+                      <td className="px-4 py-3 text-right font-semibold">125</td>
+                      <td className="px-4 py-3 text-right font-semibold">125</td>
+                      <td className="px-4 py-3 text-right font-semibold text-amber-600">50</td>
+                      <td colSpan={2} className="px-4 py-3"></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              {/* Add Acknowledgement Button */}
+              <div className="flex justify-end">
+                <button
+                  onClick={() => {
+                    const items = order.lineItems.map(li => ({
+                      lineId: li.id,
+                      partNumber: li.partNumber,
+                      orderedQty: li.quantity,
+                      acknowledgedQty: li.quantity,
+                      shipDate: ''
+                    }));
+                    setAckLineItems(items);
+                    setAckNumber('');
+                    setAckDate('');
+                    setShowLineAcknowledgementModal(true);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors text-sm font-medium"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                  </svg>
+                  Add Acknowledgement
+                </button>
+              </div>
             </div>
           )}
 
@@ -1921,6 +2719,606 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                 className="px-4 py-2 text-sm bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
               >
                 Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quote Detail Line Lookup Modal */}
+      {showQuoteLookupModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-lg w-full">
+            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-[var(--foreground)]">Quote Detail Line Lookup</h2>
+                <p className="text-sm text-[var(--muted-foreground)] mt-1">
+                  Click the checkbox for each line you want to add to your order. The applicable detail lines will be inserted into your order and the corresponding quote detail line will be marked as ordered if currently set to Open.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowQuoteLookupModal(false)}
+                className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
+              >
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                    Part Number<span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={quoteLookupPartNumber}
+                    onChange={(e) => setQuoteLookupPartNumber(e.target.value)}
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                    Quote Number<span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={quoteLookupQuoteNumber}
+                    onChange={(e) => setQuoteLookupQuoteNumber(e.target.value)}
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                    Start Date<span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={quoteLookupStartDate}
+                      onChange={(e) => setQuoteLookupStartDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 pr-10"
+                    />
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]">
+                      <rect x="3" y="4" width="14" height="14" rx="2"/>
+                      <path d="M3 8h14M7 2v4M13 2v4"/>
+                    </svg>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                    End Date<span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={quoteLookupEndDate}
+                      onChange={(e) => setQuoteLookupEndDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 pr-10"
+                    />
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]">
+                      <rect x="3" y="4" width="14" height="14" rx="2"/>
+                      <path d="M3 8h14M7 2v4M13 2v4"/>
+                    </svg>
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4 pt-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={quoteLookupOpenOnly}
+                    onChange={(e) => setQuoteLookupOpenOnly(e.target.checked)}
+                    className="w-4 h-4 accent-[var(--primary)]"
+                  />
+                  <span className="text-sm text-[var(--foreground)]">
+                    Include Only <span className="text-[var(--primary)] font-medium">Open Quotes</span>
+                  </span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={quoteLookupBlanketOnly}
+                    onChange={(e) => setQuoteLookupBlanketOnly(e.target.checked)}
+                    className="w-4 h-4 accent-[var(--primary)]"
+                  />
+                  <span className="text-sm text-[var(--foreground)]">
+                    Include Only <span className="text-[var(--primary)] font-medium">Blanket Quotes</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3">
+              <button
+                onClick={() => setShowQuoteLookupModal(false)}
+                className="px-4 py-2 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  // Search and show results
+                  alert('Searching for quote lines...');
+                }}
+                className="px-4 py-2 text-sm bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+              >
+                Search
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Line Item Credit Modal */}
+      {showLineCreditModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-600">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M12 6v12M6 12h12"/>
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h2 className="text-lg font-semibold text-[var(--foreground)]">
+                  Creating Credit <span className="text-green-600">({formatCurrency(creditLineItems.reduce((sum, li) => sum + li.unitCredit, 0))})</span>
+                </h2>
+                <p className="text-sm text-[var(--muted-foreground)]">Enter credit information, verify your entries, and save</p>
+              </div>
+              <button
+                onClick={() => setShowLineCreditModal(false)}
+                className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
+              >
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                    Credit Name<span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={creditName}
+                    onChange={(e) => setCreditName(e.target.value)}
+                    className={`w-full px-3 py-2 border rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 ${
+                      !creditName ? 'border-red-500' : 'border-[var(--border)]'
+                    }`}
+                  />
+                  {!creditName && <p className="text-xs text-red-500 mt-1">This field is required.</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                    Credit Date<span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={creditDate}
+                      onChange={(e) => setCreditDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 pr-10"
+                    />
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]">
+                      <rect x="3" y="4" width="14" height="14" rx="2"/>
+                      <path d="M3 8h14M7 2v4M13 2v4"/>
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              {/* Credit Line Items */}
+              <div>
+                <div className="grid grid-cols-[1fr_80px_140px_120px_140px_140px] gap-4 px-2 py-2 bg-[var(--muted)]/30 rounded-t-lg text-xs font-semibold text-[var(--muted-foreground)] uppercase">
+                  <div>Part Number</div>
+                  <div>Quantity *</div>
+                  <div>Unit Credit *</div>
+                  <div>Commission % *</div>
+                  <div>Commission Amount *</div>
+                  <div>Reason *</div>
+                </div>
+                <div className="border border-[var(--border)] rounded-b-lg divide-y divide-[var(--border)]">
+                  {creditLineItems.map((item, index) => (
+                    <div key={index} className="grid grid-cols-[1fr_80px_140px_120px_140px_140px] gap-4 px-2 py-3 items-center">
+                      <input
+                        type="text"
+                        value={item.partNumber}
+                        onChange={(e) => {
+                          const newItems = [...creditLineItems];
+                          newItems[index].partNumber = e.target.value;
+                          setCreditLineItems(newItems);
+                        }}
+                        className="px-2 py-1.5 border border-[var(--border)] rounded text-sm bg-[var(--background)] w-full"
+                        placeholder="Enter part number"
+                      />
+                      <input
+                        type="number"
+                        value={item.quantity}
+                        onChange={(e) => {
+                          const newItems = [...creditLineItems];
+                          newItems[index].quantity = parseInt(e.target.value) || 0;
+                          setCreditLineItems(newItems);
+                        }}
+                        className="px-2 py-1.5 border border-[var(--border)] rounded text-sm bg-[var(--background)]"
+                      />
+                      <input
+                        type="text"
+                        value={`$${item.unitCredit.toFixed(2)}`}
+                        onChange={(e) => {
+                          const newItems = [...creditLineItems];
+                          newItems[index].unitCredit = parseFloat(e.target.value.replace('$', '')) || 0;
+                          setCreditLineItems(newItems);
+                        }}
+                        className="px-2 py-1.5 border border-[var(--border)] rounded text-sm bg-[var(--background)]"
+                      />
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={item.commissionPercent}
+                          onChange={(e) => {
+                            const newItems = [...creditLineItems];
+                            newItems[index].commissionPercent = parseFloat(e.target.value) || 0;
+                            newItems[index].commissionAmount = newItems[index].unitCredit * (newItems[index].commissionPercent / 100);
+                            setCreditLineItems(newItems);
+                          }}
+                          className="px-2 py-1.5 border border-[var(--border)] rounded text-sm bg-[var(--background)] w-20"
+                        />
+                        <span className="text-sm text-[var(--muted-foreground)]">%</span>
+                      </div>
+                      <input
+                        type="text"
+                        value={`$${item.commissionAmount.toFixed(2)}`}
+                        readOnly
+                        className="px-2 py-1.5 border border-[var(--border)] rounded text-sm bg-[var(--muted)]/30"
+                      />
+                      <select
+                        value={item.reason}
+                        onChange={(e) => {
+                          const newItems = [...creditLineItems];
+                          newItems[index].reason = e.target.value;
+                          setCreditLineItems(newItems);
+                        }}
+                        className="px-2 py-1.5 border border-[var(--border)] rounded text-sm bg-[var(--background)]"
+                      >
+                        <option value="">Choose</option>
+                        <option value="price_adjustment">Price Adjustment</option>
+                        <option value="return">Return</option>
+                        <option value="damaged">Damaged</option>
+                        <option value="wrong_item">Wrong Item</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between mt-2 px-2">
+                  <button
+                    onClick={() => {
+                      setCreditLineItems([...creditLineItems, {
+                        partNumber: '',
+                        amount: 0,
+                        quantity: 1,
+                        unitCredit: 0,
+                        commissionPercent: 0.75,
+                        commissionAmount: 0,
+                        reason: ''
+                      }]);
+                    }}
+                    className="flex items-center gap-1 text-sm text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                    </svg>
+                    Add Line
+                  </button>
+                  <span className="text-xs text-[var(--muted-foreground)]">
+                    {creditLineItems.length > 0 && `${creditLineItems.length} line${creditLineItems.length !== 1 ? 's' : ''}`}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3">
+              <button
+                onClick={() => setShowLineCreditModal(false)}
+                className="px-4 py-2 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  alert('Credit created successfully');
+                  setShowLineCreditModal(false);
+                  setSelectedLineItems(new Set());
+                }}
+                className="px-4 py-2 text-sm bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+              >
+                Save Credit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Set Overage % Modal */}
+      {showSetOverageModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-sm w-full">
+            <div className="px-6 py-4 border-b border-[var(--border)]">
+              <h2 className="text-lg font-semibold text-[var(--foreground)]">Set Overage %</h2>
+              <p className="text-sm text-[var(--muted-foreground)]">Apply overage percentage to {selectedLineItems.size} selected line{selectedLineItems.size !== 1 ? 's' : ''}</p>
+            </div>
+            <div className="p-6">
+              <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                Overage Percentage
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  step="0.1"
+                  value={bulkOveragePercent}
+                  onChange={(e) => setBulkOveragePercent(e.target.value)}
+                  className="flex-1 px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                  placeholder="e.g., 10"
+                />
+                <span className="text-sm text-[var(--muted-foreground)]">%</span>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3">
+              <button
+                onClick={() => { setShowSetOverageModal(false); setBulkOveragePercent(''); }}
+                className="px-4 py-2 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  alert(`Overage set to ${bulkOveragePercent}% for selected items`);
+                  setShowSetOverageModal(false);
+                  setBulkOveragePercent('');
+                }}
+                className="px-4 py-2 text-sm bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Set End User Modal */}
+      {showSetEndUserModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-sm w-full">
+            <div className="px-6 py-4 border-b border-[var(--border)]">
+              <h2 className="text-lg font-semibold text-[var(--foreground)]">Set End User</h2>
+              <p className="text-sm text-[var(--muted-foreground)]">Apply end user to {selectedLineItems.size} selected line{selectedLineItems.size !== 1 ? 's' : ''}</p>
+            </div>
+            <div className="p-6">
+              <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                End User
+              </label>
+              <select
+                value={bulkEndUser}
+                onChange={(e) => setBulkEndUser(e.target.value)}
+                className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+              >
+                <option value="">Select End User...</option>
+                <option value="customer1">Skanska USA</option>
+                <option value="customer2">Turner Construction</option>
+                <option value="customer3">McCarthy Building</option>
+                <option value="customer4">Whiting-Turner</option>
+              </select>
+            </div>
+            <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3">
+              <button
+                onClick={() => { setShowSetEndUserModal(false); setBulkEndUser(''); }}
+                className="px-4 py-2 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  alert(`End user set for selected items`);
+                  setShowSetEndUserModal(false);
+                  setBulkEndUser('');
+                }}
+                className="px-4 py-2 text-sm bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Set Outside Rep Splits Modal */}
+      {showSetOutsideRepSplitsModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-md w-full">
+            <div className="px-6 py-4 border-b border-[var(--border)]">
+              <h2 className="text-lg font-semibold text-[var(--foreground)]">Set Outside Rep Splits</h2>
+              <p className="text-sm text-[var(--muted-foreground)]">Configure commission splits for {selectedLineItems.size} selected line{selectedLineItems.size !== 1 ? 's' : ''}</p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                  Outside Rep
+                </label>
+                <select
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                >
+                  <option value="">Select Rep...</option>
+                  <option value="rep1">John Smith</option>
+                  <option value="rep2">Sarah Johnson</option>
+                  <option value="rep3">Mike Williams</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                  Split Percentage
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    step="1"
+                    className="flex-1 px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                    placeholder="e.g., 50"
+                  />
+                  <span className="text-sm text-[var(--muted-foreground)]">%</span>
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3">
+              <button
+                onClick={() => setShowSetOutsideRepSplitsModal(false)}
+                className="px-4 py-2 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  alert('Outside rep splits configured for selected items');
+                  setShowSetOutsideRepSplitsModal(false);
+                }}
+                className="px-4 py-2 text-sm bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Line Item Order Acknowledgement Modal */}
+      {showLineAcknowledgementModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-xl w-full">
+            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
+                  <path d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+                  <rect x="9" y="3" width="6" height="4" rx="1"/>
+                  <path d="M9 12l2 2 4-4"/>
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h2 className="text-lg font-semibold text-[var(--foreground)]">
+                  Add Acknowledgements for {order?.orderNumber}
+                </h2>
+                <p className="text-sm text-[var(--muted-foreground)]">
+                  The below acknowledgment number and ship date will be applied to all selected detail lines.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowLineAcknowledgementModal(false)}
+                className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
+              >
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                  Acknowledgement Number<span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={ackNumber}
+                  onChange={(e) => setAckNumber(e.target.value)}
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                  placeholder="Enter acknowledgement number"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                  Order Ack. Date<span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={ackDate}
+                    onChange={(e) => setAckDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                  />
+                </div>
+              </div>
+
+              {/* Line Item Quantities */}
+              {ackLineItems.length > 0 && (
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                    Acknowledged Quantity per Line Item
+                  </label>
+                  <p className="text-xs text-[var(--muted-foreground)] mb-3">
+                    The acknowledged quantity may be less than the full ordered quantity for partial acknowledgements.
+                  </p>
+                  <div className="border border-[var(--border)] rounded-lg overflow-hidden">
+                    <div className="grid grid-cols-[1fr_80px_80px_120px] gap-2 px-3 py-2 bg-[var(--muted)]/30 text-xs font-semibold text-[var(--muted-foreground)] uppercase">
+                      <div>Part Number</div>
+                      <div>Ordered Qty</div>
+                      <div>Ack. Qty</div>
+                      <div>Ship Date</div>
+                    </div>
+                    <div className="divide-y divide-[var(--border)]">
+                      {ackLineItems.map((item, index) => (
+                        <div key={index} className="grid grid-cols-[1fr_80px_80px_120px] gap-2 px-3 py-2 items-center">
+                          <span className="text-sm">{item.partNumber}</span>
+                          <span className="text-sm text-[var(--muted-foreground)]">{item.orderedQty}</span>
+                          <input
+                            type="number"
+                            value={item.acknowledgedQty}
+                            onChange={(e) => {
+                              const newItems = [...ackLineItems];
+                              const newQty = parseInt(e.target.value) || 0;
+                              newItems[index].acknowledgedQty = Math.min(newQty, item.orderedQty);
+                              setAckLineItems(newItems);
+                            }}
+                            max={item.orderedQty}
+                            min={0}
+                            className="px-2 py-1 border border-[var(--border)] rounded text-sm bg-[var(--background)] w-full"
+                          />
+                          <input
+                            type="date"
+                            value={item.shipDate}
+                            onChange={(e) => {
+                              const newItems = [...ackLineItems];
+                              newItems[index].shipDate = e.target.value;
+                              setAckLineItems(newItems);
+                            }}
+                            className="px-2 py-1 border border-[var(--border)] rounded text-sm bg-[var(--background)] w-full"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3">
+              <button
+                onClick={() => setShowLineAcknowledgementModal(false)}
+                className="px-4 py-2 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  alert('Acknowledgement added successfully');
+                  setShowLineAcknowledgementModal(false);
+                  setSelectedLineItems(new Set());
+                }}
+                disabled={!ackNumber || !ackDate}
+                className="px-4 py-2 text-sm bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Submit
               </button>
             </div>
           </div>

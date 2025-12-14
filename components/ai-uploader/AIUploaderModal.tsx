@@ -116,21 +116,39 @@ const documentTypes: DocumentTypeOption[] = [
   },
 ];
 
-// Map pathnames to document types
-const pathToDocType: Record<string, DocumentType> = {
-  '/quotes': 'quote',
-  '/orders': 'order',
-  '/invoices': 'invoice',
-  '/commissions': 'commission-statement',
-  '/contacts': 'contacts',
-  '/companies': 'companies',
-  '/products': 'products',
-};
+// Map pathname prefixes to document types
+const pathPrefixToDocType: { prefix: string; type: DocumentType }[] = [
+  { prefix: '/quotes', type: 'quote' },
+  { prefix: '/orders', type: 'order' },
+  { prefix: '/invoices', type: 'invoice' },
+  { prefix: '/commissions', type: 'commission-statement' },
+  { prefix: '/contacts', type: 'contacts' },
+  { prefix: '/companies', type: 'companies' },
+  { prefix: '/products', type: 'products' },
+];
+
+// Get document type from pathname (matches exact path or paths starting with prefix)
+function getDocTypeFromPath(pathname: string): DocumentType {
+  for (const { prefix, type } of pathPrefixToDocType) {
+    if (pathname === prefix || pathname.startsWith(prefix + '/')) {
+      return type;
+    }
+  }
+  return 'quote';
+}
 
 interface AIUploaderModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+// Sample templates - in production, these would come from an API
+const templates = [
+  { id: 'default', name: 'Default Template' },
+  { id: 'detailed', name: 'Detailed Extraction' },
+  { id: 'summary', name: 'Summary Only' },
+  { id: 'line-items', name: 'Line Items Focus' },
+];
 
 export default function AIUploaderModal({ isOpen, onClose }: AIUploaderModalProps) {
   const pathname = usePathname();
@@ -139,12 +157,22 @@ export default function AIUploaderModal({ isOpen, onClose }: AIUploaderModalProp
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
-  // Set default document type based on current page
+  // Advanced settings state
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [specialInstructions, setSpecialInstructions] = useState('');
+  const [selectedTemplate, setSelectedTemplate] = useState('default');
+  const [referenceFiles, setReferenceFiles] = useState<File[]>([]);
+  const [isRefDragging, setIsRefDragging] = useState(false);
+
+  // Set default document type based on current page and reset state
   useEffect(() => {
     if (isOpen) {
-      const defaultType = pathToDocType[pathname] || 'quote';
-      setSelectedType(defaultType);
+      setSelectedType(getDocTypeFromPath(pathname));
       setFiles([]);
+      setShowAdvanced(false);
+      setSpecialInstructions('');
+      setSelectedTemplate('default');
+      setReferenceFiles([]);
     }
   }, [isOpen, pathname]);
 
@@ -174,6 +202,35 @@ export default function AIUploaderModal({ isOpen, onClose }: AIUploaderModalProp
 
   const removeFile = (index: number) => {
     setFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Reference file handlers
+  const handleRefDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsRefDragging(true);
+  };
+
+  const handleRefDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsRefDragging(false);
+  };
+
+  const handleRefDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsRefDragging(false);
+    const droppedFiles = Array.from(e.dataTransfer.files);
+    setReferenceFiles(prev => [...prev, ...droppedFiles]);
+  };
+
+  const handleRefFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = e.target.files;
+    if (selectedFiles) {
+      setReferenceFiles(prev => [...prev, ...Array.from(selectedFiles)]);
+    }
+  };
+
+  const removeRefFile = (index: number) => {
+    setReferenceFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleUpload = async () => {
@@ -249,27 +306,26 @@ export default function AIUploaderModal({ isOpen, onClose }: AIUploaderModalProp
 
           {/* File Upload Zone */}
           <div>
-            <label className="block text-sm font-medium text-[var(--foreground)] mb-3">
+            <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
               Upload Files
             </label>
             <div
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
-              className={`border-2 border-dashed rounded-xl p-8 text-center transition-all ${
+              className={`border-2 border-dashed rounded-lg p-5 text-center transition-all ${
                 isDragging
                   ? 'border-[var(--primary)] bg-[var(--primary)]/5'
                   : 'border-[var(--border)] hover:border-[var(--primary)]/50'
               }`}
             >
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="mx-auto mb-4 text-[var(--muted-foreground)]">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="mx-auto mb-2 text-[var(--muted-foreground)]">
                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
-              <p className="text-sm text-[var(--foreground)] mb-1">
+              <p className="text-sm text-[var(--foreground)] mb-2">
                 Drag and drop your files here
               </p>
-              <p className="text-xs text-[var(--muted-foreground)] mb-4">or</p>
-              <label className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-[var(--primary)] text-white rounded-lg cursor-pointer hover:bg-[var(--primary-hover)] transition-colors">
+              <label className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-[var(--primary)] text-white rounded-lg cursor-pointer hover:bg-[var(--primary-hover)] transition-colors">
                 <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M4 16v2a2 2 0 002 2h8a2 2 0 002-2v-2M10 4v10M6 8l4-4 4 4" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
@@ -282,8 +338,8 @@ export default function AIUploaderModal({ isOpen, onClose }: AIUploaderModalProp
                   className="hidden"
                 />
               </label>
-              <p className="mt-3 text-xs text-[var(--muted-foreground)]">
-                Supports PDF, CSV, Excel, and Word files
+              <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+                PDF, CSV, Excel, and Word files
               </p>
             </div>
           </div>
@@ -325,6 +381,141 @@ export default function AIUploaderModal({ isOpen, onClose }: AIUploaderModalProp
               </div>
             </div>
           )}
+
+          {/* Advanced Settings */}
+          <div className="border border-[var(--border)] rounded-lg overflow-hidden">
+            <button
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)]/50 transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="3"/>
+                  <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+                </svg>
+                Advanced Settings
+              </span>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className={`transition-transform ${showAdvanced ? 'rotate-180' : ''}`}
+              >
+                <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+
+            {showAdvanced && (
+              <div className="px-4 pb-4 space-y-4 border-t border-[var(--border)]">
+                {/* Special Instructions */}
+                <div className="pt-4">
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                    Special Instructions
+                  </label>
+                  <textarea
+                    value={specialInstructions}
+                    onChange={(e) => setSpecialInstructions(e.target.value)}
+                    placeholder="Add any special instructions for the AI processor..."
+                    className="w-full px-3 py-2 text-sm bg-[var(--background)] border border-[var(--border)] rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 focus:border-[var(--primary)] transition-colors"
+                    rows={3}
+                  />
+                  <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                    E.g., "Focus on extracting line item quantities" or "Ignore header information"
+                  </p>
+                </div>
+
+                {/* Template Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                    Processing Template
+                  </label>
+                  <select
+                    value={selectedTemplate}
+                    onChange={(e) => setSelectedTemplate(e.target.value)}
+                    className="w-full px-3 py-2 text-sm bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 focus:border-[var(--primary)] transition-colors"
+                  >
+                    {templates.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                    Choose a template to customize how documents are processed
+                  </p>
+                </div>
+
+                {/* Reference Files */}
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                    Reference Files
+                  </label>
+                  <div
+                    onDragOver={handleRefDragOver}
+                    onDragLeave={handleRefDragLeave}
+                    onDrop={handleRefDrop}
+                    className={`border-2 border-dashed rounded-lg p-4 text-center transition-all ${
+                      isRefDragging
+                        ? 'border-[var(--primary)] bg-[var(--primary)]/5'
+                        : 'border-[var(--border)] hover:border-[var(--primary)]/50'
+                    }`}
+                  >
+                    <p className="text-xs text-[var(--muted-foreground)] mb-2">
+                      Drop reference files here or
+                    </p>
+                    <label className="inline-flex items-center gap-1 px-3 py-1.5 text-xs bg-[var(--muted)] text-[var(--foreground)] rounded-lg cursor-pointer hover:bg-[var(--muted)]/80 transition-colors">
+                      <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M4 16v2a2 2 0 002 2h8a2 2 0 002-2v-2M10 4v10M6 8l4-4 4 4" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      Browse
+                      <input
+                        type="file"
+                        multiple
+                        accept=".pdf,.csv,.xlsx,.xls,.doc,.docx"
+                        onChange={handleRefFileSelect}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                  <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                    Upload files to use as reference for mapping or comparison
+                  </p>
+
+                  {/* Reference File List */}
+                  {referenceFiles.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {referenceFiles.map((file, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between p-2 bg-[var(--muted)]/30 rounded-lg"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted-foreground)] flex-shrink-0">
+                              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                              <path d="M14 2v6h6"/>
+                            </svg>
+                            <span className="text-xs text-[var(--foreground)] truncate">{file.name}</span>
+                            <span className="text-xs text-[var(--muted-foreground)]">({formatFileSize(file.size)})</span>
+                          </div>
+                          <button
+                            onClick={() => removeRefFile(index)}
+                            className="p-1 hover:bg-[var(--muted)] rounded transition-colors flex-shrink-0"
+                          >
+                            <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Footer */}

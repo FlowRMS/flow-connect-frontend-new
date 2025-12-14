@@ -62,6 +62,22 @@ export default function OrdersContent() {
   const [editingSplits, setEditingSplits] = useState(false);
   const [editedSplits, setEditedSplits] = useState<OrderSplitRate[]>([]);
 
+  // Bulk actions state
+  const [selectedOrdersForBulk, setSelectedOrdersForBulk] = useState<Set<string>>(new Set());
+  const [showOrdersBulkActionsMenu, setShowOrdersBulkActionsMenu] = useState(false);
+  const [showCreditModal, setShowCreditModal] = useState(false);
+  const [showAcknowledgementModal, setShowAcknowledgementModal] = useState(false);
+
+  // Credit modal state
+  const [creditName, setCreditName] = useState('');
+  const [creditDate, setCreditDate] = useState(new Date().toLocaleDateString('en-US'));
+  const [creditLineItems, setCreditLineItems] = useState<{partNumber: string; amount: number; quantity: number; unitCredit: number; commissionPercent: number; commissionAmount: number; reason: string}[]>([]);
+
+  // Acknowledgement modal state
+  const [ackNumber, setAckNumber] = useState('');
+  const [ackDate, setAckDate] = useState('');
+  const [ackLineItems, setAckLineItems] = useState<{lineId: string; partNumber: string; orderedQty: number; acknowledgedQty: number}[]>([]);
+
   // Get unique values for filter dropdowns
   const uniqueCustomers = useMemo(() =>
     [...new Set(orders.map(o => o.customerName))].sort(), [orders]);
@@ -564,10 +580,148 @@ export default function OrdersContent() {
 
         {/* Orders Table */}
         <div className="flex-1 overflow-auto p-6 pt-4">
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-x-auto">
-            <div className="min-w-[1800px]">
+          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
+            {/* Bulk Actions Bar */}
+            {selectedOrdersForBulk.size > 0 && (
+              <div className="px-4 py-2 bg-[var(--primary)]/5 border-b border-[var(--border)] flex items-center justify-between">
+                <span className="text-sm text-[var(--foreground)]">
+                  <strong>{selectedOrdersForBulk.size}</strong> order{selectedOrdersForBulk.size !== 1 ? 's' : ''} selected
+                </span>
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowOrdersBulkActionsMenu(!showOrdersBulkActionsMenu)}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+                    >
+                      Bulk Actions
+                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </button>
+                    {showOrdersBulkActionsMenu && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setShowOrdersBulkActionsMenu(false)} />
+                        <div className="absolute top-full right-0 mt-1 w-56 bg-white border border-[var(--border)] rounded-lg shadow-xl z-50 py-1">
+                          <button
+                            onClick={() => {
+                              // Initialize credit line items from selected orders
+                              const selectedOrders = orders.filter(o => selectedOrdersForBulk.has(o.id));
+                              const lineItems = selectedOrders.flatMap(o =>
+                                o.lineItems.map(li => ({
+                                  partNumber: `${li.partNumber} (${formatCurrency(li.sellPrice * li.quantity)})`,
+                                  amount: li.sellPrice * li.quantity,
+                                  quantity: li.quantity,
+                                  unitCredit: li.sellPrice * li.quantity,
+                                  commissionPercent: 0.75,
+                                  commissionAmount: li.sellPrice * li.quantity * 0.0075,
+                                  reason: ''
+                                }))
+                              );
+                              setCreditLineItems(lineItems);
+                              setShowCreditModal(true);
+                              setShowOrdersBulkActionsMenu(false);
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors flex items-center gap-2 text-green-600"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                              <circle cx="10" cy="10" r="8"/>
+                              <path d="M7 10h6M10 7v6" strokeLinecap="round"/>
+                            </svg>
+                            Add Credit
+                          </button>
+                          <button
+                            onClick={() => {
+                              // Initialize acknowledgement line items from selected orders
+                              const selectedOrders = orders.filter(o => selectedOrdersForBulk.has(o.id));
+                              const lineItems = selectedOrders.flatMap(o =>
+                                o.lineItems.map(li => ({
+                                  lineId: li.id,
+                                  partNumber: li.partNumber,
+                                  orderedQty: li.quantity,
+                                  acknowledgedQty: li.quantity
+                                }))
+                              );
+                              setAckLineItems(lineItems);
+                              setShowAcknowledgementModal(true);
+                              setShowOrdersBulkActionsMenu(false);
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors flex items-center gap-2 text-blue-600"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" strokeLinecap="round" strokeLinejoin="round"/>
+                              <path d="M9 12l2 2 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                            Add Order Acknowledgement
+                          </button>
+                          <div className="border-t border-[var(--border)] my-1"></div>
+                          <button
+                            onClick={() => {
+                              setOrders(prev => prev.map(o =>
+                                selectedOrdersForBulk.has(o.id) ? { ...o, status: 'open' as const } : o
+                              ));
+                              setSelectedOrdersForBulk(new Set());
+                              setShowOrdersBulkActionsMenu(false);
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors"
+                          >
+                            Move to Open
+                          </button>
+                          <button
+                            onClick={() => {
+                              setOrders(prev => prev.map(o =>
+                                selectedOrdersForBulk.has(o.id) ? { ...o, status: 'shipped' as const } : o
+                              ));
+                              setSelectedOrdersForBulk(new Set());
+                              setShowOrdersBulkActionsMenu(false);
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors"
+                          >
+                            Move to Shipped
+                          </button>
+                          <button
+                            onClick={() => {
+                              setOrders(prev => prev.map(o =>
+                                selectedOrdersForBulk.has(o.id) ? { ...o, status: 'cancelled' as const } : o
+                              ));
+                              setSelectedOrdersForBulk(new Set());
+                              setShowOrdersBulkActionsMenu(false);
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors text-red-600"
+                          >
+                            Cancel Orders
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setSelectedOrdersForBulk(new Set())}
+                    className="px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                  >
+                    Clear Selection
+                  </button>
+                </div>
+              </div>
+            )}
+            <div className="overflow-x-auto">
+            <div className="min-w-[1850px]">
               {/* Table Header */}
-              <div className="grid grid-cols-[40px_120px_100px_100px_100px_90px_90px_90px_90px_140px_140px_100px_120px_120px_1fr_60px] gap-2 px-4 py-3 border-b border-[var(--border)] bg-[var(--muted)]/30 sticky top-0">
+              <div className="grid grid-cols-[40px_40px_120px_100px_100px_100px_90px_90px_90px_90px_140px_140px_100px_120px_120px_1fr_60px] gap-2 px-4 py-3 border-b border-[var(--border)] bg-[var(--muted)]/30 sticky top-0">
+                {/* Checkbox column */}
+                <div className="flex items-center justify-center">
+                  <input
+                    type="checkbox"
+                    checked={filteredOrders.length > 0 && filteredOrders.every(o => selectedOrdersForBulk.has(o.id))}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedOrdersForBulk(new Set(filteredOrders.map(o => o.id)));
+                      } else {
+                        setSelectedOrdersForBulk(new Set());
+                      }
+                    }}
+                    className="w-4 h-4 accent-[var(--primary)]"
+                  />
+                </div>
                 <div className="flex items-center justify-center">
                   {/* Preview column header - empty */}
                 </div>
@@ -739,10 +893,29 @@ export default function OrdersContent() {
                       <div
                         key={order.id}
                         onClick={() => router.push(`/orders/${order.id}`)}
-                        className={`grid grid-cols-[40px_120px_100px_100px_100px_90px_90px_90px_90px_140px_140px_100px_120px_120px_1fr_60px] gap-2 px-4 py-3 hover:bg-[var(--muted)]/20 transition-colors cursor-pointer ${
+                        className={`grid grid-cols-[40px_40px_120px_100px_100px_100px_90px_90px_90px_90px_140px_140px_100px_120px_120px_1fr_60px] gap-2 px-4 py-3 hover:bg-[var(--muted)]/20 transition-colors cursor-pointer ${
                           selectedOrder?.id === order.id ? 'bg-[var(--muted)]/30' : ''
-                        }`}
+                        } ${selectedOrdersForBulk.has(order.id) ? 'bg-[var(--primary)]/5' : ''}`}
                       >
+                        {/* Checkbox */}
+                        <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedOrdersForBulk.has(order.id)}
+                            onChange={(e) => {
+                              setSelectedOrdersForBulk(prev => {
+                                const newSet = new Set(prev);
+                                if (e.target.checked) {
+                                  newSet.add(order.id);
+                                } else {
+                                  newSet.delete(order.id);
+                                }
+                                return newSet;
+                              });
+                            }}
+                            className="w-4 h-4 accent-[var(--primary)]"
+                          />
+                        </div>
                         <div className="flex items-center justify-center">
                           <button
                             onClick={(e) => {
@@ -820,6 +993,7 @@ export default function OrdersContent() {
                   })
                 )}
               </div>
+            </div>
             </div>
           </div>
         </div>
@@ -1090,6 +1264,287 @@ export default function OrdersContent() {
           onClose={() => setShowCreateModal(false)}
           onSave={handleCreateOrder}
         />
+      )}
+
+      {/* Credit Modal */}
+      {showCreditModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-600">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M12 6v12M6 12h12"/>
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h2 className="text-lg font-semibold text-[var(--foreground)]">
+                  Creating Credit <span className="text-green-600">({formatCurrency(creditLineItems.reduce((sum, li) => sum + li.unitCredit, 0))})</span>
+                </h2>
+                <p className="text-sm text-[var(--muted-foreground)]">Enter credit information, verify your entries, and save</p>
+              </div>
+              <button
+                onClick={() => setShowCreditModal(false)}
+                className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
+              >
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                    Credit Name<span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={creditName}
+                    onChange={(e) => setCreditName(e.target.value)}
+                    className={`w-full px-3 py-2 border rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 ${
+                      !creditName ? 'border-red-500' : 'border-[var(--border)]'
+                    }`}
+                  />
+                  {!creditName && <p className="text-xs text-red-500 mt-1">This field is required.</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                    Credit Date<span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={creditDate}
+                      onChange={(e) => setCreditDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 pr-10"
+                    />
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]">
+                      <rect x="3" y="4" width="14" height="14" rx="2"/>
+                      <path d="M3 8h14M7 2v4M13 2v4"/>
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              {/* Credit Line Items */}
+              <div>
+                <div className="grid grid-cols-[1fr_80px_140px_120px_140px_140px] gap-4 px-2 py-2 bg-[var(--muted)]/30 rounded-t-lg text-xs font-semibold text-[var(--muted-foreground)] uppercase">
+                  <div>Part Number</div>
+                  <div>Quantity *</div>
+                  <div>Unit Credit *</div>
+                  <div>Commission % *</div>
+                  <div>Commission Amount *</div>
+                  <div>Reason *</div>
+                </div>
+                <div className="border border-[var(--border)] rounded-b-lg divide-y divide-[var(--border)]">
+                  {creditLineItems.map((item, index) => (
+                    <div key={index} className="grid grid-cols-[1fr_80px_140px_120px_140px_140px] gap-4 px-2 py-3 items-center">
+                      <div className="text-sm text-green-600 font-medium">{item.partNumber}</div>
+                      <input
+                        type="number"
+                        value={item.quantity}
+                        onChange={(e) => {
+                          const newItems = [...creditLineItems];
+                          newItems[index].quantity = parseInt(e.target.value) || 0;
+                          setCreditLineItems(newItems);
+                        }}
+                        className="px-2 py-1.5 border border-[var(--border)] rounded text-sm bg-[var(--background)]"
+                      />
+                      <input
+                        type="text"
+                        value={`$${item.unitCredit.toFixed(2)}`}
+                        onChange={(e) => {
+                          const newItems = [...creditLineItems];
+                          newItems[index].unitCredit = parseFloat(e.target.value.replace('$', '')) || 0;
+                          setCreditLineItems(newItems);
+                        }}
+                        className="px-2 py-1.5 border border-[var(--border)] rounded text-sm bg-[var(--background)]"
+                      />
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={item.commissionPercent}
+                          onChange={(e) => {
+                            const newItems = [...creditLineItems];
+                            newItems[index].commissionPercent = parseFloat(e.target.value) || 0;
+                            newItems[index].commissionAmount = newItems[index].unitCredit * (newItems[index].commissionPercent / 100);
+                            setCreditLineItems(newItems);
+                          }}
+                          className="px-2 py-1.5 border border-[var(--border)] rounded text-sm bg-[var(--background)] w-20"
+                        />
+                        <span className="text-sm text-[var(--muted-foreground)]">%</span>
+                      </div>
+                      <input
+                        type="text"
+                        value={`$${item.commissionAmount.toFixed(2)}`}
+                        readOnly
+                        className="px-2 py-1.5 border border-[var(--border)] rounded text-sm bg-[var(--muted)]/30"
+                      />
+                      <select
+                        value={item.reason}
+                        onChange={(e) => {
+                          const newItems = [...creditLineItems];
+                          newItems[index].reason = e.target.value;
+                          setCreditLineItems(newItems);
+                        }}
+                        className="px-2 py-1.5 border border-[var(--border)] rounded text-sm bg-[var(--background)]"
+                      >
+                        <option value="">Choose</option>
+                        <option value="price_adjustment">Price Adjustment</option>
+                        <option value="return">Return</option>
+                        <option value="damaged">Damaged</option>
+                        <option value="wrong_item">Wrong Item</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+                  ))}
+                </div>
+                <div className="text-xs text-[var(--muted-foreground)] mt-1 px-2">
+                  {creditLineItems.length > 0 && `1 - ${creditLineItems.length}`}
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3">
+              <button
+                onClick={() => setShowCreditModal(false)}
+                className="px-4 py-2 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  alert('Credit created successfully');
+                  setShowCreditModal(false);
+                  setSelectedOrdersForBulk(new Set());
+                }}
+                className="px-4 py-2 text-sm bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+              >
+                Save Credit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Order Acknowledgement Modal */}
+      {showAcknowledgementModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-xl w-full">
+            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
+                  <path d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+                  <rect x="9" y="3" width="6" height="4" rx="1"/>
+                  <path d="M9 12l2 2 4-4"/>
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h2 className="text-lg font-semibold text-[var(--foreground)]">
+                  Add Acknowledgements for {Array.from(selectedOrdersForBulk).join(', ')}
+                </h2>
+                <p className="text-sm text-[var(--muted-foreground)]">
+                  The below acknowledgment number and ship date will be applied to all selected detail lines.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowAcknowledgementModal(false)}
+                className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
+              >
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                  Acknowledgement Number<span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={ackNumber}
+                  onChange={(e) => setAckNumber(e.target.value)}
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                  placeholder="Enter acknowledgement number"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                  Order Ack. Date<span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={ackDate}
+                    onChange={(e) => setAckDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                  />
+                </div>
+              </div>
+
+              {/* Line Item Quantities */}
+              {ackLineItems.length > 0 && (
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                    Acknowledged Quantity per Line Item
+                  </label>
+                  <p className="text-xs text-[var(--muted-foreground)] mb-3">
+                    The acknowledged quantity may be less than the full ordered quantity for partial acknowledgements.
+                  </p>
+                  <div className="border border-[var(--border)] rounded-lg overflow-hidden">
+                    <div className="grid grid-cols-[1fr_100px_100px] gap-2 px-3 py-2 bg-[var(--muted)]/30 text-xs font-semibold text-[var(--muted-foreground)] uppercase">
+                      <div>Part Number</div>
+                      <div>Ordered Qty</div>
+                      <div>Ack. Qty</div>
+                    </div>
+                    <div className="divide-y divide-[var(--border)]">
+                      {ackLineItems.map((item, index) => (
+                        <div key={index} className="grid grid-cols-[1fr_100px_100px] gap-2 px-3 py-2 items-center">
+                          <span className="text-sm">{item.partNumber}</span>
+                          <span className="text-sm text-[var(--muted-foreground)]">{item.orderedQty}</span>
+                          <input
+                            type="number"
+                            value={item.acknowledgedQty}
+                            onChange={(e) => {
+                              const newItems = [...ackLineItems];
+                              const newQty = parseInt(e.target.value) || 0;
+                              newItems[index].acknowledgedQty = Math.min(newQty, item.orderedQty);
+                              setAckLineItems(newItems);
+                            }}
+                            max={item.orderedQty}
+                            min={0}
+                            className="px-2 py-1 border border-[var(--border)] rounded text-sm bg-[var(--background)] w-full"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3">
+              <button
+                onClick={() => setShowAcknowledgementModal(false)}
+                className="px-4 py-2 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  alert('Acknowledgement added successfully');
+                  setShowAcknowledgementModal(false);
+                  setSelectedOrdersForBulk(new Set());
+                }}
+                disabled={!ackNumber || !ackDate}
+                className="px-4 py-2 text-sm bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Submit
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </main>
   );

@@ -558,7 +558,7 @@ type Quote = {
   jobName: string;
   stage: 'Draft' | 'Review' | 'Sent' | 'Negotiating' | 'Won' | 'Lost';
   status: 'Open' | 'Closed' | 'Expired' | 'Pending';
-  quoteType: 'Regular' | 'Blanket';
+  quoteType: 'NORMAL' | 'TAG' | 'BLANKET' | 'STORM';
   value: string;
   valueNumber: number;
   winProbability: number;
@@ -753,7 +753,7 @@ const mockQuotes: Quote[] = [
     jobName: 'Downtown Medical Center',
     stage: 'Negotiating',
     status: 'Open',
-    quoteType: 'Regular',
+    quoteType: 'NORMAL',
     value: '$2,450,000',
     valueNumber: 2450000,
     winProbability: 72,
@@ -795,7 +795,7 @@ const mockQuotes: Quote[] = [
     jobName: 'TechCorp HQ Expansion',
     stage: 'Sent',
     status: 'Open',
-    quoteType: 'Blanket',
+    quoteType: 'BLANKET',
     value: '$1,850,000',
     valueNumber: 1850000,
     winProbability: 58,
@@ -830,7 +830,7 @@ const mockQuotes: Quote[] = [
     jobName: 'University Lab Building',
     stage: 'Draft',
     status: 'Pending',
-    quoteType: 'Regular',
+    quoteType: 'NORMAL',
     value: '$890,000',
     valueNumber: 890000,
     winProbability: 45,
@@ -862,7 +862,7 @@ const mockQuotes: Quote[] = [
     jobName: 'Harbor View Apartments',
     stage: 'Won',
     status: 'Closed',
-    quoteType: 'Regular',
+    quoteType: 'NORMAL',
     value: '$445,000',
     valueNumber: 445000,
     winProbability: 100,
@@ -897,7 +897,7 @@ const mockQuotes: Quote[] = [
     jobName: 'Airport Terminal Expansion',
     stage: 'Review',
     status: 'Open',
-    quoteType: 'Blanket',
+    quoteType: 'BLANKET',
     value: '$5,200,000',
     valueNumber: 5200000,
     winProbability: 35,
@@ -936,7 +936,7 @@ const mockQuotes: Quote[] = [
     jobName: 'Westside Mall Renovation',
     stage: 'Lost',
     status: 'Closed',
-    quoteType: 'Regular',
+    quoteType: 'NORMAL',
     value: '$720,000',
     valueNumber: 720000,
     winProbability: 0,
@@ -968,7 +968,7 @@ const mockQuotes: Quote[] = [
     jobName: 'City Hall Renovation',
     stage: 'Draft',
     status: 'Open',
-    quoteType: 'Regular',
+    quoteType: 'NORMAL',
     value: '$1,125,000',
     valueNumber: 1125000,
     winProbability: 62,
@@ -1003,7 +1003,7 @@ const mockQuotes: Quote[] = [
     jobName: 'Riverside Office Tower',
     stage: 'Negotiating',
     status: 'Open',
-    quoteType: 'Blanket',
+    quoteType: 'BLANKET',
     value: '$3,750,000',
     valueNumber: 3750000,
     winProbability: 68,
@@ -1041,7 +1041,7 @@ const mockQuotes: Quote[] = [
     jobName: 'Metro Transit Hub',
     stage: 'Sent',
     status: 'Open',
-    quoteType: 'Regular',
+    quoteType: 'NORMAL',
     value: '$980,000',
     valueNumber: 980000,
     winProbability: 51,
@@ -1073,7 +1073,7 @@ const mockQuotes: Quote[] = [
     jobName: 'Grand Luxury Hotel',
     stage: 'Won',
     status: 'Closed',
-    quoteType: 'Blanket',
+    quoteType: 'BLANKET',
     value: '$1,680,000',
     valueNumber: 1680000,
     winProbability: 100,
@@ -1112,7 +1112,7 @@ const mockQuotes: Quote[] = [
     jobName: 'TechCore Data Center',
     stage: 'Review',
     status: 'Open',
-    quoteType: 'Regular',
+    quoteType: 'NORMAL',
     value: '$4,200,000',
     valueNumber: 4200000,
     winProbability: 42,
@@ -1147,7 +1147,7 @@ const mockQuotes: Quote[] = [
     jobName: 'Municipal Sports Arena',
     stage: 'Draft',
     status: 'Pending',
-    quoteType: 'Regular',
+    quoteType: 'NORMAL',
     value: '$2,100,000',
     valueNumber: 2100000,
     winProbability: 55,
@@ -1182,7 +1182,7 @@ const mockQuotes: Quote[] = [
     jobName: 'Community College Expansion',
     stage: 'Lost',
     status: 'Closed',
-    quoteType: 'Regular',
+    quoteType: 'NORMAL',
     value: '$560,000',
     valueNumber: 560000,
     winProbability: 0,
@@ -1214,7 +1214,7 @@ const mockQuotes: Quote[] = [
     jobName: 'Biotech Research Campus',
     stage: 'Negotiating',
     status: 'Open',
-    quoteType: 'Blanket',
+    quoteType: 'BLANKET',
     value: '$6,800,000',
     valueNumber: 6800000,
     winProbability: 78,
@@ -1256,7 +1256,7 @@ const mockQuotes: Quote[] = [
     jobName: 'Mercy Hospital ICU Wing',
     stage: 'Sent',
     status: 'Open',
-    quoteType: 'Regular',
+    quoteType: 'NORMAL',
     value: '$1,450,000',
     valueNumber: 1450000,
     winProbability: 64,
@@ -6104,16 +6104,18 @@ export default function QuotesContent() {
                     <select
                       value={selectedQuote.quoteType}
                       onChange={(e) => {
-                        const newType = e.target.value as 'Regular' | 'Blanket';
+                        const newType = e.target.value as 'NORMAL' | 'TAG' | 'BLANKET' | 'STORM';
                         setSelectedQuote({ ...selectedQuote, quoteType: newType });
                         setQuotes(prev => prev.map(q => q.id === selectedQuote.id ? { ...q, quoteType: newType } : q));
                       }}
                       className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none cursor-pointer pr-8 ${
-                        selectedQuote.quoteType === 'Blanket' ? 'bg-purple-50 text-purple-700' : 'bg-white'
+                        selectedQuote.quoteType === 'NORMAL' ? 'bg-white' : 'bg-purple-50 text-purple-700'
                       }`}
                     >
-                      <option value="Regular">Regular</option>
-                      <option value="Blanket">Blanket</option>
+                      <option value="NORMAL">NORMAL</option>
+                      <option value="TAG">TAG</option>
+                      <option value="BLANKET">BLANKET</option>
+                      <option value="STORM">STORM</option>
                     </select>
                     <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]">
                       <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>

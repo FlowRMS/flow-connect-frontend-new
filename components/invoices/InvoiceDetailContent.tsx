@@ -76,6 +76,16 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [showSaveDropdown, setShowSaveDropdown] = useState(false);
 
+  // Version state
+  const [currentVersion, setCurrentVersion] = useState<number>(1);
+  const [showVersionDropdown, setShowVersionDropdown] = useState(false);
+  const [availableVersions, setAvailableVersions] = useState<{version: number; date: string; isLatest: boolean}[]>([
+    { version: 1, date: '12/14/2024', isLatest: true }
+  ]);
+
+  // PO Number state
+  const [poNumber, setPoNumber] = useState<string>('');
+
   // Outside rep state
   const [invoiceOutsideRep, setInvoiceOutsideRep] = useState<string>('');
   const [splitOutsideCommission, setSplitOutsideCommission] = useState(false);
@@ -411,6 +421,51 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
               )}
             </div>
 
+            {/* Version Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setShowVersionDropdown(!showVersionDropdown);
+                  setShowActionsDropdown(false);
+                  setShowStatusDropdown(false);
+                  setShowSaveDropdown(false);
+                }}
+                className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
+              >
+                v{currentVersion}
+                <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+              {showVersionDropdown && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowVersionDropdown(false)} />
+                  <div className="absolute top-full left-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                    {availableVersions.map((v) => (
+                      <button
+                        key={v.version}
+                        onClick={() => {
+                          setCurrentVersion(v.version);
+                          setShowVersionDropdown(false);
+                        }}
+                        className={`w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors first:rounded-t-lg last:rounded-b-lg flex items-center justify-between ${
+                          currentVersion === v.version ? 'bg-[var(--primary)]/10 text-[var(--primary)]' : ''
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span>v{v.version}</span>
+                          {v.isLatest && (
+                            <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-xs">Latest</span>
+                          )}
+                        </div>
+                        <span className="text-xs text-[var(--muted-foreground)]">{v.date}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
             {/* View Mode Button */}
             <button
               className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
@@ -458,27 +513,36 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
                 </button>
               </div>
               {showSaveDropdown && (
-                <div className="absolute top-full right-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-10">
-                  <button
-                    onClick={() => { alert('Invoice saved!'); setShowSaveDropdown(false); }}
-                    className="w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors rounded-t-lg"
-                  >
-                    Save
-                  </button>
-                  <button
-                    onClick={() => {
-                      alert('Saved and emailed');
-                      setShowSaveDropdown(false);
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors rounded-b-lg flex items-center gap-2"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                      <path d="M22 6l-10 7L2 6"/>
-                    </svg>
-                    Save & Email Customer
-                  </button>
-                </div>
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowSaveDropdown(false)} />
+                  <div className="absolute top-full right-0 mt-1 w-52 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                    <button
+                      onClick={() => { alert('Invoice saved!'); setShowSaveDropdown(false); }}
+                      className="w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors rounded-t-lg"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={() => {
+                        const newVersion = Math.max(...availableVersions.map(v => v.version)) + 1;
+                        const today = new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+                        setAvailableVersions(prev => [
+                          ...prev.map(v => ({ ...v, isLatest: false })),
+                          { version: newVersion, date: today, isLatest: true }
+                        ]);
+                        setCurrentVersion(newVersion);
+                        setShowSaveDropdown(false);
+                        alert(`Saved as version ${newVersion}`);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                      </svg>
+                      Save as New Version
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -739,7 +803,8 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
                 </label>
                 <input
                   type="text"
-                  value=""
+                  value={poNumber}
+                  onChange={(e) => setPoNumber(e.target.value)}
                   placeholder="Enter PO #"
                   className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
                 />
@@ -1192,62 +1257,376 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
           )}
 
           {activeTab === 'notes' && (
-            <div className="text-center py-12">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="mx-auto text-[var(--muted-foreground)] mb-4">
-                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              <p className="text-[var(--muted-foreground)]">No notes for this invoice</p>
-              <button className="mt-4 px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors">
-                Add Note
-              </button>
+            <div className="space-y-4">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-[var(--foreground)]">Notes</h3>
+                  <p className="text-sm text-[var(--muted-foreground)]">Internal notes for this invoice</p>
+                </div>
+                <button className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors text-sm font-medium">
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                  </svg>
+                  Add Note
+                </button>
+              </div>
+
+              {/* Notes List */}
+              <div className="space-y-3">
+                <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-sm font-medium flex-shrink-0">
+                      SC
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm text-[var(--foreground)]">Sarah Chen</span>
+                        <span className="text-xs text-[var(--muted-foreground)]">Mar 20, 2024 at 2:34 PM</span>
+                      </div>
+                      <p className="text-sm text-[var(--foreground)] mt-1">
+                        Customer requested extended payment terms. Approved 45 days net instead of 30.
+                      </p>
+                    </div>
+                    <button className="p-1 hover:bg-[var(--muted)] rounded transition-colors">
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" className="text-[var(--muted-foreground)]">
+                        <circle cx="10" cy="4" r="1.5"/>
+                        <circle cx="10" cy="10" r="1.5"/>
+                        <circle cx="10" cy="16" r="1.5"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-medium flex-shrink-0">
+                      MT
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm text-[var(--foreground)]">Mike Torres</span>
+                        <span className="text-xs text-[var(--muted-foreground)]">Mar 18, 2024 at 4:15 PM</span>
+                      </div>
+                      <p className="text-sm text-[var(--foreground)] mt-1">
+                        Partial payment received. Remaining balance to be collected next month.
+                      </p>
+                    </div>
+                    <button className="p-1 hover:bg-[var(--muted)] rounded transition-colors">
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" className="text-[var(--muted-foreground)]">
+                        <circle cx="10" cy="4" r="1.5"/>
+                        <circle cx="10" cy="10" r="1.5"/>
+                        <circle cx="10" cy="16" r="1.5"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
           {activeTab === 'tasks' && (
-            <div className="text-center py-12">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="mx-auto text-[var(--muted-foreground)] mb-4">
-                <path d="M9 11l3 3L22 4" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              <p className="text-[var(--muted-foreground)]">No tasks for this invoice</p>
-              <button className="mt-4 px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors">
-                Add Task
-              </button>
+            <div className="space-y-4">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-[var(--foreground)]">Tasks</h3>
+                  <p className="text-sm text-[var(--muted-foreground)]">Track action items and follow-ups for this invoice</p>
+                </div>
+                <button className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors text-sm font-medium">
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                  </svg>
+                  Add Task
+                </button>
+              </div>
+
+              {/* Tasks List */}
+              <div className="space-y-3">
+                {/* Overdue Task */}
+                <div className="bg-[var(--card)] border-l-4 border-l-red-500 border border-[var(--border)] rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <input type="checkbox" className="mt-1 w-4 h-4 rounded border-[var(--border)]" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm text-[var(--foreground)]">Follow up on payment</span>
+                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">Overdue</span>
+                      </div>
+                      <p className="text-sm text-[var(--muted-foreground)] mt-1">
+                        Contact accounts payable for outstanding balance
+                      </p>
+                      <div className="flex items-center gap-4 mt-2 text-xs text-[var(--muted-foreground)]">
+                        <span>Due: Mar 25, 2024</span>
+                        <span>Assigned: Sarah Chen</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Completed Task */}
+                <div className="bg-[var(--card)] border-l-4 border-l-green-500 border border-[var(--border)] rounded-lg p-4 opacity-75">
+                  <div className="flex items-start gap-3">
+                    <input type="checkbox" checked className="mt-1 w-4 h-4 rounded border-[var(--border)] accent-[var(--primary)]" readOnly />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm text-[var(--foreground)] line-through">Send invoice to customer</span>
+                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">Completed</span>
+                      </div>
+                      <p className="text-sm text-[var(--muted-foreground)] mt-1 line-through">
+                        Email invoice PDF to billing contact
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
           {activeTab === 'activity' && (
             <div className="space-y-4">
-              {activities.map((activity) => (
-                <div key={activity.id} className="flex gap-4">
-                  <div className="w-8 h-8 rounded-full bg-[var(--muted)] flex items-center justify-center flex-shrink-0">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M12 8v4l3 3" strokeLinecap="round"/>
-                      <circle cx="12" cy="12" r="10"/>
-                    </svg>
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm text-[var(--foreground)]">
-                      <span className="font-medium">{activity.user}</span> {activity.description}
-                    </p>
-                    <p className="text-xs text-[var(--muted-foreground)] mt-1">{formatDate(activity.date)}</p>
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-[var(--foreground)]">Activity Feed</h3>
+                  <p className="text-sm text-[var(--muted-foreground)]">All activity and changes on this invoice</p>
+                </div>
+                <select className="px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)]">
+                  <option>All Activity</option>
+                  <option>Payments</option>
+                  <option>Status Changes</option>
+                </select>
+              </div>
+
+              {/* Activity List */}
+              <div className="space-y-3">
+                {/* Payment Received */}
+                <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-600">
+                        <path d="M10 4v12M6 8l4-4 4 4" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">PAYMENT RECEIVED</span>
+                        <span className="text-xs text-[var(--muted-foreground)]">2 hours ago</span>
+                      </div>
+                      <p className="font-medium text-sm text-[var(--foreground)] mt-1">Partial payment of $25,000 received</p>
+                      <p className="text-sm text-[var(--muted-foreground)]">Check #4521 from Turner Construction</p>
+                    </div>
                   </div>
                 </div>
-              ))}
+
+                {/* Status Change */}
+                <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
+                        <circle cx="10" cy="10" r="8"/>
+                        <path d="M10 6v4l2 2" strokeLinecap="round"/>
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">STATUS CHANGE</span>
+                        <span className="text-xs text-[var(--muted-foreground)]">Yesterday at 4:30 PM</span>
+                      </div>
+                      <p className="font-medium text-sm text-[var(--foreground)] mt-1">Invoice status changed to Partial</p>
+                      <p className="text-sm text-[var(--muted-foreground)]">Remaining balance: $35,000</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Invoice Sent */}
+                <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-600">
+                        <path d="M4 4h12v12H4z" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M4 8h12M8 4v12" strokeLinecap="round"/>
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">INVOICE SENT</span>
+                        <span className="text-xs text-[var(--muted-foreground)]">Mar 15, 2024 at 10:00 AM</span>
+                      </div>
+                      <p className="font-medium text-sm text-[var(--foreground)] mt-1">Invoice emailed to customer</p>
+                      <p className="text-sm text-[var(--muted-foreground)]">Sent to billing@turner.com</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
           {activeTab === 'linked-objects' && (
-            <div className="text-center py-12">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="mx-auto text-[var(--muted-foreground)] mb-4">
-                <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              <p className="text-[var(--muted-foreground)]">No linked objects</p>
-              <button className="mt-4 px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors">
-                Link Object
-              </button>
+            <div className="space-y-4">
+              {/* Header */}
+              <div>
+                <h3 className="text-lg font-semibold text-[var(--foreground)]">Linked Objects</h3>
+                <p className="text-sm text-[var(--muted-foreground)]">Related entities connected to this invoice</p>
+              </div>
+
+              {/* Orders Section */}
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg overflow-hidden">
+                <div className="px-4 py-3 flex items-center justify-between border-b border-[var(--border)]">
+                  <div className="flex items-center gap-2">
+                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-500">
+                      <path d="M14 2H6a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V4a2 2 0 00-2-2z"/>
+                      <path d="M8 6h4M8 10h4M8 14h2"/>
+                    </svg>
+                    <span className="font-medium">Orders</span>
+                    <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">2</span>
+                  </div>
+                  <button className="text-sm text-[var(--primary)] hover:text-[var(--primary-hover)]">+ Link Order</button>
+                </div>
+                <div className="divide-y divide-[var(--border)]">
+                  <div className="px-4 py-3 flex items-center justify-between hover:bg-[var(--muted)]/20">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm text-[var(--muted-foreground)] font-mono">ORD-2024-0156</span>
+                      <span className="text-sm">Downtown Office - Phase 1</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-medium">$45,000</span>
+                      <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">processing</span>
+                    </div>
+                  </div>
+                  <div className="px-4 py-3 flex items-center justify-between hover:bg-[var(--muted)]/20">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm text-[var(--muted-foreground)] font-mono">ORD-2024-0189</span>
+                      <span className="text-sm">Downtown Office - Phase 2</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-medium">$62,000</span>
+                      <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">shipped</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quotes Section */}
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg overflow-hidden">
+                <div className="px-4 py-3 flex items-center justify-between border-b border-[var(--border)]">
+                  <div className="flex items-center gap-2">
+                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-orange-500">
+                      <path d="M14 2H6a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V4a2 2 0 00-2-2z"/>
+                      <path d="M8 6h4M8 10h4M8 14h2"/>
+                    </svg>
+                    <span className="font-medium">Quotes</span>
+                    <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">1</span>
+                  </div>
+                  <button className="text-sm text-[var(--primary)] hover:text-[var(--primary-hover)]">+ Link Quote</button>
+                </div>
+                <div className="divide-y divide-[var(--border)]">
+                  <div className="px-4 py-3 flex items-center justify-between hover:bg-[var(--muted)]/20">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm text-[var(--muted-foreground)] font-mono">QT-2024-001</span>
+                      <span className="text-sm">Downtown Office Complex</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-medium">$125,000</span>
+                      <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">active</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Commission Statements Section */}
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg overflow-hidden">
+                <div className="px-4 py-3 flex items-center justify-between border-b border-[var(--border)]">
+                  <div className="flex items-center gap-2">
+                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-yellow-500">
+                      <path d="M10 4v12M6 8l4-4 4 4"/>
+                    </svg>
+                    <span className="font-medium">Commission Statements</span>
+                    <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">1</span>
+                  </div>
+                  <button className="text-sm text-[var(--primary)] hover:text-[var(--primary-hover)]">+ Link Statement</button>
+                </div>
+                <div className="divide-y divide-[var(--border)]">
+                  <div className="px-4 py-3 flex items-center justify-between hover:bg-[var(--muted)]/20">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm text-[var(--muted-foreground)] font-mono">CS-2024-03</span>
+                      <span className="text-sm">March 2024 Statement</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-medium text-green-600">$4,250</span>
+                      <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">processed</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Contacts Section */}
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg overflow-hidden">
+                <div className="px-4 py-3 flex items-center justify-between border-b border-[var(--border)]">
+                  <div className="flex items-center gap-2">
+                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-500">
+                      <path d="M16 14v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2"/>
+                      <circle cx="10" cy="7" r="3"/>
+                    </svg>
+                    <span className="font-medium">Contacts</span>
+                    <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">2</span>
+                  </div>
+                  <button className="text-sm text-[var(--primary)] hover:text-[var(--primary-hover)]">+ Link Contact</button>
+                </div>
+                <div className="divide-y divide-[var(--border)]">
+                  <div className="px-4 py-3 flex items-center justify-between hover:bg-[var(--muted)]/20">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-medium">JS</div>
+                      <div>
+                        <div className="text-sm font-medium">John Smith</div>
+                        <div className="text-xs text-[var(--muted-foreground)]">Project Manager</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm">Turner Construction</div>
+                      <div className="text-xs text-[var(--muted-foreground)]">jsmith@turner.com</div>
+                    </div>
+                  </div>
+                  <div className="px-4 py-3 flex items-center justify-between hover:bg-[var(--muted)]/20">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-xs font-medium">ED</div>
+                      <div>
+                        <div className="text-sm font-medium">Emily Davis</div>
+                        <div className="text-xs text-[var(--muted-foreground)]">Purchasing Agent</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm">Turner Construction</div>
+                      <div className="text-xs text-[var(--muted-foreground)]">edavis@turner.com</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Companies Section */}
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg overflow-hidden">
+                <div className="px-4 py-3 flex items-center justify-between border-b border-[var(--border)]">
+                  <div className="flex items-center gap-2">
+                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-500">
+                      <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                    </svg>
+                    <span className="font-medium">Companies</span>
+                    <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">1</span>
+                  </div>
+                  <button className="text-sm text-[var(--primary)] hover:text-[var(--primary-hover)]">+ Link Company</button>
+                </div>
+                <div className="divide-y divide-[var(--border)]">
+                  <div className="px-4 py-3 flex items-center justify-between hover:bg-[var(--muted)]/20">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-xs font-medium">TU</div>
+                      <div>
+                        <div className="text-sm font-medium">Turner Construction</div>
+                        <div className="text-xs text-[var(--muted-foreground)]">New York, NY</div>
+                      </div>
+                    </div>
+                    <span className="text-sm text-[var(--primary)]">Customer</span>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
