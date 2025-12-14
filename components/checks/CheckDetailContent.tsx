@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   mockChecks,
@@ -15,47 +15,99 @@ interface CheckDetailContentProps {
   checkId: string;
 }
 
+type TabType = 'line-items' | 'deductions' | 'notes' | 'tasks' | 'activity' | 'linked-objects' | 'settings';
+
+interface Adjustment {
+  id: string;
+  description: string;
+  amount: number;
+  type: 'credit' | 'debit';
+}
+type CheckStatus = 'posted' | 'unposted';
+
+const statusLabels: Record<CheckStatus, string> = {
+  posted: 'Posted',
+  unposted: 'Unposted',
+};
+
+// Column definitions for the line items table
+type ColumnKey = 'number' | 'orderNumber' | 'customer' | 'salesRep' | 'commissionRate' | 'expectedCommission' | 'paidCommission' | 'balance' | 'paid';
+
+const columnLabels: Record<ColumnKey, string> = {
+  number: 'Number',
+  orderNumber: 'Order Number',
+  customer: 'Customer',
+  salesRep: 'Sales Rep',
+  commissionRate: 'Commission Rate',
+  expectedCommission: 'Expected Commission',
+  paidCommission: 'Stated Commission',
+  balance: 'Balance',
+  paid: 'On Check',
+};
+
+const defaultVisibleColumns: ColumnKey[] = [
+  'number',
+  'orderNumber',
+  'customer',
+  'salesRep',
+  'commissionRate',
+  'expectedCommission',
+  'paidCommission',
+  'balance',
+  'paid',
+];
+
 interface LineItem {
   id: string;
-  invoiceNumber: string;
+  type: 'invoice' | 'credit';
+  number: string;
   orderNumber: string;
   customer: string;
-  manufacturer: string;
-  quantity: number;
-  uom: string;
-  divisor: number;
-  unitPrice: number;
-  sellTotal: number;
-  commissionPercent: number;
-  commissionAmount: number;
+  salesRep: string;
+  commissionRateExpected: number;
+  commissionRateActual: number;
+  expectedCommission: number;
+  paidCommission: number;
+  balance: number;
+  paid: boolean;
 }
-
-type TabId = 'lines' | 'notes' | 'files' | 'activity';
-type CheckStatus = 'draft' | 'pending' | 'posted' | 'reconciled' | 'disputed';
-type SortColumn = 'invoiceNumber' | 'orderNumber' | 'customer' | 'manufacturer' | 'quantity' | 'unitPrice' | 'sellTotal' | 'commissionPercent';
-type SortDirection = 'asc' | 'desc';
-
-// Mock invoice/order data for dropdown
-const mockInvoices = [
-  { id: 'inv-1', number: 'INV-2024-001', orderNumber: 'ORD-1001', customer: 'Turner Construction' },
-  { id: 'inv-2', number: 'INV-2024-002', orderNumber: 'ORD-1002', customer: 'Hensel Phelps' },
-  { id: 'inv-3', number: 'INV-2024-003', orderNumber: 'ORD-1003', customer: 'McCarthy Building' },
-  { id: 'inv-4', number: 'INV-2024-004', orderNumber: 'ORD-1004', customer: 'Skanska USA' },
-  { id: 'inv-5', number: 'INV-2024-005', orderNumber: 'ORD-1005', customer: 'Clark Construction' },
-];
 
 export default function CheckDetailContent({ checkId }: CheckDetailContentProps) {
   const router = useRouter();
   const [checks, setChecks] = useState<CommissionCheck[]>(mockChecks);
-  const [activeTab, setActiveTab] = useState<TabId>('lines');
+  const [activeTab, setActiveTab] = useState<TabType>('line-items');
   const [showHeaderFields, setShowHeaderFields] = useState(true);
-
-  // Dropdown states
-  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+  const [selectedLineItems, setSelectedLineItems] = useState<Set<string>>(new Set());
+  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(new Set(defaultVisibleColumns));
+  const [showColumnsModal, setShowColumnsModal] = useState(false);
   const [showActionsDropdown, setShowActionsDropdown] = useState(false);
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [showSaveDropdown, setShowSaveDropdown] = useState(false);
-  const [showViewsDropdown, setShowViewsDropdown] = useState(false);
-  const [showColumnsDropdown, setShowColumnsDropdown] = useState(false);
+
+  // Views state
+  const [showViewsMenu, setShowViewsMenu] = useState(false);
+  const [activeView, setActiveView] = useState('default');
+  const savedViews = [
+    { id: 'default', name: 'Default', columns: defaultVisibleColumns },
+    { id: 'compact', name: 'Compact', columns: ['number', 'orderNumber', 'expectedCommission', 'paidCommission', 'balance'] as ColumnKey[] },
+    { id: 'full', name: 'Full Details', columns: Object.keys(columnLabels) as ColumnKey[] },
+  ];
+
+  // Sections state
+  const [showSectionsModal, setShowSectionsModal] = useState(false);
+  const [showSections, setShowSections] = useState(false);
+
+  // Settings state
+  const [commissionSource, setCommissionSource] = useState<'invoice' | 'order'>('invoice');
+
+  // Lines to Reconcile state
+  const [selectedCheckNumbers, setSelectedCheckNumbers] = useState<string[]>([checkId]);
+  const [showCheckNumbersDropdown, setShowCheckNumbersDropdown] = useState(false);
+  const [checkNumberSearch, setCheckNumberSearch] = useState('');
+  const [unpaidInvoicesAfterDate, setUnpaidInvoicesAfterDate] = useState('');
+  const [includeAllUnpaid, setIncludeAllUnpaid] = useState(false);
+  const [ordersWithoutInvoicesAfterDate, setOrdersWithoutInvoicesAfterDate] = useState('');
+  const [includeAllOrdersWithoutInvoices, setIncludeAllOrdersWithoutInvoices] = useState(false);
 
   // Version state
   const [currentVersion, setCurrentVersion] = useState<number>(1);
@@ -64,22 +116,19 @@ export default function CheckDetailContent({ checkId }: CheckDetailContentProps)
     { version: 1, date: '12/14/2024', isLatest: true }
   ]);
 
-  // Table state
-  const [sortColumn, setSortColumn] = useState<SortColumn | null>(null);
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
-  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
-  const [activeFilterColumn, setActiveFilterColumn] = useState<string | null>(null);
-  const [selectedLineItems, setSelectedLineItems] = useState<Set<string>>(new Set());
-
-  // Invoice search dropdown state
-  const [invoiceSearchOpen, setInvoiceSearchOpen] = useState<string | null>(null);
-  const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('');
-
-  // Manufacturer dropdown state
-  const [manufacturerDropdown, setManufacturerDropdown] = useState<string | null>(null);
-  const [manufacturerSearch, setManufacturerSearch] = useState('');
-
   const check = useMemo(() => checks.find(c => c.id === checkId), [checks, checkId]);
+
+  // Mock checks with unposted lines for dropdown
+  const checksWithUnpostedLines = useMemo(() => [
+    { id: checkId, checkNumber: check?.checkNumber || checkId, hasUnpostedLines: true },
+    { id: 'CHK-001', checkNumber: 'CHK-001', hasUnpostedLines: true },
+    { id: 'CHK-002', checkNumber: 'CHK-002', hasUnpostedLines: true },
+    { id: 'CHK-003', checkNumber: 'CHK-003', hasUnpostedLines: true },
+  ], [checkId, check?.checkNumber]);
+
+  const filteredChecks = checksWithUnpostedLines.filter(c =>
+    c.checkNumber.toLowerCase().includes(checkNumberSearch.toLowerCase())
+  );
 
   // Form state for editable fields
   const [factory, setFactory] = useState(check?.manufacturerName || '');
@@ -87,64 +136,126 @@ export default function CheckDetailContent({ checkId }: CheckDetailContentProps)
   const [checkNumber, setCheckNumber] = useState(check?.checkNumber || '');
   const [commissionAmount, setCommissionAmount] = useState(check?.netAmount || 0);
   const [checkDate, setCheckDate] = useState(check?.checkDate || '');
-  const [status, setStatus] = useState<CheckStatus>(check?.status || 'draft');
+  const [status, setStatus] = useState<CheckStatus>(check?.status === 'posted' ? 'posted' : 'unposted');
+  const [isTotalStatedCommission, setIsTotalStatedCommission] = useState(false);
+  const [isTiedToCommissionUpload, setIsTiedToCommissionUpload] = useState(true); // Default to true if check is associated
 
-  // Line items state (editable)
+  // Adjustments state
+  const [adjustments, setAdjustments] = useState<Adjustment[]>([]);
+
+  const addAdjustment = () => {
+    const newId = `adj-${Date.now()}`;
+    setAdjustments(prev => [...prev, {
+      id: newId,
+      description: '',
+      amount: 0,
+      type: 'debit',
+    }]);
+  };
+
+  const deleteAdjustment = (id: string) => {
+    setAdjustments(prev => prev.filter(adj => adj.id !== id));
+  };
+
+  const updateAdjustment = (id: string, field: keyof Adjustment, value: string | number) => {
+    setAdjustments(prev => prev.map(adj =>
+      adj.id === id ? { ...adj, [field]: value } : adj
+    ));
+  };
+
+  const totalAdjustments = useMemo(() => {
+    return adjustments.reduce((sum, adj) => {
+      return sum + (adj.type === 'debit' ? -adj.amount : adj.amount);
+    }, 0);
+  }, [adjustments]);
+
+  // Mock line items
   const [lineItems, setLineItems] = useState<LineItem[]>([
     {
       id: 'li-1',
-      invoiceNumber: 'INV-2024-001',
-      orderNumber: 'ORD-1001',
-      customer: 'Turner Construction',
-      manufacturer: 'Acuity Brands',
-      quantity: 400,
-      uom: 'EA',
-      divisor: 1,
-      unitPrice: 220,
-      sellTotal: 88000,
-      commissionPercent: 0.09,
-      commissionAmount: 7920,
+      type: 'invoice',
+      number: '124827047283',
+      orderNumber: 'APC66579-0926',
+      customer: '-',
+      salesRep: 'Outside Rep',
+      commissionRateExpected: 1.440,
+      commissionRateActual: 1.440,
+      expectedCommission: 663.55,
+      paidCommission: 663.55,
+      balance: 0,
+      paid: true,
     },
     {
       id: 'li-2',
-      invoiceNumber: 'INV-2024-002',
-      orderNumber: 'ORD-1002',
-      customer: 'Hensel Phelps',
-      manufacturer: 'Finelite',
-      quantity: 600,
-      uom: 'EA',
-      divisor: 1,
-      unitPrice: 96,
-      sellTotal: 57600,
-      commissionPercent: 0.07,
-      commissionAmount: 4032,
+      type: 'invoice',
+      number: '124827053754',
+      orderNumber: '4500926810',
+      customer: '-',
+      salesRep: 'Outside Rep',
+      commissionRateExpected: 1.440,
+      commissionRateActual: 1.440,
+      expectedCommission: 604.68,
+      paidCommission: 604.68,
+      balance: 0,
+      paid: true,
     },
     {
       id: 'li-3',
-      invoiceNumber: 'INV-2024-003',
-      orderNumber: 'ORD-1003',
-      customer: 'McCarthy Building',
-      manufacturer: 'Lutron',
-      quantity: 50,
-      uom: 'EA',
-      divisor: 1,
-      unitPrice: 1437.5,
-      sellTotal: 71875,
-      commissionPercent: 0.08,
-      commissionAmount: 5750,
+      type: 'invoice',
+      number: '124827055807',
+      orderNumber: '4500988293',
+      customer: '-',
+      salesRep: 'Billy Ingram',
+      commissionRateExpected: 1.440,
+      commissionRateActual: 1.440,
+      expectedCommission: 725.05,
+      paidCommission: 725.05,
+      balance: 0,
+      paid: true,
+    },
+    {
+      id: 'li-4',
+      type: 'invoice',
+      number: '124827056113',
+      orderNumber: '4500975453',
+      customer: '-',
+      salesRep: 'Billy Ingram',
+      commissionRateExpected: 1.440,
+      commissionRateActual: 1.440,
+      expectedCommission: 534.43,
+      paidCommission: 534.43,
+      balance: 0,
+      paid: true,
+    },
+    {
+      id: 'li-5',
+      type: 'invoice',
+      number: '124827056124',
+      orderNumber: '4500988293',
+      customer: '-',
+      salesRep: 'Billy Ingram',
+      commissionRateExpected: 1.440,
+      commissionRateActual: 1.440,
+      expectedCommission: 252.79,
+      paidCommission: 252.79,
+      balance: 0,
+      paid: true,
+    },
+    {
+      id: 'li-6',
+      type: 'invoice',
+      number: '124827056355',
+      orderNumber: '01225542 R-00529/000',
+      customer: '-',
+      salesRep: 'David Carnaggio',
+      commissionRateExpected: 1.440,
+      commissionRateActual: 1.440,
+      expectedCommission: 55.53,
+      paidCommission: 55.53,
+      balance: 0,
+      paid: true,
     },
   ]);
-
-  // Summary calculations
-  const summary = useMemo(() => {
-    const sellTotal = lineItems.reduce((sum, item) => sum + item.sellTotal, 0);
-    const commissionTotal = lineItems.reduce((sum, item) => sum + item.commissionAmount, 0);
-    return {
-      sellTotal,
-      commissionTotal,
-      lineCount: lineItems.length,
-    };
-  }, [lineItems]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -155,123 +266,64 @@ export default function CheckDetailContent({ checkId }: CheckDetailContentProps)
 
   const getStatusColor = (s: CheckStatus) => {
     const colors: Record<CheckStatus, string> = {
-      draft: 'bg-gray-100 text-gray-700',
-      pending: 'bg-yellow-100 text-yellow-700',
       posted: 'bg-blue-100 text-blue-700',
-      reconciled: 'bg-green-100 text-green-700',
-      disputed: 'bg-red-100 text-red-700',
+      unposted: 'bg-gray-100 text-gray-700',
     };
     return colors[s];
   };
 
-  const handleSort = (column: SortColumn) => {
-    if (sortColumn === column) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+  const toggleAllLineItems = () => {
+    if (lineItems.length > 0 && lineItems.every(item => selectedLineItems.has(item.id))) {
+      setSelectedLineItems(new Set());
     } else {
-      setSortColumn(column);
-      setSortDirection('asc');
+      setSelectedLineItems(new Set(lineItems.map(li => li.id)));
     }
   };
 
-  const handleFilterChange = (column: string, value: string) => {
-    setColumnFilters(prev => ({ ...prev, [column]: value }));
-  };
-
-  const updateLineItem = (id: string, field: keyof LineItem, value: number | string) => {
-    setLineItems(prev => prev.map(item => {
-      if (item.id !== id) return item;
-      const updated = { ...item, [field]: value };
-      // Recalculate sell total and commission when relevant fields change
-      if (field === 'quantity' || field === 'unitPrice' || field === 'divisor') {
-        updated.sellTotal = (updated.quantity * updated.unitPrice) / updated.divisor;
-        updated.commissionAmount = updated.sellTotal * updated.commissionPercent;
-      }
-      if (field === 'commissionPercent') {
-        updated.commissionAmount = updated.sellTotal * (value as number);
-      }
-      return updated;
-    }));
+  const toggleLineItemSelection = (id: string) => {
+    setSelectedLineItems(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) newSet.delete(id);
+      else newSet.add(id);
+      return newSet;
+    });
   };
 
   const addNewLine = () => {
     const newId = `li-${Date.now()}`;
     setLineItems(prev => [...prev, {
       id: newId,
-      invoiceNumber: '',
+      type: 'invoice',
+      number: '',
       orderNumber: '',
-      customer: '',
-      manufacturer: '',
-      quantity: 1,
-      uom: 'EA',
-      divisor: 1,
-      unitPrice: 0,
-      sellTotal: 0,
-      commissionPercent: 0.08,
-      commissionAmount: 0,
+      customer: '-',
+      salesRep: '',
+      commissionRateExpected: 0,
+      commissionRateActual: 0,
+      expectedCommission: 0,
+      paidCommission: 0,
+      balance: 0,
+      paid: false,
     }]);
   };
 
-  const selectInvoice = (lineId: string, invoice: typeof mockInvoices[0]) => {
-    setLineItems(prev => prev.map(item =>
-      item.id === lineId
-        ? { ...item, invoiceNumber: invoice.number, orderNumber: invoice.orderNumber, customer: invoice.customer }
-        : item
-    ));
-    setInvoiceSearchOpen(null);
-    setInvoiceSearchQuery('');
+  const deleteLineItem = (id: string) => {
+    setLineItems(prev => prev.filter(item => item.id !== id));
   };
 
-  const filteredInvoices = mockInvoices.filter(inv =>
-    inv.number.toLowerCase().includes(invoiceSearchQuery.toLowerCase()) ||
-    inv.orderNumber.toLowerCase().includes(invoiceSearchQuery.toLowerCase()) ||
-    inv.customer.toLowerCase().includes(invoiceSearchQuery.toLowerCase())
-  );
+  const togglePaid = (id: string) => {
+    setLineItems(prev => prev.map(item =>
+      item.id === id ? { ...item, paid: !item.paid } : item
+    ));
+  };
 
-  const filteredManufacturers = mockManufacturers.filter(mfr =>
-    mfr.name.toLowerCase().includes(manufacturerSearch.toLowerCase())
-  );
-
-  // Close dropdowns when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (invoiceSearchOpen && !(e.target as Element).closest('.invoice-search-container')) {
-        setInvoiceSearchOpen(null);
-        setInvoiceSearchQuery('');
-      }
-      if (manufacturerDropdown && !(e.target as Element).closest('.manufacturer-dropdown-container')) {
-        setManufacturerDropdown(null);
-        setManufacturerSearch('');
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [invoiceSearchOpen, manufacturerDropdown]);
-
-  const tabs: { id: TabId; label: string; count?: number }[] = [
-    { id: 'lines', label: 'Line Items', count: lineItems.length },
-    { id: 'notes', label: 'Notes' },
-    { id: 'files', label: 'Files' },
-    { id: 'activity', label: 'Activity' },
-  ];
-
-  // Column visibility
-  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set([
-    'invoiceNumber', 'orderNumber', 'customer', 'manufacturer', 'quantity', 'uom', 'divisor', 'unitPrice', 'sellTotal', 'commissionPercent', 'commissionAmount'
-  ]));
-
-  const columnDefinitions = [
-    { key: 'invoiceNumber', label: 'Invoice #', filterable: true, sortable: true },
-    { key: 'orderNumber', label: 'Order #', filterable: true, sortable: true },
-    { key: 'customer', label: 'Customer', filterable: true, sortable: true },
-    { key: 'manufacturer', label: 'Manufacturer', filterable: true, sortable: true },
-    { key: 'quantity', label: 'QTY', filterable: false, sortable: true },
-    { key: 'uom', label: 'UOM', filterable: false, sortable: false },
-    { key: 'divisor', label: 'Divisor', filterable: false, sortable: false },
-    { key: 'unitPrice', label: 'Unit Price', filterable: false, sortable: true },
-    { key: 'sellTotal', label: 'Sell Total', filterable: false, sortable: true },
-    { key: 'commissionPercent', label: 'Commission %', filterable: false, sortable: true },
-    { key: 'commissionAmount', label: 'Commission $', filterable: false, sortable: true },
-  ];
+  // Summary calculations
+  const summary = useMemo(() => {
+    const expectedTotal = lineItems.reduce((sum, item) => sum + item.expectedCommission, 0);
+    const paidTotal = lineItems.reduce((sum, item) => sum + item.paidCommission, 0);
+    const balanceTotal = lineItems.reduce((sum, item) => sum + item.balance, 0);
+    return { expectedTotal, paidTotal, balanceTotal, lineCount: lineItems.length };
+  }, [lineItems]);
 
   if (!check) {
     return (
@@ -291,142 +343,69 @@ export default function CheckDetailContent({ checkId }: CheckDetailContentProps)
   }
 
   return (
-    <main className="flex-1 overflow-auto bg-[var(--background)]">
+    <main className="flex-1 overflow-auto bg-[var(--background)] flex flex-col">
       {/* Header */}
       <div className="border-b border-[var(--border)] bg-[var(--card)] px-6 py-4 flex-shrink-0">
         <div className="flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => router.push('/commissions')}
-                className="p-1 hover:bg-[var(--muted)] rounded-lg transition-colors"
-                title="Back to Commissions"
-              >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M19 12H5M12 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </button>
-              <h1 className="text-2xl font-semibold text-[var(--foreground)]">{check.checkNumber}</h1>
-            </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => router.push('/commissions')}
+              className="p-1 hover:bg-[var(--muted)] rounded-lg transition-colors"
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M19 12H5M12 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+            <h1 className="text-2xl font-semibold text-[var(--foreground)]">{check.checkNumber}</h1>
           </div>
           <div className="flex items-center gap-2">
             {/* Actions Dropdown */}
             <div className="relative">
               <button
-                onClick={() => {
-                  setShowActionsDropdown(!showActionsDropdown);
-                  setShowStatusDropdown(false);
-                  setShowSaveDropdown(false);
-                }}
+                onClick={() => setShowActionsDropdown(!showActionsDropdown)}
                 className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
               >
                 Actions
-                <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </button>
               {showActionsDropdown && (
-                <div className="absolute top-full left-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
-                  <button onClick={() => setShowActionsDropdown(false)} className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-t-lg flex items-center gap-2">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
-                    </svg>
-                    Import Items
-                  </button>
-                  <button onClick={() => setShowActionsDropdown(false)} className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors flex items-center gap-2">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                    </svg>
-                    Export
-                  </button>
-                  <button onClick={() => setShowActionsDropdown(false)} className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-b-lg flex items-center gap-2">
-                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="6" y="6" width="12" height="12" rx="2"/>
-                      <path d="M4 14V4a2 2 0 012-2h10"/>
-                    </svg>
-                    Duplicate Check
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Status Dropdown */}
-            <div className="relative">
-              <button
-                onClick={() => {
-                  setShowStatusDropdown(!showStatusDropdown);
-                  setShowActionsDropdown(false);
-                  setShowSaveDropdown(false);
-                }}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${getStatusColor(status)}`}
-              >
-                {checkStatusLabels[status]}
-                <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </button>
-              {showStatusDropdown && (
-                <div className="absolute top-full left-0 mt-1 w-40 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
-                  {(['draft', 'pending', 'posted', 'reconciled', 'disputed'] as CheckStatus[]).map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => {
-                        setStatus(s);
-                        setChecks(prev => prev.map(c => c.id === checkId ? { ...c, status: s } : c));
-                        setShowStatusDropdown(false);
-                      }}
-                      className={`w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors first:rounded-t-lg last:rounded-b-lg flex items-center justify-between ${
-                        status === s ? 'bg-[var(--primary)]/10 text-[var(--primary)]' : ''
-                      }`}
-                    >
-                      {checkStatusLabels[s]}
-                      {status === s && (
-                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M4 10l4 4 8-8" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                      )}
-                    </button>
-                  ))}
-                </div>
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowActionsDropdown(false)} />
+                  <div className="absolute top-full right-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20">
+                    <button onClick={() => setShowActionsDropdown(false)} className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-t-lg">Import Items</button>
+                    <button onClick={() => setShowActionsDropdown(false)} className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors">Export</button>
+                    <button onClick={() => setShowActionsDropdown(false)} className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-b-lg">Duplicate Check</button>
+                  </div>
+                </>
               )}
             </div>
 
             {/* Version Dropdown */}
             <div className="relative">
               <button
-                onClick={() => {
-                  setShowVersionDropdown(!showVersionDropdown);
-                  setShowActionsDropdown(false);
-                  setShowStatusDropdown(false);
-                  setShowSaveDropdown(false);
-                }}
+                onClick={() => setShowVersionDropdown(!showVersionDropdown)}
                 className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
               >
                 v{currentVersion}
-                <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </button>
               {showVersionDropdown && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowVersionDropdown(false)} />
-                  <div className="absolute top-full left-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                  <div className="absolute top-full right-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20">
                     {availableVersions.map((v) => (
                       <button
                         key={v.version}
-                        onClick={() => {
-                          setCurrentVersion(v.version);
-                          setShowVersionDropdown(false);
-                        }}
-                        className={`w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors first:rounded-t-lg last:rounded-b-lg flex items-center justify-between ${
-                          currentVersion === v.version ? 'bg-[var(--primary)]/10 text-[var(--primary)]' : ''
-                        }`}
+                        onClick={() => { setCurrentVersion(v.version); setShowVersionDropdown(false); }}
+                        className={`w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors first:rounded-t-lg last:rounded-b-lg flex items-center justify-between ${currentVersion === v.version ? 'bg-[var(--primary)]/10 text-[var(--primary)]' : ''}`}
                       >
                         <div className="flex items-center gap-2">
                           <span>v{v.version}</span>
-                          {v.isLatest && (
-                            <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-xs">Latest</span>
-                          )}
+                          {v.isLatest && <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-xs">Latest</span>}
                         </div>
                         <span className="text-xs text-[var(--muted-foreground)]">{v.date}</span>
                       </button>
@@ -436,98 +415,66 @@ export default function CheckDetailContent({ checkId }: CheckDetailContentProps)
               )}
             </div>
 
-            {/* Post Check Button */}
-            {status === 'draft' && (
+            {/* Status Dropdown */}
+            <div className="relative">
               <button
-                onClick={() => {
-                  setStatus('posted');
-                  setChecks(prev => prev.map(c => c.id === checkId ? { ...c, status: 'posted' } : c));
-                }}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${getStatusColor(status)}`}
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                {statusLabels[status]}
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
-                Post Check
               </button>
-            )}
+              {showStatusDropdown && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowStatusDropdown(false)} />
+                  <div className="absolute top-full right-0 mt-1 w-36 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20 overflow-hidden">
+                    {(['unposted', 'posted'] as CheckStatus[]).map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => { setStatus(s); setShowStatusDropdown(false); }}
+                        className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${status === s ? 'bg-[var(--primary)]/10 text-[var(--primary)] font-medium' : 'hover:bg-[var(--muted)]'}`}
+                      >
+                        {statusLabels[s]}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
 
-            {/* PDF Button */}
-            <button className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors">
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M6 2h8l4 4v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2z" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M14 2v4h4" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              PDF
-            </button>
-
-            {/* Save Button with Dropdown */}
+            {/* Save Button */}
             <div className="relative">
               <div className="flex">
-                <button onClick={() => alert('Check saved!')} className="px-4 py-2 bg-green-600 text-white rounded-l-lg hover:bg-green-700 transition-colors text-sm font-medium">
+                <button onClick={() => alert('Saved!')} className="px-4 py-2 bg-green-600 text-white rounded-l-lg hover:bg-green-700 transition-colors text-sm font-medium">
                   Save
                 </button>
                 <button
-                  onClick={() => {
-                    setShowSaveDropdown(!showSaveDropdown);
-                    setShowActionsDropdown(false);
-                    setShowStatusDropdown(false);
-                  }}
+                  onClick={() => setShowSaveDropdown(!showSaveDropdown)}
                   className="px-2 py-2 bg-green-600 text-white rounded-r-lg hover:bg-green-700 transition-colors border-l border-green-500"
                 >
-                  <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </button>
               </div>
               {showSaveDropdown && (
-                <div className="absolute top-full right-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-10">
-                  <button onClick={() => { alert('Check saved!'); setShowSaveDropdown(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors rounded-t-lg">
-                    Save
-                  </button>
-                  <button onClick={() => { alert('Saved and closed!'); setShowSaveDropdown(false); router.push('/commissions'); }} className="w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors">
-                    Save & Close
-                  </button>
-                  <button
-                    onClick={() => {
-                      const newVersion = availableVersions.length + 1;
-                      setAvailableVersions(prev => [
-                        ...prev.map(v => ({ ...v, isLatest: false })),
-                        { version: newVersion, date: new Date().toLocaleDateString(), isLatest: true }
-                      ]);
-                      setCurrentVersion(newVersion);
-                      alert(`Saved as version ${newVersion}!`);
-                      setShowSaveDropdown(false);
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors rounded-b-lg border-t border-[var(--border)]"
-                  >
-                    Save as New Version
-                  </button>
-                </div>
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowSaveDropdown(false)} />
+                  <div className="absolute top-full right-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20">
+                    <button onClick={() => setShowSaveDropdown(false)} className="w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors rounded-t-lg">Save</button>
+                    <button onClick={() => { setShowSaveDropdown(false); router.push('/commissions'); }} className="w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors">Save & Close</button>
+                    <button onClick={() => setShowSaveDropdown(false)} className="w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors rounded-b-lg border-t border-[var(--border)]">Save as New Version</button>
+                  </div>
+                </>
               )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Summary Bar */}
-      <div className="border-b border-[var(--border)] bg-[var(--card)] flex-shrink-0 px-6 py-2 flex items-center justify-end">
-        <div className="flex items-center gap-3 text-xs">
-          <span className="text-[var(--muted-foreground)]">
-            Commission Amount: <span className="font-medium text-[var(--foreground)]">{formatCurrency(commissionAmount)}</span>
-          </span>
-          <span className="text-[var(--muted-foreground)]">|</span>
-          <span className="text-[var(--muted-foreground)]">
-            Sell Total: <span className="font-semibold text-[var(--foreground)]">{formatCurrency(summary.sellTotal)}</span>
-          </span>
-          <span className="text-[var(--muted-foreground)]">|</span>
-          <span className="text-[var(--muted-foreground)]">
-            Commission: <span className="font-semibold text-green-600">{formatCurrency(summary.commissionTotal)}</span>
-          </span>
-        </div>
-      </div>
-
-      {/* Collapsible Header Fields Section */}
+      {/* Collapsible Header Fields */}
       <div className="border-b border-[var(--border)] bg-blue-50/30 flex-shrink-0">
         <button
           onClick={() => setShowHeaderFields(!showHeaderFields)}
@@ -540,49 +487,242 @@ export default function CheckDetailContent({ checkId }: CheckDetailContentProps)
         </button>
         {showHeaderFields && (
           <div className="px-6 pb-4">
-            <div className="grid grid-cols-6 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Factory<span className="text-red-500">*</span></label>
-                <select value={factory} onChange={(e) => setFactory(e.target.value)} className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none cursor-pointer">
-                  <option value="">Select factory...</option>
-                  {mockManufacturers.map(mfg => (<option key={mfg.id} value={mfg.name}>{mfg.name}</option>))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Commission Month<span className="text-red-500">*</span></label>
-                <input type="month" value={commissionMonth} onChange={(e) => setCommissionMonth(e.target.value)} className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"/>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Check Number</label>
-                <input type="text" value={checkNumber} onChange={(e) => setCheckNumber(e.target.value)} className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"/>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Check Date</label>
-                <input type="date" value={checkDate} onChange={(e) => setCheckDate(e.target.value)} className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"/>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Commission Amount<span className="text-red-500">*</span></label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--muted-foreground)]">$</span>
-                  <input type="number" value={commissionAmount} onChange={(e) => setCommissionAmount(Number(e.target.value))} className="w-full pl-7 pr-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"/>
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Entry Progress</label>
-                <div className="h-10 flex items-center">
-                  <div className="w-full">
-                    <div className="flex items-center justify-between text-xs mb-1">
-                      <span className={`font-medium ${summary.commissionTotal >= commissionAmount ? 'text-green-600' : 'text-orange-500'}`}>
-                        {commissionAmount > 0 ? ((summary.commissionTotal / commissionAmount) * 100).toFixed(0) : 0}%
-                      </span>
-                      <span className={`font-medium ${summary.commissionTotal >= commissionAmount ? 'text-green-600' : 'text-red-500'}`}>
-                        {formatCurrency(summary.commissionTotal - commissionAmount)}
-                      </span>
-                    </div>
-                    <div className="h-2 bg-[var(--muted)] rounded-full overflow-hidden">
-                      <div className={`h-full transition-all ${summary.commissionTotal >= commissionAmount ? 'bg-green-500' : 'bg-orange-500'}`} style={{ width: `${Math.min(commissionAmount > 0 ? (summary.commissionTotal / commissionAmount) * 100 : 0, 100)}%` }}/>
+            <div className="flex gap-6">
+              {/* Left side - Form fields */}
+              <div className="flex-1">
+                <div className="grid grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Factory</label>
+                    <input
+                      type="text"
+                      value={check?.manufacturerName || '-'}
+                      readOnly
+                      className="w-full px-3 py-2 bg-gray-50 border border-[var(--border)] rounded-md text-sm text-[var(--muted-foreground)] cursor-not-allowed"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Check Number</label>
+                    <input type="text" value={checkNumber} onChange={(e) => setCheckNumber(e.target.value)} className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm"/>
+                    <div className="relative inline-block group">
+                      <div className="flex items-center gap-1.5 mt-1.5">
+                        <input
+                          type="checkbox"
+                          checked={isTiedToCommissionUpload}
+                          readOnly
+                          className="w-3.5 h-3.5 accent-[var(--primary)] pointer-events-none"
+                        />
+                        <span className="text-xs text-[var(--muted-foreground)] border-b border-dashed border-[var(--muted-foreground)] cursor-help">Tied to commission upload</span>
+                      </div>
+                      <div className="absolute bottom-full left-0 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                        Check is associated with a specific commission statement upload
+                        <div className="absolute top-full left-4 border-4 border-transparent border-t-gray-900"></div>
+                      </div>
                     </div>
                   </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Check Date</label>
+                    <input type="date" value={checkDate} onChange={(e) => setCheckDate(e.target.value)} className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm"/>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Check Amount<span className="text-red-500">*</span></label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--muted-foreground)]">$</span>
+                      <input
+                        type="number"
+                        value={isTotalStatedCommission ? summary.paidTotal : commissionAmount}
+                        onChange={(e) => !isTotalStatedCommission && setCommissionAmount(Number(e.target.value))}
+                        readOnly={isTotalStatedCommission}
+                        className={`w-full pl-7 pr-3 py-2 border border-[var(--border)] rounded-md text-sm ${isTotalStatedCommission ? 'bg-gray-50 text-[var(--muted-foreground)] cursor-not-allowed' : 'bg-white'}`}
+                      />
+                    </div>
+                    <label className="flex items-center gap-1.5 mt-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isTotalStatedCommission}
+                        onChange={(e) => setIsTotalStatedCommission(e.target.checked)}
+                        className="w-3.5 h-3.5 accent-[var(--primary)]"
+                      />
+                      <span className="text-xs text-[var(--muted-foreground)]">Is Total Stated Commission</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Lines to Reconcile Section */}
+                <div className="mt-4">
+                  <span className="text-sm font-medium text-[var(--muted-foreground)]">Lines to Reconcile</span>
+                  <div className="grid grid-cols-4 gap-4 mt-2">
+                {/* Check Number Multi-Select */}
+                <div>
+                  <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Check Number</label>
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowCheckNumbersDropdown(!showCheckNumbersDropdown)}
+                      className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm text-left flex items-center justify-between"
+                    >
+                      <span className={selectedCheckNumbers.length > 0 ? 'text-[var(--foreground)]' : 'text-[var(--muted-foreground)]'}>
+                        {selectedCheckNumbers.length > 0
+                          ? `${selectedCheckNumbers.length} check${selectedCheckNumbers.length > 1 ? 's' : ''} selected`
+                          : 'Select checks...'}
+                      </span>
+                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </button>
+                    {showCheckNumbersDropdown && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setShowCheckNumbersDropdown(false)} />
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50 max-h-64 overflow-hidden">
+                          <div className="p-2 border-b border-[var(--border)]">
+                            <input
+                              type="text"
+                              placeholder="Search checks..."
+                              value={checkNumberSearch}
+                              onChange={(e) => setCheckNumberSearch(e.target.value)}
+                              className="w-full px-2 py-1.5 bg-[var(--muted)] border-0 rounded text-sm focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                            />
+                          </div>
+                          <div className="max-h-48 overflow-y-auto">
+                            {filteredChecks.map(chk => {
+                              const isCurrentCheck = chk.id === checkId;
+                              return (
+                                <label
+                                  key={chk.id}
+                                  className={`flex items-center gap-2 px-3 py-2 hover:bg-[var(--muted)] ${isCurrentCheck ? 'cursor-not-allowed bg-[var(--muted)]/50' : 'cursor-pointer'}`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedCheckNumbers.includes(chk.id)}
+                                    disabled={isCurrentCheck}
+                                    onChange={() => {
+                                      if (!isCurrentCheck) {
+                                        setSelectedCheckNumbers(prev =>
+                                          prev.includes(chk.id)
+                                            ? prev.filter(c => c !== chk.id)
+                                            : [...prev, chk.id]
+                                        );
+                                      }
+                                    }}
+                                    className="accent-[var(--primary)]"
+                                  />
+                                  <span className="text-sm">{chk.checkNumber}</span>
+                                  {isCurrentCheck && <span className="text-xs text-[var(--muted-foreground)]">(current)</span>}
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Unpaid Invoices After */}
+                <div>
+                  <div className="relative inline-block group">
+                    <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1 cursor-help border-b border-dashed border-[var(--muted-foreground)] inline-block">
+                      Invoices after:
+                    </label>
+                    <div className="absolute bottom-full left-0 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                      Does not include invoices marked "dormant" or on other checks
+                      <div className="absolute top-full left-4 border-4 border-transparent border-t-gray-900"></div>
+                    </div>
+                  </div>
+                  <input
+                    type="date"
+                    value={unpaidInvoicesAfterDate}
+                    onChange={(e) => setUnpaidInvoicesAfterDate(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm"
+                  />
+                  <label className="flex items-center gap-1.5 mt-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={includeAllUnpaid}
+                      onChange={(e) => setIncludeAllUnpaid(e.target.checked)}
+                      className="w-3.5 h-3.5 accent-[var(--primary)]"
+                    />
+                    <span className="text-xs text-[var(--muted-foreground)]">All</span>
+                  </label>
+                </div>
+
+                {/* Orders Without Invoices After */}
+                <div>
+                  <div className="relative inline-block group">
+                    <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1 cursor-help border-b border-dashed border-[var(--muted-foreground)] inline-block">
+                      Orders without invoices after:
+                    </label>
+                    <div className="absolute bottom-full left-0 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                      Does not include orders marked "dormant" or on other checks
+                      <div className="absolute top-full left-4 border-4 border-transparent border-t-gray-900"></div>
+                    </div>
+                  </div>
+                  <input
+                    type="date"
+                    value={ordersWithoutInvoicesAfterDate}
+                    onChange={(e) => setOrdersWithoutInvoicesAfterDate(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm"
+                  />
+                  <label className="flex items-center gap-1.5 mt-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={includeAllOrdersWithoutInvoices}
+                      onChange={(e) => setIncludeAllOrdersWithoutInvoices(e.target.checked)}
+                      className="w-3.5 h-3.5 accent-[var(--primary)]"
+                    />
+                    <span className="text-xs text-[var(--muted-foreground)]">All</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+              </div>
+
+              {/* Right side - Reconciliation Summary */}
+              <div className="w-64 flex-shrink-0">
+                <div className="bg-white rounded-lg border border-[var(--border)] p-4">
+                  {(() => {
+                    const checkAmt = isTotalStatedCommission ? summary.paidTotal : commissionAmount;
+                    const balance = checkAmt - summary.paidTotal + totalAdjustments;
+                    return (
+                      <>
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-sm text-[var(--muted-foreground)]">Check Amount</span>
+                            <span className="text-sm font-medium text-[var(--foreground)]">${checkAmt.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm text-[var(--muted-foreground)]">Stated Commissions</span>
+                            <span className="text-sm font-medium text-[var(--foreground)]">-${summary.paidTotal.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm text-[var(--muted-foreground)]">Adjustments</span>
+                            <span className={`text-sm font-medium ${totalAdjustments === 0 ? 'text-[var(--foreground)]' : totalAdjustments < 0 ? 'text-red-500' : 'text-green-600'}`}>
+                              {totalAdjustments < 0 ? '-' : totalAdjustments > 0 ? '+' : ''}${Math.abs(totalAdjustments).toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="mt-3 pt-3 border-t border-[var(--border)]">
+                          <div className="flex justify-between">
+                            <span className="text-sm font-semibold text-[var(--foreground)]">Balance to Reconcile</span>
+                            <span className={`text-sm font-semibold ${balance === 0 ? 'text-green-600' : balance > 0 ? 'text-orange-500' : 'text-red-500'}`}>
+                              ${balance.toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+                        {balance !== 0 && (
+                          <div className="mt-3">
+                            <div className="h-1.5 bg-[var(--muted)] rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-[var(--primary)] rounded-full transition-all"
+                                style={{ width: `${Math.min(checkAmt > 0 ? ((summary.paidTotal - totalAdjustments) / checkAmt) * 100 : 0, 100)}%` }}
+                              />
+                            </div>
+                            <p className="text-xs text-[var(--muted-foreground)] mt-1 text-center">
+                              {checkAmt > 0 ? (((summary.paidTotal - totalAdjustments) / checkAmt) * 100).toFixed(0) : 0}% reconciled
+                            </p>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
@@ -590,391 +730,442 @@ export default function CheckDetailContent({ checkId }: CheckDetailContentProps)
         )}
       </div>
 
+      {/* Main Content Area with Tabs */}
       <div className="flex flex-1 overflow-hidden min-h-0">
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <div className="flex-1 flex flex-col p-6 min-w-0 overflow-hidden">
           {/* Tabs */}
-          <div className="flex items-center justify-between border-b border-[var(--border)] flex-shrink-0 bg-white px-6">
-            <div className="flex gap-0 -mb-px">
-              {tabs.map(tab => (
+          <div className="flex items-center justify-between gap-1 mb-6 border-b border-[var(--border)] flex-shrink-0 bg-white -mx-6 px-6 pt-4 -mt-6">
+            <div className="flex gap-1">
+              {[
+                { id: 'line-items', label: 'Line Items', count: lineItems.length },
+                { id: 'deductions', label: 'Deductions', count: adjustments.length > 0 ? adjustments.length : undefined },
+                { id: 'notes', label: 'Notes' },
+                { id: 'tasks', label: 'Tasks' },
+                { id: 'activity', label: 'Activity' },
+                { id: 'linked-objects', label: 'Linked Objects' },
+                { id: 'settings', label: 'Settings' },
+              ].map(tab => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`px-4 py-3 text-sm font-medium transition-colors relative ${
+                  onClick={() => setActiveTab(tab.id as TabType)}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
                     activeTab === tab.id
-                      ? 'text-[var(--primary)] border border-[var(--border)] border-b-white bg-white rounded-t-lg -mb-px'
-                      : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+                      ? 'border-[var(--primary)] text-[var(--primary)]'
+                      : 'border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
                   }`}
                 >
                   {tab.label}
                   {tab.count !== undefined && tab.count > 0 && (
-                    <span className={`ml-2 px-1.5 py-0.5 rounded text-xs ${
-                      activeTab === tab.id ? 'bg-[var(--primary)]/10 text-[var(--primary)]' : 'bg-gray-100 text-gray-500'
-                    }`}>{tab.count}</span>
+                    <span className="ml-2 px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-600">
+                      {tab.count}
+                    </span>
                   )}
                 </button>
               ))}
             </div>
 
-            {/* Tab Actions - Earnings View, Sections, Columns like Quotes */}
-            {activeTab === 'lines' && (
-              <div className="flex items-center gap-2">
-                {/* Views Dropdown */}
+            {/* View Controls */}
+            {activeTab === 'line-items' && (
+              <div className="flex items-center gap-3 pb-2">
+                {/* Views Dropdown (Custom) */}
                 <div className="relative">
                   <button
-                    onClick={() => { setShowViewsDropdown(!showViewsDropdown); setShowColumnsDropdown(false); }}
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-md hover:bg-gray-50 transition-colors"
+                    onClick={() => setShowViewsMenu(!showViewsMenu)}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
                   >
-                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                       <rect x="3" y="3" width="14" height="14" rx="2"/>
                       <path d="M3 8h14M8 8v9"/>
                     </svg>
-                    Earnings View
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                      <path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                    {savedViews.find(v => v.id === activeView)?.name || 'Custom'}
+                    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                   </button>
-                  {showViewsDropdown && (
-                    <div className="absolute top-full right-0 mt-1 w-48 bg-white border border-[var(--border)] rounded-lg shadow-lg z-20">
-                      <button onClick={() => setShowViewsDropdown(false)} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 transition-colors rounded-t-lg bg-[var(--primary)]/10 text-[var(--primary)]">
-                        Earnings View
-                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5" className="inline ml-2">
-                          <path d="M5 10l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                      </button>
-                      <button onClick={() => setShowViewsDropdown(false)} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 transition-colors">Compact View</button>
-                      <button onClick={() => setShowViewsDropdown(false)} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 transition-colors rounded-b-lg">Full Details</button>
-                    </div>
+                  {showViewsMenu && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setShowViewsMenu(false)} />
+                      <div className="absolute top-full right-0 mt-1 w-56 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20">
+                        <div className="p-2 border-b border-[var(--border)]">
+                          <p className="text-xs font-semibold text-[var(--muted-foreground)] uppercase px-2">Saved Views</p>
+                        </div>
+                        {savedViews.map(view => (
+                          <button
+                            key={view.id}
+                            onClick={() => { setVisibleColumns(new Set(view.columns)); setActiveView(view.id); setShowViewsMenu(false); }}
+                            className={`w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors flex items-center justify-between ${activeView === view.id ? 'text-[var(--primary)] font-medium' : ''}`}
+                          >
+                            {view.name}
+                            {activeView === view.id && (
+                              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                <path d="M5 10l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </>
                   )}
                 </div>
 
                 {/* Sections Button */}
-                <button className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-md hover:bg-gray-50 transition-colors">
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <button
+                  onClick={() => setShowSectionsModal(true)}
+                  className={`flex items-center gap-2 px-3 py-1.5 text-sm border rounded-lg transition-colors ${showSections ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]' : 'border-[var(--border)] hover:bg-[var(--muted)]'}`}
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                     <rect x="3" y="3" width="14" height="4" rx="1"/>
                     <rect x="3" y="10" width="14" height="7" rx="1"/>
                   </svg>
                   Sections
                 </button>
 
-                {/* Columns Dropdown */}
-                <div className="relative">
-                  <button
-                    onClick={() => { setShowColumnsDropdown(!showColumnsDropdown); setShowViewsDropdown(false); }}
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-md hover:bg-gray-50 transition-colors"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
-                      <path d="M4 4v12M10 4v12M16 4v12" strokeLinecap="round"/>
-                    </svg>
-                    Columns
-                    <span className="ml-1 px-1.5 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">{visibleColumns.size}</span>
-                  </button>
-                  {showColumnsDropdown && (
-                    <div className="absolute top-full right-0 mt-1 w-56 bg-white border border-[var(--border)] rounded-lg shadow-lg z-20 max-h-80 overflow-y-auto">
-                      <div className="p-2 border-b border-[var(--border)]">
-                        <p className="text-xs font-semibold text-[var(--muted-foreground)] uppercase px-2">Toggle Columns</p>
-                      </div>
-                      {columnDefinitions.map(col => (
-                        <label key={col.key} className="flex items-center gap-2 px-4 py-2 hover:bg-gray-50 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={visibleColumns.has(col.key)}
-                            onChange={() => {
-                              setVisibleColumns(prev => {
-                                const newSet = new Set(prev);
-                                if (newSet.has(col.key)) newSet.delete(col.key);
-                                else newSet.add(col.key);
-                                return newSet;
-                              });
-                            }}
-                            className="rounded border-gray-300 text-[var(--primary)]"
-                          />
-                          <span className="text-sm">{col.label}</span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                {/* Columns Button */}
+                <button
+                  onClick={() => setShowColumnsModal(true)}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M4 6h12M4 10h12M4 14h12" strokeLinecap="round"/>
+                  </svg>
+                  Columns
+                  <span className="px-1.5 py-0.5 bg-[var(--muted)] rounded text-xs">{visibleColumns.size}</span>
+                </button>
               </div>
             )}
           </div>
 
           {/* Tab Content */}
-          <div className="flex-1 overflow-auto bg-white">
-            {/* Lines Items Tab */}
-            {activeTab === 'lines' && (
-              <div className="flex-1 flex flex-col h-full">
-                <div className="overflow-x-auto flex-1">
-                  <table className="w-full">
-                    <thead className="bg-white sticky top-0 border-b border-[var(--border)]">
-                      <tr className="text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wide">
-                        <th className="px-4 py-3 text-left w-10">
-                          <input
-                            type="checkbox"
-                            checked={selectedLineItems.size === lineItems.length && lineItems.length > 0}
-                            onChange={() => {
-                              if (selectedLineItems.size === lineItems.length) {
-                                setSelectedLineItems(new Set());
-                              } else {
-                                setSelectedLineItems(new Set(lineItems.map(li => li.id)));
-                              }
-                            }}
-                            className="rounded border-gray-300"
-                          />
-                        </th>
-                        <th className="px-4 py-3 text-left whitespace-nowrap">
-                          <div className="flex items-center gap-1">
-                            <span>INVOICE #</span>
-                            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" className="text-[var(--muted-foreground)]">
-                              <path d="M2 4h12M4 8h8M6 12h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                            </svg>
+          {activeTab === 'line-items' && (
+            <div className="space-y-4">
+              {/* Line Items Table */}
+              <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-x-auto">
+                <table className="w-full min-w-[1400px]">
+                  <thead className="bg-[var(--card)] sticky top-0 z-20">
+                    <tr className="border-b border-[var(--border)]">
+                      {visibleColumns.has('number') && (
+                        <th className="px-4 py-3 text-left text-sm font-medium text-[var(--foreground)]">Number</th>
+                      )}
+                      {visibleColumns.has('orderNumber') && (
+                        <th className="px-4 py-3 text-left text-sm font-medium text-[var(--foreground)]">Order Number</th>
+                      )}
+                      {visibleColumns.has('customer') && (
+                        <th className="px-4 py-3 text-left text-sm font-medium text-[var(--foreground)]">Customer</th>
+                      )}
+                      {visibleColumns.has('salesRep') && (
+                        <th className="px-4 py-3 text-left text-sm font-medium text-[var(--foreground)]">Sales Rep</th>
+                      )}
+                      {visibleColumns.has('commissionRate') && (
+                        <th className="px-4 py-3 text-left text-sm font-medium text-[var(--foreground)]">Commission Rate</th>
+                      )}
+                      {visibleColumns.has('expectedCommission') && (
+                        <th className="px-4 py-3 text-left text-sm font-medium text-[var(--foreground)]">
+                          <div className="relative inline-block group">
+                            <span className="cursor-help border-b border-dashed border-[var(--muted-foreground)]">
+                              Expected Commission
+                            </span>
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                              Totaled from {commissionSource === 'invoice' ? 'Invoices' : 'Orders'}
+                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                            </div>
                           </div>
                         </th>
-                        <th className="px-4 py-3 text-left whitespace-nowrap">
-                          <div className="flex items-center gap-1">
-                            <span>ORDER #</span>
-                            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" className="text-[var(--muted-foreground)]">
-                              <path d="M2 4h12M4 8h8M6 12h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                            </svg>
-                          </div>
-                        </th>
-                        <th className="px-4 py-3 text-left whitespace-nowrap">
-                          <div className="flex items-center gap-1">
-                            <span>DESCRIPTION</span>
-                            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" className="text-[var(--muted-foreground)]">
-                              <path d="M2 4h12M4 8h8M6 12h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                            </svg>
-                          </div>
-                        </th>
-                        <th className="px-4 py-3 text-left whitespace-nowrap">
-                          <div className="flex items-center gap-1">
-                            <span>MANUFACTURER</span>
-                            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" className="text-[var(--muted-foreground)]">
-                              <path d="M2 4h12M4 8h8M6 12h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                            </svg>
-                          </div>
-                        </th>
-                        <th className="px-4 py-3 text-center whitespace-nowrap">QTY</th>
-                        <th className="px-4 py-3 text-center whitespace-nowrap">UOM</th>
-                        <th className="px-4 py-3 text-center whitespace-nowrap">DIVISOR</th>
-                        <th className="px-4 py-3 text-right whitespace-nowrap">UNIT PRICE</th>
-                        <th className="px-4 py-3 text-right whitespace-nowrap">SELL TOTAL</th>
-                        <th className="px-4 py-3 text-right whitespace-nowrap">COMMISSION %</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[var(--border)]">
-                      {lineItems.map((item) => (
-                        <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
+                      )}
+                      {visibleColumns.has('paidCommission') && (
+                        <th className="px-4 py-3 text-left text-sm font-medium text-[var(--foreground)]">Stated Commission</th>
+                      )}
+                      {visibleColumns.has('balance') && (
+                        <th className="px-4 py-3 text-left text-sm font-medium text-[var(--foreground)]">Balance</th>
+                      )}
+                      {visibleColumns.has('paid') && (
+                        <th className="px-4 py-3 text-center text-sm font-medium text-[var(--foreground)]">On Check</th>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lineItems.map(item => (
+                      <tr
+                        key={item.id}
+                        className="border-b border-[var(--border)] hover:bg-[var(--muted)]/30 transition-colors"
+                      >
+                        {visibleColumns.has('number') && (
                           <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <span className="px-2 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-700 border border-blue-200">
+                                {item.type === 'invoice' ? 'Invoice' : 'Credit'}
+                              </span>
+                              <span className="text-sm text-[var(--foreground)]">{item.number}</span>
+                            </div>
+                          </td>
+                        )}
+                        {visibleColumns.has('orderNumber') && (
+                          <td className="px-4 py-3 text-sm text-[var(--foreground)]">{item.orderNumber}</td>
+                        )}
+                        {visibleColumns.has('customer') && (
+                          <td className="px-4 py-3 text-sm text-[var(--foreground)]">{item.customer}</td>
+                        )}
+                        {visibleColumns.has('salesRep') && (
+                          <td className="px-4 py-3 text-sm text-[var(--foreground)]">{item.salesRep}</td>
+                        )}
+                        {visibleColumns.has('commissionRate') && (
+                          <td className="px-4 py-3 text-sm">
+                            <span className="text-[var(--foreground)]">{item.commissionRateExpected.toFixed(3)}%</span>
+                            <span className="mx-1 text-[var(--muted-foreground)]">|</span>
+                            <span className="text-[var(--primary)]">{item.commissionRateActual.toFixed(3)}%</span>
+                          </td>
+                        )}
+                        {visibleColumns.has('expectedCommission') && (
+                          <td className="px-4 py-3 text-sm text-[var(--foreground)]">${item.expectedCommission.toFixed(4)}</td>
+                        )}
+                        {visibleColumns.has('paidCommission') && (
+                          <td className="px-4 py-3 text-sm text-[var(--foreground)]">${item.paidCommission.toFixed(4)}</td>
+                        )}
+                        {visibleColumns.has('balance') && (
+                          <td className="px-4 py-3 text-sm">
+                            <div className="flex items-center gap-2">
+                              {item.balance === 0 && (
+                                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" className="text-green-500">
+                                  <path d="M5 10l3 3 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                              )}
+                              <span className="text-green-600">${item.balance.toFixed(4)}</span>
+                            </div>
+                          </td>
+                        )}
+                        {visibleColumns.has('paid') && (
+                          <td className="px-4 py-3 text-center">
                             <input
                               type="checkbox"
-                              checked={selectedLineItems.has(item.id)}
-                              onChange={() => {
-                                setSelectedLineItems(prev => {
-                                  const newSet = new Set(prev);
-                                  if (newSet.has(item.id)) newSet.delete(item.id);
-                                  else newSet.add(item.id);
-                                  return newSet;
-                                });
-                              }}
-                              className="rounded border-gray-300"
+                              checked={item.paid}
+                              onChange={() => togglePaid(item.id)}
+                              className="w-4 h-4 accent-[var(--primary)] cursor-pointer"
                             />
                           </td>
-                          {/* Invoice Number - Dropdown style */}
-                          <td className="px-4 py-3 text-sm relative">
-                            <div className="invoice-search-container">
-                              <button
-                                onClick={() => {
-                                  setInvoiceSearchOpen(invoiceSearchOpen === item.id ? null : item.id);
-                                  setInvoiceSearchQuery(item.invoiceNumber);
-                                }}
-                                className="inline-flex items-center gap-1 text-left font-mono hover:text-[var(--primary)] transition-colors"
-                              >
-                                <span>{item.invoiceNumber || 'Select...'}</span>
-                                <svg width="10" height="10" viewBox="0 0 16 16" fill="none" className="text-[var(--muted-foreground)]">
-                                  <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                                </svg>
-                              </button>
-                              {invoiceSearchOpen === item.id && (
-                                <div className="absolute top-full left-0 mt-1 w-72 bg-white border border-[var(--border)] rounded-lg shadow-lg z-50">
-                                  <div className="p-2 border-b border-[var(--border)]">
-                                    <input
-                                      type="text"
-                                      value={invoiceSearchQuery}
-                                      onChange={(e) => setInvoiceSearchQuery(e.target.value)}
-                                      placeholder="Search invoices..."
-                                      className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                                      autoFocus
-                                    />
-                                  </div>
-                                  <div className="max-h-48 overflow-y-auto">
-                                    {filteredInvoices.map(inv => (
-                                      <button
-                                        key={inv.id}
-                                        onClick={() => selectInvoice(item.id, inv)}
-                                        className="w-full text-left px-3 py-2 hover:bg-gray-50 transition-colors"
-                                      >
-                                        <div className="font-mono text-sm">{inv.number}</div>
-                                        <div className="text-xs text-[var(--muted-foreground)]">{inv.orderNumber} - {inv.customer}</div>
-                                      </button>
-                                    ))}
-                                    {filteredInvoices.length === 0 && (
-                                      <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">No invoices found</div>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                          {/* Order Number - Dropdown style */}
-                          <td className="px-4 py-3 text-sm">
-                            <span className="inline-flex items-center gap-1 text-[var(--muted-foreground)]">
-                              <span>{item.orderNumber || 'Select...'}</span>
-                              <svg width="10" height="10" viewBox="0 0 16 16" fill="none" className="text-[var(--muted-foreground)]">
-                                <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                              </svg>
-                            </span>
-                          </td>
-                          {/* Description - truncated with dropdown */}
-                          <td className="px-4 py-3 text-sm max-w-[180px]">
-                            <span className="inline-flex items-center gap-1 truncate">
-                              <span className="truncate">{item.customer || 'Select...'}</span>
-                              <svg width="10" height="10" viewBox="0 0 16 16" fill="none" className="text-[var(--muted-foreground)] flex-shrink-0">
-                                <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                              </svg>
-                            </span>
-                          </td>
-                          {/* Manufacturer - Dropdown style */}
-                          <td className="px-4 py-3 text-sm relative">
-                            <div className="manufacturer-dropdown-container">
-                              <button
-                                onClick={() => {
-                                  setManufacturerDropdown(manufacturerDropdown === item.id ? null : item.id);
-                                  setManufacturerSearch(item.manufacturer);
-                                }}
-                                className="inline-flex items-center gap-1 text-left hover:text-[var(--primary)] transition-colors"
-                              >
-                                <span>{item.manufacturer || 'Select...'}</span>
-                                <svg width="10" height="10" viewBox="0 0 16 16" fill="none" className="text-[var(--muted-foreground)]">
-                                  <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                                </svg>
-                              </button>
-                              {manufacturerDropdown === item.id && (
-                                <div className="absolute top-full left-0 mt-1 w-52 bg-white border border-[var(--border)] rounded-lg shadow-lg z-50">
-                                  <div className="p-2 border-b border-[var(--border)]">
-                                    <input
-                                      type="text"
-                                      value={manufacturerSearch}
-                                      onChange={(e) => setManufacturerSearch(e.target.value)}
-                                      placeholder="Search..."
-                                      className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                                      autoFocus
-                                    />
-                                  </div>
-                                  <div className="max-h-48 overflow-y-auto">
-                                    {filteredManufacturers.map(mfr => (
-                                      <button
-                                        key={mfr.id}
-                                        onClick={() => {
-                                          updateLineItem(item.id, 'manufacturer', mfr.name);
-                                          setManufacturerDropdown(null);
-                                          setManufacturerSearch('');
-                                        }}
-                                        className="w-full text-left px-3 py-2 hover:bg-gray-50 transition-colors text-sm"
-                                      >
-                                        {mfr.name}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                          {/* Quantity */}
-                          <td className="px-4 py-3 text-sm text-center">{item.quantity}</td>
-                          {/* UOM */}
-                          <td className="px-4 py-3 text-sm text-center text-[var(--muted-foreground)]">{item.uom}</td>
-                          {/* Divisor */}
-                          <td className="px-4 py-3 text-sm text-center text-[var(--muted-foreground)]">{item.divisor}</td>
-                          {/* Unit Price */}
-                          <td className="px-4 py-3 text-sm text-right">{formatCurrency(item.unitPrice)}</td>
-                          {/* Sell Total */}
-                          <td className="px-4 py-3 text-sm text-right">{formatCurrency(item.sellTotal)}</td>
-                          {/* Commission % */}
-                          <td className="px-4 py-3 text-sm text-right text-green-600">{item.commissionPercent.toFixed(2)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
 
                 {/* Add Line Button */}
-                <div className="px-4 py-3 border-t border-[var(--border)] bg-white">
-                  <button
-                    onClick={addNewLine}
-                    className="flex items-center gap-2 text-sm text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors"
-                  >
-                    <span className="text-lg leading-none">+</span>
+                <div className="border-t border-[var(--border)]">
+                  <button onClick={addNewLine} className="w-full px-4 py-3 text-sm text-[var(--primary)] hover:bg-[var(--muted)] transition-colors flex items-center gap-2">
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M10 6v8M6 10h8" strokeLinecap="round"/>
+                    </svg>
                     Add Line
                   </button>
                 </div>
-
-                {/* Progress bar at bottom */}
-                <div className="h-1.5 bg-gradient-to-r from-green-400 to-green-500"/>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Notes Tab */}
-            {activeTab === 'notes' && (
-              <div className="flex-1 overflow-y-auto p-6">
-                <div className="max-w-2xl mx-auto text-center py-12">
-                  <div className="w-16 h-16 bg-[var(--muted)] rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted-foreground)]">
-                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                      <path d="M14 2v6h6"/>
-                      <path d="M16 13H8M16 17H8M10 9H8"/>
-                    </svg>
+          {activeTab === 'notes' && (
+            <div className="text-center py-12">
+              <p className="text-[var(--muted-foreground)]">No notes yet</p>
+            </div>
+          )}
+
+          {activeTab === 'deductions' && (
+            <div className="space-y-4">
+              {/* Adjustments Table */}
+              <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+                {adjustments.length > 0 ? (
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-[var(--border)]">
+                        <th className="px-4 py-3 text-left text-sm font-medium text-[var(--foreground)]">Description</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-[var(--foreground)] w-32">Type</th>
+                        <th className="px-4 py-3 text-right text-sm font-medium text-[var(--foreground)] w-40">Amount</th>
+                        <th className="px-4 py-3 text-center text-sm font-medium text-[var(--foreground)] w-16"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {adjustments.map(adj => (
+                        <tr key={adj.id} className="border-b border-[var(--border)] hover:bg-[var(--muted)]/30">
+                          <td className="px-4 py-3">
+                            <input
+                              type="text"
+                              value={adj.description}
+                              onChange={(e) => updateAdjustment(adj.id, 'description', e.target.value)}
+                              placeholder="Enter description..."
+                              className="w-full px-2 py-1 bg-transparent border border-[var(--border)] rounded text-sm focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <select
+                              value={adj.type}
+                              onChange={(e) => updateAdjustment(adj.id, 'type', e.target.value)}
+                              className="w-full px-2 py-1 bg-white border border-[var(--border)] rounded text-sm focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                            >
+                              <option value="debit">Debit (-)</option>
+                              <option value="credit">Credit (+)</option>
+                            </select>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="relative">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm text-[var(--muted-foreground)]">$</span>
+                              <input
+                                type="number"
+                                value={adj.amount}
+                                onChange={(e) => updateAdjustment(adj.id, 'amount', Number(e.target.value))}
+                                className="w-full pl-6 pr-2 py-1 bg-transparent border border-[var(--border)] rounded text-sm text-right focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                              />
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <button
+                              onClick={() => deleteAdjustment(adj.id)}
+                              className="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors"
+                            >
+                              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M6 6h8M8 6V4h4v2M4 6h12v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6z" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    {adjustments.length > 0 && (
+                      <tfoot>
+                        <tr className="bg-[var(--muted)]/30">
+                          <td className="px-4 py-3 text-sm font-medium text-[var(--foreground)]" colSpan={2}>Total Adjustments</td>
+                          <td className={`px-4 py-3 text-sm font-semibold text-right ${totalAdjustments < 0 ? 'text-red-500' : 'text-green-600'}`}>
+                            {totalAdjustments < 0 ? '-' : ''}${Math.abs(totalAdjustments).toFixed(2)}
+                          </td>
+                          <td></td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-[var(--muted-foreground)] text-sm">No adjustments yet</p>
                   </div>
-                  <h3 className="text-lg font-medium text-[var(--foreground)] mb-2">No notes yet</h3>
-                  <p className="text-sm text-[var(--muted-foreground)] mb-4">Add notes to keep track of important information about this check</p>
-                  <button className="px-4 py-2 text-sm bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors">Add Note</button>
+                )}
+
+                {/* Add Adjustment Button */}
+                <div className="border-t border-[var(--border)]">
+                  <button onClick={addAdjustment} className="w-full px-4 py-3 text-sm text-[var(--primary)] hover:bg-[var(--muted)] transition-colors flex items-center gap-2">
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M10 6v8M6 10h8" strokeLinecap="round"/>
+                    </svg>
+                    Add Adjustment
+                  </button>
                 </div>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Files Tab */}
-            {activeTab === 'files' && (
-              <div className="flex-1 overflow-y-auto p-6">
-                <div className="max-w-2xl mx-auto text-center py-12">
-                  <div className="w-16 h-16 bg-[var(--muted)] rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted-foreground)]">
-                      <path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/>
-                      <path d="M13 2v7h7"/>
-                    </svg>
+          {activeTab === 'tasks' && (
+            <div className="text-center py-12">
+              <p className="text-[var(--muted-foreground)]">No tasks yet</p>
+            </div>
+          )}
+
+          {activeTab === 'activity' && (
+            <div className="text-center py-12">
+              <p className="text-[var(--muted-foreground)]">No activity yet</p>
+            </div>
+          )}
+
+          {activeTab === 'linked-objects' && (
+            <div className="text-center py-12">
+              <p className="text-[var(--muted-foreground)]">No linked objects</p>
+            </div>
+          )}
+
+          {activeTab === 'settings' && (
+            <div className="max-w-2xl">
+              <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+                <div className="p-4 border-b border-[var(--border)]">
+                  <h3 className="font-semibold text-[var(--foreground)]">Commission Settings</h3>
+                  <p className="text-sm text-[var(--muted-foreground)] mt-1">Configure how commissions are calculated for this check.</p>
+                </div>
+                <div className="p-4">
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                        Expected Commission Source
+                      </label>
+                      <p className="text-sm text-[var(--muted-foreground)] mb-3">
+                        Choose whether expected commission totals are calculated from invoices or orders.
+                      </p>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => setCommissionSource('invoice')}
+                          className={`flex-1 px-4 py-3 rounded-lg border text-sm font-medium transition-colors ${
+                            commissionSource === 'invoice'
+                              ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]'
+                              : 'border-[var(--border)] hover:bg-[var(--muted)]'
+                          }`}
+                        >
+                          <div className="flex items-center justify-center gap-2">
+                            <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M4 4h12v14H4zM7 8h6M7 11h6M7 14h4" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                            From Invoices
+                          </div>
+                        </button>
+                        <button
+                          onClick={() => setCommissionSource('order')}
+                          className={`flex-1 px-4 py-3 rounded-lg border text-sm font-medium transition-colors ${
+                            commissionSource === 'order'
+                              ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]'
+                              : 'border-[var(--border)] hover:bg-[var(--muted)]'
+                          }`}
+                        >
+                          <div className="flex items-center justify-center gap-2">
+                            <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M3 3h14v4H3zM3 10h14v7H3zM7 7v3M13 7v3" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                            From Orders
+                          </div>
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                  <h3 className="text-lg font-medium text-[var(--foreground)] mb-2">No files attached</h3>
-                  <p className="text-sm text-[var(--muted-foreground)] mb-4">Upload files to attach them to this check</p>
-                  <button className="px-4 py-2 text-sm bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors">Upload Files</button>
                 </div>
               </div>
-            )}
-
-            {/* Activity Tab */}
-            {activeTab === 'activity' && (
-              <div className="flex-1 overflow-y-auto p-6">
-                <div className="max-w-2xl mx-auto text-center py-12">
-                  <div className="w-16 h-16 bg-[var(--muted)] rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted-foreground)]">
-                      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-                    </svg>
-                  </div>
-                  <h3 className="text-lg font-medium text-[var(--foreground)] mb-2">No activity yet</h3>
-                  <p className="text-sm text-[var(--muted-foreground)]">Activity will appear here as changes are made to this check</p>
-                </div>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Columns Modal */}
+      {showColumnsModal && (
+        <>
+          <div className="fixed inset-0 bg-black/50 z-40" onClick={() => setShowColumnsModal(false)} />
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] bg-[var(--card)] rounded-lg shadow-xl z-50">
+            <div className="p-4 border-b border-[var(--border)]">
+              <h3 className="font-semibold">Toggle Columns</h3>
+            </div>
+            <div className="p-4 max-h-[400px] overflow-y-auto">
+              {(Object.keys(columnLabels) as ColumnKey[]).map(col => (
+                <label key={col} className="flex items-center gap-3 py-2 cursor-pointer hover:bg-[var(--muted)] px-2 rounded">
+                  <input
+                    type="checkbox"
+                    checked={visibleColumns.has(col)}
+                    onChange={() => {
+                      setVisibleColumns(prev => {
+                        const newSet = new Set(prev);
+                        if (newSet.has(col)) newSet.delete(col);
+                        else newSet.add(col);
+                        return newSet;
+                      });
+                    }}
+                    className="accent-[var(--primary)]"
+                  />
+                  <span className="text-sm">{columnLabels[col]}</span>
+                </label>
+              ))}
+            </div>
+            <div className="p-4 border-t border-[var(--border)] flex justify-end">
+              <button onClick={() => setShowColumnsModal(false)} className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-sm">Done</button>
+            </div>
+          </div>
+        </>
+      )}
     </main>
   );
 }

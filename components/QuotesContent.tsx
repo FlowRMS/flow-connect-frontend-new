@@ -6482,7 +6482,7 @@ export default function QuotesContent() {
           <div className="flex-1 flex flex-col p-6 min-w-0 overflow-hidden">
             {/* Tabs */}
             <div className="flex items-center justify-between gap-1 mb-6 border-b border-[var(--border)] flex-shrink-0 bg-white -mx-6 px-6 pt-4 -mt-6">
-              <div className="flex gap-1">
+              <div className="flex gap-1 overflow-x-auto flex-shrink min-w-0">
                 {[
                   { id: 'lines', label: 'Line Items', count: quoteLineItems.length },
                   { id: 'approvals', label: 'Approvals', count: selectedQuote.pendingApprovals, hideInSimple: true },
@@ -6520,7 +6520,7 @@ export default function QuotesContent() {
 
               {/* View Controls - moved to tab row */}
               {detailTab === 'lines' && (
-                <div className="flex items-center gap-3 pb-2">
+                <div className="flex items-center gap-3 pb-2 flex-shrink-0">
                   {/* Views Dropdown */}
                   <div className="relative">
                     <button

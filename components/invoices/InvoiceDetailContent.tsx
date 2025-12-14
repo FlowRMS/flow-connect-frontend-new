@@ -20,7 +20,7 @@ interface InvoiceDetailContentProps {
 type TabType = 'line-items' | 'payments' | 'notes' | 'tasks' | 'activity' | 'linked-objects' | 'settings';
 
 // Column definitions for the line items table
-type ColumnKey = 'partNumber' | 'custPartNumber' | 'description' | 'uom' | 'divisor' | 'unitPrice' | 'quantity' | 'sellTotal' | 'commission';
+type ColumnKey = 'partNumber' | 'custPartNumber' | 'description' | 'uom' | 'divisor' | 'unitPrice' | 'quantity' | 'sellTotal' | 'commissionPercent' | 'commission' | 'commissionTotal' | 'percentOver' | 'commissionAmount' | 'ovgPercent' | 'ovgAmount' | 'earnPercent' | 'earnAmount';
 
 const columnLabels: Record<ColumnKey, string> = {
   partNumber: 'Part #',
@@ -31,18 +31,26 @@ const columnLabels: Record<ColumnKey, string> = {
   unitPrice: 'Unit Price',
   quantity: 'Qty',
   sellTotal: 'Sell Total',
+  commissionPercent: 'Commission %',
   commission: 'Commission',
+  commissionTotal: 'Commission Total',
+  percentOver: '% Over',
+  commissionAmount: 'Com $',
+  ovgPercent: 'Ovg %',
+  ovgAmount: 'Ovg $',
+  earnPercent: 'Earn %',
+  earnAmount: 'Earn $',
 };
 
 const defaultVisibleColumns: ColumnKey[] = [
-  'partNumber',
-  'custPartNumber',
-  'description',
+  'quantity',
   'uom',
   'divisor',
   'unitPrice',
   'sellTotal',
+  'commissionPercent',
   'commission',
+  'commissionTotal',
 ];
 
 // Available reps
@@ -82,6 +90,10 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
   const [availableVersions, setAvailableVersions] = useState<{version: number; date: string; isLatest: boolean}[]>([
     { version: 1, date: '12/14/2024', isLatest: true }
   ]);
+
+  // View mode state (header dropdown)
+  const [viewMode, setViewMode] = useState<'simple' | 'overage'>('simple');
+  const [showViewModeDropdown, setShowViewModeDropdown] = useState(false);
 
   // PO Number state
   const [poNumber, setPoNumber] = useState<string>('');
@@ -233,7 +245,11 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
 
   // Calculate totals
   const totals = useMemo(() => {
-    if (!invoice) return { subtotal: 0, freight: 0, total: 0, commission: 0, amountPaid: 0, balance: 0 };
+    if (!invoice) return { subtotal: 0, freight: 0, total: 0, commission: 0, amountPaid: 0, balance: 0, totalOvg: 0, totalEarn: 0 };
+    // Calculate overage totals from line items
+    const totalCommission = invoice.lineItems.reduce((sum, item) => sum + (item.amount * (item.commissionRate || 0.08)), 0);
+    const totalOvg = invoice.lineItems.reduce((sum, item) => sum + (item.unitPrice * 0.15 * item.quantity * 0.85), 0);
+    const totalEarn = totalCommission + totalOvg;
     return {
       subtotal: invoice.subtotal,
       freight: invoice.freight,
@@ -241,6 +257,8 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
       commission: invoice.totalCommission,
       amountPaid: invoice.amountPaid,
       balance: invoice.balance,
+      totalOvg,
+      totalEarn,
     };
   }, [invoice]);
 
@@ -466,16 +484,81 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
               )}
             </div>
 
-            {/* View Mode Button */}
-            <button
-              className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
-            >
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M1 10s4-6 9-6 9 6 9 6-4 6-9 6-9-6-9-6z" strokeLinecap="round" strokeLinejoin="round"/>
-                <circle cx="10" cy="10" r="3"/>
-              </svg>
-              Simple View
-            </button>
+            {/* View Mode Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setShowViewModeDropdown(!showViewModeDropdown);
+                  setShowActionsDropdown(false);
+                  setShowStatusDropdown(false);
+                  setShowVersionDropdown(false);
+                  setShowSaveDropdown(false);
+                }}
+                className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
+              >
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M1 10s4-6 9-6 9 6 9 6-4 6-9 6-9-6-9-6z" strokeLinecap="round" strokeLinejoin="round"/>
+                  <circle cx="10" cy="10" r="3"/>
+                </svg>
+                {viewMode === 'simple' ? 'Simple View' : 'Overage View'}
+                <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+              {showViewModeDropdown && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowViewModeDropdown(false)} />
+                  <div className="absolute top-full right-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20">
+                    <button
+                      onClick={() => {
+                        setViewMode('simple');
+                        setVisibleColumns(new Set(defaultVisibleColumns));
+                        setShowViewModeDropdown(false);
+                      }}
+                      className={`w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors rounded-t-lg flex items-center justify-between ${
+                        viewMode === 'simple' ? 'text-[var(--primary)] font-medium' : ''
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                          <rect x="3" y="3" width="14" height="14" rx="2"/>
+                          <path d="M3 8h14"/>
+                        </svg>
+                        Simple View
+                      </span>
+                      {viewMode === 'simple' && (
+                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <path d="M5 10l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setViewMode('overage');
+                        setVisibleColumns(new Set(['quantity', 'uom', 'unitPrice', 'percentOver', 'sellTotal', 'commissionPercent', 'commissionAmount', 'ovgPercent', 'ovgAmount', 'earnPercent', 'earnAmount'] as ColumnKey[]));
+                        setShowViewModeDropdown(false);
+                      }}
+                      className={`w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors rounded-b-lg flex items-center justify-between ${
+                        viewMode === 'overage' ? 'text-[var(--primary)] font-medium' : ''
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M12 2v6l4-2-4-2z" fill="currentColor"/>
+                          <path d="M2 10h16M2 6h8M2 14h12"/>
+                        </svg>
+                        Overage View
+                      </span>
+                      {viewMode === 'overage' && (
+                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <path d="M5 10l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
 
             {/* Generate PDF Button */}
             <button
@@ -575,6 +658,18 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
           <span className="text-[var(--muted-foreground)]">
             Commission: <span className="font-medium text-purple-600">{formatCurrency(totals.commission)}</span>
           </span>
+          {viewMode === 'overage' && (
+            <>
+              <span className="text-[var(--muted-foreground)]">|</span>
+              <span className="text-[var(--muted-foreground)]">
+                Ovg $: <span className="font-medium text-orange-500">{formatCurrency(totals.totalOvg)}</span>
+              </span>
+              <span className="text-[var(--muted-foreground)]">|</span>
+              <span className="text-[var(--muted-foreground)]">
+                Earn $: <span className="font-semibold text-green-600">{formatCurrency(totals.totalEarn)}</span>
+              </span>
+            </>
+          )}
         </div>
       </div>
 
@@ -1103,9 +1198,54 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
                           Sell Total
                         </th>
                       )}
+                      {visibleColumns.has('commissionPercent') && viewMode === 'simple' && (
+                        <th className="px-3 py-2 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">
+                          Commission %
+                        </th>
+                      )}
                       {visibleColumns.has('commission') && (
                         <th className="px-3 py-2 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">
                           Commission
+                        </th>
+                      )}
+                      {visibleColumns.has('commissionTotal') && (
+                        <th className="px-3 py-2 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">
+                          Commission Total
+                        </th>
+                      )}
+                      {visibleColumns.has('percentOver') && (
+                        <th className="px-3 py-2 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">
+                          % Over
+                        </th>
+                      )}
+                      {visibleColumns.has('commissionPercent') && viewMode === 'overage' && (
+                        <th className="px-3 py-2 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">
+                          Com %
+                        </th>
+                      )}
+                      {visibleColumns.has('commissionAmount') && (
+                        <th className="px-3 py-2 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">
+                          Com $
+                        </th>
+                      )}
+                      {visibleColumns.has('ovgPercent') && (
+                        <th className="px-3 py-2 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">
+                          Ovg %
+                        </th>
+                      )}
+                      {visibleColumns.has('ovgAmount') && (
+                        <th className="px-3 py-2 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">
+                          Ovg $
+                        </th>
+                      )}
+                      {visibleColumns.has('earnPercent') && (
+                        <th className="px-3 py-2 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">
+                          Earn %
+                        </th>
+                      )}
+                      {visibleColumns.has('earnAmount') && (
+                        <th className="px-3 py-2 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">
+                          Earn $
                         </th>
                       )}
                       {/* Actions column */}
@@ -1186,8 +1326,49 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
                         {visibleColumns.has('sellTotal') && (
                           <td className="px-3 py-2 text-sm text-right font-medium">{formatCurrency(item.amount)}</td>
                         )}
+                        {visibleColumns.has('commissionPercent') && viewMode === 'simple' && (
+                          <td className="px-3 py-2 text-sm text-right text-purple-600">
+                            {`${((item.commissionRate || 0.08) * 100).toFixed(0)}%`}
+                          </td>
+                        )}
                         {visibleColumns.has('commission') && (
-                          <td className="px-3 py-2 text-sm text-right text-purple-600">{(item.commissionRate || 0.08).toFixed(2)}</td>
+                          <td className="px-3 py-2 text-sm text-right text-purple-600">
+                            {formatCurrency(item.amount * (item.commissionRate || 0.08))}
+                          </td>
+                        )}
+                        {visibleColumns.has('commissionTotal') && (
+                          <td className="px-3 py-2 text-sm text-right text-purple-600 font-medium">
+                            {formatCurrency(item.amount * (item.commissionRate || 0.08))}
+                          </td>
+                        )}
+                        {visibleColumns.has('percentOver') && (
+                          <td className="px-3 py-2 text-sm text-right">15.0%</td>
+                        )}
+                        {visibleColumns.has('commissionPercent') && viewMode === 'overage' && (
+                          <td className="px-3 py-2 text-sm text-right text-purple-600">
+                            {`${((item.commissionRate || 0.08) * 100).toFixed(0)}%`}
+                          </td>
+                        )}
+                        {visibleColumns.has('commissionAmount') && (
+                          <td className="px-3 py-2 text-sm text-right text-purple-600">
+                            {formatCurrency(item.amount * (item.commissionRate || 0.08))}
+                          </td>
+                        )}
+                        {visibleColumns.has('ovgPercent') && (
+                          <td className="px-3 py-2 text-sm text-right text-orange-500">85%</td>
+                        )}
+                        {visibleColumns.has('ovgAmount') && (
+                          <td className="px-3 py-2 text-sm text-right text-orange-500">
+                            {formatCurrency(item.unitPrice * 0.15 * item.quantity * 0.85)}
+                          </td>
+                        )}
+                        {visibleColumns.has('earnPercent') && (
+                          <td className="px-3 py-2 text-sm text-right text-green-600">20.8%</td>
+                        )}
+                        {visibleColumns.has('earnAmount') && (
+                          <td className="px-3 py-2 text-sm text-right text-green-600 font-medium">
+                            {formatCurrency((item.amount * (item.commissionRate || 0.08)) + (item.unitPrice * 0.15 * item.quantity * 0.85))}
+                          </td>
                         )}
                         <td className="px-2 py-2">
                           <button className="p-1 hover:bg-[var(--muted)] rounded transition-colors">

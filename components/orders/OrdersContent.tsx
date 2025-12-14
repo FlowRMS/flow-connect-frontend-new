@@ -608,12 +608,12 @@ export default function OrdersContent() {
                               const selectedOrders = orders.filter(o => selectedOrdersForBulk.has(o.id));
                               const lineItems = selectedOrders.flatMap(o =>
                                 o.lineItems.map(li => ({
-                                  partNumber: `${li.partNumber} (${formatCurrency(li.sellPrice * li.quantity)})`,
-                                  amount: li.sellPrice * li.quantity,
+                                  partNumber: `${li.partNumber} (${formatCurrency(li.unitPrice * li.quantity)})`,
+                                  amount: li.unitPrice * li.quantity,
                                   quantity: li.quantity,
-                                  unitCredit: li.sellPrice * li.quantity,
+                                  unitCredit: li.unitPrice * li.quantity,
                                   commissionPercent: 0.75,
-                                  commissionAmount: li.sellPrice * li.quantity * 0.0075,
+                                  commissionAmount: li.unitPrice * li.quantity * 0.0075,
                                   reason: ''
                                 }))
                               );
