@@ -176,6 +176,8 @@ interface Product {
   partNumber: string;
   description: string;
   category: string;
+  parentCategory?: string;
+  grandparentCategory?: string;
   manufacturer: string;
   basePrice: number;
   hasConfigurator: boolean;
@@ -209,6 +211,8 @@ const mockProducts: Product[] = [
     partNumber: 'ALF LS600 T3 G1 FSK PSC ASR',
     description: 'ALF Flexible Area Light, 60000Lm - 400W Max, 4 Level Wat',
     category: 'Area Lights',
+    parentCategory: 'Outdoor Lighting',
+    grandparentCategory: 'Lighting',
     manufacturer: 'ALF',
     basePrice: 320.00,
     hasConfigurator: true,
@@ -219,6 +223,8 @@ const mockProducts: Product[] = [
     partNumber: 'ALF LS600 T3 G1 FSK PSC SFD',
     description: 'ALF Flexible Area Light, 60000Lm - 400W Max, 4 Level Wat',
     category: 'Area Lights',
+    parentCategory: 'Outdoor Lighting',
+    grandparentCategory: 'Lighting',
     manufacturer: 'ALF',
     basePrice: 317.00,
     hasConfigurator: true,
@@ -229,6 +235,8 @@ const mockProducts: Product[] = [
     partNumber: 'ALF LS600 T3 G1 HVU FSK',
     description: 'ALF Flexible Area Light, 60000Lm - 400W Max, 4 Level Wat',
     category: 'Area Lights',
+    parentCategory: 'Outdoor Lighting',
+    grandparentCategory: 'Lighting',
     manufacturer: 'ALF',
     basePrice: 390.00,
     hasConfigurator: true,
@@ -240,6 +248,8 @@ const mockProducts: Product[] = [
     partNumber: 'ALF LS600 T3 G1 FSK PSC ASR-CFG1',
     description: 'ALF Flexible Area Light - 60W, Type III, 0-10V Dimming',
     category: 'Area Lights',
+    parentCategory: 'Outdoor Lighting',
+    grandparentCategory: 'Lighting',
     manufacturer: 'ALF',
     basePrice: 345.00,
     hasConfigurator: false,
@@ -253,6 +263,8 @@ const mockProducts: Product[] = [
     partNumber: 'ALF LS600 T3 G1 FSK PSC ASR-CFG2',
     description: 'ALF Flexible Area Light - 80W, Type V, DALI Dimming',
     category: 'Area Lights',
+    parentCategory: 'Outdoor Lighting',
+    grandparentCategory: 'Lighting',
     manufacturer: 'ALF',
     basePrice: 385.00,
     hasConfigurator: false,
@@ -266,6 +278,8 @@ const mockProducts: Product[] = [
     partNumber: 'ALF-ASR',
     description: 'Adjustable Square & Round Pole Mounting for ALF series, Dark Bronze',
     category: 'Accessories',
+    parentCategory: 'Mounting',
+    grandparentCategory: 'Hardware',
     manufacturer: 'ALF',
     basePrice: 28.00,
     hasConfigurator: false,
@@ -276,6 +290,8 @@ const mockProducts: Product[] = [
     partNumber: 'ALF-SFD',
     description: 'Slipfitter Mounting for ALF Flexible, Dark Bronze',
     category: 'Accessories',
+    parentCategory: 'Mounting',
+    grandparentCategory: 'Hardware',
     manufacturer: 'ALF',
     basePrice: 28.00,
     hasConfigurator: false,
@@ -286,6 +302,8 @@ const mockProducts: Product[] = [
     partNumber: 'PC-2',
     description: 'Twist-lock Photocell with receptacle, AC 480V, 10-15 Lx On (Dusk), 30-40 Lx Off (Dawn)',
     category: 'Controls',
+    parentCategory: 'Lighting Controls',
+    grandparentCategory: 'Electronics',
     manufacturer: 'ALF',
     basePrice: 42.00,
     hasConfigurator: false,
@@ -296,6 +314,8 @@ const mockProducts: Product[] = [
     partNumber: 'ALF-M-EGS',
     description: 'External Glare Shield for ALF Medium Area Light, Dark Bronze',
     category: 'Accessories',
+    parentCategory: 'Shields',
+    grandparentCategory: 'Hardware',
     manufacturer: 'ALF',
     basePrice: 10.00,
     hasConfigurator: false,
@@ -306,6 +326,8 @@ const mockProducts: Product[] = [
     partNumber: 'ALF-L-EGS',
     description: 'External Glare Shield for ALF Large Area Light, Dark Bronze',
     category: 'Accessories',
+    parentCategory: 'Shields',
+    grandparentCategory: 'Hardware',
     manufacturer: 'ALF',
     basePrice: 12.00,
     hasConfigurator: false,
@@ -316,6 +338,8 @@ const mockProducts: Product[] = [
     partNumber: 'ALF-M-HGS',
     description: 'External House Side Shield for ALF Medium Area Light, Dark Bronze',
     category: 'Accessories',
+    parentCategory: 'Shields',
+    grandparentCategory: 'Hardware',
     manufacturer: 'ALF',
     basePrice: 18.00,
     hasConfigurator: false,
@@ -326,6 +350,8 @@ const mockProducts: Product[] = [
     partNumber: 'ALF-L-HGS',
     description: 'External House Side Shield for ALF Large Area Light, Dark Bronze',
     category: 'Accessories',
+    parentCategory: 'Shields',
+    grandparentCategory: 'Hardware',
     manufacturer: 'ALF',
     basePrice: 23.00,
     hasConfigurator: false,
@@ -336,6 +362,8 @@ const mockProducts: Product[] = [
     partNumber: 'ALF-BLS',
     description: 'Backlight Control Shield for ALF Area Light, 1 pc for Medium Size, 2 pc for Large Size',
     category: 'Accessories',
+    parentCategory: 'Shields',
+    grandparentCategory: 'Hardware',
     manufacturer: 'ALF',
     basePrice: 12.00,
     hasConfigurator: false,
@@ -346,6 +374,8 @@ const mockProducts: Product[] = [
     partNumber: 'MS-DCE-09-L7-W',
     description: 'Motion Sensor, DC, Fixture External, Daylight Harvest+PIR, 3.5mm Aux plug, with Built-in 39ft High bay Lens, Outdoor',
     category: 'Controls',
+    parentCategory: 'Sensors',
+    grandparentCategory: 'Electronics',
     manufacturer: 'ALF',
     basePrice: 23.00,
     hasConfigurator: false,
@@ -356,6 +386,8 @@ const mockProducts: Product[] = [
     partNumber: 'RM06',
     description: 'Remote for MS-DCE-09-L7 / MS-DCE-09-L7-W',
     category: 'Controls',
+    parentCategory: 'Remotes',
+    grandparentCategory: 'Electronics',
     manufacturer: 'ALF',
     basePrice: 32.00,
     hasConfigurator: false,
@@ -402,6 +434,8 @@ export default function ProductsContent() {
     description: '',
     manufacturer: '',
     category: '',
+    parentCategory: '',
+    grandparentCategory: '',
     productType: '',
     isDocumentSpecific: '',
   });
@@ -411,6 +445,8 @@ export default function ProductsContent() {
     return {
       manufacturer: [...new Set(products.map(p => p.manufacturer))].sort(),
       category: [...new Set(products.map(p => p.category))].sort(),
+      parentCategory: [...new Set(products.map(p => p.parentCategory).filter(Boolean))].sort() as string[],
+      grandparentCategory: [...new Set(products.map(p => p.grandparentCategory).filter(Boolean))].sort() as string[],
       productType: ['Base', 'Configured'],
       isDocumentSpecific: ['Yes', 'No'],
     };
@@ -477,6 +513,12 @@ export default function ProductsContent() {
     if (columnFilters.category) {
       result = result.filter(p => p.category === columnFilters.category);
     }
+    if (columnFilters.parentCategory) {
+      result = result.filter(p => p.parentCategory === columnFilters.parentCategory);
+    }
+    if (columnFilters.grandparentCategory) {
+      result = result.filter(p => p.grandparentCategory === columnFilters.grandparentCategory);
+    }
     if (columnFilters.productType) {
       const isConfigured = columnFilters.productType === 'Configured';
       result = result.filter(p => (p.productType === 'configured') === isConfigured);
@@ -508,6 +550,14 @@ export default function ProductsContent() {
           case 'category':
             aVal = a.category;
             bVal = b.category;
+            break;
+          case 'parentCategory':
+            aVal = a.parentCategory ?? '';
+            bVal = b.parentCategory ?? '';
+            break;
+          case 'grandparentCategory':
+            aVal = a.grandparentCategory ?? '';
+            bVal = b.grandparentCategory ?? '';
             break;
           case 'productType':
             aVal = a.productType;
@@ -643,123 +693,156 @@ export default function ProductsContent() {
         {/* Products Table */}
         <div className="flex-1 overflow-auto p-6 pt-0">
           <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
-            {/* Table Header */}
-            <div className="grid grid-cols-12 gap-4 px-6 py-3 border-b border-[var(--border)] bg-[var(--muted)]/30">
-              <ColumnHeader
-                label="Part Number"
-                columnKey="partNumber"
-                sortState={sortState}
-                onSort={handleSort}
-                filterType="text"
-                filterValue={columnFilters.partNumber}
-                onFilterChange={handleFilterChange}
-                colSpan={3}
-              />
-              <ColumnHeader
-                label="Description"
-                columnKey="description"
-                sortState={sortState}
-                onSort={handleSort}
-                filterType="text"
-                filterValue={columnFilters.description}
-                onFilterChange={handleFilterChange}
-                colSpan={3}
-              />
-              <ColumnHeader
-                label="Factory"
-                columnKey="manufacturer"
-                sortState={sortState}
-                onSort={handleSort}
-                filterType="dropdown"
-                filterValue={columnFilters.manufacturer}
-                onFilterChange={handleFilterChange}
-                filterOptions={filterOptions.manufacturer}
-                colSpan={2}
-              />
-              <ColumnHeader
-                label="Category"
-                columnKey="category"
-                sortState={sortState}
-                onSort={handleSort}
-                filterType="dropdown"
-                filterValue={columnFilters.category}
-                onFilterChange={handleFilterChange}
-                filterOptions={filterOptions.category}
-                colSpan={2}
-              />
-              <ColumnHeader
-                label="Type"
-                columnKey="productType"
-                sortState={sortState}
-                onSort={handleSort}
-                filterType="dropdown"
-                filterValue={columnFilters.productType}
-                onFilterChange={handleFilterChange}
-                filterOptions={filterOptions.productType}
-                colSpan={1}
-              />
-              <ColumnHeader
-                label="Doc Specific"
-                columnKey="isDocumentSpecific"
-                sortState={sortState}
-                onSort={handleSort}
-                filterType="dropdown"
-                filterValue={columnFilters.isDocumentSpecific}
-                onFilterChange={handleFilterChange}
-                filterOptions={filterOptions.isDocumentSpecific}
-                colSpan={1}
-                textAlign="center"
-              />
-            </div>
-
-            {/* Table Body */}
-            <div className="divide-y divide-[var(--border)]">
-              {filteredProducts.length === 0 ? (
-                <div className="px-6 py-12 text-center text-[var(--muted-foreground)]">
-                  No products found
+            <div className="overflow-x-auto">
+              <div className="min-w-[1200px]">
+                {/* Table Header */}
+                <div className="grid gap-4 px-6 py-3 border-b border-[var(--border)] bg-[var(--muted)]/30" style={{ gridTemplateColumns: 'repeat(16, minmax(0, 1fr))' }}>
+                  <ColumnHeader
+                    label="Part Number"
+                    columnKey="partNumber"
+                    sortState={sortState}
+                    onSort={handleSort}
+                    filterType="text"
+                    filterValue={columnFilters.partNumber}
+                    onFilterChange={handleFilterChange}
+                    colSpan={3}
+                  />
+                  <ColumnHeader
+                    label="Description"
+                    columnKey="description"
+                    sortState={sortState}
+                    onSort={handleSort}
+                    filterType="text"
+                    filterValue={columnFilters.description}
+                    onFilterChange={handleFilterChange}
+                    colSpan={3}
+                  />
+                  <ColumnHeader
+                    label="Factory"
+                    columnKey="manufacturer"
+                    sortState={sortState}
+                    onSort={handleSort}
+                    filterType="dropdown"
+                    filterValue={columnFilters.manufacturer}
+                    onFilterChange={handleFilterChange}
+                    filterOptions={filterOptions.manufacturer}
+                    colSpan={2}
+                  />
+                  <ColumnHeader
+                    label="Grandparent"
+                    columnKey="grandparentCategory"
+                    sortState={sortState}
+                    onSort={handleSort}
+                    filterType="dropdown"
+                    filterValue={columnFilters.grandparentCategory}
+                    onFilterChange={handleFilterChange}
+                    filterOptions={filterOptions.grandparentCategory}
+                    colSpan={2}
+                  />
+                  <ColumnHeader
+                    label="Parent"
+                    columnKey="parentCategory"
+                    sortState={sortState}
+                    onSort={handleSort}
+                    filterType="dropdown"
+                    filterValue={columnFilters.parentCategory}
+                    onFilterChange={handleFilterChange}
+                    filterOptions={filterOptions.parentCategory}
+                    colSpan={2}
+                  />
+                  <ColumnHeader
+                    label="Category"
+                    columnKey="category"
+                    sortState={sortState}
+                    onSort={handleSort}
+                    filterType="dropdown"
+                    filterValue={columnFilters.category}
+                    onFilterChange={handleFilterChange}
+                    filterOptions={filterOptions.category}
+                    colSpan={2}
+                  />
+                  <ColumnHeader
+                    label="Type"
+                    columnKey="productType"
+                    sortState={sortState}
+                    onSort={handleSort}
+                    filterType="dropdown"
+                    filterValue={columnFilters.productType}
+                    onFilterChange={handleFilterChange}
+                    filterOptions={filterOptions.productType}
+                    colSpan={1}
+                  />
+                  <ColumnHeader
+                    label="Doc Specific"
+                    columnKey="isDocumentSpecific"
+                    sortState={sortState}
+                    onSort={handleSort}
+                    filterType="dropdown"
+                    filterValue={columnFilters.isDocumentSpecific}
+                    onFilterChange={handleFilterChange}
+                    filterOptions={filterOptions.isDocumentSpecific}
+                    colSpan={1}
+                    textAlign="center"
+                  />
                 </div>
-              ) : (
-                filteredProducts.map((product) => (
-                  <div
-                    key={product.id}
-                    onClick={() => handleProductClick(product)}
-                    className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-[var(--muted)]/20 transition-colors cursor-pointer"
-                  >
-                    <div className="col-span-3">
-                      <div className="font-medium text-[var(--foreground)]">{product.partNumber}</div>
+
+                {/* Table Body */}
+                <div className="divide-y divide-[var(--border)]">
+                  {filteredProducts.length === 0 ? (
+                    <div className="px-6 py-12 text-center text-[var(--muted-foreground)]">
+                      No products found
                     </div>
-                    <div className="col-span-3 flex items-center">
-                      <span className="text-sm text-[var(--foreground)] line-clamp-2">{product.description}</span>
-                    </div>
-                    <div className="col-span-2 flex items-center">
-                      <span className="text-sm text-[var(--foreground)]">{product.manufacturer}</span>
-                    </div>
-                    <div className="col-span-2 flex items-center">
-                      <span className="text-sm text-[var(--foreground)]">{product.category}</span>
-                    </div>
-                    <div className="col-span-1 flex items-center">
-                      {product.productType === 'configured' ? (
-                        <span className="px-2 py-0.5 text-xs font-medium rounded bg-purple-100 text-purple-700">
-                          Configured
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 text-xs font-medium rounded bg-gray-100 text-gray-700">
-                          Base
-                        </span>
-                      )}
-                    </div>
-                    <div className="col-span-1 flex items-center justify-center">
-                      {product.isDocumentSpecific ? (
-                        <span className="px-2 py-0.5 text-xs font-medium rounded bg-purple-100 text-purple-700">
-                          Yes
-                        </span>
-                      ) : (
-                        <span className="text-xs text-[var(--muted-foreground)]">—</span>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
+                  ) : (
+                    filteredProducts.map((product) => (
+                      <div
+                        key={product.id}
+                        onClick={() => handleProductClick(product)}
+                        className="grid gap-4 px-6 py-4 hover:bg-[var(--muted)]/20 transition-colors cursor-pointer"
+                        style={{ gridTemplateColumns: 'repeat(16, minmax(0, 1fr))' }}
+                      >
+                        <div className="col-span-3">
+                          <div className="font-medium text-[var(--foreground)]">{product.partNumber}</div>
+                        </div>
+                        <div className="col-span-3 flex items-center">
+                          <span className="text-sm text-[var(--foreground)] line-clamp-2">{product.description}</span>
+                        </div>
+                        <div className="col-span-2 flex items-center">
+                          <span className="text-sm text-[var(--foreground)]">{product.manufacturer}</span>
+                        </div>
+                        <div className="col-span-2 flex items-center">
+                          <span className="text-sm text-[var(--foreground)]">{product.grandparentCategory || '—'}</span>
+                        </div>
+                        <div className="col-span-2 flex items-center">
+                          <span className="text-sm text-[var(--foreground)]">{product.parentCategory || '—'}</span>
+                        </div>
+                        <div className="col-span-2 flex items-center">
+                          <span className="text-sm text-[var(--foreground)]">{product.category}</span>
+                        </div>
+                        <div className="col-span-1 flex items-center">
+                          {product.productType === 'configured' ? (
+                            <span className="px-2 py-0.5 text-xs font-medium rounded bg-purple-100 text-purple-700">
+                              Configured
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 text-xs font-medium rounded bg-gray-100 text-gray-700">
+                              Base
+                            </span>
+                          )}
+                        </div>
+                        <div className="col-span-1 flex items-center justify-center">
+                          {product.isDocumentSpecific ? (
+                            <span className="px-2 py-0.5 text-xs font-medium rounded bg-purple-100 text-purple-700">
+                              Yes
+                            </span>
+                          ) : (
+                            <span className="text-xs text-[var(--muted-foreground)]">—</span>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>

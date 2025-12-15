@@ -122,6 +122,23 @@ const mockCategories = [
   { id: 'ground-rod', name: 'GROUND ROD' },
 ];
 
+const mockParentCategories = [
+  { id: 'outdoor-lighting', name: 'Outdoor Lighting' },
+  { id: 'mounting', name: 'Mounting' },
+  { id: 'lighting-controls', name: 'Lighting Controls' },
+  { id: 'shields', name: 'Shields' },
+  { id: 'sensors', name: 'Sensors' },
+  { id: 'remotes', name: 'Remotes' },
+  { id: 'grounding', name: 'Grounding' },
+];
+
+const mockGrandparentCategories = [
+  { id: 'lighting', name: 'Lighting' },
+  { id: 'hardware', name: 'Hardware' },
+  { id: 'electronics', name: 'Electronics' },
+  { id: 'electrical', name: 'Electrical' },
+];
+
 const mockCustomers = [
   { id: 'a', name: 'A' },
   { id: 'acker-ec', name: 'ACKER EC' },
@@ -452,6 +469,10 @@ export default function ProductEditPage() {
       commissionDiscountRate: 0,
       category: 'GROUND ROD',
       categoryId: 'ground-rod',
+      parentCategory: 'Grounding',
+      parentCategoryId: 'grounding',
+      grandparentCategory: 'Electrical',
+      grandparentCategoryId: 'electrical',
       uom: 'ea',
       isActive: true,
       createdAt: new Date().toISOString(),
@@ -977,7 +998,7 @@ export default function ProductEditPage() {
             </div>
 
             {/* Classification */}
-            <div className="grid grid-cols-5 gap-4 mb-6">
+            <div className="grid grid-cols-7 gap-4 mb-6">
               <div>
                 <label className={labelClass}>Factory*</label>
                 <div className="relative">
@@ -993,6 +1014,50 @@ export default function ProductEditPage() {
                     <option value="">Select factory</option>
                     {mockFactories.map(f => (
                       <option key={f.id} value={f.id}>{f.name}</option>
+                    ))}
+                  </select>
+                  <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
+              <div>
+                <label className={labelClass}>Grandparent Category</label>
+                <div className="relative">
+                  <select
+                    value={formData.grandparentCategoryId || ''}
+                    onChange={(e) => {
+                      const grandparentCategory = mockGrandparentCategories.find(c => c.id === e.target.value);
+                      handleFieldChange('grandparentCategoryId', e.target.value);
+                      if (grandparentCategory) handleFieldChange('grandparentCategory', grandparentCategory.name);
+                    }}
+                    className={selectClass}
+                  >
+                    <option value="">Select grandparent category</option>
+                    {mockGrandparentCategories.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                  <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
+              <div>
+                <label className={labelClass}>Parent Category</label>
+                <div className="relative">
+                  <select
+                    value={formData.parentCategoryId || ''}
+                    onChange={(e) => {
+                      const parentCategory = mockParentCategories.find(c => c.id === e.target.value);
+                      handleFieldChange('parentCategoryId', e.target.value);
+                      if (parentCategory) handleFieldChange('parentCategory', parentCategory.name);
+                    }}
+                    className={selectClass}
+                  >
+                    <option value="">Select parent category</option>
+                    {mockParentCategories.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
                   </select>
                   <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">

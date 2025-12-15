@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { useRouter } from 'next/navigation';
 import {
   DndContext,
   DragEndEvent,
@@ -31,6 +32,7 @@ import SubmittalDetailPanel from './submittals/SubmittalDetailPanel';
 import CreditModal from './CreditModal';
 import ConvertQuoteToOrderModal from './orders/ConvertQuoteToOrderModal';
 import type { Order } from '../lib/types/rms';
+import { mockOrders } from '../lib/data/rms-mock';
 import QuotePdfPreviewModal from './quotes/QuotePdfPreviewModal';
 import CreateProductModal from './quotes/CreateProductModal';
 import type { QuoteData } from '../lib/utils/generatePdfFromTemplate';
@@ -3425,6 +3427,7 @@ function LineApprovalIcon({ status }: { status: 'approved' | 'conditional' | 'no
 // ============================================
 
 export default function QuotesContent() {
+  const router = useRouter();
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [activeId, setActiveId] = useState<string | null>(null);
   const [quotes, setQuotes] = useState<Quote[]>(mockQuotes);
@@ -3665,13 +3668,13 @@ export default function QuotesContent() {
   }, [lineItemRepDropdown]);
 
   // Column visibility state
-  type ColumnKey = 'partNumber' | 'customerPartNumber' | 'description' | 'manufacturer' | 'quantity' | 'uom' | 'divisor' | 'unitPrice' | 'endUser' | 'sellTotal' | 'commissionPercent' | 'commission' | 'commissionTotal' | 'overage' | 'overageAmt' | 'commRate' | 'baseComm' | 'overageShare' | 'overageComm' | 'totalEarn' | 'effRate' | 'l1' | 'l2' | 'l3' | 'trend' | 'specSheet' | 'outsideReps' | 'commissionDiscountPercent' | 'commissionDiscountAmount' | 'lineDiscountPercent' | 'lineDiscountAmount' | 'leadTime';
+  type ColumnKey = 'partNumber' | 'customerPartNumber' | 'description' | 'manufacturer' | 'quantity' | 'uom' | 'divisor' | 'unitPrice' | 'endUser' | 'sellTotal' | 'commissionPercent' | 'commission' | 'commissionTotal' | 'linkedOrder' | 'overage' | 'overageAmt' | 'commRate' | 'baseComm' | 'overageShare' | 'overageComm' | 'totalEarn' | 'effRate' | 'l1' | 'l2' | 'l3' | 'trend' | 'specSheet' | 'outsideReps' | 'commissionDiscountPercent' | 'commissionDiscountAmount' | 'lineDiscountPercent' | 'lineDiscountAmount' | 'leadTime';
   const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(new Set(['partNumber', 'customerPartNumber', 'description', 'manufacturer', 'quantity', 'uom', 'divisor', 'unitPrice', 'sellTotal', 'commissionPercent', 'commission', 'commissionTotal', 'overage', 'overageAmt', 'commRate', 'baseComm', 'overageShare', 'overageComm', 'totalEarn', 'effRate', 'outsideReps']));
 
   // Column order state for drag-and-drop reordering
   const [columnOrder, setColumnOrder] = useState<ColumnKey[]>([
     'partNumber', 'customerPartNumber', 'description', 'manufacturer', 'quantity', 'uom', 'divisor', 'unitPrice', 'endUser',
-    'sellTotal', 'commissionPercent', 'commission', 'commissionTotal',
+    'sellTotal', 'commissionPercent', 'commission', 'commissionTotal', 'linkedOrder',
     'overage', 'overageAmt',
     'commRate', 'baseComm', 'overageShare', 'overageComm', 'totalEarn', 'effRate', 'outsideReps',
     'l1', 'l2', 'l3',
@@ -3759,6 +3762,7 @@ export default function QuotesContent() {
     { key: 'commissionPercent', label: 'Commission %', group: 'Commission' },
     { key: 'commission', label: 'Commission', group: 'Commission' },
     { key: 'commissionTotal', label: 'Commission Total', group: 'Commission' },
+    { key: 'linkedOrder', label: 'Order #', group: 'Links' },
     { key: 'overage', label: 'Over %', group: 'Overage' },
     { key: 'overageAmt', label: 'Over $', group: 'Overage' },
     { key: 'commRate', label: 'Comm %', group: 'Commission' },
@@ -4606,6 +4610,23 @@ export default function QuotesContent() {
             </div>
           </td>
         );
+      case 'linkedOrder':
+        const linkedOrders = mockOrders.filter(order => order.quoteId === selectedQuote?.id);
+        return (
+          <td key={colKey} className="px-3 py-2 text-sm">
+            {linkedOrders.length > 0 ? (
+              <button
+                onClick={() => router.push(`/orders/${linkedOrders[0].id}`)}
+                className="text-[var(--primary)] hover:underline"
+              >
+                {linkedOrders[0].orderNumber}
+                {linkedOrders.length > 1 && ` +${linkedOrders.length - 1}`}
+              </button>
+            ) : (
+              <span className="text-[var(--muted-foreground)]">—</span>
+            )}
+          </td>
+        );
       default:
         return <td key={colKey} className="px-3 py-2 text-sm">—</td>;
     }
@@ -4689,7 +4710,7 @@ export default function QuotesContent() {
   };
 
   // Columns for Simple View (basic pricing only - no overage/commission columns)
-  const [simpleViewColumns, setSimpleViewColumns] = useState<Set<ColumnKey>>(new Set(['partNumber', 'customerPartNumber', 'description', 'manufacturer', 'quantity', 'uom', 'divisor', 'unitPrice', 'sellTotal', 'commissionPercent', 'commission', 'commissionTotal']));
+  const [simpleViewColumns, setSimpleViewColumns] = useState<Set<ColumnKey>>(new Set(['partNumber', 'customerPartNumber', 'description', 'manufacturer', 'quantity', 'uom', 'divisor', 'unitPrice', 'sellTotal', 'commissionPercent', 'commission', 'commissionTotal', 'linkedOrder']));
 
   // For backward compatibility
   const simpleQuoteColumns = simpleViewColumns;
@@ -8038,6 +8059,9 @@ export default function QuotesContent() {
                           {effectiveVisibleColumns.has('divisor') && (
                             <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">Multiplier</th>
                           )}
+                          {effectiveVisibleColumns.has('linkedOrder') && (
+                            <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">Order #</th>
+                          )}
                           {/* Empty header for expand/more button column */}
                           <th className="px-2 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase w-10"></th>
                         </tr>
@@ -8779,6 +8803,25 @@ export default function QuotesContent() {
                                         {item.useDivisor ? `÷${item.divisor}` : '—'}
                                       </td>
                                     )}
+                                    {/* Linked Order Column */}
+                                    {effectiveVisibleColumns.has('linkedOrder') && (() => {
+                                      const linkedOrders = mockOrders.filter(order => order.quoteId === selectedQuote?.id);
+                                      return (
+                                        <td className="px-3 py-2 text-center text-sm">
+                                          {linkedOrders.length > 0 ? (
+                                            <button
+                                              onClick={() => router.push(`/orders/${linkedOrders[0].id}`)}
+                                              className="text-[var(--primary)] hover:underline"
+                                            >
+                                              {linkedOrders[0].orderNumber}
+                                              {linkedOrders.length > 1 && ` +${linkedOrders.length - 1}`}
+                                            </button>
+                                          ) : (
+                                            <span className="text-[var(--muted-foreground)]">—</span>
+                                          )}
+                                        </td>
+                                      );
+                                    })()}
                                     {/* Expand/More Actions Button */}
                                     <td className="px-2 py-2 text-center">
                                       <button

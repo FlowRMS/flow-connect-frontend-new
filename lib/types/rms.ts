@@ -50,6 +50,10 @@ export interface Product {
   unitPriceDiscountRate?: number;      // Unit price discount rate
   category?: string;
   categoryId?: string;
+  parentCategory?: string;             // Parent category name
+  parentCategoryId?: string;           // Parent category ID
+  grandparentCategory?: string;        // Grandparent category name
+  grandparentCategoryId?: string;      // Grandparent category ID
   leadTimeDays?: number;
   minOrderQty?: number;
   uom?: string;                        // Unit of measure (e.g., 'ea', 'box', 'case')
@@ -224,6 +228,8 @@ export interface OrderLineItem {
   isCredit?: boolean;
   creditType?: 'return' | 'short_ship' | 'cancel' | 'damage';
   linkedLineItemId?: string | null;  // null = order-level credit
+  // Linked invoices (for displaying invoice numbers on order lines)
+  linkedInvoiceIds?: string[];
   // Optional overrides
   splitRateOverride?: OrderSplitRate[];
   notes?: string;
@@ -292,6 +298,8 @@ export interface InvoiceLineItem {
   amount: number;
   commissionRate: number;
   commissionAmount: number;
+  // Linked order line items (for many-to-many linking when invoice has no explicit lines)
+  linkedOrderLineItemIds?: string[];
 }
 
 // -----------------------------------------------------------------------------

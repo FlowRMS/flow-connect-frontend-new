@@ -5,7 +5,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import type { Company, CompanyAddress, AddressType, ManufacturerInfo, SalesRepAssignment } from '../types';
+import type { Company, CompanyAddress, AddressType, ManufacturerInfo, SalesRepAssignment, CompanyHierarchyRole, ChildCompanyRef } from '../types';
 import type { CompanySourceType, Contact as APIContact, Job as APIJob } from '../../lib/crm-graphql';
 import CompanyRelatedEntities from './CompanyRelatedEntities';
 import ConnectedNotesSection from '../../notes/ConnectedNotesSection';
@@ -14,6 +14,7 @@ import DeleteConfirmModal from './DeleteConfirmModal';
 import { AddTaskNoteLinkModal } from '../modals/AddTaskNoteLinkModal';
 import { AddAddressModal, type Address } from '../../shared/AddAddressModal';
 import AliasesModal, { CompanyAlias } from '../../AliasesModal';
+import { SelectChildCompaniesModal } from '../modals/SelectChildCompaniesModal';
 
 type TabId = 'overview' | 'factory-info' | 'sales-reps' | 'addresses' | 'contacts' | 'jobs' | 'quotes' | 'orders' | 'invoices' | 'commission-statements' | 'pre-quotes' | 'emails' | 'meetings' | 'tasks' | 'notes';
 
@@ -52,7 +53,7 @@ interface CompanyDetailViewProps {
   onDeleteClick: () => void;
   onDeleteConfirm: () => void;
   onDeleteCancel: () => void;
-  onFieldChange: (field: string, value: string | number | boolean | string[] | CompanySourceType | CompanyAddress[] | ManufacturerInfo | SalesRepAssignment[]) => void;
+  onFieldChange: (field: string, value: string | number | boolean | string[] | CompanySourceType | CompanyAddress[] | ManufacturerInfo | SalesRepAssignment[] | CompanyHierarchyRole | ChildCompanyRef[]) => void;
   onContactClick?: (contact: APIContact) => void;
   onJobClick?: (job: APIJob) => void;
 }
@@ -454,6 +455,8 @@ export default function CompanyDetailView({
   const [showAddListModal, setShowAddListModal] = useState(false);
   const [newListName, setNewListName] = useState('');
   const [showAliasesModal, setShowAliasesModal] = useState(false);
+  const [showChildCompaniesModal, setShowChildCompaniesModal] = useState(false);
+  const [pendingHierarchyRole, setPendingHierarchyRole] = useState<CompanyHierarchyRole | null>(null);
   const [companyAliases, setCompanyAliases] = useState<CompanyAlias[]>([
     // Mock aliases for demonstration
     {
@@ -685,6 +688,7 @@ export default function CompanyDetailView({
   const readOnlyClass = "w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-600 cursor-not-allowed";
   const labelClass = "block text-sm font-medium text-gray-700 mb-1.5";
   const textareaClass = "w-full px-4 py-3 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400 resize-y min-h-[80px]";
+  const selectClass = "w-full px-4 py-3 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all appearance-none cursor-pointer";
 
   const getTypeColor = (type: CompanySourceType) => {
     return type === 'MANUFACTURER'
@@ -998,6 +1002,177 @@ export default function CompanyDetailView({
                         }`}
                       />
                     </button>
+                  </div>
+                </div>
+
+                {/* Company Hierarchy */}
+                <div className="border-t border-gray-200 pt-6">
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Company Hierarchy</h3>
+                  <div className="space-y-4">
+                    {/* Hierarchy Role Selection */}
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <label className={labelClass}>Hierarchy Role</label>
+                        <div className="relative">
+                          <select
+                            value={isEditing ? (editFormData.hierarchyRole ?? company.hierarchyRole ?? 'none') : (company.hierarchyRole ?? 'none')}
+                            onChange={(e) => {
+                              const newRole = e.target.value as CompanyHierarchyRole;
+                              if (newRole === 'parent' || newRole === 'grandparent') {
+                                // Store the pending role and open modal
+                                setPendingHierarchyRole(newRole);
+                                setShowChildCompaniesModal(true);
+                              } else {
+                                // For 'none', just update directly and clear children
+                                onFieldChange('hierarchyRole', newRole);
+                                onFieldChange('childCompanies', []);
+                                onFieldChange('childParentCompanies', []);
+                              }
+                            }}
+                            className={isEditing ? selectClass : readOnlyClass}
+                            disabled={!isEditing}
+                          >
+                            <option value="none">None (Standard Company)</option>
+                            <option value="parent">Parent Company</option>
+                            <option value="grandparent">Grandparent Company</option>
+                          </select>
+                          {isEditing && (
+                            <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {(isEditing ? editFormData.hierarchyRole : company.hierarchyRole) === 'parent'
+                            ? 'As a parent company, child customers can be assigned to this company.'
+                            : (isEditing ? editFormData.hierarchyRole : company.hierarchyRole) === 'grandparent'
+                            ? 'As a grandparent company, child parent companies can be assigned to this company.'
+                            : 'Standard company with no parent/child relationships.'}
+                        </p>
+                      </div>
+                      {/* Parent Company Selection - shown if this company can have a parent */}
+                      {(company.hierarchyRole !== 'grandparent') && (
+                        <div>
+                          <label className={labelClass}>Parent Company</label>
+                          <input
+                            type="text"
+                            value={isEditing ? (editFormData.parentCompanyName ?? company.parentCompanyName ?? '') : (company.parentCompanyName ?? '')}
+                            onChange={(e) => onFieldChange('parentCompanyName', e.target.value)}
+                            className={isEditing ? inputClass : readOnlyClass}
+                            readOnly={!isEditing}
+                            placeholder="Enter parent company name"
+                          />
+                        </div>
+                      )}
+                      {/* Grandparent Company Selection - shown if this company has a parent */}
+                      {(company.hierarchyRole !== 'grandparent' && company.hierarchyRole !== 'parent') && (
+                        <div>
+                          <label className={labelClass}>Grandparent Company</label>
+                          <input
+                            type="text"
+                            value={isEditing ? (editFormData.grandparentCompanyName ?? company.grandparentCompanyName ?? '') : (company.grandparentCompanyName ?? '')}
+                            onChange={(e) => onFieldChange('grandparentCompanyName', e.target.value)}
+                            className={isEditing ? inputClass : readOnlyClass}
+                            readOnly={!isEditing}
+                            placeholder="Enter grandparent company name"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Child Companies Card - shown if this is a parent company */}
+                    {company.hierarchyRole === 'parent' && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-sm font-semibold text-blue-900 flex items-center gap-2">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                            </svg>
+                            Child Customers ({company.childCompanies?.length ?? 0})
+                          </h4>
+                          <button
+                            onClick={() => {
+                              setPendingHierarchyRole('parent');
+                              setShowChildCompaniesModal(true);
+                            }}
+                            className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                          >
+                            + Add Child
+                          </button>
+                        </div>
+                        {company.childCompanies && company.childCompanies.length > 0 ? (
+                          <div className="space-y-2">
+                            {company.childCompanies.map((child) => (
+                              <div key={child.id} className="flex items-center justify-between bg-white border border-blue-100 rounded-lg px-3 py-2">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-6 h-6 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-xs font-bold">
+                                    {child.name.charAt(0)}
+                                  </div>
+                                  <span className="text-sm font-medium text-gray-900">{child.name}</span>
+                                  <span className="px-2 py-0.5 text-xs font-medium rounded bg-green-100 text-green-700">
+                                    Customer
+                                  </span>
+                                </div>
+                                <button className="text-gray-400 hover:text-red-500">
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-blue-700">No child customers assigned yet.</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Child Parent Companies Card - shown if this is a grandparent company */}
+                    {company.hierarchyRole === 'grandparent' && (
+                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-sm font-semibold text-purple-900 flex items-center gap-2">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                            </svg>
+                            Child Parent Companies ({company.childParentCompanies?.length ?? 0})
+                          </h4>
+                          <button
+                            onClick={() => {
+                              setPendingHierarchyRole('grandparent');
+                              setShowChildCompaniesModal(true);
+                            }}
+                            className="text-xs text-purple-600 hover:text-purple-800 font-medium"
+                          >
+                            + Add Child Parent
+                          </button>
+                        </div>
+                        {company.childParentCompanies && company.childParentCompanies.length > 0 ? (
+                          <div className="space-y-2">
+                            {company.childParentCompanies.map((child) => (
+                              <div key={child.id} className="flex items-center justify-between bg-white border border-purple-100 rounded-lg px-3 py-2">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold">
+                                    {child.name.charAt(0)}
+                                  </div>
+                                  <span className="text-sm font-medium text-gray-900">{child.name}</span>
+                                  <span className="px-2 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-700">
+                                    Parent
+                                  </span>
+                                </div>
+                                <button className="text-gray-400 hover:text-red-500">
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-purple-700">No child parent companies assigned yet.</p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -2218,6 +2393,32 @@ export default function CompanyDetailView({
           onClose={() => setShowAliasesModal(false)}
         />
       )}
+
+      {/* Select Child Companies Modal */}
+      <SelectChildCompaniesModal
+        isOpen={showChildCompaniesModal}
+        hierarchyRole={pendingHierarchyRole ?? 'parent'}
+        currentChildCompanies={
+          pendingHierarchyRole === 'grandparent'
+            ? (company.childParentCompanies ?? [])
+            : (company.childCompanies ?? [])
+        }
+        onClose={() => {
+          setShowChildCompaniesModal(false);
+          setPendingHierarchyRole(null);
+        }}
+        onSave={(selectedCompanies) => {
+          if (pendingHierarchyRole === 'grandparent') {
+            onFieldChange('hierarchyRole', 'grandparent');
+            onFieldChange('childParentCompanies', selectedCompanies);
+          } else if (pendingHierarchyRole === 'parent') {
+            onFieldChange('hierarchyRole', 'parent');
+            onFieldChange('childCompanies', selectedCompanies);
+          }
+          setShowChildCompaniesModal(false);
+          setPendingHierarchyRole(null);
+        }}
+      />
     </main>
   );
 }

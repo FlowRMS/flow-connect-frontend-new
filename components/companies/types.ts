@@ -29,6 +29,16 @@ export interface CompanyAddress {
   isPrimary?: boolean;
 }
 
+// Company hierarchy role - designates the company's role in the parent/child hierarchy
+export type CompanyHierarchyRole = 'none' | 'parent' | 'grandparent';
+
+// Child company reference (for displaying relationships)
+export interface ChildCompanyRef {
+  id: string;
+  name: string;
+  companySourceType: CompanySourceType;
+}
+
 // Manufacturer-specific fields
 export interface ManufacturerInfo {
   factoryAccountNumber?: string;
@@ -74,6 +84,14 @@ export interface Company {
   salesReps?: SalesRepAssignment[];
   // Document-specific flag - excludes from searches when creating quotes, orders, invoices
   isDocumentSpecific?: boolean;
+  // Company hierarchy fields
+  hierarchyRole?: CompanyHierarchyRole;          // Role: none, parent, or grandparent
+  parentCompanyId?: string;                       // ID of parent company (if this is a child)
+  parentCompanyName?: string;                     // Name of parent company
+  grandparentCompanyId?: string;                  // ID of grandparent company (if parent is a child)
+  grandparentCompanyName?: string;                // Name of grandparent company
+  childCompanies?: ChildCompanyRef[];             // Child companies (if this is a parent)
+  childParentCompanies?: ChildCompanyRef[];       // Child parent companies (if this is a grandparent)
 }
 
 // View mode type

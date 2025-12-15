@@ -1,12 +1,15 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import {
   mockOrders,
   mockSalesReps,
+  mockInvoices,
+  mockChecks,
 } from '../../lib/data/rms-mock';
-import type { OrderSplitRate, OrderLineItem } from '../../lib/types/rms';
+import type { OrderSplitRate, OrderLineItem, Invoice, CommissionCheck } from '../../lib/types/rms';
 import {
   Order,
   orderStatusLabels,
@@ -26,7 +29,7 @@ interface OrderDetailContentProps {
 type TabType = 'line-items' | 'credits' | 'acknowledgements' | 'notes' | 'tasks' | 'activity' | 'linked-objects' | 'settings';
 
 // Column definitions for the line items table
-type ColumnKey = 'partNumber' | 'custPartNumber' | 'description' | 'uom' | 'divisor' | 'unitPrice' | 'quantity' | 'shippedQty' | 'lineStatus' | 'sellTotal' | 'commissionPercent' | 'commission' | 'commissionTotal' | 'invoiced' | 'percentOver' | 'commissionAmount' | 'ovgPercent' | 'ovgAmount' | 'earnPercent' | 'earnAmount';
+type ColumnKey = 'partNumber' | 'custPartNumber' | 'description' | 'uom' | 'divisor' | 'unitPrice' | 'quantity' | 'shippedQty' | 'lineStatus' | 'linkedQuote' | 'linkedInvoice' | 'linkedCheck' | 'sellTotal' | 'commissionPercent' | 'commission' | 'commissionTotal' | 'invoiced' | 'percentOver' | 'commissionAmount' | 'ovgPercent' | 'ovgAmount' | 'earnPercent' | 'earnAmount';
 
 const columnLabels: Record<ColumnKey, string> = {
   partNumber: 'Part #',
@@ -38,6 +41,9 @@ const columnLabels: Record<ColumnKey, string> = {
   quantity: 'Qty',
   shippedQty: 'Shipped Qty',
   lineStatus: 'Status',
+  linkedQuote: 'Quote #',
+  linkedInvoice: 'Invoice #',
+  linkedCheck: 'Check #',
   sellTotal: 'Sell Total',
   commissionPercent: 'Commission %',
   commission: 'Commission',
@@ -59,23 +65,99 @@ const defaultVisibleColumns: ColumnKey[] = [
   'uom',
   'divisor',
   'unitPrice',
+  'lineStatus',
   'sellTotal',
   'commissionPercent',
   'commission',
   'commissionTotal',
+  'linkedQuote',
+  'linkedInvoice',
+  'linkedCheck',
 ];
 
-// Helper function to get line item shipping status
-const getLineShipStatus = (quantity: number, shippedQty: number): { label: string; color: string } => {
-  if (shippedQty === 0) {
+// Helper function to get linked invoices for an order line item
+const getLinkedInvoicesForLineItem = (
+  lineItem: OrderLineItem,
+  orderId: string,
+  allInvoices: Invoice[]
+): Invoice[] => {
+  // First check explicit linkedInvoiceIds on the line item
+  if (lineItem.linkedInvoiceIds && lineItem.linkedInvoiceIds.length > 0) {
+    return allInvoices.filter(inv => lineItem.linkedInvoiceIds!.includes(inv.id));
+  }
+
+  // Fallback: find invoices that reference this order and have line items matching this order line
+  return allInvoices.filter(inv => {
+    if (inv.orderId !== orderId) return false;
+    // Check if invoice has a line item referencing this order line item
+    return inv.lineItems.some(ili => ili.orderLineItemId === lineItem.id);
+  });
+};
+
+// Helper function to calculate invoiced quantity from linked invoices
+const calculateInvoicedQtyFromInvoices = (
+  lineItem: OrderLineItem,
+  linkedInvoices: Invoice[]
+): number => {
+  return linkedInvoices.reduce((total, invoice) => {
+    // Find matching line item in invoice
+    const matchingLine = invoice.lineItems.find(
+      ili => ili.orderLineItemId === lineItem.id
+    );
+    if (matchingLine) {
+      return total + matchingLine.quantity;
+    }
+    // Fallback: if invoice has no line items (unknown line items case), derive qty from amount
+    if (invoice.lineItems.length === 0 && lineItem.unitPrice > 0) {
+      // For invoices with no line items, we can't determine per-line allocation
+      // So we just indicate there's a linked invoice but status will be based on presence
+      return total; // Don't add anything - we'll handle this case separately
+    }
+    return total;
+  }, 0);
+};
+
+// Helper function to get line item shipping status based on invoice quantities
+const getLineShipStatus = (
+  lineItem: OrderLineItem,
+  linkedInvoices: Invoice[]
+): { label: string; color: string } => {
+  const orderQty = lineItem.quantity;
+
+  // Calculate invoiced quantity from linked invoices
+  let invoicedQty = calculateInvoicedQtyFromInvoices(lineItem, linkedInvoices);
+
+  // Special case: if there are linked invoices with no line items, derive qty from total
+  const invoicesWithNoLines = linkedInvoices.filter(inv => inv.lineItems.length === 0);
+  if (invoicesWithNoLines.length > 0 && lineItem.unitPrice > 0) {
+    // For unknown line items, calculate proportional qty based on invoice total
+    // This is a simplification - assumes even distribution across order lines
+    invoicesWithNoLines.forEach(inv => {
+      // Derive quantity from invoice total / unit price
+      const derivedQty = Math.round(inv.total / lineItem.unitPrice);
+      invoicedQty += Math.min(derivedQty, orderQty); // Cap at order qty
+    });
+  }
+
+  if (invoicedQty === 0 && linkedInvoices.length === 0) {
     return { label: 'Open', color: 'bg-gray-100 text-gray-700' };
-  } else if (shippedQty < quantity) {
+  } else if (invoicedQty < orderQty) {
     return { label: 'Partial', color: 'bg-yellow-100 text-yellow-700' };
-  } else if (shippedQty === quantity) {
+  } else if (invoicedQty >= orderQty) {
     return { label: 'Complete', color: 'bg-green-100 text-green-700' };
   } else {
-    return { label: 'Overshipped', color: 'bg-red-100 text-red-700' };
+    return { label: 'Open', color: 'bg-gray-100 text-gray-700' };
   }
+};
+
+// Helper function to get linked commission checks for an invoice
+const getLinkedChecksForInvoice = (
+  invoiceId: string,
+  allChecks: CommissionCheck[]
+): CommissionCheck[] => {
+  return allChecks.filter(check =>
+    check.details.some(detail => detail.type === 'invoice' && detail.referenceId === invoiceId)
+  );
 };
 
 // Helper function to get overall order shipping status
@@ -126,6 +208,20 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(new Set(defaultVisibleColumns));
   const [showColumnsModal, setShowColumnsModal] = useState(false);
   const [showActionsDropdown, setShowActionsDropdown] = useState(false);
+
+  // Invoice tooltip state
+  const [invoiceTooltip, setInvoiceTooltip] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    invoices: Invoice[];
+  }>({ visible: false, x: 0, y: 0, invoices: [] });
+  const [portalMounted, setPortalMounted] = useState(false);
+
+  // Ensure portal is only rendered on client side
+  useEffect(() => {
+    setPortalMounted(true);
+  }, []);
 
   // Line item bulk actions state
   const [showLineItemsBulkActionsMenu, setShowLineItemsBulkActionsMenu] = useState(false);
@@ -422,6 +518,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   }
 
   return (
+    <>
     <main className="flex-1 overflow-auto bg-[var(--background)]">
       {/* Header - Matching Quotes Simple View */}
       <div className="border-b border-[var(--border)] bg-[var(--card)] px-6 py-4 flex-shrink-0">
@@ -1515,6 +1612,21 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                           Commission Total
                         </th>
                       )}
+                      {visibleColumns.has('linkedQuote') && (
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap min-w-[120px]">
+                          Quote #
+                        </th>
+                      )}
+                      {visibleColumns.has('linkedInvoice') && (
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap min-w-[120px]">
+                          Invoice #
+                        </th>
+                      )}
+                      {visibleColumns.has('linkedCheck') && (
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap min-w-[120px]">
+                          Check #
+                        </th>
+                      )}
                       {visibleColumns.has('invoiced') && (
                         <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">
                           Invoiced
@@ -1741,8 +1853,9 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                         )}
                         {visibleColumns.has('lineStatus') && (
                           <td className="px-3 py-2 text-sm text-center">
-                            {item.partNumber !== 'FREIGHT' && (() => {
-                              const status = getLineShipStatus(item.quantity, item.quantityShipped);
+                            {item.partNumber !== 'FREIGHT' && !item.isCredit && (() => {
+                              const linkedInvoices = getLinkedInvoicesForLineItem(item, order!.id, mockInvoices);
+                              const status = getLineShipStatus(item, linkedInvoices);
                               return (
                                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${status.color}`}>
                                   {status.label}
@@ -1767,6 +1880,84 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                         {visibleColumns.has('commissionTotal') && (
                           <td className={`px-3 py-2 text-sm text-right font-medium ${item.isCredit ? 'text-red-600' : 'text-purple-600'}`}>
                             {item.partNumber === 'FREIGHT' && !item.isCredit ? '' : formatCurrency(item.extendedPrice * (item.commissionRate || 0.08))}
+                          </td>
+                        )}
+                        {visibleColumns.has('linkedQuote') && (
+                          <td className="px-3 py-2 text-sm text-left min-w-[120px]">
+                            {item.partNumber !== 'FREIGHT' && !item.isCredit && order?.quoteId ? (
+                              <button
+                                onClick={() => router.push(`/quotes/${order.quoteId}`)}
+                                className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer whitespace-nowrap"
+                              >
+                                {order.quoteNumber}
+                              </button>
+                            ) : (
+                              <span className="text-[var(--muted-foreground)]">-</span>
+                            )}
+                          </td>
+                        )}
+                        {visibleColumns.has('linkedInvoice') && (
+                          <td className="px-3 py-2 text-sm text-left min-w-[120px]">
+                            {item.partNumber !== 'FREIGHT' && !item.isCredit && (() => {
+                              const linkedInvoices = getLinkedInvoicesForLineItem(item, order!.id, mockInvoices);
+                              if (linkedInvoices.length === 0) {
+                                return <span className="text-[var(--muted-foreground)]">-</span>;
+                              }
+                              return (
+                                <button
+                                  onClick={() => router.push(`/invoices/${linkedInvoices[0].id}`)}
+                                  onMouseEnter={(e) => {
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    setInvoiceTooltip({
+                                      visible: true,
+                                      x: rect.left,
+                                      y: rect.top,
+                                      invoices: linkedInvoices,
+                                    });
+                                  }}
+                                  onMouseLeave={() => setInvoiceTooltip(prev => ({ ...prev, visible: false }))}
+                                  className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer whitespace-nowrap"
+                                >
+                                  {linkedInvoices[0].invoiceNumber}
+                                  {linkedInvoices.length > 1 && (
+                                    <span className="ml-1 text-xs text-[var(--muted-foreground)]">
+                                      +{linkedInvoices.length - 1}
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            })()}
+                          </td>
+                        )}
+                        {visibleColumns.has('linkedCheck') && (
+                          <td className="px-3 py-2 text-sm text-left min-w-[120px]">
+                            {item.partNumber !== 'FREIGHT' && !item.isCredit && (() => {
+                              const linkedInvoices = getLinkedInvoicesForLineItem(item, order!.id, mockInvoices);
+                              // Get all checks linked to any of the invoices
+                              const linkedChecks = linkedInvoices.flatMap(inv =>
+                                getLinkedChecksForInvoice(inv.id, mockChecks)
+                              );
+                              // Remove duplicates
+                              const uniqueChecks = linkedChecks.filter((check, index, self) =>
+                                index === self.findIndex(c => c.id === check.id)
+                              );
+                              if (uniqueChecks.length === 0) {
+                                return <span className="text-[var(--muted-foreground)]">-</span>;
+                              }
+                              return (
+                                <button
+                                  onClick={() => router.push(`/commissions/${uniqueChecks[0].id}`)}
+                                  className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer whitespace-nowrap"
+                                >
+                                  {uniqueChecks[0].checkNumber}
+                                  {uniqueChecks.length > 1 && (
+                                    <span className="ml-1 text-xs text-[var(--muted-foreground)]">
+                                      +{uniqueChecks.length - 1}
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            })()}
                           </td>
                         )}
                         {visibleColumns.has('invoiced') && (
@@ -3933,6 +4124,51 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           </div>
         </div>
       )}
+
     </main>
+
+      {/* Invoice Tooltip - rendered via Portal to document.body to avoid all overflow clipping issues */}
+      {portalMounted && invoiceTooltip.visible && invoiceTooltip.invoices.length > 0 && createPortal(
+        <div
+          className="fixed z-[99999] bg-gray-900 text-white text-sm rounded-lg shadow-xl px-4 py-3 min-w-[220px] max-w-[280px] pointer-events-none"
+          style={{
+            left: Math.min(invoiceTooltip.x, window.innerWidth - 300),
+            top: invoiceTooltip.y - 10,
+            transform: 'translateY(-100%)',
+          }}
+        >
+          <div className="font-semibold mb-2 text-base text-blue-400">
+            {invoiceTooltip.invoices.length === 1 ? 'Invoice Details' : 'Linked Invoices'}
+          </div>
+          {invoiceTooltip.invoices.map((inv) => (
+            <div key={inv.id} className="mb-2 last:mb-0 pb-2 last:pb-0 border-b border-gray-700 last:border-0">
+              <div className="font-medium text-blue-400">{inv.invoiceNumber}</div>
+              <div className="space-y-1 mt-1">
+                <div className="flex justify-between gap-4">
+                  <span className="text-gray-400">Total:</span>
+                  <span className="font-medium">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(inv.total)}</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-gray-400">Status:</span>
+                  <span className={`font-medium ${inv.status === 'paid' ? 'text-green-400' : inv.status === 'open' ? 'text-blue-400' : ''}`}>
+                    {inv.status.charAt(0).toUpperCase() + inv.status.slice(1).replace('_', ' ')}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-gray-400">Date:</span>
+                  <span className="font-medium">{new Date(inv.invoiceDate).toLocaleDateString()}</span>
+                </div>
+                {inv.lineItems.length === 0 && (
+                  <div className="text-amber-400 italic text-xs mt-1">
+                    Unknown line items
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>,
+        document.body
+      )}
+    </>
   );
 }

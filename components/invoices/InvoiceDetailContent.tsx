@@ -1,12 +1,15 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import {
   mockInvoices,
   mockSalesReps,
+  mockOrders,
+  mockChecks,
 } from '../../lib/data/rms-mock';
-import type { OrderSplitRate } from '../../lib/types/rms';
+import type { OrderSplitRate, InvoiceLineItem, Order, CommissionCheck } from '../../lib/types/rms';
 import {
   Invoice,
   invoiceStatusLabels,
@@ -17,10 +20,10 @@ interface InvoiceDetailContentProps {
   invoiceId: string;
 }
 
-type TabType = 'line-items' | 'payments' | 'notes' | 'tasks' | 'activity' | 'linked-objects' | 'settings';
+type TabType = 'line-items' | 'credits' | 'notes' | 'tasks' | 'activity' | 'linked-objects' | 'settings';
 
 // Column definitions for the line items table
-type ColumnKey = 'partNumber' | 'custPartNumber' | 'description' | 'uom' | 'divisor' | 'unitPrice' | 'quantity' | 'sellTotal' | 'commissionPercent' | 'commission' | 'commissionTotal' | 'percentOver' | 'commissionAmount' | 'ovgPercent' | 'ovgAmount' | 'earnPercent' | 'earnAmount';
+type ColumnKey = 'partNumber' | 'custPartNumber' | 'description' | 'uom' | 'divisor' | 'unitPrice' | 'quantity' | 'linkedOrder' | 'linkedCheck' | 'sellTotal' | 'commissionPercent' | 'commission' | 'commissionTotal' | 'percentOver' | 'commissionAmount' | 'ovgPercent' | 'ovgAmount' | 'earnPercent' | 'earnAmount';
 
 const columnLabels: Record<ColumnKey, string> = {
   partNumber: 'Part #',
@@ -30,6 +33,8 @@ const columnLabels: Record<ColumnKey, string> = {
   divisor: 'Divisor',
   unitPrice: 'Unit Price',
   quantity: 'Qty',
+  linkedOrder: 'Order #',
+  linkedCheck: 'Check #',
   sellTotal: 'Sell Total',
   commissionPercent: 'Commission %',
   commission: 'Commission',
@@ -43,6 +48,9 @@ const columnLabels: Record<ColumnKey, string> = {
 };
 
 const defaultVisibleColumns: ColumnKey[] = [
+  'partNumber',
+  'custPartNumber',
+  'description',
   'quantity',
   'uom',
   'divisor',
@@ -51,7 +59,48 @@ const defaultVisibleColumns: ColumnKey[] = [
   'commissionPercent',
   'commission',
   'commissionTotal',
+  'linkedOrder',
+  'linkedCheck',
 ];
+
+// Helper function to get linked orders for an invoice line item
+const getLinkedOrdersForInvoiceLine = (
+  invoiceLineItem: InvoiceLineItem,
+  invoice: Invoice,
+  allOrders: Order[]
+): Order[] => {
+  // Check if there are explicit linkedOrderLineItemIds
+  if (invoiceLineItem.linkedOrderLineItemIds && invoiceLineItem.linkedOrderLineItemIds.length > 0) {
+    // Find orders that contain any of these line items
+    return allOrders.filter(order =>
+      order.lineItems.some(oli =>
+        invoiceLineItem.linkedOrderLineItemIds!.includes(oli.id)
+      )
+    );
+  }
+
+  // Fallback: find order via orderLineItemId
+  if (invoiceLineItem.orderLineItemId) {
+    const linkedOrder = allOrders.find(order =>
+      order.lineItems.some(oli => oli.id === invoiceLineItem.orderLineItemId)
+    );
+    return linkedOrder ? [linkedOrder] : [];
+  }
+
+  // Last resort: use invoice's orderId
+  const order = allOrders.find(o => o.id === invoice.orderId);
+  return order ? [order] : [];
+};
+
+// Helper function to get linked commission checks for an invoice
+const getLinkedChecksForInvoice = (
+  invoiceId: string,
+  allChecks: CommissionCheck[]
+): CommissionCheck[] => {
+  return allChecks.filter(check =>
+    check.details.some(detail => detail.type === 'invoice' && detail.referenceId === invoiceId)
+  );
+};
 
 // Available reps
 const availableOutsideReps = [
@@ -84,6 +133,20 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [showSaveDropdown, setShowSaveDropdown] = useState(false);
 
+  // Order tooltip state
+  const [orderTooltip, setOrderTooltip] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    orders: Order[];
+  }>({ visible: false, x: 0, y: 0, orders: [] });
+  const [portalMounted, setPortalMounted] = useState(false);
+
+  // Ensure portal is only rendered on client side
+  useEffect(() => {
+    setPortalMounted(true);
+  }, []);
+
   // Version state
   const [currentVersion, setCurrentVersion] = useState<number>(1);
   const [showVersionDropdown, setShowVersionDropdown] = useState(false);
@@ -110,7 +173,50 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
   const [showInsideRepSplitsModal, setShowInsideRepSplitsModal] = useState(false);
   const [insideRepSplits, setInsideRepSplits] = useState<{repId: string; repName: string; percentage: number}[]>([]);
 
+  // Line item credits - maps invoice line item ID to credit info inherited from linked order
+  // This is computed based on the current invoice
+  const lineItemCredits = useMemo(() => {
+    const credits: Record<string, { creditName: string; creditType: string; creditQty: number; originalQty: number; originalTotal: number }> = {};
+
+    const currentInvoice = invoices.find(i => i.id === invoiceId);
+    if (!currentInvoice) return credits;
+
+    // Find the linked order
+    const order = mockOrders.find(o => o.id === currentInvoice.orderId);
+    if (!order) return credits;
+
+    // For each invoice line item, check if there's a credit on the linked order line
+    currentInvoice.lineItems.forEach(invLine => {
+      // Find credit line items that reference this order line item
+      const creditLines = order.lineItems.filter(
+        ol => ol.isCredit && ol.linkedLineItemId === invLine.orderLineItemId
+      );
+
+      creditLines.forEach(creditLine => {
+        // Get the original order line to find original values
+        const originalOrderLine = order.lineItems.find(ol => ol.id === creditLine.linkedLineItemId);
+        if (originalOrderLine) {
+          credits[invLine.id] = {
+            creditName: `CR-${creditLine.id}`,
+            creditType: creditLine.creditType === 'return' ? 'Return' :
+                       creditLine.creditType === 'short_ship' ? 'Short Ship' :
+                       creditLine.creditType === 'cancel' ? 'Cancel' :
+                       creditLine.creditType === 'damage' ? 'Damage' : 'Credit',
+            creditQty: Math.abs(creditLine.quantity),
+            originalQty: originalOrderLine.quantity,
+            originalTotal: originalOrderLine.quantity * originalOrderLine.unitPrice,
+          };
+        }
+      });
+    });
+
+    return credits;
+  }, [invoices, invoiceId]);
+
   const invoice = useMemo(() => invoices.find(i => i.id === invoiceId), [invoices, invoiceId]);
+
+  // Check if invoice is connected to an order - if so, certain fields should be read-only
+  const isConnectedToOrder = !!invoice?.orderId;
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -294,6 +400,7 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
   const overdue = isOverdue(invoice);
 
   return (
+    <>
     <main className="flex-1 overflow-auto bg-[var(--background)]">
       {/* Header - Matching Quotes Simple View */}
       <div className="border-b border-[var(--border)] bg-[var(--card)] px-6 py-4 flex-shrink-0">
@@ -343,59 +450,49 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
               </button>
               {showActionsDropdown && (
                 <div className="absolute top-full left-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
-                  {(invoice.status === 'open' || invoice.status === 'partial_paid') && invoice.balance > 0 && (
+                  {invoice.orderId ? (
                     <button
                       onClick={() => {
-                        alert('Record payment');
+                        router.push(`/orders/${invoice.orderId}`);
                         setShowActionsDropdown(false);
                       }}
-                      className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-t-lg flex items-center gap-2"
+                      className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-lg flex items-center gap-2"
                     >
                       <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M12 2v6m0 0l3-3m-3 3L9 5" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M2 10h2m14 0h-2M6 14h8" strokeLinecap="round"/>
+                        <path d="M13 2H6a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7z" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M13 2v5h5" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
-                      Record Payment
+                      View Order
                     </button>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => {
+                          alert('Create order from invoice');
+                          setShowActionsDropdown(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-t-lg flex items-center gap-2"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                        </svg>
+                        Create Order
+                      </button>
+                      <button
+                        onClick={() => {
+                          alert('Connect to existing order');
+                          setShowActionsDropdown(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-b-lg flex items-center gap-2"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M8 6h8M8 10h8M8 14h8" strokeLinecap="round"/>
+                          <path d="M4 6h.01M4 10h.01M4 14h.01" strokeLinecap="round"/>
+                        </svg>
+                        Connect to Order
+                      </button>
+                    </>
                   )}
-                  <button
-                    onClick={() => {
-                      alert('Create credit');
-                      setShowActionsDropdown(false);
-                    }}
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                    Create Credit
-                  </button>
-                  <button
-                    onClick={() => {
-                      alert('Duplicate invoice');
-                      setShowActionsDropdown(false);
-                    }}
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="6" y="6" width="12" height="12" rx="2"/>
-                      <path d="M4 14V4a2 2 0 012-2h10"/>
-                    </svg>
-                    Duplicate Invoice
-                  </button>
-                  <button
-                    onClick={() => {
-                      alert('Email invoice');
-                      setShowActionsDropdown(false);
-                    }}
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-b-lg flex items-center gap-2"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                      <path d="M22 6l-10 7L2 6"/>
-                    </svg>
-                    Email Invoice
-                  </button>
                 </div>
               )}
             </div>
@@ -718,7 +815,10 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
                 <div className="relative">
                   <select
                     value={invoice.customerName}
-                    className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none cursor-pointer pr-8"
+                    disabled={isConnectedToOrder}
+                    className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none pr-8 ${
+                      isConnectedToOrder ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white cursor-pointer'
+                    }`}
                     onChange={() => {}}
                   >
                     <option value={invoice.customerName}>{invoice.customerName}</option>
@@ -728,7 +828,7 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
                     <option value="DPR Construction">DPR Construction</option>
                     <option value="Clark Construction">Clark Construction</option>
                   </select>
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]">
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className={`absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none ${isConnectedToOrder ? 'text-gray-400' : 'text-[var(--muted-foreground)]'}`}>
                     <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </div>
@@ -741,7 +841,10 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
                 <div className="relative">
                   <select
                     value={invoice.manufacturerName}
-                    className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none cursor-pointer pr-8"
+                    disabled={isConnectedToOrder}
+                    className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none pr-8 ${
+                      isConnectedToOrder ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white cursor-pointer'
+                    }`}
                     onChange={() => {}}
                   >
                     <option value={invoice.manufacturerName}>{invoice.manufacturerName}</option>
@@ -750,7 +853,7 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
                     <option value="Ferguson Enterprises">Ferguson Enterprises</option>
                     <option value="Rexel USA">Rexel USA</option>
                   </select>
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]">
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className={`absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none ${isConnectedToOrder ? 'text-gray-400' : 'text-[var(--muted-foreground)]'}`}>
                     <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </div>
@@ -763,7 +866,10 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
                 <div className="relative">
                   <select
                     value=""
-                    className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none cursor-pointer pr-8"
+                    disabled={isConnectedToOrder}
+                    className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none pr-8 ${
+                      isConnectedToOrder ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white cursor-pointer'
+                    }`}
                     onChange={() => {}}
                   >
                     <option value={invoice.customerName}>{invoice.customerName}</option>
@@ -771,13 +877,13 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
                     <option value="Hensel Phelps">Hensel Phelps</option>
                     <option value="Skanska USA">Skanska USA</option>
                   </select>
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]">
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className={`absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none ${isConnectedToOrder ? 'text-gray-400' : 'text-[var(--muted-foreground)]'}`}>
                     <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </div>
                 <div className="mt-1 flex items-center gap-1">
-                  <input type="checkbox" id="sameAsSoldTo" defaultChecked className="accent-[var(--primary)]" />
-                  <label htmlFor="sameAsSoldTo" className="text-xs text-[var(--muted-foreground)]">Same as Sold To</label>
+                  <input type="checkbox" id="sameAsSoldTo" defaultChecked disabled={isConnectedToOrder} className={`accent-[var(--primary)] ${isConnectedToOrder ? 'opacity-50' : ''}`} />
+                  <label htmlFor="sameAsSoldTo" className={`text-xs ${isConnectedToOrder ? 'text-gray-400' : 'text-[var(--muted-foreground)]'}`}>Same as Sold To</label>
                 </div>
               </div>
 
@@ -789,7 +895,10 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
                   type="text"
                   value=""
                   placeholder="Job name"
-                  className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
+                  disabled={isConnectedToOrder}
+                  className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent ${
+                    isConnectedToOrder ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white'
+                  }`}
                   readOnly
                 />
               </div>
@@ -801,7 +910,10 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
                 <input
                   type="text"
                   value="Net 60"
-                  className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
+                  disabled={isConnectedToOrder}
+                  className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent ${
+                    isConnectedToOrder ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white'
+                  }`}
                   readOnly
                 />
               </div>
@@ -813,7 +925,10 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
                 <input
                   type="text"
                   value="Prepaid & Add"
-                  className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
+                  disabled={isConnectedToOrder}
+                  className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent ${
+                    isConnectedToOrder ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white'
+                  }`}
                   readOnly
                 />
               </div>
@@ -902,7 +1017,10 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
                   value={poNumber}
                   onChange={(e) => setPoNumber(e.target.value)}
                   placeholder="Enter PO #"
-                  className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
+                  disabled={isConnectedToOrder}
+                  className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent ${
+                    isConnectedToOrder ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white'
+                  }`}
                 />
               </div>
 
@@ -913,6 +1031,7 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
                 <div className="relative">
                   <select
                     value={invoiceOutsideRep}
+                    disabled={isConnectedToOrder}
                     onChange={(e) => {
                       setInvoiceOutsideRep(e.target.value);
                       if (!e.target.value) {
@@ -920,18 +1039,20 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
                         setOutsideRepSplits([]);
                       }
                     }}
-                    className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none cursor-pointer pr-8"
+                    className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none pr-8 ${
+                      isConnectedToOrder ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white cursor-pointer'
+                    }`}
                   >
                     <option value="">Select Rep...</option>
                     {availableOutsideReps.map(rep => (
                       <option key={rep.id} value={rep.id}>{rep.name}</option>
                     ))}
                   </select>
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]">
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className={`absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none ${isConnectedToOrder ? 'text-gray-400' : 'text-[var(--muted-foreground)]'}`}>
                     <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </div>
-                {invoiceOutsideRep && (
+                {invoiceOutsideRep && !isConnectedToOrder && (
                   <div className="mt-2 flex items-center gap-2">
                     <input
                       type="checkbox"
@@ -973,6 +1094,7 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
                 <div className="relative">
                   <select
                     value={invoiceInsideRep}
+                    disabled={isConnectedToOrder}
                     onChange={(e) => {
                       setInvoiceInsideRep(e.target.value);
                       if (!e.target.value) {
@@ -980,18 +1102,20 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
                         setInsideRepSplits([]);
                       }
                     }}
-                    className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none cursor-pointer pr-8"
+                    className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none pr-8 ${
+                      isConnectedToOrder ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white cursor-pointer'
+                    }`}
                   >
                     <option value="">Select Rep...</option>
                     {availableInsideReps.map(rep => (
                       <option key={rep.id} value={rep.id}>{rep.name}</option>
                     ))}
                   </select>
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]">
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className={`absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none ${isConnectedToOrder ? 'text-gray-400' : 'text-[var(--muted-foreground)]'}`}>
                     <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </div>
-                {invoiceInsideRep && (
+                {invoiceInsideRep && !isConnectedToOrder && (
                   <div className="mt-2 flex items-center gap-2">
                     <input
                       type="checkbox"
@@ -1039,7 +1163,7 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
             <div className="flex gap-1">
               {[
                 { id: 'line-items', label: 'Line Items', count: invoice.lineItems.length },
-                { id: 'payments', label: 'Payments', count: payments.length },
+                { id: 'credits', label: 'Credits', count: Object.keys(lineItemCredits).length },
                 { id: 'notes', label: 'Notes' },
                 { id: 'tasks', label: 'Tasks' },
                 { id: 'activity', label: 'Activity' },
@@ -1249,12 +1373,154 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
                           Earn $
                         </th>
                       )}
+                      {visibleColumns.has('linkedOrder') && (
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap min-w-[120px]">
+                          Order #
+                        </th>
+                      )}
+                      {visibleColumns.has('linkedCheck') && (
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap min-w-[120px]">
+                          Check #
+                        </th>
+                      )}
                       {/* Actions column */}
                       <th className="px-2 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase w-10"></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {invoice.lineItems.map(item => (
+                    {/* Show "Unknown line items" placeholder if invoice has no line items */}
+                    {invoice.lineItems.length === 0 ? (
+                      <tr className="border-b border-[var(--border)] bg-amber-50/50">
+                        <td className="px-3 py-2">
+                          <input
+                            type="checkbox"
+                            disabled
+                            className="accent-[var(--primary)] opacity-50"
+                          />
+                        </td>
+                        {visibleColumns.has('partNumber') && (
+                          <td className="px-3 py-2 text-sm">
+                            <span className="text-amber-700 italic">Unknown</span>
+                          </td>
+                        )}
+                        {visibleColumns.has('custPartNumber') && (
+                          <td className="px-3 py-2 text-sm text-[var(--muted-foreground)]">-</td>
+                        )}
+                        {visibleColumns.has('description') && (
+                          <td className="px-3 py-2 text-sm max-w-[200px]">
+                            <span className="text-amber-700 italic">Unknown line items</span>
+                          </td>
+                        )}
+                        {visibleColumns.has('uom') && (
+                          <td className="px-3 py-2 text-sm text-center">-</td>
+                        )}
+                        {visibleColumns.has('divisor') && (
+                          <td className="px-3 py-2 text-sm text-center">1</td>
+                        )}
+                        {visibleColumns.has('unitPrice') && (
+                          <td className="px-3 py-2 text-sm text-right">{formatCurrency(invoice.total)}</td>
+                        )}
+                        {visibleColumns.has('quantity') && (
+                          <td className="px-3 py-2 text-sm text-center">1</td>
+                        )}
+                        {visibleColumns.has('sellTotal') && (
+                          <td className="px-3 py-2 text-sm text-right font-medium">{formatCurrency(invoice.total)}</td>
+                        )}
+                        {visibleColumns.has('commissionPercent') && viewMode === 'simple' && (
+                          <td className="px-3 py-2 text-sm text-right text-purple-600">
+                            {invoice.total > 0 ? `${((invoice.totalCommission / invoice.total) * 100).toFixed(0)}%` : '-'}
+                          </td>
+                        )}
+                        {visibleColumns.has('commission') && (
+                          <td className="px-3 py-2 text-sm text-right text-purple-600">
+                            {formatCurrency(invoice.totalCommission)}
+                          </td>
+                        )}
+                        {visibleColumns.has('commissionTotal') && (
+                          <td className="px-3 py-2 text-sm text-right text-purple-600 font-medium">
+                            {formatCurrency(invoice.totalCommission)}
+                          </td>
+                        )}
+                        {visibleColumns.has('percentOver') && (
+                          <td className="px-3 py-2 text-sm text-right">-</td>
+                        )}
+                        {visibleColumns.has('commissionPercent') && viewMode === 'overage' && (
+                          <td className="px-3 py-2 text-sm text-right text-purple-600">-</td>
+                        )}
+                        {visibleColumns.has('commissionAmount') && (
+                          <td className="px-3 py-2 text-sm text-right text-purple-600">-</td>
+                        )}
+                        {visibleColumns.has('ovgPercent') && (
+                          <td className="px-3 py-2 text-sm text-right text-orange-500">-</td>
+                        )}
+                        {visibleColumns.has('ovgAmount') && (
+                          <td className="px-3 py-2 text-sm text-right text-orange-500">-</td>
+                        )}
+                        {visibleColumns.has('earnPercent') && (
+                          <td className="px-3 py-2 text-sm text-right text-green-600">-</td>
+                        )}
+                        {visibleColumns.has('earnAmount') && (
+                          <td className="px-3 py-2 text-sm text-right text-green-600 font-medium">-</td>
+                        )}
+                        {visibleColumns.has('linkedOrder') && (
+                          <td className="px-3 py-2 text-sm text-left min-w-[120px]">
+                            {(() => {
+                              // Get the linked order from invoice.orderId
+                              const linkedOrder = mockOrders.find(o => o.id === invoice.orderId);
+                              if (!linkedOrder) {
+                                return <span className="text-[var(--muted-foreground)]">-</span>;
+                              }
+                              return (
+                                <button
+                                  onClick={() => router.push(`/orders/${linkedOrder.id}`)}
+                                  onMouseEnter={(e) => {
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    setOrderTooltip({
+                                      visible: true,
+                                      x: rect.left,
+                                      y: rect.top,
+                                      orders: [linkedOrder],
+                                    });
+                                  }}
+                                  onMouseLeave={() => setOrderTooltip(prev => ({ ...prev, visible: false }))}
+                                  className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer whitespace-nowrap"
+                                >
+                                  {linkedOrder.orderNumber}
+                                  <span className="ml-1 text-xs text-[var(--muted-foreground)]">
+                                    ({linkedOrder.lineItems.filter(li => !li.isCredit && li.partNumber !== 'FREIGHT').length} lines)
+                                  </span>
+                                </button>
+                              );
+                            })()}
+                          </td>
+                        )}
+                        {visibleColumns.has('linkedCheck') && (
+                          <td className="px-3 py-2 text-sm text-left min-w-[120px]">
+                            {(() => {
+                              const linkedChecks = getLinkedChecksForInvoice(invoice.id, mockChecks);
+                              if (linkedChecks.length === 0) {
+                                return <span className="text-[var(--muted-foreground)]">-</span>;
+                              }
+                              return (
+                                <button
+                                  onClick={() => router.push(`/commissions/${linkedChecks[0].id}`)}
+                                  className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer whitespace-nowrap"
+                                >
+                                  {linkedChecks[0].checkNumber}
+                                  {linkedChecks.length > 1 && (
+                                    <span className="ml-1 text-xs text-[var(--muted-foreground)]">
+                                      +{linkedChecks.length - 1}
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            })()}
+                          </td>
+                        )}
+                        <td className="px-2 py-2"></td>
+                      </tr>
+                    ) : (
+                      invoice.lineItems.map(item => (
                       <tr
                         key={item.id}
                         className={`border-b border-[var(--border)] hover:bg-[var(--muted)]/20 transition-colors ${
@@ -1262,12 +1528,54 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
                         }`}
                       >
                         <td className="px-3 py-2">
-                          <input
-                            type="checkbox"
-                            checked={selectedLineItems.has(item.id)}
-                            onChange={() => toggleLineItemSelection(item.id)}
-                            className="accent-[var(--primary)]"
-                          />
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedLineItems.has(item.id)}
+                              onChange={() => toggleLineItemSelection(item.id)}
+                              className="accent-[var(--primary)]"
+                            />
+                            {/* Credit indicator */}
+                            {lineItemCredits[item.id] && (() => {
+                              const credit = lineItemCredits[item.id];
+                              return (
+                                <div className="relative group">
+                                  <div className="w-6 h-6 rounded bg-red-100 flex items-center justify-center cursor-help">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-600">
+                                      <circle cx="12" cy="12" r="10"/>
+                                      <path d="M8 12h8"/>
+                                    </svg>
+                                  </div>
+                                  <div className="fixed transform -translate-y-full -mt-2 ml-8 px-4 py-3 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-[9999] pointer-events-none shadow-xl min-w-[220px]">
+                                    <div className="font-semibold mb-2 text-base text-red-400">Credit Applied</div>
+                                    <div className="space-y-1">
+                                      <div className="flex justify-between gap-4">
+                                        <span className="text-gray-400">Type:</span>
+                                        <span className="font-medium">{credit.creditType}</span>
+                                      </div>
+                                      <div className="flex justify-between gap-4">
+                                        <span className="text-gray-400">Credit Qty:</span>
+                                        <span className="font-medium text-red-400">-{credit.creditQty}</span>
+                                      </div>
+                                    </div>
+                                    <div className="border-t border-gray-700 mt-2 pt-2">
+                                      <div className="text-gray-500 text-xs uppercase tracking-wide mb-1">Original Values</div>
+                                      <div className="space-y-1">
+                                        <div className="flex justify-between gap-4">
+                                          <span className="text-gray-400">Qty:</span>
+                                          <span className="font-medium">{credit.originalQty}</span>
+                                        </div>
+                                        <div className="flex justify-between gap-4">
+                                          <span className="text-gray-400">Total:</span>
+                                          <span className="font-medium">{formatCurrency(credit.originalTotal)}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </div>
                         </td>
                         {visibleColumns.has('partNumber') && (
                           <td className="px-3 py-2 text-sm">
@@ -1371,6 +1679,62 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
                             {formatCurrency((item.amount * (item.commissionRate || 0.08)) + (item.unitPrice * 0.15 * item.quantity * 0.85))}
                           </td>
                         )}
+                        {visibleColumns.has('linkedOrder') && (
+                          <td className="px-3 py-2 text-sm text-left min-w-[120px]">
+                            {(() => {
+                              const linkedOrders = getLinkedOrdersForInvoiceLine(item, invoice, mockOrders);
+                              if (linkedOrders.length === 0) {
+                                return <span className="text-[var(--muted-foreground)]">-</span>;
+                              }
+                              return (
+                                <button
+                                  onClick={() => router.push(`/orders/${linkedOrders[0].id}`)}
+                                  onMouseEnter={(e) => {
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    setOrderTooltip({
+                                      visible: true,
+                                      x: rect.left,
+                                      y: rect.top,
+                                      orders: linkedOrders,
+                                    });
+                                  }}
+                                  onMouseLeave={() => setOrderTooltip(prev => ({ ...prev, visible: false }))}
+                                  className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer whitespace-nowrap"
+                                >
+                                  {linkedOrders[0].orderNumber}
+                                  {linkedOrders.length > 1 && (
+                                    <span className="ml-1 text-xs text-[var(--muted-foreground)]">
+                                      +{linkedOrders.length - 1}
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            })()}
+                          </td>
+                        )}
+                        {visibleColumns.has('linkedCheck') && (
+                          <td className="px-3 py-2 text-sm text-left min-w-[120px]">
+                            {(() => {
+                              const linkedChecks = getLinkedChecksForInvoice(invoice.id, mockChecks);
+                              if (linkedChecks.length === 0) {
+                                return <span className="text-[var(--muted-foreground)]">-</span>;
+                              }
+                              return (
+                                <button
+                                  onClick={() => router.push(`/commissions/${linkedChecks[0].id}`)}
+                                  className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer whitespace-nowrap"
+                                >
+                                  {linkedChecks[0].checkNumber}
+                                  {linkedChecks.length > 1 && (
+                                    <span className="ml-1 text-xs text-[var(--muted-foreground)]">
+                                      +{linkedChecks.length - 1}
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            })()}
+                          </td>
+                        )}
                         <td className="px-2 py-2">
                           <button className="p-1 hover:bg-[var(--muted)] rounded transition-colors">
                             <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1381,7 +1745,8 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
                           </button>
                         </td>
                       </tr>
-                    ))}
+                    ))
+                    )}
                   </tbody>
                 </table>
 
@@ -1398,41 +1763,58 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
             </div>
           )}
 
-          {activeTab === 'payments' && (
+          {activeTab === 'credits' && (
             <div className="space-y-4">
-              {payments.length > 0 ? (
+              {Object.keys(lineItemCredits).length > 0 ? (
                 <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
                   <table className="w-full">
                     <thead className="bg-[var(--muted)]/30">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase">Date</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase">Method</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase">Reference</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase">Amount</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase">Credit ID</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase">Type</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase">Line Item</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase">Credit Qty</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase">Credit Total</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase">Original Qty</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase">Original Total</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {payments.map(payment => (
-                        <tr key={payment.id} className="border-t border-[var(--border)]">
-                          <td className="px-4 py-3 text-sm">{formatDate(payment.date)}</td>
-                          <td className="px-4 py-3 text-sm">{payment.method}</td>
-                          <td className="px-4 py-3 text-sm">{payment.reference}</td>
-                          <td className="px-4 py-3 text-sm text-right font-medium text-green-600">{formatCurrency(payment.amount)}</td>
-                        </tr>
-                      ))}
+                      {Object.entries(lineItemCredits).map(([lineItemId, credit]) => {
+                        const lineItem = invoice.lineItems.find(li => li.id === lineItemId);
+                        const unitPrice = lineItem?.unitPrice || (credit.originalTotal / credit.originalQty);
+                        const creditTotal = credit.creditQty * unitPrice;
+                        return (
+                          <tr key={lineItemId} className="border-t border-[var(--border)]">
+                            <td className="px-4 py-3 text-sm font-medium">{credit.creditName}</td>
+                            <td className="px-4 py-3 text-sm">
+                              <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-medium">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <circle cx="12" cy="12" r="10"/>
+                                  <path d="M8 12h8"/>
+                                </svg>
+                                {credit.creditType.toUpperCase()}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm">{lineItem?.partNumber || lineItem?.description || 'Unknown'}</td>
+                            <td className="px-4 py-3 text-sm text-right font-medium text-red-600">-{credit.creditQty}</td>
+                            <td className="px-4 py-3 text-sm text-right font-medium text-red-600">{formatCurrency(-creditTotal)}</td>
+                            <td className="px-4 py-3 text-sm text-right">{credit.originalQty}</td>
+                            <td className="px-4 py-3 text-sm text-right">{formatCurrency(credit.originalTotal)}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
               ) : (
                 <div className="text-center py-12">
                   <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="mx-auto text-[var(--muted-foreground)] mb-4">
-                    <path d="M12 2v6m0 0l3-3m-3 3L9 5" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M2 10h2m14 0h-2M6 14h8" strokeLinecap="round"/>
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M8 12h8" strokeLinecap="round"/>
                   </svg>
-                  <p className="text-[var(--muted-foreground)]">No payments recorded</p>
-                  <button className="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors">
-                    Record Payment
-                  </button>
+                  <p className="text-[var(--muted-foreground)]">No credits on this invoice</p>
+                  <p className="text-sm text-[var(--muted-foreground)] mt-1">Credits are inherited from linked order line items</p>
                 </div>
               )}
             </div>
@@ -2144,5 +2526,59 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
         </div>
       )}
     </main>
+
+      {/* Order Tooltip - rendered via Portal to document.body to avoid all overflow clipping issues */}
+      {portalMounted && orderTooltip.visible && orderTooltip.orders.length > 0 && createPortal(
+        <div
+          className="fixed z-[99999] bg-gray-900 text-white text-sm rounded-lg shadow-xl px-4 py-3 min-w-[220px] max-w-[320px] pointer-events-none"
+          style={{
+            left: Math.min(orderTooltip.x, typeof window !== 'undefined' ? window.innerWidth - 340 : orderTooltip.x),
+            top: orderTooltip.y - 10,
+            transform: 'translateY(-100%)',
+          }}
+        >
+          <div className="font-semibold mb-2 text-base text-blue-400">
+            {orderTooltip.orders.length === 1 ? 'Order Details' : 'Linked Orders'}
+          </div>
+          {orderTooltip.orders.map((ord) => {
+            const lineItems = ord.lineItems.filter(li => !li.isCredit && li.partNumber !== 'FREIGHT');
+            return (
+              <div key={ord.id} className="mb-2 last:mb-0 pb-2 last:pb-0 border-b border-gray-700 last:border-0">
+                <div className="font-medium text-blue-400">{ord.orderNumber}</div>
+                <div className="space-y-1 mt-1">
+                  <div className="flex justify-between gap-4">
+                    <span className="text-gray-400">Total:</span>
+                    <span className="font-medium">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(ord.total)}</span>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-gray-400">Status:</span>
+                    <span className="font-medium">{ord.status.charAt(0).toUpperCase() + ord.status.slice(1).replace('_', ' ')}</span>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-gray-400">Line Items:</span>
+                    <span className="font-medium">{lineItems.length}</span>
+                  </div>
+                  {lineItems.length > 0 && (
+                    <div className="mt-2 pt-2 border-t border-gray-700">
+                      <div className="text-xs text-gray-400 mb-1">Line Items:</div>
+                      {lineItems.slice(0, 4).map((li) => (
+                        <div key={li.id} className="text-xs flex justify-between gap-2">
+                          <span className="truncate max-w-[150px]">{li.partNumber}</span>
+                          <span className="text-gray-400">x{li.quantity}</span>
+                        </div>
+                      ))}
+                      {lineItems.length > 4 && (
+                        <div className="text-xs text-gray-400 mt-1">+{lineItems.length - 4} more...</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>,
+        document.body
+      )}
+    </>
   );
 }

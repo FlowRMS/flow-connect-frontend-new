@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import type { Company } from '../types';
+import type { Company, CompanyHierarchyRole } from '../types';
 import { getCompanyInitials, getLogoColor, formatDate } from '../utils';
 
 // Sort direction type
@@ -192,6 +192,8 @@ export default function ListView({ companies, onCompanyClick }: ListViewProps) {
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({
     name: '',
     companySourceType: '',
+    hierarchyRole: '',
+    parentCompanyName: '',
     phone: '',
     website: '',
     tags: '',
@@ -203,6 +205,7 @@ export default function ListView({ companies, onCompanyClick }: ListViewProps) {
   const filterOptions = useMemo(() => {
     return {
       companySourceType: ['Manufacturer', 'Customer'],
+      hierarchyRole: ['None', 'Parent', 'Grandparent'],
       tags: [...new Set(companies.flatMap(c => c.tags))].sort(),
       isDocumentSpecific: ['Yes', 'No'],
     };
@@ -239,6 +242,15 @@ export default function ListView({ companies, onCompanyClick }: ListViewProps) {
       const isManufacturer = columnFilters.companySourceType === 'Manufacturer';
       result = result.filter(c => (c.companySourceType === 'MANUFACTURER') === isManufacturer);
     }
+    if (columnFilters.hierarchyRole) {
+      const roleMap: Record<string, CompanyHierarchyRole> = { 'None': 'none', 'Parent': 'parent', 'Grandparent': 'grandparent' };
+      const role = roleMap[columnFilters.hierarchyRole];
+      result = result.filter(c => (c.hierarchyRole ?? 'none') === role);
+    }
+    if (columnFilters.parentCompanyName) {
+      const query = columnFilters.parentCompanyName.toLowerCase();
+      result = result.filter(c => (c.parentCompanyName || '').toLowerCase().includes(query));
+    }
     if (columnFilters.phone) {
       const query = columnFilters.phone.toLowerCase();
       result = result.filter(c => (c.phone || '').toLowerCase().includes(query));
@@ -273,6 +285,14 @@ export default function ListView({ companies, onCompanyClick }: ListViewProps) {
           case 'companySourceType':
             aVal = a.companySourceType;
             bVal = b.companySourceType;
+            break;
+          case 'hierarchyRole':
+            aVal = a.hierarchyRole ?? 'none';
+            bVal = b.hierarchyRole ?? 'none';
+            break;
+          case 'parentCompanyName':
+            aVal = a.parentCompanyName ?? '';
+            bVal = b.parentCompanyName ?? '';
             break;
           case 'phone':
             aVal = a.phone || '';
@@ -310,9 +330,9 @@ export default function ListView({ companies, onCompanyClick }: ListViewProps) {
     <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
       {/* Scrollable Table Container */}
       <div className="overflow-x-auto">
-        <div className="min-w-[800px]">
+        <div className="min-w-[1200px]">
           {/* Table Header */}
-          <div className="grid grid-cols-12 gap-2 md:gap-4 px-4 md:px-6 py-2.5 md:py-3 border-b border-[var(--border)] bg-[var(--muted)]/30">
+          <div className="grid gap-2 md:gap-4 px-4 md:px-6 py-2.5 md:py-3 border-b border-[var(--border)] bg-[var(--muted)]/30" style={{ gridTemplateColumns: 'repeat(16, minmax(0, 1fr))' }}>
             <ColumnHeader
               label="Company Name"
               columnKey="name"
@@ -332,6 +352,27 @@ export default function ListView({ companies, onCompanyClick }: ListViewProps) {
               filterValue={columnFilters.companySourceType}
               onFilterChange={handleFilterChange}
               filterOptions={filterOptions.companySourceType}
+              colSpan={2}
+            />
+            <ColumnHeader
+              label="Role"
+              columnKey="hierarchyRole"
+              sortState={sortState}
+              onSort={handleSort}
+              filterType="dropdown"
+              filterValue={columnFilters.hierarchyRole}
+              onFilterChange={handleFilterChange}
+              filterOptions={filterOptions.hierarchyRole}
+              colSpan={2}
+            />
+            <ColumnHeader
+              label="Parent Company"
+              columnKey="parentCompanyName"
+              sortState={sortState}
+              onSort={handleSort}
+              filterType="text"
+              filterValue={columnFilters.parentCompanyName}
+              onFilterChange={handleFilterChange}
               colSpan={2}
             />
             <ColumnHeader
@@ -394,7 +435,8 @@ export default function ListView({ companies, onCompanyClick }: ListViewProps) {
               <div
                 key={company.id}
                 onClick={() => onCompanyClick(company)}
-                className="grid grid-cols-12 gap-2 md:gap-4 px-4 md:px-6 py-3 md:py-4 hover:bg-[var(--muted)]/20 transition-colors cursor-pointer"
+                className="grid gap-2 md:gap-4 px-4 md:px-6 py-3 md:py-4 hover:bg-[var(--muted)]/20 transition-colors cursor-pointer"
+                style={{ gridTemplateColumns: 'repeat(16, minmax(0, 1fr))' }}
               >
                 <div className="col-span-3 flex items-center gap-2 md:gap-3 min-w-0">
                   <div className={`w-8 h-8 md:w-10 md:h-10 rounded-lg ${getLogoColor(company.id)} flex items-center justify-center text-white text-[10px] md:text-xs font-bold flex-shrink-0`}>
@@ -413,6 +455,22 @@ export default function ListView({ companies, onCompanyClick }: ListViewProps) {
                   }`}>
                     {company.companySourceType === 'MANUFACTURER' ? 'Manufacturer' : 'Customer'}
                   </span>
+                </div>
+                <div className="col-span-2 flex items-center">
+                  {company.hierarchyRole && company.hierarchyRole !== 'none' ? (
+                    <span className={`px-1.5 md:px-2 py-0.5 rounded text-[10px] md:text-xs font-medium whitespace-nowrap ${
+                      company.hierarchyRole === 'grandparent'
+                        ? 'bg-orange-100 text-orange-700'
+                        : 'bg-blue-100 text-blue-700'
+                    }`}>
+                      {company.hierarchyRole === 'grandparent' ? 'Grandparent' : 'Parent'}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] md:text-xs text-[var(--muted-foreground)]">—</span>
+                  )}
+                </div>
+                <div className="col-span-2 flex items-center min-w-0">
+                  <span className="text-xs md:text-sm text-[var(--foreground)] truncate">{company.parentCompanyName || '—'}</span>
                 </div>
                 <div className="col-span-2 flex items-center min-w-0">
                   <span className="text-xs md:text-sm text-[var(--foreground)] truncate">{company.phone || '-'}</span>
