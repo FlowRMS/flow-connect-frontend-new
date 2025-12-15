@@ -541,9 +541,10 @@ export const mockFulfillmentOrders: FulfillmentOrder[] = [
         partNumber: 'ALF LS600 T3 G1 FSK PSC ASR',
         uom: 'EA',
         orderedQty: 10,
-        allocatedQty: 10,
+        allocatedQty: 7,
         shippedQty: 0,
-        backorderQty: 0,
+        backorderQty: 3,
+        shortReason: 'Insufficient stock',
         pickLocation: 'Shelf 1A, Bin A',
         createdAt: '2024-12-10T09:00:00Z',
         updatedAt: '2024-12-10T09:00:00Z',
@@ -588,9 +589,10 @@ export const mockFulfillmentOrders: FulfillmentOrder[] = [
         partNumber: 'PC-2',
         uom: 'EA',
         orderedQty: 25,
-        allocatedQty: 25,
+        allocatedQty: 20,
         shippedQty: 0,
-        backorderQty: 0,
+        backorderQty: 5,
+        shortReason: 'Awaiting vendor shipment',
         pickLocation: 'Shelf 1A, Bin D',
         createdAt: '2024-12-10T09:30:00Z',
         updatedAt: '2024-12-10T09:30:00Z',
@@ -769,7 +771,7 @@ export function getFulfillmentOrderStats() {
     pendingFulfillmentOrders: mockFulfillmentOrders.filter(fo => fo.status === 'PENDING').length,
     releasedFulfillmentOrders: mockFulfillmentOrders.filter(fo => fo.status === 'RELEASED').length,
     inProgressFulfillmentOrders: mockFulfillmentOrders.filter(fo =>
-      fo.status === 'PICKING' || fo.status === 'PICKED' || fo.status === 'PACKING' || fo.status === 'PACKED'
+      fo.status === 'PICKING' || fo.status === 'PACKING' || fo.status === 'PACKED'
     ).length,
     shippedFulfillmentOrders: mockFulfillmentOrders.filter(fo =>
       fo.status === 'SHIPPED' || fo.status === 'PARTIAL_SHIPPED'

@@ -8,6 +8,7 @@ import {
   defaultLocationLevels,
 } from '@/lib/types/warehouse';
 import { mockWarehouses } from '@/lib/data/warehouse-mock';
+import WarehouseLayoutModal from './WarehouseLayoutModal';
 
 // Mock warehouse workers data
 interface WarehouseWorker {
@@ -125,6 +126,7 @@ export default function WarehouseSettingsContent() {
   const [hasChanges, setHasChanges] = useState(false);
   const [showNewWarehouseModal, setShowNewWarehouseModal] = useState(false);
   const [showAddWorkerModal, setShowAddWorkerModal] = useState<string | null>(null);
+  const [showLayoutModal, setShowLayoutModal] = useState<string | null>(null);
 
   const toggleWarehouseExpansion = (warehouseId: string) => {
     setExpandedWarehouse(prev => prev === warehouseId ? null : warehouseId);
@@ -229,6 +231,23 @@ export default function WarehouseSettingsContent() {
     );
     setHasChanges(true);
     setShowAddWorkerModal(null);
+  };
+
+  const updateLocationLevels = (warehouseId: string, levels: WarehouseLocationLevelConfig[]) => {
+    setWarehouses(prev =>
+      prev.map(wh =>
+        wh.id === warehouseId
+          ? {
+              ...wh,
+              settings: {
+                ...wh.settings,
+                locationLevels: levels,
+              },
+            }
+          : wh
+      )
+    );
+    setHasChanges(true);
   };
 
   const handleSave = async () => {
@@ -409,7 +428,9 @@ export default function WarehouseSettingsContent() {
                     <div className="space-y-4">
                       {/* Location Hierarchy - Tree View */}
                       <div>
-                        <h3 className="text-sm font-medium text-[var(--foreground)] mb-3">Location Hierarchy</h3>
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="text-sm font-medium text-[var(--foreground)]">Location Hierarchy</h3>
+                        </div>
                         <div className="bg-[var(--background)] rounded-lg border border-[var(--border)] p-3">
                           <div className="space-y-1">
                             {warehouse.settings.locationLevels.map((level, index) => (
@@ -466,6 +487,17 @@ export default function WarehouseSettingsContent() {
                             </div>
                           )}
                         </div>
+
+                        {/* View/Edit Warehouse Layout Button */}
+                        <button
+                          onClick={() => setShowLayoutModal(warehouse.id)}
+                          className="w-full mt-3 px-4 py-2.5 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+                          </svg>
+                          View/Edit Warehouse Layout
+                        </button>
                       </div>
 
                       {/* Additional Settings - Compact */}
@@ -699,6 +731,18 @@ export default function WarehouseSettingsContent() {
           availableWorkers={mockAvailableWorkers}
           onAdd={addWorker}
           onClose={() => setShowAddWorkerModal(null)}
+        />
+      )}
+
+      {/* Warehouse Layout Modal */}
+      {showLayoutModal && (
+        <WarehouseLayoutModal
+          isOpen={true}
+          onClose={() => setShowLayoutModal(null)}
+          locationLevels={warehouses.find(w => w.id === showLayoutModal)?.settings.locationLevels || []}
+          onSave={(levels) => updateLocationLevels(showLayoutModal, levels)}
+          warehouseName={warehouses.find(w => w.id === showLayoutModal)?.name || ''}
+          warehouseId={showLayoutModal}
         />
       )}
     </main>

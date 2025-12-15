@@ -385,7 +385,6 @@ export type FulfillmentOrderStatus =
   | 'PENDING'
   | 'RELEASED'
   | 'PICKING'
-  | 'PICKED'
   | 'PACKING'
   | 'PACKED'
   | 'SHIPPED'
@@ -489,7 +488,6 @@ export const fulfillmentOrderStatusLabels: Record<FulfillmentOrderStatus, string
   PENDING: 'Pending',
   RELEASED: 'Released',
   PICKING: 'Picking',
-  PICKED: 'Picked',
   PACKING: 'Packing',
   PACKED: 'Packed',
   SHIPPED: 'Shipped',
@@ -502,7 +500,6 @@ export const fulfillmentOrderStatusColors: Record<FulfillmentOrderStatus, string
   PENDING: 'bg-gray-100 text-gray-700',
   RELEASED: 'bg-cyan-100 text-cyan-700',
   PICKING: 'bg-yellow-100 text-yellow-700',
-  PICKED: 'bg-amber-100 text-amber-700',
   PACKING: 'bg-orange-100 text-orange-700',
   PACKED: 'bg-purple-100 text-purple-700',
   SHIPPED: 'bg-green-100 text-green-700',

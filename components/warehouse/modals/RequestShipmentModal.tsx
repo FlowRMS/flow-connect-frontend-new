@@ -173,11 +173,11 @@ export default function RequestShipmentModal({ onClose, onSubmit }: RequestShipm
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between flex-shrink-0">
           <div>
-            <h2 className="text-lg font-semibold text-[var(--foreground)]">Request Shipment</h2>
+            <h2 className="text-lg font-semibold text-[var(--foreground)]">Request Inventory</h2>
             <p className="text-sm text-[var(--muted-foreground)]">
               Request inventory from a vendor/manufacturer
             </p>
@@ -492,14 +492,44 @@ export default function RequestShipmentModal({ onClose, onSubmit }: RequestShipm
           {/* Email Contact Selection */}
           {requestMethod === 'EMAIL' && selectedVendorId && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <label className="block text-sm font-medium text-blue-800 mb-2">
-                Select Contact <span className="text-red-500">*</span>
-              </label>
+              <div className="flex items-center justify-between mb-3">
+                <label className="block text-sm font-medium text-blue-800">
+                  Select Contact <span className="text-red-500">*</span>
+                </label>
+                {contacts.length > 3 && (
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Filter contacts..."
+                      className="px-3 py-1.5 text-xs border border-blue-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400/50 w-48"
+                      onChange={(e) => {
+                        // Simple client-side filter - contacts are filtered visually
+                        const filter = e.target.value.toLowerCase();
+                        const labels = document.querySelectorAll('[data-contact-label]');
+                        labels.forEach((label) => {
+                          const name = label.getAttribute('data-contact-name')?.toLowerCase() || '';
+                          const email = label.getAttribute('data-contact-email')?.toLowerCase() || '';
+                          const role = label.getAttribute('data-contact-role')?.toLowerCase() || '';
+                          if (name.includes(filter) || email.includes(filter) || role.includes(filter)) {
+                            (label as HTMLElement).style.display = '';
+                          } else {
+                            (label as HTMLElement).style.display = 'none';
+                          }
+                        });
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
               {contacts.length > 0 ? (
-                <div className="space-y-2">
+                <div className="space-y-2 max-h-48 overflow-y-auto">
                   {contacts.map((contact) => (
                     <label
                       key={contact.id}
+                      data-contact-label
+                      data-contact-name={contact.name}
+                      data-contact-email={contact.email}
+                      data-contact-role={contact.role}
                       className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-all ${
                         selectedContactId === contact.id
                           ? 'border-blue-500 bg-white'
@@ -541,6 +571,48 @@ export default function RequestShipmentModal({ onClose, onSubmit }: RequestShipm
                 </div>
               ) : (
                 <p className="text-sm text-blue-700">No contacts available for this vendor.</p>
+              )}
+
+              {/* FlowMail Preview */}
+              {selectedContact && lineItems.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-blue-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                      <div>
+                        <div className="text-sm font-medium text-blue-800">FlowMail will be sent</div>
+                        <div className="text-xs text-blue-600">
+                          To: {selectedContact.name} ({selectedContact.email})
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // Generate a preview of the FlowMail content
+                        const productList = lineItems.map(item => `- ${item.productName} (${item.partNumber}): ${item.requestedQuantity} units`).join('\n');
+                        const subject = `Inventory Request from ${selectedWarehouse?.name || 'Warehouse'}`;
+                        const body = `Hello ${selectedContact.name},\n\nWe would like to request the following inventory items:\n\n${productList}\n\nTotal: ${totalItems} units\n\nRequested delivery date: ${new Date(requestedDate).toLocaleDateString()}\nPriority: ${priority.charAt(0).toUpperCase() + priority.slice(1)}\n\n${notes ? `Additional notes: ${notes}\n\n` : ''}Thank you.`;
+
+                        // Open FlowMail compose in new tab with pre-filled data
+                        const flowmailUrl = `/flowmail/compose?to=${encodeURIComponent(selectedContact.email)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&template=inventory-request`;
+                        window.open(flowmailUrl, '_blank');
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-lg transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                      Preview FlowMail
+                    </button>
+                  </div>
+                  <p className="text-xs text-blue-600 mt-2">
+                    An automated inventory request email will be generated and sent via FlowMail when you submit this request.
+                  </p>
+                </div>
               )}
             </div>
           )}
