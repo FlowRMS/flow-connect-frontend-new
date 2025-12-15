@@ -85,9 +85,9 @@ const defaultConfig: SidebarConfig = {
         { id: 'warehouse-inventory', name: 'Inventory', href: '/warehouse/inventory', enabled: true },
         { id: 'warehouse-fulfillment', name: 'Fulfillment', href: '/warehouse/fulfillment', enabled: true },
         { id: 'warehouse-deliveries', name: 'Deliveries', href: '/warehouse/deliveries', enabled: true },
-        { id: 'warehouse-layout', name: 'Layout', href: '/warehouse/layout', enabled: true },
         { id: 'warehouse-returns', name: 'Returns', href: '/warehouse/returns', enabled: true },
         { id: 'warehouse-reports', name: 'Reports', href: '/warehouse/reports', enabled: true },
+        { id: 'warehouse-settings', name: 'Settings', href: '/warehouse/settings', enabled: true },
       ]
     },
     {
@@ -117,7 +117,7 @@ const defaultConfig: SidebarConfig = {
 };
 
 const STORAGE_KEY = 'sidebar-config';
-const CONFIG_VERSION = 8; // Increment this to force a reset of cached sidebar config
+const CONFIG_VERSION = 10; // Increment this to force a reset of cached sidebar config
 
 const SidebarConfigContext = createContext<SidebarConfigContextType | undefined>(undefined);
 

@@ -74,6 +74,13 @@ export interface Product {
   tareWeight?: number;
   isActive: boolean;
   isWarehouseConsignment?: boolean;   // If true, product shows in Warehouse module
+  // Warehouse Location (hierarchical: Section > Aisle > Shelf > Bay > Row > Bin)
+  warehouseSection?: string;          // Top-level section (e.g., 'A', 'B', 'C')
+  warehouseAisle?: string;            // Aisle within section (e.g., '1', '2', '3')
+  warehouseShelf?: string;            // Shelf within aisle (e.g., '1', '2', '3')
+  warehouseBay?: string;              // Bay within shelf (e.g., '1', '2', '3')
+  warehouseRow?: string;              // Row within bay (e.g., '1', '2', '3')
+  warehouseBin?: string;              // Bin within row (e.g., 'A', 'B', 'C')
   createdAt: string;
   updatedAt: string;
 }

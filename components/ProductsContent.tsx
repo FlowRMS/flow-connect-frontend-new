@@ -826,6 +826,18 @@ export default function ProductsContent() {
                       >
                         <div className="col-span-3">
                           <div className="font-medium text-[var(--foreground)]">{product.partNumber}</div>
+                          {product.isWarehouseConsignment && (
+                            <a
+                              href={`/warehouse/inventory?search=${encodeURIComponent(product.partNumber)}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-xs text-teal-600 hover:text-teal-700 hover:underline flex items-center gap-0.5 mt-0.5"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                              </svg>
+                              View in Warehouse
+                            </a>
+                          )}
                         </div>
                         <div className="col-span-3 flex items-center">
                           <span className="text-sm text-[var(--foreground)] line-clamp-2">{product.description}</span>

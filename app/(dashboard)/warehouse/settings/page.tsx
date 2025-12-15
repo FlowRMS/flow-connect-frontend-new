@@ -1,10 +1,10 @@
 import { Suspense } from 'react';
-import WarehouseLayoutContent from '@/components/warehouse/WarehouseLayoutContent';
+import WarehouseSettingsContent from '@/components/warehouse/WarehouseSettingsContent';
 
-export default function WarehouseLayoutPage() {
+export default function WarehouseSettingsPage() {
   return (
     <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="text-[var(--muted-foreground)]">Loading...</div></div>}>
-      <WarehouseLayoutContent />
+      <WarehouseSettingsContent />
     </Suspense>
   );
 }

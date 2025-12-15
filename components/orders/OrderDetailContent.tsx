@@ -9,7 +9,9 @@ import {
   mockInvoices,
   mockChecks,
 } from '../../lib/data/rms-mock';
+import { mockFulfillmentOrders, mockWarehouses, addFulfillmentOrder } from '../../lib/data/warehouse-mock';
 import type { OrderSplitRate, OrderLineItem, Invoice, CommissionCheck } from '../../lib/types/rms';
+import type { FulfillmentOrder, FulfillmentOrderLineItem } from '../../lib/types/warehouse';
 import {
   Order,
   orderStatusLabels,
@@ -29,7 +31,7 @@ interface OrderDetailContentProps {
 type TabType = 'line-items' | 'credits' | 'acknowledgements' | 'notes' | 'tasks' | 'activity' | 'linked-objects' | 'settings';
 
 // Column definitions for the line items table
-type ColumnKey = 'partNumber' | 'custPartNumber' | 'description' | 'uom' | 'divisor' | 'unitPrice' | 'quantity' | 'shippedQty' | 'lineStatus' | 'linkedQuote' | 'linkedInvoice' | 'linkedCheck' | 'linkedFulfillment' | 'sellTotal' | 'commissionPercent' | 'commission' | 'commissionTotal' | 'invoiced' | 'percentOver' | 'commissionAmount' | 'ovgPercent' | 'ovgAmount' | 'earnPercent' | 'earnAmount';
+type ColumnKey = 'partNumber' | 'custPartNumber' | 'description' | 'uom' | 'divisor' | 'unitPrice' | 'quantity' | 'shippedQty' | 'lineStatus' | 'linkedQuote' | 'linkedInvoice' | 'linkedCheck' | 'linkedFulfillment' | 'sellTotal' | 'commissionPercent' | 'commission' | 'commissionTotal' | 'invoiced' | 'percentOver' | 'commissionAmount' | 'ovgPercent' | 'ovgAmount' | 'earnPercent' | 'earnAmount' | 'iconAcknowledgement' | 'iconDocumentSpecific' | 'iconWarehouse' | 'iconCredit';
 
 const columnLabels: Record<ColumnKey, string> = {
   partNumber: 'Part #',
@@ -56,6 +58,10 @@ const columnLabels: Record<ColumnKey, string> = {
   ovgAmount: 'Ovg $',
   earnPercent: 'Earn %',
   earnAmount: 'Earn $',
+  iconAcknowledgement: 'Ack Icon',
+  iconDocumentSpecific: 'Doc-Specific Icon',
+  iconWarehouse: 'Warehouse Icon',
+  iconCredit: 'Credit Icon',
 };
 
 const defaultVisibleColumns: ColumnKey[] = [
@@ -75,6 +81,10 @@ const defaultVisibleColumns: ColumnKey[] = [
   'linkedInvoice',
   'linkedCheck',
   'linkedFulfillment',
+  'iconAcknowledgement',
+  'iconDocumentSpecific',
+  'iconWarehouse',
+  'iconCredit',
 ];
 
 // Helper function to get linked invoices for an order line item
@@ -202,12 +212,14 @@ const availableInsideReps = [
 export default function OrderDetailContent({ orderId }: OrderDetailContentProps) {
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>(mockOrders);
+  const [fulfillmentOrders, setFulfillmentOrders] = useState<FulfillmentOrder[]>(mockFulfillmentOrders);
   const [activeTab, setActiveTab] = useState<TabType>('line-items');
   const [showHeaderFields, setShowHeaderFields] = useState(true);
   const [editingSplits, setEditingSplits] = useState(false);
   const [editedSplits, setEditedSplits] = useState<OrderSplitRate[]>([]);
   const [selectedLineItems, setSelectedLineItems] = useState<Set<string>>(new Set());
   const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(new Set(defaultVisibleColumns));
+  const [pinnedColumns, setPinnedColumns] = useState<Set<ColumnKey>>(new Set());
   const [showColumnsModal, setShowColumnsModal] = useState(false);
   const [showActionsDropdown, setShowActionsDropdown] = useState(false);
 
@@ -483,34 +495,108 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   const handleGenerateFulfillmentRequest = () => {
     if (!order) return;
 
-    // Only include warehouse products (non-credit line items)
-    const warehouseLineItems = order.lineItems.filter(item => !item.isCredit && item.isWarehouseConsignment);
-    const itemsInfo = warehouseLineItems.map(item => ({
-      id: item.id,
+    // Only include warehouse products (non-credit line items) that don't already have requests
+    const warehouseLineItems = order.lineItems.filter(
+      item => !item.isCredit && item.isWarehouseConsignment && !item.fulfillmentRequestId
+    );
+
+    if (warehouseLineItems.length === 0) {
+      // Check if there are warehouse products at all
+      const allWarehouseItems = order.lineItems.filter(item => !item.isCredit && item.isWarehouseConsignment);
+      if (allWarehouseItems.length === 0) {
+        alert('No warehouse products found. Only warehouse products can have fulfillment requests.');
+      } else {
+        alert('All warehouse products already have fulfillment requests.');
+      }
+      setShowActionsDropdown(false);
+      return;
+    }
+
+    // Create the fulfillment order directly (no modal)
+    const existingCount = fulfillmentOrders.length;
+    const newFulfillmentOrderNumber = `FO-${new Date().getFullYear()}-${String(existingCount + 1).padStart(3, '0')}`;
+    const newFulfillmentOrderId = `fo-${Date.now()}`;
+    const now = new Date().toISOString();
+
+    // Use first warehouse for now
+    const defaultWarehouse = mockWarehouses[0];
+
+    // Create fulfillment order line items
+    const fulfillmentLineItems: FulfillmentOrderLineItem[] = warehouseLineItems.map((item, idx) => ({
+      id: `foli-${Date.now()}-${idx}`,
+      fulfillmentOrderId: newFulfillmentOrderId,
+      orderLineItemId: item.id,
+      productId: item.productId || '',
+      productName: item.description || '',
       partNumber: item.partNumber || '',
-      quantity: item.quantity,
-      hasExistingRequest: !!item.fulfillmentRequestId,
+      uom: 'EA',
+      orderedQty: item.quantity,
+      allocatedQty: item.quantity,
+      shippedQty: 0,
+      backorderQty: 0,
+      createdAt: now,
+      updatedAt: now,
     }));
 
-    if (itemsInfo.length === 0) {
-      alert('No warehouse products found. Only warehouse products can have fulfillment requests.');
-      setShowActionsDropdown(false);
-      return;
-    }
+    // Create the fulfillment order
+    const newFulfillmentOrder: FulfillmentOrder = {
+      id: newFulfillmentOrderId,
+      fulfillmentOrderNumber: newFulfillmentOrderNumber,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      customerId: order.customerId || '',
+      customerName: order.customerName || '',
+      warehouseId: defaultWarehouse.id,
+      warehouseName: defaultWarehouse.name,
+      fulfillmentMethod: 'SHIP',
+      shipTo: {
+        name: order.customerName || '',
+        addressLine1: '',
+        city: '',
+        state: '',
+        postalCode: '',
+        country: 'USA',
+      },
+      needByDate: order.dueDate,
+      allowPartialShipment: true, // Default to allowing partial shipment
+      shipStatus: 'NOT_SHIPPED',
+      status: 'PENDING', // Start as PENDING - user must release via action
+      lineItems: fulfillmentLineItems,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: 'Current User',
+    };
 
-    // Check if any items don't have existing requests
-    const itemsWithoutRequest = itemsInfo.filter(item => !item.hasExistingRequest);
+    // Add to shared mock data (mutates the array so it persists across components)
+    addFulfillmentOrder(newFulfillmentOrder);
 
-    if (itemsWithoutRequest.length === 0) {
-      alert('All warehouse products already have fulfillment requests.');
-      setShowActionsDropdown(false);
-      return;
-    }
+    // Also update local state
+    setFulfillmentOrders(prev => [...prev, newFulfillmentOrder]);
 
-    setLineItemsForFulfillment(itemsInfo);
-    setFulfillmentRequestMode('all');
-    setShowFulfillmentRequestModal(true);
+    // Update order line items with fulfillment reference
+    const idsToUpdate = warehouseLineItems.map(item => item.id);
+    setOrders(prev => prev.map(ord => {
+      if (ord.id !== order.id) return ord;
+      return {
+        ...ord,
+        lineItems: ord.lineItems.map(item => {
+          if (idsToUpdate.includes(item.id)) {
+            return {
+              ...item,
+              fulfillmentRequestId: newFulfillmentOrderId,
+              fulfillmentRequestNumber: newFulfillmentOrderNumber,
+              fulfillmentRequestStatus: 'pending' as const,
+            };
+          }
+          return item;
+        }),
+      };
+    }));
+
     setShowActionsDropdown(false);
+
+    // Navigate directly to the fulfillment order
+    router.push(`/warehouse/fulfillment/${newFulfillmentOrderId}`);
   };
 
   const handleBulkGenerateFulfillmentRequest = () => {
@@ -555,11 +641,70 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
     // Get IDs to add fulfillment request (only those without existing requests)
     const idsToUpdate = lineItemsForFulfillment.filter(item => !item.hasExistingRequest).map(item => item.id);
 
-    // Generate a new fulfillment request number
-    const newFulfillmentNumber = `FR-${order.orderNumber.replace('ORD-', '')}-${Date.now().toString().slice(-4)}`;
-    const newFulfillmentId = `fr-${Date.now()}`;
+    // Get line items that will be included in this fulfillment order
+    const lineItemsToInclude = order.lineItems.filter(item => idsToUpdate.includes(item.id));
 
-    // Update the order line items
+    if (lineItemsToInclude.length === 0) return;
+
+    // Generate fulfillment order number with sequential numbering
+    const existingCount = fulfillmentOrders.length;
+    const newFulfillmentOrderNumber = `FO-${new Date().getFullYear()}-${String(existingCount + 1).padStart(3, '0')}`;
+    const newFulfillmentOrderId = `fo-${Date.now()}`;
+    const now = new Date().toISOString();
+
+    // Use first warehouse for now (in real app, would allow selection)
+    const defaultWarehouse = mockWarehouses[0];
+
+    // Create fulfillment order line items
+    const fulfillmentLineItems: FulfillmentOrderLineItem[] = lineItemsToInclude.map((item, idx) => ({
+      id: `foli-${Date.now()}-${idx}`,
+      fulfillmentOrderId: newFulfillmentOrderId,
+      orderLineItemId: item.id,
+      productId: item.productId || '',
+      productName: item.description || '',
+      partNumber: item.partNumber || '',
+      uom: 'EA', // Default unit of measure
+      orderedQty: item.quantity,
+      allocatedQty: item.quantity,
+      shippedQty: 0,
+      backorderQty: 0,
+      createdAt: now,
+      updatedAt: now,
+    }));
+
+    // Create the fulfillment order
+    const newFulfillmentOrder: FulfillmentOrder = {
+      id: newFulfillmentOrderId,
+      fulfillmentOrderNumber: newFulfillmentOrderNumber,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      customerId: order.customerId || '',
+      customerName: order.customerName || '',
+      warehouseId: defaultWarehouse.id,
+      warehouseName: defaultWarehouse.name,
+      fulfillmentMethod: 'SHIP',
+      shipTo: {
+        name: order.customerName || '',
+        addressLine1: '',
+        city: '',
+        state: '',
+        postalCode: '',
+        country: 'USA',
+      },
+      needByDate: order.dueDate,
+      allowPartialShipment: true, // Default to allowing partial shipment
+      shipStatus: 'NOT_SHIPPED',
+      status: 'PENDING', // Start as PENDING - user must release via action
+      lineItems: fulfillmentLineItems,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: 'Current User',
+    };
+
+    // Add the new fulfillment order to state
+    setFulfillmentOrders(prev => [...prev, newFulfillmentOrder]);
+
+    // Update the order line items with the fulfillment reference
     setOrders(prev => prev.map(ord => {
       if (ord.id !== order.id) return ord;
       return {
@@ -568,8 +713,8 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           if (idsToUpdate.includes(item.id)) {
             return {
               ...item,
-              fulfillmentRequestId: newFulfillmentId,
-              fulfillmentRequestNumber: newFulfillmentNumber,
+              fulfillmentRequestId: newFulfillmentOrderId,
+              fulfillmentRequestNumber: newFulfillmentOrderNumber,
               fulfillmentRequestStatus: 'pending' as const,
             };
           }
@@ -581,6 +726,9 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
     setShowFulfillmentRequestModal(false);
     setLineItemsForFulfillment([]);
     setSelectedLineItems(new Set());
+
+    // Navigate to the new fulfillment order
+    router.push(`/warehouse/fulfillment/${newFulfillmentOrderId}`);
   };
 
   // Commission split editing functions
@@ -678,12 +826,106 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
       const newSet = new Set(prev);
       if (newSet.has(col)) {
         newSet.delete(col);
+        // Also unpin if hidden
+        setPinnedColumns(prevPinned => {
+          const newPinned = new Set(prevPinned);
+          newPinned.delete(col);
+          return newPinned;
+        });
       } else {
         newSet.add(col);
       }
       return newSet;
     });
   };
+
+  // Column pin toggle handler
+  const togglePinColumn = (col: ColumnKey) => {
+    setPinnedColumns(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(col)) {
+        newSet.delete(col);
+      } else {
+        newSet.add(col);
+      }
+      return newSet;
+    });
+  };
+
+  // Get pinned column styles (for sticky positioning)
+  const getPinnedColumnStyle = (colKey: ColumnKey): React.CSSProperties => {
+    if (!pinnedColumns.has(colKey)) return {};
+
+    // Calculate left offset based on which columns are pinned before this one
+    // Fixed columns: checkbox (40px) + icons (variable)
+    const fixedLeftOffset = 40; // checkbox width
+    const iconColWidth = (visibleColumns.has('iconAcknowledgement') || visibleColumns.has('iconDocumentSpecific') || visibleColumns.has('iconWarehouse') || visibleColumns.has('iconCredit')) ? 120 : 0;
+
+    // Get ordered list of visible pinned columns
+    const allColumns: ColumnKey[] = Object.keys(columnLabels) as ColumnKey[];
+    const visiblePinnedColumns = allColumns.filter(col => visibleColumns.has(col) && pinnedColumns.has(col));
+
+    const colIndex = visiblePinnedColumns.indexOf(colKey);
+    if (colIndex === -1) return {};
+
+    // Estimate column widths (approximate)
+    const columnWidths: Partial<Record<ColumnKey, number>> = {
+      partNumber: 120,
+      custPartNumber: 100,
+      description: 200,
+      uom: 60,
+      divisor: 70,
+      unitPrice: 100,
+      quantity: 60,
+      shippedQty: 90,
+      lineStatus: 100,
+      linkedQuote: 100,
+      linkedInvoice: 120,
+      linkedCheck: 120,
+      linkedFulfillment: 120,
+      sellTotal: 100,
+      commissionPercent: 100,
+      commission: 100,
+      commissionTotal: 120,
+      invoiced: 80,
+      percentOver: 80,
+      commissionAmount: 80,
+      ovgPercent: 80,
+      ovgAmount: 80,
+      earnPercent: 80,
+      earnAmount: 80,
+      iconAcknowledgement: 30,
+      iconDocumentSpecific: 30,
+      iconWarehouse: 30,
+      iconCredit: 30,
+    };
+
+    let leftOffset = fixedLeftOffset + iconColWidth;
+    for (let i = 0; i < colIndex; i++) {
+      leftOffset += columnWidths[visiblePinnedColumns[i]] || 100;
+    }
+
+    return {
+      position: 'sticky' as const,
+      left: leftOffset,
+      zIndex: 10,
+      backgroundColor: 'var(--card)',
+    };
+  };
+
+  // Check if a column is pinned
+  const isPinned = (colKey: ColumnKey) => pinnedColumns.has(colKey);
+
+  // Get ordered columns - pinned columns first, then unpinned
+  const getOrderedColumns = (): ColumnKey[] => {
+    const allColumns: ColumnKey[] = Object.keys(columnLabels) as ColumnKey[];
+    const visibleCols = allColumns.filter(col => visibleColumns.has(col));
+    const pinnedCols = visibleCols.filter(col => pinnedColumns.has(col));
+    const unpinnedCols = visibleCols.filter(col => !pinnedColumns.has(col));
+    return [...pinnedCols, ...unpinnedCols];
+  };
+
+  const orderedColumns = getOrderedColumns();
 
   // Get status color for the stage dropdown button
   const getStatusColor = (status: Order['status']) => {
@@ -799,22 +1041,26 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                       <path d="M3 7h14l-1.5 9H4.5L3 7z" strokeLinecap="round" strokeLinejoin="round"/>
                       <path d="M8 7V5a2 2 0 012-2v0a2 2 0 012 2v2" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
-                    Make Warehouse Order
-                  </button>
-                  <button
-                    onClick={handleGenerateFulfillmentRequest}
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-b-lg flex items-center gap-2 text-orange-600"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" strokeLinecap="round" strokeLinejoin="round"/>
-                      <path d="M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" strokeLinecap="round" strokeLinejoin="round"/>
-                      <path d="M8 12h8M8 16h5" strokeLinecap="round"/>
-                    </svg>
-                    Generate Fulfillment Request
+                    Convert Products to Warehouse
                   </button>
                 </div>
               )}
             </div>
+
+            {/* Fulfillment Request Button - only shows if there are warehouse products */}
+            {order.lineItems.some(item => item.isWarehouseConsignment && !item.isCredit) && (
+              <button
+                onClick={handleGenerateFulfillmentRequest}
+                className="flex items-center gap-2 px-3 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 transition-colors"
+              >
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M8 12h8M8 16h5" strokeLinecap="round"/>
+                </svg>
+                Fulfillment Request
+              </button>
+            )}
 
             {/* Status Dropdown - styled like a button */}
             <div className="relative">
@@ -1669,17 +1915,6 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                               </svg>
                               Convert to Warehouse
                             </button>
-                            <button
-                              onClick={handleBulkGenerateFulfillmentRequest}
-                              className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors flex items-center gap-2 text-orange-600"
-                            >
-                              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" strokeLinecap="round" strokeLinejoin="round"/>
-                                <path d="M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" strokeLinecap="round" strokeLinejoin="round"/>
-                                <path d="M8 12h8M8 16h5" strokeLinecap="round"/>
-                              </svg>
-                              Generate Fulfillment Request
-                            </button>
                             <div className="border-t border-[var(--border)] my-1"></div>
                             <button
                               onClick={() => {
@@ -1777,30 +2012,59 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                         />
                       </th>
                       {/* Indicator column for acknowledgements and credits */}
-                      <th className="px-1 py-2 w-16"></th>
+                      {(visibleColumns.has('iconAcknowledgement') || visibleColumns.has('iconDocumentSpecific') || visibleColumns.has('iconWarehouse') || visibleColumns.has('iconCredit')) && (
+                        <th className="px-1 py-2">
+                          <div className="flex items-center gap-1">
+                            {visibleColumns.has('iconAcknowledgement') && <div className="w-7"></div>}
+                            {visibleColumns.has('iconDocumentSpecific') && <div className="w-7"></div>}
+                            {visibleColumns.has('iconWarehouse') && <div className="w-7"></div>}
+                            {visibleColumns.has('iconCredit') && <div className="w-7"></div>}
+                          </div>
+                        </th>
+                      )}
                       {/* Dynamic columns */}
                       {visibleColumns.has('partNumber') && (
-                        <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">
+                        <th
+                          className={`px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap ${isPinned('partNumber') ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`}
+                          style={getPinnedColumnStyle('partNumber')}
+                        >
                           <div className="flex items-center gap-1">
                             Part #
-                            <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted-foreground)]/50">
-                              <path d="M8 6l4 4-4 4"/>
-                            </svg>
+                            {isPinned('partNumber') && (
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-500">
+                                <path d="M12 17v5M9 10.76a2 2 0 01-1.11 1.79l-1.78.9A2 2 0 005 15.24V17h14v-1.76a2 2 0 00-1.11-1.79l-1.78-.9A2 2 0 0115 10.76V6a1 1 0 00-1-1h-4a1 1 0 00-1 1v4.76z" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            )}
                           </div>
                         </th>
                       )}
                       {visibleColumns.has('custPartNumber') && (
-                        <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">
-                          Cust Part #
+                        <th
+                          className={`px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap ${isPinned('custPartNumber') ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`}
+                          style={getPinnedColumnStyle('custPartNumber')}
+                        >
+                          <div className="flex items-center gap-1">
+                            Cust Part #
+                            {isPinned('custPartNumber') && (
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-500">
+                                <path d="M12 17v5M9 10.76a2 2 0 01-1.11 1.79l-1.78.9A2 2 0 005 15.24V17h14v-1.76a2 2 0 00-1.11-1.79l-1.78-.9A2 2 0 0115 10.76V6a1 1 0 00-1-1h-4a1 1 0 00-1 1v4.76z" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            )}
+                          </div>
                         </th>
                       )}
                       {visibleColumns.has('description') && (
-                        <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">
+                        <th
+                          className={`px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap ${isPinned('description') ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`}
+                          style={getPinnedColumnStyle('description')}
+                        >
                           <div className="flex items-center gap-1">
                             Description
-                            <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted-foreground)]/50">
-                              <path d="M8 6l4 4-4 4"/>
-                            </svg>
+                            {isPinned('description') && (
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-500">
+                                <path d="M12 17v5M9 10.76a2 2 0 01-1.11 1.79l-1.78.9A2 2 0 005 15.24V17h14v-1.76a2 2 0 00-1.11-1.79l-1.78-.9A2 2 0 0115 10.76V6a1 1 0 00-1-1h-4a1 1 0 00-1 1v4.76z" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            )}
                           </div>
                         </th>
                       )}
@@ -1934,10 +2198,12 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                             className="accent-[var(--primary)]"
                           />
                         </td>
-                        {/* Indicator cell for acknowledgements and credits - two column layout */}
+                        {/* Indicator cell for acknowledgements and credits - conditional based on column visibility */}
+                        {(visibleColumns.has('iconAcknowledgement') || visibleColumns.has('iconDocumentSpecific') || visibleColumns.has('iconWarehouse') || visibleColumns.has('iconCredit')) && (
                         <td className="px-1 py-2">
                           <div className="flex items-center gap-1">
                             {/* Acknowledgement indicator column */}
+                            {visibleColumns.has('iconAcknowledgement') && (
                             <div className="w-7 flex justify-center">
                               {lineItemAcknowledgements[item.id] && (() => {
                                 const ack = lineItemAcknowledgements[item.id];
@@ -1981,7 +2247,9 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                                 );
                               })()}
                             </div>
+                            )}
                             {/* Document-specific indicator column */}
+                            {visibleColumns.has('iconDocumentSpecific') && (
                             <div className="w-7 flex justify-center">
                               {item.isDocumentSpecific && (
                                 <div className="relative group">
@@ -1999,7 +2267,9 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                                 </div>
                               )}
                             </div>
+                            )}
                             {/* Warehouse indicator column */}
+                            {visibleColumns.has('iconWarehouse') && (
                             <div className="w-7 flex justify-center">
                               {item.isWarehouseConsignment && (
                                 <div className="relative group">
@@ -2021,7 +2291,9 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                                 </div>
                               )}
                             </div>
+                            )}
                             {/* Credit indicator column */}
+                            {visibleColumns.has('iconCredit') && (
                             <div className="w-7 flex justify-center">
                               {lineItemCredits[item.id] && (() => {
                                 const credit = lineItemCredits[item.id];
@@ -2063,10 +2335,15 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                                 );
                               })()}
                             </div>
+                            )}
                           </div>
                         </td>
+                        )}
                         {visibleColumns.has('partNumber') && (
-                          <td className="px-3 py-2 text-sm">
+                          <td
+                            className={`px-3 py-2 text-sm ${isPinned('partNumber') ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`}
+                            style={getPinnedColumnStyle('partNumber')}
+                          >
                             {item.isCredit ? (
                               <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-medium">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -2094,7 +2371,10 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                           </td>
                         )}
                         {visibleColumns.has('custPartNumber') && (
-                          <td className="px-3 py-2 text-sm">
+                          <td
+                            className={`px-3 py-2 text-sm ${isPinned('custPartNumber') ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`}
+                            style={getPinnedColumnStyle('custPartNumber')}
+                          >
                             <div className="relative">
                               <select className="w-full px-2 py-1 bg-transparent border-0 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--primary)] rounded appearance-none cursor-pointer">
                                 <option value="">Select...</option>
@@ -2106,7 +2386,10 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                           </td>
                         )}
                         {visibleColumns.has('description') && (
-                          <td className="px-3 py-2 text-sm min-w-[300px] max-w-[400px]">
+                          <td
+                            className={`px-3 py-2 text-sm min-w-[300px] max-w-[400px] ${isPinned('description') ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`}
+                            style={getPinnedColumnStyle('description')}
+                          >
                             <div className="relative">
                               <input
                                 type="text"
@@ -3547,7 +3830,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
             <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-[var(--foreground)]">Configure Columns</h2>
-                <p className="text-sm text-[var(--muted-foreground)]">Check columns to show in table</p>
+                <p className="text-sm text-[var(--muted-foreground)]">Toggle visibility and pin columns to freeze them</p>
               </div>
               <button
                 onClick={() => setShowColumnsModal(false)}
@@ -3558,12 +3841,60 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                 </svg>
               </button>
             </div>
+            <div className="px-6 py-2 border-b border-[var(--border)] bg-[var(--muted)]/30">
+              <div className="flex items-center gap-3 text-xs font-semibold text-[var(--muted-foreground)] uppercase">
+                <div className="w-5"></div>
+                <span className="flex-1">Column</span>
+                <span className="w-16 text-center">Pin Left</span>
+              </div>
+            </div>
             <div className="flex-1 overflow-y-auto p-6">
               <div className="space-y-1">
-                {(Object.keys(columnLabels) as ColumnKey[]).map(colKey => (
+                {/* Pinned columns section */}
+                {pinnedColumns.size > 0 && (
+                  <>
+                    <div className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-2 flex items-center gap-2">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M12 17v5M9 10.76a2 2 0 01-1.11 1.79l-1.78.9A2 2 0 005 15.24V17h14v-1.76a2 2 0 00-1.11-1.79l-1.78-.9A2 2 0 0115 10.76V6a1 1 0 00-1-1h-4a1 1 0 00-1 1v4.76z" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      Pinned Columns (Frozen Left)
+                    </div>
+                    {(Object.keys(columnLabels) as ColumnKey[]).filter(col => pinnedColumns.has(col)).map(colKey => (
+                      <div
+                        key={colKey}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg border transition-all bg-blue-50 border-blue-200"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={visibleColumns.has(colKey)}
+                          onChange={() => toggleColumn(colKey)}
+                          className="w-5 h-5 accent-[var(--primary)] cursor-pointer"
+                        />
+                        <span className="flex-1 text-sm font-medium text-blue-700">
+                          {columnLabels[colKey]}
+                        </span>
+                        <button
+                          onClick={() => togglePinColumn(colKey)}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors bg-blue-500 text-white hover:bg-blue-600"
+                          title="Unpin column"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M12 17v5M9 10.76a2 2 0 01-1.11 1.79l-1.78.9A2 2 0 005 15.24V17h14v-1.76a2 2 0 00-1.11-1.79l-1.78-.9A2 2 0 0115 10.76V6a1 1 0 00-1-1h-4a1 1 0 00-1 1v4.76z" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                    <div className="border-t border-[var(--border)] my-3"></div>
+                    <div className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide mb-2">
+                      Other Columns
+                    </div>
+                  </>
+                )}
+                {/* Unpinned columns */}
+                {(Object.keys(columnLabels) as ColumnKey[]).filter(col => !pinnedColumns.has(col)).map(colKey => (
                   <div
                     key={colKey}
-                    className="flex items-center gap-3 px-4 py-3 rounded-lg border bg-[var(--card)] border-[var(--border)] hover:bg-[var(--muted)]/50 transition-all"
+                    className="flex items-center gap-3 px-4 py-3 rounded-lg border transition-all bg-[var(--card)] border-[var(--border)] hover:bg-[var(--muted)]/50"
                   >
                     <input
                       type="checkbox"
@@ -3571,12 +3902,38 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                       onChange={() => toggleColumn(colKey)}
                       className="w-5 h-5 accent-[var(--primary)] cursor-pointer"
                     />
-                    <span className="flex-1 text-sm font-medium">{columnLabels[colKey]}</span>
+                    <span className="flex-1 text-sm font-medium">
+                      {columnLabels[colKey]}
+                    </span>
+                    <button
+                      onClick={() => togglePinColumn(colKey)}
+                      disabled={!visibleColumns.has(colKey)}
+                      className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
+                        visibleColumns.has(colKey)
+                          ? 'hover:bg-[var(--muted)] text-[var(--muted-foreground)]'
+                          : 'opacity-30 cursor-not-allowed'
+                      }`}
+                      title="Pin column to left"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M12 17v5M9 10.76a2 2 0 01-1.11 1.79l-1.78.9A2 2 0 005 15.24V17h14v-1.76a2 2 0 00-1.11-1.79l-1.78-.9A2 2 0 0115 10.76V6a1 1 0 00-1-1h-4a1 1 0 00-1 1v4.76z" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </button>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end">
+            <div className="px-6 py-4 border-t border-[var(--border)] flex items-center justify-between">
+              <div className="text-sm text-[var(--muted-foreground)]">
+                {pinnedColumns.size > 0 && (
+                  <span className="flex items-center gap-1">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-500">
+                      <path d="M12 17v5M9 10.76a2 2 0 01-1.11 1.79l-1.78.9A2 2 0 005 15.24V17h14v-1.76a2 2 0 00-1.11-1.79l-1.78-.9A2 2 0 0115 10.76V6a1 1 0 00-1-1h-4a1 1 0 00-1 1v4.76z" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    {pinnedColumns.size} column{pinnedColumns.size !== 1 ? 's' : ''} pinned
+                  </span>
+                )}
+              </div>
               <button
                 onClick={() => setShowColumnsModal(false)}
                 className="px-4 py-2 text-sm bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
@@ -4467,7 +4824,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                 </div>
                 <div>
                   <h2 className="text-lg font-semibold text-[var(--foreground)]">
-                    {warehouseConversionMode === 'all' ? 'Make Warehouse Order' : 'Convert to Warehouse Products'}
+                    {warehouseConversionMode === 'all' ? 'Convert Products to Warehouse' : 'Convert to Warehouse Products'}
                   </h2>
                   <p className="text-sm text-[var(--muted-foreground)]">
                     {warehouseConversionMode === 'all'

@@ -883,32 +883,45 @@ export default function ProductEditPage() {
               </div>
 
               {/* Warehouse Consignment Toggle */}
-              <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-gray-50">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-gray-700">Warehouse Consignment</span>
-                  <div className="relative group">
-                    <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 w-64 z-50">
-                      When enabled, this product will be available in the Warehouse module for inventory management and fulfillment.
-                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+              <div className="flex flex-col p-3 border border-gray-200 rounded-lg bg-gray-50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-700">Warehouse Consignment</span>
+                    <div className="relative group">
+                      <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 w-64 z-50">
+                        When enabled, this product will be available in the Warehouse module for inventory management and fulfillment.
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                      </div>
                     </div>
                   </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleFieldChange('isWarehouseConsignment', !formData.isWarehouseConsignment)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    formData.isWarehouseConsignment ? 'bg-teal-600' : 'bg-gray-300'
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      formData.isWarehouseConsignment ? 'translate-x-6' : 'translate-x-1'
+                  <button
+                    type="button"
+                    onClick={() => handleFieldChange('isWarehouseConsignment', !formData.isWarehouseConsignment)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      formData.isWarehouseConsignment ? 'bg-teal-600' : 'bg-gray-300'
                     }`}
-                  />
-                </button>
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        formData.isWarehouseConsignment ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+                {formData.isWarehouseConsignment && (
+                  <a
+                    href={`/warehouse/inventory?search=${encodeURIComponent(formData.partNumber)}`}
+                    className="mt-2 text-sm text-teal-600 hover:text-teal-700 hover:underline flex items-center gap-1"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    View in Warehouse
+                  </a>
+                )}
               </div>
             </div>
           </div>
@@ -1655,7 +1668,81 @@ export default function ProductEditPage() {
         {/* ============ WEIGHTS & MEASURES SECTION ============ */}
         <div ref={el => { sectionRefs.current['weights-measures'] = el; }} id="section-weights-measures">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Weights & Measures</h2>
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-6">
+            {/* Warehouse Location */}
+            <div>
+              <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Warehouse Location
+              </h4>
+              <div className="grid grid-cols-6 gap-4">
+                <div>
+                  <label className={labelClass}>Section</label>
+                  <input
+                    type="text"
+                    value={formData.warehouseSection || ''}
+                    onChange={(e) => handleFieldChange('warehouseSection', e.target.value || undefined)}
+                    className={inputClass}
+                    placeholder="e.g., A"
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Aisle</label>
+                  <input
+                    type="text"
+                    value={formData.warehouseAisle || ''}
+                    onChange={(e) => handleFieldChange('warehouseAisle', e.target.value || undefined)}
+                    className={inputClass}
+                    placeholder="e.g., 1"
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Shelf</label>
+                  <input
+                    type="text"
+                    value={formData.warehouseShelf || ''}
+                    onChange={(e) => handleFieldChange('warehouseShelf', e.target.value || undefined)}
+                    className={inputClass}
+                    placeholder="e.g., 3"
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Bay</label>
+                  <input
+                    type="text"
+                    value={formData.warehouseBay || ''}
+                    onChange={(e) => handleFieldChange('warehouseBay', e.target.value || undefined)}
+                    className={inputClass}
+                    placeholder="e.g., 2"
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Row</label>
+                  <input
+                    type="text"
+                    value={formData.warehouseRow || ''}
+                    onChange={(e) => handleFieldChange('warehouseRow', e.target.value || undefined)}
+                    className={inputClass}
+                    placeholder="e.g., 1"
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Bin</label>
+                  <input
+                    type="text"
+                    value={formData.warehouseBin || ''}
+                    onChange={(e) => handleFieldChange('warehouseBin', e.target.value || undefined)}
+                    className={inputClass}
+                    placeholder="e.g., A"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Weights & Dimensions */}
             <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <div>

@@ -13,10 +13,6 @@ import {
   InventoryItem,
   inventoryStatusColors,
   inventoryStatusLabels,
-  InventoryStatus,
-  ownershipTypeLabels,
-  ownershipTypeColors,
-  OwnershipType,
 } from '@/lib/types/warehouse';
 import AddInventoryItemModal from './modals/AddInventoryItemModal';
 import WarehouseSelector from './WarehouseSelector';
@@ -25,18 +21,30 @@ import { useWarehouse } from './WarehouseContext';
 // Filter types for stat card clicks
 type StatFilter = 'all' | 'available' | 'reserved' | 'low_stock';
 
+// Combined inventory item with product info
+interface FlatInventoryItem extends InventoryItem {
+  productName: string;
+  partNumber: string;
+  factoryName: string;
+  factoryId: string;
+  totalQuantity: number;
+  availableQuantity: number;
+  reservedQuantity: number;
+  inTransitQuantity: number;
+  reorderPoint?: number;
+}
+
 export default function WarehouseInventoryContent() {
   const { selectedWarehouse } = useWarehouse();
   const searchParams = useSearchParams();
   const urlFilter = searchParams.get('filter') as StatFilter | null;
+  const urlSearch = searchParams.get('search');
 
   const [inventory] = useState<Inventory[]>(mockInventory);
   const [inventoryItems] = useState<InventoryItem[]>(mockInventoryItems);
   const [selectedFactory, setSelectedFactory] = useState<string>('All');
   const [selectedStatus, setSelectedStatus] = useState<string>('All');
-  const [selectedOwnership, setSelectedOwnership] = useState<string>('All');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState(urlSearch || '');
   const [selectedInventory, setSelectedInventory] = useState<Inventory | null>(null);
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [activeStatFilter, setActiveStatFilter] = useState<StatFilter>(urlFilter || 'all');
@@ -48,40 +56,74 @@ export default function WarehouseInventoryContent() {
     }
   }, [urlFilter]);
 
+  // Update search query when URL search param changes
+  useEffect(() => {
+    if (urlSearch) {
+      setSearchQuery(urlSearch);
+    }
+  }, [urlSearch]);
+
   const stats = useMemo(() => getInventoryStats(), []);
   const factories = useMemo(() => getWarehouseFactories(), []);
 
-  const filteredInventory = useMemo(() => {
-    let result = inventory;
+  // Create flat list of all inventory items with product info
+  const flatInventoryItems = useMemo(() => {
+    const items: FlatInventoryItem[] = [];
+
+    inventory.forEach(inv => {
+      const invItems = inventoryItems.filter(item => item.inventoryId === inv.id);
+      invItems.forEach(item => {
+        items.push({
+          ...item,
+          productName: inv.productName,
+          partNumber: inv.partNumber,
+          factoryName: inv.factoryName,
+          factoryId: inv.factoryId,
+          totalQuantity: inv.totalQuantity,
+          availableQuantity: inv.availableQuantity,
+          reservedQuantity: inv.reservedQuantity,
+          inTransitQuantity: inv.inTransitQuantity,
+          reorderPoint: inv.reorderPoint,
+        });
+      });
+    });
+
+    return items;
+  }, [inventory, inventoryItems]);
+
+  const filteredItems = useMemo(() => {
+    let result = flatInventoryItems;
 
     // Apply stat card filter
     if (activeStatFilter === 'available') {
-      result = result.filter(inv => inv.availableQuantity > 0);
+      result = result.filter(item => item.status === 'AVAILABLE');
     } else if (activeStatFilter === 'reserved') {
-      result = result.filter(inv => inv.reservedQuantity > 0);
+      result = result.filter(item => item.status === 'RESERVED');
     } else if (activeStatFilter === 'low_stock') {
-      result = result.filter(inv => inv.availableQuantity > 0 && inv.availableQuantity <= (inv.reorderPoint || 0));
+      result = result.filter(item => item.availableQuantity <= (item.reorderPoint || 0));
     }
 
     if (selectedFactory !== 'All') {
-      result = result.filter(inv => inv.factoryId === selectedFactory);
+      result = result.filter(item => item.factoryId === selectedFactory);
     }
 
-    if (selectedOwnership !== 'All') {
-      result = result.filter(inv => inv.ownershipType === selectedOwnership);
+    if (selectedStatus !== 'All') {
+      result = result.filter(item => item.status === selectedStatus);
     }
 
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      result = result.filter(inv =>
-        inv.productName.toLowerCase().includes(query) ||
-        inv.partNumber.toLowerCase().includes(query) ||
-        inv.factoryName.toLowerCase().includes(query)
+      result = result.filter(item =>
+        item.productName.toLowerCase().includes(query) ||
+        item.partNumber.toLowerCase().includes(query) ||
+        item.factoryName.toLowerCase().includes(query) ||
+        item.binLocation.toLowerCase().includes(query) ||
+        (item.lotNumber && item.lotNumber.toLowerCase().includes(query))
       );
     }
 
     return result;
-  }, [inventory, selectedFactory, selectedOwnership, searchQuery, activeStatFilter]);
+  }, [flatInventoryItems, selectedFactory, selectedStatus, searchQuery, activeStatFilter]);
 
   const handleStatCardClick = (filter: StatFilter) => {
     setActiveStatFilter(prev => prev === filter ? 'all' : filter);
@@ -95,22 +137,6 @@ export default function WarehouseInventoryContent() {
     return `${baseClass} border-[var(--border)] hover:border-[var(--primary)]/50`;
   };
 
-  const toggleRow = (inventoryId: string) => {
-    setExpandedRows(prev => {
-      const next = new Set(prev);
-      if (next.has(inventoryId)) {
-        next.delete(inventoryId);
-      } else {
-        next.add(inventoryId);
-      }
-      return next;
-    });
-  };
-
-  const getItemsForInventory = (inventoryId: string) => {
-    return inventoryItems.filter(item => item.inventoryId === inventoryId);
-  };
-
   const formatDate = (dateString: string | undefined | null) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -120,16 +146,19 @@ export default function WarehouseInventoryContent() {
     });
   };
 
-  const handleAddItem = (inventoryRecord: Inventory) => {
-    setSelectedInventory(inventoryRecord);
+  const handleAddItem = (inv: Inventory) => {
+    setSelectedInventory(inv);
     setShowAddItemModal(true);
   };
 
-  const handleViewDetails = (inventoryRecord: Inventory) => {
-    // Expand the row to show details
-    if (!expandedRows.has(inventoryRecord.id)) {
-      toggleRow(inventoryRecord.id);
+  // Format location path from binLocation (e.g., "Shelf 1A, Bin A" -> "Section A > Aisle 1 > Shelf 3 > Bay 2 > Row 1 > Bin A")
+  const formatLocation = (item: FlatInventoryItem) => {
+    // Parse the binLocation which is typically in format "Shelf 1A, Bin A"
+    // For now, show the full location path if available, otherwise show binLocation
+    if (item.fullLocationPath) {
+      return item.fullLocationPath;
     }
+    return item.binLocation;
   };
 
   return (
@@ -140,19 +169,26 @@ export default function WarehouseInventoryContent() {
           <div>
             <h1 className="text-2xl font-semibold text-[var(--foreground)]">Inventory</h1>
             <p className="text-sm text-[var(--muted-foreground)] mt-1">
-              Manage your products and inventory. Click on a row to see inventory items.
+              Manage consignment inventory and stock levels
             </p>
           </div>
           <div className="flex items-center gap-3">
             <WarehouseSelector />
             <button className="flex items-center gap-2 px-4 py-2 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <line x1="12" y1="18" x2="12" y2="12"/>
-                <line x1="9" y1="15" x2="15" y2="15"/>
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
               </svg>
-              Update from Manifest
+              Export
+            </button>
+            <button className="flex items-center gap-2 px-4 py-2 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              Import
             </button>
           </div>
         </div>
@@ -222,7 +258,7 @@ export default function WarehouseInventoryContent() {
             </svg>
             <input
               type="text"
-              placeholder="Search by product, part number, description..."
+              placeholder="Search by product, part number, location..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
@@ -239,15 +275,6 @@ export default function WarehouseInventoryContent() {
             ))}
           </select>
           <select
-            value={selectedOwnership}
-            onChange={(e) => setSelectedOwnership(e.target.value)}
-            className="px-4 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-          >
-            <option value="All">All Types</option>
-            <option value="CONSIGNMENT">Consignment</option>
-            <option value="BUY_SELL">Buy/Sell</option>
-          </select>
-          <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
             className="px-4 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
@@ -255,6 +282,7 @@ export default function WarehouseInventoryContent() {
             <option value="All">All Statuses</option>
             <option value="AVAILABLE">Available</option>
             <option value="RESERVED">Reserved</option>
+            <option value="PICKING">Picking</option>
             <option value="DAMAGED">Damaged</option>
             <option value="IN_TRANSIT">In Transit</option>
           </select>
@@ -262,228 +290,117 @@ export default function WarehouseInventoryContent() {
 
         {/* Results count */}
         <div className="text-sm text-[var(--muted-foreground)] mb-4">
-          Showing {filteredInventory.length} of {inventory.length} products
+          Showing {filteredItems.length} inventory items
         </div>
       </div>
 
-      {/* Inventory Table */}
+      {/* Inventory Table - Flat List */}
       <div className="flex-1 overflow-auto p-6 pt-0">
         <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
-          {/* Table Header */}
-          <div className="grid grid-cols-14 gap-4 px-6 py-3 border-b border-[var(--border)] bg-[var(--muted)]/30">
-            <div className="col-span-1 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-              {/* Expand */}
-            </div>
-            <div className="col-span-2 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-              Factory
-            </div>
-            <div className="col-span-3 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-              Description
-            </div>
-            <div className="col-span-1 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-              Part Number
-            </div>
-            <div className="col-span-1 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-              Type
-            </div>
-            <div className="col-span-1 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider text-right">
-              Total
-            </div>
-            <div className="col-span-1 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider text-right">
-              Available
-            </div>
-            <div className="col-span-1 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider text-right">
-              Cost/Unit
-            </div>
-            <div className="col-span-3 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider text-right">
-              Actions
-            </div>
-          </div>
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-[var(--border)] bg-[var(--muted)]/30">
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Factory</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Description</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Part Number</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Location</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Status</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Qty</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Available</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Reserved</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Lot #</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Received</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[var(--border)]">
+              {filteredItems.length === 0 ? (
+                <tr>
+                  <td colSpan={11} className="px-4 py-12 text-center text-[var(--muted-foreground)]">
+                    No inventory items found
+                  </td>
+                </tr>
+              ) : (
+                filteredItems.map((item) => {
+                  const isLowStock = item.availableQuantity <= (item.reorderPoint || 0);
+                  const inv = inventory.find(i => i.id === item.inventoryId);
 
-          {/* Table Body */}
-          <div className="divide-y divide-[var(--border)]">
-            {filteredInventory.length === 0 ? (
-              <div className="px-6 py-12 text-center text-[var(--muted-foreground)]">
-                No inventory found
-              </div>
-            ) : (
-              filteredInventory.map((inv) => {
-                const isExpanded = expandedRows.has(inv.id);
-                const items = getItemsForInventory(inv.id);
-                const isLowStock = inv.availableQuantity <= (inv.reorderPoint || 0);
-
-                return (
-                  <React.Fragment key={inv.id}>
-                    {/* Main Row */}
-                    <div
-                      className={`grid grid-cols-14 gap-4 px-6 py-4 hover:bg-[var(--muted)]/20 transition-colors cursor-pointer ${isExpanded ? 'bg-[var(--muted)]/10' : ''}`}
-                      onClick={() => toggleRow(inv.id)}
-                    >
-                      <div className="col-span-1 flex items-center">
-                        <svg
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          className={`transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-                        >
-                          <path d="M9 18l6-6-6-6"/>
-                        </svg>
-                      </div>
-                      <div className="col-span-2 flex items-center">
-                        <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium">
-                          {inv.factoryName.split(' ')[0]}
+                  return (
+                    <tr key={item.id} className="hover:bg-[var(--muted)]/20 transition-colors">
+                      <td className="px-4 py-3">
+                        <span className="px-2 py-1 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded text-xs font-medium">
+                          {item.factoryName.split(' ')[0]}
                         </span>
-                      </div>
-                      <div className="col-span-3 flex items-center">
-                        <span className="text-sm text-[var(--foreground)] line-clamp-2">{inv.productName}</span>
-                      </div>
-                      <div className="col-span-1 flex items-center">
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${isLowStock ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}`}>
-                          {inv.partNumber.split(' ').slice(0, 2).join(' ')}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-sm text-[var(--foreground)] line-clamp-1">{item.productName}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`text-sm font-medium ${isLowStock ? 'text-red-600' : 'text-[var(--foreground)]'}`}>
+                          {item.partNumber}
                         </span>
-                      </div>
-                      <div className="col-span-1 flex items-center">
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${ownershipTypeColors[inv.ownershipType]}`}>
-                          {inv.ownershipType === 'CONSIGNMENT' ? 'Consign' : 'Buy/Sell'}
-                        </span>
-                      </div>
-                      <div className="col-span-1 flex items-center justify-end">
-                        <span className="text-sm font-medium text-[var(--foreground)]">{inv.totalQuantity}</span>
-                      </div>
-                      <div className="col-span-1 flex items-center justify-end">
-                        <span className={`text-sm font-medium ${isLowStock ? 'text-red-600' : 'text-green-600'}`}>
-                          {inv.availableQuantity}
-                        </span>
-                      </div>
-                      <div className="col-span-1 flex items-center justify-end">
-                        {inv.ownershipType === 'BUY_SELL' && inv.unitCost ? (
-                          <span className="text-sm text-[var(--foreground)]">${inv.unitCost.toFixed(2)}</span>
-                        ) : inv.ownershipType === 'CONSIGNMENT' && inv.commissionPercentage ? (
-                          <span className="text-sm text-[var(--muted-foreground)]">{inv.commissionPercentage}%</span>
-                        ) : (
-                          <span className="text-sm text-[var(--muted-foreground)]">-</span>
-                        )}
-                      </div>
-                      <div className="col-span-3 flex items-center justify-end gap-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleViewDetails(inv);
-                          }}
-                          className="text-sm text-[var(--primary)] hover:underline"
-                        >
-                          View Details
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleAddItem(inv);
-                          }}
-                          className="flex items-center gap-1 px-3 py-1.5 bg-[var(--primary)] text-white rounded-lg text-xs font-medium hover:bg-[var(--primary-hover)] transition-colors"
-                        >
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <circle cx="12" cy="12" r="10"/>
-                            <path d="M12 8v8M8 12h8"/>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1 text-xs text-[var(--muted-foreground)]">
+                          <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                           </svg>
-                          Add Item
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Expanded Row - Inventory Items */}
-                    {isExpanded && (
-                      <div className="bg-[var(--muted)]/20 px-6 py-4 border-t border-[var(--border)]">
-                        <div className="ml-8">
-                          <div className="flex items-center justify-between mb-4">
-                            <div>
-                              <h3 className="font-semibold text-[var(--foreground)]">{inv.productName}</h3>
-                              <p className="text-sm text-[var(--muted-foreground)]">
-                                SKU: {inv.partNumber}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-6 text-sm">
-                              <div>
-                                <span className="text-[var(--muted-foreground)]">Total: </span>
-                                <span className="font-semibold text-[var(--foreground)]">{inv.totalQuantity}</span>
-                              </div>
-                              <div>
-                                <span className="text-[var(--muted-foreground)]">Available: </span>
-                                <span className="font-semibold text-green-600">{inv.availableQuantity}</span>
-                              </div>
-                              <div>
-                                <span className="text-[var(--muted-foreground)]">In Transit: </span>
-                                <span className="font-semibold text-blue-600">{inv.inTransitQuantity}</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider mb-2">
-                            Inventory Items ({items.length})
-                          </div>
-
-                          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
-                            <table className="w-full">
-                              <thead>
-                                <tr className="border-b border-[var(--border)] bg-[var(--muted)]/30">
-                                  <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)]">Quantity</th>
-                                  <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)]">Status</th>
-                                  <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)]">Bin</th>
-                                  <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)]">Lot #</th>
-                                  <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)]">Serial #</th>
-                                  <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)]">Received</th>
-                                  <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)]">Expiration</th>
-                                  <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)]">Notes</th>
-                                  <th className="px-4 py-2 text-right text-xs font-semibold text-[var(--muted-foreground)]">Actions</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-[var(--border)]">
-                                {items.length === 0 ? (
-                                  <tr>
-                                    <td colSpan={9} className="px-4 py-8 text-center text-[var(--muted-foreground)]">
-                                      No inventory items found
-                                    </td>
-                                  </tr>
-                                ) : (
-                                  items.map((item) => (
-                                    <tr key={item.id} className="hover:bg-[var(--muted)]/20 transition-colors">
-                                      <td className="px-4 py-3 text-sm font-semibold text-[var(--foreground)]">{item.quantity}</td>
-                                      <td className="px-4 py-3">
-                                        <span className={`px-2 py-1 rounded text-xs font-medium ${inventoryStatusColors[item.status]}`}>
-                                          {inventoryStatusLabels[item.status]}
-                                        </span>
-                                      </td>
-                                      <td className="px-4 py-3 text-sm text-[var(--foreground)]">{item.binLocation}</td>
-                                      <td className="px-4 py-3 text-sm text-[var(--foreground)]">{item.lotNumber || '-'}</td>
-                                      <td className="px-4 py-3 text-sm text-[var(--foreground)]">{item.serialNumber || '-'}</td>
-                                      <td className="px-4 py-3 text-sm text-[var(--foreground)]">{formatDate(item.receivedDate)}</td>
-                                      <td className="px-4 py-3 text-sm text-[var(--foreground)]">{formatDate(item.expirationDate)}</td>
-                                      <td className="px-4 py-3 text-sm text-[var(--muted-foreground)]">{item.notes || '-'}</td>
-                                      <td className="px-4 py-3 text-right">
-                                        <button className="p-1 hover:bg-[var(--muted)] rounded transition-colors">
-                                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                            <circle cx="12" cy="12" r="1"/>
-                                            <circle cx="12" cy="5" r="1"/>
-                                            <circle cx="12" cy="19" r="1"/>
-                                          </svg>
-                                        </button>
-                                      </td>
-                                    </tr>
-                                  ))
-                                )}
-                              </tbody>
-                            </table>
-                          </div>
+                          <span className="font-medium text-[var(--foreground)]">{formatLocation(item)}</span>
                         </div>
-                      </div>
-                    )}
-                  </React.Fragment>
-                );
-              })
-            )}
-          </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${inventoryStatusColors[item.status]}`}>
+                          {inventoryStatusLabels[item.status]}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <span className="text-sm font-semibold text-[var(--foreground)]">{item.quantity}</span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <span className={`text-sm font-semibold ${item.status === 'AVAILABLE' ? 'text-green-600' : 'text-[var(--muted-foreground)]'}`}>
+                          {item.status === 'AVAILABLE' ? item.quantity : '-'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <span className={`text-sm font-semibold ${item.status === 'RESERVED' ? 'text-blue-600' : 'text-[var(--muted-foreground)]'}`}>
+                          {item.status === 'RESERVED' ? item.quantity : '-'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-sm text-[var(--foreground)]">{item.lotNumber || '-'}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-sm text-[var(--muted-foreground)]">{formatDate(item.receivedDate)}</span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {inv && (
+                            <button
+                              onClick={() => handleAddItem(inv)}
+                              className="flex items-center gap-1 px-2.5 py-1 bg-[var(--primary)] text-white rounded text-xs font-medium hover:bg-[var(--primary-hover)] transition-colors"
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M12 5v14M5 12h14"/>
+                              </svg>
+                              Add
+                            </button>
+                          )}
+                          <button className="p-1.5 hover:bg-[var(--muted)] rounded transition-colors text-[var(--muted-foreground)]">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <circle cx="12" cy="12" r="1"/>
+                              <circle cx="12" cy="5" r="1"/>
+                              <circle cx="12" cy="19" r="1"/>
+                            </svg>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 

@@ -376,6 +376,160 @@ export interface PickTask {
 }
 
 // -----------------------------------------------------------------------------
+// Fulfillment Orders (Order-level fulfillment requests)
+// -----------------------------------------------------------------------------
+
+export type FulfillmentMethod = 'SHIP' | 'WILL_CALL' | 'JOBSITE';
+
+export type FulfillmentOrderStatus =
+  | 'PENDING'
+  | 'RELEASED'
+  | 'PICKING'
+  | 'PICKED'
+  | 'PACKING'
+  | 'PACKED'
+  | 'SHIPPED'
+  | 'PARTIAL_SHIPPED'
+  | 'DELIVERED'
+  | 'CANCELLED';
+
+export interface ShipToAddress {
+  name: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  contactPhone?: string;
+  contactEmail?: string;
+}
+
+export interface FulfillmentOrderLineItem {
+  id: string;
+  fulfillmentOrderId: string;
+  orderLineItemId: string;       // Link back to original order line item
+  productId: string;
+  productName: string;
+  partNumber: string;
+  uom: string;
+  orderedQty: number;
+
+  // Warehouse reality - qty breakdown
+  allocatedQty: number;
+  shippedQty: number;
+  backorderQty: number;
+
+  // Optional warehouse specifics
+  warehouseLocationOverride?: string;  // Override from order-level warehouse
+  pickLocation?: string;               // Bin location for picking
+  shortReason?: string;                // Reason if backorder > 0
+
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FulfillmentOrder {
+  id: string;
+  fulfillmentOrderNumber: string;  // e.g., "FO-2024-001"
+
+  // Source order info
+  orderId: string;
+  orderNumber: string;
+
+  // Customer info
+  customerId: string;
+  customerName: string;
+
+  // 1) Warehouse context
+  warehouseId: string;
+  warehouseName: string;
+  fulfillmentMethod: FulfillmentMethod;
+
+  // 2) Where it's going
+  shipTo: ShipToAddress;
+
+  // 3) Timing + commitment
+  needByDate?: string;
+  allowPartialShipment: boolean;  // If false, shipping < ordered should block packing
+
+  // 4) Release authority (point of no return - audit + accountability)
+  releasedAt?: string;
+  releasedBy?: string;
+
+  // 5) Pick timestamps (auto-filled, not editable - for warehouse performance metrics)
+  pickStartedAt?: string;
+  pickStartedBy?: string;
+  pickCompletedAt?: string;
+  pickCompletedBy?: string;
+
+  // 6) Shipping outcome
+  shipStatus: 'NOT_SHIPPED' | 'PARTIAL' | 'SHIPPED';
+  carrier?: string;
+  trackingNumbers?: string[];  // Can hold multiple tracking numbers
+  shipConfirmedAt?: string;    // Proof of shipment - commission triggers
+
+  // Overall status
+  status: FulfillmentOrderStatus;
+
+  // Line items
+  lineItems: FulfillmentOrderLineItem[];
+
+  // Metadata
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: string;
+  updatedBy?: string;
+}
+
+// Status labels and colors for FulfillmentOrder
+export const fulfillmentOrderStatusLabels: Record<FulfillmentOrderStatus, string> = {
+  PENDING: 'Pending',
+  RELEASED: 'Released',
+  PICKING: 'Picking',
+  PICKED: 'Picked',
+  PACKING: 'Packing',
+  PACKED: 'Packed',
+  SHIPPED: 'Shipped',
+  PARTIAL_SHIPPED: 'Partial Shipped',
+  DELIVERED: 'Delivered',
+  CANCELLED: 'Cancelled',
+};
+
+export const fulfillmentOrderStatusColors: Record<FulfillmentOrderStatus, string> = {
+  PENDING: 'bg-gray-100 text-gray-700',
+  RELEASED: 'bg-cyan-100 text-cyan-700',
+  PICKING: 'bg-yellow-100 text-yellow-700',
+  PICKED: 'bg-amber-100 text-amber-700',
+  PACKING: 'bg-orange-100 text-orange-700',
+  PACKED: 'bg-purple-100 text-purple-700',
+  SHIPPED: 'bg-green-100 text-green-700',
+  PARTIAL_SHIPPED: 'bg-blue-100 text-blue-700',
+  DELIVERED: 'bg-emerald-100 text-emerald-700',
+  CANCELLED: 'bg-red-100 text-red-700',
+};
+
+export const fulfillmentMethodLabels: Record<FulfillmentMethod, string> = {
+  SHIP: 'Ship',
+  WILL_CALL: 'Will Call',
+  JOBSITE: 'Jobsite Delivery',
+};
+
+export const shipStatusLabels: Record<'NOT_SHIPPED' | 'PARTIAL' | 'SHIPPED', string> = {
+  NOT_SHIPPED: 'Not Shipped',
+  PARTIAL: 'Partial',
+  SHIPPED: 'Shipped',
+};
+
+export const shipStatusColors: Record<'NOT_SHIPPED' | 'PARTIAL' | 'SHIPPED', string> = {
+  NOT_SHIPPED: 'bg-gray-100 text-gray-700',
+  PARTIAL: 'bg-yellow-100 text-yellow-700',
+  SHIPPED: 'bg-green-100 text-green-700',
+};
+
+// -----------------------------------------------------------------------------
 // Deliveries / Incoming Shipments
 // -----------------------------------------------------------------------------
 
@@ -807,6 +961,38 @@ export const buySellStatusColors: Record<BuySellStatus, string> = {
 };
 
 // -----------------------------------------------------------------------------
+// Warehouse Settings
+// -----------------------------------------------------------------------------
+
+export type WarehouseLocationLevel = 'section' | 'aisle' | 'shelf' | 'bay' | 'row' | 'bin';
+
+export interface WarehouseLocationLevelConfig {
+  level: WarehouseLocationLevel;
+  label: string;
+  icon: string;
+  enabled: boolean;
+  order: number;
+}
+
+export interface WarehouseSettings {
+  id: string;
+  warehouseId?: string;  // If null, these are global default settings
+  locationLevels: WarehouseLocationLevelConfig[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Default location level configuration
+export const defaultLocationLevels: WarehouseLocationLevelConfig[] = [
+  { level: 'section', label: 'Section', icon: 'package', enabled: true, order: 1 },
+  { level: 'aisle', label: 'Aisle', icon: 'shopping-cart', enabled: true, order: 2 },
+  { level: 'shelf', label: 'Shelf', icon: 'layers', enabled: true, order: 3 },
+  { level: 'bay', label: 'Bay', icon: 'grid', enabled: true, order: 4 },
+  { level: 'row', label: 'Row', icon: 'folder', enabled: true, order: 5 },
+  { level: 'bin', label: 'Bin', icon: 'map-pin', enabled: true, order: 6 },
+];
+
+// -----------------------------------------------------------------------------
 // Utility Types
 // -----------------------------------------------------------------------------
 
@@ -826,3 +1012,99 @@ export interface InventoryStats {
   inTransitQuantity: number;
   damagedQuantity: number;
 }
+
+// -----------------------------------------------------------------------------
+// Shipment Requests
+// -----------------------------------------------------------------------------
+
+export type ShipmentRequestMethod = 'EMAIL' | 'CALL' | 'MANUFACTURER_SYSTEM';
+
+export type ShipmentRequestStatus =
+  | 'DRAFT'
+  | 'PENDING'
+  | 'SENT'
+  | 'CONFIRMED'
+  | 'SHIPPED'
+  | 'RECEIVED'
+  | 'CANCELLED';
+
+export interface ManufacturerContact {
+  id: string;
+  factoryId: string;
+  name: string;
+  email: string;
+  phone?: string;
+  role: string;
+  isDefaultForOrders: boolean;
+  isActive: boolean;
+}
+
+export interface ShipmentRequestLineItem {
+  id: string;
+  productId: string;
+  productName: string;
+  partNumber: string;
+  requestedQuantity: number;
+  currentStock: number;
+  reorderPoint?: number;
+}
+
+export interface ShipmentRequest {
+  id: string;
+  requestNumber: string;
+  vendorId: string;
+  vendorName: string;
+  warehouseId: string;
+  warehouseName: string;
+  requestMethod: ShipmentRequestMethod;
+  status: ShipmentRequestStatus;
+  priority: 'standard' | 'expedited' | 'urgent';
+  requestedDeliveryDate: string;
+  items: ShipmentRequestLineItem[];
+  totalQuantity: number;
+
+  // Email-specific fields
+  contactId?: string;
+  contactName?: string;
+  contactEmail?: string;
+  emailSentAt?: string;
+
+  // Call/System confirmation fields
+  confirmedAt?: string;
+  confirmedBy?: string;
+  confirmationNotes?: string;
+
+  // Linked shipment (when confirmed/shipped)
+  linkedShipmentId?: string;
+
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: string;
+}
+
+export const shipmentRequestMethodLabels: Record<ShipmentRequestMethod, string> = {
+  EMAIL: 'Email',
+  CALL: 'Phone Call',
+  MANUFACTURER_SYSTEM: 'Manufacturer System',
+};
+
+export const shipmentRequestStatusLabels: Record<ShipmentRequestStatus, string> = {
+  DRAFT: 'Draft',
+  PENDING: 'Pending',
+  SENT: 'Sent',
+  CONFIRMED: 'Confirmed',
+  SHIPPED: 'Shipped',
+  RECEIVED: 'Received',
+  CANCELLED: 'Cancelled',
+};
+
+export const shipmentRequestStatusColors: Record<ShipmentRequestStatus, string> = {
+  DRAFT: 'bg-gray-100 text-gray-700',
+  PENDING: 'bg-yellow-100 text-yellow-700',
+  SENT: 'bg-blue-100 text-blue-700',
+  CONFIRMED: 'bg-purple-100 text-purple-700',
+  SHIPPED: 'bg-indigo-100 text-indigo-700',
+  RECEIVED: 'bg-green-100 text-green-700',
+  CANCELLED: 'bg-red-100 text-red-700',
+};

@@ -30,6 +30,12 @@ import {
   RmaReason,
   OwnershipType,
   BuySellStatus,
+  FulfillmentOrder,
+  FulfillmentOrderLineItem,
+  FulfillmentOrderStatus,
+  ManufacturerContact,
+  ShipmentRequest,
+  ShipmentRequestStatus,
 } from '../types/warehouse';
 
 import { Task } from '../types/tasks';
@@ -493,6 +499,311 @@ export const mockWaves: Wave[] = [
     updatedAt: '2024-12-09T14:00:00Z',
   },
 ];
+
+// -----------------------------------------------------------------------------
+// Mock Fulfillment Orders
+// -----------------------------------------------------------------------------
+
+export const mockFulfillmentOrders: FulfillmentOrder[] = [
+  {
+    id: 'FO-001',
+    fulfillmentOrderNumber: 'FO-2024-001',
+    orderId: 'ORD-2024-001',
+    orderNumber: 'SO-2024-001',
+    customerId: 'CO-011',
+    customerName: 'Graybar Electric',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    fulfillmentMethod: 'SHIP',
+    shipTo: {
+      name: 'Graybar Electric - Main Warehouse',
+      addressLine1: '1144 15th Street',
+      city: 'Augusta',
+      state: 'GA',
+      postalCode: '30901',
+      country: 'USA',
+      contactPhone: '(706) 555-1234',
+      contactEmail: 'receiving@graybar.com',
+    },
+    needByDate: '2024-12-20',
+    allowPartialShipment: true,
+    releasedAt: '2024-12-10T09:00:00Z',
+    releasedBy: 'John Smith',
+    shipStatus: 'NOT_SHIPPED',
+    status: 'RELEASED' as FulfillmentOrderStatus,
+    lineItems: [
+      {
+        id: 'FOLI-001',
+        fulfillmentOrderId: 'FO-001',
+        orderLineItemId: 'OLI-001',
+        productId: 'ALF-LS600-T3-G1-FSK-PSC-ASR',
+        productName: 'ALF Flexible Area Light, 60000Lm',
+        partNumber: 'ALF LS600 T3 G1 FSK PSC ASR',
+        uom: 'EA',
+        orderedQty: 10,
+        allocatedQty: 10,
+        shippedQty: 0,
+        backorderQty: 0,
+        pickLocation: 'Shelf 1A, Bin A',
+        createdAt: '2024-12-10T09:00:00Z',
+        updatedAt: '2024-12-10T09:00:00Z',
+      },
+    ],
+    createdAt: '2024-12-10T08:00:00Z',
+    updatedAt: '2024-12-10T09:00:00Z',
+    createdBy: 'John Smith',
+  },
+  {
+    id: 'FO-002',
+    fulfillmentOrderNumber: 'FO-2024-002',
+    orderId: 'ORD-2024-002',
+    orderNumber: 'SO-2024-002',
+    customerId: 'CO-006',
+    customerName: 'Summit Electric',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    fulfillmentMethod: 'SHIP',
+    shipTo: {
+      name: 'Summit Electric Supply',
+      addressLine1: '2500 Industrial Blvd',
+      city: 'Charlotte',
+      state: 'NC',
+      postalCode: '28208',
+      country: 'USA',
+      contactPhone: '(704) 555-5678',
+    },
+    needByDate: '2024-12-18',
+    allowPartialShipment: false,
+    releasedAt: '2024-12-10T09:30:00Z',
+    releasedBy: 'John Smith',
+    shipStatus: 'NOT_SHIPPED',
+    status: 'RELEASED' as FulfillmentOrderStatus,
+    lineItems: [
+      {
+        id: 'FOLI-002',
+        fulfillmentOrderId: 'FO-002',
+        orderLineItemId: 'OLI-002',
+        productId: 'PC-2',
+        productName: 'Twist-lock Photocell with receptacle',
+        partNumber: 'PC-2',
+        uom: 'EA',
+        orderedQty: 25,
+        allocatedQty: 25,
+        shippedQty: 0,
+        backorderQty: 0,
+        pickLocation: 'Shelf 1A, Bin D',
+        createdAt: '2024-12-10T09:30:00Z',
+        updatedAt: '2024-12-10T09:30:00Z',
+      },
+    ],
+    createdAt: '2024-12-10T08:30:00Z',
+    updatedAt: '2024-12-10T09:30:00Z',
+    createdBy: 'John Smith',
+  },
+  {
+    id: 'FO-003',
+    fulfillmentOrderNumber: 'FO-2024-003',
+    orderId: 'ORD-2024-003',
+    orderNumber: 'SO-2024-003',
+    customerId: 'CO-011',
+    customerName: 'Graybar Electric',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    fulfillmentMethod: 'SHIP',
+    shipTo: {
+      name: 'Graybar Electric - Atlanta Branch',
+      addressLine1: '3200 Peachtree Industrial Blvd',
+      city: 'Duluth',
+      state: 'GA',
+      postalCode: '30096',
+      country: 'USA',
+      contactPhone: '(770) 555-9999',
+    },
+    needByDate: '2024-12-07',
+    allowPartialShipment: true,
+    releasedAt: '2024-12-07T08:00:00Z',
+    releasedBy: 'Sarah Williams',
+    pickStartedAt: '2024-12-07T09:15:00Z',
+    pickStartedBy: 'Mike Johnson',
+    pickCompletedAt: '2024-12-07T11:30:00Z',
+    pickCompletedBy: 'Mike Johnson',
+    shipStatus: 'SHIPPED',
+    carrier: 'UPS',
+    trackingNumbers: ['1Z999AA10123456784'],
+    shipConfirmedAt: '2024-12-08T14:00:00Z',
+    status: 'SHIPPED' as FulfillmentOrderStatus,
+    lineItems: [
+      {
+        id: 'FOLI-003',
+        fulfillmentOrderId: 'FO-003',
+        orderLineItemId: 'OLI-003',
+        productId: 'ALF-ASR',
+        productName: 'Adjustable Square & Round Pole Mounting',
+        partNumber: 'ALF-ASR',
+        uom: 'EA',
+        orderedQty: 50,
+        allocatedQty: 50,
+        shippedQty: 50,
+        backorderQty: 0,
+        pickLocation: 'Shelf 1A, Bin C',
+        createdAt: '2024-12-07T08:00:00Z',
+        updatedAt: '2024-12-08T16:00:00Z',
+      },
+    ],
+    createdAt: '2024-12-07T08:00:00Z',
+    updatedAt: '2024-12-08T16:00:00Z',
+    createdBy: 'Sarah Williams',
+  },
+  {
+    id: 'FO-004',
+    fulfillmentOrderNumber: 'FO-2024-004',
+    orderId: 'ORD-2024-004',
+    orderNumber: 'SO-2024-004',
+    customerId: 'CO-006',
+    customerName: 'Summit Electric',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    fulfillmentMethod: 'SHIP',
+    shipTo: {
+      name: 'Summit Electric Supply - Raleigh',
+      addressLine1: '4500 Capital Blvd',
+      city: 'Raleigh',
+      state: 'NC',
+      postalCode: '27604',
+      country: 'USA',
+      contactPhone: '(919) 555-3456',
+    },
+    needByDate: '2024-12-22',
+    allowPartialShipment: true,
+    shipStatus: 'NOT_SHIPPED',
+    status: 'PENDING' as FulfillmentOrderStatus,
+    lineItems: [
+      {
+        id: 'FOLI-004',
+        fulfillmentOrderId: 'FO-004',
+        orderLineItemId: 'OLI-004',
+        productId: 'LED-DRIVER-100W',
+        productName: 'LED Driver 100W Dimmable',
+        partNumber: 'DRV-100W-DIM',
+        uom: 'EA',
+        orderedQty: 15,
+        allocatedQty: 15,
+        shippedQty: 0,
+        backorderQty: 0,
+        pickLocation: 'Shelf 2B, Bin E',
+        createdAt: '2024-12-12T10:00:00Z',
+        updatedAt: '2024-12-12T10:00:00Z',
+      },
+    ],
+    createdAt: '2024-12-12T10:00:00Z',
+    updatedAt: '2024-12-12T10:00:00Z',
+    createdBy: 'John Smith',
+  },
+  {
+    id: 'FO-005',
+    fulfillmentOrderNumber: 'FO-2024-005',
+    orderId: 'ORD-2024-005',
+    orderNumber: 'SO-2024-005',
+    customerId: 'CO-011',
+    customerName: 'Graybar Electric',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    fulfillmentMethod: 'WILL_CALL',
+    shipTo: {
+      name: 'Graybar Electric - Will Call',
+      addressLine1: '1000 Warehouse Way',
+      city: 'Atlanta',
+      state: 'GA',
+      postalCode: '30318',
+      country: 'USA',
+      contactPhone: '(404) 555-7890',
+    },
+    needByDate: '2024-12-18',
+    allowPartialShipment: false,
+    shipStatus: 'NOT_SHIPPED',
+    status: 'PENDING' as FulfillmentOrderStatus,
+    lineItems: [
+      {
+        id: 'FOLI-005a',
+        fulfillmentOrderId: 'FO-005',
+        orderLineItemId: 'OLI-005a',
+        productId: 'POLE-MOUNT-ADJ',
+        productName: 'Adjustable Pole Mount Bracket',
+        partNumber: 'PMB-ADJ-01',
+        uom: 'EA',
+        orderedQty: 20,
+        allocatedQty: 20,
+        shippedQty: 0,
+        backorderQty: 0,
+        pickLocation: 'Shelf 3A, Bin B',
+        createdAt: '2024-12-13T14:30:00Z',
+        updatedAt: '2024-12-13T14:30:00Z',
+      },
+      {
+        id: 'FOLI-005b',
+        fulfillmentOrderId: 'FO-005',
+        orderLineItemId: 'OLI-005b',
+        productId: 'WIRE-12AWG-500',
+        productName: '12 AWG Wire - 500ft Spool',
+        partNumber: 'WIRE-12-500',
+        uom: 'SPOOL',
+        orderedQty: 5,
+        allocatedQty: 5,
+        shippedQty: 0,
+        backorderQty: 0,
+        pickLocation: 'Shelf 4C, Bin A',
+        createdAt: '2024-12-13T14:30:00Z',
+        updatedAt: '2024-12-13T14:30:00Z',
+      },
+    ],
+    createdAt: '2024-12-13T14:30:00Z',
+    updatedAt: '2024-12-13T14:30:00Z',
+    createdBy: 'Sarah Williams',
+  },
+];
+
+// Helper to get fulfillment order stats
+export function getFulfillmentOrderStats() {
+  return {
+    totalFulfillmentOrders: mockFulfillmentOrders.length,
+    pendingFulfillmentOrders: mockFulfillmentOrders.filter(fo => fo.status === 'PENDING').length,
+    releasedFulfillmentOrders: mockFulfillmentOrders.filter(fo => fo.status === 'RELEASED').length,
+    inProgressFulfillmentOrders: mockFulfillmentOrders.filter(fo =>
+      fo.status === 'PICKING' || fo.status === 'PICKED' || fo.status === 'PACKING' || fo.status === 'PACKED'
+    ).length,
+    shippedFulfillmentOrders: mockFulfillmentOrders.filter(fo =>
+      fo.status === 'SHIPPED' || fo.status === 'PARTIAL_SHIPPED'
+    ).length,
+    completedFulfillmentOrders: mockFulfillmentOrders.filter(fo => fo.status === 'DELIVERED').length,
+  };
+}
+
+// Helper to add a new fulfillment order (mutates the array for demo purposes)
+export function addFulfillmentOrder(fulfillmentOrder: FulfillmentOrder) {
+  mockFulfillmentOrders.push(fulfillmentOrder);
+}
+
+// Helper to get a fulfillment order by ID
+export function getFulfillmentOrderById(id: string): FulfillmentOrder | undefined {
+  return mockFulfillmentOrders.find(fo => fo.id === id);
+}
+
+// Helper to get all fulfillment orders
+export function getAllFulfillmentOrders(): FulfillmentOrder[] {
+  return mockFulfillmentOrders;
+}
+
+// Helper to update a fulfillment order
+export function updateFulfillmentOrder(id: string, updates: Partial<FulfillmentOrder>): FulfillmentOrder | undefined {
+  const index = mockFulfillmentOrders.findIndex(fo => fo.id === id);
+  if (index === -1) return undefined;
+
+  mockFulfillmentOrders[index] = {
+    ...mockFulfillmentOrders[index],
+    ...updates,
+  };
+  return mockFulfillmentOrders[index];
+}
 
 // -----------------------------------------------------------------------------
 // Mock Incoming Shipments
@@ -1187,4 +1498,310 @@ export function getWarehouseCustomers() {
     { id: 'CO-011', name: 'Graybar Electric' },
     { id: 'CO-006', name: 'Summit Electric' },
   ];
+}
+
+// -----------------------------------------------------------------------------
+// Shipment Management Functions
+// -----------------------------------------------------------------------------
+
+// Update shipment status
+export function updateShipmentStatus(shipmentId: string, status: ShipmentStatus): IncomingShipment | undefined {
+  const index = mockIncomingShipments.findIndex(s => s.id === shipmentId);
+  if (index === -1) return undefined;
+
+  mockIncomingShipments[index] = {
+    ...mockIncomingShipments[index],
+    status,
+    updatedAt: new Date().toISOString(),
+    ...(status === 'RECEIVED' ? { receivedAt: new Date().toISOString() } : {}),
+  };
+  return mockIncomingShipments[index];
+}
+
+// Add a new incoming shipment
+export function addIncomingShipment(shipment: Omit<IncomingShipment, 'id' | 'createdAt' | 'updatedAt'>): IncomingShipment {
+  const newShipment: IncomingShipment = {
+    ...shipment,
+    id: `SHIP-${String(mockIncomingShipments.length + 1).padStart(3, '0')}`,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  mockIncomingShipments.push(newShipment);
+  return newShipment;
+}
+
+// Get shipment by ID
+export function getShipmentById(id: string): IncomingShipment | undefined {
+  return mockIncomingShipments.find(s => s.id === id);
+}
+
+// Complete receiving for a shipment (update items and mark as received)
+export function completeShipmentReceiving(
+  shipmentId: string,
+  receivedItems: { productId: string; receivedQuantity: number }[]
+): IncomingShipment | undefined {
+  const index = mockIncomingShipments.findIndex(s => s.id === shipmentId);
+  if (index === -1) return undefined;
+
+  const shipment = mockIncomingShipments[index];
+
+  // Update received quantities for each item
+  const updatedItems = shipment.items.map(item => {
+    const received = receivedItems.find(r => r.productId === item.productId);
+    return {
+      ...item,
+      receivedQuantity: received?.receivedQuantity ?? item.receivedQuantity,
+    };
+  });
+
+  const updatedExpectedItems = shipment.expectedItems.map(item => {
+    const received = receivedItems.find(r => r.productId === item.productId);
+    const receivedQty = received?.receivedQuantity ?? 0;
+    return {
+      ...item,
+      receivedQuantity: receivedQty,
+      status: receivedQty === item.expectedQuantity ? 'received' as const :
+              receivedQty > 0 ? 'partial' as const :
+              'discrepancy' as const,
+    };
+  });
+
+  mockIncomingShipments[index] = {
+    ...shipment,
+    items: updatedItems,
+    expectedItems: updatedExpectedItems,
+    status: 'RECEIVED' as ShipmentStatus,
+    receivedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  return mockIncomingShipments[index];
+}
+
+// -----------------------------------------------------------------------------
+// Manufacturer Contacts
+// -----------------------------------------------------------------------------
+
+export const mockManufacturerContacts: ManufacturerContact[] = [
+  // Legrand North America contacts
+  {
+    id: 'CONTACT-001',
+    factoryId: 'CO-012',
+    name: 'Sarah Mitchell',
+    email: 'sarah.mitchell@legrand.com',
+    phone: '(404) 555-1234',
+    role: 'Sales Representative',
+    isDefaultForOrders: true,
+    isActive: true,
+  },
+  {
+    id: 'CONTACT-002',
+    factoryId: 'CO-012',
+    name: 'Michael Chen',
+    email: 'michael.chen@legrand.com',
+    phone: '(404) 555-2345',
+    role: 'Account Manager',
+    isDefaultForOrders: false,
+    isActive: true,
+  },
+  {
+    id: 'CONTACT-003',
+    factoryId: 'CO-012',
+    name: 'Jennifer Adams',
+    email: 'jennifer.adams@legrand.com',
+    phone: '(404) 555-3456',
+    role: 'Order Processing',
+    isDefaultForOrders: false,
+    isActive: true,
+  },
+  // Johnson Controls contacts
+  {
+    id: 'CONTACT-004',
+    factoryId: 'CO-004',
+    name: 'David Wilson',
+    email: 'david.wilson@jci.com',
+    phone: '(678) 555-4567',
+    role: 'Regional Sales Manager',
+    isDefaultForOrders: true,
+    isActive: true,
+  },
+  {
+    id: 'CONTACT-005',
+    factoryId: 'CO-004',
+    name: 'Amanda Torres',
+    email: 'amanda.torres@jci.com',
+    phone: '(678) 555-5678',
+    role: 'Customer Service',
+    isDefaultForOrders: false,
+    isActive: true,
+  },
+];
+
+// Get contacts for a specific manufacturer
+export function getManufacturerContacts(factoryId: string): ManufacturerContact[] {
+  return mockManufacturerContacts.filter(c => c.factoryId === factoryId && c.isActive);
+}
+
+// Get default contact for a manufacturer
+export function getDefaultContact(factoryId: string): ManufacturerContact | undefined {
+  return mockManufacturerContacts.find(c => c.factoryId === factoryId && c.isDefaultForOrders && c.isActive);
+}
+
+// Update default contact for a manufacturer
+export function setDefaultContact(factoryId: string, contactId: string): void {
+  mockManufacturerContacts.forEach(contact => {
+    if (contact.factoryId === factoryId) {
+      contact.isDefaultForOrders = contact.id === contactId;
+    }
+  });
+}
+
+// -----------------------------------------------------------------------------
+// Shipment Requests
+// -----------------------------------------------------------------------------
+
+export const mockShipmentRequests: ShipmentRequest[] = [
+  {
+    id: 'REQ-001',
+    requestNumber: 'SR-2024-001',
+    vendorId: 'CO-012',
+    vendorName: 'Legrand North America',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    requestMethod: 'EMAIL',
+    status: 'CONFIRMED' as ShipmentRequestStatus,
+    priority: 'standard',
+    requestedDeliveryDate: '2024-12-20T00:00:00Z',
+    items: [
+      {
+        id: 'REQLI-001',
+        productId: 'ALF-LS600-T3-G1-FSK-PSC-ASR',
+        productName: 'ALF Flexible Area Light, 60000Lm',
+        partNumber: 'ALF LS600 T3 G1 FSK PSC ASR',
+        requestedQuantity: 50,
+        currentStock: 120,
+        reorderPoint: 50,
+      },
+    ],
+    totalQuantity: 50,
+    contactId: 'CONTACT-001',
+    contactName: 'Sarah Mitchell',
+    contactEmail: 'sarah.mitchell@legrand.com',
+    emailSentAt: '2024-12-10T10:30:00Z',
+    confirmedAt: '2024-12-10T14:15:00Z',
+    linkedShipmentId: 'SHIP-003',
+    notes: 'Regular restock order',
+    createdAt: '2024-12-10T10:00:00Z',
+    updatedAt: '2024-12-10T14:15:00Z',
+    createdBy: 'John Smith',
+  },
+  {
+    id: 'REQ-002',
+    requestNumber: 'SR-2024-002',
+    vendorId: 'CO-004',
+    vendorName: 'Johnson Controls',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    requestMethod: 'CALL',
+    status: 'SENT' as ShipmentRequestStatus,
+    priority: 'expedited',
+    requestedDeliveryDate: '2024-12-18T00:00:00Z',
+    items: [
+      {
+        id: 'REQLI-002',
+        productId: 'PC-2',
+        productName: 'Twist-lock Photocell with receptacle',
+        partNumber: 'PC-2',
+        requestedQuantity: 100,
+        currentStock: 180,
+        reorderPoint: 50,
+      },
+    ],
+    totalQuantity: 100,
+    confirmedAt: '2024-12-11T09:00:00Z',
+    confirmedBy: 'Mike Johnson',
+    confirmationNotes: 'Spoke with David Wilson, confirmed shipment will go out Monday 12/16',
+    notes: 'Expedited - customer project deadline',
+    createdAt: '2024-12-11T08:30:00Z',
+    updatedAt: '2024-12-11T09:00:00Z',
+    createdBy: 'Mike Johnson',
+  },
+  {
+    id: 'REQ-003',
+    requestNumber: 'SR-2024-003',
+    vendorId: 'CO-012',
+    vendorName: 'Legrand North America',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    requestMethod: 'MANUFACTURER_SYSTEM',
+    status: 'PENDING' as ShipmentRequestStatus,
+    priority: 'urgent',
+    requestedDeliveryDate: '2024-12-16T00:00:00Z',
+    items: [
+      {
+        id: 'REQLI-003',
+        productId: 'MS-DCE-09-L7-W',
+        productName: 'Motion Sensor, DC, Fixture External',
+        partNumber: 'MS-DCE-09-L7-W',
+        requestedQuantity: 75,
+        currentStock: 30,
+        reorderPoint: 40,
+      },
+      {
+        id: 'REQLI-004',
+        productId: 'ALF-ASR',
+        productName: 'Adjustable Square & Round Pole Mounting',
+        partNumber: 'ALF-ASR',
+        requestedQuantity: 100,
+        currentStock: 480,
+        reorderPoint: 100,
+      },
+    ],
+    totalQuantity: 175,
+    notes: 'URGENT - Low stock alert triggered',
+    createdAt: '2024-12-12T07:00:00Z',
+    updatedAt: '2024-12-12T07:00:00Z',
+    createdBy: 'System',
+  },
+];
+
+// Add a new shipment request
+export function addShipmentRequest(request: Omit<ShipmentRequest, 'id' | 'requestNumber' | 'createdAt' | 'updatedAt'>): ShipmentRequest {
+  const newRequest: ShipmentRequest = {
+    ...request,
+    id: `REQ-${String(mockShipmentRequests.length + 1).padStart(3, '0')}`,
+    requestNumber: `SR-${new Date().getFullYear()}-${String(mockShipmentRequests.length + 1).padStart(3, '0')}`,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  mockShipmentRequests.push(newRequest);
+  return newRequest;
+}
+
+// Update shipment request status
+export function updateShipmentRequestStatus(
+  requestId: string,
+  status: ShipmentRequestStatus,
+  additionalFields?: Partial<ShipmentRequest>
+): ShipmentRequest | undefined {
+  const index = mockShipmentRequests.findIndex(r => r.id === requestId);
+  if (index === -1) return undefined;
+
+  mockShipmentRequests[index] = {
+    ...mockShipmentRequests[index],
+    ...additionalFields,
+    status,
+    updatedAt: new Date().toISOString(),
+  };
+  return mockShipmentRequests[index];
+}
+
+// Get all shipment requests
+export function getAllShipmentRequests(): ShipmentRequest[] {
+  return mockShipmentRequests;
+}
+
+// Get shipment request by ID
+export function getShipmentRequestById(id: string): ShipmentRequest | undefined {
+  return mockShipmentRequests.find(r => r.id === id);
 }
