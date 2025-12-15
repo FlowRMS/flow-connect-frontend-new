@@ -73,6 +73,7 @@ export interface Product {
   unitsPerCase?: number;
   tareWeight?: number;
   isActive: boolean;
+  isWarehouseConsignment?: boolean;   // If true, product shows in Warehouse module
   createdAt: string;
   updatedAt: string;
 }
@@ -224,6 +225,15 @@ export interface OrderLineItem {
   isCancelled: boolean;
   // Consignment tracking
   isConsignment: boolean;
+  // Warehouse consignment
+  isWarehouseConsignment?: boolean;
+  inventoryOnHand?: number;
+  // Document-specific product (created for this document only)
+  isDocumentSpecific?: boolean;
+  // Fulfillment request
+  fulfillmentRequestId?: string;
+  fulfillmentRequestNumber?: string;
+  fulfillmentRequestStatus?: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
   // Credit line fields
   isCredit?: boolean;
   creditType?: 'return' | 'short_ship' | 'cancel' | 'damage';
@@ -300,6 +310,10 @@ export interface InvoiceLineItem {
   commissionAmount: number;
   // Linked order line items (for many-to-many linking when invoice has no explicit lines)
   linkedOrderLineItemIds?: string[];
+  // Product flags
+  isQuoteLevelProduct?: boolean;      // Product created at quote level (not from manufacturer catalog)
+  isWarehouseConsignment?: boolean;   // Product is warehouse consignment item
+  inventoryOnHand?: number;           // Current inventory on hand for warehouse products
 }
 
 // -----------------------------------------------------------------------------

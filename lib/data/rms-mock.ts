@@ -683,6 +683,8 @@ export const mockOrders: Order[] = [
         quantityCredited: 0,
         isCancelled: false,
         isConsignment: false,
+        isWarehouseConsignment: true,
+        inventoryOnHand: 75,
       },
       {
         id: 'OLI-005-2',
@@ -700,6 +702,7 @@ export const mockOrders: Order[] = [
         quantityCredited: 5,
         isCancelled: false,
         isConsignment: false,
+        isDocumentSpecific: true,
       },
       {
         id: 'OLI-005-3',
@@ -717,6 +720,8 @@ export const mockOrders: Order[] = [
         quantityCredited: 0,
         isCancelled: false,
         isConsignment: false,
+        isWarehouseConsignment: true,
+        inventoryOnHand: 320,
       },
       {
         id: 'OLI-005-4',
@@ -734,6 +739,7 @@ export const mockOrders: Order[] = [
         quantityCredited: 0,
         isCancelled: false,
         isConsignment: false,
+        isDocumentSpecific: true,
       },
       {
         id: 'OLI-005-5',
@@ -1042,6 +1048,7 @@ export const mockInvoices: Invoice[] = [
         amount: 14250.00,
         commissionRate: 0.08,
         commissionAmount: 1140.00,
+        isQuoteLevelProduct: true,
       },
       {
         id: 'ILI-001-2',
@@ -1054,6 +1061,9 @@ export const mockInvoices: Invoice[] = [
         amount: 17400.00,
         commissionRate: 0.08,
         commissionAmount: 1392.00,
+        isQuoteLevelProduct: true,
+        isWarehouseConsignment: true,
+        inventoryOnHand: 45,
       },
     ],
     subtotal: 31650.00,
@@ -1099,6 +1109,7 @@ export const mockInvoices: Invoice[] = [
         amount: 7800.00,
         commissionRate: 0.09,
         commissionAmount: 702.00,
+        isQuoteLevelProduct: true,
       },
     ],
     subtotal: 7800.00,
@@ -1144,6 +1155,9 @@ export const mockInvoices: Invoice[] = [
         amount: 9900.00,
         commissionRate: 0.12,
         commissionAmount: 1188.00,
+        isQuoteLevelProduct: true,
+        isWarehouseConsignment: true,
+        inventoryOnHand: 125,
       },
       {
         id: 'ILI-003-2',
@@ -1156,6 +1170,7 @@ export const mockInvoices: Invoice[] = [
         amount: 2670.00,
         commissionRate: 0.12,
         commissionAmount: 320.40,
+        isQuoteLevelProduct: true,
       },
     ],
     subtotal: 12570.00,

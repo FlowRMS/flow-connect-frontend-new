@@ -850,6 +850,69 @@ export default function ProductEditPage() {
         <div ref={el => { sectionRefs.current['overview'] = el; }} id="section-overview">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Overview</h2>
 
+          {/* Product Settings - Side by Side Toggles */}
+          <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
+            <div className="grid grid-cols-2 gap-4">
+              {/* Document-Specific Product Toggle */}
+              <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-gray-50">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-700">Document-Specific Product</span>
+                  <div className="relative group">
+                    <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 w-64 z-50">
+                      When enabled, this product will be excluded from searches and matching when creating quotes, orders, and invoices.
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleFieldChange('isDocumentSpecific', !formData.isDocumentSpecific)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    formData.isDocumentSpecific ? 'bg-purple-600' : 'bg-gray-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      formData.isDocumentSpecific ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Warehouse Consignment Toggle */}
+              <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-gray-50">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-700">Warehouse Consignment</span>
+                  <div className="relative group">
+                    <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 w-64 z-50">
+                      When enabled, this product will be available in the Warehouse module for inventory management and fulfillment.
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleFieldChange('isWarehouseConsignment', !formData.isWarehouseConsignment)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    formData.isWarehouseConsignment ? 'bg-teal-600' : 'bg-gray-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      formData.isWarehouseConsignment ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+
           {/* Basic Info Fields */}
           <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
             {/* Quote-Level Product Banner */}
@@ -1268,42 +1331,6 @@ export default function ProductEditPage() {
             </div>
           </div>
 
-          {/* Product Settings Section */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-sm font-semibold text-gray-900 mb-3">Product Settings</h3>
-            <div className="space-y-4">
-              {/* Document-Specific Product Toggle */}
-              <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-gray-50">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-gray-700">Document-Specific Product</span>
-                    <div className="relative group">
-                      <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 w-64 z-50">
-                        When enabled, this product will be excluded from searches and matching when creating quotes, orders, and invoices. Use this for one-off products that should not appear in general product lookups.
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleFieldChange('isDocumentSpecific', !formData.isDocumentSpecific)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    formData.isDocumentSpecific ? 'bg-purple-600' : 'bg-gray-300'
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      formData.isDocumentSpecific ? 'translate-x-6' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* ============ CUSTOMER PART NUMBERS SECTION ============ */}

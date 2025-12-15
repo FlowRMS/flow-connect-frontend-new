@@ -167,6 +167,11 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
   const [showOutsideRepSplitsModal, setShowOutsideRepSplitsModal] = useState(false);
   const [outsideRepSplits, setOutsideRepSplits] = useState<{repId: string; repName: string; percentage: number}[]>([]);
 
+  // Warehouse conversion state
+  const [showWarehouseConversionModal, setShowWarehouseConversionModal] = useState(false);
+  const [warehouseConversionMode, setWarehouseConversionMode] = useState<'all' | 'selected'>('all');
+  const [productsToConvert, setProductsToConvert] = useState<{id: string; partNumber: string; isAlreadyWarehouse: boolean}[]>([]);
+
   // Inside rep state
   const [invoiceInsideRep, setInvoiceInsideRep] = useState<string>('');
   const [splitInsideCommission, setSplitInsideCommission] = useState(false);
@@ -258,6 +263,86 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
     } else {
       setSelectedLineItems(new Set(invoice.lineItems.map(i => i.id)));
     }
+  };
+
+  // Warehouse conversion functions
+  const handleMakeWarehouseOrder = () => {
+    if (!invoice) return;
+
+    // Check all line items
+    const productsInfo = invoice.lineItems.map(item => ({
+      id: item.id,
+      partNumber: item.partNumber,
+      isAlreadyWarehouse: item.isWarehouseConsignment ?? false,
+    }));
+
+    // Check if any non-warehouse products exist
+    const nonWarehouseProducts = productsInfo.filter(p => !p.isAlreadyWarehouse);
+
+    if (nonWarehouseProducts.length > 0) {
+      // Show modal to confirm conversion
+      setProductsToConvert(productsInfo);
+      setWarehouseConversionMode('all');
+      setShowWarehouseConversionModal(true);
+    } else {
+      // All products are already warehouse products
+      alert('All products are already marked as warehouse products.');
+    }
+    setShowActionsDropdown(false);
+  };
+
+  const handleBulkConvertToWarehouse = () => {
+    if (!invoice || selectedLineItems.size === 0) return;
+
+    // Get selected line items
+    const selectedItems = invoice.lineItems.filter(item => selectedLineItems.has(item.id));
+    const productsInfo = selectedItems.map(item => ({
+      id: item.id,
+      partNumber: item.partNumber,
+      isAlreadyWarehouse: item.isWarehouseConsignment ?? false,
+    }));
+
+    // Check if any non-warehouse products exist
+    const nonWarehouseProducts = productsInfo.filter(p => !p.isAlreadyWarehouse);
+
+    if (nonWarehouseProducts.length > 0) {
+      // Show modal to confirm conversion
+      setProductsToConvert(productsInfo);
+      setWarehouseConversionMode('selected');
+      setShowWarehouseConversionModal(true);
+    } else {
+      // All selected products are already warehouse products
+      alert('All selected products are already marked as warehouse products.');
+    }
+  };
+
+  const confirmWarehouseConversion = () => {
+    if (!invoice) return;
+
+    // Get IDs to convert
+    const idsToConvert = productsToConvert.filter(p => !p.isAlreadyWarehouse).map(p => p.id);
+
+    // Update the invoice line items
+    setInvoices(prev => prev.map(inv => {
+      if (inv.id !== invoice.id) return inv;
+      return {
+        ...inv,
+        lineItems: inv.lineItems.map(item => {
+          if (idsToConvert.includes(item.id)) {
+            return {
+              ...item,
+              isWarehouseConsignment: true,
+              inventoryOnHand: 0, // Default to 0, would be fetched from actual inventory
+            };
+          }
+          return item;
+        }),
+      };
+    }));
+
+    setShowWarehouseConversionModal(false);
+    setProductsToConvert([]);
+    setSelectedLineItems(new Set());
   };
 
   // Commission split editing functions
@@ -449,21 +534,34 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
                 </svg>
               </button>
               {showActionsDropdown && (
-                <div className="absolute top-full left-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                <div className="absolute top-full left-0 mt-1 w-56 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
                   {invoice.orderId ? (
-                    <button
-                      onClick={() => {
-                        router.push(`/orders/${invoice.orderId}`);
-                        setShowActionsDropdown(false);
-                      }}
-                      className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-lg flex items-center gap-2"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M13 2H6a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7z" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M13 2v5h5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                      View Order
-                    </button>
+                    <>
+                      <button
+                        onClick={() => {
+                          router.push(`/orders/${invoice.orderId}`);
+                          setShowActionsDropdown(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-t-lg flex items-center gap-2"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M13 2H6a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7z" strokeLinecap="round" strokeLinejoin="round"/>
+                          <path d="M13 2v5h5" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                        View Order
+                      </button>
+                      <div className="border-t border-[var(--border)]" />
+                      <button
+                        onClick={handleMakeWarehouseOrder}
+                        className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-b-lg flex items-center gap-2 text-teal-600"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M3 7h14l-1.5 9H4.5L3 7z" strokeLinecap="round" strokeLinejoin="round"/>
+                          <path d="M8 7V5a2 2 0 012-2v0a2 2 0 012 2v2" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                        Make Warehouse Order
+                      </button>
+                    </>
                   ) : (
                     <>
                       <button
@@ -483,13 +581,24 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
                           alert('Connect to existing order');
                           setShowActionsDropdown(false);
                         }}
-                        className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-b-lg flex items-center gap-2"
+                        className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
                       >
                         <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M8 6h8M8 10h8M8 14h8" strokeLinecap="round"/>
                           <path d="M4 6h.01M4 10h.01M4 14h.01" strokeLinecap="round"/>
                         </svg>
                         Connect to Order
+                      </button>
+                      <div className="border-t border-[var(--border)]" />
+                      <button
+                        onClick={handleMakeWarehouseOrder}
+                        className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-b-lg flex items-center gap-2 text-teal-600"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M3 7h14l-1.5 9H4.5L3 7z" strokeLinecap="round" strokeLinejoin="round"/>
+                          <path d="M8 7V5a2 2 0 012-2v0a2 2 0 012 2v2" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                        Make Warehouse Order
                       </button>
                     </>
                   )}
@@ -1258,6 +1367,43 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
           {/* Tab Content */}
           {activeTab === 'line-items' && (
             <div className="space-y-4">
+              {/* Bulk Actions Bar - shown when items are selected */}
+              {selectedLineItems.size > 0 && (
+                <div className="bg-teal-50 border border-teal-200 rounded-lg px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded bg-teal-600 flex items-center justify-center">
+                        <span className="text-white text-xs font-bold">{selectedLineItems.size}</span>
+                      </div>
+                      <span className="text-sm font-medium text-teal-800">
+                        {selectedLineItems.size === 1 ? 'item selected' : 'items selected'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleBulkConvertToWarehouse}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition-colors"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M3 7h14l-1.5 9H4.5L3 7z" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M8 7V5a2 2 0 012-2v0a2 2 0 012 2v2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      Convert to Warehouse
+                    </button>
+                    <button
+                      onClick={() => setSelectedLineItems(new Set())}
+                      className="flex items-center gap-2 px-3 py-1.5 border border-teal-300 text-teal-700 rounded-lg text-sm font-medium hover:bg-teal-100 transition-colors"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                      </svg>
+                      Clear Selection
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Line Items Table */}
               <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-x-auto">
                 <table className="w-full min-w-[1200px]">
@@ -1535,6 +1681,42 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
                               onChange={() => toggleLineItemSelection(item.id)}
                               className="accent-[var(--primary)]"
                             />
+                            {/* Document-specific product indicator */}
+                            {item.isQuoteLevelProduct && (
+                              <div className="relative group">
+                                <div className="w-6 h-6 rounded bg-purple-500 flex items-center justify-center cursor-help">
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+                                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" strokeLinecap="round" strokeLinejoin="round"/>
+                                    <path d="M14 2v6h6" strokeLinecap="round" strokeLinejoin="round"/>
+                                    <path d="M12 18v-6M9 15l3-3 3 3" strokeLinecap="round" strokeLinejoin="round"/>
+                                  </svg>
+                                </div>
+                                <div className="fixed transform -translate-y-full -mt-2 ml-8 px-4 py-3 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-[9999] pointer-events-none shadow-xl min-w-[200px]">
+                                  <div className="font-semibold mb-1 text-purple-400">Document-Specific Product</div>
+                                  <p className="text-xs text-gray-400">Created specifically for this invoice</p>
+                                </div>
+                              </div>
+                            )}
+                            {/* Warehouse consignment indicator */}
+                            {item.isWarehouseConsignment && (
+                              <div className="relative group">
+                                <div className="w-6 h-6 rounded bg-teal-500 flex items-center justify-center cursor-help">
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="1">
+                                    <path d="M3 21h18v-9l-9-7-9 7v9z"/>
+                                    <path d="M9 21v-6h6v6" fill="rgb(20 184 166)"/>
+                                  </svg>
+                                </div>
+                                <div className="fixed transform -translate-y-full -mt-2 ml-8 px-4 py-3 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-[9999] pointer-events-none shadow-xl min-w-[200px]">
+                                  <div className="font-semibold mb-2 text-teal-400">Warehouse Product</div>
+                                  <div className="space-y-1">
+                                    <div className="flex justify-between gap-4">
+                                      <span className="text-gray-400">Inventory on Hand:</span>
+                                      <span className="font-medium">{item.inventoryOnHand ?? 0}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                             {/* Credit indicator */}
                             {lineItemCredits[item.id] && (() => {
                               const credit = lineItemCredits[item.id];
@@ -2520,6 +2702,126 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
                 className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Warehouse Conversion Modal */}
+      {showWarehouseConversionModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-lg w-full">
+            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-teal-100 rounded-lg">
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-teal-600">
+                    <path d="M3 7h14l-1.5 9H4.5L3 7z" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M8 7V5a2 2 0 012-2v0a2 2 0 012 2v2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-[var(--foreground)]">
+                    {warehouseConversionMode === 'all' ? 'Make Warehouse Order' : 'Convert to Warehouse Products'}
+                  </h2>
+                  <p className="text-sm text-[var(--muted-foreground)]">
+                    {warehouseConversionMode === 'all'
+                      ? 'Mark all products for warehouse fulfillment'
+                      : `Convert ${productsToConvert.filter(p => !p.isAlreadyWarehouse).length} selected product(s)`}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setShowWarehouseConversionModal(false); setProductsToConvert([]); }}
+                className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
+              >
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              {/* Summary */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 bg-teal-50 border border-teal-200 rounded-lg">
+                  <div className="text-2xl font-bold text-teal-700">
+                    {productsToConvert.filter(p => !p.isAlreadyWarehouse).length}
+                  </div>
+                  <div className="text-sm text-teal-600">Products to Convert</div>
+                </div>
+                <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                  <div className="text-2xl font-bold text-gray-700">
+                    {productsToConvert.filter(p => p.isAlreadyWarehouse).length}
+                  </div>
+                  <div className="text-sm text-gray-600">Already Warehouse</div>
+                </div>
+              </div>
+
+              {/* Products list */}
+              <div className="border border-[var(--border)] rounded-lg overflow-hidden">
+                <div className="px-4 py-2 bg-[var(--muted)]/30 border-b border-[var(--border)]">
+                  <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase">Products</span>
+                </div>
+                <div className="max-h-48 overflow-y-auto">
+                  {productsToConvert.map((product) => (
+                    <div
+                      key={product.id}
+                      className={`px-4 py-2 flex items-center justify-between border-b border-[var(--border)] last:border-0 ${
+                        product.isAlreadyWarehouse ? 'bg-gray-50' : ''
+                      }`}
+                    >
+                      <span className="text-sm font-medium">{product.partNumber}</span>
+                      {product.isAlreadyWarehouse ? (
+                        <span className="px-2 py-0.5 text-xs font-medium rounded bg-teal-100 text-teal-700 flex items-center gap-1">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                            <path d="M5 12l5 5L19 7" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                          Already Warehouse
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 text-xs font-medium rounded bg-yellow-100 text-yellow-700">
+                          Will Convert
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Warning message */}
+              {productsToConvert.filter(p => !p.isAlreadyWarehouse).length > 0 && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-amber-600 flex-shrink-0 mt-0.5">
+                    <path d="M10 6v4M10 14h.01" strokeLinecap="round"/>
+                    <path d="M3 17h14l-7-12-7 12z" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <div>
+                    <p className="text-sm font-medium text-amber-800">
+                      These products will be marked as warehouse consignment
+                    </p>
+                    <p className="text-xs text-amber-700 mt-1">
+                      This will enable inventory tracking and warehouse fulfillment for these products.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3">
+              <button
+                onClick={() => { setShowWarehouseConversionModal(false); setProductsToConvert([]); }}
+                className="px-4 py-2 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors text-sm font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmWarehouseConversion}
+                disabled={productsToConvert.filter(p => !p.isAlreadyWarehouse).length === 0}
+                className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M5 10l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Convert to Warehouse
               </button>
             </div>
           </div>

@@ -29,7 +29,7 @@ interface OrderDetailContentProps {
 type TabType = 'line-items' | 'credits' | 'acknowledgements' | 'notes' | 'tasks' | 'activity' | 'linked-objects' | 'settings';
 
 // Column definitions for the line items table
-type ColumnKey = 'partNumber' | 'custPartNumber' | 'description' | 'uom' | 'divisor' | 'unitPrice' | 'quantity' | 'shippedQty' | 'lineStatus' | 'linkedQuote' | 'linkedInvoice' | 'linkedCheck' | 'sellTotal' | 'commissionPercent' | 'commission' | 'commissionTotal' | 'invoiced' | 'percentOver' | 'commissionAmount' | 'ovgPercent' | 'ovgAmount' | 'earnPercent' | 'earnAmount';
+type ColumnKey = 'partNumber' | 'custPartNumber' | 'description' | 'uom' | 'divisor' | 'unitPrice' | 'quantity' | 'shippedQty' | 'lineStatus' | 'linkedQuote' | 'linkedInvoice' | 'linkedCheck' | 'linkedFulfillment' | 'sellTotal' | 'commissionPercent' | 'commission' | 'commissionTotal' | 'invoiced' | 'percentOver' | 'commissionAmount' | 'ovgPercent' | 'ovgAmount' | 'earnPercent' | 'earnAmount';
 
 const columnLabels: Record<ColumnKey, string> = {
   partNumber: 'Part #',
@@ -44,6 +44,7 @@ const columnLabels: Record<ColumnKey, string> = {
   linkedQuote: 'Quote #',
   linkedInvoice: 'Invoice #',
   linkedCheck: 'Check #',
+  linkedFulfillment: 'Fulfillment #',
   sellTotal: 'Sell Total',
   commissionPercent: 'Commission %',
   commission: 'Commission',
@@ -73,6 +74,7 @@ const defaultVisibleColumns: ColumnKey[] = [
   'linkedQuote',
   'linkedInvoice',
   'linkedCheck',
+  'linkedFulfillment',
 ];
 
 // Helper function to get linked invoices for an order line item
@@ -233,6 +235,16 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   const [bulkOveragePercent, setBulkOveragePercent] = useState('');
   const [bulkEndUser, setBulkEndUser] = useState('');
 
+  // Warehouse conversion state
+  const [showWarehouseConversionModal, setShowWarehouseConversionModal] = useState(false);
+  const [warehouseConversionMode, setWarehouseConversionMode] = useState<'all' | 'selected'>('all');
+  const [productsToConvert, setProductsToConvert] = useState<{id: string; partNumber: string; isAlreadyWarehouse: boolean}[]>([]);
+
+  // Fulfillment request state
+  const [showFulfillmentRequestModal, setShowFulfillmentRequestModal] = useState(false);
+  const [fulfillmentRequestMode, setFulfillmentRequestMode] = useState<'all' | 'selected'>('all');
+  const [lineItemsForFulfillment, setLineItemsForFulfillment] = useState<{id: string; partNumber: string; quantity: number; hasExistingRequest: boolean}[]>([]);
+
   // Credit modal state
   const [creditName, setCreditName] = useState('');
   const [creditDate, setCreditDate] = useState(new Date().toLocaleDateString('en-US'));
@@ -383,6 +395,192 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
     } else {
       setSelectedLineItems(new Set(order.lineItems.map(i => i.id)));
     }
+  };
+
+  // Warehouse conversion functions
+  const handleMakeWarehouseOrder = () => {
+    if (!order) return;
+
+    // Only check non-credit line items
+    const productLineItems = order.lineItems.filter(item => !item.isCredit);
+    const productsInfo = productLineItems.map(item => ({
+      id: item.id,
+      partNumber: item.partNumber || '',
+      isAlreadyWarehouse: item.isWarehouseConsignment ?? false,
+    }));
+
+    // Check if any non-warehouse products exist
+    const nonWarehouseProducts = productsInfo.filter(p => !p.isAlreadyWarehouse);
+
+    if (nonWarehouseProducts.length > 0) {
+      // Show modal to confirm conversion
+      setProductsToConvert(productsInfo);
+      setWarehouseConversionMode('all');
+      setShowWarehouseConversionModal(true);
+    } else {
+      // All products are already warehouse products
+      alert('All products are already marked as warehouse products.');
+    }
+    setShowActionsDropdown(false);
+  };
+
+  const handleBulkConvertToWarehouse = () => {
+    if (!order || selectedLineItems.size === 0) return;
+
+    // Get selected line items (exclude credits)
+    const selectedItems = order.lineItems.filter(item => selectedLineItems.has(item.id) && !item.isCredit);
+    const productsInfo = selectedItems.map(item => ({
+      id: item.id,
+      partNumber: item.partNumber || '',
+      isAlreadyWarehouse: item.isWarehouseConsignment ?? false,
+    }));
+
+    // Check if any non-warehouse products exist
+    const nonWarehouseProducts = productsInfo.filter(p => !p.isAlreadyWarehouse);
+
+    if (nonWarehouseProducts.length > 0) {
+      // Show modal to confirm conversion
+      setProductsToConvert(productsInfo);
+      setWarehouseConversionMode('selected');
+      setShowWarehouseConversionModal(true);
+    } else {
+      // All selected products are already warehouse products
+      alert('All selected products are already marked as warehouse products.');
+    }
+    setShowLineItemsBulkActionsMenu(false);
+  };
+
+  const confirmWarehouseConversion = () => {
+    if (!order) return;
+
+    // Get IDs to convert
+    const idsToConvert = productsToConvert.filter(p => !p.isAlreadyWarehouse).map(p => p.id);
+
+    // Update the order line items
+    setOrders(prev => prev.map(ord => {
+      if (ord.id !== order.id) return ord;
+      return {
+        ...ord,
+        lineItems: ord.lineItems.map(item => {
+          if (idsToConvert.includes(item.id)) {
+            return {
+              ...item,
+              isWarehouseConsignment: true,
+              inventoryOnHand: 0, // Default to 0, would be fetched from actual inventory
+            };
+          }
+          return item;
+        }),
+      };
+    }));
+
+    setShowWarehouseConversionModal(false);
+    setProductsToConvert([]);
+    setSelectedLineItems(new Set());
+  };
+
+  // Fulfillment request functions
+  const handleGenerateFulfillmentRequest = () => {
+    if (!order) return;
+
+    // Only include warehouse products (non-credit line items)
+    const warehouseLineItems = order.lineItems.filter(item => !item.isCredit && item.isWarehouseConsignment);
+    const itemsInfo = warehouseLineItems.map(item => ({
+      id: item.id,
+      partNumber: item.partNumber || '',
+      quantity: item.quantity,
+      hasExistingRequest: !!item.fulfillmentRequestId,
+    }));
+
+    if (itemsInfo.length === 0) {
+      alert('No warehouse products found. Only warehouse products can have fulfillment requests.');
+      setShowActionsDropdown(false);
+      return;
+    }
+
+    // Check if any items don't have existing requests
+    const itemsWithoutRequest = itemsInfo.filter(item => !item.hasExistingRequest);
+
+    if (itemsWithoutRequest.length === 0) {
+      alert('All warehouse products already have fulfillment requests.');
+      setShowActionsDropdown(false);
+      return;
+    }
+
+    setLineItemsForFulfillment(itemsInfo);
+    setFulfillmentRequestMode('all');
+    setShowFulfillmentRequestModal(true);
+    setShowActionsDropdown(false);
+  };
+
+  const handleBulkGenerateFulfillmentRequest = () => {
+    if (!order || selectedLineItems.size === 0) return;
+
+    // Get selected warehouse line items (exclude credits)
+    const selectedWarehouseItems = order.lineItems.filter(
+      item => selectedLineItems.has(item.id) && !item.isCredit && item.isWarehouseConsignment
+    );
+
+    if (selectedWarehouseItems.length === 0) {
+      alert('No warehouse products selected. Only warehouse products can have fulfillment requests.');
+      setShowLineItemsBulkActionsMenu(false);
+      return;
+    }
+
+    const itemsInfo = selectedWarehouseItems.map(item => ({
+      id: item.id,
+      partNumber: item.partNumber || '',
+      quantity: item.quantity,
+      hasExistingRequest: !!item.fulfillmentRequestId,
+    }));
+
+    // Check if any items don't have existing requests
+    const itemsWithoutRequest = itemsInfo.filter(item => !item.hasExistingRequest);
+
+    if (itemsWithoutRequest.length === 0) {
+      alert('All selected warehouse products already have fulfillment requests.');
+      setShowLineItemsBulkActionsMenu(false);
+      return;
+    }
+
+    setLineItemsForFulfillment(itemsInfo);
+    setFulfillmentRequestMode('selected');
+    setShowFulfillmentRequestModal(true);
+    setShowLineItemsBulkActionsMenu(false);
+  };
+
+  const confirmFulfillmentRequest = () => {
+    if (!order) return;
+
+    // Get IDs to add fulfillment request (only those without existing requests)
+    const idsToUpdate = lineItemsForFulfillment.filter(item => !item.hasExistingRequest).map(item => item.id);
+
+    // Generate a new fulfillment request number
+    const newFulfillmentNumber = `FR-${order.orderNumber.replace('ORD-', '')}-${Date.now().toString().slice(-4)}`;
+    const newFulfillmentId = `fr-${Date.now()}`;
+
+    // Update the order line items
+    setOrders(prev => prev.map(ord => {
+      if (ord.id !== order.id) return ord;
+      return {
+        ...ord,
+        lineItems: ord.lineItems.map(item => {
+          if (idsToUpdate.includes(item.id)) {
+            return {
+              ...item,
+              fulfillmentRequestId: newFulfillmentId,
+              fulfillmentRequestNumber: newFulfillmentNumber,
+              fulfillmentRequestStatus: 'pending' as const,
+            };
+          }
+          return item;
+        }),
+      };
+    }));
+
+    setShowFulfillmentRequestModal(false);
+    setLineItemsForFulfillment([]);
+    setSelectedLineItems(new Set());
   };
 
   // Commission split editing functions
@@ -585,12 +783,34 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                       setShowQuoteLookupModal(true);
                       setShowActionsDropdown(false);
                     }}
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-b-lg flex items-center gap-2"
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
                   >
                     <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M12 5v14M5 12h14" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                     Add New Lines from Quotes
+                  </button>
+                  <div className="border-t border-[var(--border)]" />
+                  <button
+                    onClick={handleMakeWarehouseOrder}
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors flex items-center gap-2 text-teal-600"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M3 7h14l-1.5 9H4.5L3 7z" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M8 7V5a2 2 0 012-2v0a2 2 0 012 2v2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    Make Warehouse Order
+                  </button>
+                  <button
+                    onClick={handleGenerateFulfillmentRequest}
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-b-lg flex items-center gap-2 text-orange-600"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M8 12h8M8 16h5" strokeLinecap="round"/>
+                    </svg>
+                    Generate Fulfillment Request
                   </button>
                 </div>
               )}
@@ -1440,6 +1660,28 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                             </button>
                             <div className="border-t border-[var(--border)] my-1"></div>
                             <button
+                              onClick={handleBulkConvertToWarehouse}
+                              className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors flex items-center gap-2 text-teal-600"
+                            >
+                              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M3 7h14l-1.5 9H4.5L3 7z" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M8 7V5a2 2 0 012-2v0a2 2 0 012 2v2" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                              Convert to Warehouse
+                            </button>
+                            <button
+                              onClick={handleBulkGenerateFulfillmentRequest}
+                              className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors flex items-center gap-2 text-orange-600"
+                            >
+                              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M8 12h8M8 16h5" strokeLinecap="round"/>
+                              </svg>
+                              Generate Fulfillment Request
+                            </button>
+                            <div className="border-t border-[var(--border)] my-1"></div>
+                            <button
                               onClick={() => {
                                 // Initialize credit line items from selected line items (tagged to line items)
                                 const items = order.lineItems.filter(li => selectedLineItems.has(li.id)).map(li => ({
@@ -1627,6 +1869,11 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                           Check #
                         </th>
                       )}
+                      {visibleColumns.has('linkedFulfillment') && (
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap min-w-[120px]">
+                          Fulfillment #
+                        </th>
+                      )}
                       {visibleColumns.has('invoiced') && (
                         <th className="px-3 py-2 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase whitespace-nowrap">
                           Invoiced
@@ -1733,6 +1980,46 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                                   </div>
                                 );
                               })()}
+                            </div>
+                            {/* Document-specific indicator column */}
+                            <div className="w-7 flex justify-center">
+                              {item.isDocumentSpecific && (
+                                <div className="relative group">
+                                  <div className="w-6 h-6 rounded bg-purple-500 flex items-center justify-center cursor-help">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+                                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" strokeLinecap="round" strokeLinejoin="round"/>
+                                      <path d="M14 2v6h6" strokeLinecap="round" strokeLinejoin="round"/>
+                                      <path d="M12 18v-6M9 15l3-3 3 3" strokeLinecap="round" strokeLinejoin="round"/>
+                                    </svg>
+                                  </div>
+                                  <div className="fixed transform -translate-y-full -mt-2 ml-8 px-4 py-3 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-[9999] pointer-events-none shadow-xl min-w-[200px]">
+                                    <div className="font-semibold mb-1 text-purple-400">Document-Specific Product</div>
+                                    <p className="text-xs text-gray-400">Created specifically for this order</p>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                            {/* Warehouse indicator column */}
+                            <div className="w-7 flex justify-center">
+                              {item.isWarehouseConsignment && (
+                                <div className="relative group">
+                                  <div className="w-6 h-6 rounded bg-teal-500 flex items-center justify-center cursor-help">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="1">
+                                      <path d="M3 21h18v-9l-9-7-9 7v9z"/>
+                                      <path d="M9 21v-6h6v6" fill="rgb(20 184 166)"/>
+                                    </svg>
+                                  </div>
+                                  <div className="fixed transform -translate-y-full -mt-2 ml-8 px-4 py-3 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-[9999] pointer-events-none shadow-xl min-w-[200px]">
+                                    <div className="font-semibold mb-2 text-teal-400">Warehouse Product</div>
+                                    <div className="space-y-1">
+                                      <div className="flex justify-between gap-4">
+                                        <span className="text-gray-400">Inventory on Hand:</span>
+                                        <span className="font-medium">{item.inventoryOnHand ?? 0}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                             {/* Credit indicator column */}
                             <div className="w-7 flex justify-center">
@@ -1958,6 +2245,47 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                                 </button>
                               );
                             })()}
+                          </td>
+                        )}
+                        {visibleColumns.has('linkedFulfillment') && (
+                          <td className="px-3 py-2 text-sm text-left min-w-[120px]">
+                            {item.fulfillmentRequestNumber ? (
+                              <div className="relative group">
+                                <button
+                                  className="text-orange-600 hover:text-orange-800 hover:underline cursor-pointer whitespace-nowrap"
+                                >
+                                  {item.fulfillmentRequestNumber}
+                                </button>
+                                {/* Hover tooltip showing fulfillment status */}
+                                <div className="fixed transform -translate-y-full -mt-2 ml-8 px-4 py-3 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-[9999] pointer-events-none shadow-xl min-w-[200px]">
+                                  <div className="font-semibold mb-2 text-orange-400">Fulfillment Request</div>
+                                  <div className="space-y-1">
+                                    <div className="flex justify-between gap-4">
+                                      <span className="text-gray-400">Request #:</span>
+                                      <span className="font-medium">{item.fulfillmentRequestNumber}</span>
+                                    </div>
+                                    <div className="flex justify-between gap-4">
+                                      <span className="text-gray-400">Status:</span>
+                                      <span className={`font-medium capitalize ${
+                                        item.fulfillmentRequestStatus === 'pending' ? 'text-yellow-400' :
+                                        item.fulfillmentRequestStatus === 'processing' ? 'text-blue-400' :
+                                        item.fulfillmentRequestStatus === 'shipped' ? 'text-purple-400' :
+                                        item.fulfillmentRequestStatus === 'delivered' ? 'text-green-400' :
+                                        item.fulfillmentRequestStatus === 'cancelled' ? 'text-red-400' : ''
+                                      }`}>
+                                        {item.fulfillmentRequestStatus || 'Unknown'}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between gap-4">
+                                      <span className="text-gray-400">Quantity:</span>
+                                      <span className="font-medium">{item.quantity}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-[var(--muted-foreground)]">-</span>
+                            )}
                           </td>
                         )}
                         {visibleColumns.has('invoiced') && (
@@ -4119,6 +4447,250 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                 className="px-4 py-2 text-sm bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Submit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Warehouse Conversion Modal */}
+      {showWarehouseConversionModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-lg w-full">
+            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-teal-100 rounded-lg">
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-teal-600">
+                    <path d="M3 7h14l-1.5 9H4.5L3 7z" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M8 7V5a2 2 0 012-2v0a2 2 0 012 2v2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-[var(--foreground)]">
+                    {warehouseConversionMode === 'all' ? 'Make Warehouse Order' : 'Convert to Warehouse Products'}
+                  </h2>
+                  <p className="text-sm text-[var(--muted-foreground)]">
+                    {warehouseConversionMode === 'all'
+                      ? 'Mark all products for warehouse fulfillment'
+                      : `Convert ${productsToConvert.filter(p => !p.isAlreadyWarehouse).length} selected product(s)`}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setShowWarehouseConversionModal(false); setProductsToConvert([]); }}
+                className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
+              >
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              {/* Summary */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 bg-teal-50 border border-teal-200 rounded-lg">
+                  <div className="text-2xl font-bold text-teal-700">
+                    {productsToConvert.filter(p => !p.isAlreadyWarehouse).length}
+                  </div>
+                  <div className="text-sm text-teal-600">Products to Convert</div>
+                </div>
+                <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                  <div className="text-2xl font-bold text-gray-700">
+                    {productsToConvert.filter(p => p.isAlreadyWarehouse).length}
+                  </div>
+                  <div className="text-sm text-gray-600">Already Warehouse</div>
+                </div>
+              </div>
+
+              {/* Products list */}
+              <div className="border border-[var(--border)] rounded-lg overflow-hidden">
+                <div className="px-4 py-2 bg-[var(--muted)]/30 border-b border-[var(--border)]">
+                  <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase">Products</span>
+                </div>
+                <div className="max-h-48 overflow-y-auto">
+                  {productsToConvert.map((product) => (
+                    <div
+                      key={product.id}
+                      className={`px-4 py-2 flex items-center justify-between border-b border-[var(--border)] last:border-0 ${
+                        product.isAlreadyWarehouse ? 'bg-gray-50' : ''
+                      }`}
+                    >
+                      <span className="text-sm font-medium">{product.partNumber}</span>
+                      {product.isAlreadyWarehouse ? (
+                        <span className="px-2 py-0.5 text-xs font-medium rounded bg-teal-100 text-teal-700 flex items-center gap-1">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                            <path d="M5 12l5 5L19 7" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                          Already Warehouse
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 text-xs font-medium rounded bg-yellow-100 text-yellow-700">
+                          Will Convert
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Warning message */}
+              {productsToConvert.filter(p => !p.isAlreadyWarehouse).length > 0 && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-amber-600 flex-shrink-0 mt-0.5">
+                    <path d="M10 6v4M10 14h.01" strokeLinecap="round"/>
+                    <path d="M3 17h14l-7-12-7 12z" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <div>
+                    <p className="text-sm font-medium text-amber-800">
+                      These products will be marked as warehouse consignment
+                    </p>
+                    <p className="text-xs text-amber-700 mt-1">
+                      This will enable inventory tracking and warehouse fulfillment for these products.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3">
+              <button
+                onClick={() => { setShowWarehouseConversionModal(false); setProductsToConvert([]); }}
+                className="px-4 py-2 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors text-sm font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmWarehouseConversion}
+                disabled={productsToConvert.filter(p => !p.isAlreadyWarehouse).length === 0}
+                className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M5 10l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Convert to Warehouse
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fulfillment Request Modal */}
+      {showFulfillmentRequestModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-lg w-full">
+            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-orange-100 rounded-lg">
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-orange-600">
+                    <path d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M8 12h8M8 16h5" strokeLinecap="round"/>
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-[var(--foreground)]">
+                    Generate Fulfillment Request
+                  </h2>
+                  <p className="text-sm text-[var(--muted-foreground)]">
+                    {fulfillmentRequestMode === 'all'
+                      ? 'Create fulfillment request for all warehouse products'
+                      : `Create fulfillment request for ${lineItemsForFulfillment.filter(p => !p.hasExistingRequest).length} selected product(s)`}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setShowFulfillmentRequestModal(false); setLineItemsForFulfillment([]); }}
+                className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
+              >
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              {/* Summary */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                  <div className="text-2xl font-bold text-orange-700">
+                    {lineItemsForFulfillment.filter(p => !p.hasExistingRequest).length}
+                  </div>
+                  <div className="text-sm text-orange-600">Items to Include</div>
+                </div>
+                <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                  <div className="text-2xl font-bold text-gray-700">
+                    {lineItemsForFulfillment.filter(p => p.hasExistingRequest).length}
+                  </div>
+                  <div className="text-sm text-gray-600">Already Have Requests</div>
+                </div>
+              </div>
+
+              {/* Products list */}
+              <div className="border border-[var(--border)] rounded-lg overflow-hidden">
+                <div className="px-4 py-2 bg-[var(--muted)]/30 border-b border-[var(--border)]">
+                  <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase">Warehouse Products</span>
+                </div>
+                <div className="max-h-48 overflow-y-auto">
+                  {lineItemsForFulfillment.map((item) => (
+                    <div
+                      key={item.id}
+                      className={`px-4 py-2 flex items-center justify-between border-b border-[var(--border)] last:border-0 ${
+                        item.hasExistingRequest ? 'bg-gray-50' : ''
+                      }`}
+                    >
+                      <div>
+                        <span className="text-sm font-medium">{item.partNumber}</span>
+                        <span className="text-xs text-[var(--muted-foreground)] ml-2">Qty: {item.quantity}</span>
+                      </div>
+                      {item.hasExistingRequest ? (
+                        <span className="px-2 py-0.5 text-xs font-medium rounded bg-orange-100 text-orange-700 flex items-center gap-1">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                            <path d="M5 12l5 5L19 7" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                          Has Request
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 text-xs font-medium rounded bg-green-100 text-green-700">
+                          Will Include
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Info message */}
+              {lineItemsForFulfillment.filter(p => !p.hasExistingRequest).length > 0 && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-3">
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600 flex-shrink-0 mt-0.5">
+                    <circle cx="10" cy="10" r="8"/>
+                    <path d="M10 7v3M10 13h.01" strokeLinecap="round"/>
+                  </svg>
+                  <div>
+                    <p className="text-sm font-medium text-blue-800">
+                      A fulfillment request will be generated
+                    </p>
+                    <p className="text-xs text-blue-700 mt-1">
+                      The request will be sent to the warehouse for processing. You can track the status in the Fulfillment # column.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3">
+              <button
+                onClick={() => { setShowFulfillmentRequestModal(false); setLineItemsForFulfillment([]); }}
+                className="px-4 py-2 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors text-sm font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmFulfillmentRequest}
+                disabled={lineItemsForFulfillment.filter(p => !p.hasExistingRequest).length === 0}
+                className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M5 10l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Generate Request
               </button>
             </div>
           </div>

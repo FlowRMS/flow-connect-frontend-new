@@ -188,6 +188,8 @@ interface Product {
   baseProductPartNumber?: string;
   // Document-specific flag
   isDocumentSpecific?: boolean;
+  // Warehouse consignment flag
+  isWarehouseConsignment?: boolean;
 }
 
 interface ProductConfiguration {
@@ -438,6 +440,7 @@ export default function ProductsContent() {
     grandparentCategory: '',
     productType: '',
     isDocumentSpecific: '',
+    isWarehouseConsignment: '',
   });
 
   // Get unique values for dropdown filters
@@ -449,6 +452,7 @@ export default function ProductsContent() {
       grandparentCategory: [...new Set(products.map(p => p.grandparentCategory).filter(Boolean))].sort() as string[],
       productType: ['Base', 'Configured'],
       isDocumentSpecific: ['Yes', 'No'],
+      isWarehouseConsignment: ['Yes', 'No'],
     };
   }, [products]);
 
@@ -527,6 +531,10 @@ export default function ProductsContent() {
       const isDocSpecific = columnFilters.isDocumentSpecific === 'Yes';
       result = result.filter(p => (p.isDocumentSpecific ?? false) === isDocSpecific);
     }
+    if (columnFilters.isWarehouseConsignment) {
+      const isWarehouseConsign = columnFilters.isWarehouseConsignment === 'Yes';
+      result = result.filter(p => (p.isWarehouseConsignment ?? false) === isWarehouseConsign);
+    }
 
     // Apply sorting
     if (sortState) {
@@ -566,6 +574,10 @@ export default function ProductsContent() {
           case 'isDocumentSpecific':
             aVal = a.isDocumentSpecific ?? false;
             bVal = b.isDocumentSpecific ?? false;
+            break;
+          case 'isWarehouseConsignment':
+            aVal = a.isWarehouseConsignment ?? false;
+            bVal = b.isWarehouseConsignment ?? false;
             break;
           default:
             return 0;
@@ -694,9 +706,9 @@ export default function ProductsContent() {
         <div className="flex-1 overflow-auto p-6 pt-0">
           <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
             <div className="overflow-x-auto">
-              <div className="min-w-[1200px]">
+              <div className="min-w-[1400px]">
                 {/* Table Header */}
-                <div className="grid gap-4 px-6 py-3 border-b border-[var(--border)] bg-[var(--muted)]/30" style={{ gridTemplateColumns: 'repeat(16, minmax(0, 1fr))' }}>
+                <div className="grid gap-4 px-6 py-3 border-b border-[var(--border)] bg-[var(--muted)]/30" style={{ gridTemplateColumns: 'repeat(18, minmax(0, 1fr))' }}>
                   <ColumnHeader
                     label="Part Number"
                     columnKey="partNumber"
@@ -781,7 +793,19 @@ export default function ProductsContent() {
                     filterValue={columnFilters.isDocumentSpecific}
                     onFilterChange={handleFilterChange}
                     filterOptions={filterOptions.isDocumentSpecific}
-                    colSpan={1}
+                    colSpan={2}
+                    textAlign="center"
+                  />
+                  <ColumnHeader
+                    label="Warehouse"
+                    columnKey="isWarehouseConsignment"
+                    sortState={sortState}
+                    onSort={handleSort}
+                    filterType="dropdown"
+                    filterValue={columnFilters.isWarehouseConsignment}
+                    onFilterChange={handleFilterChange}
+                    filterOptions={filterOptions.isWarehouseConsignment}
+                    colSpan={2}
                     textAlign="center"
                   />
                 </div>
@@ -798,7 +822,7 @@ export default function ProductsContent() {
                         key={product.id}
                         onClick={() => handleProductClick(product)}
                         className="grid gap-4 px-6 py-4 hover:bg-[var(--muted)]/20 transition-colors cursor-pointer"
-                        style={{ gridTemplateColumns: 'repeat(16, minmax(0, 1fr))' }}
+                        style={{ gridTemplateColumns: 'repeat(18, minmax(0, 1fr))' }}
                       >
                         <div className="col-span-3">
                           <div className="font-medium text-[var(--foreground)]">{product.partNumber}</div>
@@ -829,9 +853,18 @@ export default function ProductsContent() {
                             </span>
                           )}
                         </div>
-                        <div className="col-span-1 flex items-center justify-center">
+                        <div className="col-span-2 flex items-center justify-center">
                           {product.isDocumentSpecific ? (
                             <span className="px-2 py-0.5 text-xs font-medium rounded bg-purple-100 text-purple-700">
+                              Yes
+                            </span>
+                          ) : (
+                            <span className="text-xs text-[var(--muted-foreground)]">—</span>
+                          )}
+                        </div>
+                        <div className="col-span-2 flex items-center justify-center">
+                          {product.isWarehouseConsignment ? (
+                            <span className="px-2 py-0.5 text-xs font-medium rounded bg-teal-100 text-teal-700">
                               Yes
                             </span>
                           ) : (
