@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import WarehouseSettingsContent from '@/components/warehouse/WarehouseSettingsContent';
+import WarehouseSettingsContent from '@/components/warehouse/settings/WarehouseSettingsContent';
 
 export default function WarehouseSettingsPage() {
   return (
