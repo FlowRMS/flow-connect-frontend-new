@@ -36,6 +36,12 @@ import {
   ManufacturerContact,
   ShipmentRequest,
   ShipmentRequestStatus,
+  CycleCount,
+  CycleCountLineItem,
+  CycleCountStatus,
+  ManufacturerProfile,
+  VendorCustomerXRef,
+  FreightCategory,
 } from '../types/warehouse';
 
 import { Task } from '../types/tasks';
@@ -1807,3 +1813,909 @@ export function getAllShipmentRequests(): ShipmentRequest[] {
 export function getShipmentRequestById(id: string): ShipmentRequest | undefined {
   return mockShipmentRequests.find(r => r.id === id);
 }
+
+// -----------------------------------------------------------------------------
+// Cycle Counts
+// -----------------------------------------------------------------------------
+
+export const mockCycleCounts: CycleCount[] = [
+  {
+    id: 'CC-001',
+    cycleCountNumber: 'CC-2024-001',
+    name: 'Monthly Full Warehouse Count - December',
+    description: 'End of month full inventory reconciliation for Atlanta DC',
+    type: 'FULL',
+    priority: 'high',
+    status: 'IN_PROGRESS',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    scope: {},
+    scheduledDate: '2024-12-15T08:00:00Z',
+    dueDate: '2024-12-16T17:00:00Z',
+    assignedTo: 'user-003',
+    assignedToName: 'Mike Johnson',
+    lineItems: [
+      {
+        id: 'CCLI-001',
+        cycleCountId: 'CC-001',
+        inventoryItemId: 'INVITEM-001',
+        productId: 'ALF-LS600-T3-G1-FSK-PSC-ASR',
+        productName: 'ALF Flexible Area Light, 60000Lm',
+        partNumber: 'ALF LS600 T3 G1 FSK PSC ASR',
+        binId: 'BIN-001',
+        binLocation: 'Shelf 1A, Bin A',
+        fullLocationPath: 'Atlanta DC > Section A > Aisle 1 > Shelf 1A > Bay-01 > Row 1 > Bin A',
+        lotNumber: 'LOT-2024-001',
+        systemQuantity: 100,
+        countedQuantity: 98,
+        variance: -2,
+        variancePercent: -2,
+        status: 'counted',
+        countedBy: 'user-003',
+        countedByName: 'Mike Johnson',
+        countedAt: '2024-12-15T09:30:00Z',
+        recountRequired: false,
+        notes: '2 units found damaged, moved to quarantine',
+      },
+      {
+        id: 'CCLI-002',
+        cycleCountId: 'CC-001',
+        inventoryItemId: 'INVITEM-002',
+        productId: 'ALF-LS600-T3-G1-FSK-PSC-ASR',
+        productName: 'ALF Flexible Area Light, 60000Lm',
+        partNumber: 'ALF LS600 T3 G1 FSK PSC ASR',
+        binId: 'BIN-002',
+        binLocation: 'Shelf 1A, Bin B',
+        fullLocationPath: 'Atlanta DC > Section A > Aisle 1 > Shelf 1A > Bay-01 > Row 1 > Bin B',
+        lotNumber: 'LOT-2024-002',
+        systemQuantity: 50,
+        countedQuantity: 50,
+        variance: 0,
+        variancePercent: 0,
+        status: 'counted',
+        countedBy: 'user-003',
+        countedByName: 'Mike Johnson',
+        countedAt: '2024-12-15T09:45:00Z',
+        recountRequired: false,
+      },
+      {
+        id: 'CCLI-003',
+        cycleCountId: 'CC-001',
+        inventoryItemId: 'INVITEM-003',
+        productId: 'ALF-ASR',
+        productName: 'Adjustable Square & Round Pole Mounting',
+        partNumber: 'ALF-ASR',
+        binId: 'BIN-003',
+        binLocation: 'Shelf 1A, Bin C',
+        fullLocationPath: 'Atlanta DC > Section A > Aisle 1 > Shelf 1A > Bay-01 > Row 1 > Bin C',
+        lotNumber: 'LOT-2024-003',
+        systemQuantity: 500,
+        status: 'pending',
+        recountRequired: false,
+      },
+      {
+        id: 'CCLI-004',
+        cycleCountId: 'CC-001',
+        inventoryItemId: 'INVITEM-004',
+        productId: 'PC-2',
+        productName: 'Twist-lock Photocell with receptacle',
+        partNumber: 'PC-2',
+        binId: 'BIN-004',
+        binLocation: 'Shelf 1A, Bin D',
+        fullLocationPath: 'Atlanta DC > Section A > Aisle 1 > Shelf 1A > Bay-01 > Row 1 > Bin D',
+        lotNumber: 'LOT-2024-004',
+        systemQuantity: 200,
+        status: 'pending',
+        recountRequired: false,
+      },
+      {
+        id: 'CCLI-005',
+        cycleCountId: 'CC-001',
+        inventoryItemId: 'INVITEM-005',
+        productId: 'MS-DCE-09-L7-W',
+        productName: 'Motion Sensor, DC, Fixture External',
+        partNumber: 'MS-DCE-09-L7-W',
+        binId: 'BIN-005',
+        binLocation: 'Shelf 1A, Bay-01, Row 2, Bin A',
+        fullLocationPath: 'Atlanta DC > Section A > Aisle 1 > Shelf 1A > Bay-01 > Row 2 > Bin A',
+        lotNumber: 'LOT-2024-005',
+        systemQuantity: 75,
+        status: 'pending',
+        recountRequired: false,
+      },
+    ],
+    totalItems: 5,
+    countedItems: 2,
+    itemsWithVariance: 1,
+    startedAt: '2024-12-15T09:00:00Z',
+    startedBy: 'user-003',
+    totalSystemQuantity: 925,
+    createdAt: '2024-12-14T10:00:00Z',
+    updatedAt: '2024-12-15T09:45:00Z',
+    createdBy: 'John Smith',
+  },
+  {
+    id: 'CC-002',
+    cycleCountNumber: 'CC-2024-002',
+    name: 'High-Value Product Count',
+    description: 'Monthly count of A-class high-value inventory items',
+    type: 'ABC',
+    priority: 'high',
+    status: 'SCHEDULED',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    scope: {
+      abcClass: 'A',
+    },
+    scheduledDate: '2024-12-18T08:00:00Z',
+    dueDate: '2024-12-18T17:00:00Z',
+    assignedTo: 'user-004',
+    assignedToName: 'Lisa Anderson',
+    lineItems: [],
+    totalItems: 0,
+    countedItems: 0,
+    itemsWithVariance: 0,
+    notes: 'Focus on high-value lighting fixtures and sensors',
+    createdAt: '2024-12-12T14:00:00Z',
+    updatedAt: '2024-12-12T14:00:00Z',
+    createdBy: 'Sarah Williams',
+  },
+  {
+    id: 'CC-003',
+    cycleCountNumber: 'CC-2024-003',
+    name: 'Section A Random Sample',
+    description: 'Random 20% sample count of Section A inventory',
+    type: 'RANDOM',
+    priority: 'medium',
+    status: 'COMPLETED',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    scope: {
+      sections: ['SEC-001'],
+    },
+    scheduledDate: '2024-12-10T08:00:00Z',
+    dueDate: '2024-12-10T12:00:00Z',
+    assignedTo: 'user-003',
+    assignedToName: 'Mike Johnson',
+    lineItems: [
+      {
+        id: 'CCLI-006',
+        cycleCountId: 'CC-003',
+        inventoryItemId: 'INVITEM-001',
+        productId: 'ALF-LS600-T3-G1-FSK-PSC-ASR',
+        productName: 'ALF Flexible Area Light, 60000Lm',
+        partNumber: 'ALF LS600 T3 G1 FSK PSC ASR',
+        binId: 'BIN-001',
+        binLocation: 'Shelf 1A, Bin A',
+        fullLocationPath: 'Atlanta DC > Section A > Aisle 1 > Shelf 1A > Bay-01 > Row 1 > Bin A',
+        lotNumber: 'LOT-2024-001',
+        systemQuantity: 100,
+        countedQuantity: 100,
+        variance: 0,
+        variancePercent: 0,
+        status: 'verified',
+        countedBy: 'user-003',
+        countedByName: 'Mike Johnson',
+        countedAt: '2024-12-10T09:15:00Z',
+        verifiedBy: 'user-004',
+        verifiedByName: 'Lisa Anderson',
+        verifiedAt: '2024-12-10T10:30:00Z',
+        recountRequired: false,
+      },
+      {
+        id: 'CCLI-007',
+        cycleCountId: 'CC-003',
+        inventoryItemId: 'INVITEM-003',
+        productId: 'ALF-ASR',
+        productName: 'Adjustable Square & Round Pole Mounting',
+        partNumber: 'ALF-ASR',
+        binId: 'BIN-003',
+        binLocation: 'Shelf 1A, Bin C',
+        fullLocationPath: 'Atlanta DC > Section A > Aisle 1 > Shelf 1A > Bay-01 > Row 1 > Bin C',
+        lotNumber: 'LOT-2024-003',
+        systemQuantity: 500,
+        countedQuantity: 498,
+        variance: -2,
+        variancePercent: -0.4,
+        status: 'adjusted',
+        countedBy: 'user-003',
+        countedByName: 'Mike Johnson',
+        countedAt: '2024-12-10T09:45:00Z',
+        verifiedBy: 'user-004',
+        verifiedByName: 'Lisa Anderson',
+        verifiedAt: '2024-12-10T10:45:00Z',
+        recountRequired: false,
+        notes: 'Inventory adjusted - 2 units unaccounted, likely shipping error',
+      },
+    ],
+    totalItems: 2,
+    countedItems: 2,
+    itemsWithVariance: 1,
+    startedAt: '2024-12-10T09:00:00Z',
+    startedBy: 'user-003',
+    completedAt: '2024-12-10T11:00:00Z',
+    completedBy: 'user-003',
+    reviewedAt: '2024-12-10T11:30:00Z',
+    reviewedBy: 'user-004',
+    reviewedByName: 'Lisa Anderson',
+    totalSystemQuantity: 600,
+    totalCountedQuantity: 598,
+    totalVariance: -2,
+    accuracyPercentage: 99.67,
+    createdAt: '2024-12-09T16:00:00Z',
+    updatedAt: '2024-12-10T11:30:00Z',
+    createdBy: 'John Smith',
+  },
+  {
+    id: 'CC-004',
+    cycleCountNumber: 'CC-2024-004',
+    name: 'Motion Sensor Product Count',
+    description: 'Audit of all motion sensor inventory after customer returns',
+    type: 'PRODUCT',
+    priority: 'urgent',
+    status: 'PENDING_REVIEW',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    scope: {
+      products: ['MS-DCE-09-L7-W'],
+    },
+    scheduledDate: '2024-12-14T08:00:00Z',
+    dueDate: '2024-12-14T12:00:00Z',
+    assignedTo: 'user-004',
+    assignedToName: 'Lisa Anderson',
+    lineItems: [
+      {
+        id: 'CCLI-008',
+        cycleCountId: 'CC-004',
+        inventoryItemId: 'INVITEM-005',
+        productId: 'MS-DCE-09-L7-W',
+        productName: 'Motion Sensor, DC, Fixture External',
+        partNumber: 'MS-DCE-09-L7-W',
+        binId: 'BIN-005',
+        binLocation: 'Shelf 1A, Bay-01, Row 2, Bin A',
+        fullLocationPath: 'Atlanta DC > Section A > Aisle 1 > Shelf 1A > Bay-01 > Row 2 > Bin A',
+        lotNumber: 'LOT-2024-005',
+        systemQuantity: 75,
+        countedQuantity: 72,
+        variance: -3,
+        variancePercent: -4,
+        status: 'counted',
+        countedBy: 'user-004',
+        countedByName: 'Lisa Anderson',
+        countedAt: '2024-12-14T09:30:00Z',
+        recountRequired: true,
+        recountReason: 'Variance exceeds 2% threshold',
+        notes: 'May be related to RMA-2024-003 returns not yet processed',
+      },
+    ],
+    totalItems: 1,
+    countedItems: 1,
+    itemsWithVariance: 1,
+    startedAt: '2024-12-14T09:00:00Z',
+    startedBy: 'user-004',
+    totalSystemQuantity: 75,
+    totalCountedQuantity: 72,
+    totalVariance: -3,
+    accuracyPercentage: 96,
+    notes: 'Triggered by RMA returns - need to verify all units accounted for',
+    createdAt: '2024-12-13T15:00:00Z',
+    updatedAt: '2024-12-14T09:30:00Z',
+    createdBy: 'Sarah Williams',
+  },
+  {
+    id: 'CC-005',
+    cycleCountNumber: 'CC-2024-005',
+    name: 'Legrand Products Blind Count',
+    description: 'Blind count of all Legrand products for audit compliance',
+    type: 'BLIND',
+    priority: 'medium',
+    status: 'DRAFT',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    scope: {
+      factories: ['CO-012'],
+    },
+    scheduledDate: '2024-12-20T08:00:00Z',
+    dueDate: '2024-12-20T17:00:00Z',
+    lineItems: [],
+    totalItems: 0,
+    countedItems: 0,
+    itemsWithVariance: 0,
+    notes: 'Annual blind count required for Legrand consignment agreement',
+    createdAt: '2024-12-15T10:00:00Z',
+    updatedAt: '2024-12-15T10:00:00Z',
+    createdBy: 'John Smith',
+  },
+];
+
+// Get all cycle counts
+export function getAllCycleCounts(): CycleCount[] {
+  return mockCycleCounts;
+}
+
+// Get cycle count by ID
+export function getCycleCountById(id: string): CycleCount | undefined {
+  return mockCycleCounts.find(cc => cc.id === id);
+}
+
+// Get cycle count stats
+export function getCycleCountStats() {
+  const now = new Date();
+  const thisMonth = now.getMonth();
+  const thisYear = now.getFullYear();
+
+  const completedThisMonth = mockCycleCounts.filter(cc => {
+    if (cc.status !== 'COMPLETED' || !cc.completedAt) return false;
+    const completedDate = new Date(cc.completedAt);
+    return completedDate.getMonth() === thisMonth && completedDate.getFullYear() === thisYear;
+  });
+
+  const avgAccuracy = completedThisMonth.length > 0
+    ? completedThisMonth.reduce((sum, cc) => sum + (cc.accuracyPercentage || 0), 0) / completedThisMonth.length
+    : 0;
+
+  return {
+    total: mockCycleCounts.length,
+    draft: mockCycleCounts.filter(cc => cc.status === 'DRAFT').length,
+    scheduled: mockCycleCounts.filter(cc => cc.status === 'SCHEDULED').length,
+    inProgress: mockCycleCounts.filter(cc => cc.status === 'IN_PROGRESS').length,
+    pendingReview: mockCycleCounts.filter(cc => cc.status === 'PENDING_REVIEW').length,
+    completed: mockCycleCounts.filter(cc => cc.status === 'COMPLETED').length,
+    completedThisMonth: completedThisMonth.length,
+    averageAccuracy: Math.round(avgAccuracy * 100) / 100,
+    itemsWithVariance: mockCycleCounts
+      .filter(cc => cc.status === 'COMPLETED' || cc.status === 'IN_PROGRESS' || cc.status === 'PENDING_REVIEW')
+      .reduce((sum, cc) => sum + cc.itemsWithVariance, 0),
+  };
+}
+
+// Add a new cycle count
+export function addCycleCount(cycleCount: Omit<CycleCount, 'id' | 'cycleCountNumber' | 'createdAt' | 'updatedAt'>): CycleCount {
+  const newCount: CycleCount = {
+    ...cycleCount,
+    id: `CC-${String(mockCycleCounts.length + 1).padStart(3, '0')}`,
+    cycleCountNumber: `CC-${new Date().getFullYear()}-${String(mockCycleCounts.length + 1).padStart(3, '0')}`,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  mockCycleCounts.push(newCount);
+  return newCount;
+}
+
+// Update cycle count status
+export function updateCycleCountStatus(
+  countId: string,
+  status: CycleCountStatus,
+  additionalFields?: Partial<CycleCount>
+): CycleCount | undefined {
+  const index = mockCycleCounts.findIndex(cc => cc.id === countId);
+  if (index === -1) return undefined;
+
+  mockCycleCounts[index] = {
+    ...mockCycleCounts[index],
+    ...additionalFields,
+    status,
+    updatedAt: new Date().toISOString(),
+  };
+  return mockCycleCounts[index];
+}
+
+// Update a cycle count line item (record count)
+export function updateCycleCountLineItem(
+  countId: string,
+  lineItemId: string,
+  updates: Partial<CycleCountLineItem>
+): CycleCount | undefined {
+  const countIndex = mockCycleCounts.findIndex(cc => cc.id === countId);
+  if (countIndex === -1) return undefined;
+
+  const cycleCount = mockCycleCounts[countIndex];
+  const lineItemIndex = cycleCount.lineItems.findIndex(li => li.id === lineItemId);
+  if (lineItemIndex === -1) return undefined;
+
+  // Update the line item
+  const lineItem = cycleCount.lineItems[lineItemIndex];
+  const updatedLineItem = {
+    ...lineItem,
+    ...updates,
+  };
+
+  // Calculate variance if counted quantity is provided
+  if (updates.countedQuantity !== undefined) {
+    updatedLineItem.variance = updates.countedQuantity - lineItem.systemQuantity;
+    updatedLineItem.variancePercent = lineItem.systemQuantity > 0
+      ? Math.round((updatedLineItem.variance / lineItem.systemQuantity) * 10000) / 100
+      : 0;
+    updatedLineItem.status = 'counted';
+    updatedLineItem.countedAt = new Date().toISOString();
+  }
+
+  cycleCount.lineItems[lineItemIndex] = updatedLineItem;
+
+  // Recalculate cycle count stats
+  cycleCount.countedItems = cycleCount.lineItems.filter(li =>
+    li.status === 'counted' || li.status === 'verified' || li.status === 'adjusted'
+  ).length;
+  cycleCount.itemsWithVariance = cycleCount.lineItems.filter(li =>
+    li.variance !== undefined && li.variance !== 0
+  ).length;
+  cycleCount.totalCountedQuantity = cycleCount.lineItems
+    .filter(li => li.countedQuantity !== undefined)
+    .reduce((sum, li) => sum + (li.countedQuantity || 0), 0);
+  cycleCount.totalVariance = cycleCount.lineItems
+    .filter(li => li.variance !== undefined)
+    .reduce((sum, li) => sum + (li.variance || 0), 0);
+
+  if (cycleCount.totalSystemQuantity && cycleCount.totalCountedQuantity !== undefined) {
+    cycleCount.accuracyPercentage = Math.round(
+      (1 - Math.abs(cycleCount.totalVariance || 0) / cycleCount.totalSystemQuantity) * 10000
+    ) / 100;
+  }
+
+  cycleCount.updatedAt = new Date().toISOString();
+  mockCycleCounts[countIndex] = cycleCount;
+
+  return cycleCount;
+}
+
+// Generate line items for a cycle count based on scope
+export function generateCycleCountLineItems(cycleCount: CycleCount): CycleCountLineItem[] {
+  let itemsToCount = [...mockInventoryItems];
+
+  // Filter by scope
+  if (cycleCount.scope.products && cycleCount.scope.products.length > 0) {
+    const inventoryIds = mockInventory
+      .filter(inv => cycleCount.scope.products!.includes(inv.productId))
+      .map(inv => inv.id);
+    itemsToCount = itemsToCount.filter(item => inventoryIds.includes(item.inventoryId));
+  }
+
+  if (cycleCount.scope.factories && cycleCount.scope.factories.length > 0) {
+    const inventoryIds = mockInventory
+      .filter(inv => cycleCount.scope.factories!.includes(inv.factoryId))
+      .map(inv => inv.id);
+    itemsToCount = itemsToCount.filter(item => inventoryIds.includes(item.inventoryId));
+  }
+
+  // Create line items
+  return itemsToCount.map((item, index) => {
+    const inv = mockInventory.find(i => i.id === item.inventoryId)!;
+    return {
+      id: `CCLI-NEW-${index + 1}`,
+      cycleCountId: cycleCount.id,
+      inventoryItemId: item.id,
+      productId: inv.productId,
+      productName: inv.productName,
+      partNumber: inv.partNumber,
+      binId: item.binId,
+      binLocation: item.binLocation,
+      fullLocationPath: item.fullLocationPath,
+      lotNumber: item.lotNumber,
+      systemQuantity: item.quantity,
+      status: 'pending' as const,
+      recountRequired: false,
+    };
+  });
+}
+
+// Start a cycle count (generate line items and set status)
+export function startCycleCount(countId: string, startedBy: string): CycleCount | undefined {
+  const index = mockCycleCounts.findIndex(cc => cc.id === countId);
+  if (index === -1) return undefined;
+
+  const cycleCount = mockCycleCounts[index];
+
+  // Generate line items if not already present
+  if (cycleCount.lineItems.length === 0) {
+    cycleCount.lineItems = generateCycleCountLineItems(cycleCount);
+    cycleCount.totalItems = cycleCount.lineItems.length;
+    cycleCount.totalSystemQuantity = cycleCount.lineItems.reduce((sum, li) => sum + li.systemQuantity, 0);
+  }
+
+  cycleCount.status = 'IN_PROGRESS';
+  cycleCount.startedAt = new Date().toISOString();
+  cycleCount.startedBy = startedBy;
+  cycleCount.updatedAt = new Date().toISOString();
+
+  mockCycleCounts[index] = cycleCount;
+  return cycleCount;
+}
+
+// Complete a cycle count
+export function completeCycleCount(countId: string, completedBy: string): CycleCount | undefined {
+  const index = mockCycleCounts.findIndex(cc => cc.id === countId);
+  if (index === -1) return undefined;
+
+  const cycleCount = mockCycleCounts[index];
+
+  // Check if all items are counted
+  const allCounted = cycleCount.lineItems.every(li =>
+    li.status === 'counted' || li.status === 'verified' || li.status === 'adjusted' || li.status === 'skipped'
+  );
+
+  if (!allCounted) {
+    return undefined; // Cannot complete if items remain uncounted
+  }
+
+  // Check if any items need recount
+  const needsReview = cycleCount.lineItems.some(li => li.recountRequired);
+
+  cycleCount.status = needsReview ? 'PENDING_REVIEW' : 'COMPLETED';
+  cycleCount.completedAt = new Date().toISOString();
+  cycleCount.completedBy = completedBy;
+  cycleCount.updatedAt = new Date().toISOString();
+
+  mockCycleCounts[index] = cycleCount;
+  return cycleCount;
+}
+
+
+// -----------------------------------------------------------------------------
+// Mock Manufacturer Profiles
+// -----------------------------------------------------------------------------
+
+export const mockManufacturerProfiles: ManufacturerProfile[] = [
+  {
+    id: 'MP-001',
+    manufacturerId: 'MFR-001',
+    manufacturerName: 'MGM Transformer',
+    vendorName: 'MGM Transformer',
+    vendorGroup: 'Transformers',
+    repCode: 'MGM-001',
+    phone: '423-271-8333',
+    mainEmailAddress: 'orders@mgmtransformer.com',
+    addressLine1: '575 Industrial Way',
+    city: 'Jacksonville',
+    state: 'Florida',
+    postalCode: '32099',
+    orderPrefix: 'OM',
+    orderSequenceStart: 0,
+    orderSequenceEnd: 99999,
+    alwaysFactoryBO: false,
+    warehousing: true,
+    warehouseCopySortOrder: 'default',
+    selectDefaultShipper: 'CJI Robinson',
+    remarks: '',
+    manualProductAllowed: true,
+    isBuySell: false,
+    releaseCopySortOnLineItem: false,
+    orderAllowedWithoutCustomerXRef: false,
+    orderAllowedWithoutShipToXRef: false,
+    defaultToManualPricing: false,
+    warnAboutPartialQtyOrder: false,
+    communicateUsingEdiOutFiles: false,
+    communicateReleasesOnly: false,
+    downloadSummaryEdi: false,
+    outboundCommunication: 'PDF',
+    inboundCommunication: 'PDF',
+    contacts: [
+      {
+        id: 'MC-001',
+        factoryId: 'MFR-001',
+        name: 'John Smith',
+        email: 'jsmith@mgmtransformer.com',
+        phone: '423-271-8334',
+        role: 'Sales Manager',
+        isDefaultForOrders: true,
+        isActive: true,
+      },
+    ],
+    freightTerms: 'FOB Destination',
+    shipperAccountNumber: 'MGM-SHIP-001',
+    customerXRefs: [
+      {
+        id: 'VCXR-001',
+        manufacturerProfileId: 'MP-001',
+        customerId: 'CUST-001',
+        customerName: 'CED (All Phases) College Park',
+        customerAddress: '3375 Highway 85\nCollege Park, GA 30349-9801',
+        vendorCustomerNumber: 'MGM001',
+        selectDefaultShipper: 'CJI Robinson',
+        quoteReference: '',
+        alwaysFactoryBO: false,
+        creditHold: false,
+        warehouseOrderAllowed: true,
+        additionalVendorCustomerNumbers: [],
+        customerAssignedCodes: [],
+        shipToAddresses: [
+          {
+            id: 'VSA-001',
+            name: 'Irman Solar-Grotts 2',
+            address: '365 E Grotts Rd, Grotts, W1 24537',
+            customerAddressCode: '',
+          },
+        ],
+      },
+    ],
+    freightCategories: [
+      {
+        id: 'FC-001',
+        manufacturerProfileId: 'MP-001',
+        vendorName: 'MGM Transformer',
+        freightCategory: 1,
+        description: 'Transformers',
+        classRate: 70,
+        flammable: false,
+      },
+    ],
+    isSuspended: false,
+    createdAt: '2024-01-15T10:00:00Z',
+    updatedAt: '2024-12-01T10:00:00Z',
+  },
+  {
+    id: 'MP-002',
+    manufacturerId: 'MFR-002',
+    manufacturerName: 'EZ Crete',
+    vendorName: 'EZ Crete',
+    vendorGroup: 'Concrete',
+    repCode: 'EZC-001',
+    phone: '555-123-4567',
+    mainEmailAddress: 'orders@ezcrete.com',
+    addressLine1: '1200 Concrete Blvd',
+    city: 'Atlanta',
+    state: 'Georgia',
+    postalCode: '30301',
+    orderPrefix: 'EZ',
+    orderSequenceStart: 0,
+    orderSequenceEnd: 99999,
+    alwaysFactoryBO: false,
+    warehousing: true,
+    warehouseCopySortOrder: 'default',
+    manualProductAllowed: true,
+    isBuySell: false,
+    releaseCopySortOnLineItem: false,
+    orderAllowedWithoutCustomerXRef: true,
+    orderAllowedWithoutShipToXRef: true,
+    defaultToManualPricing: false,
+    warnAboutPartialQtyOrder: true,
+    communicateUsingEdiOutFiles: false,
+    communicateReleasesOnly: false,
+    downloadSummaryEdi: false,
+    outboundCommunication: 'PDF',
+    inboundCommunication: 'PDF',
+    freightCategories: [
+      {
+        id: 'FC-002',
+        manufacturerProfileId: 'MP-002',
+        vendorName: 'EZ Crete',
+        freightCategory: 1,
+        description: 'Concrete Pads',
+        classRate: 55,
+        flammable: false,
+      },
+    ],
+    isSuspended: false,
+    createdAt: '2024-02-01T10:00:00Z',
+    updatedAt: '2024-11-15T10:00:00Z',
+  },
+  {
+    id: 'MP-003',
+    manufacturerId: 'MFR-003',
+    manufacturerName: 'Bryant Wiring Devices',
+    vendorName: 'Bryant Wiring Devices',
+    vendorGroup: 'Electrical',
+    repCode: 'BWD-001',
+    phone: '555-234-5678',
+    mainEmailAddress: 'orders@bryantwiring.com',
+    addressLine1: '800 Electric Ave',
+    city: 'Charlotte',
+    state: 'North Carolina',
+    postalCode: '28201',
+    orderPrefix: 'BW',
+    orderSequenceStart: 0,
+    orderSequenceEnd: 99999,
+    alwaysFactoryBO: false,
+    warehousing: true,
+    warehouseCopySortOrder: 'alphabetical',
+    manualProductAllowed: false,
+    isBuySell: true,
+    releaseCopySortOnLineItem: true,
+    orderAllowedWithoutCustomerXRef: false,
+    orderAllowedWithoutShipToXRef: false,
+    defaultToManualPricing: false,
+    warnAboutPartialQtyOrder: false,
+    communicateUsingEdiOutFiles: true,
+    communicateReleasesOnly: false,
+    downloadSummaryEdi: true,
+    outboundCommunication: 'EDI',
+    inboundCommunication: 'EDI',
+    freightCategories: [
+      {
+        id: 'FC-003',
+        manufacturerProfileId: 'MP-003',
+        vendorName: 'Bryant Wiring Devices',
+        freightCategory: 1,
+        description: 'NMFC052910-4 Fittings',
+        classRate: 50,
+        flammable: false,
+      },
+    ],
+    isSuspended: false,
+    createdAt: '2024-03-01T10:00:00Z',
+    updatedAt: '2024-10-20T10:00:00Z',
+  },
+  {
+    id: 'MP-004',
+    manufacturerId: 'MFR-004',
+    manufacturerName: 'Low Electric',
+    vendorName: 'Low Electric',
+    vendorGroup: 'Electrical',
+    repCode: 'LE-001',
+    phone: '555-345-6789',
+    mainEmailAddress: 'orders@lowelectric.com',
+    addressLine1: '450 Power St',
+    city: 'Raleigh',
+    state: 'North Carolina',
+    postalCode: '27601',
+    orderPrefix: 'LE',
+    orderSequenceStart: 0,
+    orderSequenceEnd: 99999,
+    alwaysFactoryBO: true,
+    warehousing: true,
+    warehouseCopySortOrder: 'default',
+    manualProductAllowed: true,
+    isBuySell: false,
+    releaseCopySortOnLineItem: false,
+    orderAllowedWithoutCustomerXRef: true,
+    orderAllowedWithoutShipToXRef: true,
+    defaultToManualPricing: true,
+    warnAboutPartialQtyOrder: false,
+    communicateUsingEdiOutFiles: false,
+    communicateReleasesOnly: true,
+    downloadSummaryEdi: false,
+    outboundCommunication: 'PDF',
+    inboundCommunication: 'PDF',
+    freightCategories: [
+      {
+        id: 'FC-004',
+        manufacturerProfileId: 'MP-004',
+        vendorName: 'Low Electric',
+        freightCategory: 1,
+        description: 'NMFC052910-4 Fittings',
+        classRate: 50,
+        flammable: false,
+      },
+    ],
+    isSuspended: false,
+    createdAt: '2024-04-01T10:00:00Z',
+    updatedAt: '2024-09-15T10:00:00Z',
+  },
+  {
+    id: 'MP-005',
+    manufacturerId: 'MFR-005',
+    manufacturerName: 'Linear Solution',
+    vendorName: 'Linear Solution',
+    vendorGroup: 'Steel',
+    repCode: 'LS-001',
+    phone: '555-456-7890',
+    mainEmailAddress: 'orders@linearsolution.com',
+    addressLine1: '600 Steel Way',
+    city: 'Birmingham',
+    state: 'Alabama',
+    postalCode: '35201',
+    orderPrefix: 'LS',
+    orderSequenceStart: 0,
+    orderSequenceEnd: 99999,
+    alwaysFactoryBO: false,
+    warehousing: true,
+    warehouseCopySortOrder: 'default',
+    manualProductAllowed: true,
+    isBuySell: false,
+    releaseCopySortOnLineItem: false,
+    orderAllowedWithoutCustomerXRef: false,
+    orderAllowedWithoutShipToXRef: false,
+    defaultToManualPricing: false,
+    warnAboutPartialQtyOrder: true,
+    communicateUsingEdiOutFiles: false,
+    communicateReleasesOnly: false,
+    downloadSummaryEdi: false,
+    outboundCommunication: 'PDF',
+    inboundCommunication: 'PDF',
+    freightCategories: [
+      {
+        id: 'FC-005',
+        manufacturerProfileId: 'MP-005',
+        vendorName: 'Linear Solution',
+        freightCategory: 1,
+        description: 'NMFC 56700 Steel Tube',
+        classRate: 50,
+        flammable: false,
+      },
+    ],
+    isSuspended: false,
+    createdAt: '2024-05-01T10:00:00Z',
+    updatedAt: '2024-08-20T10:00:00Z',
+  },
+  {
+    id: 'MP-006',
+    manufacturerId: 'MFR-006',
+    manufacturerName: 'American Polywater',
+    vendorName: 'American Polywater',
+    vendorGroup: 'Lubricants',
+    repCode: 'AP-001',
+    phone: '555-567-8901',
+    mainEmailAddress: 'orders@polywater.com',
+    addressLine1: '750 Chemical Dr',
+    city: 'Minneapolis',
+    state: 'Minnesota',
+    postalCode: '55401',
+    orderPrefix: 'AP',
+    orderSequenceStart: 0,
+    orderSequenceEnd: 99999,
+    alwaysFactoryBO: false,
+    warehousing: true,
+    warehouseCopySortOrder: 'alphabetical',
+    manualProductAllowed: true,
+    isBuySell: false,
+    releaseCopySortOnLineItem: false,
+    orderAllowedWithoutCustomerXRef: true,
+    orderAllowedWithoutShipToXRef: true,
+    defaultToManualPricing: false,
+    warnAboutPartialQtyOrder: false,
+    communicateUsingEdiOutFiles: false,
+    communicateReleasesOnly: false,
+    downloadSummaryEdi: false,
+    outboundCommunication: 'PDF',
+    inboundCommunication: 'PDF',
+    freightCategories: [
+      {
+        id: 'FC-006',
+        manufacturerProfileId: 'MP-006',
+        vendorName: 'American Polywater',
+        freightCategory: 1,
+        description: 'NMFC48505 Lubricant',
+        classRate: 65,
+        flammable: true,
+      },
+    ],
+    isSuspended: false,
+    createdAt: '2024-06-01T10:00:00Z',
+    updatedAt: '2024-07-15T10:00:00Z',
+  },
+  {
+    id: 'MP-007',
+    manufacturerId: 'MFR-007',
+    manufacturerName: 'Molburn',
+    vendorName: 'Molburn',
+    vendorGroup: 'Fittings',
+    repCode: 'MOL-001',
+    phone: '555-678-9012',
+    mainEmailAddress: 'orders@molburn.com',
+    addressLine1: '900 Fitting Rd',
+    city: 'Houston',
+    state: 'Texas',
+    postalCode: '77001',
+    orderPrefix: 'MOL',
+    orderSequenceStart: 0,
+    orderSequenceEnd: 99999,
+    alwaysFactoryBO: false,
+    warehousing: false,
+    warehouseCopySortOrder: 'default',
+    manualProductAllowed: true,
+    isBuySell: false,
+    releaseCopySortOnLineItem: false,
+    orderAllowedWithoutCustomerXRef: false,
+    orderAllowedWithoutShipToXRef: false,
+    defaultToManualPricing: false,
+    warnAboutPartialQtyOrder: false,
+    communicateUsingEdiOutFiles: false,
+    communicateReleasesOnly: false,
+    downloadSummaryEdi: false,
+    outboundCommunication: 'PDF',
+    inboundCommunication: 'PDF',
+    freightCategories: [
+      {
+        id: 'FC-007',
+        manufacturerProfileId: 'MP-007',
+        vendorName: 'Molburn',
+        freightCategory: 1,
+        description: 'NMFC070610-4 Fittings',
+        classRate: 60,
+        flammable: false,
+      },
+    ],
+    isSuspended: true,
+    createdAt: '2024-07-01T10:00:00Z',
+    updatedAt: '2024-08-01T10:00:00Z',
+  },
+];

@@ -84,6 +84,8 @@ export interface Company {
   salesReps?: SalesRepAssignment[];
   // Document-specific flag - excludes from searches when creating quotes, orders, invoices
   isDocumentSpecific?: boolean;
+  // Warehouse manufacturer flag - indicates this manufacturer has warehouse operations
+  isWarehouseManufacturer?: boolean;
   // Company hierarchy fields
   hierarchyRole?: CompanyHierarchyRole;          // Role: none, parent, or grandparent
   parentCompanyId?: string;                       // ID of parent company (if this is a child)

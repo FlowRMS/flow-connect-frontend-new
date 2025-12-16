@@ -89,6 +89,12 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   const [expandedPackingNoteId, setExpandedPackingNoteId] = useState<string | null>(null);
   const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
 
+  // Modal state
+  const [showPackingSlipModal, setShowPackingSlipModal] = useState(false);
+  const [showShippingLabelsModal, setShowShippingLabelsModal] = useState(false);
+  const [selectedPackingTemplate, setSelectedPackingTemplate] = useState('standard');
+  const [selectedLabelFormat, setSelectedLabelFormat] = useState('4x6');
+
   if (!fulfillmentOrder) {
     return (
       <main className="flex-1 overflow-hidden bg-[var(--background)] flex flex-col items-center justify-center p-6">
@@ -789,24 +795,384 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
       </div>
 
       {/* Print Actions */}
-      <div className="flex gap-2">
-        <button className="px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors flex items-center gap-2">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polyline points="6 9 6 2 18 2 18 9"/>
-            <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/>
-            <rect x="6" y="14" width="12" height="8"/>
-          </svg>
-          Print All Packing Slips
+      <div className="grid grid-cols-2 gap-4">
+        <button
+          onClick={() => setShowPackingSlipModal(true)}
+          className="px-6 py-4 bg-[var(--card)] border-2 border-[var(--border)] rounded-xl font-medium hover:border-[var(--primary)] hover:shadow-md transition-all flex items-center justify-center gap-3"
+        >
+          <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
+              <polyline points="6 9 6 2 18 2 18 9"/>
+              <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/>
+              <rect x="6" y="14" width="12" height="8"/>
+            </svg>
+          </div>
+          <div className="text-left">
+            <div className="text-base font-semibold">Print Packing Slips</div>
+            <div className="text-sm text-[var(--muted-foreground)]">{packingBoxes.length} box{packingBoxes.length > 1 ? 'es' : ''} ready</div>
+          </div>
         </button>
-        <button className="px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors flex items-center gap-2">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="3" y="3" width="18" height="18" rx="2"/>
-            <path d="M3 9h18"/>
-            <path d="M9 21V9"/>
-          </svg>
-          Print All Shipping Labels
+        <button
+          onClick={() => setShowShippingLabelsModal(true)}
+          className="px-6 py-4 bg-[var(--card)] border-2 border-[var(--border)] rounded-xl font-medium hover:border-[var(--primary)] hover:shadow-md transition-all flex items-center justify-center gap-3"
+        >
+          <div className="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-600">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <path d="M3 9h18"/>
+              <path d="M9 21V9"/>
+            </svg>
+          </div>
+          <div className="text-left">
+            <div className="text-base font-semibold">Print Shipping Labels</div>
+            <div className="text-sm text-[var(--muted-foreground)]">{packingBoxes.length} label{packingBoxes.length > 1 ? 's' : ''} to print</div>
+          </div>
         </button>
       </div>
+
+      {/* Packing Slip Modal */}
+      {showPackingSlipModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--card)] rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
+                    <polyline points="6 9 6 2 18 2 18 9"/>
+                    <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/>
+                    <rect x="6" y="14" width="12" height="8"/>
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold">Print Packing Slips</h2>
+                  <p className="text-sm text-[var(--muted-foreground)]">{packingBoxes.length} packing slip{packingBoxes.length > 1 ? 's' : ''} to print</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowPackingSlipModal(false)}
+                className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-auto p-6">
+              {/* Template Selection */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Packing Slip Template</label>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { id: 'standard', name: 'Standard', desc: 'Basic packing slip with item list' },
+                    { id: 'detailed', name: 'Detailed', desc: 'Includes product descriptions & locations' },
+                    { id: 'minimal', name: 'Minimal', desc: 'Compact format for small shipments' },
+                  ].map((template) => (
+                    <button
+                      key={template.id}
+                      onClick={() => setSelectedPackingTemplate(template.id)}
+                      className={`p-4 border-2 rounded-lg text-left transition-colors ${
+                        selectedPackingTemplate === template.id
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-[var(--border)] hover:border-blue-300'
+                      }`}
+                    >
+                      <div className="font-medium">{template.name}</div>
+                      <div className="text-xs text-[var(--muted-foreground)] mt-1">{template.desc}</div>
+                    </button>
+                  ))}
+                </div>
+                <button className="mt-3 text-sm text-[var(--primary)] hover:underline flex items-center gap-1">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 5v14M5 12h14"/>
+                  </svg>
+                  Manage PDF Templates
+                </button>
+              </div>
+
+              {/* Preview */}
+              <div className="border border-[var(--border)] rounded-lg overflow-hidden">
+                <div className="px-4 py-2 bg-[var(--muted)]/30 border-b border-[var(--border)] text-sm font-medium">
+                  Preview
+                </div>
+                <div className="p-6 bg-white min-h-[400px]">
+                  {/* Mock Packing Slip Preview */}
+                  <div className="max-w-md mx-auto border border-gray-200 p-6 text-sm">
+                    <div className="flex justify-between items-start mb-6">
+                      <div>
+                        <div className="text-xl font-bold">PACKING SLIP</div>
+                        <div className="text-gray-500 mt-1">{fulfillmentOrder.fulfillmentOrderNumber}</div>
+                      </div>
+                      <div className="text-right text-gray-500">
+                        <div>{new Date().toLocaleDateString()}</div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-6 mb-6">
+                      <div>
+                        <div className="font-semibold text-gray-700 mb-1">Ship To:</div>
+                        <div>{fulfillmentOrder.shipTo.name}</div>
+                        <div>{fulfillmentOrder.shipTo.addressLine1}</div>
+                        <div>{fulfillmentOrder.shipTo.city}, {fulfillmentOrder.shipTo.state} {fulfillmentOrder.shipTo.postalCode}</div>
+                      </div>
+                      <div>
+                        <div className="font-semibold text-gray-700 mb-1">Order Info:</div>
+                        <div>PO: {fulfillmentOrder.orderNumber}</div>
+                        <div>Customer: {fulfillmentOrder.customerName}</div>
+                      </div>
+                    </div>
+
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-gray-300">
+                          <th className="text-left py-2">Item</th>
+                          <th className="text-left py-2">Description</th>
+                          <th className="text-right py-2">Qty</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {packingBoxes[0]?.lineItemIds.slice(0, 3).map((itemId) => {
+                          const item = fulfillmentOrder.lineItems.find(li => li.id === itemId);
+                          return item ? (
+                            <tr key={item.id} className="border-b border-gray-100">
+                              <td className="py-2">{item.partNumber}</td>
+                              <td className="py-2 text-gray-600">{item.productName.slice(0, 30)}...</td>
+                              <td className="py-2 text-right">{item.allocatedQty}</td>
+                            </tr>
+                          ) : null;
+                        })}
+                        {(packingBoxes[0]?.lineItemIds.length || 0) > 3 && (
+                          <tr>
+                            <td colSpan={3} className="py-2 text-center text-gray-400">
+                              ... and {(packingBoxes[0]?.lineItemIds.length || 0) - 3} more items
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+
+                    <div className="mt-6 pt-4 border-t border-gray-200 text-center text-gray-400 text-xs">
+                      Box 1 of {packingBoxes.length}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-[var(--border)] bg-[var(--muted)]/20 flex justify-between items-center">
+              <div className="text-sm text-[var(--muted-foreground)]">
+                {packingBoxes.length} packing slip{packingBoxes.length > 1 ? 's' : ''} will be generated
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowPackingSlipModal(false)}
+                  className="px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    // Mock print action
+                    alert('Printing packing slips...');
+                    setShowPackingSlipModal(false);
+                  }}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="6 9 6 2 18 2 18 9"/>
+                    <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/>
+                    <rect x="6" y="14" width="12" height="8"/>
+                  </svg>
+                  Print All
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Shipping Labels Modal */}
+      {showShippingLabelsModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--card)] rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-600">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <path d="M3 9h18"/>
+                    <path d="M9 21V9"/>
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold">Print Shipping Labels</h2>
+                  <p className="text-sm text-[var(--muted-foreground)]">{packingBoxes.length} label{packingBoxes.length > 1 ? 's' : ''} to print</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowShippingLabelsModal(false)}
+                className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-auto p-6">
+              {/* Label Format Selection */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Label Size</label>
+                <div className="grid grid-cols-4 gap-3">
+                  {[
+                    { id: '4x6', name: '4" x 6"', desc: 'Standard shipping' },
+                    { id: '4x4', name: '4" x 4"', desc: 'Compact' },
+                    { id: '2x1', name: '2" x 1"', desc: 'Small packages' },
+                    { id: 'letter', name: 'Letter', desc: '8.5" x 11"' },
+                  ].map((format) => (
+                    <button
+                      key={format.id}
+                      onClick={() => setSelectedLabelFormat(format.id)}
+                      className={`p-3 border-2 rounded-lg text-center transition-colors ${
+                        selectedLabelFormat === format.id
+                          ? 'border-green-500 bg-green-50'
+                          : 'border-[var(--border)] hover:border-green-300'
+                      }`}
+                    >
+                      <div className="font-medium">{format.name}</div>
+                      <div className="text-xs text-[var(--muted-foreground)] mt-1">{format.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Carrier Selection */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Carrier</label>
+                <div className="grid grid-cols-2 gap-4">
+                  <select
+                    value={carrier}
+                    onChange={(e) => setCarrier(e.target.value)}
+                    className="px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                  >
+                    <option value="">Select carrier...</option>
+                    <option value="ups">UPS</option>
+                    <option value="fedex">FedEx</option>
+                    <option value="usps">USPS</option>
+                    <option value="dhl">DHL</option>
+                    <option value="other">Other</option>
+                  </select>
+                  <input
+                    type="text"
+                    value={trackingNumbers}
+                    onChange={(e) => setTrackingNumbers(e.target.value)}
+                    placeholder="Tracking number(s)"
+                    className="px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                  />
+                </div>
+              </div>
+
+              {/* Labels Preview Grid */}
+              <div className="border border-[var(--border)] rounded-lg overflow-hidden">
+                <div className="px-4 py-2 bg-[var(--muted)]/30 border-b border-[var(--border)] text-sm font-medium flex justify-between">
+                  <span>Label Preview</span>
+                  <span className="text-[var(--muted-foreground)]">{packingBoxes.length} label{packingBoxes.length > 1 ? 's' : ''}</span>
+                </div>
+                <div className="p-6 bg-gray-100 grid grid-cols-2 gap-4">
+                  {packingBoxes.map((box, idx) => {
+                    const boxItems = fulfillmentOrder.lineItems.filter(li => box.lineItemIds.includes(li.id));
+                    const dims = getBoxDimensions(box);
+                    const weight = getBoxWeight(box);
+
+                    return (
+                      <div key={box.id} className="bg-white border-2 border-gray-300 rounded p-4 text-xs">
+                        {/* Mock Shipping Label */}
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="font-bold text-lg">{carrier.toUpperCase() || 'CARRIER'}</div>
+                          <div className="text-right text-gray-500">
+                            Box {idx + 1} of {packingBoxes.length}
+                          </div>
+                        </div>
+
+                        <div className="border-t border-b border-gray-200 py-3 my-3">
+                          <div className="text-gray-500 text-[10px] uppercase mb-1">Ship To:</div>
+                          <div className="font-bold">{fulfillmentOrder.shipTo.name}</div>
+                          <div>{fulfillmentOrder.shipTo.addressLine1}</div>
+                          <div>{fulfillmentOrder.shipTo.city}, {fulfillmentOrder.shipTo.state} {fulfillmentOrder.shipTo.postalCode}</div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-[10px]">
+                          <div>
+                            <span className="text-gray-500">Weight:</span> {weight} lbs
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Dims:</span> {dims.length}x{dims.width}x{dims.height}
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Items:</span> {boxItems.length}
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Ref:</span> {fulfillmentOrder.orderNumber}
+                          </div>
+                        </div>
+
+                        {/* Barcode placeholder */}
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <div className="bg-gray-800 h-12 flex items-center justify-center">
+                            <div className="flex gap-0.5">
+                              {Array.from({ length: 30 }).map((_, i) => (
+                                <div key={i} className="bg-white" style={{ width: Math.random() > 0.5 ? 2 : 1, height: 32 }} />
+                              ))}
+                            </div>
+                          </div>
+                          <div className="text-center mt-1 font-mono text-[10px] tracking-wider">
+                            {trackingNumbers || '1Z999AA10123456784'}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-[var(--border)] bg-[var(--muted)]/20 flex justify-between items-center">
+              <div className="text-sm text-[var(--muted-foreground)]">
+                {packingBoxes.length} shipping label{packingBoxes.length > 1 ? 's' : ''} will be printed
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowShippingLabelsModal(false)}
+                  className="px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    // Mock print action
+                    alert('Printing shipping labels...');
+                    setShowShippingLabelsModal(false);
+                  }}
+                  className="px-6 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors flex items-center gap-2"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="6 9 6 2 18 2 18 9"/>
+                    <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/>
+                    <rect x="6" y="14" width="12" height="8"/>
+                  </svg>
+                  Print All Labels
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 

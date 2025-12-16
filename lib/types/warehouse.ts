@@ -768,6 +768,167 @@ export interface CycleCountTask {
 }
 
 // -----------------------------------------------------------------------------
+// Cycle Counts
+// -----------------------------------------------------------------------------
+
+export type CycleCountStatus =
+  | 'DRAFT'
+  | 'SCHEDULED'
+  | 'IN_PROGRESS'
+  | 'PENDING_REVIEW'
+  | 'COMPLETED'
+  | 'CANCELLED';
+
+export type CycleCountType =
+  | 'FULL'           // Full warehouse count
+  | 'PARTIAL'        // Specific sections/aisles
+  | 'ABC'            // ABC classification based
+  | 'RANDOM'         // Random sample
+  | 'BLIND'          // Counters don't see expected quantities
+  | 'PRODUCT';       // Specific products
+
+export type CycleCountPriority = 'low' | 'medium' | 'high' | 'urgent';
+
+export interface CycleCountLineItem {
+  id: string;
+  cycleCountId: string;
+  inventoryItemId: string;
+  productId: string;
+  productName: string;
+  partNumber: string;
+  binId: string;
+  binLocation: string;
+  fullLocationPath: string;
+  lotNumber?: string;
+
+  // Quantities
+  systemQuantity: number;      // Expected quantity from system
+  countedQuantity?: number;    // Actual counted quantity
+  variance?: number;           // Difference (counted - system)
+  variancePercent?: number;    // Variance as percentage
+
+  // Status tracking
+  status: 'pending' | 'counted' | 'verified' | 'adjusted' | 'skipped';
+  countedBy?: string;
+  countedByName?: string;
+  countedAt?: string;
+  verifiedBy?: string;
+  verifiedByName?: string;
+  verifiedAt?: string;
+
+  // Recounts
+  recountRequired: boolean;
+  recountReason?: string;
+  recountQuantity?: number;
+  recountedBy?: string;
+  recountedAt?: string;
+
+  notes?: string;
+}
+
+export interface CycleCount {
+  id: string;
+  cycleCountNumber: string;    // e.g., "CC-2024-001"
+
+  // Basic info
+  name: string;
+  description?: string;
+  type: CycleCountType;
+  priority: CycleCountPriority;
+  status: CycleCountStatus;
+
+  // Warehouse context
+  warehouseId: string;
+  warehouseName: string;
+
+  // Scope (what to count)
+  scope: {
+    sections?: string[];       // Specific section IDs
+    aisles?: string[];         // Specific aisle IDs
+    shelves?: string[];        // Specific shelf IDs
+    products?: string[];       // Specific product IDs
+    factories?: string[];      // Specific manufacturer IDs
+    abcClass?: 'A' | 'B' | 'C'; // ABC classification
+  };
+
+  // Scheduling
+  scheduledDate: string;
+  dueDate?: string;
+
+  // Assignment
+  assignedTo?: string;
+  assignedToName?: string;
+
+  // Progress tracking
+  lineItems: CycleCountLineItem[];
+  totalItems: number;
+  countedItems: number;
+  itemsWithVariance: number;
+
+  // Timestamps
+  startedAt?: string;
+  startedBy?: string;
+  completedAt?: string;
+  completedBy?: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  reviewedByName?: string;
+
+  // Summary stats (calculated on completion)
+  totalSystemQuantity?: number;
+  totalCountedQuantity?: number;
+  totalVariance?: number;
+  accuracyPercentage?: number;
+
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: string;
+}
+
+// Status labels and colors
+export const cycleCountStatusLabels: Record<CycleCountStatus, string> = {
+  DRAFT: 'Draft',
+  SCHEDULED: 'Scheduled',
+  IN_PROGRESS: 'In Progress',
+  PENDING_REVIEW: 'Pending Review',
+  COMPLETED: 'Completed',
+  CANCELLED: 'Cancelled',
+};
+
+export const cycleCountStatusColors: Record<CycleCountStatus, string> = {
+  DRAFT: 'bg-gray-100 text-gray-700',
+  SCHEDULED: 'bg-blue-100 text-blue-700',
+  IN_PROGRESS: 'bg-yellow-100 text-yellow-700',
+  PENDING_REVIEW: 'bg-orange-100 text-orange-700',
+  COMPLETED: 'bg-green-100 text-green-700',
+  CANCELLED: 'bg-red-100 text-red-700',
+};
+
+export const cycleCountTypeLabels: Record<CycleCountType, string> = {
+  FULL: 'Full Count',
+  PARTIAL: 'Partial Count',
+  ABC: 'ABC Classification',
+  RANDOM: 'Random Sample',
+  BLIND: 'Blind Count',
+  PRODUCT: 'Product-Based',
+};
+
+export const cycleCountPriorityLabels: Record<CycleCountPriority, string> = {
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+  urgent: 'Urgent',
+};
+
+export const cycleCountPriorityColors: Record<CycleCountPriority, string> = {
+  low: 'bg-gray-100 text-gray-700',
+  medium: 'bg-blue-100 text-blue-700',
+  high: 'bg-orange-100 text-orange-700',
+  urgent: 'bg-red-100 text-red-700',
+};
+
+// -----------------------------------------------------------------------------
 // Status Labels & Colors
 // -----------------------------------------------------------------------------
 
@@ -1105,3 +1266,132 @@ export const shipmentRequestStatusColors: Record<ShipmentRequestStatus, string> 
   RECEIVED: 'bg-green-100 text-green-700',
   CANCELLED: 'bg-red-100 text-red-700',
 };
+
+// -----------------------------------------------------------------------------
+// Manufacturer Profile (Vendor Settings for Warehouse)
+// -----------------------------------------------------------------------------
+
+export type OutboundCommunicationType = 'PDF' | 'EDI';
+
+export interface VendorCustomerXRef {
+  id: string;
+  manufacturerProfileId: string;
+  customerId: string;
+  customerName: string;
+  customerAddress?: string;
+  vendorCustomerNumber: string;
+  selectDefaultShipper?: string;
+  quoteReference?: string;
+  // Checkboxes
+  alwaysFactoryBO: boolean;
+  creditHold: boolean;
+  warehouseOrderAllowed: boolean;
+  // Additional vendor customer numbers
+  additionalVendorCustomerNumbers?: { number: string; name: string }[];
+  // Customer assigned codes
+  customerAssignedCodes?: { codeNumber: string; codeName: string }[];
+  // Ship-to addresses
+  shipToAddresses?: VendorShipToAddress[];
+}
+
+export interface VendorShipToAddress {
+  id: string;
+  name: string;
+  address: string;
+  customerAddressCode?: string;
+}
+
+export interface FreightCategory {
+  id: string;
+  manufacturerProfileId?: string;
+  vendorName: string;
+  nmfcCode?: string;              // NMFC code (e.g., "48505")
+  freightCategory: number;        // Freight class (e.g., 65)
+  description: string;
+  classRate: number;
+  flammable: boolean;
+  hazmat?: boolean;               // Hazardous materials flag
+  fragile?: boolean;              // Fragile handling flag
+}
+
+export interface ManufacturerProfile {
+  id: string;
+  manufacturerId: string;       // Links to Company (Manufacturer)
+  manufacturerName: string;
+
+  // Basic Vendor Settings
+  vendorName: string;
+  vendorGroup?: string;
+  repCode?: string;
+  phone?: string;
+  mainEmailAddress?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  postalCode?: string;
+  city?: string;
+  state?: string;
+  mainFaxNumber?: string;
+  website?: string;
+  orderPrefix?: string;
+
+  // Order Sequence
+  orderSequenceStart: number;
+  orderSequenceEnd: number;
+
+  // Flags & Settings
+  alwaysFactoryBO: boolean;
+  warehousing: boolean;
+  warehouseCopySortOrder: 'default' | 'alphabetical';
+
+  // Vendor Shipper
+  selectDefaultShipper?: string;
+
+  // Pricing & Remarks
+  remarks?: string;
+
+  // Checkboxes from image 1
+  manualProductAllowed: boolean;
+  isBuySell: boolean;
+  releaseCopySortOnLineItem: boolean;
+
+  orderAllowedWithoutCustomerXRef: boolean;
+  orderAllowedWithoutShipToXRef: boolean;
+  defaultToManualPricing: boolean;
+  warnAboutPartialQtyOrder: boolean;
+
+  communicateUsingEdiOutFiles: boolean;
+  communicateReleasesOnly: boolean;
+  downloadSummaryEdi: boolean;
+
+  // Communication settings
+  outboundCommunication: OutboundCommunicationType;
+  inboundCommunication: OutboundCommunicationType;
+
+  // Select Master Vendor
+  masterVendorId?: string;
+
+  // Vendor Contacts (collapsible section)
+  contacts?: ManufacturerContact[];
+
+  // Default Warehouse Contacts (IDs of contacts selected for warehouse)
+  defaultWarehouseContactIds?: string[];
+
+  // Freight Terms (collapsible section)
+  freightTerms?: string;
+
+  // Shipper Account Number (collapsible section)
+  shipperAccountNumber?: string;
+
+  // Vendor Customer X-Refs
+  customerXRefs?: VendorCustomerXRef[];
+
+  // Freight Categories
+  freightCategories?: FreightCategory[];
+
+  // Metadata
+  isSuspended: boolean;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: string;
+  updatedBy?: string;
+}

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   mockIncomingShipments,
   getWarehouseFactories,
@@ -84,6 +85,7 @@ const carrierTrackingUrls: Record<string, string> = {
 };
 
 export default function WarehouseDeliveriesContent() {
+  const router = useRouter();
   const { selectedWarehouse } = useWarehouse();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<ShipmentStatus | 'all'>('all');
@@ -201,8 +203,8 @@ export default function WarehouseDeliveriesContent() {
   };
 
   const handleViewDetails = (shipment: IncomingShipment) => {
-    setSelectedShipment(shipment);
-    setShowDetailModal(true);
+    // Navigate to the receiving detail page
+    router.push(`/warehouse/deliveries/${shipment.id}`);
     setShowQuickActions(null);
   };
 
@@ -572,7 +574,11 @@ export default function WarehouseDeliveriesContent() {
                         const trackingUrl = getTrackingUrl(shipment.carrier, shipment.trackingNumber);
 
                         return (
-                          <tr key={shipment.id} className="hover:bg-[var(--muted)]/20 transition-colors">
+                          <tr
+                            key={shipment.id}
+                            className="hover:bg-[var(--muted)]/20 transition-colors cursor-pointer"
+                            onClick={() => handleViewDetails(shipment)}
+                          >
                             <td className="px-4 py-3">
                               <div className="font-medium text-[var(--foreground)]">{shipment.poNumber}</div>
                               {shipment.trackingNumber && (
@@ -615,18 +621,24 @@ export default function WarehouseDeliveriesContent() {
                                 {shipmentStatusLabels[shipment.status]}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-right">
+                            <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-end gap-1 relative">
                                 {(shipment.status === 'ARRIVED' || shipment.status === 'RECEIVING') && (
                                   <button
-                                    onClick={() => handleReceive(shipment)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleReceive(shipment);
+                                    }}
                                     className="px-2.5 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 transition-colors"
                                   >
                                     Receive
                                   </button>
                                 )}
                                 <button
-                                  onClick={() => handleViewDetails(shipment)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleViewDetails(shipment);
+                                  }}
                                   className="p-1.5 hover:bg-[var(--muted)] rounded transition-colors"
                                   title="View Details"
                                 >
@@ -637,7 +649,10 @@ export default function WarehouseDeliveriesContent() {
                                 </button>
                                 <div className="relative">
                                   <button
-                                    onClick={() => setShowQuickActions(showQuickActions === shipment.id ? null : shipment.id)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setShowQuickActions(showQuickActions === shipment.id ? null : shipment.id);
+                                    }}
                                     className="p-1.5 hover:bg-[var(--muted)] rounded transition-colors"
                                     title="More actions"
                                   >
@@ -720,7 +735,11 @@ export default function WarehouseDeliveriesContent() {
                     const trackingUrl = getTrackingUrl(shipment.carrier, shipment.trackingNumber);
 
                     return (
-                      <div key={shipment.id} className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4 hover:shadow-md transition-shadow">
+                      <div
+                        key={shipment.id}
+                        className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4 hover:shadow-md transition-shadow cursor-pointer"
+                        onClick={() => handleViewDetails(shipment)}
+                      >
                         <div className="flex items-start justify-between">
                           <div>
                             <div className="flex items-center gap-2">
@@ -736,7 +755,7 @@ export default function WarehouseDeliveriesContent() {
                             </div>
                             <p className="text-sm text-[var(--muted-foreground)] mt-1">{shipment.vendorName}</p>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                             {(shipment.status === 'ARRIVED' || shipment.status === 'RECEIVING') && (
                               <button
                                 onClick={() => handleReceive(shipment)}

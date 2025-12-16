@@ -458,7 +458,11 @@ export default function WarehouseInventoryContent() {
             </svg>
             <input
               type="text"
-              placeholder={activeTab === 'inventory' ? "Search by product, part number, location..." : "Search by request number or vendor..."}
+              placeholder={
+                activeTab === 'inventory'
+                  ? "Search by product, part number, location..."
+                  : "Search by request number or vendor..."
+              }
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
@@ -514,7 +518,7 @@ export default function WarehouseInventoryContent() {
       </div>
 
       {/* Content based on active tab */}
-      {activeTab === 'inventory' ? (
+      {activeTab === 'inventory' && (
         /* Inventory Table - Flat List */
         <div className="flex-1 overflow-auto p-6 pt-0">
         <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
@@ -624,7 +628,9 @@ export default function WarehouseInventoryContent() {
           </table>
         </div>
       </div>
-      ) : (
+      )}
+
+      {activeTab === 'requests' && (
         /* Shipment Requests Table */
         <div className="flex-1 overflow-auto p-6 pt-0">
           <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">

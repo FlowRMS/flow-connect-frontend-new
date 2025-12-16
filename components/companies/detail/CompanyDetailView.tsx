@@ -1493,33 +1493,64 @@ export default function CompanyDetailView({
                 <div className="border-t border-gray-200 pt-6">
                   <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Company Settings</h3>
                   <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-gray-50">
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-700">Document-Specific Company</span>
-                        <div className="relative group">
-                          <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 w-64 z-50">
-                            When enabled, this company will be excluded from searches and matching when creating quotes, orders, and invoices. Use this for one-off companies that should not appear in general company lookups.
-                            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                    <div className="flex items-center gap-8">
+                      {/* Warehouse Manufacturer Toggle */}
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-gray-700">Warehouse Manufacturer</span>
+                          <div className="relative group">
+                            <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 w-64 z-50">
+                              When enabled, this manufacturer will be available in the warehouse module for inventory management and fulfillment operations.
+                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                            </div>
                           </div>
                         </div>
+                        <button
+                          type="button"
+                          onClick={() => onFieldChange('isWarehouseManufacturer', !company.isWarehouseManufacturer)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                            company.isWarehouseManufacturer ? 'bg-blue-600' : 'bg-gray-300'
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              company.isWarehouseManufacturer ? 'translate-x-6' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                      {/* Document-Specific Company Toggle */}
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-gray-700">Document-Specific Company</span>
+                          <div className="relative group">
+                            <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 w-64 z-50">
+                              When enabled, this company will be excluded from searches and matching when creating quotes, orders, and invoices. Use this for one-off companies that should not appear in general company lookups.
+                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => onFieldChange('isDocumentSpecific', !company.isDocumentSpecific)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                            company.isDocumentSpecific ? 'bg-purple-600' : 'bg-gray-300'
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              company.isDocumentSpecific ? 'translate-x-6' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => onFieldChange('isDocumentSpecific', !company.isDocumentSpecific)}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        company.isDocumentSpecific ? 'bg-purple-600' : 'bg-gray-300'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          company.isDocumentSpecific ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
                   </div>
                 </div>
               </div>
