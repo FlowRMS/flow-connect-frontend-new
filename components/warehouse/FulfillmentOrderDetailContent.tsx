@@ -17,7 +17,7 @@ interface FulfillmentOrderDetailContentProps {
   fulfillmentOrderId: string;
 }
 
-const statusSteps: FulfillmentOrderStatus[] = ['PENDING', 'RELEASED', 'PICKING', 'PACKING', 'PACKED', 'SHIPPED'];
+const statusSteps: FulfillmentOrderStatus[] = ['PENDING', 'RELEASED', 'PICKING', 'PACKING', 'SHIPPING', 'SHIPPED'];
 
 export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: FulfillmentOrderDetailContentProps) {
   const router = useRouter();
@@ -95,6 +95,15 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   const [selectedPackingTemplate, setSelectedPackingTemplate] = useState('standard');
   const [selectedLabelFormat, setSelectedLabelFormat] = useState('4x6');
 
+  // Shipping state
+  const [shippingMethod, setShippingMethod] = useState<'SHIP' | 'WILL_CALL' | 'JOBSITE'>(fulfillmentOrder?.fulfillmentMethod || 'SHIP');
+  const [carrierType, setCarrierType] = useState<'parcel' | 'freight'>('parcel');
+  const [selectedCarrier, setSelectedCarrier] = useState(fulfillmentOrder?.carrier || '');
+  const [freightClass, setFreightClass] = useState('');
+  const [bolNumber, setBolNumber] = useState('');
+  const [proNumber, setProNumber] = useState('');
+  const [shippingNotes, setShippingNotes] = useState('');
+
   if (!fulfillmentOrder) {
     return (
       <main className="flex-1 overflow-hidden bg-[var(--background)] flex flex-col items-center justify-center p-6">
@@ -124,6 +133,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   const isReleased = displayStatus !== 'PENDING';
   const isPicking = displayStatus === 'PICKING';
   const isPacking = displayStatus === 'PACKING';
+  const isShipping = displayStatus === 'SHIPPING';
 
   // Picking helper functions
   const handleMarkAsPicked = (lineItemId: string, qty: number) => {
@@ -216,6 +226,25 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
     return fulfillmentOrder.lineItems.filter(li => !assignedIds.includes(li.id));
   };
 
+  const addAllItemsToBox = (boxId: string) => {
+    const unassignedIds = getUnassignedItems().map(li => li.id);
+    setPackingBoxes(prev => prev.map(box => {
+      if (box.id === boxId) {
+        return {
+          ...box,
+          lineItemIds: [...box.lineItemIds, ...unassignedIds]
+        };
+      }
+      return box;
+    }));
+    // Verify all items when added
+    const newVerified: Record<string, boolean> = {};
+    unassignedIds.forEach(id => {
+      newVerified[id] = true;
+    });
+    setVerifiedItems(prev => ({ ...prev, ...newVerified }));
+  };
+
   const getBoxDimensions = (box: PackingBox) => {
     if (box.packagingType === 'custom') {
       return box.customDimensions;
@@ -271,7 +300,22 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
 
     const now = new Date().toISOString();
     updateFulfillmentOrder(fulfillmentOrder.id, {
-      status: 'PACKED',
+      status: 'SHIPPING',
+      updatedAt: now,
+    });
+    setForceUpdate(prev => prev + 1);
+  };
+
+  const handleCompleteShipping = () => {
+    if (fulfillmentOrder.status !== 'SHIPPING') return;
+
+    const now = new Date().toISOString();
+    updateFulfillmentOrder(fulfillmentOrder.id, {
+      status: 'SHIPPED',
+      shipStatus: 'SHIPPED',
+      carrier: carrier,
+      trackingNumbers: trackingNumbers.split(',').map(t => t.trim()).filter(t => t),
+      shipConfirmedAt: now,
       updatedAt: now,
     });
     setForceUpdate(prev => prev + 1);
@@ -330,12 +374,14 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   };
 
   const handleConfirmShipment = () => {
-    if (!['PACKED', 'PACKING'].includes(fulfillmentOrder.status)) return;
+    if (!['SHIPPING', 'PACKING'].includes(fulfillmentOrder.status)) return;
 
     const now = new Date().toISOString();
     updateFulfillmentOrder(fulfillmentOrder.id, {
       status: 'SHIPPED',
       shipStatus: 'SHIPPED',
+      carrier: carrier,
+      trackingNumbers: trackingNumbers.split(',').map(t => t.trim()).filter(t => t),
       shipConfirmedAt: now,
       updatedAt: now,
     });
@@ -564,16 +610,31 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
       {/* Unassigned Items */}
       {getUnassignedItems().length > 0 && (
         <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
-          <div className="px-4 py-3 border-b border-[var(--border)] bg-amber-50">
-            <h4 className="text-sm font-semibold text-amber-800 flex items-center gap-2">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="12" y1="8" x2="12" y2="12"/>
-                <line x1="12" y1="16" x2="12.01" y2="16"/>
-              </svg>
-              Items to Pack ({getUnassignedItems().length})
-            </h4>
-            <p className="text-xs text-amber-600 mt-1">Drag items to a box below, or click to assign</p>
+          <div className="px-4 py-3 border-b border-[var(--border)] bg-amber-50 flex items-center justify-between">
+            <div>
+              <h4 className="text-sm font-semibold text-amber-800 flex items-center gap-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="8" x2="12" y2="12"/>
+                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                Items to Pack ({getUnassignedItems().length})
+              </h4>
+              <p className="text-xs text-amber-600 mt-1">Drag items to a box below, or click to assign</p>
+            </div>
+            {packingBoxes.length === 1 && (
+              <button
+                onClick={() => addAllItemsToBox(packingBoxes[0].id)}
+                className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 transition-colors flex items-center gap-2"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+                  <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                  <line x1="12" y1="22.08" x2="12" y2="12"/>
+                </svg>
+                Add All to Box
+              </button>
+            )}
           </div>
           <div className="p-3 flex flex-wrap gap-2">
             {getUnassignedItems().map((lineItem) => (
@@ -656,7 +717,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
 
               {/* Box Config */}
               <div className="px-4 py-3 border-b border-[var(--border)] bg-[var(--muted)]/10">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   {/* Packaging Type */}
                   <div>
                     <label className="block text-xs font-medium text-[var(--muted-foreground)] uppercase mb-1">Package</label>
@@ -707,13 +768,18 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
                       />
                     </div>
                   </div>
-                </div>
 
-                {/* Weight */}
-                <div className="mt-3">
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-medium text-[var(--muted-foreground)] uppercase">Weight (lbs)</label>
-                    <label className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)] cursor-pointer">
+                  {/* Weight */}
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--muted-foreground)] uppercase mb-1">Weight (lbs)</label>
+                    <input
+                      type="text"
+                      value={box.useCustomWeight ? box.customWeight : calculatedWeight.toFixed(1)}
+                      onChange={(e) => updateBox(box.id, { customWeight: e.target.value })}
+                      disabled={!box.useCustomWeight}
+                      className="w-full px-2 py-1.5 border border-[var(--border)] rounded bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:bg-[var(--muted)]/50 disabled:text-[var(--muted-foreground)]"
+                    />
+                    <label className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)] cursor-pointer mt-1.5">
                       <input
                         type="checkbox"
                         checked={box.useCustomWeight}
@@ -722,20 +788,6 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
                       />
                       Different than calculated
                     </label>
-                  </div>
-                  <div className="flex gap-2 items-center">
-                    <input
-                      type="text"
-                      value={box.useCustomWeight ? box.customWeight : calculatedWeight.toFixed(1)}
-                      onChange={(e) => updateBox(box.id, { customWeight: e.target.value })}
-                      disabled={!box.useCustomWeight}
-                      className="w-24 px-2 py-1.5 border border-[var(--border)] rounded bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:bg-[var(--muted)]/50 disabled:text-[var(--muted-foreground)]"
-                    />
-                    {!box.useCustomWeight && boxItems.length > 0 && (
-                      <span className="text-xs text-[var(--muted-foreground)]">
-                        (calculated from {boxItems.reduce((sum, li) => sum + li.allocatedQty, 0)} units)
-                      </span>
-                    )}
                   </div>
                 </div>
               </div>
@@ -884,79 +936,220 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
                     </button>
                   ))}
                 </div>
-                <button className="mt-3 text-sm text-[var(--primary)] hover:underline flex items-center gap-1">
+                <a
+                  href="/pdf-templates?type=packing-slip"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 text-sm text-[var(--primary)] hover:underline flex items-center gap-1"
+                >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M12 5v14M5 12h14"/>
                   </svg>
                   Manage PDF Templates
-                </button>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ml-1">
+                    <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
+                    <polyline points="15 3 21 3 21 9"/>
+                    <line x1="10" y1="14" x2="21" y2="3"/>
+                  </svg>
+                </a>
               </div>
 
               {/* Preview */}
               <div className="border border-[var(--border)] rounded-lg overflow-hidden">
                 <div className="px-4 py-2 bg-[var(--muted)]/30 border-b border-[var(--border)] text-sm font-medium">
-                  Preview
+                  Preview - {selectedPackingTemplate.charAt(0).toUpperCase() + selectedPackingTemplate.slice(1)} Template
                 </div>
                 <div className="p-6 bg-white min-h-[400px]">
-                  {/* Mock Packing Slip Preview */}
-                  <div className="max-w-md mx-auto border border-gray-200 p-6 text-sm">
-                    <div className="flex justify-between items-start mb-6">
-                      <div>
-                        <div className="text-xl font-bold">PACKING SLIP</div>
-                        <div className="text-gray-500 mt-1">{fulfillmentOrder.fulfillmentOrderNumber}</div>
+                  {/* Standard Template Preview */}
+                  {selectedPackingTemplate === 'standard' && (
+                    <div className="max-w-md mx-auto border border-gray-200 p-6 text-sm">
+                      <div className="flex justify-between items-start mb-6">
+                        <div>
+                          <div className="text-xl font-bold">PACKING SLIP</div>
+                          <div className="text-gray-500 mt-1">{fulfillmentOrder.fulfillmentOrderNumber}</div>
+                        </div>
+                        <div className="text-right text-gray-500">
+                          <div>{new Date().toLocaleDateString()}</div>
+                        </div>
                       </div>
-                      <div className="text-right text-gray-500">
-                        <div>{new Date().toLocaleDateString()}</div>
+
+                      <div className="grid grid-cols-2 gap-6 mb-6">
+                        <div>
+                          <div className="font-semibold text-gray-700 mb-1">Ship To:</div>
+                          <div>{fulfillmentOrder.shipTo.name}</div>
+                          <div>{fulfillmentOrder.shipTo.addressLine1}</div>
+                          <div>{fulfillmentOrder.shipTo.city}, {fulfillmentOrder.shipTo.state} {fulfillmentOrder.shipTo.postalCode}</div>
+                        </div>
+                        <div>
+                          <div className="font-semibold text-gray-700 mb-1">Order Info:</div>
+                          <div>PO: {fulfillmentOrder.orderNumber}</div>
+                          <div>Customer: {fulfillmentOrder.customerName}</div>
+                        </div>
+                      </div>
+
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-gray-300">
+                            <th className="text-left py-2">Item</th>
+                            <th className="text-left py-2">Description</th>
+                            <th className="text-right py-2">Qty</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {packingBoxes[0]?.lineItemIds.slice(0, 3).map((itemId) => {
+                            const item = fulfillmentOrder.lineItems.find(li => li.id === itemId);
+                            return item ? (
+                              <tr key={item.id} className="border-b border-gray-100">
+                                <td className="py-2">{item.partNumber}</td>
+                                <td className="py-2 text-gray-600">{item.productName.slice(0, 30)}...</td>
+                                <td className="py-2 text-right">{item.allocatedQty}</td>
+                              </tr>
+                            ) : null;
+                          })}
+                          {(packingBoxes[0]?.lineItemIds.length || 0) > 3 && (
+                            <tr>
+                              <td colSpan={3} className="py-2 text-center text-gray-400">
+                                ... and {(packingBoxes[0]?.lineItemIds.length || 0) - 3} more items
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+
+                      <div className="mt-6 pt-4 border-t border-gray-200 text-center text-gray-400 text-xs">
+                        Box 1 of {packingBoxes.length}
                       </div>
                     </div>
+                  )}
 
-                    <div className="grid grid-cols-2 gap-6 mb-6">
-                      <div>
-                        <div className="font-semibold text-gray-700 mb-1">Ship To:</div>
-                        <div>{fulfillmentOrder.shipTo.name}</div>
-                        <div>{fulfillmentOrder.shipTo.addressLine1}</div>
-                        <div>{fulfillmentOrder.shipTo.city}, {fulfillmentOrder.shipTo.state} {fulfillmentOrder.shipTo.postalCode}</div>
+                  {/* Detailed Template Preview */}
+                  {selectedPackingTemplate === 'detailed' && (
+                    <div className="max-w-lg mx-auto border border-gray-200 p-6 text-sm">
+                      <div className="flex justify-between items-start mb-4 pb-4 border-b-2 border-gray-800">
+                        <div>
+                          <div className="text-2xl font-bold tracking-tight">PACKING SLIP</div>
+                          <div className="text-gray-500 mt-1 font-mono">{fulfillmentOrder.fulfillmentOrderNumber}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-xs text-gray-500">Date</div>
+                          <div className="font-medium">{new Date().toLocaleDateString()}</div>
+                          <div className="text-xs text-gray-500 mt-2">Need By</div>
+                          <div className="font-medium text-orange-600">{fulfillmentOrder.needByDate ? new Date(fulfillmentOrder.needByDate).toLocaleDateString() : 'N/A'}</div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="font-semibold text-gray-700 mb-1">Order Info:</div>
-                        <div>PO: {fulfillmentOrder.orderNumber}</div>
-                        <div>Customer: {fulfillmentOrder.customerName}</div>
+
+                      <div className="grid grid-cols-2 gap-6 mb-6">
+                        <div className="bg-gray-50 p-3 rounded">
+                          <div className="font-semibold text-gray-700 mb-2 text-xs uppercase tracking-wide">Ship To</div>
+                          <div className="font-medium">{fulfillmentOrder.shipTo.name}</div>
+                          <div className="text-gray-600">{fulfillmentOrder.shipTo.addressLine1}</div>
+                          {fulfillmentOrder.shipTo.addressLine2 && <div className="text-gray-600">{fulfillmentOrder.shipTo.addressLine2}</div>}
+                          <div className="text-gray-600">{fulfillmentOrder.shipTo.city}, {fulfillmentOrder.shipTo.state} {fulfillmentOrder.shipTo.postalCode}</div>
+                          <div className="text-gray-500 mt-1 text-xs">Phone: {fulfillmentOrder.shipTo.contactPhone || 'N/A'}</div>
+                        </div>
+                        <div className="bg-gray-50 p-3 rounded">
+                          <div className="font-semibold text-gray-700 mb-2 text-xs uppercase tracking-wide">Order Details</div>
+                          <div className="grid grid-cols-2 gap-1 text-xs">
+                            <span className="text-gray-500">PO Number:</span>
+                            <span className="font-medium">{fulfillmentOrder.orderNumber}</span>
+                            <span className="text-gray-500">Customer:</span>
+                            <span className="font-medium">{fulfillmentOrder.customerName}</span>
+                            <span className="text-gray-500">Warehouse:</span>
+                            <span className="font-medium">{mockWarehouses.find(w => w.id === fulfillmentOrder.warehouseId)?.name || 'N/A'}</span>
+                            <span className="text-gray-500">Method:</span>
+                            <span className="font-medium">{fulfillmentOrder.fulfillmentMethod}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b-2 border-gray-300 bg-gray-50">
+                            <th className="text-left py-2 px-2">Item #</th>
+                            <th className="text-left py-2 px-2">Description</th>
+                            <th className="text-left py-2 px-2">Location</th>
+                            <th className="text-center py-2 px-2">UOM</th>
+                            <th className="text-right py-2 px-2">Qty</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {packingBoxes[0]?.lineItemIds.slice(0, 3).map((itemId) => {
+                            const item = fulfillmentOrder.lineItems.find(li => li.id === itemId);
+                            return item ? (
+                              <tr key={item.id} className="border-b border-gray-100">
+                                <td className="py-2 px-2 font-mono">{item.partNumber}</td>
+                                <td className="py-2 px-2">
+                                  <div className="font-medium">{item.productName}</div>
+                                  <div className="text-gray-400 text-[10px]">SKU: {item.partNumber}</div>
+                                </td>
+                                <td className="py-2 px-2 text-gray-500">A-12-3</td>
+                                <td className="py-2 px-2 text-center">{item.uom}</td>
+                                <td className="py-2 px-2 text-right font-bold">{item.allocatedQty}</td>
+                              </tr>
+                            ) : null;
+                          })}
+                        </tbody>
+                      </table>
+
+                      <div className="mt-4 grid grid-cols-3 gap-4 text-xs">
+                        <div className="border border-gray-200 p-2 rounded">
+                          <div className="text-gray-500">Total Items</div>
+                          <div className="font-bold text-lg">{packingBoxes[0]?.lineItemIds.length || 0}</div>
+                        </div>
+                        <div className="border border-gray-200 p-2 rounded">
+                          <div className="text-gray-500">Box Weight</div>
+                          <div className="font-bold text-lg">{getBoxWeight(packingBoxes[0])} lbs</div>
+                        </div>
+                        <div className="border border-gray-200 p-2 rounded">
+                          <div className="text-gray-500">Dimensions</div>
+                          <div className="font-bold text-lg">{getBoxDimensions(packingBoxes[0]).length}x{getBoxDimensions(packingBoxes[0]).width}x{getBoxDimensions(packingBoxes[0]).height}</div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 pt-4 border-t border-gray-200 flex justify-between text-gray-400 text-xs">
+                        <span>Box 1 of {packingBoxes.length}</span>
+                        <span>Packed by: ____________</span>
+                        <span>Verified: ____________</span>
                       </div>
                     </div>
+                  )}
 
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="border-b border-gray-300">
-                          <th className="text-left py-2">Item</th>
-                          <th className="text-left py-2">Description</th>
-                          <th className="text-right py-2">Qty</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {packingBoxes[0]?.lineItemIds.slice(0, 3).map((itemId) => {
+                  {/* Minimal Template Preview */}
+                  {selectedPackingTemplate === 'minimal' && (
+                    <div className="max-w-sm mx-auto border border-gray-200 p-4 text-sm">
+                      <div className="text-center mb-4 pb-3 border-b border-gray-200">
+                        <div className="text-lg font-bold">PACKING SLIP</div>
+                        <div className="text-xs text-gray-500 font-mono">{fulfillmentOrder.fulfillmentOrderNumber}</div>
+                      </div>
+
+                      <div className="text-xs mb-4">
+                        <div className="font-medium">{fulfillmentOrder.shipTo.name}</div>
+                        <div className="text-gray-500">{fulfillmentOrder.shipTo.city}, {fulfillmentOrder.shipTo.state} {fulfillmentOrder.shipTo.postalCode}</div>
+                      </div>
+
+                      <div className="border-t border-b border-gray-200 py-2 mb-3">
+                        {packingBoxes[0]?.lineItemIds.slice(0, 4).map((itemId) => {
                           const item = fulfillmentOrder.lineItems.find(li => li.id === itemId);
                           return item ? (
-                            <tr key={item.id} className="border-b border-gray-100">
-                              <td className="py-2">{item.partNumber}</td>
-                              <td className="py-2 text-gray-600">{item.productName.slice(0, 30)}...</td>
-                              <td className="py-2 text-right">{item.allocatedQty}</td>
-                            </tr>
+                            <div key={item.id} className="flex justify-between py-1 text-xs">
+                              <span className="font-mono">{item.partNumber}</span>
+                              <span className="font-bold">x{item.allocatedQty}</span>
+                            </div>
                           ) : null;
                         })}
-                        {(packingBoxes[0]?.lineItemIds.length || 0) > 3 && (
-                          <tr>
-                            <td colSpan={3} className="py-2 text-center text-gray-400">
-                              ... and {(packingBoxes[0]?.lineItemIds.length || 0) - 3} more items
-                            </td>
-                          </tr>
+                        {(packingBoxes[0]?.lineItemIds.length || 0) > 4 && (
+                          <div className="text-center text-gray-400 text-xs py-1">
+                            +{(packingBoxes[0]?.lineItemIds.length || 0) - 4} more
+                          </div>
                         )}
-                      </tbody>
-                    </table>
+                      </div>
 
-                    <div className="mt-6 pt-4 border-t border-gray-200 text-center text-gray-400 text-xs">
-                      Box 1 of {packingBoxes.length}
+                      <div className="flex justify-between text-xs text-gray-500">
+                        <span>PO: {fulfillmentOrder.orderNumber}</span>
+                        <span>Box 1/{packingBoxes.length}</span>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1176,6 +1369,407 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
     </div>
   );
 
+  // Shipping Interface Component - shown when status is SHIPPING
+  const shippingInterface = (
+    <div className="bg-[var(--card)] rounded-lg border-2 border-purple-400 overflow-hidden">
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-[var(--border)] bg-purple-50 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+              <rect x="1" y="3" width="15" height="13"/>
+              <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
+              <circle cx="5.5" cy="18.5" r="2.5"/>
+              <circle cx="18.5" cy="18.5" r="2.5"/>
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-[var(--foreground)]">Shipping Mode</h3>
+            <p className="text-sm text-[var(--muted-foreground)]">
+              Finalize outbound logistics • {packingBoxes.length} box{packingBoxes.length > 1 ? 'es' : ''} to ship
+            </p>
+          </div>
+        </div>
+        {selectedCarrier && trackingNumbers && (
+          <button
+            onClick={handleCompleteShipping}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-green-700 transition-colors"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M20 6L9 17l-5-5"/>
+            </svg>
+            Confirm Shipment
+          </button>
+        )}
+      </div>
+
+      {/* Delivery Method Selection */}
+      <div className="px-4 py-4 border-b border-[var(--border)] bg-[var(--muted)]/10">
+        <label className="block text-sm font-medium text-[var(--foreground)] mb-3">Delivery Method</label>
+        <div className="grid grid-cols-3 gap-3">
+          <button
+            onClick={() => setShippingMethod('SHIP')}
+            className={`p-4 border-2 rounded-xl text-left transition-all ${
+              shippingMethod === 'SHIP'
+                ? 'border-purple-500 bg-purple-50'
+                : 'border-[var(--border)] hover:border-purple-300'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                shippingMethod === 'SHIP' ? 'bg-purple-500 text-white' : 'bg-[var(--muted)]'
+              }`}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="1" y="3" width="15" height="13"/>
+                  <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
+                  <circle cx="5.5" cy="18.5" r="2.5"/>
+                  <circle cx="18.5" cy="18.5" r="2.5"/>
+                </svg>
+              </div>
+              <div>
+                <div className="font-semibold">Ship</div>
+                <div className="text-xs text-[var(--muted-foreground)]">Carrier delivery</div>
+              </div>
+            </div>
+          </button>
+          <button
+            onClick={() => setShippingMethod('WILL_CALL')}
+            className={`p-4 border-2 rounded-xl text-left transition-all ${
+              shippingMethod === 'WILL_CALL'
+                ? 'border-purple-500 bg-purple-50'
+                : 'border-[var(--border)] hover:border-purple-300'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                shippingMethod === 'WILL_CALL' ? 'bg-purple-500 text-white' : 'bg-[var(--muted)]'
+              }`}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+                  <circle cx="12" cy="7" r="4"/>
+                </svg>
+              </div>
+              <div>
+                <div className="font-semibold">Will Call</div>
+                <div className="text-xs text-[var(--muted-foreground)]">Customer pickup</div>
+              </div>
+            </div>
+          </button>
+          <button
+            onClick={() => setShippingMethod('JOBSITE')}
+            className={`p-4 border-2 rounded-xl text-left transition-all ${
+              shippingMethod === 'JOBSITE'
+                ? 'border-purple-500 bg-purple-50'
+                : 'border-[var(--border)] hover:border-purple-300'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                shippingMethod === 'JOBSITE' ? 'bg-purple-500 text-white' : 'bg-[var(--muted)]'
+              }`}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+                  <polyline points="9 22 9 12 15 12 15 22"/>
+                </svg>
+              </div>
+              <div>
+                <div className="font-semibold">Jobsite</div>
+                <div className="text-xs text-[var(--muted-foreground)]">Delivery to job</div>
+              </div>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      {/* Carrier Type Selection - only show if Ship method */}
+      {shippingMethod === 'SHIP' && (
+        <div className="px-4 py-4 border-b border-[var(--border)]">
+          <label className="block text-sm font-medium text-[var(--foreground)] mb-3">Carrier Type</label>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => setCarrierType('parcel')}
+              className={`p-4 border-2 rounded-xl text-left transition-all ${
+                carrierType === 'parcel'
+                  ? 'border-purple-500 bg-purple-50'
+                  : 'border-[var(--border)] hover:border-purple-300'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                  carrierType === 'parcel' ? 'bg-purple-500 text-white' : 'bg-[var(--muted)]'
+                }`}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                    <line x1="12" y1="22.08" x2="12" y2="12"/>
+                  </svg>
+                </div>
+                <div>
+                  <div className="font-semibold">Parcel</div>
+                  <div className="text-xs text-[var(--muted-foreground)]">UPS, FedEx, USPS, DHL</div>
+                </div>
+              </div>
+            </button>
+            <button
+              onClick={() => setCarrierType('freight')}
+              className={`p-4 border-2 rounded-xl text-left transition-all ${
+                carrierType === 'freight'
+                  ? 'border-purple-500 bg-purple-50'
+                  : 'border-[var(--border)] hover:border-purple-300'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                  carrierType === 'freight' ? 'bg-purple-500 text-white' : 'bg-[var(--muted)]'
+                }`}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="1" y="6" width="22" height="12" rx="2"/>
+                    <path d="M6 6V4a2 2 0 012-2h8a2 2 0 012 2v2"/>
+                    <line x1="12" y1="10" x2="12" y2="14"/>
+                    <line x1="8" y1="10" x2="8" y2="14"/>
+                    <line x1="16" y1="10" x2="16" y2="14"/>
+                  </svg>
+                </div>
+                <div>
+                  <div className="font-semibold">Freight / LTL</div>
+                  <div className="text-xs text-[var(--muted-foreground)]">Pallets, heavy shipments</div>
+                </div>
+              </div>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Carrier Selection & Tracking */}
+      {shippingMethod === 'SHIP' && (
+        <div className="px-4 py-4 border-b border-[var(--border)]">
+          <div className="grid grid-cols-2 gap-4">
+            {/* Carrier Selection */}
+            <div>
+              <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                {carrierType === 'parcel' ? 'Parcel Carrier' : 'Freight Carrier'}
+              </label>
+              <select
+                value={selectedCarrier}
+                onChange={(e) => setSelectedCarrier(e.target.value)}
+                className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+              >
+                <option value="">Select carrier...</option>
+                {carrierType === 'parcel' ? (
+                  <>
+                    <option value="ups">UPS</option>
+                    <option value="fedex">FedEx</option>
+                    <option value="usps">USPS</option>
+                    <option value="dhl">DHL</option>
+                    <option value="other_parcel">Other</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="estes">Estes Express</option>
+                    <option value="xpo">XPO Logistics</option>
+                    <option value="saia">SAIA</option>
+                    <option value="old_dominion">Old Dominion</option>
+                    <option value="yrc">YRC Freight</option>
+                    <option value="abf">ABF Freight</option>
+                    <option value="r+l">R+L Carriers</option>
+                    <option value="other_freight">Other</option>
+                  </>
+                )}
+              </select>
+            </div>
+
+            {/* Tracking Number */}
+            <div>
+              <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                {carrierType === 'parcel' ? 'Tracking Number(s)' : 'PRO Number'}
+              </label>
+              <input
+                type="text"
+                value={carrierType === 'parcel' ? trackingNumbers : proNumber}
+                onChange={(e) => carrierType === 'parcel' ? setTrackingNumbers(e.target.value) : setProNumber(e.target.value)}
+                placeholder={carrierType === 'parcel' ? 'Enter tracking number(s)' : 'Enter PRO number'}
+                className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+              />
+            </div>
+          </div>
+
+          {/* Freight-specific fields */}
+          {carrierType === 'freight' && (
+            <div className="grid grid-cols-2 gap-4 mt-4">
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">BOL Number</label>
+                <input
+                  type="text"
+                  value={bolNumber}
+                  onChange={(e) => setBolNumber(e.target.value)}
+                  placeholder="Bill of Lading number"
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Freight Class</label>
+                <select
+                  value={freightClass}
+                  onChange={(e) => setFreightClass(e.target.value)}
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                >
+                  <option value="">Select class...</option>
+                  <option value="50">Class 50</option>
+                  <option value="55">Class 55</option>
+                  <option value="60">Class 60</option>
+                  <option value="65">Class 65</option>
+                  <option value="70">Class 70</option>
+                  <option value="77.5">Class 77.5</option>
+                  <option value="85">Class 85</option>
+                  <option value="92.5">Class 92.5</option>
+                  <option value="100">Class 100</option>
+                  <option value="110">Class 110</option>
+                  <option value="125">Class 125</option>
+                  <option value="150">Class 150</option>
+                  <option value="175">Class 175</option>
+                  <option value="200">Class 200</option>
+                  <option value="250">Class 250</option>
+                  <option value="300">Class 300</option>
+                  <option value="400">Class 400</option>
+                  <option value="500">Class 500</option>
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Will Call / Jobsite specific info */}
+      {shippingMethod === 'WILL_CALL' && (
+        <div className="px-4 py-4 border-b border-[var(--border)] bg-blue-50">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-lg bg-blue-500 flex items-center justify-center flex-shrink-0">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+              </svg>
+            </div>
+            <div>
+              <div className="font-semibold text-blue-900">Will Call Pickup</div>
+              <div className="text-sm text-blue-700 mt-1">
+                Customer will pick up from: <strong>{mockWarehouses.find(w => w.id === fulfillmentOrder.warehouseId)?.name || 'Warehouse'}</strong>
+              </div>
+              <div className="text-xs text-blue-600 mt-2">
+                Make sure all items are staged and ready for pickup. Customer should bring valid ID.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {shippingMethod === 'JOBSITE' && (
+        <div className="px-4 py-4 border-b border-[var(--border)] bg-amber-50">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-lg bg-amber-500 flex items-center justify-center flex-shrink-0">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+                <polyline points="9 22 9 12 15 12 15 22"/>
+              </svg>
+            </div>
+            <div className="flex-1">
+              <div className="font-semibold text-amber-900">Jobsite Delivery</div>
+              <div className="text-sm text-amber-700 mt-1">
+                Delivering to: <strong>{fulfillmentOrder.shipTo.name}</strong>
+              </div>
+              <div className="text-xs text-amber-800 mt-1">
+                {fulfillmentOrder.shipTo.addressLine1}, {fulfillmentOrder.shipTo.city}, {fulfillmentOrder.shipTo.state} {fulfillmentOrder.shipTo.postalCode}
+              </div>
+              {fulfillmentOrder.shipTo.contactPhone && (
+                <div className="text-xs text-amber-600 mt-1">
+                  Contact: {fulfillmentOrder.shipTo.contactPhone}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Shipment Summary */}
+      <div className="px-4 py-4 border-b border-[var(--border)]">
+        <label className="block text-sm font-medium text-[var(--foreground)] mb-3">Shipment Summary</label>
+        <div className="grid grid-cols-4 gap-3">
+          <div className="bg-[var(--muted)]/30 rounded-lg p-3 text-center">
+            <div className="text-2xl font-bold text-[var(--foreground)]">{packingBoxes.length}</div>
+            <div className="text-xs text-[var(--muted-foreground)]">Boxes</div>
+          </div>
+          <div className="bg-[var(--muted)]/30 rounded-lg p-3 text-center">
+            <div className="text-2xl font-bold text-[var(--foreground)]">
+              {packingBoxes.reduce((sum, box) => sum + parseFloat(getBoxWeight(box) || '0'), 0).toFixed(1)}
+            </div>
+            <div className="text-xs text-[var(--muted-foreground)]">Total lbs</div>
+          </div>
+          <div className="bg-[var(--muted)]/30 rounded-lg p-3 text-center">
+            <div className="text-2xl font-bold text-[var(--foreground)]">
+              {fulfillmentOrder.lineItems.reduce((sum, li) => sum + li.allocatedQty, 0)}
+            </div>
+            <div className="text-xs text-[var(--muted-foreground)]">Items</div>
+          </div>
+          <div className="bg-[var(--muted)]/30 rounded-lg p-3 text-center">
+            <div className="text-2xl font-bold text-[var(--foreground)]">
+              {fulfillmentOrder.lineItems.length}
+            </div>
+            <div className="text-xs text-[var(--muted-foreground)]">Line Items</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="px-4 py-4 bg-[var(--muted)]/10">
+        <div className="grid grid-cols-2 gap-4">
+          <button
+            onClick={() => setShowPackingSlipModal(true)}
+            className="px-6 py-4 bg-[var(--card)] border-2 border-[var(--border)] rounded-xl font-medium hover:border-purple-400 hover:shadow-md transition-all flex items-center justify-center gap-3"
+          >
+            <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
+                <polyline points="6 9 6 2 18 2 18 9"/>
+                <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/>
+                <rect x="6" y="14" width="12" height="8"/>
+              </svg>
+            </div>
+            <div className="text-left">
+              <div className="text-base font-semibold">Print Packing Slips</div>
+              <div className="text-sm text-[var(--muted-foreground)]">{packingBoxes.length} slip{packingBoxes.length > 1 ? 's' : ''} ready</div>
+            </div>
+          </button>
+          <button
+            onClick={() => setShowShippingLabelsModal(true)}
+            className="px-6 py-4 bg-[var(--card)] border-2 border-[var(--border)] rounded-xl font-medium hover:border-purple-400 hover:shadow-md transition-all flex items-center justify-center gap-3"
+          >
+            <div className="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-600">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <path d="M3 9h18"/>
+                <path d="M9 21V9"/>
+              </svg>
+            </div>
+            <div className="text-left">
+              <div className="text-base font-semibold">Print Shipping Labels</div>
+              <div className="text-sm text-[var(--muted-foreground)]">{packingBoxes.length} label{packingBoxes.length > 1 ? 's' : ''} to print</div>
+            </div>
+          </button>
+        </div>
+
+        {/* Shipping Notes */}
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Shipping Notes</label>
+          <textarea
+            value={shippingNotes}
+            onChange={(e) => setShippingNotes(e.target.value)}
+            placeholder="Add any special shipping instructions or notes..."
+            rows={2}
+            className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50 resize-none"
+          />
+        </div>
+      </div>
+    </div>
+  );
+
   // Line Items Table Component - rendered in different positions based on release status
   const lineItemsTable = (
     <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
@@ -1307,7 +1901,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
               </button>
             )}
 
-            {['PACKED', 'PACKING'].includes(fulfillmentOrder.status) && (
+            {['SHIPPING', 'PACKING'].includes(fulfillmentOrder.status) && (
               <button
                 onClick={handleConfirmShipment}
                 className="px-3 py-1.5 bg-green-600 text-white rounded-lg font-medium text-sm hover:bg-green-700 transition-colors"
@@ -1401,6 +1995,13 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
         {isPacking && (
           <div className="mb-4">
             {packingInterface}
+          </div>
+        )}
+
+        {/* Shipping Interface - Show at top when in SHIPPING status */}
+        {isShipping && (
+          <div className="mb-4">
+            {shippingInterface}
           </div>
         )}
 

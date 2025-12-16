@@ -58,6 +58,9 @@ export interface Contact {
   // Extended fields
   addresses?: ContactAddress[];
   customFields?: CustomFieldValue[];
+  // Warehouse contact fields
+  isWarehouseContact?: boolean;
+  warehouseRole?: string;
 }
 
 // Duplicate group type

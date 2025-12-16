@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { mockPdfTemplates, duplicateTemplate } from '../../lib/data/pdf-templates-mock';
 import type { PdfTemplate, TemplateType } from '../../lib/types/pdf-templates';
 import { templateTypeLabels, templateTypeColors } from '../../lib/types/pdf-templates';
@@ -8,13 +9,24 @@ import PdfTemplateBuilder from './PdfTemplateBuilder';
 
 type ViewMode = 'grid' | 'list';
 
+const validTemplateTypes: TemplateType[] = ['quote', 'order', 'invoice', 'submittal', 'check', 'credit', 'packing-slip', 'pick-list', 'shipping-label', 'bin-label'];
+
 export default function PdfTemplatesContent() {
+  const searchParams = useSearchParams();
   const [templates, setTemplates] = useState<PdfTemplate[]>(mockPdfTemplates);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [filterType, setFilterType] = useState<TemplateType | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showBuilder, setShowBuilder] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<PdfTemplate | null>(null);
+
+  // Read type from URL params on mount
+  useEffect(() => {
+    const typeParam = searchParams.get('type');
+    if (typeParam && validTemplateTypes.includes(typeParam as TemplateType)) {
+      setFilterType(typeParam as TemplateType);
+    }
+  }, [searchParams]);
 
   // Filter and search templates
   const filteredTemplates = useMemo(() => {
@@ -65,7 +77,7 @@ export default function PdfTemplatesContent() {
     setShowBuilder(true);
   };
 
-  const templateTypes: (TemplateType | 'all')[] = ['all', 'quote', 'order', 'invoice', 'submittal', 'check', 'credit'];
+  const templateTypes: (TemplateType | 'all')[] = ['all', 'quote', 'order', 'invoice', 'submittal', 'check', 'credit', 'packing-slip'];
 
   const handleSaveTemplate = (savedTemplate: PdfTemplate) => {
     setTemplates(prev => {

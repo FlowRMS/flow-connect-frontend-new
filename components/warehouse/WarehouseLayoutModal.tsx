@@ -169,6 +169,9 @@ export default function WarehouseLayoutModal({
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
   const canvasRef = useRef<HTMLDivElement>(null);
 
+  // Warehouse dimensions in feet
+  const [warehouseDimensions, setWarehouseDimensions] = useState({ width: 150, height: 100 });
+
   const enabledLevels = locationLevels.filter(l => l.enabled).map(l => l.level);
 
   const sensors = useSensors(
@@ -240,6 +243,23 @@ export default function WarehouseLayoutModal({
     };
     setLocations(prev => [...prev, newSection]);
     setTimeout(() => setEditingId(newSection.id), 50);
+  };
+
+  const handleAddSectionAtPosition = (x: number, y: number) => {
+    const newSection: WarehouseLocation = {
+      id: `SECTION-${Date.now()}`,
+      name: 'New Section',
+      type: 'section',
+      isActive: true,
+      x: x,
+      y: y,
+      width: 300,
+      height: 200,
+      children: [],
+      products: [],
+    };
+    setLocations(prev => [...prev, newSection]);
+    setSelectedElementId(newSection.id);
   };
 
   const handleRename = (id: string, newName: string) => {
@@ -485,51 +505,60 @@ export default function WarehouseLayoutModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-[var(--card)] rounded-xl border border-[var(--border)] w-full max-w-4xl h-[80vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-[var(--card)] w-full h-full overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)] flex-shrink-0">
-          <div>
-            <h2 className="text-base font-semibold text-[var(--foreground)]">Warehouse Layout</h2>
-            <p className="text-xs text-[var(--muted-foreground)]">
-              {warehouseName} • {viewMode === 'tree' ? 'Click names to edit, drag to reorder' : 'Drag elements to position, scroll to zoom'}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* View Mode Toggle */}
-            <div className="flex items-center bg-[var(--muted)] rounded-lg p-0.5">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)] flex-shrink-0 bg-[var(--card)]">
+          <div className="flex items-center gap-4">
+            {/* Back Button */}
+            <button
+              onClick={onClose}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--accent)] rounded-lg transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              Back
+            </button>
+            <div className="w-px h-6 bg-[var(--border)]" />
+            <div>
+              <h2 className="text-base font-semibold text-[var(--foreground)]">Warehouse Layout</h2>
+              <p className="text-xs text-[var(--muted-foreground)]">
+                {warehouseName} • {viewMode === 'tree' ? 'Click names to edit, drag to reorder' : 'Drag from library, double-click to view hierarchy'}
+              </p>
+            </div>
+            {/* View Mode Toggle - Bigger buttons */}
+            <div className="flex items-center bg-[var(--muted)] rounded-lg p-1 ml-2">
               <button
                 onClick={() => setViewMode('tree')}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-2 ${
                   viewMode === 'tree'
                     ? 'bg-white dark:bg-gray-800 text-[var(--foreground)] shadow-sm'
                     : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
                 }`}
               >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
                 </svg>
-                Tree
+                Tree View
               </button>
               <button
                 onClick={() => setViewMode('visual')}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-2 ${
                   viewMode === 'visual'
                     ? 'bg-white dark:bg-gray-800 text-[var(--foreground)] shadow-sm'
                     : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
                 }`}
               >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
                 </svg>
-                Visual
+                Visual Builder
               </button>
             </div>
-            <button onClick={onClose} className="p-1.5 hover:bg-[var(--accent)] rounded-lg transition-colors">
-              <svg className="w-4 h-4 text-[var(--muted-foreground)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-[var(--muted-foreground)]">{countLocations(locations)} locations</span>
           </div>
         </div>
 
@@ -559,91 +588,6 @@ export default function WarehouseLayoutModal({
                 Section
               </button>
             )}
-          </div>
-        )}
-
-        {/* Visual Builder Toolbar */}
-        {viewMode === 'visual' && (
-          <div className="px-4 py-2 border-b border-[var(--border)] flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              {enabledLevels.includes('section') && (
-                <button
-                  onClick={handleAddSection}
-                  className="px-3 py-1.5 text-xs font-medium rounded-lg bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors flex items-center gap-1.5"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Add Section
-                </button>
-              )}
-              {selectedElementId && (
-                <>
-                  <div className="w-px h-5 bg-[var(--border)]" />
-                  <button
-                    onClick={() => {
-                      const el = findVisualElementById(visualElements, selectedElementId);
-                      if (el) handleVisualElementRotate(selectedElementId, (el.rotation || 0) - 15);
-                    }}
-                    className="p-1.5 text-xs font-medium rounded-lg hover:bg-[var(--accent)] transition-colors"
-                    title="Rotate Left"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => {
-                      const el = findVisualElementById(visualElements, selectedElementId);
-                      if (el) handleVisualElementRotate(selectedElementId, (el.rotation || 0) + 15);
-                    }}
-                    className="p-1.5 text-xs font-medium rounded-lg hover:bg-[var(--accent)] transition-colors"
-                    title="Rotate Right"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => handleDelete(selectedElementId)}
-                    className="p-1.5 text-xs font-medium rounded-lg hover:bg-red-100 dark:hover:bg-red-900/20 text-red-600 transition-colors"
-                    title="Delete"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setZoom(z => Math.max(0.25, z - 0.1))}
-                className="p-1.5 rounded-lg hover:bg-[var(--accent)] transition-colors"
-                title="Zoom Out"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7" />
-                </svg>
-              </button>
-              <span className="text-xs text-[var(--muted-foreground)] min-w-[3rem] text-center">{Math.round(zoom * 100)}%</span>
-              <button
-                onClick={() => setZoom(z => Math.min(3, z + 0.1))}
-                className="p-1.5 rounded-lg hover:bg-[var(--accent)] transition-colors"
-                title="Zoom In"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
-                </svg>
-              </button>
-              <button
-                onClick={resetView}
-                className="px-2 py-1 text-xs rounded-lg hover:bg-[var(--accent)] transition-colors"
-                title="Reset View"
-              >
-                Reset
-              </button>
-            </div>
           </div>
         )}
 
@@ -707,28 +651,38 @@ export default function WarehouseLayoutModal({
         {viewMode === 'visual' && (
           <VisualWarehouseBuilder
             elements={visualElements}
+            locations={locations}
             selectedElementId={selectedElementId}
             zoom={zoom}
             panOffset={panOffset}
             enabledLevels={enabledLevels}
+            warehouseDimensions={warehouseDimensions}
+            onWarehouseDimensionsChange={(width, height) => setWarehouseDimensions({ width, height })}
             onElementSelect={setSelectedElementId}
             onElementMove={handleVisualElementMove}
             onElementResize={handleVisualElementResize}
             onElementRotate={handleVisualElementRotate}
             onAddChild={handleAddChild}
+            onAddSection={handleAddSection}
+            onAddSectionAtPosition={handleAddSectionAtPosition}
+            onDelete={handleDelete}
             onWheel={handleCanvasWheel}
             onMouseDown={handleCanvasMouseDown}
             onMouseMove={handleCanvasMouseMove}
             onMouseUp={handleCanvasMouseUp}
+            onZoomChange={setZoom}
+            onResetView={resetView}
+            onSave={handleSave}
+            onClose={onClose}
             canvasRef={canvasRef}
             getNextLevelType={getNextLevelType}
+            onRename={handleRename}
           />
         )}
 
-        {/* Footer */}
-        <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border)] bg-[var(--card)] flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-[var(--muted-foreground)]">{countLocations(locations)} locations</span>
+        {/* Footer - only show for tree view */}
+        {viewMode === 'tree' && (
+          <div className="flex items-center justify-between px-4 py-2 border-t border-[var(--border)] bg-[var(--card)] flex-shrink-0">
             <div className="flex items-center gap-1">
               {enabledLevels.map((level) => (
                 <span key={level} className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${levelColors[level]?.bg} ${levelColors[level]?.text}`}>
@@ -736,16 +690,16 @@ export default function WarehouseLayoutModal({
                 </span>
               ))}
             </div>
+            <div className="flex items-center gap-2">
+              <button onClick={onClose} className="px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--accent)] rounded-lg transition-colors">
+                Cancel
+              </button>
+              <button onClick={handleSave} className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                Save Layout
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={onClose} className="px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--accent)] rounded-lg transition-colors">
-              Cancel
-            </button>
-            <button onClick={handleSave} className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-              Save Layout
-            </button>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
@@ -998,52 +952,90 @@ function LocationNode({
   );
 }
 
+// Pixels per foot for visual representation
+const PIXELS_PER_FOOT = 10;
+
+// Convert feet to pixels
+const feetToPixels = (feet: number) => feet * PIXELS_PER_FOOT;
+const pixelsToFeet = (pixels: number) => Math.round(pixels / PIXELS_PER_FOOT);
+
 // Visual Warehouse Builder Component
 interface VisualWarehouseBuilderProps {
   elements: VisualElement[];
+  locations: WarehouseLocation[];
   selectedElementId: string | null;
   zoom: number;
   panOffset: { x: number; y: number };
   enabledLevels: string[];
+  warehouseDimensions: { width: number; height: number };
+  onWarehouseDimensionsChange: (width: number, height: number) => void;
   onElementSelect: (id: string | null) => void;
   onElementMove: (id: string, x: number, y: number) => void;
   onElementResize: (id: string, width: number, height: number) => void;
   onElementRotate: (id: string, rotation: number) => void;
   onAddChild: (parentId: string, parentType: string) => void;
+  onAddSection: () => void;
+  onAddSectionAtPosition: (x: number, y: number) => void;
+  onDelete: (id: string) => void;
   onWheel: (e: React.WheelEvent) => void;
   onMouseDown: (e: React.MouseEvent) => void;
   onMouseMove: (e: React.MouseEvent) => void;
   onMouseUp: () => void;
+  onZoomChange: (zoom: number) => void;
+  onResetView: () => void;
+  onSave: () => void;
+  onClose: () => void;
   canvasRef: React.RefObject<HTMLDivElement | null>;
   getNextLevelType: (type: string) => string | null;
+  onRename: (id: string, name: string) => void;
 }
 
 function VisualWarehouseBuilder({
   elements,
+  locations,
   selectedElementId,
   zoom,
   panOffset,
   enabledLevels,
+  warehouseDimensions,
+  onWarehouseDimensionsChange,
   onElementSelect,
   onElementMove,
   onElementResize,
   onElementRotate,
   onAddChild,
+  onAddSection,
+  onAddSectionAtPosition,
+  onDelete,
   onWheel,
   onMouseDown,
   onMouseMove,
   onMouseUp,
+  onZoomChange,
+  onResetView,
+  onSave,
+  onClose,
   canvasRef,
   getNextLevelType,
+  onRename,
 }: VisualWarehouseBuilderProps) {
-  const [draggingElement, setDraggingElement] = useState<{ id: string; startX: number; startY: number; elementX: number; elementY: number } | null>(null);
+  const [draggingElement, setDraggingElement] = useState<{ id: string; startX: number; startY: number; elementX: number; elementY: number; parentId?: string } | null>(null);
   const [resizingElement, setResizingElement] = useState<{ id: string; startX: number; startY: number; startWidth: number; startHeight: number; handle: string } | null>(null);
+  const [resizingWarehouse, setResizingWarehouse] = useState<{ startX: number; startY: number; startWidth: number; startHeight: number; handle: string } | null>(null);
+  const [editingName, setEditingName] = useState<string | null>(null);
+  const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
+  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+  const [draggingFromLibrary, setDraggingFromLibrary] = useState<{ type: string; id?: string } | null>(null);
 
-  // Canvas dimensions
-  const canvasWidth = 2000;
-  const canvasHeight = 1500;
+  // Canvas dimensions based on warehouse size (with padding)
+  const canvasWidth = feetToPixels(warehouseDimensions.width) + 100;
+  const canvasHeight = feetToPixels(warehouseDimensions.height) + 100;
 
-  const handleElementMouseDown = (e: React.MouseEvent, element: VisualElement) => {
+  // Get selected element and its location data (for hierarchy)
+  const selectedElement = selectedElementId ? findVisualElementById(elements, selectedElementId) : null;
+  const selectedLocation = selectedElementId ? findLocationById(locations, selectedElementId) : null;
+
+  const handleElementMouseDown = (e: React.MouseEvent, element: VisualElement, parentId?: string) => {
     e.stopPropagation();
     onElementSelect(element.id);
     setDraggingElement({
@@ -1052,6 +1044,7 @@ function VisualWarehouseBuilder({
       startY: e.clientY,
       elementX: element.x,
       elementY: element.y,
+      parentId,
     });
   };
 
@@ -1067,12 +1060,37 @@ function VisualWarehouseBuilder({
     });
   };
 
+  const handleWarehouseResizeMouseDown = (e: React.MouseEvent, handle: string) => {
+    e.stopPropagation();
+    setResizingWarehouse({
+      startX: e.clientX,
+      startY: e.clientY,
+      startWidth: warehouseDimensions.width,
+      startHeight: warehouseDimensions.height,
+      handle,
+    });
+  };
+
   const handleCanvasMouseMove = (e: React.MouseEvent) => {
     if (draggingElement) {
       const dx = (e.clientX - draggingElement.startX) / zoom;
       const dy = (e.clientY - draggingElement.startY) / zoom;
-      const newX = Math.max(0, Math.min(canvasWidth - 50, draggingElement.elementX + dx));
-      const newY = Math.max(0, Math.min(canvasHeight - 50, draggingElement.elementY + dy));
+
+      // Find parent bounds if nested
+      let maxX = feetToPixels(warehouseDimensions.width) - 20;
+      let maxY = feetToPixels(warehouseDimensions.height) - 20;
+
+      if (draggingElement.parentId) {
+        const parent = findVisualElementById(elements, draggingElement.parentId);
+        if (parent) {
+          const draggedEl = findVisualElementById(elements, draggingElement.id);
+          maxX = parent.width - (draggedEl?.width || 50) - 5;
+          maxY = parent.height - (draggedEl?.height || 30) - 25; // Account for header
+        }
+      }
+
+      const newX = Math.max(0, Math.min(maxX, draggingElement.elementX + dx));
+      const newY = Math.max(0, Math.min(maxY, draggingElement.elementY + dy));
       onElementMove(draggingElement.id, newX, newY);
     } else if (resizingElement) {
       const dx = (e.clientX - resizingElement.startX) / zoom;
@@ -1085,7 +1103,17 @@ function VisualWarehouseBuilder({
       if (resizingElement.handle.includes('s')) newHeight = resizingElement.startHeight + dy;
       if (resizingElement.handle.includes('n')) newHeight = resizingElement.startHeight - dy;
 
-      onElementResize(resizingElement.id, newWidth, newHeight);
+      onElementResize(resizingElement.id, Math.max(30, newWidth), Math.max(30, newHeight));
+    } else if (resizingWarehouse) {
+      const dx = (e.clientX - resizingWarehouse.startX) / zoom / PIXELS_PER_FOOT;
+      const dy = (e.clientY - resizingWarehouse.startY) / zoom / PIXELS_PER_FOOT;
+      let newWidth = resizingWarehouse.startWidth;
+      let newHeight = resizingWarehouse.startHeight;
+
+      if (resizingWarehouse.handle.includes('e')) newWidth = resizingWarehouse.startWidth + dx;
+      if (resizingWarehouse.handle.includes('s')) newHeight = resizingWarehouse.startHeight + dy;
+
+      onWarehouseDimensionsChange(Math.max(50, Math.round(newWidth)), Math.max(50, Math.round(newHeight)));
     } else {
       onMouseMove(e);
     }
@@ -1094,42 +1122,69 @@ function VisualWarehouseBuilder({
   const handleCanvasMouseUp = () => {
     setDraggingElement(null);
     setResizingElement(null);
+    setResizingWarehouse(null);
     onMouseUp();
   };
 
   const handleCanvasClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains('canvas-grid')) {
       onElementSelect(null);
+      setEditingName(null);
     }
   };
 
-  const renderElement = (element: VisualElement, depth: number = 0) => {
+  // Handle drag over for library items
+  const handleDragOver = (e: React.DragEvent) => {
+    if (draggingFromLibrary) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    }
+  };
+
+  // Handle drop from library
+  const handleDrop = (e: React.DragEvent) => {
+    if (draggingFromLibrary && canvasRef.current) {
+      e.preventDefault();
+
+      // Calculate drop position relative to canvas (accounting for zoom and pan)
+      const canvasRect = canvasRef.current.getBoundingClientRect();
+      const rawX = (e.clientX - canvasRect.left - panOffset.x) / zoom;
+      const rawY = (e.clientY - canvasRect.top - panOffset.y) / zoom;
+
+      // Adjust for warehouse floor offset (50px padding) and clamp to bounds
+      const dropX = Math.max(0, Math.min(feetToPixels(warehouseDimensions.width) - 300, rawX - 50));
+      const dropY = Math.max(0, Math.min(feetToPixels(warehouseDimensions.height) - 200, rawY - 50));
+
+      if (draggingFromLibrary.id) {
+        // Moving an existing element to a new position
+        onElementMove(draggingFromLibrary.id, dropX, dropY);
+        onElementSelect(draggingFromLibrary.id);
+      } else if (draggingFromLibrary.type === 'section') {
+        // Creating a new section at the drop position
+        onAddSectionAtPosition(dropX, dropY);
+      }
+
+      setDraggingFromLibrary(null);
+    }
+  };
+
+  // Render a draggable/resizable element with nested grid
+  const renderElement = (element: VisualElement, depth: number = 0, parentId?: string) => {
     const isSelected = selectedElementId === element.id;
     const colors = levelColors[element.type];
     const nextType = getNextLevelType(element.type);
     const hasChildren = element.children && element.children.length > 0;
 
-    // Visual dimensions based on type
-    const getDefaultDimensions = (type: string) => {
-      switch (type) {
-        case 'section': return { width: 300, height: 200 };
-        case 'aisle': return { width: 200, height: 40 };
-        case 'shelf': return { width: 150, height: 100 };
-        case 'bay': return { width: 60, height: 80 };
-        case 'row': return { width: 50, height: 30 };
-        case 'bin': return { width: 30, height: 30 };
-        default: return { width: 100, height: 60 };
-      }
-    };
+    const width = element.width;
+    const height = element.height;
 
-    const dims = getDefaultDimensions(element.type);
-    const width = element.width || dims.width;
-    const height = element.height || dims.height;
+    // Grid size for this element (smaller for deeper levels)
+    const gridSize = Math.max(5, 20 - depth * 5);
 
     return (
       <div
         key={element.id}
-        className={`absolute cursor-move transition-shadow ${isSelected ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
+        className={`absolute transition-shadow ${isSelected ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
         style={{
           left: element.x,
           top: element.y,
@@ -1138,23 +1193,57 @@ function VisualWarehouseBuilder({
           transform: `rotate(${element.rotation || 0}deg)`,
           zIndex: isSelected ? 100 : 10 - depth,
         }}
-        onMouseDown={(e) => handleElementMouseDown(e, element)}
       >
-        {/* Element body */}
+        {/* Element body with internal grid */}
         <div
-          className={`w-full h-full rounded-lg border-2 ${colors.bg} ${colors.border} shadow-sm overflow-hidden flex flex-col`}
+          className={`w-full h-full rounded-lg border-2 ${colors.bg} ${colors.border} shadow-sm overflow-hidden flex flex-col cursor-move`}
+          onMouseDown={(e) => handleElementMouseDown(e, element, parentId)}
         >
-          {/* Header */}
+          {/* Header - draggable handle */}
           <div className={`px-2 py-1 ${colors.bg} border-b ${colors.border} flex items-center gap-1.5 flex-shrink-0`}>
             <span className={colors.text}>{LevelIcons[element.type]}</span>
-            <span className={`text-[10px] font-medium ${colors.text} truncate`}>{element.name}</span>
+            {editingName === element.id ? (
+              <input
+                type="text"
+                defaultValue={element.name}
+                className="flex-1 text-[10px] font-medium bg-white dark:bg-gray-800 px-1 rounded border border-blue-500 outline-none min-w-0"
+                autoFocus
+                onBlur={(e) => {
+                  onRename(element.id, e.target.value);
+                  setEditingName(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    onRename(element.id, (e.target as HTMLInputElement).value);
+                    setEditingName(null);
+                  } else if (e.key === 'Escape') {
+                    setEditingName(null);
+                  }
+                }}
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <span
+                className={`text-[10px] font-medium ${colors.text} truncate cursor-text`}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  setEditingName(element.id);
+                }}
+              >
+                {element.name}
+              </span>
+            )}
+            <span className="text-[8px] text-[var(--muted-foreground)] ml-auto">
+              {pixelsToFeet(width)}×{pixelsToFeet(height)} ft
+            </span>
             {nextType && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   onAddChild(element.id, element.type);
                 }}
-                className={`ml-auto p-0.5 rounded hover:bg-white/50 ${colors.text}`}
+                className={`p-0.5 rounded hover:bg-white/50 ${colors.text}`}
                 title={`Add ${levelLabels[nextType]}`}
               >
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1164,53 +1253,49 @@ function VisualWarehouseBuilder({
             )}
           </div>
 
-          {/* Children container */}
-          {hasChildren && (
-            <div className="flex-1 p-1 overflow-hidden relative">
-              <div className="flex flex-wrap gap-1 content-start">
-                {element.children!.map((child, index) => {
-                  const childDims = getDefaultDimensions(child.type);
-                  return (
-                    <div
-                      key={child.id}
-                      className={`relative cursor-move rounded border ${levelColors[child.type].bg} ${levelColors[child.type].border} p-1 ${
-                        selectedElementId === child.id ? 'ring-2 ring-blue-500' : ''
-                      }`}
-                      style={{
-                        width: Math.min(childDims.width * 0.5, width / 3),
-                        height: Math.min(childDims.height * 0.5, 30),
-                      }}
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
-                        onElementSelect(child.id);
-                      }}
-                    >
-                      <div className="flex items-center gap-1">
-                        <span className={`${levelColors[child.type].text} scale-75`}>{LevelIcons[child.type]}</span>
-                        <span className={`text-[8px] font-medium ${levelColors[child.type].text} truncate`}>{child.name}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+          {/* Children container with internal grid */}
+          <div
+            className="flex-1 relative overflow-hidden"
+            style={{
+              backgroundImage: `
+                linear-gradient(to right, ${colors.border.includes('purple') ? 'rgba(147,51,234,0.1)' : colors.border.includes('blue') ? 'rgba(59,130,246,0.1)' : colors.border.includes('green') ? 'rgba(34,197,94,0.1)' : 'rgba(0,0,0,0.05)'} 1px, transparent 1px),
+                linear-gradient(to bottom, ${colors.border.includes('purple') ? 'rgba(147,51,234,0.1)' : colors.border.includes('blue') ? 'rgba(59,130,246,0.1)' : colors.border.includes('green') ? 'rgba(34,197,94,0.1)' : 'rgba(0,0,0,0.05)'} 1px, transparent 1px)
+              `,
+              backgroundSize: `${gridSize}px ${gridSize}px`,
+            }}
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) {
+                handleElementMouseDown(e, element, parentId);
+              }
+            }}
+          >
+            {/* Render children as draggable elements within this container */}
+            {hasChildren && element.children!.map((child) => renderChildElement(child, element.id, depth + 1))}
+          </div>
         </div>
 
         {/* Resize handles (only when selected) */}
         {isSelected && (
           <>
             <div
-              className="absolute -right-1 top-1/2 -translate-y-1/2 w-2 h-6 bg-blue-500 rounded cursor-e-resize"
+              className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-8 bg-blue-500 rounded cursor-e-resize hover:bg-blue-600"
               onMouseDown={(e) => handleResizeMouseDown(e, element, 'e')}
             />
             <div
-              className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-6 h-2 bg-blue-500 rounded cursor-s-resize"
+              className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-8 h-3 bg-blue-500 rounded cursor-s-resize hover:bg-blue-600"
               onMouseDown={(e) => handleResizeMouseDown(e, element, 's')}
             />
             <div
-              className="absolute -right-1 -bottom-1 w-3 h-3 bg-blue-500 rounded cursor-se-resize"
+              className="absolute -right-1.5 -bottom-1.5 w-4 h-4 bg-blue-500 rounded cursor-se-resize hover:bg-blue-600"
               onMouseDown={(e) => handleResizeMouseDown(e, element, 'se')}
+            />
+            <div
+              className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-3 h-8 bg-blue-500 rounded cursor-w-resize hover:bg-blue-600"
+              onMouseDown={(e) => handleResizeMouseDown(e, element, 'w')}
+            />
+            <div
+              className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-8 h-3 bg-blue-500 rounded cursor-n-resize hover:bg-blue-600"
+              onMouseDown={(e) => handleResizeMouseDown(e, element, 'n')}
             />
           </>
         )}
@@ -1218,107 +1303,547 @@ function VisualWarehouseBuilder({
     );
   };
 
-  return (
-    <div
-      ref={canvasRef}
-      className="flex-1 overflow-hidden bg-gray-100 dark:bg-gray-900 relative"
-      onWheel={onWheel}
-      onMouseDown={onMouseDown}
-      onMouseMove={handleCanvasMouseMove}
-      onMouseUp={handleCanvasMouseUp}
-      onMouseLeave={handleCanvasMouseUp}
-      onClick={handleCanvasClick}
-      style={{ cursor: draggingElement ? 'grabbing' : resizingElement ? 'nwse-resize' : 'default' }}
-    >
-      {/* Canvas with grid */}
+  // Render nested child element (draggable within parent)
+  const renderChildElement = (child: VisualElement, parentId: string, depth: number) => {
+    const isSelected = selectedElementId === child.id;
+    const colors = levelColors[child.type];
+    const nextType = getNextLevelType(child.type);
+    const hasChildren = child.children && child.children.length > 0;
+    const gridSize = Math.max(5, 15 - depth * 3);
+
+    return (
       <div
-        className="absolute origin-top-left canvas-grid"
+        key={child.id}
+        className={`absolute transition-shadow ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
         style={{
-          width: canvasWidth,
-          height: canvasHeight,
-          transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
-          backgroundImage: `
-            linear-gradient(to right, var(--border) 1px, transparent 1px),
-            linear-gradient(to bottom, var(--border) 1px, transparent 1px)
-          `,
-          backgroundSize: '20px 20px',
-          backgroundColor: 'var(--background)',
+          left: child.x,
+          top: child.y,
+          width: child.width,
+          height: child.height,
+          transform: `rotate(${child.rotation || 0}deg)`,
+          zIndex: isSelected ? 50 : 5,
         }}
-        onClick={handleCanvasClick}
       >
-        {/* Warehouse outline */}
         <div
-          className="absolute border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg"
-          style={{
-            left: 20,
-            top: 20,
-            width: canvasWidth - 40,
-            height: canvasHeight - 40,
-          }}
+          className={`w-full h-full rounded border-2 ${colors.bg} ${colors.border} overflow-hidden flex flex-col cursor-move`}
+          onMouseDown={(e) => handleElementMouseDown(e, child, parentId)}
         >
-          <div className="absolute -top-3 left-4 px-2 bg-[var(--background)] text-[10px] text-[var(--muted-foreground)] font-medium">
-            Warehouse Floor
+          {/* Child Header */}
+          <div className={`px-1.5 py-0.5 ${colors.bg} border-b ${colors.border} flex items-center gap-1 flex-shrink-0`}>
+            <span className={`${colors.text} scale-75`}>{LevelIcons[child.type]}</span>
+            {editingName === child.id ? (
+              <input
+                type="text"
+                defaultValue={child.name}
+                className="flex-1 text-[8px] font-medium bg-white dark:bg-gray-800 px-1 rounded border border-blue-500 outline-none min-w-0"
+                autoFocus
+                onBlur={(e) => {
+                  onRename(child.id, e.target.value);
+                  setEditingName(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    onRename(child.id, (e.target as HTMLInputElement).value);
+                    setEditingName(null);
+                  } else if (e.key === 'Escape') {
+                    setEditingName(null);
+                  }
+                }}
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <span
+                className={`text-[8px] font-medium ${colors.text} truncate cursor-text`}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  setEditingName(child.id);
+                }}
+              >
+                {child.name}
+              </span>
+            )}
+            {nextType && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAddChild(child.id, child.type);
+                }}
+                className={`ml-auto p-0.5 rounded hover:bg-white/50 ${colors.text}`}
+                title={`Add ${levelLabels[nextType]}`}
+              >
+                <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+              </button>
+            )}
           </div>
+
+          {/* Nested content area with grid */}
+          {(hasChildren || nextType) && (
+            <div
+              className="flex-1 relative overflow-hidden"
+              style={{
+                backgroundImage: `
+                  linear-gradient(to right, rgba(0,0,0,0.03) 1px, transparent 1px),
+                  linear-gradient(to bottom, rgba(0,0,0,0.03) 1px, transparent 1px)
+                `,
+                backgroundSize: `${gridSize}px ${gridSize}px`,
+              }}
+            >
+              {hasChildren && child.children!.map((grandChild) => renderChildElement(grandChild, child.id, depth + 1))}
+            </div>
+          )}
         </div>
 
-        {/* Render all elements */}
-        {elements.map(element => renderElement(element, 0))}
-
-        {/* Empty state */}
-        {elements.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-[var(--muted)] rounded-xl flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-[var(--muted-foreground)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
-              </div>
-              <p className="text-sm font-medium text-[var(--foreground)] mb-1">Start Building Your Warehouse</p>
-              <p className="text-xs text-[var(--muted-foreground)]">Click "Add Section" to begin adding warehouse locations</p>
-            </div>
-          </div>
+        {/* Resize handles for nested elements */}
+        {isSelected && (
+          <>
+            <div
+              className="absolute -right-1 top-1/2 -translate-y-1/2 w-2 h-5 bg-blue-500 rounded cursor-e-resize hover:bg-blue-600"
+              onMouseDown={(e) => handleResizeMouseDown(e, child, 'e')}
+            />
+            <div
+              className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-5 h-2 bg-blue-500 rounded cursor-s-resize hover:bg-blue-600"
+              onMouseDown={(e) => handleResizeMouseDown(e, child, 's')}
+            />
+            <div
+              className="absolute -right-1 -bottom-1 w-2.5 h-2.5 bg-blue-500 rounded cursor-se-resize hover:bg-blue-600"
+              onMouseDown={(e) => handleResizeMouseDown(e, child, 'se')}
+            />
+          </>
         )}
       </div>
+    );
+  };
 
-      {/* Mini-map */}
-      <div className="absolute bottom-3 right-3 w-32 h-24 bg-[var(--card)] border border-[var(--border)] rounded-lg overflow-hidden shadow-lg">
-        <div className="absolute inset-0 p-1">
-          <div className="relative w-full h-full bg-[var(--background)] rounded overflow-hidden">
-            {elements.map(element => (
-              <div
-                key={element.id}
-                className={`absolute rounded-sm ${levelColors[element.type].bg}`}
-                style={{
-                  left: `${(element.x / canvasWidth) * 100}%`,
-                  top: `${(element.y / canvasHeight) * 100}%`,
-                  width: `${((element.width || 100) / canvasWidth) * 100}%`,
-                  height: `${((element.height || 60) / canvasHeight) * 100}%`,
-                }}
-              />
-            ))}
-            {/* Viewport indicator */}
-            <div
-              className="absolute border border-blue-500 bg-blue-500/10 rounded-sm"
-              style={{
-                left: `${(-panOffset.x / zoom / canvasWidth) * 100}%`,
-                top: `${(-panOffset.y / zoom / canvasHeight) * 100}%`,
-                width: `${(100 / zoom)}%`,
-                height: `${(100 / zoom)}%`,
-              }}
-            />
-          </div>
+  // Find the root section containing the selected element
+  const rootSectionForSelected = selectedElementId ? findRootSectionContaining(locations, selectedElementId) : null;
+  // Get the path to the selected element (for highlighting ancestors)
+  const pathToSelected = selectedElementId ? getPathToElement(locations, selectedElementId) : [];
+
+  // Helper to render hierarchy tree - shows full tree with path to selected highlighted
+  const renderHierarchy = (location: WarehouseLocation, depth: number = 0) => {
+    const colors = levelColors[location.type];
+    const hasChildren = location.children && location.children.length > 0;
+    const hasProducts = location.products && location.products.length > 0;
+    const isSelected = selectedElementId === location.id;
+    const isInPath = pathToSelected.includes(location.id);
+
+    return (
+      <div key={location.id} className="text-[10px]">
+        <div
+          className={`flex items-center gap-1.5 py-1 px-1.5 rounded cursor-pointer transition-colors ${
+            isSelected
+              ? 'bg-blue-100 dark:bg-blue-900/30 ring-1 ring-blue-400'
+              : isInPath
+                ? 'bg-blue-50 dark:bg-blue-900/10'
+                : 'hover:bg-[var(--accent)]'
+          }`}
+          style={{ paddingLeft: `${depth * 12 + 6}px` }}
+          onClick={() => onElementSelect(location.id)}
+        >
+          <span className={colors.text}>{LevelIcons[location.type]}</span>
+          <span className={`font-medium ${isSelected ? 'text-blue-700 dark:text-blue-300' : 'text-[var(--foreground)]'}`}>
+            {location.name}
+          </span>
+          {hasChildren && (
+            <span className="text-[var(--muted-foreground)] ml-auto text-[9px]">
+              {location.children!.length} {location.children!.length === 1 ? 'child' : 'children'}
+            </span>
+          )}
         </div>
-        <div className="absolute bottom-0.5 right-1 text-[8px] text-[var(--muted-foreground)]">Map</div>
+        {hasChildren && location.children!.map(child => renderHierarchy(child, depth + 1))}
+        {hasProducts && location.products!.map(product => (
+          <div
+            key={product.id}
+            className="flex items-center gap-1.5 py-0.5 px-1.5 text-[var(--muted-foreground)] hover:bg-[var(--accent)] rounded"
+            style={{ paddingLeft: `${(depth + 1) * 12 + 6}px` }}
+          >
+            <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+            </svg>
+            <span className="truncate flex-1">{product.productName}</span>
+            <span className="text-[9px]">×{product.quantity}</span>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Library Toolbar */}
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-[var(--border)] bg-[var(--muted)]/50 flex-shrink-0">
+        <div className="flex items-center gap-1">
+          <span className="text-[10px] font-medium text-[var(--muted-foreground)] uppercase mr-2">Library:</span>
+          {/* Existing elements from tree */}
+          {locations.map(loc => (
+            <div
+              key={loc.id}
+              draggable
+              onDragStart={() => setDraggingFromLibrary({ type: loc.type, id: loc.id })}
+              onDragEnd={() => setDraggingFromLibrary(null)}
+              className={`flex items-center gap-1 px-2 py-1 rounded border cursor-grab active:cursor-grabbing ${levelColors[loc.type].bg} ${levelColors[loc.type].border} ${levelColors[loc.type].text}`}
+            >
+              {LevelIcons[loc.type]}
+              <span className="text-[10px] font-medium">{loc.name}</span>
+            </div>
+          ))}
+          <div className="w-px h-5 bg-[var(--border)] mx-1" />
+          {/* Create new section - can be dragged or clicked */}
+          {enabledLevels.includes('section') && (
+            <div
+              draggable
+              onDragStart={() => setDraggingFromLibrary({ type: 'section' })}
+              onDragEnd={() => setDraggingFromLibrary(null)}
+              onClick={onAddSection}
+              className="flex items-center gap-1 px-2 py-1 rounded border border-dashed border-purple-300 dark:border-purple-700 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors cursor-grab active:cursor-grabbing"
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              <span className="text-[10px] font-medium">New Section</span>
+            </div>
+          )}
+        </div>
+
+        <div className="flex-1" />
+
+        {/* Zoom controls */}
+        <div className="flex items-center gap-1 bg-[var(--background)] rounded-lg border border-[var(--border)] px-1">
+          <button
+            onClick={() => onZoomChange(Math.max(0.25, zoom - 0.1))}
+            className="p-1 hover:bg-[var(--accent)] rounded transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+            </svg>
+          </button>
+          <span className="text-[10px] text-[var(--muted-foreground)] w-10 text-center">{Math.round(zoom * 100)}%</span>
+          <button
+            onClick={() => onZoomChange(Math.min(3, zoom + 0.1))}
+            className="p-1 hover:bg-[var(--accent)] rounded transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
+          <button
+            onClick={onResetView}
+            className="px-1.5 py-0.5 text-[10px] hover:bg-[var(--accent)] rounded transition-colors"
+          >
+            Reset
+          </button>
+        </div>
+
+        {/* Save/Close */}
+        <div className="flex items-center gap-2 ml-2">
+          <button onClick={onClose} className="px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--accent)] rounded-lg transition-colors">
+            Cancel
+          </button>
+          <button onClick={onSave} className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+            Save Layout
+          </button>
+        </div>
       </div>
 
-      {/* Instructions overlay */}
-      <div className="absolute top-3 left-3 px-2 py-1 bg-[var(--card)]/90 backdrop-blur-sm border border-[var(--border)] rounded-lg">
-        <div className="flex items-center gap-3 text-[10px] text-[var(--muted-foreground)]">
-          <span>Drag to move</span>
-          <span className="w-px h-3 bg-[var(--border)]" />
-          <span>Alt+Drag to pan</span>
-          <span className="w-px h-3 bg-[var(--border)]" />
-          <span>Ctrl+Scroll to zoom</span>
+      <div className="flex-1 flex overflow-hidden">
+        {/* Main Canvas */}
+        <div
+          ref={canvasRef}
+          className={`flex-1 overflow-hidden bg-gray-100 dark:bg-gray-900 relative ${draggingFromLibrary ? 'ring-2 ring-inset ring-blue-400 ring-opacity-50' : ''}`}
+          onWheel={onWheel}
+          onMouseDown={onMouseDown}
+          onMouseMove={handleCanvasMouseMove}
+          onMouseUp={handleCanvasMouseUp}
+          onMouseLeave={handleCanvasMouseUp}
+          onClick={handleCanvasClick}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+          style={{ cursor: draggingElement ? 'grabbing' : resizingElement || resizingWarehouse ? 'nwse-resize' : draggingFromLibrary ? 'copy' : 'default' }}
+        >
+          {/* Canvas with grid */}
+          <div
+            className="absolute origin-top-left canvas-grid"
+            style={{
+              width: canvasWidth,
+              height: canvasHeight,
+              transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
+              backgroundImage: `
+                linear-gradient(to right, var(--border) 1px, transparent 1px),
+                linear-gradient(to bottom, var(--border) 1px, transparent 1px)
+              `,
+              backgroundSize: `${PIXELS_PER_FOOT}px ${PIXELS_PER_FOOT}px`,
+              backgroundColor: 'var(--background)',
+            }}
+            onClick={handleCanvasClick}
+          >
+            {/* Warehouse outline - resizable */}
+            <div
+              className="absolute border-2 border-dashed border-gray-400 dark:border-gray-600 rounded-lg bg-white/50 dark:bg-gray-800/50"
+              style={{
+                left: 50,
+                top: 50,
+                width: feetToPixels(warehouseDimensions.width),
+                height: feetToPixels(warehouseDimensions.height),
+              }}
+            >
+              <div className="absolute -top-5 left-4 px-2 py-0.5 bg-[var(--background)] rounded text-[10px] text-[var(--foreground)] font-medium border border-[var(--border)]">
+                Warehouse Floor ({warehouseDimensions.width} × {warehouseDimensions.height} ft)
+              </div>
+
+              {/* Warehouse resize handles */}
+              <div
+                className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-10 bg-gray-400 dark:bg-gray-600 rounded cursor-e-resize hover:bg-gray-500"
+                onMouseDown={(e) => handleWarehouseResizeMouseDown(e, 'e')}
+              />
+              <div
+                className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-10 h-4 bg-gray-400 dark:bg-gray-600 rounded cursor-s-resize hover:bg-gray-500"
+                onMouseDown={(e) => handleWarehouseResizeMouseDown(e, 's')}
+              />
+              <div
+                className="absolute -right-2 -bottom-2 w-5 h-5 bg-gray-400 dark:bg-gray-600 rounded cursor-se-resize hover:bg-gray-500"
+                onMouseDown={(e) => handleWarehouseResizeMouseDown(e, 'se')}
+              />
+
+              {/* Render all top-level elements within warehouse bounds */}
+              <div className="absolute inset-0 overflow-hidden">
+                {elements.map(element => renderElement(element, 0))}
+              </div>
+            </div>
+
+            {/* Scale reference */}
+            <div className="absolute bottom-2 left-[50px] flex items-center gap-1 text-[9px] text-[var(--muted-foreground)]">
+              <div className="w-[100px] h-1 bg-gray-400 dark:bg-gray-600 rounded" />
+              <span>10 ft</span>
+            </div>
+
+            {/* Empty state */}
+            {elements.length === 0 && (
+              <div
+                className="absolute flex items-center justify-center"
+                style={{
+                  left: 50,
+                  top: 50,
+                  width: feetToPixels(warehouseDimensions.width),
+                  height: feetToPixels(warehouseDimensions.height),
+                }}
+              >
+                <div className="text-center">
+                  <div className="w-12 h-12 bg-[var(--muted)] rounded-xl flex items-center justify-center mx-auto mb-3">
+                    <svg className="w-6 h-6 text-[var(--muted-foreground)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                  </div>
+                  <p className="text-sm font-medium text-[var(--foreground)] mb-1">Start Building</p>
+                  <p className="text-xs text-[var(--muted-foreground)]">Drag sections from the library or create new ones</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Mini-map */}
+          <div className="absolute bottom-3 left-3 w-36 h-28 bg-[var(--card)] border border-[var(--border)] rounded-lg overflow-hidden shadow-lg">
+            <div className="absolute inset-0 p-1.5">
+              <div className="relative w-full h-full bg-[var(--background)] rounded overflow-hidden">
+                {elements.map(element => (
+                  <div
+                    key={element.id}
+                    className={`absolute rounded-sm ${levelColors[element.type].bg} border ${levelColors[element.type].border}`}
+                    style={{
+                      left: `${(element.x / feetToPixels(warehouseDimensions.width)) * 100}%`,
+                      top: `${(element.y / feetToPixels(warehouseDimensions.height)) * 100}%`,
+                      width: `${(element.width / feetToPixels(warehouseDimensions.width)) * 100}%`,
+                      height: `${(element.height / feetToPixels(warehouseDimensions.height)) * 100}%`,
+                    }}
+                  />
+                ))}
+                <div
+                  className="absolute border-2 border-blue-500 bg-blue-500/10 rounded-sm"
+                  style={{
+                    left: `${Math.max(0, (-panOffset.x / zoom - 50) / feetToPixels(warehouseDimensions.width)) * 100}%`,
+                    top: `${Math.max(0, (-panOffset.y / zoom - 50) / feetToPixels(warehouseDimensions.height)) * 100}%`,
+                    width: `${Math.min(100, (100 / zoom))}%`,
+                    height: `${Math.min(100, (100 / zoom))}%`,
+                  }}
+                />
+              </div>
+            </div>
+            <div className="absolute bottom-1 right-1.5 text-[8px] text-[var(--muted-foreground)]">Overview</div>
+          </div>
+
+          {/* Help overlay */}
+          <div className="absolute top-3 left-3 px-2 py-1 bg-[var(--card)]/90 backdrop-blur-sm border border-[var(--border)] rounded-lg">
+            <div className="flex items-center gap-2 text-[10px] text-[var(--muted-foreground)]">
+              <span>Drag to move</span>
+              <span className="w-px h-3 bg-[var(--border)]" />
+              <span>Double-click to edit</span>
+              <span className="w-px h-3 bg-[var(--border)]" />
+              <span>Alt+Drag pan</span>
+              <span className="w-px h-3 bg-[var(--border)]" />
+              <span>Scroll zoom</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Collapsible Properties Panel */}
+        <div className={`${isPanelCollapsed ? 'w-10' : 'w-72'} border-l border-[var(--border)] bg-[var(--card)] flex flex-col overflow-hidden transition-all duration-200`}>
+          {/* Panel Header with collapse toggle */}
+          <div className="flex items-center justify-between px-2 py-2 border-b border-[var(--border)]">
+            {!isPanelCollapsed && <h3 className="text-xs font-semibold text-[var(--foreground)]">Properties</h3>}
+            <button
+              onClick={() => setIsPanelCollapsed(!isPanelCollapsed)}
+              className="p-1 hover:bg-[var(--accent)] rounded transition-colors"
+              title={isPanelCollapsed ? 'Expand panel' : 'Collapse panel'}
+            >
+              <svg className={`w-4 h-4 text-[var(--muted-foreground)] transition-transform ${isPanelCollapsed ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+
+          {!isPanelCollapsed && (
+            <div className="flex-1 overflow-y-auto">
+              {/* Warehouse Dimensions */}
+              <div className="p-3 border-b border-[var(--border)]">
+                <label className="text-[10px] font-medium text-[var(--muted-foreground)] uppercase tracking-wide">Warehouse Size</label>
+                <div className="mt-1.5 grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] text-[var(--muted-foreground)]">Width (ft)</label>
+                    <input
+                      type="number"
+                      value={warehouseDimensions.width}
+                      onChange={(e) => onWarehouseDimensionsChange(parseInt(e.target.value) || 100, warehouseDimensions.height)}
+                      className="w-full mt-0.5 px-2 py-1 text-xs border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-[var(--muted-foreground)]">Height (ft)</label>
+                    <input
+                      type="number"
+                      value={warehouseDimensions.height}
+                      onChange={(e) => onWarehouseDimensionsChange(warehouseDimensions.width, parseInt(e.target.value) || 100)}
+                      className="w-full mt-0.5 px-2 py-1 text-xs border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)]"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Selected Element Properties & Hierarchy */}
+              {selectedElement && selectedLocation ? (
+                <div className="p-3 space-y-3">
+                  {/* Element Header */}
+                  <div className="flex items-center gap-2">
+                    <div className={`p-1.5 rounded ${levelColors[selectedElement.type].bg}`}>
+                      <span className={levelColors[selectedElement.type].text}>{LevelIcons[selectedElement.type]}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-medium text-[var(--foreground)] truncate">{selectedElement.name}</div>
+                      <div className="text-[10px] text-[var(--muted-foreground)]">{levelLabels[selectedElement.type]}</div>
+                    </div>
+                    <button
+                      onClick={() => onDelete(selectedElement.id)}
+                      className="p-1 hover:bg-red-100 dark:hover:bg-red-900/20 text-red-500 rounded transition-colors"
+                      title="Delete"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Position & Size */}
+                  <div className="grid grid-cols-4 gap-1.5">
+                    <div>
+                      <label className="text-[9px] text-[var(--muted-foreground)]">X (ft)</label>
+                      <input
+                        type="number"
+                        value={pixelsToFeet(selectedElement.x)}
+                        onChange={(e) => onElementMove(selectedElement.id, feetToPixels(parseInt(e.target.value) || 0), selectedElement.y)}
+                        className="w-full mt-0.5 px-1.5 py-1 text-[10px] border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)]"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] text-[var(--muted-foreground)]">Y (ft)</label>
+                      <input
+                        type="number"
+                        value={pixelsToFeet(selectedElement.y)}
+                        onChange={(e) => onElementMove(selectedElement.id, selectedElement.x, feetToPixels(parseInt(e.target.value) || 0))}
+                        className="w-full mt-0.5 px-1.5 py-1 text-[10px] border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)]"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] text-[var(--muted-foreground)]">W (ft)</label>
+                      <input
+                        type="number"
+                        value={pixelsToFeet(selectedElement.width)}
+                        onChange={(e) => onElementResize(selectedElement.id, feetToPixels(parseInt(e.target.value) || 10), selectedElement.height)}
+                        className="w-full mt-0.5 px-1.5 py-1 text-[10px] border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)]"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] text-[var(--muted-foreground)]">H (ft)</label>
+                      <input
+                        type="number"
+                        value={pixelsToFeet(selectedElement.height)}
+                        onChange={(e) => onElementResize(selectedElement.id, selectedElement.width, feetToPixels(parseInt(e.target.value) || 10))}
+                        className="w-full mt-0.5 px-1.5 py-1 text-[10px] border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)]"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Rotation */}
+                  <div>
+                    <label className="text-[9px] text-[var(--muted-foreground)]">Rotation</label>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <input
+                        type="range"
+                        min="0"
+                        max="360"
+                        value={selectedElement.rotation}
+                        onChange={(e) => onElementRotate(selectedElement.id, parseInt(e.target.value))}
+                        className="flex-1 h-1 bg-[var(--muted)] rounded-lg appearance-none cursor-pointer"
+                      />
+                      <span className="text-[10px] text-[var(--foreground)] w-8 text-right">{selectedElement.rotation}°</span>
+                    </div>
+                  </div>
+
+                  {/* Add Child button */}
+                  {getNextLevelType(selectedElement.type) && (
+                    <button
+                      onClick={() => onAddChild(selectedElement.id, selectedElement.type)}
+                      className={`w-full py-1.5 text-[10px] font-medium rounded border-2 border-dashed ${levelColors[getNextLevelType(selectedElement.type)!].border} ${levelColors[getNextLevelType(selectedElement.type)!].text} hover:${levelColors[getNextLevelType(selectedElement.type)!].bg} transition-colors`}
+                    >
+                      + Add {levelLabels[getNextLevelType(selectedElement.type)!]}
+                    </button>
+                  )}
+
+                  {/* Hierarchy View - Shows full tree from root section */}
+                  <div className="pt-3 border-t border-[var(--border)]">
+                    <label className="text-[10px] font-medium text-[var(--muted-foreground)] uppercase tracking-wide">
+                      Full Hierarchy {rootSectionForSelected && `(${rootSectionForSelected.name})`}
+                    </label>
+                    <div className="mt-2 max-h-64 overflow-y-auto rounded border border-[var(--border)] bg-[var(--background)] p-1">
+                      {rootSectionForSelected ? renderHierarchy(rootSectionForSelected) : renderHierarchy(selectedLocation)}
+                    </div>
+                    <p className="mt-1.5 text-[9px] text-[var(--muted-foreground)]">
+                      Click any item to select it. Selected item highlighted in blue.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-6 text-center">
+                  <div className="w-10 h-10 bg-[var(--muted)] rounded-lg flex items-center justify-center mx-auto mb-2">
+                    <svg className="w-5 h-5 text-[var(--muted-foreground)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
+                    </svg>
+                  </div>
+                  <p className="text-xs text-[var(--muted-foreground)]">Double-click an element to view its hierarchy</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -1472,4 +1997,36 @@ function findLocationById(locations: WarehouseLocation[], id: string): Warehouse
     }
   }
   return null;
+}
+
+// Find the root section that contains a given element ID
+function findRootSectionContaining(locations: WarehouseLocation[], targetId: string): WarehouseLocation | null {
+  for (const section of locations) {
+    if (section.id === targetId) return section;
+    if (containsId(section, targetId)) return section;
+  }
+  return null;
+}
+
+// Check if a location or any of its descendants has the given ID
+function containsId(location: WarehouseLocation, targetId: string): boolean {
+  if (location.id === targetId) return true;
+  if (location.children) {
+    return location.children.some(child => containsId(child, targetId));
+  }
+  return false;
+}
+
+// Get the path from root to a specific element
+function getPathToElement(locations: WarehouseLocation[], targetId: string, path: string[] = []): string[] {
+  for (const loc of locations) {
+    if (loc.id === targetId) {
+      return [...path, loc.id];
+    }
+    if (loc.children) {
+      const childPath = getPathToElement(loc.children, targetId, [...path, loc.id]);
+      if (childPath.length > 0) return childPath;
+    }
+  }
+  return [];
 }

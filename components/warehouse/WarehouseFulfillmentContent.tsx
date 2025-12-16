@@ -66,7 +66,7 @@ export default function WarehouseFulfillmentContent() {
     if (activeStatFilter === 'pending') {
       result = result.filter(fo => fo.status === 'PENDING' || fo.status === 'RELEASED');
     } else if (activeStatFilter === 'in_progress') {
-      result = result.filter(fo => fo.status === 'PICKING' || fo.status === 'PACKING' || fo.status === 'PACKED');
+      result = result.filter(fo => fo.status === 'PICKING' || fo.status === 'PACKING' || fo.status === 'SHIPPING');
     } else if (activeStatFilter === 'completed') {
       result = result.filter(fo => fo.status === 'SHIPPED' || fo.status === 'PARTIAL_SHIPPED' || fo.status === 'DELIVERED');
     }
@@ -103,7 +103,7 @@ export default function WarehouseFulfillmentContent() {
 
   // Calculate pending/in progress stats from our filtered data
   const pendingCount = fulfillmentOrders.filter(fo => fo.status === 'PENDING' || fo.status === 'RELEASED').length;
-  const inProgressCount = fulfillmentOrders.filter(fo => fo.status === 'PICKING' || fo.status === 'PACKING' || fo.status === 'PACKED').length;
+  const inProgressCount = fulfillmentOrders.filter(fo => fo.status === 'PICKING' || fo.status === 'PACKING' || fo.status === 'SHIPPING').length;
   const completedCount = fulfillmentOrders.filter(fo => fo.status === 'SHIPPED' || fo.status === 'PARTIAL_SHIPPED' || fo.status === 'DELIVERED').length;
 
   return (

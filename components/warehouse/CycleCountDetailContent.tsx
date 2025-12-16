@@ -22,55 +22,35 @@ interface CycleCountDetailContentProps {
   cycleCountId: string;
 }
 
+const statusSteps = ['DRAFT', 'SCHEDULED', 'IN_PROGRESS', 'PENDING_REVIEW', 'COMPLETED'] as const;
+
 export default function CycleCountDetailContent({ cycleCountId }: CycleCountDetailContentProps) {
   const router = useRouter();
   const [refreshKey, setRefreshKey] = useState(0);
-  const [activeTab, setActiveTab] = useState<'items' | 'summary'>('items');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'counted' | 'verified' | 'adjusted' | 'skipped'>('all');
-  const [showOnlyVariance, setShowOnlyVariance] = useState(false);
-  const [editingItemId, setEditingItemId] = useState<string | null>(null);
-  const [countValue, setCountValue] = useState<string>('');
+  const [countValues, setCountValues] = useState<Record<string, string>>({});
+  const [itemNotes, setItemNotes] = useState<Record<string, string>>({});
+  const [expandedNoteId, setExpandedNoteId] = useState<string | null>(null);
 
   const cycleCount = useMemo(() => getCycleCountById(cycleCountId), [cycleCountId, refreshKey]);
 
-  const filteredItems = useMemo(() => {
-    if (!cycleCount) return [];
-
-    let items = cycleCount.lineItems;
-
-    if (statusFilter !== 'all') {
-      items = items.filter(item => item.status === statusFilter);
-    }
-
-    if (showOnlyVariance) {
-      items = items.filter(item => item.variance && item.variance !== 0);
-    }
-
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      items = items.filter(item =>
-        item.productName.toLowerCase().includes(query) ||
-        item.partNumber.toLowerCase().includes(query) ||
-        item.binLocation.toLowerCase().includes(query)
-      );
-    }
-
-    return items;
-  }, [cycleCount, statusFilter, showOnlyVariance, searchQuery]);
-
-  const handleCountItem = useCallback((lineItemId: string, quantity: number) => {
+  const handleCountItem = useCallback((lineItemId: string, quantity: number, note?: string) => {
     updateCycleCountLineItem(cycleCountId, lineItemId, {
       countedQuantity: quantity,
       status: 'counted',
       countedBy: 'current-user',
       countedByName: 'Current User',
       countedAt: new Date().toISOString(),
+      notes: note,
     });
     setRefreshKey(prev => prev + 1);
-    setEditingItemId(null);
-    setCountValue('');
+    setExpandedNoteId(null);
+    setCountValues(prev => ({ ...prev, [lineItemId]: '' }));
+    setItemNotes(prev => ({ ...prev, [lineItemId]: '' }));
   }, [cycleCountId]);
+
+  const handleCountSameAsSystem = useCallback((lineItemId: string, systemQty: number) => {
+    handleCountItem(lineItemId, systemQty);
+  }, [handleCountItem]);
 
   const handleVerifyItem = useCallback((lineItemId: string) => {
     updateCycleCountLineItem(cycleCountId, lineItemId, {
@@ -129,419 +109,426 @@ export default function CycleCountDetailContent({ cycleCountId }: CycleCountDeta
   const isEditable = cycleCount.status === 'IN_PROGRESS';
   const canSubmitForReview = isEditable && cycleCount.countedItems > 0;
   const canComplete = cycleCount.status === 'PENDING_REVIEW';
+  const currentStepIndex = statusSteps.indexOf(cycleCount.status as typeof statusSteps[number]);
+
+  const pendingItems = cycleCount.lineItems.filter(item => item.status === 'pending');
+  const countedItems = cycleCount.lineItems.filter(item => item.status === 'counted' || item.status === 'verified');
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
+
+  const formatDateTime = (dateStr: string) => {
+    return new Date(dateStr).toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  };
 
   return (
-    <main className="flex-1 overflow-hidden bg-[var(--background)] flex flex-col">
+    <main className="flex-1 overflow-auto bg-[var(--background)]">
       {/* Header */}
-      <div className="p-6 pb-0 border-b border-[var(--border)]">
-        <div className="flex items-center gap-2 text-sm text-[var(--muted-foreground)] mb-2">
-          <Link href="/warehouse" className="hover:text-[var(--foreground)] transition-colors">
-            Warehouse
-          </Link>
-          <span>/</span>
-          <Link href="/warehouse/cycle-counts" className="hover:text-[var(--foreground)] transition-colors">
-            Cycle Counts
-          </Link>
-          <span>/</span>
-          <span className="text-[var(--foreground)]">{cycleCount.cycleCountNumber}</span>
-        </div>
-
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-semibold text-[var(--foreground)]">{cycleCount.name}</h1>
-              <span className={`px-2 py-1 rounded text-xs font-medium ${cycleCountStatusColors[cycleCount.status]}`}>
-                {cycleCountStatusLabels[cycleCount.status]}
-              </span>
-              <span className={`px-2 py-1 rounded text-xs font-medium ${cycleCountPriorityColors[cycleCount.priority]}`}>
-                {cycleCountPriorityLabels[cycleCount.priority]}
-              </span>
+      <div className="px-6 py-4 border-b border-[var(--border)] bg-[var(--card)]">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link
+              href="/warehouse/cycle-counts"
+              className="p-2 -ml-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M19 12H5M12 19l-7-7 7-7"/>
+              </svg>
+            </Link>
+            <div>
+              <div className="flex items-center gap-3">
+                <h1 className="text-lg font-semibold text-[var(--foreground)]">{cycleCount.cycleCountNumber}</h1>
+                <span className={`px-2 py-0.5 rounded text-xs font-medium ${cycleCountStatusColors[cycleCount.status]}`}>
+                  {cycleCountStatusLabels[cycleCount.status]}
+                </span>
+              </div>
+              <p className="text-sm text-[var(--muted-foreground)]">
+                {cycleCount.warehouseName} | Scheduled: {formatDate(cycleCount.scheduledDate)}
+              </p>
             </div>
-            {cycleCount.description && (
-              <p className="text-sm text-[var(--muted-foreground)] mt-1">{cycleCount.description}</p>
-            )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {isEditable && (
-              <>
-                <button
-                  onClick={handleCancel}
-                  className="px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                >
-                  Cancel Count
-                </button>
-                <button
-                  onClick={handleSubmitForReview}
-                  disabled={!canSubmitForReview}
-                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                    canSubmitForReview
-                      ? 'bg-orange-600 text-white hover:bg-orange-700'
-                      : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                  }`}
-                >
-                  Submit for Review
-                </button>
-              </>
+              <button
+                onClick={handleCancel}
+                className="px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium"
+              >
+                Cancel Count
+              </button>
+            )}
+            {canSubmitForReview && (
+              <button
+                onClick={handleSubmitForReview}
+                className="px-4 py-2 text-sm bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 transition-colors"
+              >
+                Submit for Review
+              </button>
             )}
             {canComplete && (
               <button
                 onClick={handleComplete}
-                className="px-4 py-2 text-sm font-medium bg-green-600 text-white hover:bg-green-700 rounded-lg transition-colors"
+                className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
               >
                 Complete Count
               </button>
             )}
           </div>
         </div>
-
-        {/* Stats Bar */}
-        <div className="grid grid-cols-5 gap-4 mt-6">
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-3">
-            <div className="text-xs text-[var(--muted-foreground)]">Type</div>
-            <div className="text-sm font-medium text-[var(--foreground)] mt-1">{cycleCountTypeLabels[cycleCount.type]}</div>
-          </div>
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-3">
-            <div className="text-xs text-[var(--muted-foreground)]">Warehouse</div>
-            <div className="text-sm font-medium text-[var(--foreground)] mt-1">{cycleCount.warehouseName}</div>
-          </div>
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-3">
-            <div className="text-xs text-[var(--muted-foreground)]">Assigned To</div>
-            <div className="text-sm font-medium text-[var(--foreground)] mt-1">
-              {cycleCount.assignedToName || 'Unassigned'}
-            </div>
-          </div>
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-3">
-            <div className="text-xs text-[var(--muted-foreground)]">Progress</div>
-            <div className="flex items-center gap-2 mt-1">
-              <div className="flex-1 bg-[var(--muted)] rounded-full h-2">
-                <div
-                  className={`h-2 rounded-full ${progress === 100 ? 'bg-green-500' : 'bg-blue-500'}`}
-                  style={{ width: `${progress}%` }}
-                ></div>
-              </div>
-              <span className="text-sm font-medium text-[var(--foreground)]">{progress}%</span>
-            </div>
-          </div>
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-3">
-            <div className="text-xs text-[var(--muted-foreground)]">Variances</div>
-            <div className={`text-sm font-medium mt-1 ${cycleCount.itemsWithVariance > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-              {cycleCount.itemsWithVariance} item{cycleCount.itemsWithVariance !== 1 ? 's' : ''}
-            </div>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-0 mt-6">
-          <button
-            onClick={() => setActiveTab('items')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'items'
-                ? 'border-[var(--primary)] text-[var(--primary)]'
-                : 'border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
-            }`}
-          >
-            Items ({cycleCount.lineItems.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('summary')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'summary'
-                ? 'border-[var(--primary)] text-[var(--primary)]'
-                : 'border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
-            }`}
-          >
-            Summary
-          </button>
-        </div>
       </div>
 
-      {/* Items Tab */}
-      {activeTab === 'items' && (
-        <div className="flex-1 overflow-hidden flex flex-col p-6">
-          {/* Search and Filters */}
-          <div className="flex items-center gap-4 mb-4">
-            <div className="relative flex-1 max-w-md">
-              <svg
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <circle cx="11" cy="11" r="8"/>
-                <path d="M21 21l-4.35-4.35"/>
-              </svg>
-              <input
-                type="text"
-                placeholder="Search by product, part number, or location..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-              />
-            </div>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-              className="px-4 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-            >
-              <option value="all">All Items</option>
-              <option value="pending">Pending</option>
-              <option value="counted">Counted</option>
-              <option value="verified">Verified</option>
-              <option value="adjusted">Adjusted</option>
-              <option value="skipped">Skipped</option>
-            </select>
-            <label className="flex items-center gap-2 text-sm text-[var(--foreground)]">
-              <input
-                type="checkbox"
-                checked={showOnlyVariance}
-                onChange={(e) => setShowOnlyVariance(e.target.checked)}
-                className="rounded border-[var(--border)]"
-              />
-              Show only variances
-            </label>
+      <div className="max-w-7xl mx-auto px-6 py-6">
+        {/* Status Steps */}
+        <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4 mb-6">
+          <div className="flex items-center justify-between">
+            {statusSteps.map((step, index) => {
+              const isCompleted = index < currentStepIndex;
+              const isCurrent = index === currentStepIndex;
+              const stepLabels: Record<string, string> = {
+                'DRAFT': 'Draft',
+                'SCHEDULED': 'Scheduled',
+                'IN_PROGRESS': 'In Progress',
+                'PENDING_REVIEW': 'Review',
+                'COMPLETED': 'Completed',
+              };
+              return (
+                <React.Fragment key={step}>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium ${
+                      isCompleted ? 'bg-green-500 text-white' :
+                      isCurrent ? 'bg-blue-500 text-white' :
+                      'bg-[var(--muted)] text-[var(--muted-foreground)]'
+                    }`}>
+                      {isCompleted ? (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                          <path d="M20 6L9 17l-5-5"/>
+                        </svg>
+                      ) : (
+                        index + 1
+                      )}
+                    </div>
+                    <span className={`text-sm ${isCurrent ? 'font-medium text-[var(--foreground)]' : 'text-[var(--muted-foreground)]'}`}>
+                      {stepLabels[step]}
+                    </span>
+                  </div>
+                  {index < statusSteps.length - 1 && (
+                    <div className={`flex-1 h-0.5 mx-3 ${isCompleted ? 'bg-green-500' : 'bg-[var(--border)]'}`} />
+                  )}
+                </React.Fragment>
+              );
+            })}
           </div>
+        </div>
 
-          {/* Items Table */}
-          <div className="flex-1 overflow-auto">
-            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-[var(--border)] bg-[var(--muted)]/30">
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Product</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Location</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">System Qty</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Counted Qty</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Variance</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Status</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--border)]">
-                  {filteredItems.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="px-4 py-12 text-center text-[var(--muted-foreground)]">
-                        No items found matching your filters.
-                      </td>
+        {/* Counting Mode Card */}
+        {isEditable && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-yellow-400 flex items-center justify-center">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                  <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+                  <rect x="9" y="3" width="6" height="4" rx="1"/>
+                  <path d="M9 14l2 2 4-4"/>
+                </svg>
+              </div>
+              <div>
+                <h3 className="font-semibold text-yellow-900">Counting Mode</h3>
+                <p className="text-sm text-yellow-700">
+                  {cycleCount.countedItems} of {cycleCount.totalItems} items counted • {cycleCount.itemsWithVariance > 0 ? `${cycleCount.itemsWithVariance} variances found` : 'No variances'}
+                </p>
+              </div>
+            </div>
+            {/* Progress bar */}
+            <div className="mt-3 flex items-center gap-3">
+              <div className="flex-1 bg-yellow-200 rounded-full h-2">
+                <div
+                  className="h-2 rounded-full bg-yellow-500 transition-all"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <span className="text-sm font-medium text-yellow-900">{progress}%</span>
+            </div>
+          </div>
+        )}
+
+        {/* Items to Count */}
+        {pendingItems.length > 0 && (
+          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] mb-6">
+            {pendingItems.map((item) => {
+              const countValue = countValues[item.id] || '';
+              const noteValue = itemNotes[item.id] || '';
+              const showNote = expandedNoteId === item.id;
+              return (
+                <div key={item.id} className="border-b border-[var(--border)] last:border-b-0">
+                  {/* Single Row Layout */}
+                  <div className="p-4 flex items-center gap-4">
+                    {/* Product Info */}
+                    <div className="min-w-0 w-48">
+                      <p className="font-medium text-[var(--foreground)]">{item.partNumber}</p>
+                      <p className="text-sm text-[var(--muted-foreground)] truncate">{item.productName}</p>
+                    </div>
+
+                    {/* Location */}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-[var(--foreground)]">{item.binLocation}</p>
+                      <p className="text-xs text-[var(--muted-foreground)] truncate">{item.fullLocationPath}</p>
+                    </div>
+
+                    {/* System Qty */}
+                    <div className="text-center w-20">
+                      <p className="text-xs text-[var(--muted-foreground)] uppercase">System</p>
+                      <p className="text-xl font-bold">{item.systemQuantity}</p>
+                    </div>
+
+                    {/* Count Input */}
+                    <input
+                      type="number"
+                      value={countValue}
+                      onChange={(e) => setCountValues(prev => ({ ...prev, [item.id]: e.target.value }))}
+                      placeholder="Qty"
+                      className="w-20 px-3 py-2 text-lg font-semibold text-center border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+
+                    {/* Actions */}
+                    <button
+                      onClick={() => {
+                        if (countValue !== '') {
+                          handleCountItem(item.id, parseInt(countValue, 10), noteValue || undefined);
+                        }
+                      }}
+                      disabled={countValue === ''}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        countValue !== ''
+                          ? 'bg-blue-500 text-white hover:bg-blue-600'
+                          : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      }`}
+                    >
+                      Submit
+                    </button>
+
+                    <button
+                      onClick={() => handleCountSameAsSystem(item.id, item.systemQuantity)}
+                      className="px-4 py-2 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600 transition-colors flex items-center gap-2"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                        <path d="M20 6L9 17l-5-5"/>
+                      </svg>
+                      Match
+                    </button>
+
+                    <button
+                      onClick={() => handleSkipItem(item.id)}
+                      className="px-3 py-2 text-sm text-[var(--muted-foreground)] hover:bg-[var(--muted)] rounded-lg transition-colors"
+                    >
+                      Skip
+                    </button>
+
+                    <button
+                      onClick={() => setExpandedNoteId(showNote ? null : item.id)}
+                      className={`p-2 rounded-lg transition-colors ${showNote ? 'bg-blue-100 text-blue-600' : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)]'}`}
+                      title="Add note"
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                        <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Note Input (expandable) */}
+                  {showNote && (
+                    <div className="px-4 pb-4">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={noteValue}
+                          onChange={(e) => setItemNotes(prev => ({ ...prev, [item.id]: e.target.value }))}
+                          placeholder="Add a note about this count..."
+                          className="flex-1 px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => setExpandedNoteId(null)}
+                          className="px-3 py-2 text-sm text-[var(--muted-foreground)] hover:bg-[var(--muted)] rounded-lg transition-colors"
+                        >
+                          Done
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-3 gap-6">
+          {/* Left Column - 2/3 width */}
+          <div className="col-span-2 space-y-6">
+            {/* Count Details Card */}
+            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
+              <div className="grid grid-cols-4 gap-4">
+                <div>
+                  <p className="text-xs text-[var(--muted-foreground)] uppercase">Type</p>
+                  <p className="font-medium text-[var(--foreground)]">{cycleCountTypeLabels[cycleCount.type]}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-[var(--muted-foreground)] uppercase">Priority</p>
+                  <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${cycleCountPriorityColors[cycleCount.priority]}`}>
+                    {cycleCountPriorityLabels[cycleCount.priority]}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-xs text-[var(--muted-foreground)] uppercase">Assigned To</p>
+                  <p className="font-medium text-[var(--foreground)]">{cycleCount.assignedToName || 'Unassigned'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-[var(--muted-foreground)] uppercase">Due Date</p>
+                  <p className="font-medium text-[var(--foreground)]">{cycleCount.dueDate ? formatDate(cycleCount.dueDate) : '—'}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Counted Items Table */}
+            {countedItems.length > 0 && (
+              <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+                <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-medium text-[var(--foreground)]">Counted Items</h3>
+                    <span className="text-xs text-[var(--muted-foreground)]">{countedItems.length} items</span>
+                  </div>
+                </div>
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-[var(--border)] bg-[var(--muted)]/30">
+                      <th className="px-4 py-2 text-left text-xs font-medium text-[var(--muted-foreground)] uppercase">Part #</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-[var(--muted-foreground)] uppercase">Product</th>
+                      <th className="px-4 py-2 text-center text-xs font-medium text-[var(--muted-foreground)] uppercase">System</th>
+                      <th className="px-4 py-2 text-center text-xs font-medium text-[var(--muted-foreground)] uppercase">Counted</th>
+                      <th className="px-4 py-2 text-center text-xs font-medium text-[var(--muted-foreground)] uppercase">Variance</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-[var(--muted-foreground)] uppercase">Status</th>
                     </tr>
-                  ) : (
-                    filteredItems.map((item) => (
-                      <tr key={item.id} className="hover:bg-[var(--muted)]/20">
-                        <td className="px-4 py-3">
-                          <div className="font-medium text-[var(--foreground)]">{item.productName}</div>
-                          <div className="text-xs text-[var(--muted-foreground)]">{item.partNumber}</div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="text-sm text-[var(--foreground)]">{item.binLocation}</div>
-                          <div className="text-xs text-[var(--muted-foreground)]">{item.fullLocationPath}</div>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <span className="text-sm font-medium text-[var(--foreground)]">{item.systemQuantity}</span>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          {editingItemId === item.id ? (
-                            <input
-                              type="number"
-                              value={countValue}
-                              onChange={(e) => setCountValue(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' && countValue !== '') {
-                                  handleCountItem(item.id, parseInt(countValue, 10));
-                                } else if (e.key === 'Escape') {
-                                  setEditingItemId(null);
-                                  setCountValue('');
-                                }
-                              }}
-                              className="w-20 px-2 py-1 text-center border border-[var(--primary)] rounded bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-                              autoFocus
-                            />
-                          ) : (
-                            <span className={`text-sm font-medium ${item.countedQuantity !== undefined ? 'text-[var(--foreground)]' : 'text-[var(--muted-foreground)]'}`}>
-                              {item.countedQuantity !== undefined ? item.countedQuantity : ''}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-center">
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border)]">
+                    {countedItems.map((item) => (
+                      <tr key={item.id}>
+                        <td className="px-4 py-3 text-sm font-medium text-[var(--foreground)]">{item.partNumber}</td>
+                        <td className="px-4 py-3 text-sm text-[var(--muted-foreground)] truncate max-w-[200px]">{item.productName}</td>
+                        <td className="px-4 py-3 text-sm text-center">{item.systemQuantity}</td>
+                        <td className="px-4 py-3 text-sm text-center font-medium">{item.countedQuantity}</td>
+                        <td className="px-4 py-3 text-sm text-center">
                           {item.variance !== undefined && item.variance !== 0 ? (
-                            <span className={`text-sm font-medium ${item.variance > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            <span className={`font-medium ${item.variance > 0 ? 'text-green-600' : 'text-red-600'}`}>
                               {item.variance > 0 ? '+' : ''}{item.variance}
                             </span>
                           ) : (
-                            <span className="text-sm text-[var(--muted-foreground)]"></span>
+                            <span className="text-[var(--muted-foreground)]">0</span>
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          <ItemStatusBadge status={item.status} />
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          {isEditable && (
-                            <div className="flex items-center justify-end gap-2">
-                              {item.status === 'pending' && (
-                                <>
-                                  <button
-                                    onClick={() => {
-                                      setEditingItemId(item.id);
-                                      setCountValue('');
-                                    }}
-                                    className="px-2 py-1 text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 rounded transition-colors"
-                                  >
-                                    Count
-                                  </button>
-                                  <button
-                                    onClick={() => handleSkipItem(item.id)}
-                                    className="px-2 py-1 text-xs font-medium text-[var(--muted-foreground)] hover:bg-[var(--muted)] rounded transition-colors"
-                                  >
-                                    Skip
-                                  </button>
-                                </>
-                              )}
-                              {item.status === 'counted' && (
-                                <>
-                                  <button
-                                    onClick={() => handleVerifyItem(item.id)}
-                                    className="px-2 py-1 text-xs font-medium bg-green-600 text-white hover:bg-green-700 rounded transition-colors"
-                                  >
-                                    Verify
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      setEditingItemId(item.id);
-                                      setCountValue(item.countedQuantity?.toString() || '');
-                                    }}
-                                    className="px-2 py-1 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--muted)] rounded transition-colors"
-                                  >
-                                    Recount
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          )}
+                          <div className="flex items-center gap-2">
+                            <ItemStatusBadge status={item.status} />
+                            {isEditable && item.status === 'counted' && (
+                              <button
+                                onClick={() => handleVerifyItem(item.id)}
+                                className="px-2 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
+                              >
+                                Verify
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        </div>
-      )}
 
-      {/* Summary Tab */}
-      {activeTab === 'summary' && (
-        <div className="flex-1 overflow-auto p-6">
-          <div className="grid grid-cols-2 gap-6">
+          {/* Right Column - 1/3 width */}
+          <div className="space-y-6">
             {/* Count Summary */}
-            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6">
-              <h3 className="text-lg font-semibold text-[var(--foreground)] mb-4">Count Summary</h3>
+            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted-foreground)]">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M12 6v6l4 2"/>
+                </svg>
+                <h3 className="font-medium text-[var(--foreground)]">Count Summary</h3>
+              </div>
               <div className="space-y-3">
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between">
                   <span className="text-sm text-[var(--muted-foreground)]">Total Items</span>
-                  <span className="text-sm font-medium text-[var(--foreground)]">{cycleCount.totalItems}</span>
+                  <span className="text-sm font-medium">{cycleCount.totalItems} items</span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-[var(--muted-foreground)]">Items Counted</span>
-                  <span className="text-sm font-medium text-[var(--foreground)]">{cycleCount.countedItems}</span>
+                <div className="flex justify-between">
+                  <span className="text-sm text-[var(--muted-foreground)]">Counted</span>
+                  <span className="text-sm font-medium text-green-600">{cycleCount.countedItems} items</span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-[var(--muted-foreground)]">Items with Variance</span>
-                  <span className={`text-sm font-medium ${cycleCount.itemsWithVariance > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                    {cycleCount.itemsWithVariance}
+                <div className="flex justify-between">
+                  <span className="text-sm text-[var(--muted-foreground)]">Remaining</span>
+                  <span className="text-sm font-medium">{pendingItems.length} items</span>
+                </div>
+                <div className="flex justify-between pt-3 border-t border-[var(--border)]">
+                  <span className="text-sm text-[var(--muted-foreground)]">Variances</span>
+                  <span className={`text-sm font-medium ${cycleCount.itemsWithVariance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {cycleCount.itemsWithVariance} items
                   </span>
                 </div>
-                {cycleCount.accuracyPercentage !== undefined && (
-                  <div className="flex justify-between items-center pt-3 border-t border-[var(--border)]">
-                    <span className="text-sm text-[var(--muted-foreground)]">Accuracy</span>
-                    <span className={`text-lg font-semibold ${
-                      cycleCount.accuracyPercentage >= 99 ? 'text-green-600' :
-                      cycleCount.accuracyPercentage >= 95 ? 'text-yellow-600' :
-                      'text-red-600'
-                    }`}>
-                      {cycleCount.accuracyPercentage}%
-                    </span>
+              </div>
+            </div>
+
+            {/* Timestamps */}
+            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted-foreground)]">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M12 6v6l4 2"/>
+                </svg>
+                <h3 className="font-medium text-[var(--foreground)]">Timestamps</h3>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs text-[var(--muted-foreground)]">Created</p>
+                  <p className="text-sm font-medium">{formatDateTime(cycleCount.createdAt)}</p>
+                </div>
+                {cycleCount.startedAt && (
+                  <div>
+                    <p className="text-xs text-[var(--muted-foreground)]">Started</p>
+                    <p className="text-sm font-medium">{formatDateTime(cycleCount.startedAt)}</p>
                   </div>
                 )}
-              </div>
-            </div>
-
-            {/* Quantity Summary */}
-            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6">
-              <h3 className="text-lg font-semibold text-[var(--foreground)] mb-4">Quantity Summary</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-[var(--muted-foreground)]">System Quantity</span>
-                  <span className="text-sm font-medium text-[var(--foreground)]">
-                    {cycleCount.totalSystemQuantity ?? cycleCount.lineItems.reduce((sum, item) => sum + item.systemQuantity, 0)}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-[var(--muted-foreground)]">Counted Quantity</span>
-                  <span className="text-sm font-medium text-[var(--foreground)]">
-                    {cycleCount.totalCountedQuantity ?? cycleCount.lineItems.reduce((sum, item) => sum + (item.countedQuantity || 0), 0)}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center pt-3 border-t border-[var(--border)]">
-                  <span className="text-sm text-[var(--muted-foreground)]">Total Variance</span>
-                  <span className={`text-sm font-medium ${
-                    (cycleCount.totalVariance ?? 0) === 0 ? 'text-green-600' :
-                    (cycleCount.totalVariance ?? 0) > 0 ? 'text-blue-600' :
-                    'text-red-600'
-                  }`}>
-                    {(cycleCount.totalVariance ?? 0) > 0 ? '+' : ''}{cycleCount.totalVariance ?? 0}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Timeline */}
-            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6 col-span-2">
-              <h3 className="text-lg font-semibold text-[var(--foreground)] mb-4">Timeline</h3>
-              <div className="space-y-4">
-                <TimelineItem
-                  label="Created"
-                  date={cycleCount.createdAt}
-                  user={cycleCount.createdBy}
-                />
-                <TimelineItem
-                  label="Scheduled"
-                  date={cycleCount.scheduledDate}
-                />
-                {cycleCount.startedAt && (
-                  <TimelineItem
-                    label="Started"
-                    date={cycleCount.startedAt}
-                    user={cycleCount.startedBy}
-                  />
-                )}
                 {cycleCount.completedAt && (
-                  <TimelineItem
-                    label="Completed"
-                    date={cycleCount.completedAt}
-                    user={cycleCount.completedBy}
-                  />
-                )}
-                {cycleCount.reviewedAt && (
-                  <TimelineItem
-                    label="Reviewed"
-                    date={cycleCount.reviewedAt}
-                    user={cycleCount.reviewedByName}
-                  />
+                  <div>
+                    <p className="text-xs text-[var(--muted-foreground)]">Completed</p>
+                    <p className="text-sm font-medium">{formatDateTime(cycleCount.completedAt)}</p>
+                  </div>
                 )}
               </div>
             </div>
 
             {/* Notes */}
             {cycleCount.notes && (
-              <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6 col-span-2">
-                <h3 className="text-lg font-semibold text-[var(--foreground)] mb-4">Notes</h3>
-                <p className="text-sm text-[var(--muted-foreground)] whitespace-pre-wrap">{cycleCount.notes}</p>
+              <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
+                <h3 className="font-medium text-[var(--foreground)] mb-2">Notes</h3>
+                <p className="text-sm text-[var(--muted-foreground)]">{cycleCount.notes}</p>
               </div>
             )}
           </div>
         </div>
-      )}
+      </div>
     </main>
   );
 }
@@ -564,33 +551,8 @@ function ItemStatusBadge({ status }: { status: CycleCountLineItem['status'] }) {
   };
 
   return (
-    <span className={`px-2 py-1 rounded text-xs font-medium ${styles[status]}`}>
+    <span className={`px-2 py-0.5 rounded text-xs font-medium ${styles[status]}`}>
       {labels[status]}
     </span>
-  );
-}
-
-function TimelineItem({ label, date, user }: { label: string; date: string; user?: string }) {
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  return (
-    <div className="flex items-start gap-3">
-      <div className="w-2 h-2 rounded-full bg-[var(--primary)] mt-2"></div>
-      <div>
-        <div className="text-sm font-medium text-[var(--foreground)]">{label}</div>
-        <div className="text-xs text-[var(--muted-foreground)]">
-          {formatDate(date)}
-          {user && ` by ${user}`}
-        </div>
-      </div>
-    </div>
   );
 }

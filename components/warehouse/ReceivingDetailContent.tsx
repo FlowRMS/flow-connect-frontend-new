@@ -69,6 +69,73 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
   const [bolNumber, setBolNumber] = useState('');
   const [bolCaptured, setBolCaptured] = useState(false);
   const [bolNotes, setBolNotes] = useState('');
+  const [bolImage, setBolImage] = useState<string | null>(null);
+  const [bolInputMode, setBolInputMode] = useState<'scan' | 'manual' | null>(null);
+  const [bolDiscrepancies, setBolDiscrepancies] = useState<Array<{
+    field: string;
+    expected: string;
+    actual: string;
+    resolved: boolean;
+  }>>([]);
+  const [isProcessingBol, setIsProcessingBol] = useState(false);
+
+  // BOL Manual Entry Data
+  const [bolManualData, setBolManualData] = useState<{
+    proNumber: string;
+    poNumber: string;
+    shipDate: string;
+    deliveryDate: string;
+    carrier: string;
+    shipperName: string;
+    shipperAddress: string;
+    shipperCity: string;
+    shipperState: string;
+    shipperZip: string;
+    consigneeName: string;
+    consigneeAddress: string;
+    consigneeCity: string;
+    consigneeState: string;
+    consigneeZip: string;
+    lineItems: Array<{
+      quantity: number;
+      units: string;
+      description: string;
+      weight: number;
+      class: string;
+      nmfc: string;
+    }>;
+    totalPieces: number;
+    totalWeight: number;
+    totalPallets: number;
+    freightTerms: string;
+    sealNumber: string;
+    trailerNumber: string;
+    specialInstructions: string;
+  }>({
+    proNumber: '',
+    poNumber: '',
+    shipDate: '',
+    deliveryDate: '',
+    carrier: '',
+    shipperName: '',
+    shipperAddress: '',
+    shipperCity: '',
+    shipperState: '',
+    shipperZip: '',
+    consigneeName: '',
+    consigneeAddress: '',
+    consigneeCity: '',
+    consigneeState: '',
+    consigneeZip: '',
+    lineItems: [{ quantity: 0, units: 'pieces', description: '', weight: 0, class: '', nmfc: '' }],
+    totalPieces: 0,
+    totalWeight: 0,
+    totalPallets: 0,
+    freightTerms: '',
+    sealNumber: '',
+    trailerNumber: '',
+    specialInstructions: '',
+  });
 
   // Receiving state - track quantities per line item
   const [lineItems, setLineItems] = useState<LineItemReceive[]>(() => {
@@ -233,8 +300,136 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
   };
 
   const handleCaptureBOL = () => {
-    if (!bolNumber.trim()) return;
+    if (!bolNumber.trim() && !bolImage) return;
+
+    // Simulate processing and discrepancy detection
+    setIsProcessingBol(true);
+
+    // Mock: Simulate OCR processing delay
+    setTimeout(() => {
+      // Mock discrepancy detection - compare BOL data with expected shipment
+      const mockDiscrepancies: Array<{ field: string; expected: string; actual: string; resolved: boolean }> = [];
+
+      // Compare PO number from BOL manual data with shipment
+      if (bolManualData.poNumber && bolManualData.poNumber.toUpperCase() !== shipment.poNumber.toUpperCase()) {
+        mockDiscrepancies.push({
+          field: 'PO Number',
+          expected: shipment.poNumber,
+          actual: bolManualData.poNumber,
+          resolved: false,
+        });
+      }
+
+      // Compare shipper name with vendor name
+      if (bolManualData.shipperName && !bolManualData.shipperName.toLowerCase().includes(shipment.vendorName.toLowerCase().split(' ')[0])) {
+        mockDiscrepancies.push({
+          field: 'Shipper/Vendor',
+          expected: shipment.vendorName,
+          actual: bolManualData.shipperName,
+          resolved: false,
+        });
+      }
+
+      // Compare total pieces with expected quantity
+      const expectedTotal = shipment.items.reduce((sum, item) => sum + item.expectedQuantity, 0);
+      if (bolManualData.totalPieces > 0 && bolManualData.totalPieces !== expectedTotal) {
+        mockDiscrepancies.push({
+          field: 'Total Quantity',
+          expected: `${expectedTotal} units`,
+          actual: `${bolManualData.totalPieces} units`,
+          resolved: false,
+        });
+      }
+
+      // Compare carrier if specified
+      if (bolManualData.carrier && shipment.carrier && !bolManualData.carrier.toLowerCase().includes(shipment.carrier.toLowerCase())) {
+        mockDiscrepancies.push({
+          field: 'Carrier',
+          expected: shipment.carrier,
+          actual: bolManualData.carrier,
+          resolved: false,
+        });
+      }
+
+      // Compare line item quantities
+      bolManualData.lineItems.forEach((bolItem, index) => {
+        if (bolItem.description && bolItem.quantity > 0) {
+          // Try to match by description to shipment items
+          const matchedShipmentItem = shipment.items.find(si =>
+            si.productName.toLowerCase().includes(bolItem.description.toLowerCase()) ||
+            bolItem.description.toLowerCase().includes(si.productName.toLowerCase()) ||
+            bolItem.description.toLowerCase().includes(si.partNumber.toLowerCase())
+          );
+
+          if (matchedShipmentItem && bolItem.quantity !== matchedShipmentItem.expectedQuantity) {
+            mockDiscrepancies.push({
+              field: `Line Item ${index + 1} Qty (${bolItem.description.substring(0, 20)}...)`,
+              expected: `${matchedShipmentItem.expectedQuantity} units`,
+              actual: `${bolItem.quantity} units`,
+              resolved: false,
+            });
+          }
+        }
+      });
+
+      setBolDiscrepancies(mockDiscrepancies);
+      setIsProcessingBol(false);
+
+      // Only mark as captured if no discrepancies
+      if (mockDiscrepancies.length === 0) {
+        setBolCaptured(true);
+      }
+    }, 1500);
+  };
+
+  const handleBolImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setBolImage(reader.result as string);
+        setBolInputMode('scan');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleCameraCapture = () => {
+    // In a real app, this would open the device camera
+    // For now, we'll trigger the file input with camera capture
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.capture = 'environment';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setBolImage(reader.result as string);
+          setBolInputMode('scan');
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+    input.click();
+  };
+
+  const handleResolveDiscrepancy = (index: number) => {
+    setBolDiscrepancies(prev => prev.map((d, i) =>
+      i === index ? { ...d, resolved: true } : d
+    ));
+  };
+
+  const handleConfirmBolWithDiscrepancies = () => {
+    // Proceed despite discrepancies (user acknowledged them)
     setBolCaptured(true);
+  };
+
+  const handleClearBolImage = () => {
+    setBolImage(null);
+    setBolInputMode(null);
+    setBolDiscrepancies([]);
   };
 
   // Receiving Interface Component
@@ -917,43 +1112,591 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
         {/* BOL Capture Section - Show when status is ARRIVED */}
         {displayStatus === 'ARRIVED' && !bolCaptured && (
           <div className="bg-[var(--card)] rounded-lg border-2 border-purple-400 p-4 mb-4">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-purple-400 flex items-center justify-center">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                  <polyline points="14 2 14 8 20 8"/>
-                  <line x1="16" y1="13" x2="8" y2="13"/>
-                  <line x1="16" y1="17" x2="8" y2="17"/>
-                  <polyline points="10 9 9 9 8 9"/>
-                </svg>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-purple-400 flex items-center justify-center">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10 9 9 9 8 9"/>
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-[var(--foreground)]">Bill of Lading Capture</h3>
+                  <p className="text-sm text-[var(--muted-foreground)]">Scan, upload, or manually enter the BOL</p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-lg font-semibold text-[var(--foreground)]">Bill of Lading Capture</h3>
-                <p className="text-sm text-[var(--muted-foreground)]">Enter or scan the BOL number from the shipment</p>
-              </div>
+              {isProcessingBol && (
+                <div className="flex items-center gap-2 text-purple-600">
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                  </svg>
+                  <span className="text-sm font-medium">Processing...</span>
+                </div>
+              )}
             </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="col-span-2">
-                <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">BOL Number</label>
-                <input
-                  type="text"
-                  value={bolNumber}
-                  onChange={(e) => setBolNumber(e.target.value)}
-                  placeholder="Enter or scan BOL number..."
-                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-                />
-              </div>
-              <div className="flex items-end">
+
+            {/* Capture Method Selection */}
+            {!bolInputMode && !bolImage && (
+              <div className="grid grid-cols-3 gap-4 mb-4">
                 <button
-                  onClick={handleCaptureBOL}
-                  disabled={!bolNumber.trim()}
-                  className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  onClick={handleCameraCapture}
+                  className="flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed border-purple-300 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-colors"
                 >
-                  Capture BOL
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-500">
+                    <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                  </svg>
+                  <span className="text-sm font-medium text-purple-700">Take Photo</span>
+                  <span className="text-xs text-[var(--muted-foreground)]">Use camera</span>
+                </button>
+
+                <label className="flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed border-purple-300 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-colors cursor-pointer">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-500">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                  </svg>
+                  <span className="text-sm font-medium text-purple-700">Upload Image</span>
+                  <span className="text-xs text-[var(--muted-foreground)]">From device</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleBolImageUpload}
+                    className="hidden"
+                  />
+                </label>
+
+                <button
+                  onClick={() => setBolInputMode('manual')}
+                  className="flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed border-purple-300 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-colors"
+                >
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-500">
+                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                  <span className="text-sm font-medium text-purple-700">Enter Manually</span>
+                  <span className="text-xs text-[var(--muted-foreground)]">Type BOL #</span>
                 </button>
               </div>
-            </div>
-            <div className="mt-3">
+            )}
+
+            {/* Image Preview */}
+            {bolImage && (
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-[var(--foreground)]">Uploaded BOL Image</span>
+                  <button
+                    onClick={handleClearBolImage}
+                    className="text-xs text-red-600 hover:underline"
+                  >
+                    Remove
+                  </button>
+                </div>
+                <div className="relative rounded-lg overflow-hidden border border-[var(--border)] bg-[var(--muted)]/20">
+                  <img
+                    src={bolImage}
+                    alt="Bill of Lading"
+                    className="w-full max-h-64 object-contain"
+                  />
+                </div>
+                <div className="mt-3">
+                  <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
+                    Extracted BOL Number (verify or correct)
+                  </label>
+                  <input
+                    type="text"
+                    value={bolNumber}
+                    onChange={(e) => setBolNumber(e.target.value)}
+                    placeholder="BOL number will be extracted automatically..."
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Manual Entry Mode - Full BOL Form */}
+            {bolInputMode === 'manual' && !bolImage && (
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-sm font-medium text-[var(--foreground)]">Manual Entry</span>
+                  <button
+                    onClick={() => setBolInputMode(null)}
+                    className="text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                  >
+                    Back to options
+                  </button>
+                </div>
+
+                {/* BOL Header Info */}
+                <div className="grid grid-cols-3 gap-4 mb-4">
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">BOL Number *</label>
+                    <input
+                      type="text"
+                      value={bolNumber}
+                      onChange={(e) => setBolNumber(e.target.value)}
+                      placeholder="e.g., BOL-123456"
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                      autoFocus
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">PRO Number</label>
+                    <input
+                      type="text"
+                      value={bolManualData.proNumber}
+                      onChange={(e) => setBolManualData(prev => ({ ...prev, proNumber: e.target.value }))}
+                      placeholder="Progressive/tracking #"
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">PO Number</label>
+                    <input
+                      type="text"
+                      value={bolManualData.poNumber}
+                      onChange={(e) => setBolManualData(prev => ({ ...prev, poNumber: e.target.value }))}
+                      placeholder="Purchase order #"
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4 mb-4">
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Ship Date</label>
+                    <input
+                      type="date"
+                      value={bolManualData.shipDate}
+                      onChange={(e) => setBolManualData(prev => ({ ...prev, shipDate: e.target.value }))}
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Delivery Date</label>
+                    <input
+                      type="date"
+                      value={bolManualData.deliveryDate}
+                      onChange={(e) => setBolManualData(prev => ({ ...prev, deliveryDate: e.target.value }))}
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Carrier</label>
+                    <input
+                      type="text"
+                      value={bolManualData.carrier}
+                      onChange={(e) => setBolManualData(prev => ({ ...prev, carrier: e.target.value }))}
+                      placeholder="Carrier name"
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                    />
+                  </div>
+                </div>
+
+                {/* Shipper & Consignee Info */}
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="p-3 border border-[var(--border)] rounded-lg bg-[var(--muted)]/10">
+                    <h4 className="text-xs font-semibold text-[var(--foreground)] uppercase mb-3">Shipper (From)</h4>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs text-[var(--muted-foreground)] mb-1">Company Name</label>
+                        <input
+                          type="text"
+                          value={bolManualData.shipperName}
+                          onChange={(e) => setBolManualData(prev => ({ ...prev, shipperName: e.target.value }))}
+                          placeholder="Shipper company"
+                          className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-[var(--muted-foreground)] mb-1">Address</label>
+                        <input
+                          type="text"
+                          value={bolManualData.shipperAddress}
+                          onChange={(e) => setBolManualData(prev => ({ ...prev, shipperAddress: e.target.value }))}
+                          placeholder="Street address"
+                          className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                        />
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <input
+                          type="text"
+                          value={bolManualData.shipperCity}
+                          onChange={(e) => setBolManualData(prev => ({ ...prev, shipperCity: e.target.value }))}
+                          placeholder="City"
+                          className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                        />
+                        <input
+                          type="text"
+                          value={bolManualData.shipperState}
+                          onChange={(e) => setBolManualData(prev => ({ ...prev, shipperState: e.target.value }))}
+                          placeholder="State"
+                          className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                        />
+                        <input
+                          type="text"
+                          value={bolManualData.shipperZip}
+                          onChange={(e) => setBolManualData(prev => ({ ...prev, shipperZip: e.target.value }))}
+                          placeholder="ZIP"
+                          className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-3 border border-[var(--border)] rounded-lg bg-[var(--muted)]/10">
+                    <h4 className="text-xs font-semibold text-[var(--foreground)] uppercase mb-3">Consignee (To)</h4>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs text-[var(--muted-foreground)] mb-1">Company Name</label>
+                        <input
+                          type="text"
+                          value={bolManualData.consigneeName}
+                          onChange={(e) => setBolManualData(prev => ({ ...prev, consigneeName: e.target.value }))}
+                          placeholder="Consignee company"
+                          className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-[var(--muted-foreground)] mb-1">Address</label>
+                        <input
+                          type="text"
+                          value={bolManualData.consigneeAddress}
+                          onChange={(e) => setBolManualData(prev => ({ ...prev, consigneeAddress: e.target.value }))}
+                          placeholder="Street address"
+                          className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                        />
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <input
+                          type="text"
+                          value={bolManualData.consigneeCity}
+                          onChange={(e) => setBolManualData(prev => ({ ...prev, consigneeCity: e.target.value }))}
+                          placeholder="City"
+                          className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                        />
+                        <input
+                          type="text"
+                          value={bolManualData.consigneeState}
+                          onChange={(e) => setBolManualData(prev => ({ ...prev, consigneeState: e.target.value }))}
+                          placeholder="State"
+                          className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                        />
+                        <input
+                          type="text"
+                          value={bolManualData.consigneeZip}
+                          onChange={(e) => setBolManualData(prev => ({ ...prev, consigneeZip: e.target.value }))}
+                          placeholder="ZIP"
+                          className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Freight Details */}
+                <div className="mb-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-xs font-semibold text-[var(--foreground)] uppercase">Line Items / Freight Details</h4>
+                    <button
+                      onClick={() => setBolManualData(prev => ({
+                        ...prev,
+                        lineItems: [...prev.lineItems, { quantity: 0, units: 'pieces', description: '', weight: 0, class: '', nmfc: '' }]
+                      }))}
+                      className="text-xs text-purple-600 hover:underline flex items-center gap-1"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <line x1="12" y1="5" x2="12" y2="19"/>
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                      </svg>
+                      Add Line Item
+                    </button>
+                  </div>
+                  <div className="border border-[var(--border)] rounded-lg overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-[var(--muted)]/30">
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)]">Qty</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)]">Units</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)]">Description</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)]">Weight (lbs)</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)]">Class</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)]">NMFC #</th>
+                          <th className="px-3 py-2 w-8"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[var(--border)]">
+                        {bolManualData.lineItems.map((item, index) => (
+                          <tr key={index} className="hover:bg-[var(--muted)]/10">
+                            <td className="px-2 py-1">
+                              <input
+                                type="number"
+                                min="0"
+                                value={item.quantity || ''}
+                                onChange={(e) => {
+                                  const newItems = [...bolManualData.lineItems];
+                                  newItems[index].quantity = parseInt(e.target.value) || 0;
+                                  setBolManualData(prev => ({ ...prev, lineItems: newItems }));
+                                }}
+                                className="w-16 px-2 py-1.5 border border-[var(--border)] rounded bg-[var(--background)] text-sm"
+                                placeholder="0"
+                              />
+                            </td>
+                            <td className="px-2 py-1">
+                              <select
+                                value={item.units}
+                                onChange={(e) => {
+                                  const newItems = [...bolManualData.lineItems];
+                                  newItems[index].units = e.target.value;
+                                  setBolManualData(prev => ({ ...prev, lineItems: newItems }));
+                                }}
+                                className="w-24 px-2 py-1.5 border border-[var(--border)] rounded bg-[var(--background)] text-sm"
+                              >
+                                <option value="pieces">Pieces</option>
+                                <option value="cases">Cases</option>
+                                <option value="pallets">Pallets</option>
+                                <option value="cartons">Cartons</option>
+                                <option value="boxes">Boxes</option>
+                                <option value="skids">Skids</option>
+                                <option value="drums">Drums</option>
+                                <option value="rolls">Rolls</option>
+                              </select>
+                            </td>
+                            <td className="px-2 py-1">
+                              <input
+                                type="text"
+                                value={item.description}
+                                onChange={(e) => {
+                                  const newItems = [...bolManualData.lineItems];
+                                  newItems[index].description = e.target.value;
+                                  setBolManualData(prev => ({ ...prev, lineItems: newItems }));
+                                }}
+                                className="w-full px-2 py-1.5 border border-[var(--border)] rounded bg-[var(--background)] text-sm"
+                                placeholder="Item description"
+                              />
+                            </td>
+                            <td className="px-2 py-1">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.1"
+                                value={item.weight || ''}
+                                onChange={(e) => {
+                                  const newItems = [...bolManualData.lineItems];
+                                  newItems[index].weight = parseFloat(e.target.value) || 0;
+                                  setBolManualData(prev => ({ ...prev, lineItems: newItems }));
+                                }}
+                                className="w-20 px-2 py-1.5 border border-[var(--border)] rounded bg-[var(--background)] text-sm"
+                                placeholder="0"
+                              />
+                            </td>
+                            <td className="px-2 py-1">
+                              <input
+                                type="text"
+                                value={item.class}
+                                onChange={(e) => {
+                                  const newItems = [...bolManualData.lineItems];
+                                  newItems[index].class = e.target.value;
+                                  setBolManualData(prev => ({ ...prev, lineItems: newItems }));
+                                }}
+                                className="w-16 px-2 py-1.5 border border-[var(--border)] rounded bg-[var(--background)] text-sm"
+                                placeholder="e.g. 70"
+                              />
+                            </td>
+                            <td className="px-2 py-1">
+                              <input
+                                type="text"
+                                value={item.nmfc}
+                                onChange={(e) => {
+                                  const newItems = [...bolManualData.lineItems];
+                                  newItems[index].nmfc = e.target.value;
+                                  setBolManualData(prev => ({ ...prev, lineItems: newItems }));
+                                }}
+                                className="w-24 px-2 py-1.5 border border-[var(--border)] rounded bg-[var(--background)] text-sm"
+                                placeholder="NMFC #"
+                              />
+                            </td>
+                            <td className="px-2 py-1">
+                              {bolManualData.lineItems.length > 1 && (
+                                <button
+                                  onClick={() => {
+                                    const newItems = bolManualData.lineItems.filter((_, i) => i !== index);
+                                    setBolManualData(prev => ({ ...prev, lineItems: newItems }));
+                                  }}
+                                  className="p-1 text-red-500 hover:text-red-700"
+                                >
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <line x1="18" y1="6" x2="6" y2="18"/>
+                                    <line x1="6" y1="6" x2="18" y2="18"/>
+                                  </svg>
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Totals & Additional Info */}
+                <div className="grid grid-cols-4 gap-4 mb-4">
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Total Pieces</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={bolManualData.totalPieces || ''}
+                      onChange={(e) => setBolManualData(prev => ({ ...prev, totalPieces: parseInt(e.target.value) || 0 }))}
+                      placeholder="Total qty"
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Total Weight (lbs)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={bolManualData.totalWeight || ''}
+                      onChange={(e) => setBolManualData(prev => ({ ...prev, totalWeight: parseFloat(e.target.value) || 0 }))}
+                      placeholder="Total weight"
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Total Pallets</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={bolManualData.totalPallets || ''}
+                      onChange={(e) => setBolManualData(prev => ({ ...prev, totalPallets: parseInt(e.target.value) || 0 }))}
+                      placeholder="# of pallets"
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Freight Terms</label>
+                    <select
+                      value={bolManualData.freightTerms}
+                      onChange={(e) => setBolManualData(prev => ({ ...prev, freightTerms: e.target.value }))}
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                    >
+                      <option value="">Select...</option>
+                      <option value="prepaid">Prepaid</option>
+                      <option value="collect">Collect</option>
+                      <option value="third_party">Third Party</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Special Instructions & Seal Number */}
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Seal Number</label>
+                    <input
+                      type="text"
+                      value={bolManualData.sealNumber}
+                      onChange={(e) => setBolManualData(prev => ({ ...prev, sealNumber: e.target.value }))}
+                      placeholder="Container seal #"
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Trailer/Container #</label>
+                    <input
+                      type="text"
+                      value={bolManualData.trailerNumber}
+                      onChange={(e) => setBolManualData(prev => ({ ...prev, trailerNumber: e.target.value }))}
+                      placeholder="Trailer or container #"
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Special Instructions</label>
+                  <textarea
+                    value={bolManualData.specialInstructions}
+                    onChange={(e) => setBolManualData(prev => ({ ...prev, specialInstructions: e.target.value }))}
+                    placeholder="Delivery instructions, handling requirements, etc."
+                    rows={2}
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50 resize-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Discrepancy Display */}
+            {bolDiscrepancies.length > 0 && (
+              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-center gap-2 mb-3">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-600">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                  <h4 className="text-sm font-semibold text-red-800">Discrepancies Found</h4>
+                </div>
+                <p className="text-xs text-red-700 mb-3">
+                  The following differences were detected between the BOL and the expected shipment:
+                </p>
+                <div className="space-y-2">
+                  {bolDiscrepancies.map((disc, index) => (
+                    <div
+                      key={index}
+                      className={`flex items-center justify-between p-3 rounded-lg ${
+                        disc.resolved ? 'bg-green-50 border border-green-200' : 'bg-white border border-red-200'
+                      }`}
+                    >
+                      <div className="flex-1">
+                        <div className="text-sm font-medium text-[var(--foreground)]">{disc.field}</div>
+                        <div className="flex items-center gap-4 mt-1 text-xs">
+                          <span className="text-[var(--muted-foreground)]">
+                            Expected: <span className="font-medium text-green-700">{disc.expected}</span>
+                          </span>
+                          <span className="text-[var(--muted-foreground)]">
+                            Actual: <span className="font-medium text-red-700">{disc.actual}</span>
+                          </span>
+                        </div>
+                      </div>
+                      {disc.resolved ? (
+                        <span className="flex items-center gap-1 text-xs text-green-700 font-medium">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M20 6L9 17l-5-5"/>
+                          </svg>
+                          Acknowledged
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleResolveDiscrepancy(index)}
+                          className="px-3 py-1.5 bg-amber-500 text-white text-xs font-medium rounded hover:bg-amber-600 transition-colors"
+                        >
+                          Acknowledge
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {bolDiscrepancies.every(d => d.resolved) && (
+                  <div className="mt-3 pt-3 border-t border-red-200">
+                    <button
+                      onClick={handleConfirmBolWithDiscrepancies}
+                      className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors"
+                    >
+                      Proceed with Acknowledged Discrepancies
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Notes */}
+            <div className="mb-4">
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Notes</label>
               <input
                 type="text"
@@ -963,26 +1706,80 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
                 className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
               />
             </div>
+
+            {/* Action Buttons */}
+            {(bolInputMode || bolImage) && bolDiscrepancies.length === 0 && (
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  onClick={() => {
+                    setBolInputMode(null);
+                    setBolImage(null);
+                    setBolNumber('');
+                  }}
+                  className="px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCaptureBOL}
+                  disabled={!bolNumber.trim() && !bolImage}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M20 6L9 17l-5-5"/>
+                  </svg>
+                  Verify & Capture BOL
+                </button>
+              </div>
+            )}
           </div>
         )}
 
         {/* BOL Captured Badge */}
         {bolCaptured && (
-          <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-600">
-                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-              </svg>
-              <span className="text-sm font-medium text-purple-800">BOL Captured:</span>
-              <span className="text-sm text-purple-700 font-mono">{bolNumber}</span>
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-600">
+                  <path d="M20 6L9 17l-5-5"/>
+                </svg>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-purple-800">BOL Captured:</span>
+                    <span className="text-sm text-purple-700 font-mono">{bolNumber || 'Image uploaded'}</span>
+                  </div>
+                  {bolDiscrepancies.length > 0 && (
+                    <span className="text-xs text-amber-600">
+                      {bolDiscrepancies.length} discrepanc{bolDiscrepancies.length === 1 ? 'y' : 'ies'} acknowledged
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {bolImage && (
+                  <button
+                    onClick={() => window.open(bolImage, '_blank')}
+                    className="text-xs text-purple-600 hover:underline flex items-center gap-1"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                      <circle cx="8.5" cy="8.5" r="1.5"/>
+                      <polyline points="21 15 16 10 5 21"/>
+                    </svg>
+                    View Image
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setBolCaptured(false);
+                    setBolDiscrepancies([]);
+                  }}
+                  className="text-xs text-purple-600 hover:underline"
+                >
+                  Edit
+                </button>
+              </div>
             </div>
-            <button
-              onClick={() => setBolCaptured(false)}
-              className="text-xs text-purple-600 hover:underline"
-            >
-              Edit
-            </button>
           </div>
         )}
 

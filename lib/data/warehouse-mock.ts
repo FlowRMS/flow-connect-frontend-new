@@ -777,7 +777,7 @@ export function getFulfillmentOrderStats() {
     pendingFulfillmentOrders: mockFulfillmentOrders.filter(fo => fo.status === 'PENDING').length,
     releasedFulfillmentOrders: mockFulfillmentOrders.filter(fo => fo.status === 'RELEASED').length,
     inProgressFulfillmentOrders: mockFulfillmentOrders.filter(fo =>
-      fo.status === 'PICKING' || fo.status === 'PACKING' || fo.status === 'PACKED'
+      fo.status === 'PICKING' || fo.status === 'PACKING' || fo.status === 'SHIPPING'
     ).length,
     shippedFulfillmentOrders: mockFulfillmentOrders.filter(fo =>
       fo.status === 'SHIPPED' || fo.status === 'PARTIAL_SHIPPED'
@@ -2414,7 +2414,6 @@ export const mockManufacturerProfiles: ManufacturerProfile[] = [
         quoteReference: '',
         alwaysFactoryBO: false,
         creditHold: false,
-        warehouseOrderAllowed: true,
         additionalVendorCustomerNumbers: [],
         customerAssignedCodes: [],
         shipToAddresses: [

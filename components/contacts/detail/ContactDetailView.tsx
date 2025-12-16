@@ -293,7 +293,7 @@ interface ContactDetailViewProps {
   onSave: () => void;
   onCancel: () => void;
   onDelete: (id: string) => void;
-  onFieldChange: (field: string, value: string | string[]) => void;
+  onFieldChange: (field: string, value: string | string[] | boolean) => void;
   setDeleteConfirmId: (id: string | null) => void;
   onJobClick?: (job: APIJob) => void;
   onCompanyClick?: (company: APICompany) => void;
@@ -1354,6 +1354,52 @@ export default function ContactDetailView({
                         </svg>
                         Add to list
                       </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Warehouse Contact Settings */}
+                <div className="mt-6 pt-5 border-t border-gray-100">
+                  <label className={labelClass}>
+                    <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                    Warehouse Contact
+                  </label>
+                  <div className="mt-2 space-y-3">
+                    {/* Toggle */}
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => isEditing && onFieldChange('isWarehouseContact', !(isEditing ? editFormData.isWarehouseContact : contact.isWarehouseContact))}
+                        disabled={!isEditing}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          (isEditing ? editFormData.isWarehouseContact : contact.isWarehouseContact)
+                            ? 'bg-blue-600'
+                            : 'bg-gray-300'
+                        } ${!isEditing ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
+                            (isEditing ? editFormData.isWarehouseContact : contact.isWarehouseContact) ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                      <span className="text-sm text-gray-700">This contact is a warehouse contact</span>
+                    </div>
+
+                    {/* Warehouse Role - only show if toggle is on */}
+                    {(isEditing ? editFormData.isWarehouseContact : contact.isWarehouseContact) && (
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Warehouse Role</label>
+                        <input
+                          type="text"
+                          value={isEditing ? editFormData.warehouseRole || '' : (contact.warehouseRole || '-')}
+                          onChange={(e) => onFieldChange('warehouseRole', e.target.value)}
+                          className={isEditing ? inputClass : readOnlyClass}
+                          readOnly={!isEditing}
+                          placeholder="e.g., Shipping Coordinator, Receiving Manager"
+                        />
+                      </div>
                     )}
                   </div>
                 </div>

@@ -386,7 +386,7 @@ export type FulfillmentOrderStatus =
   | 'RELEASED'
   | 'PICKING'
   | 'PACKING'
-  | 'PACKED'
+  | 'SHIPPING'
   | 'SHIPPED'
   | 'PARTIAL_SHIPPED'
   | 'DELIVERED'
@@ -489,7 +489,7 @@ export const fulfillmentOrderStatusLabels: Record<FulfillmentOrderStatus, string
   RELEASED: 'Released',
   PICKING: 'Picking',
   PACKING: 'Packing',
-  PACKED: 'Packed',
+  SHIPPING: 'Shipping',
   SHIPPED: 'Shipped',
   PARTIAL_SHIPPED: 'Partial Shipped',
   DELIVERED: 'Delivered',
@@ -501,7 +501,7 @@ export const fulfillmentOrderStatusColors: Record<FulfillmentOrderStatus, string
   RELEASED: 'bg-cyan-100 text-cyan-700',
   PICKING: 'bg-yellow-100 text-yellow-700',
   PACKING: 'bg-orange-100 text-orange-700',
-  PACKED: 'bg-purple-100 text-purple-700',
+  SHIPPING: 'bg-purple-100 text-purple-700',
   SHIPPED: 'bg-green-100 text-green-700',
   PARTIAL_SHIPPED: 'bg-blue-100 text-blue-700',
   DELIVERED: 'bg-emerald-100 text-emerald-700',
@@ -1285,7 +1285,6 @@ export interface VendorCustomerXRef {
   // Checkboxes
   alwaysFactoryBO: boolean;
   creditHold: boolean;
-  warehouseOrderAllowed: boolean;
   // Additional vendor customer numbers
   additionalVendorCustomerNumbers?: { number: string; name: string }[];
   // Customer assigned codes
@@ -1299,6 +1298,16 @@ export interface VendorShipToAddress {
   name: string;
   address: string;
   customerAddressCode?: string;
+}
+
+export interface VendorShipToXRef {
+  id: string;
+  manufacturerProfileId: string;
+  shipToId: string;
+  shipToName: string;
+  shipToAddress?: string;
+  vendorShipToCode: string;
+  notes?: string;
 }
 
 export interface FreightCategory {
@@ -1373,8 +1382,15 @@ export interface ManufacturerProfile {
   // Vendor Contacts (collapsible section)
   contacts?: ManufacturerContact[];
 
-  // Default Warehouse Contacts (IDs of contacts selected for warehouse)
-  defaultWarehouseContactIds?: string[];
+  // Default Warehouse Contacts (with warehouse-specific roles)
+  warehouseContacts?: {
+    contactId: string;
+    name: string;
+    email: string;
+    phone: string;
+    warehouseRole: string;
+    isDefault?: boolean;
+  }[];
 
   // Freight Terms (collapsible section)
   freightTerms?: string;
@@ -1384,6 +1400,9 @@ export interface ManufacturerProfile {
 
   // Vendor Customer X-Refs
   customerXRefs?: VendorCustomerXRef[];
+
+  // Ship-To X-Refs
+  shipToXRefs?: VendorShipToXRef[];
 
   // Freight Categories
   freightCategories?: FreightCategory[];
