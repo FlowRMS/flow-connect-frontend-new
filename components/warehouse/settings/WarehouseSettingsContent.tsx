@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import WarehouseLayoutModal from '../layout/WarehouseLayoutModal';
-import WarehouseQRCodesModal from '../WarehouseQRCodesModal';
+import WarehouseQRCodesModal from '../qr-codes/WarehouseQRCodesModal';
 import { useWarehouseSettings, useShippingCarriers } from './hooks';
 import { WarehouseSettingsHeader, WarehousesList, ShippingCarriersList } from './components';
 import { NewWarehouseModal, AddWorkerModal } from './modals';
