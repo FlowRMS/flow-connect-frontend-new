@@ -11,11 +11,13 @@ import {
 } from '@/lib/data/warehouse-mock';
 import {
   CycleCountLineItem,
+  CycleCountDiscrepancyReason,
   cycleCountStatusColors,
   cycleCountStatusLabels,
   cycleCountTypeLabels,
   cycleCountPriorityColors,
   cycleCountPriorityLabels,
+  cycleCountDiscrepancyReasonLabels,
 } from '@/lib/types/warehouse';
 
 interface CycleCountDetailContentProps {
@@ -31,9 +33,21 @@ export default function CycleCountDetailContent({ cycleCountId }: CycleCountDeta
   const [itemNotes, setItemNotes] = useState<Record<string, string>>({});
   const [expandedNoteId, setExpandedNoteId] = useState<string | null>(null);
 
+  // Discrepancy feedback state
+  const [expandedDiscrepancyId, setExpandedDiscrepancyId] = useState<string | null>(null);
+  const [discrepancyReasons, setDiscrepancyReasons] = useState<Record<string, CycleCountDiscrepancyReason>>({});
+  const [damageNotes, setDamageNotes] = useState<Record<string, string>>({});
+  const [misplacedNotes, setMisplacedNotes] = useState<Record<string, string>>({});
+  const [correctLocations, setCorrectLocations] = useState<Record<string, string>>({});
+
   const cycleCount = useMemo(() => getCycleCountById(cycleCountId), [cycleCountId, refreshKey]);
 
   const handleCountItem = useCallback((lineItemId: string, quantity: number, note?: string) => {
+    const reason = discrepancyReasons[lineItemId];
+    const damageNote = damageNotes[lineItemId];
+    const misplacedNote = misplacedNotes[lineItemId];
+    const correctLocation = correctLocations[lineItemId];
+
     updateCycleCountLineItem(cycleCountId, lineItemId, {
       countedQuantity: quantity,
       status: 'counted',
@@ -41,16 +55,35 @@ export default function CycleCountDetailContent({ cycleCountId }: CycleCountDeta
       countedByName: 'Current User',
       countedAt: new Date().toISOString(),
       notes: note,
+      discrepancyReason: reason,
+      damageNotes: damageNote,
+      misplacedNotes: misplacedNote,
+      correctLocation: correctLocation,
+      isMatch: false,
     });
     setRefreshKey(prev => prev + 1);
     setExpandedNoteId(null);
+    setExpandedDiscrepancyId(null);
     setCountValues(prev => ({ ...prev, [lineItemId]: '' }));
     setItemNotes(prev => ({ ...prev, [lineItemId]: '' }));
-  }, [cycleCountId]);
+    setDiscrepancyReasons(prev => { const n = {...prev}; delete n[lineItemId]; return n; });
+    setDamageNotes(prev => { const n = {...prev}; delete n[lineItemId]; return n; });
+    setMisplacedNotes(prev => { const n = {...prev}; delete n[lineItemId]; return n; });
+    setCorrectLocations(prev => { const n = {...prev}; delete n[lineItemId]; return n; });
+  }, [cycleCountId, discrepancyReasons, damageNotes, misplacedNotes, correctLocations]);
 
   const handleCountSameAsSystem = useCallback((lineItemId: string, systemQty: number) => {
-    handleCountItem(lineItemId, systemQty);
-  }, [handleCountItem]);
+    // When matching, it's a simple match with no discrepancy
+    updateCycleCountLineItem(cycleCountId, lineItemId, {
+      countedQuantity: systemQty,
+      status: 'counted',
+      countedBy: 'current-user',
+      countedByName: 'Current User',
+      countedAt: new Date().toISOString(),
+      isMatch: true,
+    });
+    setRefreshKey(prev => prev + 1);
+  }, [cycleCountId]);
 
   const handleVerifyItem = useCallback((lineItemId: string) => {
     updateCycleCountLineItem(cycleCountId, lineItemId, {
@@ -268,6 +301,9 @@ export default function CycleCountDetailContent({ cycleCountId }: CycleCountDeta
               const countValue = countValues[item.id] || '';
               const noteValue = itemNotes[item.id] || '';
               const showNote = expandedNoteId === item.id;
+              const showDiscrepancy = expandedDiscrepancyId === item.id;
+              const hasDiscrepancy = countValue !== '' && parseInt(countValue, 10) !== item.systemQuantity;
+              const selectedReason = discrepancyReasons[item.id];
               return (
                 <div key={item.id} className="border-b border-[var(--border)] last:border-b-0">
                   {/* Single Row Layout */}
@@ -296,24 +332,28 @@ export default function CycleCountDetailContent({ cycleCountId }: CycleCountDeta
                       value={countValue}
                       onChange={(e) => setCountValues(prev => ({ ...prev, [item.id]: e.target.value }))}
                       placeholder="Qty"
-                      className="w-20 px-3 py-2 text-lg font-semibold text-center border border-[var(--border)] rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      className={`w-20 px-3 py-2 text-lg font-semibold text-center border rounded-lg bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                        hasDiscrepancy ? 'border-red-400 bg-red-50' : 'border-[var(--border)]'
+                      }`}
                     />
 
                     {/* Actions */}
                     <button
                       onClick={() => {
-                        if (countValue !== '') {
+                        if (countValue !== '' && hasDiscrepancy && !selectedReason) {
+                          setExpandedDiscrepancyId(item.id);
+                        } else if (countValue !== '') {
                           handleCountItem(item.id, parseInt(countValue, 10), noteValue || undefined);
                         }
                       }}
                       disabled={countValue === ''}
                       className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                         countValue !== ''
-                          ? 'bg-blue-500 text-white hover:bg-blue-600'
+                          ? hasDiscrepancy ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-blue-500 text-white hover:bg-blue-600'
                           : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                       }`}
                     >
-                      Submit
+                      {hasDiscrepancy ? 'Discrepancy' : 'Submit'}
                     </button>
 
                     <button
@@ -345,8 +385,122 @@ export default function CycleCountDetailContent({ cycleCountId }: CycleCountDeta
                     </button>
                   </div>
 
+                  {/* Discrepancy Feedback Panel (expandable) */}
+                  {showDiscrepancy && hasDiscrepancy && (
+                    <div className="px-4 pb-4 bg-red-50 border-t border-red-200">
+                      <div className="py-3">
+                        <p className="text-sm font-medium text-red-800 mb-3">
+                          Variance: {parseInt(countValue, 10) - item.systemQuantity > 0 ? '+' : ''}{parseInt(countValue, 10) - item.systemQuantity} units
+                        </p>
+
+                        {/* Reason Selection */}
+                        <div className="mb-4">
+                          <label className="block text-xs font-medium text-red-700 mb-2">What caused this discrepancy?</label>
+                          <div className="flex flex-wrap gap-2">
+                            {(Object.keys(cycleCountDiscrepancyReasonLabels) as CycleCountDiscrepancyReason[]).map(reason => (
+                              <button
+                                key={reason}
+                                type="button"
+                                onClick={() => setDiscrepancyReasons(prev => ({ ...prev, [item.id]: reason }))}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                  selectedReason === reason
+                                    ? 'bg-red-600 text-white'
+                                    : 'bg-white text-red-700 border border-red-200 hover:bg-red-100'
+                                }`}
+                              >
+                                {cycleCountDiscrepancyReasonLabels[reason]}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Damage Notes */}
+                        {selectedReason === 'DAMAGE' && (
+                          <div className="mb-3">
+                            <label className="block text-xs font-medium text-red-700 mb-1">Describe the damage</label>
+                            <textarea
+                              value={damageNotes[item.id] || ''}
+                              onChange={(e) => setDamageNotes(prev => ({ ...prev, [item.id]: e.target.value }))}
+                              placeholder="Describe the type and extent of damage..."
+                              rows={2}
+                              className="w-full px-3 py-2 text-sm border border-red-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-red-500/50 resize-none"
+                            />
+                          </div>
+                        )}
+
+                        {/* Misplaced Notes */}
+                        {selectedReason === 'MISPLACED' && (
+                          <div className="space-y-3">
+                            <div>
+                              <label className="block text-xs font-medium text-red-700 mb-1">Where was the product found?</label>
+                              <input
+                                type="text"
+                                value={correctLocations[item.id] || ''}
+                                onChange={(e) => setCorrectLocations(prev => ({ ...prev, [item.id]: e.target.value }))}
+                                placeholder="e.g., Shelf 2A, Bin C"
+                                className="w-full px-3 py-2 text-sm border border-red-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-red-700 mb-1">Additional notes</label>
+                              <textarea
+                                value={misplacedNotes[item.id] || ''}
+                                onChange={(e) => setMisplacedNotes(prev => ({ ...prev, [item.id]: e.target.value }))}
+                                placeholder="Any other details about the misplacement..."
+                                rows={2}
+                                className="w-full px-3 py-2 text-sm border border-red-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-red-500/50 resize-none"
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {/* General Note */}
+                        {selectedReason && selectedReason !== 'DAMAGE' && selectedReason !== 'MISPLACED' && (
+                          <div className="mb-3">
+                            <label className="block text-xs font-medium text-red-700 mb-1">Additional notes (optional)</label>
+                            <textarea
+                              value={itemNotes[item.id] || ''}
+                              onChange={(e) => setItemNotes(prev => ({ ...prev, [item.id]: e.target.value }))}
+                              placeholder="Add any additional details..."
+                              rows={2}
+                              className="w-full px-3 py-2 text-sm border border-red-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-red-500/50 resize-none"
+                            />
+                          </div>
+                        )}
+
+                        {/* Actions */}
+                        <div className="flex justify-end gap-2 mt-4">
+                          <button
+                            onClick={() => {
+                              setExpandedDiscrepancyId(null);
+                              setDiscrepancyReasons(prev => { const n = {...prev}; delete n[item.id]; return n; });
+                            }}
+                            className="px-4 py-2 text-sm text-[var(--muted-foreground)] hover:bg-white rounded-lg transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (selectedReason) {
+                                handleCountItem(item.id, parseInt(countValue, 10), noteValue || undefined);
+                              }
+                            }}
+                            disabled={!selectedReason}
+                            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                              selectedReason
+                                ? 'bg-red-600 text-white hover:bg-red-700'
+                                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                            }`}
+                          >
+                            Submit Discrepancy
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Note Input (expandable) */}
-                  {showNote && (
+                  {showNote && !showDiscrepancy && (
                     <div className="px-4 pb-4">
                       <div className="flex items-center gap-2">
                         <input

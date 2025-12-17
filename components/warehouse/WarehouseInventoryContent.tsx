@@ -30,7 +30,19 @@ import { useWarehouse } from './WarehouseContext';
 
 // Filter types for stat card clicks
 type StatFilter = 'all' | 'available' | 'reserved' | 'low_stock';
-type TabType = 'inventory' | 'requests';
+type TabType = 'inventory' | 'requests' | 'backorders';
+
+// Backorder item with tracking info
+interface BackorderItem {
+  id: string;
+  productId: string;
+  productName: string;
+  partNumber: string;
+  backorderQty: number;
+  orderNumber: string;
+  customerName: string;
+  loggedAt?: string;
+}
 
 // Combined inventory item with product info
 interface FlatInventoryItem extends InventoryItem {
@@ -68,6 +80,10 @@ export default function WarehouseInventoryContent() {
   const [requestStatusFilter, setRequestStatusFilter] = useState<ShipmentRequestStatus | 'all'>('all');
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // Backorder tracking state
+  const [dismissedBackorders, setDismissedBackorders] = useState<Set<string>>(new Set());
+  const [loggedBackorders, setLoggedBackorders] = useState<BackorderItem[]>([]);
+
   // Update filter when URL changes
   useEffect(() => {
     if (urlFilter && ['all', 'available', 'reserved', 'low_stock'].includes(urlFilter)) {
@@ -87,21 +103,16 @@ export default function WarehouseInventoryContent() {
   const shipmentRequests = useMemo(() => getAllShipmentRequests(), [refreshKey]);
 
   // Calculate backorder items from fulfillment orders
-  const backorderItems = useMemo(() => {
+  const allBackorderItems = useMemo(() => {
     const fulfillmentOrders = getAllFulfillmentOrders();
-    const backordered: Array<{
-      productId: string;
-      productName: string;
-      partNumber: string;
-      backorderQty: number;
-      orderNumber: string;
-      customerName: string;
-    }> = [];
+    const backordered: BackorderItem[] = [];
 
     fulfillmentOrders.forEach(fo => {
       fo.lineItems.forEach(item => {
         if (item.backorderQty > 0) {
+          const id = `${fo.orderNumber}-${item.productId}`;
           backordered.push({
+            id,
             productId: item.productId,
             productName: item.productName,
             partNumber: item.partNumber,
@@ -115,6 +126,11 @@ export default function WarehouseInventoryContent() {
 
     return backordered;
   }, [refreshKey]);
+
+  // Filter out dismissed backorders for the alert
+  const backorderItems = useMemo(() => {
+    return allBackorderItems.filter(item => !dismissedBackorders.has(item.id));
+  }, [allBackorderItems, dismissedBackorders]);
 
   const totalBackorderQty = useMemo(() =>
     backorderItems.reduce((sum, item) => sum + item.backorderQty, 0),
@@ -279,8 +295,47 @@ export default function WarehouseInventoryContent() {
     [shipmentRequests]
   );
 
+  // Backorder handlers
+  const handleDismissBackorder = useCallback((backorderId: string) => {
+    setDismissedBackorders(prev => new Set(prev).add(backorderId));
+  }, []);
+
+  const handleDismissAllBackorders = useCallback(() => {
+    setDismissedBackorders(prev => {
+      const newSet = new Set(prev);
+      backorderItems.forEach(item => newSet.add(item.id));
+      return newSet;
+    });
+  }, [backorderItems]);
+
+  const handleLogBackorder = useCallback((backorder: BackorderItem) => {
+    setLoggedBackorders(prev => {
+      // Don't add if already logged
+      if (prev.some(b => b.id === backorder.id)) return prev;
+      return [...prev, { ...backorder, loggedAt: new Date().toISOString() }];
+    });
+    setDismissedBackorders(prev => new Set(prev).add(backorder.id));
+  }, []);
+
+  const handleLogAllBackorders = useCallback(() => {
+    const now = new Date().toISOString();
+    setLoggedBackorders(prev => {
+      const existingIds = new Set(prev.map(b => b.id));
+      const newItems = backorderItems
+        .filter(item => !existingIds.has(item.id))
+        .map(item => ({ ...item, loggedAt: now }));
+      return [...prev, ...newItems];
+    });
+    handleDismissAllBackorders();
+    setActiveTab('backorders');
+  }, [backorderItems, handleDismissAllBackorders]);
+
+  const handleRemoveLoggedBackorder = useCallback((backorderId: string) => {
+    setLoggedBackorders(prev => prev.filter(b => b.id !== backorderId));
+  }, []);
+
   return (
-    <main className="flex-1 overflow-hidden bg-[var(--background)] flex flex-col">
+    <main className="flex-1 overflow-auto bg-[var(--background)]">
       {/* Header */}
       <div className="p-6 pb-0">
         <div className="flex items-center justify-between mb-6">
@@ -383,9 +438,21 @@ export default function WarehouseInventoryContent() {
                   {backorderItems.length} product{backorderItems.length !== 1 ? 's' : ''} on backorder ({totalBackorderQty} total units) across {new Set(backorderItems.map(b => b.orderNumber)).size} order{new Set(backorderItems.map(b => b.orderNumber)).size !== 1 ? 's' : ''}
                 </p>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {backorderItems.slice(0, 3).map((item, idx) => (
-                    <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-800 rounded text-xs">
+                  {backorderItems.slice(0, 3).map((item) => (
+                    <span key={item.id} className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-800 rounded text-xs">
                       {item.partNumber}: {item.backorderQty} units ({item.orderNumber})
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDismissBackorder(item.id);
+                        }}
+                        className="ml-1 hover:text-orange-600"
+                        title="Dismiss"
+                      >
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
                     </span>
                   ))}
                   {backorderItems.length > 3 && (
@@ -395,12 +462,20 @@ export default function WarehouseInventoryContent() {
                   )}
                 </div>
               </div>
-              <button
-                onClick={() => setShowRequestModal(true)}
-                className="flex-shrink-0 px-3 py-1.5 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700 transition-colors"
-              >
-                Request Inventory
-              </button>
+              <div className="flex-shrink-0 flex flex-col gap-2">
+                <button
+                  onClick={handleLogAllBackorders}
+                  className="px-3 py-1.5 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700 transition-colors"
+                >
+                  Log All
+                </button>
+                <button
+                  onClick={handleDismissAllBackorders}
+                  className="px-3 py-1.5 border border-orange-300 text-orange-700 text-sm font-medium rounded-lg hover:bg-orange-100 transition-colors"
+                >
+                  Dismiss
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -437,6 +512,21 @@ export default function WarehouseInventoryContent() {
                   {shipmentRequests.length}
                 </span>
               </button>
+              <button
+                onClick={() => setActiveTab('backorders')}
+                className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'backorders'
+                    ? 'border-[var(--primary)] text-[var(--primary)]'
+                    : 'border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+                }`}
+              >
+                Backorders
+                <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
+                  loggedBackorders.length > 0 ? 'bg-orange-100 text-orange-700' : 'bg-[var(--muted)]'
+                }`}>
+                  {loggedBackorders.length}
+                </span>
+              </button>
             </nav>
           </div>
         </div>
@@ -461,24 +551,28 @@ export default function WarehouseInventoryContent() {
               placeholder={
                 activeTab === 'inventory'
                   ? "Search by product, part number, location..."
-                  : "Search by request number or vendor..."
+                  : activeTab === 'requests'
+                  ? "Search by request number or vendor..."
+                  : "Search by part number or order..."
               }
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
             />
           </div>
-          <select
-            value={selectedFactory}
-            onChange={(e) => setSelectedFactory(e.target.value)}
-            className="px-4 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-          >
-            <option value="All">All Factories</option>
-            {factories.map((factory) => (
-              <option key={factory.id} value={factory.id}>{factory.name}</option>
-            ))}
-          </select>
-          {activeTab === 'inventory' ? (
+          {activeTab !== 'backorders' && (
+            <select
+              value={selectedFactory}
+              onChange={(e) => setSelectedFactory(e.target.value)}
+              className="px-4 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+            >
+              <option value="All">All Factories</option>
+              {factories.map((factory) => (
+                <option key={factory.id} value={factory.id}>{factory.name}</option>
+              ))}
+            </select>
+          )}
+          {activeTab === 'inventory' && (
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
@@ -491,7 +585,8 @@ export default function WarehouseInventoryContent() {
               <option value="DAMAGED">Damaged</option>
               <option value="IN_TRANSIT">In Transit</option>
             </select>
-          ) : (
+          )}
+          {activeTab === 'requests' && (
             <select
               value={requestStatusFilter}
               onChange={(e) => setRequestStatusFilter(e.target.value as ShipmentRequestStatus | 'all')}
@@ -512,7 +607,9 @@ export default function WarehouseInventoryContent() {
         <div className="text-sm text-[var(--muted-foreground)] mb-4">
           {activeTab === 'inventory'
             ? `Showing ${filteredItems.length} inventory items`
-            : `Showing ${filteredRequests.length} shipment requests`
+            : activeTab === 'requests'
+            ? `Showing ${filteredRequests.length} shipment requests`
+            : `Showing ${loggedBackorders.length} logged backorders`
           }
         </div>
       </div>
@@ -520,22 +617,22 @@ export default function WarehouseInventoryContent() {
       {/* Content based on active tab */}
       {activeTab === 'inventory' && (
         /* Inventory Table - Flat List */
-        <div className="flex-1 overflow-auto p-6 pt-0">
-        <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
-          <table className="w-full">
+        <div className="p-6 pt-0">
+        <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-x-auto">
+          <table className="w-full min-w-[1400px]">
             <thead>
               <tr className="border-b border-[var(--border)] bg-[var(--muted)]/30">
-                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Factory</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Description</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Part Number</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Location</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Status</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Qty</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Available</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Reserved</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Lot #</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Received</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Actions</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider whitespace-nowrap">Factory</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider min-w-[200px]">Description</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider min-w-[180px] whitespace-nowrap">Part Number</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider min-w-[280px]">Location</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider whitespace-nowrap">Status</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider whitespace-nowrap">Qty</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider whitespace-nowrap">Available</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider whitespace-nowrap">Reserved</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider whitespace-nowrap">Lot #</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider whitespace-nowrap">Received</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border)]">
@@ -552,26 +649,26 @@ export default function WarehouseInventoryContent() {
 
                   return (
                     <tr key={item.id} className="hover:bg-[var(--muted)]/20 transition-colors">
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 whitespace-nowrap">
                         <span className="px-2 py-1 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded text-xs font-medium">
                           {item.factoryName.split(' ')[0]}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
-                        <span className="text-sm text-[var(--foreground)] line-clamp-1">{item.productName}</span>
+                      <td className="px-4 py-3 min-w-[200px]">
+                        <span className="text-sm text-[var(--foreground)]">{item.productName}</span>
                       </td>
-                      <td className="px-4 py-3">
-                        <span className={`text-sm font-medium ${isLowStock ? 'text-red-600' : 'text-[var(--foreground)]'}`}>
+                      <td className="px-4 py-3 min-w-[180px]">
+                        <span className={`text-sm font-medium whitespace-nowrap ${isLowStock ? 'text-red-600' : 'text-[var(--foreground)]'}`}>
                           {item.partNumber}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1 text-xs text-[var(--muted-foreground)]">
-                          <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <td className="px-4 py-3 min-w-[280px]">
+                        <div className="flex items-start gap-1.5 text-xs text-[var(--muted-foreground)]">
+                          <svg className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                           </svg>
-                          <span className="font-medium text-[var(--foreground)]">{formatLocation(item)}</span>
+                          <span className="font-medium text-[var(--foreground)] leading-relaxed">{formatLocation(item)}</span>
                         </div>
                       </td>
                       <td className="px-4 py-3">
@@ -632,7 +729,7 @@ export default function WarehouseInventoryContent() {
 
       {activeTab === 'requests' && (
         /* Shipment Requests Table */
-        <div className="flex-1 overflow-auto p-6 pt-0">
+        <div className="p-6 pt-0">
           <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
             <div className="px-6 py-4 border-b border-[var(--border)]">
               <h2 className="text-lg font-semibold text-[var(--foreground)]">
@@ -766,6 +863,99 @@ export default function WarehouseInventoryContent() {
                 >
                   Create your first request
                 </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'backorders' && (
+        /* Backorders Table */
+        <div className="p-6 pt-0">
+          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+            <div className="px-6 py-4 border-b border-[var(--border)]">
+              <h2 className="text-lg font-semibold text-[var(--foreground)]">
+                Logged Backorders
+                <span className="ml-2 text-sm font-normal text-[var(--muted-foreground)]">
+                  ({loggedBackorders.length})
+                </span>
+              </h2>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-[var(--border)] bg-[var(--muted)]/30">
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Part Number</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Product</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Order #</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Customer</th>
+                    <th className="px-6 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Qty</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Logged At</th>
+                    <th className="px-6 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border)]">
+                  {loggedBackorders
+                    .filter(item =>
+                      !searchQuery ||
+                      item.partNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      item.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      item.customerName.toLowerCase().includes(searchQuery.toLowerCase())
+                    )
+                    .map((backorder) => (
+                    <tr key={backorder.id} className="hover:bg-[var(--muted)]/20 transition-colors">
+                      <td className="px-6 py-4">
+                        <span className="text-sm font-medium text-[var(--foreground)]">{backorder.partNumber}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-sm text-[var(--foreground)]">{backorder.productName}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-sm font-medium text-[var(--primary)]">{backorder.orderNumber}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-sm text-[var(--foreground)]">{backorder.customerName}</span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded text-sm font-medium">
+                          {backorder.backorderQty}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-sm text-[var(--muted-foreground)]">
+                          {backorder.loggedAt ? formatDate(backorder.loggedAt) : '-'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => setShowRequestModal(true)}
+                            className="px-2 py-1 text-xs font-medium text-[var(--primary)] hover:bg-[var(--primary)]/10 rounded transition-colors"
+                            title="Request Inventory"
+                          >
+                            Request
+                          </button>
+                          <button
+                            onClick={() => handleRemoveLoggedBackorder(backorder.id)}
+                            className="px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 rounded transition-colors"
+                            title="Remove from list"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {loggedBackorders.length === 0 && (
+              <div className="px-6 py-12 text-center text-[var(--muted-foreground)]">
+                <svg className="w-12 h-12 mx-auto mb-4 text-[var(--muted-foreground)]/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+                <p>No logged backorders</p>
+                <p className="text-sm mt-1">Backorders logged from alerts will appear here</p>
               </div>
             )}
           </div>
