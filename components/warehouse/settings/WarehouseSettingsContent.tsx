@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import WarehouseLayoutModal from '../WarehouseLayoutModal';
+import WarehouseLayoutModal from '../layout/WarehouseLayoutModal';
 import WarehouseQRCodesModal from '../WarehouseQRCodesModal';
 import { useWarehouseSettings, useShippingCarriers } from './hooks';
 import { WarehouseSettingsHeader, WarehousesList, ShippingCarriersList } from './components';
