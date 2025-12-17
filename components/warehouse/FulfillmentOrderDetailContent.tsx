@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getFulfillmentOrderById, mockWarehouses, updateFulfillmentOrder } from '@/lib/data/warehouse-mock';
@@ -66,18 +66,18 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   }
 
   const packagingOptions = [
+    { value: 'pallet_48x40x6', label: 'Pallet (48x40x6)', dimensions: { length: '48', width: '40', height: '6' } },
     { value: 'small_box', label: 'Small Box', dimensions: { length: '12', width: '10', height: '8' } },
     { value: 'medium_box', label: 'Medium Box', dimensions: { length: '18', width: '14', height: '12' } },
     { value: 'large_box', label: 'Large Box', dimensions: { length: '24', width: '18', height: '18' } },
-    { value: 'pallet', label: 'Pallet', dimensions: { length: '48', width: '40', height: '6' } },
-    { value: 'envelope', label: 'Envelope/Mailer', dimensions: { length: '12', width: '9', height: '1' } },
+    { value: 'extra_large_box', label: 'Extra Large Box', dimensions: { length: '30', width: '24', height: '24' } },
     { value: 'custom', label: 'Custom', dimensions: { length: '', width: '', height: '' } },
   ];
 
   const [packingBoxes, setPackingBoxes] = useState<PackingBox[]>([
     {
       id: 'box-1',
-      packagingType: 'small_box',
+      packagingType: 'pallet_48x40x6',
       customWeight: '',
       useCustomWeight: false,
       customDimensions: { length: '', width: '', height: '' },
@@ -92,17 +92,32 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   // Modal state
   const [showPackingSlipModal, setShowPackingSlipModal] = useState(false);
   const [showShippingLabelsModal, setShowShippingLabelsModal] = useState(false);
+  const [showBOLModal, setShowBOLModal] = useState(false);
   const [selectedPackingTemplate, setSelectedPackingTemplate] = useState('standard');
   const [selectedLabelFormat, setSelectedLabelFormat] = useState('4x6');
 
   // Shipping state
-  const [shippingMethod, setShippingMethod] = useState<'SHIP' | 'WILL_CALL' | 'JOBSITE'>(fulfillmentOrder?.fulfillmentMethod || 'SHIP');
+  const [shippingMethod, setShippingMethod] = useState<'SHIP' | 'WILL_CALL'>(fulfillmentOrder?.fulfillmentMethod === 'JOBSITE' ? 'SHIP' : (fulfillmentOrder?.fulfillmentMethod || 'SHIP'));
   const [carrierType, setCarrierType] = useState<'parcel' | 'freight'>('parcel');
   const [selectedCarrier, setSelectedCarrier] = useState(fulfillmentOrder?.carrier || '');
   const [freightClass, setFreightClass] = useState('');
   const [bolNumber, setBolNumber] = useState('');
   const [proNumber, setProNumber] = useState('');
   const [shippingNotes, setShippingNotes] = useState('');
+
+  // Pickup / Handoff state
+  const [showSignatureModal, setShowSignatureModal] = useState(false);
+  const [pickupName, setPickupName] = useState('');
+  const [driverName, setDriverName] = useState('');
+  const [pickupSignature, setPickupSignature] = useState<string | null>(null);
+  const [pickupTimestamp, setPickupTimestamp] = useState<Date | null>(null);
+  const [pickupNotes, setPickupNotes] = useState('');
+  const [isDrawing, setIsDrawing] = useState(false);
+  const signatureCanvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Shipping config lock/collapse state
+  const [isShippingConfigLocked, setIsShippingConfigLocked] = useState(false);
+  const [isShippingConfigCollapsed, setIsShippingConfigCollapsed] = useState(false);
 
   if (!fulfillmentOrder) {
     return (
@@ -577,7 +592,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
             <div>
               <h3 className="text-lg font-semibold text-[var(--foreground)]">Packing Mode</h3>
               <p className="text-sm text-[var(--muted-foreground)]">
-                Drag items into boxes • {packingBoxes.length} box{packingBoxes.length > 1 ? 'es' : ''} • {getUnassignedItems().length} items to assign
+                Drag items into pallets • {packingBoxes.length} pallet{packingBoxes.length > 1 ? 's' : ''} • {getUnassignedItems().length} items to assign
               </p>
             </div>
           </div>
@@ -590,7 +605,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
                 <line x1="12" y1="5" x2="12" y2="19"/>
                 <line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
-              Add Box
+              Add Pallet
             </button>
             {allItemsAssigned && (
               <button
@@ -620,7 +635,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
                 </svg>
                 Items to Pack ({getUnassignedItems().length})
               </h4>
-              <p className="text-xs text-amber-600 mt-1">Drag items to a box below, or click to assign</p>
+              <p className="text-xs text-amber-600 mt-1">Drag items to a pallet below, or click to assign</p>
             </div>
             {packingBoxes.length === 1 && (
               <button
@@ -632,7 +647,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
                   <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
                   <line x1="12" y1="22.08" x2="12" y2="12"/>
                 </svg>
-                Add All to Box
+                Add All to Pallet
               </button>
             )}
           </div>
@@ -688,7 +703,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-orange-500">
                     <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
                   </svg>
-                  <span className="font-semibold text-[var(--foreground)]">Box {boxIndex + 1}</span>
+                  <span className="font-semibold text-[var(--foreground)]">Pallet {boxIndex + 1}</span>
                   <span className="text-xs px-2 py-0.5 bg-orange-100 text-orange-700 rounded">
                     {boxItems.length} item{boxItems.length !== 1 ? 's' : ''}
                   </span>
@@ -705,7 +720,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
                     <button
                       onClick={() => removeBox(box.id)}
                       className="p-1.5 hover:bg-red-100 text-red-500 rounded transition-colors"
-                      title="Remove box"
+                      title="Remove pallet"
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -718,9 +733,9 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
               {/* Box Config */}
               <div className="px-4 py-3 border-b border-[var(--border)] bg-[var(--muted)]/10">
                 <div className="grid grid-cols-3 gap-3">
-                  {/* Packaging Type */}
+                  {/* Container Type */}
                   <div>
-                    <label className="block text-xs font-medium text-[var(--muted-foreground)] uppercase mb-1">Package</label>
+                    <label className="block text-xs font-medium text-[var(--muted-foreground)] uppercase mb-1">Container</label>
                     <select
                       value={box.packagingType}
                       onChange={(e) => updateBox(box.id, { packagingType: e.target.value })}
@@ -846,11 +861,11 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
         })}
       </div>
 
-      {/* Print Actions */}
-      <div className="grid grid-cols-2 gap-4">
+      {/* Print Actions - Packing Screen */}
+      <div className="mt-4">
         <button
           onClick={() => setShowPackingSlipModal(true)}
-          className="px-6 py-4 bg-[var(--card)] border-2 border-[var(--border)] rounded-xl font-medium hover:border-[var(--primary)] hover:shadow-md transition-all flex items-center justify-center gap-3"
+          className="px-6 py-4 bg-[var(--card)] border-2 border-[var(--border)] rounded-xl font-medium hover:border-[var(--primary)] hover:shadow-md transition-all flex items-center gap-3"
         >
           <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
@@ -861,23 +876,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
           </div>
           <div className="text-left">
             <div className="text-base font-semibold">Print Packing Slips</div>
-            <div className="text-sm text-[var(--muted-foreground)]">{packingBoxes.length} box{packingBoxes.length > 1 ? 'es' : ''} ready</div>
-          </div>
-        </button>
-        <button
-          onClick={() => setShowShippingLabelsModal(true)}
-          className="px-6 py-4 bg-[var(--card)] border-2 border-[var(--border)] rounded-xl font-medium hover:border-[var(--primary)] hover:shadow-md transition-all flex items-center justify-center gap-3"
-        >
-          <div className="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-600">
-              <rect x="3" y="3" width="18" height="18" rx="2"/>
-              <path d="M3 9h18"/>
-              <path d="M9 21V9"/>
-            </svg>
-          </div>
-          <div className="text-left">
-            <div className="text-base font-semibold">Print Shipping Labels</div>
-            <div className="text-sm text-[var(--muted-foreground)]">{packingBoxes.length} label{packingBoxes.length > 1 ? 's' : ''} to print</div>
+            <div className="text-sm text-[var(--muted-foreground)]">{packingBoxes.length} pallet{packingBoxes.length > 1 ? 's' : ''} ready</div>
           </div>
         </button>
       </div>
@@ -1017,7 +1016,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
                       </table>
 
                       <div className="mt-6 pt-4 border-t border-gray-200 text-center text-gray-400 text-xs">
-                        Box 1 of {packingBoxes.length}
+                        Pallet 1 of {packingBoxes.length}
                       </div>
                     </div>
                   )}
@@ -1097,7 +1096,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
                           <div className="font-bold text-lg">{packingBoxes[0]?.lineItemIds.length || 0}</div>
                         </div>
                         <div className="border border-gray-200 p-2 rounded">
-                          <div className="text-gray-500">Box Weight</div>
+                          <div className="text-gray-500">Pallet Weight</div>
                           <div className="font-bold text-lg">{getBoxWeight(packingBoxes[0])} lbs</div>
                         </div>
                         <div className="border border-gray-200 p-2 rounded">
@@ -1107,7 +1106,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
                       </div>
 
                       <div className="mt-4 pt-4 border-t border-gray-200 flex justify-between text-gray-400 text-xs">
-                        <span>Box 1 of {packingBoxes.length}</span>
+                        <span>Pallet 1 of {packingBoxes.length}</span>
                         <span>Packed by: ____________</span>
                         <span>Verified: ____________</span>
                       </div>
@@ -1146,7 +1145,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
 
                       <div className="flex justify-between text-xs text-gray-500">
                         <span>PO: {fulfillmentOrder.orderNumber}</span>
-                        <span>Box 1/{packingBoxes.length}</span>
+                        <span>Pallet 1/{packingBoxes.length}</span>
                       </div>
                     </div>
                   )}
@@ -1288,7 +1287,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
                         <div className="flex justify-between items-start mb-3">
                           <div className="font-bold text-lg">{carrier.toUpperCase() || 'CARRIER'}</div>
                           <div className="text-right text-gray-500">
-                            Box {idx + 1} of {packingBoxes.length}
+                            Pallet {idx + 1} of {packingBoxes.length}
                           </div>
                         </div>
 
@@ -1366,6 +1365,190 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
           </div>
         </div>
       )}
+
+      {/* Bill of Lading Modal */}
+      {showBOLModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--card)] rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-amber-600">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                    <path d="M14 2v6h6"/>
+                    <path d="M16 13H8"/>
+                    <path d="M16 17H8"/>
+                    <path d="M10 9H8"/>
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-[var(--foreground)]">Bill of Lading</h2>
+                  <p className="text-sm text-[var(--muted-foreground)]">Preview and print BOL document</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowBOLModal(false)}
+                className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {/* BOL Preview */}
+              <div className="bg-white border-2 border-gray-300 rounded-lg p-6 text-sm text-black max-w-2xl mx-auto">
+                {/* BOL Header */}
+                <div className="border-b-2 border-black pb-4 mb-4">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h1 className="text-2xl font-bold tracking-tight">BILL OF LADING</h1>
+                      <p className="text-gray-600 text-xs mt-1">STRAIGHT - NON-NEGOTIABLE</p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-gray-500">BOL #</div>
+                      <div className="font-mono font-bold">{bolNumber || fulfillmentOrder.fulfillmentOrderNumber}</div>
+                      <div className="text-xs text-gray-500 mt-2">Date</div>
+                      <div className="font-medium">{new Date().toLocaleDateString()}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Ship From / Ship To */}
+                <div className="grid grid-cols-2 gap-6 mb-6">
+                  <div className="border border-gray-300 rounded p-3">
+                    <div className="text-xs font-bold text-gray-500 uppercase mb-2">Ship From</div>
+                    <div className="font-semibold">{fulfillmentOrder.warehouse?.name || 'Main Warehouse'}</div>
+                    <div className="text-xs text-gray-600 mt-1">
+                      {fulfillmentOrder.warehouse?.addressLine1 || '123 Warehouse Dr'}<br/>
+                      {fulfillmentOrder.warehouse?.city || 'Houston'}, {fulfillmentOrder.warehouse?.state || 'TX'} {fulfillmentOrder.warehouse?.postalCode || '77001'}
+                    </div>
+                  </div>
+                  <div className="border border-gray-300 rounded p-3">
+                    <div className="text-xs font-bold text-gray-500 uppercase mb-2">Ship To</div>
+                    <div className="font-semibold">{fulfillmentOrder.shipTo.name}</div>
+                    <div className="text-xs text-gray-600 mt-1">
+                      {fulfillmentOrder.shipTo.addressLine1}<br/>
+                      {fulfillmentOrder.shipTo.city}, {fulfillmentOrder.shipTo.state} {fulfillmentOrder.shipTo.postalCode}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Carrier Info */}
+                <div className="grid grid-cols-3 gap-4 mb-6 text-xs">
+                  <div className="border border-gray-300 rounded p-2">
+                    <div className="font-bold text-gray-500 uppercase">Carrier</div>
+                    <div className="font-medium mt-1">{carrier || selectedCarrier || '—'}</div>
+                  </div>
+                  <div className="border border-gray-300 rounded p-2">
+                    <div className="font-bold text-gray-500 uppercase">PRO #</div>
+                    <div className="font-medium font-mono mt-1">{proNumber || '—'}</div>
+                  </div>
+                  <div className="border border-gray-300 rounded p-2">
+                    <div className="font-bold text-gray-500 uppercase">PO #</div>
+                    <div className="font-medium font-mono mt-1">{fulfillmentOrder.orderNumber}</div>
+                  </div>
+                </div>
+
+                {/* Line Items Table */}
+                <table className="w-full border-collapse border border-gray-300 text-xs mb-6">
+                  <thead>
+                    <tr className="bg-gray-100">
+                      <th className="border border-gray-300 px-2 py-1 text-left font-bold">QTY</th>
+                      <th className="border border-gray-300 px-2 py-1 text-left font-bold">DESCRIPTION</th>
+                      <th className="border border-gray-300 px-2 py-1 text-left font-bold">WEIGHT</th>
+                      <th className="border border-gray-300 px-2 py-1 text-left font-bold">CLASS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="border border-gray-300 px-2 py-1">{packingBoxes.length}</td>
+                      <td className="border border-gray-300 px-2 py-1">
+                        Pallets containing: {fulfillmentOrder.lineItems.map(li => `${li.partNumber} (${li.allocatedQty})`).join(', ')}
+                      </td>
+                      <td className="border border-gray-300 px-2 py-1">
+                        {packingBoxes.reduce((sum, box) => sum + parseFloat(box.customWeight || '0'), 0).toFixed(1)} lbs
+                      </td>
+                      <td className="border border-gray-300 px-2 py-1">{freightClass || '70'}</td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                {/* Totals */}
+                <div className="grid grid-cols-4 gap-4 mb-6 text-xs">
+                  <div className="border border-gray-300 rounded p-2 text-center">
+                    <div className="font-bold text-gray-500 uppercase">Pallets</div>
+                    <div className="text-lg font-bold mt-1">{packingBoxes.length}</div>
+                  </div>
+                  <div className="border border-gray-300 rounded p-2 text-center">
+                    <div className="font-bold text-gray-500 uppercase">Pieces</div>
+                    <div className="text-lg font-bold mt-1">{fulfillmentOrder.lineItems.reduce((sum, li) => sum + li.allocatedQty, 0)}</div>
+                  </div>
+                  <div className="border border-gray-300 rounded p-2 text-center">
+                    <div className="font-bold text-gray-500 uppercase">Total Weight</div>
+                    <div className="text-lg font-bold mt-1">{packingBoxes.reduce((sum, box) => sum + parseFloat(box.customWeight || '0'), 0).toFixed(1)} lbs</div>
+                  </div>
+                  <div className="border border-gray-300 rounded p-2 text-center">
+                    <div className="font-bold text-gray-500 uppercase">Freight Class</div>
+                    <div className="text-lg font-bold mt-1">{freightClass || '70'}</div>
+                  </div>
+                </div>
+
+                {/* Signatures */}
+                <div className="grid grid-cols-2 gap-6 pt-4 border-t border-gray-300">
+                  <div>
+                    <div className="text-xs font-bold text-gray-500 uppercase mb-2">Shipper Signature</div>
+                    <div className="border-b border-gray-400 h-8"></div>
+                    <div className="text-xs text-gray-500 mt-1">Date: _______________</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-gray-500 uppercase mb-2">Driver Signature</div>
+                    <div className="border-b border-gray-400 h-8"></div>
+                    <div className="text-xs text-gray-500 mt-1">Date: _______________</div>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="mt-6 pt-4 border-t border-gray-200 text-center text-[10px] text-gray-400">
+                  This is to certify that the above named materials are properly classified, described, packaged, marked and labeled, and are in proper condition for transportation.
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-[var(--border)] bg-[var(--muted)]/20 flex justify-between items-center">
+              <div className="text-sm text-[var(--muted-foreground)]">
+                Bill of Lading for {fulfillmentOrder.fulfillmentOrderNumber}
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowBOLModal(false)}
+                  className="px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    window.print();
+                    setShowBOLModal(false);
+                  }}
+                  className="px-6 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 transition-colors flex items-center gap-2"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="6 9 6 2 18 2 18 9"/>
+                    <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/>
+                    <rect x="6" y="14" width="12" height="8"/>
+                  </svg>
+                  Print BOL
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -1386,260 +1569,351 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
           <div>
             <h3 className="text-lg font-semibold text-[var(--foreground)]">Shipping Mode</h3>
             <p className="text-sm text-[var(--muted-foreground)]">
-              Finalize outbound logistics • {packingBoxes.length} box{packingBoxes.length > 1 ? 'es' : ''} to ship
+              Finalize outbound logistics • {packingBoxes.length} pallet{packingBoxes.length > 1 ? 's' : ''} to ship
             </p>
           </div>
         </div>
-        {selectedCarrier && trackingNumbers && (
+        <div className="flex items-center gap-2">
+          {/* Lock & Collapse Buttons */}
           <button
-            onClick={handleCompleteShipping}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-green-700 transition-colors"
+            onClick={() => setIsShippingConfigLocked(!isShippingConfigLocked)}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${
+              isShippingConfigLocked
+                ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                : 'bg-[var(--muted)] text-[var(--foreground)] hover:bg-[var(--muted)]/80'
+            }`}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M20 6L9 17l-5-5"/>
-            </svg>
-            Confirm Shipment
+            {isShippingConfigLocked ? (
+              <>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+                Unlock
+              </>
+            ) : (
+              <>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+                </svg>
+                Lock
+              </>
+            )}
           </button>
+          {!isShippingConfigCollapsed && (
+            <button
+              onClick={() => setIsShippingConfigCollapsed(true)}
+              className="px-3 py-1.5 bg-[var(--muted)] text-[var(--foreground)] rounded-lg text-sm font-medium hover:bg-[var(--muted)]/80 transition-colors flex items-center gap-1.5"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 15l-6-6-6 6"/>
+              </svg>
+              Collapse
+            </button>
+          )}
+          {isShippingConfigCollapsed && (
+            <button
+              onClick={() => setIsShippingConfigCollapsed(false)}
+              className="px-3 py-1.5 bg-[var(--muted)] text-[var(--foreground)] rounded-lg text-sm font-medium hover:bg-[var(--muted)]/80 transition-colors flex items-center gap-1.5"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M6 9l6 6 6-6"/>
+              </svg>
+              Expand
+            </button>
+          )}
+          {selectedCarrier && trackingNumbers && (
+            <button
+              onClick={handleCompleteShipping}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-green-700 transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M20 6L9 17l-5-5"/>
+              </svg>
+              Confirm Shipment
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Shipping Configuration Panel - Collapsible */}
+      <div className="border-b border-[var(--border)]">
+        {/* Collapsed Summary View */}
+        {isShippingConfigCollapsed ? (
+          <div className="px-4 py-3 bg-[var(--muted)]/20">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-600">
+                  {shippingMethod === 'SHIP' ? (
+                    <>
+                      <rect x="1" y="3" width="15" height="13"/>
+                      <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
+                      <circle cx="5.5" cy="18.5" r="2.5"/>
+                      <circle cx="18.5" cy="18.5" r="2.5"/>
+                    </>
+                  ) : (
+                    <>
+                      <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+                      <circle cx="12" cy="7" r="4"/>
+                    </>
+                  )}
+                </svg>
+                <span className="font-medium text-sm">{shippingMethod === 'SHIP' ? 'Ship' : 'Will Call'}</span>
+              </div>
+              {shippingMethod === 'SHIP' && (
+                <>
+                  <span className="text-[var(--muted-foreground)]">•</span>
+                  <span className="text-sm text-[var(--muted-foreground)]">
+                    {carrierType === 'parcel' ? 'Parcel' : 'Freight/LTL'}
+                  </span>
+                  {selectedCarrier && (
+                    <>
+                      <span className="text-[var(--muted-foreground)]">•</span>
+                      <span className="text-sm text-[var(--muted-foreground)] capitalize">{selectedCarrier.replace('_', ' ')}</span>
+                    </>
+                  )}
+                </>
+              )}
+              {isShippingConfigLocked && (
+                <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs font-medium">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                  </svg>
+                  Locked
+                </span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Delivery Method Selection */}
+            <div className={`px-4 py-4 bg-[var(--muted)]/10 ${isShippingConfigLocked ? 'opacity-60 pointer-events-none' : ''}`}>
+              <label className="block text-sm font-medium text-[var(--foreground)] mb-3">Delivery Method</label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setShippingMethod('SHIP')}
+                  disabled={isShippingConfigLocked}
+                  className={`p-4 border-2 rounded-xl text-left transition-all ${
+                    shippingMethod === 'SHIP'
+                      ? 'border-purple-500 bg-purple-50'
+                      : 'border-[var(--border)] hover:border-purple-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                      shippingMethod === 'SHIP' ? 'bg-purple-500 text-white' : 'bg-[var(--muted)]'
+                    }`}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="1" y="3" width="15" height="13"/>
+                        <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
+                        <circle cx="5.5" cy="18.5" r="2.5"/>
+                        <circle cx="18.5" cy="18.5" r="2.5"/>
+                      </svg>
+                    </div>
+                    <div>
+                      <div className="font-semibold">Ship</div>
+                      <div className="text-xs text-[var(--muted-foreground)]">Carrier delivery</div>
+                    </div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setShippingMethod('WILL_CALL')}
+                  disabled={isShippingConfigLocked}
+                  className={`p-4 border-2 rounded-xl text-left transition-all ${
+                    shippingMethod === 'WILL_CALL'
+                      ? 'border-purple-500 bg-purple-50'
+                      : 'border-[var(--border)] hover:border-purple-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                      shippingMethod === 'WILL_CALL' ? 'bg-purple-500 text-white' : 'bg-[var(--muted)]'
+                    }`}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+                        <circle cx="12" cy="7" r="4"/>
+                      </svg>
+                    </div>
+                    <div>
+                      <div className="font-semibold">Will Call</div>
+                      <div className="text-xs text-[var(--muted-foreground)]">Customer pickup</div>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Carrier Type Selection - only show if Ship method */}
+            {shippingMethod === 'SHIP' && (
+              <div className={`px-4 py-4 border-t border-[var(--border)] ${isShippingConfigLocked ? 'opacity-60 pointer-events-none' : ''}`}>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-3">Carrier Type</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setCarrierType('parcel')}
+                    disabled={isShippingConfigLocked}
+                    className={`p-4 border-2 rounded-xl text-left transition-all ${
+                      carrierType === 'parcel'
+                        ? 'border-purple-500 bg-purple-50'
+                        : 'border-[var(--border)] hover:border-purple-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                        carrierType === 'parcel' ? 'bg-purple-500 text-white' : 'bg-[var(--muted)]'
+                      }`}>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+                          <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                          <line x1="12" y1="22.08" x2="12" y2="12"/>
+                        </svg>
+                      </div>
+                      <div>
+                        <div className="font-semibold">Parcel</div>
+                        <div className="text-xs text-[var(--muted-foreground)]">UPS, FedEx, USPS, DHL</div>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setCarrierType('freight')}
+                    disabled={isShippingConfigLocked}
+                    className={`p-4 border-2 rounded-xl text-left transition-all ${
+                      carrierType === 'freight'
+                        ? 'border-purple-500 bg-purple-50'
+                        : 'border-[var(--border)] hover:border-purple-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                        carrierType === 'freight' ? 'bg-purple-500 text-white' : 'bg-[var(--muted)]'
+                      }`}>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <rect x="1" y="6" width="22" height="12" rx="2"/>
+                          <path d="M6 6V4a2 2 0 012-2h8a2 2 0 012 2v2"/>
+                          <line x1="12" y1="10" x2="12" y2="14"/>
+                          <line x1="8" y1="10" x2="8" y2="14"/>
+                          <line x1="16" y1="10" x2="16" y2="14"/>
+                        </svg>
+                      </div>
+                      <div>
+                        <div className="font-semibold">Freight / LTL</div>
+                        <div className="text-xs text-[var(--muted-foreground)]">Pallets, heavy shipments</div>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Carrier Selection & Tracking */}
+            {shippingMethod === 'SHIP' && (
+              <div className={`px-4 py-4 border-t border-[var(--border)] ${isShippingConfigLocked ? 'opacity-60 pointer-events-none' : ''}`}>
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Carrier Selection */}
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                      {carrierType === 'parcel' ? 'Parcel Carrier' : 'Freight Carrier'}
+                    </label>
+                    <select
+                      value={selectedCarrier}
+                      onChange={(e) => setSelectedCarrier(e.target.value)}
+                      disabled={isShippingConfigLocked}
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50 disabled:opacity-50"
+                    >
+                      <option value="">Select carrier...</option>
+                      {carrierType === 'parcel' ? (
+                        <>
+                          <option value="ups">UPS</option>
+                          <option value="fedex">FedEx</option>
+                          <option value="usps">USPS</option>
+                          <option value="dhl">DHL</option>
+                          <option value="other_parcel">Other</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="estes">Estes Express</option>
+                          <option value="xpo">XPO Logistics</option>
+                          <option value="saia">SAIA</option>
+                          <option value="old_dominion">Old Dominion</option>
+                          <option value="yrc">YRC Freight</option>
+                          <option value="abf">ABF Freight</option>
+                          <option value="r+l">R+L Carriers</option>
+                          <option value="other_freight">Other</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+
+                  {/* Tracking Number */}
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                      {carrierType === 'parcel' ? 'Tracking Number(s)' : 'PRO Number'}
+                    </label>
+                    <input
+                      type="text"
+                      value={carrierType === 'parcel' ? trackingNumbers : proNumber}
+                      onChange={(e) => carrierType === 'parcel' ? setTrackingNumbers(e.target.value) : setProNumber(e.target.value)}
+                      placeholder={carrierType === 'parcel' ? 'Enter tracking number(s)' : 'Enter PRO number'}
+                      disabled={isShippingConfigLocked}
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50 disabled:opacity-50"
+                    />
+                  </div>
+                </div>
+
+                {/* Freight-specific fields */}
+                {carrierType === 'freight' && (
+                  <div className="grid grid-cols-2 gap-4 mt-4">
+                    <div>
+                      <label className="block text-sm font-medium text-[var(--foreground)] mb-2">BOL Number</label>
+                      <input
+                        type="text"
+                        value={bolNumber}
+                        onChange={(e) => setBolNumber(e.target.value)}
+                        placeholder="Bill of Lading number"
+                        disabled={isShippingConfigLocked}
+                        className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50 disabled:opacity-50"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Freight Class</label>
+                      <select
+                        value={freightClass}
+                        onChange={(e) => setFreightClass(e.target.value)}
+                        disabled={isShippingConfigLocked}
+                        className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50 disabled:opacity-50"
+                      >
+                        <option value="">Select class...</option>
+                        <option value="50">Class 50</option>
+                        <option value="55">Class 55</option>
+                        <option value="60">Class 60</option>
+                        <option value="65">Class 65</option>
+                        <option value="70">Class 70</option>
+                        <option value="77.5">Class 77.5</option>
+                        <option value="85">Class 85</option>
+                        <option value="92.5">Class 92.5</option>
+                        <option value="100">Class 100</option>
+                        <option value="110">Class 110</option>
+                        <option value="125">Class 125</option>
+                        <option value="150">Class 150</option>
+                        <option value="175">Class 175</option>
+                        <option value="200">Class 200</option>
+                        <option value="250">Class 250</option>
+                        <option value="300">Class 300</option>
+                        <option value="400">Class 400</option>
+                        <option value="500">Class 500</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+          </>
         )}
       </div>
 
-      {/* Delivery Method Selection */}
-      <div className="px-4 py-4 border-b border-[var(--border)] bg-[var(--muted)]/10">
-        <label className="block text-sm font-medium text-[var(--foreground)] mb-3">Delivery Method</label>
-        <div className="grid grid-cols-3 gap-3">
-          <button
-            onClick={() => setShippingMethod('SHIP')}
-            className={`p-4 border-2 rounded-xl text-left transition-all ${
-              shippingMethod === 'SHIP'
-                ? 'border-purple-500 bg-purple-50'
-                : 'border-[var(--border)] hover:border-purple-300'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                shippingMethod === 'SHIP' ? 'bg-purple-500 text-white' : 'bg-[var(--muted)]'
-              }`}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="1" y="3" width="15" height="13"/>
-                  <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
-                  <circle cx="5.5" cy="18.5" r="2.5"/>
-                  <circle cx="18.5" cy="18.5" r="2.5"/>
-                </svg>
-              </div>
-              <div>
-                <div className="font-semibold">Ship</div>
-                <div className="text-xs text-[var(--muted-foreground)]">Carrier delivery</div>
-              </div>
-            </div>
-          </button>
-          <button
-            onClick={() => setShippingMethod('WILL_CALL')}
-            className={`p-4 border-2 rounded-xl text-left transition-all ${
-              shippingMethod === 'WILL_CALL'
-                ? 'border-purple-500 bg-purple-50'
-                : 'border-[var(--border)] hover:border-purple-300'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                shippingMethod === 'WILL_CALL' ? 'bg-purple-500 text-white' : 'bg-[var(--muted)]'
-              }`}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
-                  <circle cx="12" cy="7" r="4"/>
-                </svg>
-              </div>
-              <div>
-                <div className="font-semibold">Will Call</div>
-                <div className="text-xs text-[var(--muted-foreground)]">Customer pickup</div>
-              </div>
-            </div>
-          </button>
-          <button
-            onClick={() => setShippingMethod('JOBSITE')}
-            className={`p-4 border-2 rounded-xl text-left transition-all ${
-              shippingMethod === 'JOBSITE'
-                ? 'border-purple-500 bg-purple-50'
-                : 'border-[var(--border)] hover:border-purple-300'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                shippingMethod === 'JOBSITE' ? 'bg-purple-500 text-white' : 'bg-[var(--muted)]'
-              }`}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
-                  <polyline points="9 22 9 12 15 12 15 22"/>
-                </svg>
-              </div>
-              <div>
-                <div className="font-semibold">Jobsite</div>
-                <div className="text-xs text-[var(--muted-foreground)]">Delivery to job</div>
-              </div>
-            </div>
-          </button>
-        </div>
-      </div>
-
-      {/* Carrier Type Selection - only show if Ship method */}
-      {shippingMethod === 'SHIP' && (
-        <div className="px-4 py-4 border-b border-[var(--border)]">
-          <label className="block text-sm font-medium text-[var(--foreground)] mb-3">Carrier Type</label>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => setCarrierType('parcel')}
-              className={`p-4 border-2 rounded-xl text-left transition-all ${
-                carrierType === 'parcel'
-                  ? 'border-purple-500 bg-purple-50'
-                  : 'border-[var(--border)] hover:border-purple-300'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                  carrierType === 'parcel' ? 'bg-purple-500 text-white' : 'bg-[var(--muted)]'
-                }`}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
-                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
-                    <line x1="12" y1="22.08" x2="12" y2="12"/>
-                  </svg>
-                </div>
-                <div>
-                  <div className="font-semibold">Parcel</div>
-                  <div className="text-xs text-[var(--muted-foreground)]">UPS, FedEx, USPS, DHL</div>
-                </div>
-              </div>
-            </button>
-            <button
-              onClick={() => setCarrierType('freight')}
-              className={`p-4 border-2 rounded-xl text-left transition-all ${
-                carrierType === 'freight'
-                  ? 'border-purple-500 bg-purple-50'
-                  : 'border-[var(--border)] hover:border-purple-300'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                  carrierType === 'freight' ? 'bg-purple-500 text-white' : 'bg-[var(--muted)]'
-                }`}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect x="1" y="6" width="22" height="12" rx="2"/>
-                    <path d="M6 6V4a2 2 0 012-2h8a2 2 0 012 2v2"/>
-                    <line x1="12" y1="10" x2="12" y2="14"/>
-                    <line x1="8" y1="10" x2="8" y2="14"/>
-                    <line x1="16" y1="10" x2="16" y2="14"/>
-                  </svg>
-                </div>
-                <div>
-                  <div className="font-semibold">Freight / LTL</div>
-                  <div className="text-xs text-[var(--muted-foreground)]">Pallets, heavy shipments</div>
-                </div>
-              </div>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Carrier Selection & Tracking */}
-      {shippingMethod === 'SHIP' && (
-        <div className="px-4 py-4 border-b border-[var(--border)]">
-          <div className="grid grid-cols-2 gap-4">
-            {/* Carrier Selection */}
-            <div>
-              <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-                {carrierType === 'parcel' ? 'Parcel Carrier' : 'Freight Carrier'}
-              </label>
-              <select
-                value={selectedCarrier}
-                onChange={(e) => setSelectedCarrier(e.target.value)}
-                className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-              >
-                <option value="">Select carrier...</option>
-                {carrierType === 'parcel' ? (
-                  <>
-                    <option value="ups">UPS</option>
-                    <option value="fedex">FedEx</option>
-                    <option value="usps">USPS</option>
-                    <option value="dhl">DHL</option>
-                    <option value="other_parcel">Other</option>
-                  </>
-                ) : (
-                  <>
-                    <option value="estes">Estes Express</option>
-                    <option value="xpo">XPO Logistics</option>
-                    <option value="saia">SAIA</option>
-                    <option value="old_dominion">Old Dominion</option>
-                    <option value="yrc">YRC Freight</option>
-                    <option value="abf">ABF Freight</option>
-                    <option value="r+l">R+L Carriers</option>
-                    <option value="other_freight">Other</option>
-                  </>
-                )}
-              </select>
-            </div>
-
-            {/* Tracking Number */}
-            <div>
-              <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-                {carrierType === 'parcel' ? 'Tracking Number(s)' : 'PRO Number'}
-              </label>
-              <input
-                type="text"
-                value={carrierType === 'parcel' ? trackingNumbers : proNumber}
-                onChange={(e) => carrierType === 'parcel' ? setTrackingNumbers(e.target.value) : setProNumber(e.target.value)}
-                placeholder={carrierType === 'parcel' ? 'Enter tracking number(s)' : 'Enter PRO number'}
-                className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-              />
-            </div>
-          </div>
-
-          {/* Freight-specific fields */}
-          {carrierType === 'freight' && (
-            <div className="grid grid-cols-2 gap-4 mt-4">
-              <div>
-                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">BOL Number</label>
-                <input
-                  type="text"
-                  value={bolNumber}
-                  onChange={(e) => setBolNumber(e.target.value)}
-                  placeholder="Bill of Lading number"
-                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Freight Class</label>
-                <select
-                  value={freightClass}
-                  onChange={(e) => setFreightClass(e.target.value)}
-                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-                >
-                  <option value="">Select class...</option>
-                  <option value="50">Class 50</option>
-                  <option value="55">Class 55</option>
-                  <option value="60">Class 60</option>
-                  <option value="65">Class 65</option>
-                  <option value="70">Class 70</option>
-                  <option value="77.5">Class 77.5</option>
-                  <option value="85">Class 85</option>
-                  <option value="92.5">Class 92.5</option>
-                  <option value="100">Class 100</option>
-                  <option value="110">Class 110</option>
-                  <option value="125">Class 125</option>
-                  <option value="150">Class 150</option>
-                  <option value="175">Class 175</option>
-                  <option value="200">Class 200</option>
-                  <option value="250">Class 250</option>
-                  <option value="300">Class 300</option>
-                  <option value="400">Class 400</option>
-                  <option value="500">Class 500</option>
-                </select>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Will Call / Jobsite specific info */}
+      {/* Will Call specific info */}
       {shippingMethod === 'WILL_CALL' && (
         <div className="px-4 py-4 border-b border-[var(--border)] bg-blue-50">
           <div className="flex items-start gap-3">
@@ -1662,40 +1936,13 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
         </div>
       )}
 
-      {shippingMethod === 'JOBSITE' && (
-        <div className="px-4 py-4 border-b border-[var(--border)] bg-amber-50">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-lg bg-amber-500 flex items-center justify-center flex-shrink-0">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-                <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
-                <polyline points="9 22 9 12 15 12 15 22"/>
-              </svg>
-            </div>
-            <div className="flex-1">
-              <div className="font-semibold text-amber-900">Jobsite Delivery</div>
-              <div className="text-sm text-amber-700 mt-1">
-                Delivering to: <strong>{fulfillmentOrder.shipTo.name}</strong>
-              </div>
-              <div className="text-xs text-amber-800 mt-1">
-                {fulfillmentOrder.shipTo.addressLine1}, {fulfillmentOrder.shipTo.city}, {fulfillmentOrder.shipTo.state} {fulfillmentOrder.shipTo.postalCode}
-              </div>
-              {fulfillmentOrder.shipTo.contactPhone && (
-                <div className="text-xs text-amber-600 mt-1">
-                  Contact: {fulfillmentOrder.shipTo.contactPhone}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Shipment Summary */}
       <div className="px-4 py-4 border-b border-[var(--border)]">
         <label className="block text-sm font-medium text-[var(--foreground)] mb-3">Shipment Summary</label>
         <div className="grid grid-cols-4 gap-3">
           <div className="bg-[var(--muted)]/30 rounded-lg p-3 text-center">
             <div className="text-2xl font-bold text-[var(--foreground)]">{packingBoxes.length}</div>
-            <div className="text-xs text-[var(--muted-foreground)]">Boxes</div>
+            <div className="text-xs text-[var(--muted-foreground)]">Pallets</div>
           </div>
           <div className="bg-[var(--muted)]/30 rounded-lg p-3 text-center">
             <div className="text-2xl font-bold text-[var(--foreground)]">
@@ -1718,9 +1965,14 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
         </div>
       </div>
 
-      {/* Action Buttons */}
+      {/* Action Buttons - Conditional based on shipping method and carrier type */}
       <div className="px-4 py-4 bg-[var(--muted)]/10">
-        <div className="grid grid-cols-2 gap-4">
+        <div className={`grid gap-4 ${
+          shippingMethod === 'WILL_CALL'
+            ? 'grid-cols-2'
+            : (shippingMethod === 'SHIP' && carrierType === 'parcel' ? 'grid-cols-2' : 'grid-cols-3')
+        }`}>
+          {/* Print Packing Slips - Always shown */}
           <button
             onClick={() => setShowPackingSlipModal(true)}
             className="px-6 py-4 bg-[var(--card)] border-2 border-[var(--border)] rounded-xl font-medium hover:border-purple-400 hover:shadow-md transition-all flex items-center justify-center gap-3"
@@ -1737,23 +1989,184 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
               <div className="text-sm text-[var(--muted-foreground)]">{packingBoxes.length} slip{packingBoxes.length > 1 ? 's' : ''} ready</div>
             </div>
           </button>
-          <button
-            onClick={() => setShowShippingLabelsModal(true)}
-            className="px-6 py-4 bg-[var(--card)] border-2 border-[var(--border)] rounded-xl font-medium hover:border-purple-400 hover:shadow-md transition-all flex items-center justify-center gap-3"
-          >
-            <div className="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-600">
-                <rect x="3" y="3" width="18" height="18" rx="2"/>
-                <path d="M3 9h18"/>
-                <path d="M9 21V9"/>
-              </svg>
-            </div>
-            <div className="text-left">
-              <div className="text-base font-semibold">Print Shipping Labels</div>
-              <div className="text-sm text-[var(--muted-foreground)]">{packingBoxes.length} label{packingBoxes.length > 1 ? 's' : ''} to print</div>
-            </div>
-          </button>
+
+          {/* SHIP + Parcel: Print Parcel Labels */}
+          {shippingMethod === 'SHIP' && carrierType === 'parcel' && (
+            <button
+              onClick={() => setShowShippingLabelsModal(true)}
+              className="px-6 py-4 bg-[var(--card)] border-2 border-[var(--border)] rounded-xl font-medium hover:border-purple-400 hover:shadow-md transition-all flex items-center justify-center gap-3"
+            >
+              <div className="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-600">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/>
+                  <path d="M3 9h18"/>
+                  <path d="M9 21V9"/>
+                </svg>
+              </div>
+              <div className="text-left">
+                <div className="text-base font-semibold">Print Parcel Labels</div>
+                <div className="text-sm text-[var(--muted-foreground)]">{packingBoxes.length} label{packingBoxes.length > 1 ? 's' : ''} to print</div>
+              </div>
+            </button>
+          )}
+
+          {/* SHIP + Freight/LTL: Print Pallet Labels */}
+          {shippingMethod === 'SHIP' && carrierType === 'freight' && (
+            <button
+              onClick={() => setShowShippingLabelsModal(true)}
+              className="px-6 py-4 bg-[var(--card)] border-2 border-[var(--border)] rounded-xl font-medium hover:border-purple-400 hover:shadow-md transition-all flex items-center justify-center gap-3"
+            >
+              <div className="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-600">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/>
+                  <path d="M3 9h18"/>
+                  <path d="M9 21V9"/>
+                </svg>
+              </div>
+              <div className="text-left">
+                <div className="text-base font-semibold">Print Pallet Labels</div>
+                <div className="text-sm text-[var(--muted-foreground)]">{packingBoxes.length} label{packingBoxes.length > 1 ? 's' : ''} to print</div>
+              </div>
+            </button>
+          )}
+
+          {/* SHIP + Freight/LTL: Print Bill of Lading */}
+          {shippingMethod === 'SHIP' && carrierType === 'freight' && (
+            <button
+              onClick={() => setShowBOLModal(true)}
+              className="px-6 py-4 bg-[var(--card)] border-2 border-[var(--border)] rounded-xl font-medium hover:border-purple-400 hover:shadow-md transition-all flex items-center justify-center gap-3"
+            >
+              <div className="w-12 h-12 rounded-lg bg-amber-100 flex items-center justify-center">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-amber-600">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                  <path d="M14 2v6h6"/>
+                  <path d="M16 13H8"/>
+                  <path d="M16 17H8"/>
+                  <path d="M10 9H8"/>
+                </svg>
+              </div>
+              <div className="text-left">
+                <div className="text-base font-semibold">Print Bill of Lading</div>
+                <div className="text-sm text-[var(--muted-foreground)]">BOL document</div>
+              </div>
+            </button>
+          )}
+
+          {/* WILL_CALL: Print Pallet Labels */}
+          {shippingMethod === 'WILL_CALL' && (
+            <button
+              onClick={() => setShowShippingLabelsModal(true)}
+              className="px-6 py-4 bg-[var(--card)] border-2 border-[var(--border)] rounded-xl font-medium hover:border-purple-400 hover:shadow-md transition-all flex items-center justify-center gap-3"
+            >
+              <div className="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-600">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/>
+                  <path d="M3 9h18"/>
+                  <path d="M9 21V9"/>
+                </svg>
+              </div>
+              <div className="text-left">
+                <div className="text-base font-semibold">Print Pallet Labels</div>
+                <div className="text-sm text-[var(--muted-foreground)]">{packingBoxes.length} label{packingBoxes.length > 1 ? 's' : ''} to print</div>
+              </div>
+            </button>
+          )}
         </div>
+
+        {/* Pickup / Handoff Section - Only for Ship (Freight) or Will Call */}
+        {((shippingMethod === 'SHIP' && carrierType === 'freight') || shippingMethod === 'WILL_CALL') && (
+          <div className="mt-4 pt-4 border-t border-[var(--border)]">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-600">
+                  <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+                </svg>
+                <h4 className="text-sm font-semibold text-[var(--foreground)]">Pickup / Handoff</h4>
+              </div>
+              {pickupSignature && (
+                <span className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M20 6L9 17l-5-5"/>
+                  </svg>
+                  Signed
+                </span>
+              )}
+            </div>
+
+            {pickupSignature ? (
+              // Show captured signature info
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="grid grid-cols-2 gap-4 mb-3">
+                  <div>
+                    <label className="text-xs text-green-700 font-medium">Name</label>
+                    <p className="text-sm font-semibold text-green-900">{pickupName}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-green-700 font-medium">Timestamp</label>
+                    <p className="text-sm font-semibold text-green-900">
+                      {pickupTimestamp?.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+                <div className="mb-3">
+                  <label className="text-xs text-green-700 font-medium">Signature</label>
+                  <div className="mt-1 bg-white border border-green-300 rounded p-2">
+                    <img src={pickupSignature} alt="Signature" className="h-16 object-contain" />
+                  </div>
+                </div>
+                {pickupNotes && (
+                  <div>
+                    <label className="text-xs text-green-700 font-medium">Notes</label>
+                    <p className="text-sm text-green-800">{pickupNotes}</p>
+                  </div>
+                )}
+                <button
+                  onClick={() => {
+                    setPickupSignature(null);
+                    setPickupTimestamp(null);
+                    setPickupName('');
+                    setDriverName('');
+                    setPickupNotes('');
+                  }}
+                  className="mt-3 text-xs text-green-700 hover:text-green-900 underline"
+                >
+                  Clear and re-capture
+                </button>
+              </div>
+            ) : (
+              // Show button to capture signature
+              <button
+                onClick={() => setShowSignatureModal(true)}
+                className="w-full px-4 py-6 bg-purple-50 border-2 border-dashed border-purple-300 rounded-lg text-purple-700 font-medium hover:bg-purple-100 hover:border-purple-400 transition-colors flex items-center justify-center gap-2"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+                </svg>
+                Signature & Release
+              </button>
+            )}
+
+            {/* Print Proof of Pickup - shown after signature is captured */}
+            {pickupSignature && (
+              <button
+                onClick={() => setShowBOLModal(true)}
+                className="w-full mt-3 px-4 py-3 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]/50 transition-colors flex items-center justify-center gap-3"
+              >
+                <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-600">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <path d="M9 15l2 2 4-4"/>
+                  </svg>
+                </div>
+                <div className="text-left">
+                  <div className="font-semibold text-[var(--foreground)]">Print Proof of Pickup</div>
+                  <div className="text-sm text-[var(--muted-foreground)]">Signed BOL document</div>
+                </div>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Shipping Notes */}
         <div className="mt-4">
@@ -1767,6 +2180,225 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
           />
         </div>
       </div>
+
+      {/* Signature Capture Modal */}
+      {showSignatureModal && (
+        <div className="fixed inset-0 bg-[var(--card)] z-50 flex flex-col">
+          {/* Modal Header */}
+          <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between bg-purple-50">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-purple-500 flex items-center justify-center">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                  <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-[var(--foreground)]">Signature & Release</h2>
+                <p className="text-sm text-[var(--muted-foreground)]">Capture handoff signature for proof of pickup</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowSignatureModal(false)}
+              className="p-3 hover:bg-purple-100 rounded-xl transition-colors"
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+
+          {/* Modal Body - Scrollable */}
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="max-w-3xl mx-auto space-y-6">
+              {/* Name Fields Row */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Customer Name Field */}
+                <div>
+                  <label className="block text-base font-semibold text-[var(--foreground)] mb-2">
+                    Customer Name <span className="text-[var(--muted-foreground)] font-normal">(Optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={pickupName}
+                    onChange={(e) => setPickupName(e.target.value)}
+                    placeholder="Customer or company name"
+                    className="w-full px-4 py-3 border-2 border-[var(--border)] rounded-xl bg-[var(--background)] text-base focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500"
+                  />
+                </div>
+
+                {/* Driver Name Field */}
+                <div>
+                  <label className="block text-base font-semibold text-[var(--foreground)] mb-2">
+                    Driver / Pickup Name <span className="text-[var(--muted-foreground)] font-normal">(Optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={driverName}
+                    onChange={(e) => setDriverName(e.target.value)}
+                    placeholder="Name of person picking up"
+                    className="w-full px-4 py-3 border-2 border-[var(--border)] rounded-xl bg-[var(--background)] text-base focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500"
+                  />
+                </div>
+              </div>
+
+              {/* Signature Canvas - Large */}
+              <div>
+                <label className="block text-base font-semibold text-[var(--foreground)] mb-2">
+                  Signature <span className="text-red-500">*</span>
+                </label>
+                <div className="relative border-2 border-dashed border-purple-300 rounded-xl bg-white overflow-hidden">
+                  <canvas
+                    ref={signatureCanvasRef}
+                    width={800}
+                    height={300}
+                    className="w-full touch-none cursor-crosshair"
+                    style={{ minHeight: '250px' }}
+                    onMouseDown={(e) => {
+                      setIsDrawing(true);
+                      const canvas = signatureCanvasRef.current;
+                      if (canvas) {
+                        const ctx = canvas.getContext('2d');
+                        const rect = canvas.getBoundingClientRect();
+                        const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+                        const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+                        ctx?.beginPath();
+                        ctx?.moveTo(x, y);
+                      }
+                    }}
+                    onMouseMove={(e) => {
+                      if (!isDrawing) return;
+                      const canvas = signatureCanvasRef.current;
+                      if (canvas) {
+                        const ctx = canvas.getContext('2d');
+                        const rect = canvas.getBoundingClientRect();
+                        const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+                        const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+                        if (ctx) {
+                          ctx.lineWidth = 3;
+                          ctx.lineCap = 'round';
+                          ctx.strokeStyle = '#1a1a1a';
+                          ctx.lineTo(x, y);
+                          ctx.stroke();
+                        }
+                      }
+                    }}
+                    onMouseUp={() => setIsDrawing(false)}
+                    onMouseLeave={() => setIsDrawing(false)}
+                    onTouchStart={(e) => {
+                      e.preventDefault();
+                      setIsDrawing(true);
+                      const canvas = signatureCanvasRef.current;
+                      if (canvas) {
+                        const ctx = canvas.getContext('2d');
+                        const rect = canvas.getBoundingClientRect();
+                        const touch = e.touches[0];
+                        const x = (touch.clientX - rect.left) * (canvas.width / rect.width);
+                        const y = (touch.clientY - rect.top) * (canvas.height / rect.height);
+                        ctx?.beginPath();
+                        ctx?.moveTo(x, y);
+                      }
+                    }}
+                    onTouchMove={(e) => {
+                      e.preventDefault();
+                      if (!isDrawing) return;
+                      const canvas = signatureCanvasRef.current;
+                      if (canvas) {
+                        const ctx = canvas.getContext('2d');
+                        const rect = canvas.getBoundingClientRect();
+                        const touch = e.touches[0];
+                        const x = (touch.clientX - rect.left) * (canvas.width / rect.width);
+                        const y = (touch.clientY - rect.top) * (canvas.height / rect.height);
+                        if (ctx) {
+                          ctx.lineWidth = 3;
+                          ctx.lineCap = 'round';
+                          ctx.strokeStyle = '#1a1a1a';
+                          ctx.lineTo(x, y);
+                          ctx.stroke();
+                        }
+                      }
+                    }}
+                    onTouchEnd={() => setIsDrawing(false)}
+                  />
+                  <div className="absolute bottom-3 left-4 text-sm text-gray-400">
+                    Sign above using finger or stylus
+                  </div>
+                  <button
+                    onClick={() => {
+                      const canvas = signatureCanvasRef.current;
+                      if (canvas) {
+                        const ctx = canvas.getContext('2d');
+                        ctx?.clearRect(0, 0, canvas.width, canvas.height);
+                      }
+                    }}
+                    className="absolute top-3 right-3 px-4 py-2 text-sm font-medium bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                  >
+                    Clear Signature
+                  </button>
+                </div>
+              </div>
+
+              {/* Timestamp */}
+              <div>
+                <label className="block text-base font-semibold text-[var(--foreground)] mb-2">Timestamp</label>
+                <div className="px-4 py-3 bg-[var(--muted)]/30 border-2 border-[var(--border)] rounded-xl text-base text-[var(--muted-foreground)]">
+                  {new Date().toLocaleString()}
+                </div>
+              </div>
+
+              {/* Notes (Optional) */}
+              <div>
+                <label className="block text-base font-semibold text-[var(--foreground)] mb-2">
+                  Notes <span className="text-[var(--muted-foreground)] font-normal">(Optional)</span>
+                </label>
+                <textarea
+                  value={pickupNotes}
+                  onChange={(e) => setPickupNotes(e.target.value)}
+                  placeholder="Any additional notes about the pickup or delivery..."
+                  rows={4}
+                  className="w-full px-4 py-3 border-2 border-[var(--border)] rounded-xl bg-[var(--background)] text-base focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 resize-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Modal Footer - Fixed at bottom */}
+          <div className="px-6 py-4 border-t border-[var(--border)] bg-[var(--muted)]/20 flex justify-center gap-4">
+            <button
+              onClick={() => {
+                setShowSignatureModal(false);
+                setPickupName('');
+                setDriverName('');
+                setPickupNotes('');
+                const canvas = signatureCanvasRef.current;
+                if (canvas) {
+                  const ctx = canvas.getContext('2d');
+                  ctx?.clearRect(0, 0, canvas.width, canvas.height);
+                }
+              }}
+              className="px-8 py-3 border-2 border-[var(--border)] rounded-xl text-base font-semibold hover:bg-[var(--muted)] transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                const canvas = signatureCanvasRef.current;
+                if (canvas) {
+                  const signatureData = canvas.toDataURL('image/png');
+                  setPickupSignature(signatureData);
+                  setPickupTimestamp(new Date());
+                  setShowSignatureModal(false);
+                }
+              }}
+              className="px-8 py-3 rounded-xl text-base font-semibold flex items-center gap-2 bg-purple-600 text-white hover:bg-purple-700 transition-colors"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M20 6L9 17l-5-5"/>
+              </svg>
+              Confirm & Save
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -1866,10 +2498,6 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button className="px-3 py-1.5 border border-[var(--border)] rounded-lg font-medium text-sm hover:bg-[var(--muted)] transition-colors">
-              Print Pick List
-            </button>
-
             {/* Dynamic Action Buttons based on status */}
             {fulfillmentOrder.status === 'PENDING' && (
               <button
@@ -1879,40 +2507,45 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
-                Release to Warehouse
+                Continue
               </button>
             )}
 
             {fulfillmentOrder.status === 'RELEASED' && (
               <button
                 onClick={handleStartPicking}
-                className="px-3 py-1.5 bg-yellow-600 text-white rounded-lg font-medium text-sm hover:bg-yellow-700 transition-colors"
+                className="px-3 py-1.5 bg-yellow-600 text-white rounded-lg font-medium text-sm hover:bg-yellow-700 transition-colors flex items-center gap-2"
               >
-                Start Picking
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Continue
               </button>
             )}
 
             {fulfillmentOrder.status === 'PICKING' && (
               <button
                 onClick={handleCompletePicking}
-                className="px-3 py-1.5 bg-amber-600 text-white rounded-lg font-medium text-sm hover:bg-amber-700 transition-colors"
+                className="px-3 py-1.5 bg-amber-600 text-white rounded-lg font-medium text-sm hover:bg-amber-700 transition-colors flex items-center gap-2"
               >
-                Complete Picking
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Continue
               </button>
             )}
 
             {['SHIPPING', 'PACKING'].includes(fulfillmentOrder.status) && (
               <button
                 onClick={handleConfirmShipment}
-                className="px-3 py-1.5 bg-green-600 text-white rounded-lg font-medium text-sm hover:bg-green-700 transition-colors"
+                className="px-3 py-1.5 bg-green-600 text-white rounded-lg font-medium text-sm hover:bg-green-700 transition-colors flex items-center gap-2"
               >
-                Confirm Shipment
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Continue
               </button>
             )}
-
-            <button className="px-3 py-1.5 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors">
-              Save
-            </button>
           </div>
         </div>
 
@@ -2035,7 +2668,6 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
                   >
                     <option value="SHIP">Ship</option>
                     <option value="WILL_CALL">Will Call</option>
-                    <option value="JOBSITE">Jobsite Delivery</option>
                   </select>
                 </div>
                 <div>

@@ -168,7 +168,7 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
     photo?: string;
   }>>([]);
   const [showDiscrepancyForm, setShowDiscrepancyForm] = useState<string | null>(null);
-  const [newDiscrepancy, setNewDiscrepancy] = useState<{ type: 'shortage' | 'overage' | 'damage' | 'wrong_item'; quantity: number; description: string }>({ type: 'shortage', quantity: 0, description: '' });
+  const [newDiscrepancy, setNewDiscrepancy] = useState<{ type: 'shortage' | 'overage' | 'damage' | 'wrong_item'; quantity: number; description: string }>({ type: 'damage', quantity: 0, description: '' });
 
   // Expanded item for detailed entry
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
@@ -227,6 +227,8 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
   const totalExpected = lineItems.reduce((sum, item) => sum + item.expectedQty, 0);
   const totalReceived = lineItems.reduce((sum, item) => sum + item.receivedQty, 0);
   const totalDamaged = lineItems.reduce((sum, item) => sum + item.damagedQty, 0);
+  const totalIssues = discrepancies.reduce((sum, d) => sum + d.quantity, 0);
+  const totalGood = Math.max(0, totalReceived - totalIssues);
   const allItemsVerified = lineItems.every(item => item.verified);
   const allItemsPutAway = lineItems.every(item => item.putAway);
   const allBinsAssigned = lineItems.every(item => item.binId);
@@ -288,14 +290,14 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
   };
 
   const handleAddDiscrepancy = (itemId: string) => {
-    if (!newDiscrepancy.description) return;
+    if (!newDiscrepancy.quantity) return;
     const newId = `DISC-${Date.now()}`;
     setDiscrepancies(prev => [...prev, {
       id: newId,
       lineItemId: itemId,
       ...newDiscrepancy,
     }]);
-    setNewDiscrepancy({ type: 'shortage', quantity: 0, description: '' });
+    setNewDiscrepancy({ type: 'damage', quantity: 0, description: '' });
     setShowDiscrepancyForm(null);
   };
 
@@ -447,12 +449,12 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
           <div>
             <h3 className="text-lg font-semibold text-[var(--foreground)]">Receiving Mode</h3>
             <p className="text-sm text-[var(--muted-foreground)]">
-              {totalReceived} of {totalExpected} items received · {totalDamaged > 0 ? `${totalDamaged} damaged` : 'No damage reported'}
+              {totalReceived} of {totalExpected} items received · {totalIssues > 0 ? `${totalIssues} with issues` : 'No issues reported'}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {allItemsVerified && allBinsAssigned && (
+          {allItemsVerified && (
             <button
               onClick={handleCompleteReceiving}
               className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-green-700 transition-colors"
@@ -614,7 +616,7 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
                 <div className="px-4 pb-4 pt-0 border-t border-[var(--border)] bg-[var(--muted)]/10">
                   <div className="ml-16 space-y-4 mt-4">
                     {/* Quantity Row */}
-                    <div className="grid grid-cols-5 gap-4">
+                    <div className="grid grid-cols-4 gap-4">
                       <div>
                         <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                           Received Qty
@@ -629,32 +631,11 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                          Damaged Qty
+                          Good Qty
                         </label>
-                        <input
-                          type="number"
-                          min="0"
-                          value={lineItem.damagedQty}
-                          onChange={(e) => handleUpdateLineItem(lineItem.id, { damagedQty: parseInt(e.target.value) || 0 })}
-                          className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                          Bin Location
-                        </label>
-                        <select
-                          value={lineItem.binId}
-                          onChange={(e) => handleUpdateLineItem(lineItem.id, { binId: e.target.value })}
-                          className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-                        >
-                          <option value="">Select bin</option>
-                          {mockBins.map((bin) => (
-                            <option key={bin.id} value={bin.id}>
-                              Bin {bin.letterCode}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-green-50 text-sm font-medium text-green-700">
+                          {Math.max(0, lineItem.receivedQty - lineItem.damagedQty - discrepancies.filter(d => d.lineItemId === lineItem.id).reduce((sum, d) => sum + d.quantity, 0))}
+                        </div>
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
@@ -695,56 +676,67 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
                       />
                     </div>
 
-                    {/* Discrepancy Section */}
+                    {/* Discrepancy Section - Always show add button for multiple line items */}
                     <div className="pt-2 border-t border-[var(--border)]">
                       <div className="flex items-center justify-between mb-2">
-                        <h5 className="text-sm font-medium text-[var(--foreground)]">Discrepancies</h5>
-                        {showDiscrepancyForm !== lineItem.id && (
-                          <button
-                            onClick={() => setShowDiscrepancyForm(lineItem.id)}
-                            className="text-xs text-[var(--primary)] hover:underline flex items-center gap-1"
-                          >
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <line x1="12" y1="5" x2="12" y2="19"/>
-                              <line x1="5" y1="12" x2="19" y2="12"/>
-                            </svg>
-                            Report Discrepancy
-                          </button>
-                        )}
+                        <h5 className="text-sm font-medium text-[var(--foreground)]">Inventory Issues</h5>
+                        <button
+                          onClick={() => setShowDiscrepancyForm(lineItem.id)}
+                          className="text-xs text-[var(--primary)] hover:underline flex items-center gap-1"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <line x1="12" y1="5" x2="12" y2="19"/>
+                            <line x1="5" y1="12" x2="19" y2="12"/>
+                          </svg>
+                          Add Issue
+                        </button>
                       </div>
 
-                      {/* Existing discrepancies */}
+                      {/* Existing discrepancies as line items */}
                       {discrepancies.filter(d => d.lineItemId === lineItem.id).map(disc => (
-                        <div key={disc.id} className="px-3 py-2 bg-red-50 border border-red-200 rounded-lg mb-2 text-sm">
-                          <div className="flex items-center gap-2">
+                        <div key={disc.id} className="px-3 py-2 bg-red-50 border border-red-200 rounded-lg mb-2 text-sm flex items-center justify-between">
+                          <div className="flex items-center gap-3">
                             <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                              disc.type === 'damage' ? 'bg-orange-100 text-orange-700' :
                               disc.type === 'shortage' ? 'bg-red-100 text-red-700' :
                               disc.type === 'overage' ? 'bg-blue-100 text-blue-700' :
-                              disc.type === 'damage' ? 'bg-orange-100 text-orange-700' :
-                              'bg-purple-100 text-purple-700'
+                              disc.type === 'wrong_item' ? 'bg-purple-100 text-purple-700' :
+                              'bg-gray-100 text-gray-700'
                             }`}>
-                              {disc.type.charAt(0).toUpperCase() + disc.type.slice(1)}
+                              {disc.type === 'damage' ? 'Damaged' :
+                               disc.type === 'shortage' ? 'Missing / Shortage' :
+                               disc.type === 'overage' ? 'Overage' :
+                               'Wrong Item'}
                             </span>
-                            {disc.quantity > 0 && <span className="text-[var(--muted-foreground)]">Qty: {disc.quantity}</span>}
+                            <span className="font-medium text-[var(--foreground)]">Qty: {disc.quantity}</span>
+                            {disc.description && <span className="text-[var(--muted-foreground)]">- {disc.description}</span>}
                           </div>
-                          <p className="text-[var(--foreground)] mt-1">{disc.description}</p>
+                          <button
+                            onClick={() => setDiscrepancies(prev => prev.filter(d => d.id !== disc.id))}
+                            className="text-red-500 hover:text-red-700 p-1"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <line x1="18" y1="6" x2="6" y2="18"/>
+                              <line x1="6" y1="6" x2="18" y2="18"/>
+                            </svg>
+                          </button>
                         </div>
                       ))}
 
-                      {/* New discrepancy form */}
+                      {/* New discrepancy form - inline add */}
                       {showDiscrepancyForm === lineItem.id && (
                         <div className="p-3 bg-[var(--muted)]/30 border border-[var(--border)] rounded-lg space-y-3">
                           <div className="grid grid-cols-3 gap-3">
                             <div>
-                              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Type</label>
+                              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Category</label>
                               <select
                                 value={newDiscrepancy.type}
                                 onChange={(e) => setNewDiscrepancy(prev => ({ ...prev, type: e.target.value as 'shortage' | 'overage' | 'damage' | 'wrong_item' }))}
                                 className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm"
                               >
-                                <option value="shortage">Shortage</option>
+                                <option value="damage">Damaged</option>
+                                <option value="shortage">Missing / Shortage</option>
                                 <option value="overage">Overage</option>
-                                <option value="damage">Damage</option>
                                 <option value="wrong_item">Wrong Item</option>
                               </select>
                             </div>
@@ -752,23 +744,25 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
                               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Quantity</label>
                               <input
                                 type="number"
-                                min="0"
-                                value={newDiscrepancy.quantity}
+                                min="1"
+                                value={newDiscrepancy.quantity || ''}
                                 onChange={(e) => setNewDiscrepancy(prev => ({ ...prev, quantity: parseInt(e.target.value) || 0 }))}
+                                placeholder="Enter qty"
                                 className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm"
                               />
                             </div>
                             <div className="flex items-end gap-2">
                               <button
                                 onClick={() => handleAddDiscrepancy(lineItem.id)}
-                                className="px-3 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700"
+                                disabled={!newDiscrepancy.quantity}
+                                className="px-3 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                               >
                                 Add
                               </button>
                               <button
                                 onClick={() => {
                                   setShowDiscrepancyForm(null);
-                                  setNewDiscrepancy({ type: 'shortage', quantity: 0, description: '' });
+                                  setNewDiscrepancy({ type: 'damage', quantity: 0, description: '' });
                                 }}
                                 className="px-3 py-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
                               >
@@ -777,12 +771,12 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
                             </div>
                           </div>
                           <div>
-                            <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Description</label>
+                            <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Notes (optional)</label>
                             <input
                               type="text"
                               value={newDiscrepancy.description}
                               onChange={(e) => setNewDiscrepancy(prev => ({ ...prev, description: e.target.value }))}
-                              placeholder="Describe the discrepancy..."
+                              placeholder="Add details about this issue..."
                               className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm"
                             />
                           </div>
@@ -790,7 +784,7 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
                       )}
 
                       {discrepancies.filter(d => d.lineItemId === lineItem.id).length === 0 && showDiscrepancyForm !== lineItem.id && (
-                        <p className="text-xs text-[var(--muted-foreground)]">No discrepancies reported</p>
+                        <p className="text-xs text-[var(--muted-foreground)]">No issues reported</p>
                       )}
                     </div>
 
@@ -1027,7 +1021,7 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
               </button>
             )}
 
-            {shipment.status === 'RECEIVING' && allItemsVerified && allBinsAssigned && (
+            {shipment.status === 'RECEIVING' && allItemsVerified && (
               <button
                 onClick={handleCompleteReceiving}
                 className="px-3 py-1.5 bg-green-600 text-white rounded-lg font-medium text-sm hover:bg-green-700 transition-colors flex items-center gap-2"

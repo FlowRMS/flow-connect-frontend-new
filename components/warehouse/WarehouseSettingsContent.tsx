@@ -216,6 +216,26 @@ const mockShippingCarriers: ShippingCarrier[] = [
   },
 ];
 
+// Container type interface
+interface ContainerType {
+  id: string;
+  name: string;
+  length: number; // in inches
+  width: number;  // in inches
+  height: number; // in inches
+  weight: number; // tare weight in lbs
+  order: number;  // order in dropdown
+}
+
+// Mock container types
+const mockContainerTypes: ContainerType[] = [
+  { id: 'CT001', name: 'Pallet (48x40x6)', length: 48, width: 40, height: 6, weight: 30, order: 0 },
+  { id: 'CT002', name: 'Small Box', length: 12, width: 10, height: 8, weight: 0.5, order: 1 },
+  { id: 'CT003', name: 'Medium Box', length: 18, width: 14, height: 12, weight: 1, order: 2 },
+  { id: 'CT004', name: 'Large Box', length: 24, width: 18, height: 18, weight: 1.5, order: 3 },
+  { id: 'CT005', name: 'Extra Large Box', length: 30, width: 24, height: 24, weight: 2, order: 4 },
+];
+
 interface WarehouseSettingsState {
   locationLevels: WarehouseLocationLevelConfig[];
   workers: WarehouseWorkerAssignment[];
@@ -248,11 +268,12 @@ const initializeWarehouses = (): WarehouseWithSettings[] => {
   }));
 };
 
-type SettingsTab = 'warehouses' | 'shipping-carriers';
+type SettingsTab = 'warehouses' | 'shipping-carriers' | 'containers';
 
 const settingsTabs: { id: SettingsTab; label: string }[] = [
   { id: 'warehouses', label: 'Warehouses' },
   { id: 'shipping-carriers', label: 'Shipping Carriers' },
+  { id: 'containers', label: 'Containers' },
 ];
 
 export default function WarehouseSettingsContent() {
@@ -270,6 +291,11 @@ export default function WarehouseSettingsContent() {
   const [newCarrierName, setNewCarrierName] = useState('');
   const [newCarrierAccount, setNewCarrierAccount] = useState('');
   const [newCarrierRemarks, setNewCarrierRemarks] = useState('');
+
+  // Container state
+  const [containerTypes, setContainerTypes] = useState<ContainerType[]>(mockContainerTypes);
+  const [editingContainerId, setEditingContainerId] = useState<string | null>(null);
+  const [draggedContainerId, setDraggedContainerId] = useState<string | null>(null);
 
   const toggleWarehouseExpansion = (warehouseId: string) => {
     setExpandedWarehouse(prev => prev === warehouseId ? null : warehouseId);
@@ -421,6 +447,67 @@ export default function WarehouseSettingsContent() {
     ));
     setHasChanges(true);
   };
+
+  // Container management functions
+  const handleAddContainer = () => {
+    const newContainer: ContainerType = {
+      id: `CT${Date.now()}`,
+      name: 'New Container',
+      length: 12,
+      width: 12,
+      height: 12,
+      weight: 0,
+      order: containerTypes.length,
+    };
+    setContainerTypes([...containerTypes, newContainer]);
+    setEditingContainerId(newContainer.id);
+    setHasChanges(true);
+  };
+
+  const handleUpdateContainer = (id: string, updates: Partial<ContainerType>) => {
+    setContainerTypes(containerTypes.map(c =>
+      c.id === id ? { ...c, ...updates } : c
+    ));
+    setHasChanges(true);
+  };
+
+  const handleDeleteContainer = (id: string) => {
+    const filtered = containerTypes.filter(c => c.id !== id);
+    // Re-order remaining containers
+    const reordered = filtered.map((c, idx) => ({ ...c, order: idx }));
+    setContainerTypes(reordered);
+    setHasChanges(true);
+  };
+
+  const handleContainerDragStart = (e: React.DragEvent, containerId: string) => {
+    setDraggedContainerId(containerId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleContainerDragOver = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    if (!draggedContainerId || draggedContainerId === targetId) return;
+
+    const draggedIndex = containerTypes.findIndex(c => c.id === draggedContainerId);
+    const targetIndex = containerTypes.findIndex(c => c.id === targetId);
+
+    if (draggedIndex === -1 || targetIndex === -1) return;
+
+    const newContainers = [...containerTypes];
+    const [draggedItem] = newContainers.splice(draggedIndex, 1);
+    newContainers.splice(targetIndex, 0, draggedItem);
+
+    // Update order values
+    const reordered = newContainers.map((c, idx) => ({ ...c, order: idx }));
+    setContainerTypes(reordered);
+  };
+
+  const handleContainerDragEnd = () => {
+    setDraggedContainerId(null);
+    setHasChanges(true);
+  };
+
+  const sortedContainers = [...containerTypes].sort((a, b) => a.order - b.order);
 
   return (
     <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
@@ -1228,6 +1315,214 @@ export default function WarehouseSettingsContent() {
                 </svg>
                 Add Carrier
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Containers Tab Content */}
+      {activeTab === 'containers' && (
+        <div className="space-y-4">
+          {/* Info Banner */}
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <h4 className="text-sm font-medium text-blue-800 dark:text-blue-300">Container Types</h4>
+                <p className="text-sm text-blue-700 dark:text-blue-400 mt-1">
+                  Configure the container types available for packing. Drag rows to reorder how they appear in dropdowns.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Container List */}
+          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
+            {/* Header */}
+            <div className="grid grid-cols-12 gap-4 px-4 py-3 bg-[var(--muted)]/30 border-b border-[var(--border)] text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">
+              <div className="col-span-1"></div>
+              <div className="col-span-4">Name</div>
+              <div className="col-span-4">Dimensions (in)</div>
+              <div className="col-span-2">Weight (lbs)</div>
+              <div className="col-span-1"></div>
+            </div>
+
+            {/* Container Rows */}
+            <div className="divide-y divide-[var(--border)]">
+              {sortedContainers.map((container, index) => {
+                const isEditing = editingContainerId === container.id;
+
+                return (
+                  <div
+                    key={container.id}
+                    draggable={!isEditing}
+                    onDragStart={(e) => handleContainerDragStart(e, container.id)}
+                    onDragOver={(e) => handleContainerDragOver(e, container.id)}
+                    onDragEnd={handleContainerDragEnd}
+                    className={`grid grid-cols-12 gap-4 px-4 py-3 items-center transition-colors ${
+                      draggedContainerId === container.id
+                        ? 'bg-blue-50 dark:bg-blue-900/20 opacity-50'
+                        : 'hover:bg-[var(--accent)]/50'
+                    } ${!isEditing ? 'cursor-grab active:cursor-grabbing' : ''}`}
+                  >
+                    {/* Drag Handle */}
+                    <div className="col-span-1 flex items-center gap-2">
+                      <span className="text-xs text-[var(--muted-foreground)] w-4">{index + 1}</span>
+                      <svg className="w-4 h-4 text-[var(--muted-foreground)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                      </svg>
+                    </div>
+
+                    {/* Name */}
+                    <div className="col-span-4">
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          value={container.name}
+                          onChange={(e) => handleUpdateContainer(container.id, { name: e.target.value })}
+                          className="w-full px-2 py-1 border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          autoFocus
+                        />
+                      ) : (
+                        <span className="text-sm font-medium text-[var(--foreground)]">{container.name}</span>
+                      )}
+                    </div>
+
+                    {/* Dimensions */}
+                    <div className="col-span-4">
+                      {isEditing ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            value={container.length}
+                            onChange={(e) => handleUpdateContainer(container.id, { length: parseFloat(e.target.value) || 0 })}
+                            className="w-16 px-2 py-1 border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            min="0"
+                            step="0.5"
+                          />
+                          <span className="text-[var(--muted-foreground)]">×</span>
+                          <input
+                            type="number"
+                            value={container.width}
+                            onChange={(e) => handleUpdateContainer(container.id, { width: parseFloat(e.target.value) || 0 })}
+                            className="w-16 px-2 py-1 border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            min="0"
+                            step="0.5"
+                          />
+                          <span className="text-[var(--muted-foreground)]">×</span>
+                          <input
+                            type="number"
+                            value={container.height}
+                            onChange={(e) => handleUpdateContainer(container.id, { height: parseFloat(e.target.value) || 0 })}
+                            className="w-16 px-2 py-1 border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            min="0"
+                            step="0.5"
+                          />
+                        </div>
+                      ) : (
+                        <span className="text-sm text-[var(--foreground)] font-mono">
+                          {container.length} × {container.width} × {container.height}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Weight */}
+                    <div className="col-span-2">
+                      {isEditing ? (
+                        <input
+                          type="number"
+                          value={container.weight}
+                          onChange={(e) => handleUpdateContainer(container.id, { weight: parseFloat(e.target.value) || 0 })}
+                          className="w-20 px-2 py-1 border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          min="0"
+                          step="0.1"
+                        />
+                      ) : (
+                        <span className="text-sm text-[var(--foreground)]">{container.weight}</span>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="col-span-1 flex items-center justify-end gap-1">
+                      {isEditing ? (
+                        <button
+                          onClick={() => setEditingContainerId(null)}
+                          className="p-1.5 text-green-600 hover:bg-green-100 dark:hover:bg-green-900/30 rounded transition-colors"
+                          title="Done editing"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setEditingContainerId(container.id)}
+                          className="p-1.5 text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--accent)] rounded transition-colors"
+                          title="Edit"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                          </svg>
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleDeleteContainer(container.id)}
+                        className="p-1.5 text-[var(--muted-foreground)] hover:text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
+                        title="Delete"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Empty State */}
+            {containerTypes.length === 0 && (
+              <div className="p-12 text-center">
+                <svg className="w-16 h-16 mx-auto text-[var(--muted-foreground)] opacity-50 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                </svg>
+                <h3 className="text-lg font-medium text-[var(--foreground)] mb-2">No Container Types</h3>
+                <p className="text-sm text-[var(--muted-foreground)]">
+                  Add container types to use in packing operations.
+                </p>
+              </div>
+            )}
+
+            {/* Add Button */}
+            <div className="px-4 py-3 border-t border-[var(--border)] bg-[var(--muted)]/10">
+              <button
+                onClick={handleAddContainer}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Add Container Type
+              </button>
+            </div>
+          </div>
+
+          {/* Dropdown Preview */}
+          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
+            <h3 className="text-sm font-medium text-[var(--foreground)] mb-3">Dropdown Preview</h3>
+            <div className="max-w-xs">
+              <select className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                {sortedContainers.map((container) => (
+                  <option key={container.id} value={container.id}>
+                    {container.name} ({container.length}×{container.width}×{container.height})
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-[var(--muted-foreground)] mt-2">
+                This shows how containers will appear in the packing dropdown.
+              </p>
             </div>
           </div>
         </div>
