@@ -168,7 +168,10 @@ export default function WarehouseLayoutModal({
             onElementResize={visualElements.handleElementResize}
             onAddChild={locationManagement.addChildLocation}
             onAddSectionAtPosition={locationManagement.addSectionAtPosition}
+            onAddSection={locationManagement.addSection}
             onDelete={locationManagement.deleteLocation}
+            onSave={handleSave}
+            onClose={onClose}
             onWheel={canvasInteractions.handleCanvasWheel}
             onMouseDown={canvasInteractions.handleCanvasMouseDown}
             onMouseMove={canvasInteractions.handleCanvasMouseMove}
@@ -179,6 +182,7 @@ export default function WarehouseLayoutModal({
             getNextLevelType={locationManagement.getNextLevelType}
             handleZoomIn={canvasInteractions.handleZoomIn}
             handleZoomOut={canvasInteractions.handleZoomOut}
+            enabledLevels={enabledLevels}
           />
         )}
 

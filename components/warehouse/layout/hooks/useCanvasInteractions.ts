@@ -27,13 +27,11 @@ export function useCanvasInteractions() {
     setPanOffset({ x: 0, y: 0 });
   }, []);
 
-  // Handle mouse wheel for zoom (with Ctrl/Cmd key)
+  // Handle mouse wheel for zoom
   const handleCanvasWheel = useCallback((e: React.WheelEvent) => {
-    if (e.ctrlKey || e.metaKey) {
-      e.preventDefault();
-      const delta = e.deltaY > 0 ? 0.9 : 1.1;
-      setZoom((prev) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev * delta)));
-    }
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    setZoom((prev) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev * delta)));
   }, []);
 
   // Start panning (middle mouse button or Alt + left click)
