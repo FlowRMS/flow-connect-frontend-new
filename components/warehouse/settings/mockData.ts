@@ -1,6 +1,6 @@
 import { mockWarehouses } from '@/lib/data/warehouse-mock';
 import { defaultLocationLevels } from '@/lib/types/warehouse';
-import type { WarehouseWorker, ShippingCarrier, WarehouseWithSettings } from './types';
+import type { WarehouseWorker, ShippingCarrier, WarehouseWithSettings, ContainerType } from './types';
 
 export const mockAvailableWorkers: WarehouseWorker[] = [
   { id: 'W001', name: 'Marcus Johnson', email: 'marcus.j@company.com', role: 'worker' },
@@ -113,6 +113,15 @@ export const mockShippingCarriers: ShippingCarrier[] = [
     serviceTypes: ['Regional LTL', 'Guaranteed'],
     internalNotes: 'Account on hold - billing dispute',
   },
+];
+
+// Mock container types
+export const mockContainerTypes: ContainerType[] = [
+  { id: 'CT001', name: 'Pallet (48x40x6)', length: 48, width: 40, height: 6, weight: 30, order: 0 },
+  { id: 'CT002', name: 'Small Box', length: 12, width: 10, height: 8, weight: 0.5, order: 1 },
+  { id: 'CT003', name: 'Medium Box', length: 18, width: 14, height: 12, weight: 1, order: 2 },
+  { id: 'CT004', name: 'Large Box', length: 24, width: 18, height: 18, weight: 1.5, order: 3 },
+  { id: 'CT005', name: 'Extra Large Box', length: 30, width: 24, height: 24, weight: 2, order: 4 },
 ];
 
 // Initialize warehouses with default settings

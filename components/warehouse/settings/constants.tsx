@@ -48,6 +48,7 @@ export const levelColors = [
 export const settingsTabs: { id: SettingsTab; label: string }[] = [
   { id: 'warehouses', label: 'Warehouses' },
   { id: 'shipping-carriers', label: 'Shipping Carriers' },
+  { id: 'containers', label: 'Containers' },
 ];
 
 export const PAYMENT_TERMS_OPTIONS = [

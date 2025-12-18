@@ -3,8 +3,8 @@
 import React, { useState } from 'react';
 import WarehouseLayoutModal from '../layout/WarehouseLayoutModal';
 import WarehouseQRCodesModal from '../qr-codes/WarehouseQRCodesModal';
-import { useWarehouseSettings, useShippingCarriers } from './hooks';
-import { WarehouseSettingsHeader, WarehousesList, ShippingCarriersList } from './components';
+import { useWarehouseSettings, useShippingCarriers, useContainerTypes } from './hooks';
+import { WarehouseSettingsHeader, WarehousesList, ShippingCarriersList, ContainerTypesList } from './components';
 import { NewWarehouseModal, AddWorkerModal } from './modals';
 import { mockAvailableWorkers } from './mockData';
 import type { SettingsTab } from './types';
@@ -17,9 +17,10 @@ export default function WarehouseSettingsContent() {
   // Hooks
   const warehouseSettings = useWarehouseSettings();
   const carrierSettings = useShippingCarriers();
+  const containerSettings = useContainerTypes();
 
   // Combined change tracking
-  const hasChanges = warehouseSettings.hasChanges || carrierSettings.hasChanges;
+  const hasChanges = warehouseSettings.hasChanges || carrierSettings.hasChanges || containerSettings.hasChanges;
 
   // Save handler
   const handleSave = async () => {
@@ -29,6 +30,7 @@ export default function WarehouseSettingsContent() {
     setIsSaving(false);
     warehouseSettings.resetChanges();
     carrierSettings.resetChanges();
+    containerSettings.resetChanges();
   };
 
   return (
@@ -75,6 +77,22 @@ export default function WarehouseSettingsContent() {
           setNewCarrierName={carrierSettings.setNewCarrierName}
           setNewCarrierAccount={carrierSettings.setNewCarrierAccount}
           setNewCarrierRemarks={carrierSettings.setNewCarrierRemarks}
+        />
+      )}
+
+      {/* Containers Tab Content */}
+      {activeTab === 'containers' && (
+        <ContainerTypesList
+          containers={containerSettings.containerTypes}
+          editingContainerId={containerSettings.editingContainerId}
+          draggedContainerId={containerSettings.draggedContainerId}
+          onAdd={containerSettings.addContainer}
+          onUpdate={containerSettings.updateContainer}
+          onDelete={containerSettings.deleteContainer}
+          onStartEdit={containerSettings.setEditingContainerId}
+          onDragStart={containerSettings.startDrag}
+          onDragOver={containerSettings.handleDragOver}
+          onDragEnd={containerSettings.endDrag}
         />
       )}
 

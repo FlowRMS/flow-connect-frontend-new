@@ -57,4 +57,15 @@ export interface WarehouseWithSettings extends Warehouse {
   settings: WarehouseSettingsState;
 }
 
-export type SettingsTab = 'warehouses' | 'shipping-carriers';
+// Container type interface
+export interface ContainerType {
+  id: string;
+  name: string;
+  length: number; // in inches
+  width: number; // in inches
+  height: number; // in inches
+  weight: number; // tare weight in lbs
+  order: number; // order in dropdown
+}
+
+export type SettingsTab = 'warehouses' | 'shipping-carriers' | 'containers';

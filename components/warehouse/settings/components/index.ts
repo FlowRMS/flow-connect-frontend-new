@@ -15,3 +15,6 @@ export { default as CarrierAccountBilling } from './CarrierAccountBilling';
 export { default as CarrierContactInfo } from './CarrierContactInfo';
 export { default as CarrierServiceConfig } from './CarrierServiceConfig';
 export { default as CarrierNotesSection } from './CarrierNotesSection';
+
+// Container components
+export { default as ContainerTypesList } from './ContainerTypesList';
