@@ -1,9 +1,8 @@
 /**
+ * 
  * OrdersListContent Component
  * Main container for the orders list (refactored version)
  *
- * This is a work in progress - showing table functionality
- * Sidebar and modals will be added in next steps
  */
 
 'use client';
