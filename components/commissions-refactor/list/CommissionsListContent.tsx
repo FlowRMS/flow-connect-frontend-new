@@ -1,6 +1,6 @@
 /**
  * CommissionsListContent Component
- * Main container for commissions list (refactored version)
+ * Main container for commissions list
  */
 
 'use client';
@@ -38,7 +38,7 @@ export default function CommissionsListContent() {
                 </div>
                 <div>
                   <h1 className="text-xl font-semibold text-[var(--foreground)]">
-                    Commission Check (Refactored)
+                    Commission Check
                   </h1>
                   <p className="text-sm text-[var(--muted-foreground)]">
                     {state.checks.length} checks

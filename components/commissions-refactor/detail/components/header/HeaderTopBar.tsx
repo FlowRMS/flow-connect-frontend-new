@@ -92,7 +92,7 @@ export function HeaderTopBar({
   const handleSaveAndClose = () => {
     onSaveAndClose?.();
     setShowSaveDropdown(false);
-    router.push('/commissions-refactor');
+    router.push('/commissions');
   };
 
   const handleSaveAsNewVersion = () => {
@@ -105,7 +105,7 @@ export function HeaderTopBar({
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => router.push('/commissions-refactor')}
+            onClick={() => router.push('/commissions')}
             className="p-1 hover:bg-[var(--muted)] rounded-lg transition-colors"
             title="Back to Commissions"
           >

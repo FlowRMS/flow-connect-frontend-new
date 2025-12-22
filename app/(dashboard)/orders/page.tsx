@@ -1,15 +1,13 @@
 /**
- * Orders Refactor Testing Page
- * Route: /orders-refactor
+ * Orders Page
+ * Route: /orders
  *
- * This is a testing route to view the refactored orders list
- * while keeping the original /orders route intact
  */
 
 import { Suspense } from 'react';
 import OrdersListContent from '@/components/orders/list/OrdersListContent';
 
-export default function OrdersRefactorPage() {
+export default function OrdersPage() {
   return (
     <Suspense
       fallback={

@@ -1,6 +1,6 @@
 /**
- * Order Detail Page (Refactored)
- * Route: /orders-refactor/[id]
+ * Order Detail Page
+ * Route: /orders/[id]
  */
 
 import { Suspense } from 'react';

@@ -1,6 +1,6 @@
 /**
  * CheckDetailContent Component
- * Main container for check detail (refactored version)
+ * Main container for check detail
  */
 
 'use client';
@@ -47,7 +47,7 @@ export default function CheckDetailContent({
             The commission check you're looking for doesn't exist.
           </p>
           <button
-            onClick={() => router.push('/commissions-refactor')}
+            onClick={() => router.push('/commissions')}
             className="mt-4 px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-medium hover:bg-[var(--primary-hover)] transition-colors"
           >
             Back to Commissions
@@ -80,7 +80,7 @@ export default function CheckDetailContent({
 
   const handleSaveAndClose = () => {
     handleSave();
-    router.push('/commissions-refactor');
+    router.push('/commissions');
   };
 
   const handleSaveAsNewVersion = () => {

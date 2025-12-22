@@ -1,6 +1,6 @@
 /**
  * InvoiceDetailContent Component
- * Main container for invoice detail (refactored version)
+ * Main container for invoice detail
  */
 
 'use client';
@@ -50,7 +50,7 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
             The invoice with ID "{invoiceId}" could not be found.
           </p>
           <button
-            onClick={() => router.push('/invoices-refactor')}
+            onClick={() => router.push('/invoices')}
             className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-sm hover:bg-[var(--primary-hover)] transition-colors"
           >
             Back to Invoices

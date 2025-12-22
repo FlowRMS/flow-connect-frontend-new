@@ -3,7 +3,7 @@
 import { use, Suspense } from 'react';
 import CheckDetailContent from '@/components/commissions-refactor/detail/CheckDetailContent';
 
-export default function CommissionRefactorDetailPage({
+export default function CommissionDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;

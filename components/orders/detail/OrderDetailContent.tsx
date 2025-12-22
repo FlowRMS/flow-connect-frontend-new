@@ -1,6 +1,6 @@
 /**
  * OrderDetailContent Component
- * Main container for order detail (refactored version)
+ * Main container for order detail
  *
  */
 
@@ -48,7 +48,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
             The order with ID "{orderId}" could not be found.
           </p>
           <button
-            onClick={() => router.push('/orders-refactor')}
+            onClick={() => router.push('/orders')}
             className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-sm hover:bg-[var(--primary-hover)] transition-colors"
           >
             Back to Orders
@@ -65,7 +65,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   const handleDelete = () => {
     if (confirm('Are you sure you want to delete this order?')) {
       alert('Order deleted');
-      router.push('/orders-refactor');
+      router.push('/orders');
     }
   };
 

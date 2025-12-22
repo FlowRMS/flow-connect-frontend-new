@@ -1,6 +1,6 @@
 /**
  * InvoicesListContent Component
- * Main container for the invoices list (refactored version)
+ * Main container for the invoices list
  */
 
 'use client';
@@ -31,7 +31,7 @@ export default function InvoicesListContent() {
           <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-2xl font-semibold text-[var(--foreground)]">
-                Invoices (Refactored)
+                Invoices
               </h1>
               <p className="text-sm text-[var(--muted-foreground)] mt-1">
                 Manage invoices and track payments

@@ -1,7 +1,7 @@
 /**
  * 
  * OrdersListContent Component
- * Main container for the orders list (refactored version)
+ * Main container for the orders list
  *
  */
 
@@ -34,7 +34,7 @@ export default function OrdersListContent() {
           <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-2xl font-semibold text-[var(--foreground)]">
-                Orders (Refactored)
+                Orders
               </h1>
               <p className="text-sm text-[var(--muted-foreground)] mt-1">
                 Manage sales orders and track fulfillment

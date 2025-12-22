@@ -114,7 +114,7 @@ export function HeaderTopBar({
         <div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => router.push('/invoices-refactor')}
+              onClick={() => router.push('/invoices')}
               className="p-1 hover:bg-[var(--muted)] rounded-lg transition-colors"
               title="Back to Invoices"
             >
