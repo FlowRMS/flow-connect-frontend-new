@@ -145,6 +145,8 @@ export default function CheckDetailContent({
         isTotalStatedCommission={state.isTotalStatedCommission}
         setIsTotalStatedCommission={state.setIsTotalStatedCommission}
         isTiedToCommissionUpload={state.isTiedToCommissionUpload}
+        commissionMonth={state.commissionMonth}
+        setCommissionMonth={state.setCommissionMonth}
         summary={state.summary}
         totalAdjustments={state.totalAdjustments}
         selectedCheckNumbers={state.selectedCheckNumbers}
