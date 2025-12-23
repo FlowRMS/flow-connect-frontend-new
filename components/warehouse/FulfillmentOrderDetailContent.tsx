@@ -96,22 +96,22 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   const [selectedPackingTemplate, setSelectedPackingTemplate] = useState('standard');
   const [selectedLabelFormat, setSelectedLabelFormat] = useState('4x6');
 
-  // Shipping state
+  // Shipping state - initialize from fulfillment order if available
   const [shippingMethod, setShippingMethod] = useState<'SHIP' | 'WILL_CALL'>(fulfillmentOrder?.fulfillmentMethod === 'JOBSITE' ? 'SHIP' : (fulfillmentOrder?.fulfillmentMethod || 'SHIP'));
-  const [carrierType, setCarrierType] = useState<'parcel' | 'freight'>('parcel');
+  const [carrierType, setCarrierType] = useState<'parcel' | 'freight'>((fulfillmentOrder as any)?.carrierType || 'parcel');
   const [selectedCarrier, setSelectedCarrier] = useState(fulfillmentOrder?.carrier || '');
-  const [freightClass, setFreightClass] = useState('');
-  const [bolNumber, setBolNumber] = useState('');
-  const [proNumber, setProNumber] = useState('');
-  const [shippingNotes, setShippingNotes] = useState('');
+  const [freightClass, setFreightClass] = useState((fulfillmentOrder as any)?.freightClass || '');
+  const [bolNumber, setBolNumber] = useState((fulfillmentOrder as any)?.bolNumber || '');
+  const [proNumber, setProNumber] = useState((fulfillmentOrder as any)?.proNumber || '');
+  const [shippingNotes, setShippingNotes] = useState((fulfillmentOrder as any)?.shippingNotes || '');
 
-  // Pickup / Handoff state
+  // Pickup / Handoff state - initialize from fulfillment order if available
   const [showSignatureModal, setShowSignatureModal] = useState(false);
-  const [pickupName, setPickupName] = useState('');
-  const [driverName, setDriverName] = useState('');
-  const [pickupSignature, setPickupSignature] = useState<string | null>(null);
-  const [pickupTimestamp, setPickupTimestamp] = useState<Date | null>(null);
-  const [pickupNotes, setPickupNotes] = useState('');
+  const [pickupName, setPickupName] = useState((fulfillmentOrder as any)?.pickupCustomerName || '');
+  const [driverName, setDriverName] = useState((fulfillmentOrder as any)?.pickupDriverName || '');
+  const [pickupSignature, setPickupSignature] = useState<string | null>((fulfillmentOrder as any)?.pickupSignature || null);
+  const [pickupTimestamp, setPickupTimestamp] = useState<Date | null>((fulfillmentOrder as any)?.pickupTimestamp ? new Date((fulfillmentOrder as any).pickupTimestamp) : null);
+  const [pickupNotes, setPickupNotes] = useState((fulfillmentOrder as any)?.pickupNotes || '');
   const [isDrawing, setIsDrawing] = useState(false);
   const signatureCanvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -149,6 +149,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   const isPicking = displayStatus === 'PICKING';
   const isPacking = displayStatus === 'PACKING';
   const isShipping = displayStatus === 'SHIPPING';
+  const isShipped = displayStatus === 'SHIPPED';
 
   // Picking helper functions
   const handleMarkAsPicked = (lineItemId: string, qty: number) => {
@@ -388,8 +389,27 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
     setForceUpdate(prev => prev + 1);
   };
 
+  const handleStartShipping = () => {
+    if (fulfillmentOrder.status !== 'PACKING') return;
+
+    const now = new Date().toISOString();
+    updateFulfillmentOrder(fulfillmentOrder.id, {
+      status: 'SHIPPING',
+      updatedAt: now,
+    });
+    setForceUpdate(prev => prev + 1);
+  };
+
   const handleConfirmShipment = () => {
     if (!['SHIPPING', 'PACKING'].includes(fulfillmentOrder.status)) return;
+
+    // For Freight or Will Call, require signature before completing
+    const requiresSignature = (shippingMethod === 'SHIP' && carrierType === 'freight') || shippingMethod === 'WILL_CALL';
+    if (requiresSignature && !pickupSignature) {
+      // Open signature modal if signature is required but not captured
+      setShowSignatureModal(true);
+      return;
+    }
 
     const now = new Date().toISOString();
     updateFulfillmentOrder(fulfillmentOrder.id, {
@@ -399,6 +419,14 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
       trackingNumbers: trackingNumbers.split(',').map(t => t.trim()).filter(t => t),
       shipConfirmedAt: now,
       updatedAt: now,
+      // Include signature data if captured
+      ...(pickupSignature && {
+        pickupSignature,
+        pickupTimestamp: pickupTimestamp?.toISOString(),
+        pickupCustomerName: pickupName,
+        pickupDriverName: driverName,
+        pickupNotes,
+      }),
     });
     setForceUpdate(prev => prev + 1);
   };
@@ -1421,10 +1449,10 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
                 <div className="grid grid-cols-2 gap-6 mb-6">
                   <div className="border border-gray-300 rounded p-3">
                     <div className="text-xs font-bold text-gray-500 uppercase mb-2">Ship From</div>
-                    <div className="font-semibold">{fulfillmentOrder.warehouse?.name || 'Main Warehouse'}</div>
+                    <div className="font-semibold">{fulfillmentOrder.warehouseName || 'Main Warehouse'}</div>
                     <div className="text-xs text-gray-600 mt-1">
-                      {fulfillmentOrder.warehouse?.addressLine1 || '123 Warehouse Dr'}<br/>
-                      {fulfillmentOrder.warehouse?.city || 'Houston'}, {fulfillmentOrder.warehouse?.state || 'TX'} {fulfillmentOrder.warehouse?.postalCode || '77001'}
+                      123 Warehouse Dr<br/>
+                      Houston, TX 77001
                     </div>
                   </div>
                   <div className="border border-gray-300 rounded p-3">
@@ -2402,6 +2430,322 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
     </div>
   );
 
+  // Shipped Interface Component - shown when status is SHIPPED
+  // Get shipped data from fulfillment order or fall back to state
+  const shippedData = {
+    carrierType: (fulfillmentOrder as any)?.carrierType || carrierType,
+    carrier: fulfillmentOrder?.carrier || selectedCarrier,
+    trackingNumbers: fulfillmentOrder?.trackingNumbers?.join(', ') || trackingNumbers,
+    shipConfirmedAt: fulfillmentOrder?.shipConfirmedAt,
+    pickupSignature: (fulfillmentOrder as any)?.pickupSignature || pickupSignature,
+    pickupTimestamp: (fulfillmentOrder as any)?.pickupTimestamp ? new Date((fulfillmentOrder as any).pickupTimestamp) : pickupTimestamp,
+    pickupCustomerName: (fulfillmentOrder as any)?.pickupCustomerName || pickupName,
+    pickupDriverName: (fulfillmentOrder as any)?.pickupDriverName || driverName,
+    pickupNotes: (fulfillmentOrder as any)?.pickupNotes || pickupNotes,
+    shippingNotes: (fulfillmentOrder as any)?.shippingNotes || shippingNotes,
+    bolNumber: (fulfillmentOrder as any)?.bolNumber || bolNumber,
+    proNumber: (fulfillmentOrder as any)?.proNumber || proNumber,
+  };
+
+  const shippedInterface = (
+    <div className="bg-[var(--card)] rounded-lg border-2 border-green-400 overflow-hidden">
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-[var(--border)] bg-green-50 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+              <path d="M20 6L9 17l-5-5"/>
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-[var(--foreground)]">Shipment Complete</h3>
+            <p className="text-sm text-[var(--muted-foreground)]">
+              Order fulfilled on {shippedData.shipConfirmedAt ? new Date(shippedData.shipConfirmedAt).toLocaleDateString() : 'N/A'}
+            </p>
+          </div>
+        </div>
+        <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-semibold">
+          Shipped
+        </span>
+      </div>
+
+      {/* Shipment Summary */}
+      <div className="p-4 space-y-4">
+        {/* Delivery Details */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-[var(--muted)]/20 rounded-lg p-3">
+            <div className="text-xs font-medium text-[var(--muted-foreground)] uppercase mb-1">Delivery Method</div>
+            <div className="text-sm font-semibold text-[var(--foreground)]">
+              {shippingMethod === 'SHIP' ? (shippedData.carrierType === 'parcel' ? 'Ship (Parcel)' : 'Ship (Freight)') : 'Will Call'}
+            </div>
+          </div>
+          <div className="bg-[var(--muted)]/20 rounded-lg p-3">
+            <div className="text-xs font-medium text-[var(--muted-foreground)] uppercase mb-1">Carrier</div>
+            <div className="text-sm font-semibold text-[var(--foreground)] capitalize">
+              {shippedData.carrier?.replace(/_/g, ' ') || 'N/A'}
+            </div>
+          </div>
+          <div className="bg-[var(--muted)]/20 rounded-lg p-3">
+            <div className="text-xs font-medium text-[var(--muted-foreground)] uppercase mb-1">Pallets</div>
+            <div className="text-sm font-semibold text-[var(--foreground)]">
+              {packingBoxes.length || 1} pallet{packingBoxes.length !== 1 ? 's' : ''}
+            </div>
+          </div>
+          <div className="bg-[var(--muted)]/20 rounded-lg p-3">
+            <div className="text-xs font-medium text-[var(--muted-foreground)] uppercase mb-1">Ship Date</div>
+            <div className="text-sm font-semibold text-[var(--foreground)]">
+              {shippedData.shipConfirmedAt ? new Date(shippedData.shipConfirmedAt).toLocaleDateString() : 'N/A'}
+            </div>
+          </div>
+        </div>
+
+        {/* Tracking Information */}
+        {shippedData.trackingNumbers && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
+                <circle cx="12" cy="10" r="3"/>
+              </svg>
+              <span className="text-sm font-semibold text-blue-900">Tracking Information</span>
+            </div>
+            <div className="text-sm text-blue-800 font-mono">{shippedData.trackingNumbers}</div>
+          </div>
+        )}
+
+        {/* BOL / PRO Numbers for Freight */}
+        {(shippedData.bolNumber || shippedData.proNumber) && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-amber-600">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+              </svg>
+              <span className="text-sm font-semibold text-amber-900">Freight Documents</span>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {shippedData.bolNumber && (
+                <div>
+                  <div className="text-xs font-medium text-amber-700 uppercase">BOL Number</div>
+                  <div className="text-sm text-amber-900 font-mono">{shippedData.bolNumber}</div>
+                </div>
+              )}
+              {shippedData.proNumber && (
+                <div>
+                  <div className="text-xs font-medium text-amber-700 uppercase">PRO Number</div>
+                  <div className="text-sm text-amber-900 font-mono">{shippedData.proNumber}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Pickup / Handoff Record - Only shown if signature was captured */}
+        {shippedData.pickupSignature && (
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-600">
+                <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+              </svg>
+              <span className="text-sm font-semibold text-purple-900">Pickup / Handoff Record</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                {shippedData.pickupCustomerName && (
+                  <div className="mb-2">
+                    <div className="text-xs font-medium text-purple-700 uppercase">Customer Name</div>
+                    <div className="text-sm text-purple-900">{shippedData.pickupCustomerName}</div>
+                  </div>
+                )}
+                {shippedData.pickupDriverName && (
+                  <div className="mb-2">
+                    <div className="text-xs font-medium text-purple-700 uppercase">Driver / Pickup Name</div>
+                    <div className="text-sm text-purple-900">{shippedData.pickupDriverName}</div>
+                  </div>
+                )}
+                {shippedData.pickupTimestamp && (
+                  <div className="mb-2">
+                    <div className="text-xs font-medium text-purple-700 uppercase">Pickup Time</div>
+                    <div className="text-sm text-purple-900">{shippedData.pickupTimestamp.toLocaleString()}</div>
+                  </div>
+                )}
+                {shippedData.pickupNotes && (
+                  <div>
+                    <div className="text-xs font-medium text-purple-700 uppercase">Notes</div>
+                    <div className="text-sm text-purple-900">{shippedData.pickupNotes}</div>
+                  </div>
+                )}
+              </div>
+              <div>
+                <div className="text-xs font-medium text-purple-700 uppercase mb-1">Signature</div>
+                <div className="bg-white border border-purple-200 rounded-lg p-2 inline-block">
+                  <img src={shippedData.pickupSignature || ''} alt="Signature" className="max-h-20" />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Timeline / Activity Log */}
+        <div className="border border-[var(--border)] rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted-foreground)]">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+            <span className="text-sm font-semibold text-[var(--foreground)]">Fulfillment Timeline</span>
+          </div>
+          <div className="space-y-3">
+            {shippedData.shipConfirmedAt && (
+              <div className="flex items-start gap-3">
+                <div className="w-2 h-2 rounded-full bg-green-500 mt-1.5 flex-shrink-0"/>
+                <div>
+                  <div className="text-sm font-medium text-[var(--foreground)]">Shipment Confirmed</div>
+                  <div className="text-xs text-[var(--muted-foreground)]">{new Date(shippedData.shipConfirmedAt).toLocaleString()}</div>
+                </div>
+              </div>
+            )}
+            {shippedData.pickupTimestamp && (
+              <div className="flex items-start gap-3">
+                <div className="w-2 h-2 rounded-full bg-purple-500 mt-1.5 flex-shrink-0"/>
+                <div>
+                  <div className="text-sm font-medium text-[var(--foreground)]">Signature Captured</div>
+                  <div className="text-xs text-[var(--muted-foreground)]">{shippedData.pickupTimestamp.toLocaleString()}</div>
+                </div>
+              </div>
+            )}
+            <div className="flex items-start gap-3">
+              <div className="w-2 h-2 rounded-full bg-purple-500 mt-1.5 flex-shrink-0"/>
+              <div>
+                <div className="text-sm font-medium text-[var(--foreground)]">Shipping Started</div>
+                <div className="text-xs text-[var(--muted-foreground)]">Carrier: {shippedData.carrier?.replace(/_/g, ' ') || 'N/A'}</div>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="w-2 h-2 rounded-full bg-orange-500 mt-1.5 flex-shrink-0"/>
+              <div>
+                <div className="text-sm font-medium text-[var(--foreground)]">Packing Completed</div>
+                <div className="text-xs text-[var(--muted-foreground)]">{packingBoxes.length} pallet{packingBoxes.length !== 1 ? 's' : ''} packed</div>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="w-2 h-2 rounded-full bg-amber-500 mt-1.5 flex-shrink-0"/>
+              <div>
+                <div className="text-sm font-medium text-[var(--foreground)]">Picking Completed</div>
+                <div className="text-xs text-[var(--muted-foreground)]">All items picked</div>
+              </div>
+            </div>
+            {fulfillmentOrder.releasedAt && (
+              <div className="flex items-start gap-3">
+                <div className="w-2 h-2 rounded-full bg-cyan-500 mt-1.5 flex-shrink-0"/>
+                <div>
+                  <div className="text-sm font-medium text-[var(--foreground)]">Released to Warehouse</div>
+                  <div className="text-xs text-[var(--muted-foreground)]">{new Date(fulfillmentOrder.releasedAt).toLocaleString()}</div>
+                </div>
+              </div>
+            )}
+            {fulfillmentOrder.createdAt && (
+              <div className="flex items-start gap-3">
+                <div className="w-2 h-2 rounded-full bg-gray-400 mt-1.5 flex-shrink-0"/>
+                <div>
+                  <div className="text-sm font-medium text-[var(--foreground)]">Order Created</div>
+                  <div className="text-xs text-[var(--muted-foreground)]">{new Date(fulfillmentOrder.createdAt).toLocaleString()}</div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Reprint Documents */}
+        <div className="border border-[var(--border)] rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted-foreground)]">
+              <path d="M6 9V2h12v7"/>
+              <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/>
+              <rect x="6" y="14" width="12" height="8"/>
+            </svg>
+            <span className="text-sm font-semibold text-[var(--foreground)]">Reprint Documents</span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <button
+              onClick={() => setShowPackingSlipModal(true)}
+              className="px-4 py-3 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]/50 transition-colors flex flex-col items-center gap-2"
+            >
+              <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="16" y1="13" x2="8" y2="13"/>
+                  <line x1="16" y1="17" x2="8" y2="17"/>
+                </svg>
+              </div>
+              <span className="text-xs font-medium text-[var(--foreground)]">Packing Slip</span>
+            </button>
+            <button
+              onClick={() => setShowShippingLabelsModal(true)}
+              className="px-4 py-3 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]/50 transition-colors flex flex-col items-center gap-2"
+            >
+              <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-600">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/>
+                  <path d="M7 7h.01M7 12h.01M7 17h.01M12 7h.01M12 12h.01M12 17h.01M17 7h.01M17 12h.01M17 17h.01"/>
+                </svg>
+              </div>
+              <span className="text-xs font-medium text-[var(--foreground)]">Pallet Labels</span>
+            </button>
+            {((shippingMethod === 'SHIP' && shippedData.carrierType === 'freight') || shippingMethod === 'WILL_CALL') && (
+              <button
+                onClick={() => setShowBOLModal(true)}
+                className="px-4 py-3 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]/50 transition-colors flex flex-col items-center gap-2"
+              >
+                <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-amber-600">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                  </svg>
+                </div>
+                <span className="text-xs font-medium text-[var(--foreground)]">Bill of Lading</span>
+              </button>
+            )}
+            {shippedData.pickupSignature && (
+              <button
+                onClick={() => setShowBOLModal(true)}
+                className="px-4 py-3 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]/50 transition-colors flex flex-col items-center gap-2"
+              >
+                <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-600">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <path d="M9 15l2 2 4-4"/>
+                  </svg>
+                </div>
+                <span className="text-xs font-medium text-[var(--foreground)]">Proof of Pickup</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Shipping Notes */}
+        {shippedData.shippingNotes && (
+          <div className="bg-[var(--muted)]/20 border border-[var(--border)] rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted-foreground)]">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+              </svg>
+              <span className="text-sm font-semibold text-[var(--foreground)]">Shipping Notes</span>
+            </div>
+            <p className="text-sm text-[var(--muted-foreground)]">{shippedData.shippingNotes}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   // Line Items Table Component - rendered in different positions based on release status
   const lineItemsTable = (
     <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
@@ -2497,14 +2841,19 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
               <span className="text-sm text-[var(--muted-foreground)]">{fulfillmentOrder.customerName}</span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {/* Dynamic Action Buttons based on status */}
+          <div className="flex items-center gap-3">
+            {/* Save Button - Always visible */}
+            <button className="px-5 py-2.5 border-2 border-[var(--border)] rounded-lg font-semibold text-sm hover:bg-[var(--muted)] transition-colors">
+              Save
+            </button>
+
+            {/* Dynamic Continue Button based on status */}
             {fulfillmentOrder.status === 'PENDING' && (
               <button
                 onClick={handleReleaseToWarehouse}
-                className="px-3 py-1.5 bg-cyan-600 text-white rounded-lg font-medium text-sm hover:bg-cyan-700 transition-colors flex items-center gap-2"
+                className="px-5 py-2.5 bg-cyan-600 text-white rounded-lg font-semibold text-sm hover:bg-cyan-700 transition-colors flex items-center gap-2"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
                 Continue
@@ -2514,9 +2863,9 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
             {fulfillmentOrder.status === 'RELEASED' && (
               <button
                 onClick={handleStartPicking}
-                className="px-3 py-1.5 bg-yellow-600 text-white rounded-lg font-medium text-sm hover:bg-yellow-700 transition-colors flex items-center gap-2"
+                className="px-5 py-2.5 bg-yellow-600 text-white rounded-lg font-semibold text-sm hover:bg-yellow-700 transition-colors flex items-center gap-2"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
                 Continue
@@ -2526,24 +2875,63 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
             {fulfillmentOrder.status === 'PICKING' && (
               <button
                 onClick={handleCompletePicking}
-                className="px-3 py-1.5 bg-amber-600 text-white rounded-lg font-medium text-sm hover:bg-amber-700 transition-colors flex items-center gap-2"
+                className="px-5 py-2.5 bg-amber-600 text-white rounded-lg font-semibold text-sm hover:bg-amber-700 transition-colors flex items-center gap-2"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
                 Continue
               </button>
             )}
 
-            {['SHIPPING', 'PACKING'].includes(fulfillmentOrder.status) && (
+            {fulfillmentOrder.status === 'PACKING' && (
               <button
-                onClick={handleConfirmShipment}
-                className="px-3 py-1.5 bg-green-600 text-white rounded-lg font-medium text-sm hover:bg-green-700 transition-colors flex items-center gap-2"
+                onClick={handleStartShipping}
+                className="px-5 py-2.5 bg-orange-600 text-white rounded-lg font-semibold text-sm hover:bg-orange-700 transition-colors flex items-center gap-2"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
                 Continue
+              </button>
+            )}
+
+            {fulfillmentOrder.status === 'SHIPPING' && (() => {
+              const requiresSignature = (shippingMethod === 'SHIP' && carrierType === 'freight') || shippingMethod === 'WILL_CALL';
+              const needsSignature = requiresSignature && !pickupSignature;
+              return (
+                <button
+                  onClick={handleConfirmShipment}
+                  className={`px-5 py-2.5 ${needsSignature ? 'bg-purple-600 hover:bg-purple-700' : 'bg-green-600 hover:bg-green-700'} text-white rounded-lg font-semibold text-sm transition-colors flex items-center gap-2`}
+                >
+                  {needsSignature ? (
+                    <>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+                      </svg>
+                      Capture Signature
+                    </>
+                  ) : (
+                    <>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      Continue
+                    </>
+                  )}
+                </button>
+              );
+            })()}
+
+            {fulfillmentOrder.status === 'SHIPPED' && (
+              <button
+                disabled
+                className="px-5 py-2.5 bg-gray-400 text-white rounded-lg font-semibold text-sm cursor-not-allowed flex items-center gap-2"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M20 6L9 17l-5-5"/>
+                </svg>
+                Completed
               </button>
             )}
           </div>
@@ -2635,6 +3023,13 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
         {isShipping && (
           <div className="mb-4">
             {shippingInterface}
+          </div>
+        )}
+
+        {/* Shipped Interface - Show at top when in SHIPPED status */}
+        {isShipped && (
+          <div className="mb-4">
+            {shippedInterface}
           </div>
         )}
 

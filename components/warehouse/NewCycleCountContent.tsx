@@ -9,15 +9,23 @@ import {
   mockInventory,
   mockSections,
   addCycleCount,
+  autoGenerateCycleCount,
+  getItemsNotRecentlyCounted,
+  getFastMovingItems,
+  getAClassItems,
+  getItemsBelowThreshold,
 } from '@/lib/data/warehouse-mock';
 import {
   CycleCountType,
   CycleCountPriority,
+  CycleCountTriggerType,
   cycleCountTypeLabels,
   cycleCountPriorityLabels,
+  cycleCountTriggerTypeLabels,
+  cycleCountTriggerTypeDescriptions,
 } from '@/lib/types/warehouse';
 
-type StepId = 'basic' | 'scope' | 'schedule' | 'review';
+type StepId = 'trigger' | 'basic' | 'scope' | 'schedule' | 'review';
 
 interface Step {
   id: StepId;
@@ -26,11 +34,57 @@ interface Step {
 }
 
 const steps: Step[] = [
+  { id: 'trigger', name: 'Creation Method', description: 'How to create' },
   { id: 'basic', name: 'Basic Info', description: 'Name and type' },
   { id: 'scope', name: 'Count Scope', description: 'What to count' },
   { id: 'schedule', name: 'Schedule', description: 'When and who' },
   { id: 'review', name: 'Review', description: 'Confirm details' },
 ];
+
+// Trigger type icons
+const triggerTypeIcons: Record<CycleCountTriggerType, React.ReactNode> = {
+  MANUAL: (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+      <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+    </svg>
+  ),
+  FAST_MOVING: (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+    </svg>
+  ),
+  RANDOM_A_ITEMS: (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6L12 2z"/>
+    </svg>
+  ),
+  ON_DEMAND: (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="12" r="10"/>
+      <path d="M12 6v6l4 2"/>
+    </svg>
+  ),
+  BY_MANUFACTURER: (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M3 21h18"/>
+      <path d="M5 21V7l8-4v18"/>
+      <path d="M19 21V11l-6-4"/>
+      <path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01"/>
+    </svg>
+  ),
+  LOW_QUANTITY: (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+  ),
+  SCHEDULED: (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+      <path d="M16 2v4M8 2v4M3 10h18"/>
+    </svg>
+  ),
+};
 
 export default function NewCycleCountContent() {
   const router = useRouter();
@@ -39,7 +93,13 @@ export default function NewCycleCountContent() {
   const sections = useMemo(() => mockSections, []);
 
   // Current step
-  const [currentStep, setCurrentStep] = useState<StepId>('basic');
+  const [currentStep, setCurrentStep] = useState<StepId>('trigger');
+
+  // Trigger type state
+  const [triggerType, setTriggerType] = useState<CycleCountTriggerType>('MANUAL');
+  const [quantityThreshold, setQuantityThreshold] = useState<number>(100);
+  const [selectedManufacturerId, setSelectedManufacturerId] = useState('');
+  const [sampleSize, setSampleSize] = useState<number>(10);
 
   // Form state
   const [name, setName] = useState('');
@@ -65,6 +125,23 @@ export default function NewCycleCountContent() {
   const [showProductDropdown, setShowProductDropdown] = useState(false);
 
   const selectedWarehouse = warehouses.find(w => w.id === selectedWarehouseId);
+
+  // Preview stats for auto-generate options
+  const eligibleItemsPreview = useMemo(() => {
+    const notRecentlyCounted = getItemsNotRecentlyCounted(60);
+    return {
+      fastMoving: getFastMovingItems().filter(inv => notRecentlyCounted.some(nrc => nrc.id === inv.id)).length,
+      aItems: getAClassItems().filter(inv => notRecentlyCounted.some(nrc => nrc.id === inv.id)).length,
+      onDemand: notRecentlyCounted.slice(0, 10).length,
+      lowQuantity: getItemsBelowThreshold(quantityThreshold).filter(inv => notRecentlyCounted.some(nrc => nrc.id === inv.id)).length,
+      byManufacturer: selectedManufacturerId
+        ? mockInventory.filter(inv => inv.factoryId === selectedManufacturerId && notRecentlyCounted.some(nrc => nrc.id === inv.id)).length
+        : 0,
+    };
+  }, [quantityThreshold, selectedManufacturerId]);
+
+  // Determine if this is an auto-generate flow
+  const isAutoGenerate = triggerType !== 'MANUAL' && triggerType !== 'SCHEDULED';
 
   const filteredProducts = useMemo(() => {
     if (!productSearch.trim()) return [];
@@ -105,11 +182,27 @@ export default function NewCycleCountContent() {
     );
   };
 
-  const currentStepIndex = steps.findIndex(s => s.id === currentStep);
+  // For auto-generate, skip scope step
+  const activeSteps = useMemo(() => {
+    if (isAutoGenerate) {
+      return steps.filter(s => s.id !== 'scope');
+    }
+    return steps;
+  }, [isAutoGenerate]);
+
+  const currentStepIndex = activeSteps.findIndex(s => s.id === currentStep);
 
   const canProceed = useCallback(() => {
     switch (currentStep) {
+      case 'trigger':
+        if (triggerType === 'BY_MANUFACTURER') {
+          return selectedWarehouseId && selectedManufacturerId;
+        }
+        return selectedWarehouseId;
       case 'basic':
+        if (isAutoGenerate) {
+          return selectedWarehouseId; // Name will be auto-generated
+        }
         return name.trim() && selectedWarehouseId;
       case 'scope':
         return true; // Scope is optional
@@ -120,60 +213,89 @@ export default function NewCycleCountContent() {
       default:
         return false;
     }
-  }, [currentStep, name, selectedWarehouseId, scheduledDate]);
+  }, [currentStep, name, selectedWarehouseId, scheduledDate, triggerType, isAutoGenerate, selectedManufacturerId]);
 
   const handleNext = () => {
     if (!canProceed()) return;
     const nextIndex = currentStepIndex + 1;
-    if (nextIndex < steps.length) {
-      setCurrentStep(steps[nextIndex].id);
+    if (nextIndex < activeSteps.length) {
+      setCurrentStep(activeSteps[nextIndex].id);
     }
   };
 
   const handleBack = () => {
     const prevIndex = currentStepIndex - 1;
     if (prevIndex >= 0) {
-      setCurrentStep(steps[prevIndex].id);
+      setCurrentStep(activeSteps[prevIndex].id);
     }
   };
 
   const handleSubmit = useCallback(() => {
-    const scope: { sections?: string[]; products?: string[]; factories?: string[]; abcClass?: 'A' | 'B' | 'C' } = {};
-    if (selectedSections.length > 0) scope.sections = selectedSections;
-    if (selectedProducts.length > 0) scope.products = selectedProducts;
-    if (selectedFactories.length > 0) scope.factories = selectedFactories;
-    if (abcClass) scope.abcClass = abcClass;
+    let newCycleCount;
 
-    const newCycleCount = addCycleCount({
-      name,
-      description: description || undefined,
-      type,
-      priority,
-      status: 'DRAFT',
-      warehouseId: selectedWarehouseId,
-      warehouseName: selectedWarehouse?.name || '',
-      scope,
-      scheduledDate: new Date(scheduledDate).toISOString(),
-      dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
-      assignedTo: assignedTo || undefined,
-      assignedToName: assignedTo === 'user-003' ? 'Mike Johnson' : assignedTo === 'user-004' ? 'Lisa Anderson' : undefined,
-      lineItems: [],
-      totalItems: 0,
-      countedItems: 0,
-      itemsWithVariance: 0,
-      notes: notes || undefined,
-      createdBy: 'Current User',
-    });
+    if (isAutoGenerate) {
+      // Use auto-generate function
+      newCycleCount = autoGenerateCycleCount({
+        warehouseId: selectedWarehouseId,
+        warehouseName: selectedWarehouse?.name || '',
+        triggerType,
+        excludeRecentlyCountedDays: 60,
+        quantityThreshold: triggerType === 'LOW_QUANTITY' ? quantityThreshold : undefined,
+        manufacturerId: triggerType === 'BY_MANUFACTURER' ? selectedManufacturerId : undefined,
+        sampleSize: triggerType === 'RANDOM_A_ITEMS' ? sampleSize : undefined,
+        createdBy: 'Current User',
+      });
+
+      // Override with user-provided values if any
+      if (name.trim()) newCycleCount.name = name;
+      if (description.trim()) newCycleCount.description = description;
+      if (assignedTo) {
+        newCycleCount.assignedTo = assignedTo;
+        newCycleCount.assignedToName = assignedTo === 'user-003' ? 'Mike Johnson' : assignedTo === 'user-004' ? 'Lisa Anderson' : undefined;
+      }
+      if (dueDate) newCycleCount.dueDate = new Date(dueDate).toISOString();
+      if (notes) newCycleCount.notes = notes;
+    } else {
+      // Manual creation
+      const scope: { sections?: string[]; products?: string[]; factories?: string[]; abcClass?: 'A' | 'B' | 'C' } = {};
+      if (selectedSections.length > 0) scope.sections = selectedSections;
+      if (selectedProducts.length > 0) scope.products = selectedProducts;
+      if (selectedFactories.length > 0) scope.factories = selectedFactories;
+      if (abcClass) scope.abcClass = abcClass;
+
+      newCycleCount = addCycleCount({
+        name,
+        description: description || undefined,
+        type,
+        priority,
+        status: 'DRAFT',
+        triggerType,
+        warehouseId: selectedWarehouseId,
+        warehouseName: selectedWarehouse?.name || '',
+        scope,
+        scheduledDate: new Date(scheduledDate).toISOString(),
+        dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
+        assignedTo: assignedTo || undefined,
+        assignedToName: assignedTo === 'user-003' ? 'Mike Johnson' : assignedTo === 'user-004' ? 'Lisa Anderson' : undefined,
+        lineItems: [],
+        totalItems: 0,
+        countedItems: 0,
+        itemsWithVariance: 0,
+        notes: notes || undefined,
+        createdBy: 'Current User',
+      });
+    }
 
     router.push(`/warehouse/cycle-counts/${newCycleCount.id}`);
   }, [
     name, description, type, priority, selectedWarehouseId, selectedWarehouse,
     scheduledDate, dueDate, assignedTo, notes,
-    selectedSections, selectedProducts, selectedFactories, abcClass, router
+    selectedSections, selectedProducts, selectedFactories, abcClass, router,
+    isAutoGenerate, triggerType, quantityThreshold, selectedManufacturerId, sampleSize
   ]);
 
   const getStepStatus = (stepId: StepId) => {
-    const stepIndex = steps.findIndex(s => s.id === stepId);
+    const stepIndex = activeSteps.findIndex(s => s.id === stepId);
     if (stepIndex < currentStepIndex) return 'completed';
     if (stepIndex === currentStepIndex) return 'current';
     return 'upcoming';
@@ -204,7 +326,7 @@ export default function NewCycleCountContent() {
       {/* Step Indicator */}
       <div className="px-6 py-4 border-b border-[var(--border)] bg-[var(--card)]">
         <div className="flex items-center justify-between max-w-3xl mx-auto">
-          {steps.map((step, index) => {
+          {activeSteps.map((step, index) => {
             const status = getStepStatus(step.id);
             return (
               <React.Fragment key={step.id}>
@@ -239,9 +361,9 @@ export default function NewCycleCountContent() {
                     <div className="text-xs text-[var(--muted-foreground)]">{step.description}</div>
                   </div>
                 </button>
-                {index < steps.length - 1 && (
+                {index < activeSteps.length - 1 && (
                   <div className={`flex-1 h-0.5 mx-4 ${
-                    getStepStatus(steps[index + 1].id) !== 'upcoming' ? 'bg-green-500' : 'bg-[var(--border)]'
+                    getStepStatus(activeSteps[index + 1].id) !== 'upcoming' ? 'bg-green-500' : 'bg-[var(--border)]'
                   }`} />
                 )}
               </React.Fragment>
@@ -253,6 +375,227 @@ export default function NewCycleCountContent() {
       {/* Content */}
       <div className="flex-1 overflow-auto p-6">
         <div className="max-w-2xl mx-auto">
+          {/* Step 0: Trigger Type Selection */}
+          {currentStep === 'trigger' && (
+            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6">
+              <h2 className="text-lg font-semibold text-[var(--foreground)] mb-2">How do you want to create this count?</h2>
+              <p className="text-sm text-[var(--muted-foreground)] mb-6">
+                Choose a creation method. Auto-generate options will exclude items counted in the last 60 days.
+              </p>
+
+              {/* Warehouse Selection - Required for all */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                  Warehouse <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={selectedWarehouseId}
+                  onChange={(e) => setSelectedWarehouseId(e.target.value)}
+                  className="w-full px-4 py-3 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                >
+                  {warehouses.map(w => (
+                    <option key={w.id} value={w.id}>{w.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Manual Selection */}
+                <button
+                  type="button"
+                  onClick={() => setTriggerType('MANUAL')}
+                  className={`p-4 rounded-lg text-left transition-all border-2 ${
+                    triggerType === 'MANUAL'
+                      ? 'border-[var(--primary)] bg-[var(--primary)]/5'
+                      : 'border-[var(--border)] hover:border-[var(--primary)]/50'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`p-2 rounded-lg ${triggerType === 'MANUAL' ? 'bg-[var(--primary)] text-white' : 'bg-[var(--muted)] text-[var(--muted-foreground)]'}`}>
+                      {triggerTypeIcons.MANUAL}
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-medium text-[var(--foreground)]">{cycleCountTriggerTypeLabels.MANUAL}</div>
+                      <div className="text-xs text-[var(--muted-foreground)] mt-1">{cycleCountTriggerTypeDescriptions.MANUAL}</div>
+                    </div>
+                  </div>
+                </button>
+
+                {/* Fast-Moving Items */}
+                <button
+                  type="button"
+                  onClick={() => setTriggerType('FAST_MOVING')}
+                  className={`p-4 rounded-lg text-left transition-all border-2 ${
+                    triggerType === 'FAST_MOVING'
+                      ? 'border-[var(--primary)] bg-[var(--primary)]/5'
+                      : 'border-[var(--border)] hover:border-[var(--primary)]/50'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`p-2 rounded-lg ${triggerType === 'FAST_MOVING' ? 'bg-[var(--primary)] text-white' : 'bg-[var(--muted)] text-[var(--muted-foreground)]'}`}>
+                      {triggerTypeIcons.FAST_MOVING}
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-medium text-[var(--foreground)]">{cycleCountTriggerTypeLabels.FAST_MOVING}</div>
+                      <div className="text-xs text-[var(--muted-foreground)] mt-1">{cycleCountTriggerTypeDescriptions.FAST_MOVING}</div>
+                      <div className="text-xs text-[var(--primary)] mt-2 font-medium">{eligibleItemsPreview.fastMoving} items eligible</div>
+                    </div>
+                  </div>
+                </button>
+
+                {/* Random A-Items */}
+                <button
+                  type="button"
+                  onClick={() => setTriggerType('RANDOM_A_ITEMS')}
+                  className={`p-4 rounded-lg text-left transition-all border-2 ${
+                    triggerType === 'RANDOM_A_ITEMS'
+                      ? 'border-[var(--primary)] bg-[var(--primary)]/5'
+                      : 'border-[var(--border)] hover:border-[var(--primary)]/50'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`p-2 rounded-lg ${triggerType === 'RANDOM_A_ITEMS' ? 'bg-[var(--primary)] text-white' : 'bg-[var(--muted)] text-[var(--muted-foreground)]'}`}>
+                      {triggerTypeIcons.RANDOM_A_ITEMS}
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-medium text-[var(--foreground)]">{cycleCountTriggerTypeLabels.RANDOM_A_ITEMS}</div>
+                      <div className="text-xs text-[var(--muted-foreground)] mt-1">{cycleCountTriggerTypeDescriptions.RANDOM_A_ITEMS}</div>
+                      <div className="text-xs text-[var(--primary)] mt-2 font-medium">{eligibleItemsPreview.aItems} A-items eligible</div>
+                    </div>
+                  </div>
+                </button>
+
+                {/* On Demand */}
+                <button
+                  type="button"
+                  onClick={() => setTriggerType('ON_DEMAND')}
+                  className={`p-4 rounded-lg text-left transition-all border-2 ${
+                    triggerType === 'ON_DEMAND'
+                      ? 'border-[var(--primary)] bg-[var(--primary)]/5'
+                      : 'border-[var(--border)] hover:border-[var(--primary)]/50'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`p-2 rounded-lg ${triggerType === 'ON_DEMAND' ? 'bg-[var(--primary)] text-white' : 'bg-[var(--muted)] text-[var(--muted-foreground)]'}`}>
+                      {triggerTypeIcons.ON_DEMAND}
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-medium text-[var(--foreground)]">{cycleCountTriggerTypeLabels.ON_DEMAND}</div>
+                      <div className="text-xs text-[var(--muted-foreground)] mt-1">{cycleCountTriggerTypeDescriptions.ON_DEMAND}</div>
+                      <div className="text-xs text-[var(--primary)] mt-2 font-medium">{eligibleItemsPreview.onDemand} items ready</div>
+                    </div>
+                  </div>
+                </button>
+
+                {/* By Manufacturer */}
+                <button
+                  type="button"
+                  onClick={() => setTriggerType('BY_MANUFACTURER')}
+                  className={`p-4 rounded-lg text-left transition-all border-2 ${
+                    triggerType === 'BY_MANUFACTURER'
+                      ? 'border-[var(--primary)] bg-[var(--primary)]/5'
+                      : 'border-[var(--border)] hover:border-[var(--primary)]/50'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`p-2 rounded-lg ${triggerType === 'BY_MANUFACTURER' ? 'bg-[var(--primary)] text-white' : 'bg-[var(--muted)] text-[var(--muted-foreground)]'}`}>
+                      {triggerTypeIcons.BY_MANUFACTURER}
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-medium text-[var(--foreground)]">{cycleCountTriggerTypeLabels.BY_MANUFACTURER}</div>
+                      <div className="text-xs text-[var(--muted-foreground)] mt-1">{cycleCountTriggerTypeDescriptions.BY_MANUFACTURER}</div>
+                    </div>
+                  </div>
+                </button>
+
+                {/* Low Quantity */}
+                <button
+                  type="button"
+                  onClick={() => setTriggerType('LOW_QUANTITY')}
+                  className={`p-4 rounded-lg text-left transition-all border-2 ${
+                    triggerType === 'LOW_QUANTITY'
+                      ? 'border-[var(--primary)] bg-[var(--primary)]/5'
+                      : 'border-[var(--border)] hover:border-[var(--primary)]/50'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`p-2 rounded-lg ${triggerType === 'LOW_QUANTITY' ? 'bg-[var(--primary)] text-white' : 'bg-[var(--muted)] text-[var(--muted-foreground)]'}`}>
+                      {triggerTypeIcons.LOW_QUANTITY}
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-medium text-[var(--foreground)]">{cycleCountTriggerTypeLabels.LOW_QUANTITY}</div>
+                      <div className="text-xs text-[var(--muted-foreground)] mt-1">{cycleCountTriggerTypeDescriptions.LOW_QUANTITY}</div>
+                    </div>
+                  </div>
+                </button>
+              </div>
+
+              {/* Additional Options for Specific Triggers */}
+              {triggerType === 'BY_MANUFACTURER' && (
+                <div className="mt-6 p-4 bg-[var(--muted)]/50 rounded-lg">
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                    Select Manufacturer <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={selectedManufacturerId}
+                    onChange={(e) => setSelectedManufacturerId(e.target.value)}
+                    className="w-full px-4 py-3 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                  >
+                    <option value="">Select a manufacturer...</option>
+                    {factories.map(f => (
+                      <option key={f.id} value={f.id}>{f.name}</option>
+                    ))}
+                  </select>
+                  {selectedManufacturerId && (
+                    <p className="mt-2 text-xs text-[var(--primary)]">
+                      {eligibleItemsPreview.byManufacturer} items eligible for counting
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {triggerType === 'LOW_QUANTITY' && (
+                <div className="mt-6 p-4 bg-[var(--muted)]/50 rounded-lg">
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                    Quantity Threshold
+                  </label>
+                  <input
+                    type="number"
+                    value={quantityThreshold}
+                    onChange={(e) => setQuantityThreshold(parseInt(e.target.value) || 0)}
+                    min={1}
+                    className="w-full px-4 py-3 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                  />
+                  <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+                    Count items with total quantity below this threshold
+                  </p>
+                  <p className="mt-1 text-xs text-[var(--primary)]">
+                    {eligibleItemsPreview.lowQuantity} items below threshold
+                  </p>
+                </div>
+              )}
+
+              {triggerType === 'RANDOM_A_ITEMS' && (
+                <div className="mt-6 p-4 bg-[var(--muted)]/50 rounded-lg">
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                    Sample Size
+                  </label>
+                  <input
+                    type="number"
+                    value={sampleSize}
+                    onChange={(e) => setSampleSize(parseInt(e.target.value) || 10)}
+                    min={1}
+                    max={50}
+                    className="w-full px-4 py-3 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                  />
+                  <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+                    Number of random A-items to include (max: {eligibleItemsPreview.aItems})
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Step 1: Basic Info */}
           {currentStep === 'basic' && (
             <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6">

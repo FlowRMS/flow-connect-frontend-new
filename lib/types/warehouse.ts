@@ -221,6 +221,9 @@ export interface BinLocation {
 // Inventory Management
 // -----------------------------------------------------------------------------
 
+// ABC classification for inventory value/movement
+export type InventoryAbcClass = 'A' | 'B' | 'C';
+
 export interface Inventory {
   id: string;
   productId: string;
@@ -253,6 +256,12 @@ export interface Inventory {
   unitCost?: number;          // Cost per unit when purchased
   targetMargin?: number;      // Target profit margin percentage
   totalCostBasis?: number;    // Total cost of inventory on hand
+
+  // Cycle count tracking
+  lastCycleCountDate?: string;  // Last time this item was cycle counted
+  cycleCountFrequency?: number; // Suggested days between counts
+  abcClass?: InventoryAbcClass; // ABC classification for prioritization
+  movementVelocity?: 'fast' | 'medium' | 'slow'; // Based on transaction history
 
   createdAt: string;
   updatedAt: string;
@@ -466,8 +475,22 @@ export interface FulfillmentOrder {
   // 6) Shipping outcome
   shipStatus: 'NOT_SHIPPED' | 'PARTIAL' | 'SHIPPED';
   carrier?: string;
+  carrierType?: 'parcel' | 'freight';  // Type of carrier used
   trackingNumbers?: string[];  // Can hold multiple tracking numbers
   shipConfirmedAt?: string;    // Proof of shipment - commission triggers
+
+  // 7) Freight/LTL specific fields
+  bolNumber?: string;          // Bill of Lading number
+  proNumber?: string;          // PRO number for freight tracking
+  freightClass?: string;       // Freight class (e.g., "85", "100")
+  shippingNotes?: string;      // Delivery instructions, special handling
+
+  // 8) Pickup/Will-Call/Handoff fields (for non-parcel shipments)
+  pickupSignature?: string;    // Base64 encoded signature image
+  pickupTimestamp?: string;    // When the pickup occurred
+  pickupCustomerName?: string; // Customer/company name for pickup
+  pickupDriverName?: string;   // Name of person who picked up
+  pickupNotes?: string;        // Notes from pickup (ID verified, condition, etc.)
 
   // Overall status
   status: FulfillmentOrderStatus;
@@ -789,6 +812,56 @@ export type CycleCountType =
 
 export type CycleCountPriority = 'low' | 'medium' | 'high' | 'urgent';
 
+// Trigger types for cycle count creation
+export type CycleCountTriggerType =
+  | 'MANUAL'              // Manual SKU selection
+  | 'FAST_MOVING'         // Auto-generate from fast-moving items
+  | 'RANDOM_A_ITEMS'      // Randomized A-class items
+  | 'ON_DEMAND'           // "We're slow today" trigger
+  | 'BY_MANUFACTURER'     // Count by manufacturer
+  | 'LOW_QUANTITY'        // Count items below threshold
+  | 'SCHEDULED';          // Regular scheduled count
+
+export const cycleCountTriggerTypeLabels: Record<CycleCountTriggerType, string> = {
+  MANUAL: 'Manual Selection',
+  FAST_MOVING: 'Fast-Moving Items',
+  RANDOM_A_ITEMS: 'Random A-Items',
+  ON_DEMAND: 'On Demand',
+  BY_MANUFACTURER: 'By Manufacturer',
+  LOW_QUANTITY: 'Low Quantity',
+  SCHEDULED: 'Scheduled',
+};
+
+export const cycleCountTriggerTypeDescriptions: Record<CycleCountTriggerType, string> = {
+  MANUAL: 'Manually select specific SKUs to count',
+  FAST_MOVING: 'Auto-generate count from high-velocity items',
+  RANDOM_A_ITEMS: 'Random sample of high-value A-class items',
+  ON_DEMAND: 'Quick count when capacity allows',
+  BY_MANUFACTURER: 'Count all items from a specific manufacturer',
+  LOW_QUANTITY: 'Count items below a quantity threshold',
+  SCHEDULED: 'Regular scheduled inventory verification',
+};
+
+// Discrepancy reasons for cycle count feedback
+export type CycleCountDiscrepancyReason =
+  | 'DAMAGE'
+  | 'MISPLACED'
+  | 'THEFT'
+  | 'SHIPPING_ERROR'
+  | 'RECEIVING_ERROR'
+  | 'SYSTEM_ERROR'
+  | 'OTHER';
+
+export const cycleCountDiscrepancyReasonLabels: Record<CycleCountDiscrepancyReason, string> = {
+  DAMAGE: 'Damage',
+  MISPLACED: 'Misplaced Product',
+  THEFT: 'Suspected Theft',
+  SHIPPING_ERROR: 'Shipping Error',
+  RECEIVING_ERROR: 'Receiving Error',
+  SYSTEM_ERROR: 'System Error',
+  OTHER: 'Other',
+};
+
 export interface CycleCountLineItem {
   id: string;
   cycleCountId: string;
@@ -807,8 +880,9 @@ export interface CycleCountLineItem {
   variance?: number;           // Difference (counted - system)
   variancePercent?: number;    // Variance as percentage
 
-  // Status tracking
+  // Status tracking - simplified to match/discrepancy flow
   status: 'pending' | 'counted' | 'verified' | 'adjusted' | 'skipped';
+  isMatch?: boolean;           // Simple match/discrepancy indicator
   countedBy?: string;
   countedByName?: string;
   countedAt?: string;
@@ -822,6 +896,12 @@ export interface CycleCountLineItem {
   recountQuantity?: number;
   recountedBy?: string;
   recountedAt?: string;
+
+  // Discrepancy feedback
+  discrepancyReason?: CycleCountDiscrepancyReason;
+  damageNotes?: string;        // Notes specifically for damage
+  misplacedNotes?: string;     // Notes for misplaced product (where it was found, etc.)
+  correctLocation?: string;    // If misplaced, where the product was actually found
 
   notes?: string;
 }
@@ -837,6 +917,9 @@ export interface CycleCount {
   priority: CycleCountPriority;
   status: CycleCountStatus;
 
+  // Trigger/creation method
+  triggerType?: CycleCountTriggerType;
+
   // Warehouse context
   warehouseId: string;
   warehouseName: string;
@@ -849,6 +932,8 @@ export interface CycleCount {
     products?: string[];       // Specific product IDs
     factories?: string[];      // Specific manufacturer IDs
     abcClass?: 'A' | 'B' | 'C'; // ABC classification
+    quantityThreshold?: number; // For LOW_QUANTITY trigger - count items below this
+    excludeRecentlyCountedDays?: number; // Exclude items counted within X days (default 60)
   };
 
   // Scheduling
@@ -1043,9 +1128,9 @@ export const rmaReasonLabels: Record<RmaReason, string> = {
 };
 
 export const shipmentStatusLabels: Record<ShipmentStatus, string> = {
-  PENDING: 'Pending',
-  CONFIRMED: 'Confirmed',
-  IN_TRANSIT: 'In Transit',
+  PENDING: 'Expected',
+  CONFIRMED: 'Expected',
+  IN_TRANSIT: 'Expected',
   ARRIVED: 'Arrived',
   RECEIVING: 'Receiving',
   PROCESSING: 'Processing',

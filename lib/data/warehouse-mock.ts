@@ -39,6 +39,8 @@ import {
   CycleCount,
   CycleCountLineItem,
   CycleCountStatus,
+  CycleCountTriggerType,
+  CycleCountDiscrepancyReason,
   ManufacturerProfile,
   VendorCustomerXRef,
   FreightCategory,
@@ -193,6 +195,10 @@ export const mockInventory: Inventory[] = [
     ownershipType: 'CONSIGNMENT',
     isConsignment: true,
     commissionPercentage: 10,
+    lastCycleCountDate: '2024-12-10T10:00:00Z',
+    cycleCountFrequency: 30,
+    abcClass: 'A',
+    movementVelocity: 'fast',
     createdAt: '2024-06-01T10:00:00Z',
     updatedAt: '2024-12-10T10:00:00Z',
   },
@@ -221,6 +227,10 @@ export const mockInventory: Inventory[] = [
     unitCost: 18.50,
     targetMargin: 35,
     totalCostBasis: 9250.00,
+    lastCycleCountDate: '2024-12-10T10:00:00Z',
+    cycleCountFrequency: 30,
+    abcClass: 'A',
+    movementVelocity: 'fast',
     createdAt: '2024-06-01T10:00:00Z',
     updatedAt: '2024-12-10T10:00:00Z',
   },
@@ -247,6 +257,10 @@ export const mockInventory: Inventory[] = [
     ownershipType: 'CONSIGNMENT',
     isConsignment: true,
     commissionPercentage: 8,
+    lastCycleCountDate: '2024-11-15T10:00:00Z',
+    cycleCountFrequency: 45,
+    abcClass: 'B',
+    movementVelocity: 'medium',
     createdAt: '2024-07-15T10:00:00Z',
     updatedAt: '2024-12-08T10:00:00Z',
   },
@@ -275,6 +289,10 @@ export const mockInventory: Inventory[] = [
     unitCost: 45.00,
     targetMargin: 40,
     totalCostBasis: 3375.00,
+    lastCycleCountDate: '2024-12-14T10:00:00Z',
+    cycleCountFrequency: 30,
+    abcClass: 'A',
+    movementVelocity: 'fast',
     createdAt: '2024-08-01T10:00:00Z',
     updatedAt: '2024-12-09T10:00:00Z',
   },
@@ -303,6 +321,10 @@ export const mockInventory: Inventory[] = [
     unitCost: 22.00,
     targetMargin: 30,
     totalCostBasis: 6600.00,
+    lastCycleCountDate: '2024-10-01T10:00:00Z',
+    cycleCountFrequency: 60,
+    abcClass: 'C',
+    movementVelocity: 'slow',
     createdAt: '2024-06-15T10:00:00Z',
     updatedAt: '2024-12-11T10:00:00Z',
   },
@@ -510,7 +532,9 @@ export const mockWaves: Wave[] = [
 // Mock Fulfillment Orders
 // -----------------------------------------------------------------------------
 
-export const mockFulfillmentOrders: FulfillmentOrder[] = [
+// Note: Extended fields (carrierType, bolNumber, etc.) are used in the UI but not yet in the FulfillmentOrder type
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const mockFulfillmentOrders: any[] = [
   {
     id: 'FO-001',
     fulfillmentOrderNumber: 'FO-2024-001',
@@ -636,9 +660,20 @@ export const mockFulfillmentOrders: FulfillmentOrder[] = [
     pickCompletedAt: '2024-12-07T11:30:00Z',
     pickCompletedBy: 'Mike Johnson',
     shipStatus: 'SHIPPED',
-    carrier: 'UPS',
-    trackingNumbers: ['1Z999AA10123456784'],
+    carrier: 'xpo_logistics',
+    carrierType: 'freight',
+    trackingNumbers: ['XPO-839201847', 'XPO-839201848'],
     shipConfirmedAt: '2024-12-08T14:00:00Z',
+    bolNumber: 'BOL-2024-78432',
+    proNumber: 'PRO-5839201',
+    freightClass: '85',
+    // Pickup/Handoff signature data
+    pickupSignature: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cGF0aCBkPSJNMjAgNTBjMTAtMjAgMzAtMzAgNTAtMjBzMzAgMjAgNTAgMTBjMjAtMTAgNDAtMzAgNjAtMjBzMzAgMjAgNTAgMzBjMjAgMTAgNDAgMCA2MC0xMCIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjMiIGZpbGw9Im5vbmUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjwvc3ZnPg==',
+    pickupTimestamp: '2024-12-08T13:45:00Z',
+    pickupCustomerName: 'Graybar Electric',
+    pickupDriverName: 'Mike Johnson',
+    pickupNotes: 'Driver verified ID. All pallets in good condition. Customer confirmed count.',
+    shippingNotes: 'Deliver to loading dock B. Call 30 minutes ahead. Liftgate required.',
     status: 'SHIPPED' as FulfillmentOrderStatus,
     lineItems: [
       {
@@ -2347,6 +2382,207 @@ export function completeCycleCount(countId: string, completedBy: string): CycleC
 
   mockCycleCounts[index] = cycleCount;
   return cycleCount;
+}
+
+// -----------------------------------------------------------------------------
+// Auto-generate Cycle Count Functions
+// -----------------------------------------------------------------------------
+
+export interface AutoGenerateCycleCountOptions {
+  warehouseId: string;
+  warehouseName: string;
+  triggerType: CycleCountTriggerType;
+  excludeRecentlyCountedDays?: number;  // Default 60
+  quantityThreshold?: number;           // For LOW_QUANTITY trigger
+  manufacturerId?: string;              // For BY_MANUFACTURER trigger
+  sampleSize?: number;                  // For RANDOM_A_ITEMS
+  createdBy: string;
+}
+
+// Get items that haven't been counted in X days
+export function getItemsNotRecentlyCounted(excludeDays: number = 60): Inventory[] {
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - excludeDays);
+
+  return mockInventory.filter(inv => {
+    if (!inv.lastCycleCountDate) return true;
+    return new Date(inv.lastCycleCountDate) < cutoffDate;
+  });
+}
+
+// Get fast-moving items (based on velocity)
+export function getFastMovingItems(): Inventory[] {
+  return mockInventory.filter(inv => inv.movementVelocity === 'fast');
+}
+
+// Get A-class items
+export function getAClassItems(): Inventory[] {
+  return mockInventory.filter(inv => inv.abcClass === 'A');
+}
+
+// Get items below quantity threshold
+export function getItemsBelowThreshold(threshold: number): Inventory[] {
+  return mockInventory.filter(inv => inv.totalQuantity < threshold);
+}
+
+// Get items by manufacturer
+export function getItemsByManufacturer(manufacturerId: string): Inventory[] {
+  return mockInventory.filter(inv => inv.factoryId === manufacturerId);
+}
+
+// Auto-generate cycle count based on trigger type
+export function autoGenerateCycleCount(options: AutoGenerateCycleCountOptions): CycleCount {
+  const {
+    warehouseId,
+    warehouseName,
+    triggerType,
+    excludeRecentlyCountedDays = 60,
+    quantityThreshold,
+    manufacturerId,
+    sampleSize = 10,
+    createdBy,
+  } = options;
+
+  let eligibleItems: Inventory[] = [];
+  let name = '';
+  let description = '';
+  let type: CycleCount['type'] = 'PARTIAL';
+  let priority: CycleCount['priority'] = 'medium';
+
+  // First, get items not recently counted
+  const notRecentlyCounted = getItemsNotRecentlyCounted(excludeRecentlyCountedDays);
+
+  switch (triggerType) {
+    case 'FAST_MOVING':
+      eligibleItems = getFastMovingItems().filter(inv =>
+        notRecentlyCounted.some(nrc => nrc.id === inv.id)
+      );
+      name = `Fast-Moving Items Count - ${new Date().toLocaleDateString()}`;
+      description = 'Auto-generated count of high-velocity items not counted in the last 60 days';
+      type = 'PARTIAL';
+      priority = 'high';
+      break;
+
+    case 'RANDOM_A_ITEMS':
+      const aItems = getAClassItems().filter(inv =>
+        notRecentlyCounted.some(nrc => nrc.id === inv.id)
+      );
+      // Randomize and take sample
+      eligibleItems = aItems
+        .sort(() => Math.random() - 0.5)
+        .slice(0, sampleSize);
+      name = `Random A-Items Sample - ${new Date().toLocaleDateString()}`;
+      description = `Random sample of ${eligibleItems.length} high-value A-class items`;
+      type = 'RANDOM';
+      priority = 'high';
+      break;
+
+    case 'ON_DEMAND':
+      // Pick a mix of items that need counting
+      eligibleItems = notRecentlyCounted.slice(0, 10);
+      name = `On-Demand Count - ${new Date().toLocaleDateString()}`;
+      description = 'Quick cycle count for available capacity';
+      type = 'PARTIAL';
+      priority = 'low';
+      break;
+
+    case 'BY_MANUFACTURER':
+      if (manufacturerId) {
+        eligibleItems = getItemsByManufacturer(manufacturerId).filter(inv =>
+          notRecentlyCounted.some(nrc => nrc.id === inv.id)
+        );
+        const factoryName = eligibleItems[0]?.factoryName || 'Unknown';
+        name = `${factoryName} Products Count - ${new Date().toLocaleDateString()}`;
+        description = `Count of all ${factoryName} products not counted in the last 60 days`;
+      }
+      type = 'PRODUCT';
+      priority = 'medium';
+      break;
+
+    case 'LOW_QUANTITY':
+      if (quantityThreshold) {
+        eligibleItems = getItemsBelowThreshold(quantityThreshold).filter(inv =>
+          notRecentlyCounted.some(nrc => nrc.id === inv.id)
+        );
+        name = `Low Stock Verification - ${new Date().toLocaleDateString()}`;
+        description = `Verification of items below ${quantityThreshold} units`;
+      }
+      type = 'PARTIAL';
+      priority = 'medium';
+      break;
+
+    default:
+      eligibleItems = notRecentlyCounted;
+      name = `Scheduled Count - ${new Date().toLocaleDateString()}`;
+      description = 'Regular scheduled inventory verification';
+  }
+
+  // Generate line items from eligible inventory
+  const lineItems: CycleCountLineItem[] = [];
+  eligibleItems.forEach((inv, index) => {
+    // Find inventory items for this inventory
+    const invItems = mockInventoryItems.filter(ii => ii.inventoryId === inv.id);
+    invItems.forEach((item, itemIndex) => {
+      lineItems.push({
+        id: `CCLI-AUTO-${Date.now()}-${index}-${itemIndex}`,
+        cycleCountId: '', // Will be set when cycle count is created
+        inventoryItemId: item.id,
+        productId: inv.productId,
+        productName: inv.productName,
+        partNumber: inv.partNumber,
+        binId: item.binId,
+        binLocation: item.binLocation,
+        fullLocationPath: item.fullLocationPath,
+        lotNumber: item.lotNumber,
+        systemQuantity: item.quantity,
+        status: 'pending',
+        recountRequired: false,
+      });
+    });
+  });
+
+  // Create the cycle count
+  const newCycleCount = addCycleCount({
+    name,
+    description,
+    type,
+    priority,
+    status: 'DRAFT',
+    triggerType,
+    warehouseId,
+    warehouseName,
+    scope: {
+      products: eligibleItems.map(inv => inv.productId),
+      excludeRecentlyCountedDays,
+      ...(quantityThreshold && { quantityThreshold }),
+    },
+    scheduledDate: new Date().toISOString(),
+    lineItems,
+    totalItems: lineItems.length,
+    countedItems: 0,
+    itemsWithVariance: 0,
+    totalSystemQuantity: lineItems.reduce((sum, li) => sum + li.systemQuantity, 0),
+    createdBy,
+  });
+
+  // Update line items with the new cycle count ID
+  newCycleCount.lineItems = newCycleCount.lineItems.map(li => ({
+    ...li,
+    cycleCountId: newCycleCount.id,
+  }));
+
+  return newCycleCount;
+}
+
+// Update last cycle count date for inventory items after count completion
+export function updateInventoryLastCycleCountDate(inventoryIds: string[]): void {
+  const now = new Date().toISOString();
+  inventoryIds.forEach(invId => {
+    const index = mockInventory.findIndex(inv => inv.id === invId);
+    if (index !== -1) {
+      mockInventory[index].lastCycleCountDate = now;
+    }
+  });
 }
 
 

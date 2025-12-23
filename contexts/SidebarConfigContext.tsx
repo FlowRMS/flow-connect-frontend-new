@@ -53,6 +53,7 @@ const defaultConfig: SidebarConfig = {
         { id: 'calendar', name: 'Calendar', href: '/flow-calendar', enabled: true },
         { id: 'campaigns-rules', name: 'Campaigns & Rules', href: '/email-helper', enabled: true },
         { id: 'email-ingestion', name: 'Email Ingestion', href: '/email-ingestion', enabled: true },
+        { id: 'email-templates', name: 'Templates', href: '/email-templates', enabled: true },
       ]
     },
     {
@@ -118,7 +119,7 @@ const defaultConfig: SidebarConfig = {
 };
 
 const STORAGE_KEY = 'sidebar-config';
-const CONFIG_VERSION = 13; // Increment this to force a reset of cached sidebar config
+const CONFIG_VERSION = 15; // Increment this to force a reset of cached sidebar config
 
 const SidebarConfigContext = createContext<SidebarConfigContextType | undefined>(undefined);
 
