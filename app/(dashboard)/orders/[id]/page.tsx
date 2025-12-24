@@ -1,14 +1,34 @@
-'use client';
+/**
+ * Order Detail Page
+ * Route: /orders/[id]
+ */
 
-import { use, Suspense } from 'react';
-import OrderDetailContent from '@/components/orders/OrderDetailContent';
+import { Suspense } from 'react';
+import OrderDetailContent from '@/components/orders/detail/OrderDetailContent';
 
-export default function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = use(params);
+interface OrderDetailPageProps {
+  params: Promise<{
+    id: string;
+  }>;
+}
+
+export default async function OrderDetailPage({ params }: OrderDetailPageProps) {
+  const { id } = await params;
 
   return (
-    <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="text-[var(--muted-foreground)]">Loading...</div></div>}>
-      <OrderDetailContent orderId={resolvedParams.id} />
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center h-screen">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--primary)] mx-auto mb-4" />
+            <p className="text-sm text-[var(--muted-foreground)]">
+              Loading order...
+            </p>
+          </div>
+        </div>
+      }
+    >
+      <OrderDetailContent orderId={id} />
     </Suspense>
   );
 }
