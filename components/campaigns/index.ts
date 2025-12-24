@@ -8,8 +8,8 @@ export * from './types';
 // Constants
 export * from './constants';
 
-// Mock Data
-export * from './mockData';
+// Mock Data (only rules - campaigns use real API)
+export { rules } from './mockData';
 
 // Utils
 export * from './utils';

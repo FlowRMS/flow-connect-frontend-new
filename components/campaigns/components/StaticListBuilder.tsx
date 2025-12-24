@@ -1,15 +1,42 @@
 /**
  * Static List Builder Component
  * Handles manual contact selection with filters
+ * Uses real-time API search for contacts
  */
 
-import React from 'react';
+'use client';
+
+import { useState, useMemo, useEffect, useRef, type ReactNode } from 'react';
 import type { Contact } from '../types';
-import { applyContactFilters, getUniqueContactValues } from '../utils';
-import { AVAILABLE_TAGS } from '../constants';
+import { mapContactSearchResultToContact } from '../types';
+import { getUniqueContactValues } from '../utils';
+import {
+  useContactSearch,
+  useCompanySearch,
+  useEstimateRecipients,
+  type CompanySearchResult,
+  type CampaignCriteria,
+  type EstimateSampleContact,
+} from '../api';
+
+// Debounce hook
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
 
 interface StaticListBuilderProps {
-  availableContacts: Contact[];
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   selectedCompanies: string[];
@@ -24,12 +51,12 @@ interface StaticListBuilderProps {
   setOpenDropdown: (dropdown: string | null) => void;
   recipientList: Contact[];
   addToRecipientList: (contact: Contact) => void;
+  addMultipleToRecipientList?: (contacts: Contact[]) => void;
   clearRecipientList: () => void;
   clearAllFilters: () => void;
 }
 
 export default function StaticListBuilder({
-  availableContacts,
   searchQuery,
   setSearchQuery,
   selectedCompanies,
@@ -44,21 +71,140 @@ export default function StaticListBuilder({
   setOpenDropdown,
   recipientList,
   addToRecipientList,
+  addMultipleToRecipientList,
   clearRecipientList,
   clearAllFilters,
 }: StaticListBuilderProps) {
-  const filteredContacts = applyContactFilters(
-    availableContacts,
-    searchQuery,
-    selectedCompanies,
-    selectedTypes
+  // Debounce search query for API calls (300ms delay)
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
+  // Company search state for searchable dropdown
+  const [companySearchTerm, setCompanySearchTerm] = useState('');
+  const debouncedCompanySearch = useDebounce(companySearchTerm, 300);
+
+  // Use the contact search API - only when NO companies are selected
+  const { data: contactsData, isLoading: isSearchingContacts } = useContactSearch(
+    debouncedSearchQuery,
+    selectedCompanies.length === 0
   );
+
+  // Use company search API with trigger-based search
+  const { data: companiesData, isLoading: isLoadingCompanies } = useCompanySearch(
+    debouncedCompanySearch,
+    debouncedCompanySearch.length >= 1 || openDropdown === 'company'
+  );
+
+  // Build criteria for estimateRecipients when companies are selected
+  const companyCriteria: CampaignCriteria | null = useMemo(() => {
+    if (selectedCompanies.length === 0) return null;
+
+    // Build criteria with IN operator for multiple companies
+    return {
+      groups: [{
+        logicalOperator: 'AND' as const,
+        conditions: [{
+          entityType: 'COMPANY' as const,
+          field: 'name',
+          operator: selectedCompanies.length === 1 ? 'EQUALS' as const : 'IN' as const,
+          value: selectedCompanies.length === 1 ? selectedCompanies[0] : selectedCompanies.join(','),
+        }],
+      }],
+      groupOperator: 'AND' as const,
+    };
+  }, [selectedCompanies]);
+
+  // Use estimateRecipients to get contacts from selected companies
+  const { data: estimateData, isLoading: isLoadingEstimate } = useEstimateRecipients(companyCriteria);
+
+  // Convert estimate sample contacts to Contact type
+  const companyFilteredContacts: Contact[] = useMemo(() => {
+    if (!estimateData?.sampleContacts) return [];
+    return estimateData.sampleContacts.map((contact: EstimateSampleContact) => ({
+      id: contact.id,
+      name: `${contact.firstName || ''} ${contact.lastName || ''}`.trim(),
+      firstName: contact.firstName,
+      lastName: contact.lastName,
+      email: contact.email || '',
+      phone: contact.phone,
+      role: contact.role,
+      type: contact.role,
+      territory: contact.territory,
+      tags: Array.isArray(contact.tags) ? contact.tags.join(', ') : contact.tags,
+    }));
+  }, [estimateData]);
+
+  // Transform API contacts to UI format (when no companies selected)
+  const searchedContacts: Contact[] = useMemo(() => {
+    if (!contactsData) return [];
+    return contactsData.map(mapContactSearchResultToContact);
+  }, [contactsData]);
+
+  // Get unique company names from company search results
+  const searchedCompanies: string[] = useMemo(() => {
+    if (!companiesData) return [];
+    return companiesData.map((c: CompanySearchResult) => c.name).filter(Boolean);
+  }, [companiesData]);
+
+  // Determine which contacts to show based on whether companies are selected
+  const availableContacts: Contact[] = useMemo(() => {
+    return selectedCompanies.length > 0 ? companyFilteredContacts : searchedContacts;
+  }, [selectedCompanies.length, companyFilteredContacts, searchedContacts]);
+
+  // Apply local filters (type/role) on top of results
+  const filteredContacts = useMemo(() => {
+    let result = availableContacts;
+
+    // Apply search filter when companies are selected (estimate doesn't support search)
+    if (selectedCompanies.length > 0 && searchQuery) {
+      const searchLower = searchQuery.toLowerCase();
+      result = result.filter(contact =>
+        contact.name?.toLowerCase().includes(searchLower) ||
+        contact.email?.toLowerCase().includes(searchLower) ||
+        contact.role?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Filter by selected types/roles
+    if (selectedTypes.length > 0) {
+      result = result.filter(contact =>
+        contact.type && selectedTypes.includes(contact.type)
+      );
+    }
+
+    return result;
+  }, [availableContacts, selectedCompanies.length, searchQuery, selectedTypes]);
+
+  const isSearching = selectedCompanies.length > 0 ? isLoadingEstimate : isSearchingContacts;
 
   const allFilteredSelected = filteredContacts.length > 0 &&
     filteredContacts.every(c => selectedContactIds.includes(c.id));
 
-  const uniqueCompanies = getUniqueContactValues(availableContacts, 'company');
-  const uniqueTypes = getUniqueContactValues(availableContacts, 'type');
+  // Get unique values from search results for filter dropdowns
+  const uniqueCompanies = useMemo(() =>
+    getUniqueContactValues(availableContacts, 'company'),
+    [availableContacts]
+  );
+
+  const uniqueTypes = useMemo(() =>
+    getUniqueContactValues(availableContacts, 'role'),
+    [availableContacts]
+  );
+
+  // Handle adding multiple selected contacts at once (fixes the multi-selection bug)
+  const handleAddSelected = () => {
+    const contactsToAdd = filteredContacts.filter(c =>
+      selectedContactIds.includes(c.id) && !recipientList.some(r => r.id === c.id)
+    );
+
+    if (addMultipleToRecipientList) {
+      // Use the batch add function if available
+      addMultipleToRecipientList(contactsToAdd);
+    } else {
+      // Fallback: add all at once by updating state in one batch
+      contactsToAdd.forEach(contact => addToRecipientList(contact));
+    }
+    setSelectedContactIds([]);
+  };
 
   return (
     <div className="border border-[var(--border)] rounded-lg p-4">
@@ -73,87 +219,59 @@ export default function StaticListBuilder({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search contacts by name, email, or company..."
+            placeholder="Search contacts by name, email, or role..."
             className="w-full pl-10 pr-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
           />
+          {isSearching && (
+            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[var(--primary)]"></div>
+            </div>
+          )}
         </div>
 
         {/* Filter Chips */}
         <div className="flex flex-wrap gap-2">
-          {/* Company Filter */}
-          <FilterDropdown
-            label="Company"
-            count={selectedCompanies.length}
+          {/* Company Filter - Searchable Dropdown */}
+          <SearchableCompanyDropdown
+            selectedCompanies={selectedCompanies}
+            setSelectedCompanies={setSelectedCompanies}
             isOpen={openDropdown === 'company'}
             onToggle={() => setOpenDropdown(openDropdown === 'company' ? null : 'company')}
-            icon={<svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>}
-          >
-            {uniqueCompanies.map(company => (
-              <FilterCheckbox
-                key={company}
-                label={company}
-                checked={selectedCompanies.includes(company)}
-                onChange={(checked) => {
-                  if (checked) {
-                    setSelectedCompanies([...selectedCompanies, company]);
-                  } else {
-                    setSelectedCompanies(selectedCompanies.filter(c => c !== company));
-                  }
-                }}
-              />
-            ))}
-          </FilterDropdown>
+            searchTerm={companySearchTerm}
+            setSearchTerm={setCompanySearchTerm}
+            searchedCompanies={searchedCompanies}
+            localCompanies={uniqueCompanies}
+            isLoading={isLoadingCompanies}
+          />
 
-          {/* Type Filter */}
-          <FilterDropdown
-            label="Type"
-            count={selectedTypes.length}
-            isOpen={openDropdown === 'type'}
-            onToggle={() => setOpenDropdown(openDropdown === 'type' ? null : 'type')}
-            icon={<svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>}
-          >
-            {uniqueTypes.map(type => (
-              <FilterCheckbox
-                key={type}
-                label={type}
-                checked={selectedTypes.includes(type)}
-                onChange={(checked) => {
-                  if (checked) {
-                    setSelectedTypes([...selectedTypes, type]);
-                  } else {
-                    setSelectedTypes(selectedTypes.filter(t => t !== type));
-                  }
-                }}
-              />
-            ))}
-          </FilterDropdown>
-
-          {/* Tags Filter */}
-          <FilterDropdown
-            label="Tags"
-            count={selectedTags.length}
-            isOpen={openDropdown === 'tags'}
-            onToggle={() => setOpenDropdown(openDropdown === 'tags' ? null : 'tags')}
-            icon={<svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>}
-          >
-            {AVAILABLE_TAGS.map(tag => (
-              <FilterCheckbox
-                key={tag}
-                label={tag}
-                checked={selectedTags.includes(tag)}
-                onChange={(checked) => {
-                  if (checked) {
-                    setSelectedTags([...selectedTags, tag]);
-                  } else {
-                    setSelectedTags(selectedTags.filter(t => t !== tag));
-                  }
-                }}
-              />
-            ))}
-          </FilterDropdown>
+          {/* Type/Role Filter */}
+          {uniqueTypes.length > 0 && (
+            <FilterDropdown
+              label="Role"
+              count={selectedTypes.length}
+              isOpen={openDropdown === 'type'}
+              onToggle={() => setOpenDropdown(openDropdown === 'type' ? null : 'type')}
+              icon={<svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>}
+            >
+              {uniqueTypes.map(type => (
+                <FilterCheckbox
+                  key={type}
+                  label={type}
+                  checked={selectedTypes.includes(type)}
+                  onChange={(checked) => {
+                    if (checked) {
+                      setSelectedTypes([...selectedTypes, type]);
+                    } else {
+                      setSelectedTypes(selectedTypes.filter(t => t !== type));
+                    }
+                  }}
+                />
+              ))}
+            </FilterDropdown>
+          )}
 
           {/* Clear Filters */}
-          {(searchQuery || selectedCompanies.length > 0 || selectedTypes.length > 0 || selectedTags.length > 0) && (
+          {(searchQuery || selectedCompanies.length > 0 || selectedTypes.length > 0) && (
             <button
               onClick={clearAllFilters}
               className="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded-md transition-colors"
@@ -164,7 +282,7 @@ export default function StaticListBuilder({
         </div>
 
         {/* Active Filter Tags */}
-        {(selectedCompanies.length > 0 || selectedTypes.length > 0 || selectedTags.length > 0) && (
+        {(selectedCompanies.length > 0 || selectedTypes.length > 0) && (
           <div className="flex flex-wrap gap-1">
             {selectedCompanies.map(company => (
               <FilterTag
@@ -182,17 +300,18 @@ export default function StaticListBuilder({
                 onRemove={() => setSelectedTypes(selectedTypes.filter(t => t !== type))}
               />
             ))}
-            {selectedTags.map(tag => (
-              <FilterTag
-                key={tag}
-                label={tag}
-                color="purple"
-                onRemove={() => setSelectedTags(selectedTags.filter(t => t !== tag))}
-              />
-            ))}
           </div>
         )}
       </div>
+
+      {/* Company match count */}
+      {selectedCompanies.length > 0 && estimateData && !isSearching && (
+        <div className="mb-2 px-3 py-2 bg-purple-50 border border-purple-200 rounded-md">
+          <p className="text-sm text-purple-700">
+            <span className="font-medium">{estimateData.count}</span> contact{estimateData.count !== 1 ? 's' : ''} found at {selectedCompanies.length} selected compan{selectedCompanies.length !== 1 ? 'ies' : 'y'}
+          </p>
+        </div>
+      )}
 
       {/* Bulk Actions Bar */}
       <div className="flex items-center justify-between py-2 px-3 bg-[var(--muted)]/30 rounded-md mb-2">
@@ -215,11 +334,7 @@ export default function StaticListBuilder({
           <div className="flex items-center gap-2">
             <span className="text-xs text-[var(--muted-foreground)]">{selectedContactIds.length} selected</span>
             <button
-              onClick={() => {
-                const contactsToAdd = availableContacts.filter(c => selectedContactIds.includes(c.id));
-                contactsToAdd.forEach(contact => addToRecipientList(contact));
-                setSelectedContactIds([]);
-              }}
+              onClick={handleAddSelected}
               className="px-3 py-1 text-xs bg-[var(--primary)] text-white rounded-md hover:bg-[var(--primary)]/90 transition-colors"
             >
               Add Selected
@@ -236,43 +351,71 @@ export default function StaticListBuilder({
 
       {/* Results List */}
       <div className="max-h-[350px] overflow-y-auto space-y-2 mb-3">
-        {filteredContacts.map((contact) => (
-          <div
-            key={contact.id}
-            className={`flex items-center gap-3 p-3 border rounded-md transition-colors ${
-              selectedContactIds.includes(contact.id)
-                ? 'border-[var(--primary)] bg-[var(--primary)]/5'
-                : 'border-[var(--border)] hover:bg-[var(--muted)]/20'
-            }`}
-          >
-            <input
-              type="checkbox"
-              checked={selectedContactIds.includes(contact.id)}
-              onChange={(e) => {
-                if (e.target.checked) {
-                  setSelectedContactIds([...selectedContactIds, contact.id]);
-                } else {
-                  setSelectedContactIds(selectedContactIds.filter(id => id !== contact.id));
-                }
-              }}
-              className="w-4 h-4 accent-[var(--primary)] flex-shrink-0"
-            />
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <div className="text-sm font-medium text-[var(--foreground)] truncate">{contact.name}</div>
-                <span className="text-xs px-2 py-0.5 rounded bg-[var(--muted)] text-[var(--muted-foreground)]">{contact.type}</span>
-              </div>
-              <div className="text-xs text-[var(--muted-foreground)] truncate">{contact.company}</div>
-              <div className="text-xs text-[var(--muted-foreground)] truncate">{contact.email}</div>
-            </div>
-            <button
-              onClick={() => addToRecipientList(contact)}
-              className="ml-3 px-3 py-1.5 text-xs text-[var(--primary)] border border-[var(--primary)] rounded-md hover:bg-[var(--primary)] hover:text-white transition-colors flex-shrink-0"
-            >
-              Add
-            </button>
+        {isSearching ? (
+          <div className="text-center py-8 text-[var(--muted-foreground)]">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[var(--primary)] mx-auto mb-2"></div>
+            <p>{selectedCompanies.length > 0 ? 'Finding contacts at selected companies...' : 'Searching contacts...'}</p>
           </div>
-        ))}
+        ) : filteredContacts.length === 0 ? (
+          <div className="text-center py-8 text-[var(--muted-foreground)]">
+            {selectedCompanies.length > 0 ? (
+              <p>No contacts found at the selected companies.</p>
+            ) : availableContacts.length === 0 ? (
+              <p>No contacts found. Try a different search term.</p>
+            ) : (
+              <p>No contacts match your filters</p>
+            )}
+          </div>
+        ) : (
+          filteredContacts.map((contact) => (
+            <div
+              key={contact.id}
+              className={`flex items-center gap-3 p-3 border rounded-md transition-colors ${
+                selectedContactIds.includes(contact.id)
+                  ? 'border-[var(--primary)] bg-[var(--primary)]/5'
+                  : 'border-[var(--border)] hover:bg-[var(--muted)]/20'
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={selectedContactIds.includes(contact.id)}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setSelectedContactIds([...selectedContactIds, contact.id]);
+                  } else {
+                    setSelectedContactIds(selectedContactIds.filter(id => id !== contact.id));
+                  }
+                }}
+                className="w-4 h-4 accent-[var(--primary)] flex-shrink-0"
+              />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <div className="text-sm font-medium text-[var(--foreground)] truncate">{contact.name}</div>
+                  {contact.role && (
+                    <span className="text-xs px-2 py-0.5 rounded bg-[var(--muted)] text-[var(--muted-foreground)]">
+                      {contact.role}
+                    </span>
+                  )}
+                </div>
+                {contact.company && (
+                  <div className="text-xs text-[var(--muted-foreground)] truncate">{contact.company}</div>
+                )}
+                <div className="text-xs text-[var(--muted-foreground)] truncate">{contact.email}</div>
+              </div>
+              <button
+                onClick={() => addToRecipientList(contact)}
+                disabled={recipientList.some(r => r.id === contact.id)}
+                className={`ml-3 px-3 py-1.5 text-xs rounded-md transition-colors flex-shrink-0 ${
+                  recipientList.some(r => r.id === contact.id)
+                    ? 'bg-green-100 text-green-700 cursor-not-allowed'
+                    : 'text-[var(--primary)] border border-[var(--primary)] hover:bg-[var(--primary)] hover:text-white'
+                }`}
+              >
+                {recipientList.some(r => r.id === contact.id) ? 'Added' : 'Add'}
+              </button>
+            </div>
+          ))
+        )}
       </div>
 
       <div className="pt-3 border-t border-[var(--border)] flex items-center justify-between">
@@ -293,13 +436,133 @@ export default function StaticListBuilder({
 }
 
 // Helper Components
+
+// Searchable Company Dropdown Component
+interface SearchableCompanyDropdownProps {
+  selectedCompanies: string[];
+  setSelectedCompanies: (companies: string[]) => void;
+  isOpen: boolean;
+  onToggle: () => void;
+  searchTerm: string;
+  setSearchTerm: (term: string) => void;
+  searchedCompanies: string[];
+  localCompanies: string[];
+  isLoading: boolean;
+}
+
+function SearchableCompanyDropdown({
+  selectedCompanies,
+  setSelectedCompanies,
+  isOpen,
+  onToggle,
+  searchTerm,
+  setSearchTerm,
+  searchedCompanies,
+  localCompanies,
+  isLoading,
+}: SearchableCompanyDropdownProps) {
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Combine and dedupe companies from API search and local contacts
+  const displayCompanies = useMemo(() => {
+    // Filter out undefined/null values and dedupe
+    const combined = [...new Set([...searchedCompanies, ...localCompanies].filter(Boolean))];
+    if (!searchTerm) return combined.slice(0, 20); // Show first 20 when no search
+    const searchLower = searchTerm.toLowerCase();
+    return combined.filter(c => c && c.toLowerCase().includes(searchLower));
+  }, [searchedCompanies, localCompanies, searchTerm]);
+
+  // Focus input when dropdown opens
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isOpen]);
+
+  return (
+    <div ref={dropdownRef} className="relative">
+      <button
+        onClick={onToggle}
+        className="px-3 py-1.5 text-xs border border-[var(--border)] rounded-md bg-[var(--background)] hover:border-[var(--primary)] transition-colors flex items-center gap-1"
+      >
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+        </svg>
+        Company {selectedCompanies.length > 0 && `(${selectedCompanies.length})`}
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {isOpen && (
+        <>
+          <div className="absolute top-full left-0 mt-1 bg-[var(--card)] border border-[var(--border)] rounded-md shadow-lg z-20 min-w-[280px]">
+            {/* Search Input */}
+            <div className="p-2 border-b border-[var(--border)]">
+              <div className="relative">
+                <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--muted-foreground)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search companies..."
+                  className="w-full pl-8 pr-3 py-1.5 text-xs border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                />
+                {isLoading && (
+                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-[var(--primary)]"></div>
+                  </div>
+                )}
+              </div>
+              <p className="text-[10px] text-[var(--muted-foreground)] mt-1">Type to search all companies</p>
+            </div>
+            {/* Options */}
+            <div className="max-h-[200px] overflow-y-auto">
+              {displayCompanies.length === 0 ? (
+                <div className="px-3 py-2 text-xs text-[var(--muted-foreground)]">
+                  {isLoading ? 'Searching...' : 'No companies found'}
+                </div>
+              ) : (
+                displayCompanies.map((company, index) => (
+                  <label
+                    key={`${company}-${index}`}
+                    className="flex items-center gap-2 px-3 py-2 hover:bg-[var(--muted)] cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedCompanies.includes(company)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedCompanies([...selectedCompanies, company]);
+                        } else {
+                          setSelectedCompanies(selectedCompanies.filter(c => c !== company));
+                        }
+                      }}
+                      className="w-3.5 h-3.5 accent-[var(--primary)]"
+                    />
+                    <span className="text-xs truncate">{company}</span>
+                  </label>
+                ))
+              )}
+            </div>
+          </div>
+          <div className="fixed inset-0 z-10" onClick={onToggle} />
+        </>
+      )}
+    </div>
+  );
+}
+
 interface FilterDropdownProps {
   label: string;
   count: number;
   isOpen: boolean;
   onToggle: () => void;
-  icon: React.ReactNode;
-  children: React.ReactNode;
+  icon: ReactNode;
+  children: ReactNode;
 }
 
 function FilterDropdown({ label, count, isOpen, onToggle, icon, children }: FilterDropdownProps) {
@@ -316,9 +579,12 @@ function FilterDropdown({ label, count, isOpen, onToggle, icon, children }: Filt
         </svg>
       </button>
       {isOpen && (
-        <div className="absolute top-full left-0 mt-1 bg-white border border-[var(--border)] rounded-md shadow-lg z-10 min-w-[200px] max-h-[200px] overflow-y-auto">
-          {children}
-        </div>
+        <>
+          <div className="absolute top-full left-0 mt-1 bg-[var(--card)] border border-[var(--border)] rounded-md shadow-lg z-20 min-w-[200px] max-h-[200px] overflow-y-auto">
+            {children}
+          </div>
+          <div className="fixed inset-0 z-10" onClick={onToggle} />
+        </>
       )}
     </div>
   );
