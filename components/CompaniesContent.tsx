@@ -11,7 +11,7 @@ import AdvancedFilters, { ActiveFilter, ActiveSort } from './AdvancedFilters';
 import SortButton from './SortButton';
 import CreateCompanyModal from './CreateCompanyModal';
 import { useCRMCompanyLandingPagesInfinite, useDeleteCRMCompany, useUpdateCRMCompany, useCRMCompany } from './hooks/useCRMApi';
-import { hasCRMTokens } from './lib/crm-auth';
+
 import { companyToasts } from './lib/toast';
 import { useInfiniteScroll } from './hooks/useInfiniteScroll';
 import type { CompanySourceType, Contact as APIContact, Job as APIJob, LandingPageFilter, LandingPageOrderBy } from './lib/crm-graphql';
@@ -71,7 +71,7 @@ export default function CompaniesContent() {
   }, []);
 
   // CRM API hooks with infinite scroll - now with server-side filters
-  const isConnected = isMounted ? hasCRMTokens() : false;
+  const isConnected = isMounted ? true : false;
   const {
     data: companiesData,
     isLoading,

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useCreateCRMCompany, useCRMCompanyLandingPages } from './hooks/useCRMApi';
-import { hasCRMTokens } from './lib/crm-auth';
+
 import type { CompanyInput, CompanySourceType } from './lib/crm-graphql';
 import { companyToasts } from './lib/toast';
 
@@ -25,7 +25,7 @@ export default function CreateCompanyModal({ isOpen, onClose, onSuccess }: Creat
   const [parentSearchQuery, setParentSearchQuery] = useState('');
   const [showParentDropdown, setShowParentDropdown] = useState(false);
 
-  const isConnected = hasCRMTokens();
+  const isConnected = true;
   const createCompanyMutation = useCreateCRMCompany();
   
   // Fetch existing companies for parent company dropdown

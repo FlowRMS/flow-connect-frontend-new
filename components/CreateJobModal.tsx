@@ -5,7 +5,7 @@ import {
   useCRMJobStatuses,
   useCreateCRMJob,
 } from './hooks/useCRMApi';
-import { hasCRMTokens } from './lib/crm-auth';
+
 import type { JobInput } from './lib/crm-graphql';
 import { jobToasts } from './lib/toast';
 import { formatLocalDate } from './lib/date-utils';
@@ -149,7 +149,7 @@ export default function CreateJobModal({ isOpen, onClose, onSuccess, defaultStat
   const [error, setError] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<'basic' | 'details' | 'additional' | 'connect'>('basic');
 
-  const isConnected = hasCRMTokens();
+  const isConnected = true;
   const { data: statuses, isLoading: statusesLoading, error: statusesError } = useCRMJobStatuses();
   const createJobMutation = useCreateCRMJob();
 

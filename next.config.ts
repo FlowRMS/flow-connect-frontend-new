@@ -5,6 +5,10 @@ const nextConfig: NextConfig = {
   experimental: {
     // Reduce build-time memory usage
     webpackMemoryOptimizations: true,
+    // Enable server actions for WorkOS auth
+    serverActions: {
+      bodySizeLimit: "2mb",
+    },
   },
   // Reduce bundle size by excluding source maps in production
   productionBrowserSourceMaps: false,
@@ -12,6 +16,17 @@ const nextConfig: NextConfig = {
   images: {
     // Reduce memory for image optimization
     minimumCacheTTL: 60 * 60 * 24, // 24 hours
+    // Allow WorkOS profile images
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "**.workos.com",
+      },
+      {
+        protocol: "https",
+        hostname: "**.gravatar.com",
+      },
+    ],
   },
   // Enable compression
   compress: true,

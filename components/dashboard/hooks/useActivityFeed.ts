@@ -7,7 +7,7 @@
  */
 
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { hasCRMTokens } from '../../lib/crm-auth';
+
 import {
   fetchAllLandingPages,
   type JobLandingPage,
@@ -122,7 +122,7 @@ export function useActivityFeed(
       }
       return undefined;
     },
-    enabled: hasCRMTokens(),
+    enabled: true,
     staleTime: 30 * 1000,
     refetchOnWindowFocus: true,
   });

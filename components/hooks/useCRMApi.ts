@@ -4,7 +4,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
-import { hasCRMTokens } from '../lib/crm-auth';
+
 import {
   // Types
   type Job,
@@ -239,7 +239,7 @@ export const crmQueryKeys = {
  */
 export function useCRMConnectionStatus() {
   return {
-    isConnected: hasCRMTokens(),
+    isConnected: true,
   };
 }
 
@@ -254,7 +254,7 @@ export function useCRMJobStatuses() {
   return useQuery<JobStatus[], Error>({
     queryKey: crmQueryKeys.jobStatuses(),
     queryFn: fetchJobStatuses,
-    enabled: hasCRMTokens(),
+    enabled: true,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
@@ -269,7 +269,7 @@ export function useCRMJobs() {
       const ids = getStoredJobIds();
       return fetchJobsByIds(ids);
     },
-    enabled: hasCRMTokens(),
+    enabled: true,
     staleTime: 30 * 1000, // 30 seconds
   });
 }
@@ -281,7 +281,7 @@ export function useCRMJob(id: string) {
   return useQuery<Job | null, Error>({
     queryKey: crmQueryKeys.job(id),
     queryFn: () => fetchJob(id),
-    enabled: hasCRMTokens() && !!id,
+    enabled: !!id,
     staleTime: 30 * 1000,
   });
 }
@@ -420,7 +420,7 @@ export function useCRMJobLandingPages(
       const result = await fetchJobLandingPages(filters, orderBy);
       return result.records;
     },
-    enabled: hasCRMTokens(),
+    enabled: true,
     staleTime: 30 * 1000,
   });
 }
@@ -446,7 +446,7 @@ export function useCRMJobLandingPagesInfinite(
       if (totalFetched >= lastPage.total) return undefined;
       return totalFetched;
     },
-    enabled: hasCRMTokens(),
+    enabled: true,
     staleTime: 30 * 1000,
   });
 }
@@ -462,7 +462,7 @@ export function useCRMCompanies() {
   return useQuery<Company[], Error>({
     queryKey: crmQueryKeys.companies(),
     queryFn: fetchCompanies,
-    enabled: hasCRMTokens(),
+    enabled: true,
     staleTime: 30 * 1000,
   });
 }
@@ -474,7 +474,7 @@ export function useCRMCompany(id: string) {
   return useQuery<Company | null, Error>({
     queryKey: crmQueryKeys.company(id),
     queryFn: () => fetchCompany(id),
-    enabled: hasCRMTokens() && !!id,
+    enabled: !!id,
     staleTime: 30 * 1000,
   });
 }
@@ -486,7 +486,7 @@ export function useCRMCompaniesByJob(jobId: string) {
   return useQuery<Company[], Error>({
     queryKey: crmQueryKeys.companiesByJob(jobId),
     queryFn: () => fetchCompaniesByJobId(jobId),
-    enabled: hasCRMTokens() && !!jobId,
+    enabled: !!jobId,
     staleTime: 30 * 1000,
   });
 }
@@ -498,7 +498,7 @@ export function useCRMJobsByCompany(companyId: string) {
   return useQuery<Job[], Error>({
     queryKey: crmQueryKeys.jobsByCompany(companyId),
     queryFn: () => fetchJobsByCompanyId(companyId),
-    enabled: hasCRMTokens() && !!companyId,
+    enabled: !!companyId,
     staleTime: 30 * 1000,
   });
 }
@@ -510,7 +510,7 @@ export function useCRMJobsByContact(contactId: string) {
   return useQuery<Job[], Error>({
     queryKey: crmQueryKeys.jobsByContact(contactId),
     queryFn: () => fetchJobsByContactId(contactId),
-    enabled: hasCRMTokens() && !!contactId,
+    enabled: !!contactId,
     staleTime: 30 * 1000,
   });
 }
@@ -580,7 +580,7 @@ export function useCRMCompanyLandingPages(
       const result = await fetchCompanyLandingPages(filters, orderBy);
       return result.records;
     },
-    enabled: hasCRMTokens(),
+    enabled: true,
     staleTime: 30 * 1000,
   });
 }
@@ -604,7 +604,7 @@ export function useCRMCompanyLandingPagesInfinite(
       if (totalFetched >= lastPage.total) return undefined;
       return totalFetched;
     },
-    enabled: hasCRMTokens(),
+    enabled: true,
     staleTime: 30 * 1000,
   });
 }
@@ -620,7 +620,7 @@ export function useCRMContacts() {
   return useQuery<Contact[], Error>({
     queryKey: crmQueryKeys.contacts(),
     queryFn: fetchContacts,
-    enabled: hasCRMTokens(),
+    enabled: true,
     staleTime: 30 * 1000,
   });
 }
@@ -632,7 +632,7 @@ export function useCRMContact(id: string) {
   return useQuery<Contact | null, Error>({
     queryKey: crmQueryKeys.contact(id),
     queryFn: () => fetchContact(id),
-    enabled: hasCRMTokens() && !!id,
+    enabled: !!id,
     staleTime: 30 * 1000,
   });
 }
@@ -644,7 +644,7 @@ export function useCRMContactsByCompany(companyId: string) {
   return useQuery<Contact[], Error>({
     queryKey: crmQueryKeys.contactsByCompany(companyId),
     queryFn: () => fetchContactsByCompanyId(companyId),
-    enabled: hasCRMTokens() && !!companyId,
+    enabled: !!companyId,
     staleTime: 30 * 1000,
   });
 }
@@ -714,7 +714,7 @@ export function useCRMContactLandingPages(
       const result = await fetchContactLandingPages(filters, orderBy);
       return result.records;
     },
-    enabled: hasCRMTokens(),
+    enabled: true,
     staleTime: 30 * 1000,
   });
 }
@@ -738,7 +738,7 @@ export function useCRMContactLandingPagesInfinite(
       if (totalFetched >= lastPage.total) return undefined;
       return totalFetched;
     },
-    enabled: hasCRMTokens(),
+    enabled: true,
     staleTime: 30 * 1000,
   });
 }
@@ -760,7 +760,7 @@ export function useCRMPreOpportunityLandingPages(
       const result = await fetchPreOpportunityLandingPages(filters, orderBy);
       return result.records;
     },
-    enabled: hasCRMTokens(),
+    enabled: true,
     staleTime: 30 * 1000,
   });
 }
@@ -784,7 +784,7 @@ export function useCRMPreOpportunityLandingPagesInfinite(
       if (totalFetched >= lastPage.total) return undefined;
       return totalFetched;
     },
-    enabled: hasCRMTokens(),
+    enabled: true,
     staleTime: 30 * 1000,
   });
 }
@@ -796,7 +796,7 @@ export function useCRMPreOpportunity(id: string) {
   return useQuery<PreOpportunity | null, Error>({
     queryKey: crmQueryKeys.preOpportunity(id),
     queryFn: () => fetchPreOpportunity(id),
-    enabled: hasCRMTokens() && !!id,
+    enabled: !!id,
     staleTime: 30 * 1000,
   });
 }
@@ -808,7 +808,7 @@ export function useCRMPreOpportunitiesByJob(jobId: string) {
   return useQuery<PreOpportunity[], Error>({
     queryKey: crmQueryKeys.preOpportunitiesByJob(jobId),
     queryFn: () => fetchPreOpportunitiesByJob(jobId),
-    enabled: hasCRMTokens() && !!jobId,
+    enabled: !!jobId,
     staleTime: 30 * 1000,
   });
 }
@@ -820,7 +820,7 @@ export function useCRMPreOpportunitiesByCustomer(customerId: string) {
   return useQuery<PreOpportunity[], Error>({
     queryKey: crmQueryKeys.preOpportunitiesByCustomer(customerId),
     queryFn: () => fetchPreOpportunitiesByCustomer(customerId),
-    enabled: hasCRMTokens() && !!customerId,
+    enabled: !!customerId,
     staleTime: 30 * 1000,
   });
 }
@@ -833,7 +833,7 @@ export function useCRMProductSearch(searchTerm: string, factoryId?: string, allo
   return useQuery<ProductSearchResult[], Error>({
     queryKey: crmQueryKeys.productSearch(searchTerm, factoryId),
     queryFn: () => searchProducts(searchTerm, factoryId),
-    enabled: hasCRMTokens() && (allowEmpty || searchTerm.length > 0),
+    enabled: (allowEmpty || searchTerm.length > 0),
     staleTime: 60 * 1000,
   });
 }
@@ -846,7 +846,7 @@ export function useCRMFactorySearch(searchTerm: string, published?: boolean, all
   return useQuery<FactorySearchResult[], Error>({
     queryKey: crmQueryKeys.factorySearch(searchTerm, published),
     queryFn: () => searchFactories(searchTerm, published),
-    enabled: hasCRMTokens() && (allowEmpty || searchTerm.length > 0),
+    enabled: (allowEmpty || searchTerm.length > 0),
     staleTime: 60 * 1000,
   });
 }
@@ -859,7 +859,7 @@ export function useCRMCustomerSearch(searchTerm: string, published?: boolean, al
   return useQuery<CustomerSearchResult[], Error>({
     queryKey: crmQueryKeys.customerSearch(searchTerm, published),
     queryFn: () => searchCustomers(searchTerm, published),
-    enabled: hasCRMTokens() && (allowEmpty || searchTerm.length > 0),
+    enabled: (allowEmpty || searchTerm.length > 0),
     staleTime: 60 * 1000,
   });
 }
@@ -872,7 +872,7 @@ export function useCRMJobSearch(searchTerm: string, allowEmpty = false) {
   return useQuery<JobSearchResult[], Error>({
     queryKey: crmQueryKeys.jobSearch(searchTerm),
     queryFn: () => searchJobs(searchTerm),
-    enabled: hasCRMTokens() && (allowEmpty || searchTerm.length > 0),
+    enabled: (allowEmpty || searchTerm.length > 0),
     staleTime: 60 * 1000,
   });
 }
@@ -1015,7 +1015,7 @@ export function useCRMJobRelatedEntities(jobId: string) {
   return useQuery<JobRelatedEntities, Error>({
     queryKey: crmQueryKeys.jobRelatedEntities(jobId),
     queryFn: () => fetchJobRelatedEntities(jobId),
-    enabled: hasCRMTokens() && !!jobId,
+    enabled: !!jobId,
     staleTime: 30 * 1000,
   });
 }
@@ -1027,7 +1027,7 @@ export function useCRMContactRelatedEntities(contactId: string) {
   return useQuery<ContactRelatedEntities, Error>({
     queryKey: crmQueryKeys.contactRelatedEntities(contactId),
     queryFn: () => fetchContactRelatedEntities(contactId),
-    enabled: hasCRMTokens() && !!contactId,
+    enabled: !!contactId,
     staleTime: 30 * 1000,
   });
 }
@@ -1222,7 +1222,7 @@ export function useCRMNotes() {
   return useQuery<Note[], Error>({
     queryKey: crmQueryKeys.notes(),
     queryFn: fetchNotes,
-    enabled: hasCRMTokens(),
+    enabled: true,
     staleTime: 30 * 1000,
   });
 }
@@ -1240,7 +1240,7 @@ export function useCRMNoteLandingPages(
       const result = await fetchNoteLandingPages(filters, orderBy);
       return result.records;
     },
-    enabled: hasCRMTokens(),
+    enabled: true,
     staleTime: 30 * 1000,
   });
 }
@@ -1264,7 +1264,7 @@ export function useCRMNoteLandingPagesInfinite(
       if (totalFetched >= lastPage.total) return undefined;
       return totalFetched;
     },
-    enabled: hasCRMTokens(),
+    enabled: true,
     staleTime: 30 * 1000,
   });
 }
@@ -1276,7 +1276,7 @@ export function useCRMNote(id: string) {
   return useQuery<Note | null, Error>({
     queryKey: crmQueryKeys.note(id),
     queryFn: () => fetchNote(id),
-    enabled: hasCRMTokens() && !!id,
+    enabled: !!id,
     staleTime: 30 * 1000,
   });
 }
@@ -1288,7 +1288,7 @@ export function useCRMNoteConversations(noteId: string) {
   return useQuery<NoteConversation[], Error>({
     queryKey: crmQueryKeys.noteConversations(noteId),
     queryFn: () => fetchNoteConversations(noteId),
-    enabled: hasCRMTokens() && !!noteId,
+    enabled: !!noteId,
     staleTime: 30 * 1000,
   });
 }
@@ -1391,7 +1391,7 @@ export function useCRMNoteLinks(noteId: string) {
   return useQuery<NoteLink[], Error>({
     queryKey: crmQueryKeys.noteLinks(noteId),
     queryFn: () => fetchLinksBySource('NOTE', noteId),
-    enabled: hasCRMTokens() && !!noteId,
+    enabled: !!noteId,
     staleTime: 30 * 1000,
   });
 }
@@ -1403,7 +1403,7 @@ export function useCRMNotesByEntity(entityId: string, entityType: CRMEntityType)
   return useQuery<Note[], Error>({
     queryKey: crmQueryKeys.notesByEntity(entityId, entityType),
     queryFn: () => fetchNotesByEntity(entityId, entityType),
-    enabled: hasCRMTokens() && !!entityId && !!entityType,
+    enabled: !!entityId && !!entityType,
     staleTime: 30 * 1000,
   });
 }
@@ -1450,7 +1450,7 @@ export function useCRMTasks(
       const result = await fetchTaskLandingPages(filters, orderBy);
       return result.records;
     },
-    enabled: hasCRMTokens(),
+    enabled: true,
     staleTime: 30 * 1000,
   });
 }
@@ -1474,7 +1474,7 @@ export function useCRMTasksInfinite(
       if (totalFetched >= lastPage.total) return undefined;
       return totalFetched;
     },
-    enabled: hasCRMTokens(),
+    enabled: true,
     staleTime: 30 * 1000,
   });
 }
@@ -1486,7 +1486,7 @@ export function useCRMTask(id: string) {
   return useQuery<CRMTask | null, Error>({
     queryKey: crmQueryKeys.task(id),
     queryFn: () => fetchTask(id),
-    enabled: hasCRMTokens() && !!id,
+    enabled: !!id,
     staleTime: 30 * 1000,
   });
 }
@@ -1498,7 +1498,7 @@ export function useCRMTaskConversations(taskId: string) {
   return useQuery<TaskConversation[], Error>({
     queryKey: crmQueryKeys.taskConversations(taskId),
     queryFn: () => fetchTaskConversations(taskId),
-    enabled: hasCRMTokens() && !!taskId,
+    enabled: !!taskId,
     staleTime: 30 * 1000,
   });
 }
@@ -1510,7 +1510,7 @@ export function useCRMTaskRelations(taskId: string) {
   return useQuery<TaskRelation[], Error>({
     queryKey: crmQueryKeys.taskRelations(taskId),
     queryFn: () => fetchTaskRelations(taskId),
-    enabled: hasCRMTokens() && !!taskId,
+    enabled: !!taskId,
     staleTime: 30 * 1000,
   });
 }
@@ -1630,7 +1630,7 @@ export function useCRMTasksByEntity(entityId: string, entityType: TaskEntityType
   return useQuery<TaskByEntity[], Error>({
     queryKey: crmQueryKeys.tasksByEntity(entityId, entityType),
     queryFn: () => fetchTasksByEntity(entityId, entityType),
-    enabled: hasCRMTokens() && !!entityId && !!entityType,
+    enabled: !!entityId && !!entityType,
     staleTime: 30 * 1000,
   });
 }
@@ -1646,7 +1646,7 @@ export function useCRMTaskSearch(searchTerm: string) {
   return useQuery<TaskSearchResult[], Error>({
     queryKey: crmQueryKeys.taskSearch(searchTerm),
     queryFn: () => searchTasks(searchTerm),
-    enabled: hasCRMTokens() && searchTerm.length >= 0,
+    enabled: searchTerm.length >= 0,
     staleTime: 30 * 1000,
   });
 }
@@ -1658,7 +1658,7 @@ export function useCRMNoteSearch(searchTerm: string) {
   return useQuery<NoteSearchResult[], Error>({
     queryKey: crmQueryKeys.noteSearch(searchTerm),
     queryFn: () => searchNotes(searchTerm),
-    enabled: hasCRMTokens() && searchTerm.length >= 0,
+    enabled: searchTerm.length >= 0,
     staleTime: 30 * 1000,
   });
 }
@@ -1670,7 +1670,7 @@ export function useCRMQuoteSearch(searchTerm: string) {
   return useQuery<QuoteSearchResult[], Error>({
     queryKey: crmQueryKeys.quoteSearch(searchTerm),
     queryFn: () => searchQuotes(searchTerm),
-    enabled: hasCRMTokens() && searchTerm.length >= 0,
+    enabled: searchTerm.length >= 0,
     staleTime: 30 * 1000,
   });
 }
@@ -1682,7 +1682,7 @@ export function useCRMOrderSearch(searchTerm: string) {
   return useQuery<OrderSearchResult[], Error>({
     queryKey: crmQueryKeys.orderSearch(searchTerm),
     queryFn: () => searchOrders(searchTerm),
-    enabled: hasCRMTokens() && searchTerm.length >= 0,
+    enabled: searchTerm.length >= 0,
     staleTime: 30 * 1000,
   });
 }
@@ -1694,7 +1694,7 @@ export function useCRMInvoiceSearch(searchTerm: string) {
   return useQuery<InvoiceSearchResult[], Error>({
     queryKey: crmQueryKeys.invoiceSearch(searchTerm),
     queryFn: () => searchInvoices(searchTerm),
-    enabled: hasCRMTokens() && searchTerm.length >= 0,
+    enabled: searchTerm.length >= 0,
     staleTime: 30 * 1000,
   });
 }
@@ -1706,7 +1706,7 @@ export function useCRMCheckSearch(searchTerm: string) {
   return useQuery<CheckSearchResult[], Error>({
     queryKey: crmQueryKeys.checkSearch(searchTerm),
     queryFn: () => searchChecks(searchTerm),
-    enabled: hasCRMTokens() && searchTerm.length >= 0,
+    enabled: searchTerm.length >= 0,
     staleTime: 30 * 1000,
   });
 }

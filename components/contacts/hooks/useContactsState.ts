@@ -10,7 +10,7 @@ import {
   useUpdateCRMContact,
   useDeleteCRMContact
 } from '../../hooks/useCRMApi';
-import { hasCRMTokens } from '../../lib/crm-auth';
+
 import { mapLandingPageToUIContact } from '../types';
 import { contactToasts } from '../../lib/toast';
 import { applyFilter } from '../../lib/filter-utils';
@@ -53,7 +53,7 @@ export function useContactsState() {
   const [serverOrderBy, setServerOrderBy] = useState<LandingPageOrderBy[]>([]);
 
   // CRM API hooks with infinite scroll - now with server-side filters
-  const isConnected = isMounted ? hasCRMTokens() : false;
+  const isConnected = isMounted ? true : false;
   const {
     data: contactsData,
     isLoading,

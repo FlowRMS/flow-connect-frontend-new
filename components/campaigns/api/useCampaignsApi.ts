@@ -4,7 +4,6 @@
  */
 
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
-import { hasCRMTokens } from '../../lib/crm-auth';
 import {
   fetchCampaigns,
   fetchCampaign,
@@ -74,7 +73,7 @@ export function useCampaigns(pollInterval?: number) {
   return useQuery<PaginatedResult<CampaignLandingPage>, Error>({
     queryKey: campaignsQueryKeys.list(),
     queryFn: () => fetchCampaigns(),
-    enabled: hasCRMTokens(),
+    enabled: true,
     staleTime: 10 * 1000, // Consider data stale after 10 seconds
     refetchInterval: pollInterval, // Background polling
     refetchIntervalInBackground: false, // Don't poll when tab is not focused
@@ -96,7 +95,7 @@ export function useCampaignsInfinite(pageSize: number = DEFAULT_PAGE_SIZE) {
       if (totalFetched >= lastPage.total) return undefined;
       return totalFetched;
     },
-    enabled: hasCRMTokens(),
+    enabled: true,
     staleTime: 30 * 1000,
   });
 }
@@ -108,7 +107,7 @@ export function useCampaign(id: string) {
   return useQuery<Campaign | null, Error>({
     queryKey: campaignsQueryKeys.detail(id),
     queryFn: () => fetchCampaign(id),
-    enabled: hasCRMTokens() && !!id,
+    enabled:!!id,
     staleTime: 30 * 1000,
   });
 }
@@ -120,7 +119,7 @@ export function useCampaignRecipients(campaignId: string) {
   return useQuery<CampaignRecipient[], Error>({
     queryKey: campaignsQueryKeys.recipients(campaignId),
     queryFn: () => fetchCampaignRecipients(campaignId),
-    enabled: hasCRMTokens() && !!campaignId,
+    enabled:!!campaignId,
     staleTime: 30 * 1000,
   });
 }
@@ -132,7 +131,7 @@ export function useEstimateRecipients(criteria: CampaignCriteria | null) {
   return useQuery<EstimateRecipientsResult, Error>({
     queryKey: criteria ? campaignsQueryKeys.estimate(criteria) : ['noop'],
     queryFn: () => criteria ? estimateRecipients(criteria) : Promise.resolve({ count: 0, sampleContacts: [] }),
-    enabled: hasCRMTokens() && criteria !== null && criteria.groups.length > 0,
+    enabled:criteria !== null && criteria.groups.length > 0,
     staleTime: 60 * 1000,
   });
 }
@@ -266,7 +265,7 @@ export function useCampaignSendingStatus(campaignId: string | null, pollInterval
   return useQuery<CampaignSendingStatusResponse, Error>({
     queryKey: campaignId ? campaignsQueryKeys.sendingStatus(campaignId) : ['noop'],
     queryFn: () => campaignId ? fetchCampaignSendingStatus(campaignId) : Promise.reject('No campaign ID'),
-    enabled: hasCRMTokens() && !!campaignId,
+    enabled:!!campaignId,
     refetchInterval: pollInterval,
     staleTime: 5 * 1000, // 5 seconds
   });
@@ -279,7 +278,7 @@ export function useEmailProviders() {
   return useQuery<EmailProviderStatus, Error>({
     queryKey: campaignsQueryKeys.emailProviders(),
     queryFn: checkEmailProviders,
-    enabled: hasCRMTokens(),
+    enabled: true,
     staleTime: 60 * 1000, // 1 minute
   });
 }
@@ -296,7 +295,7 @@ export function useContactSearch(searchTerm: string, enabled = true) {
   return useQuery<ContactSearchResult[], Error>({
     queryKey: campaignsQueryKeys.search.contacts(searchTerm),
     queryFn: () => searchContacts(searchTerm),
-    enabled: hasCRMTokens() && enabled,
+    enabled:enabled,
     staleTime: 60 * 1000,
   });
 }
@@ -309,7 +308,7 @@ export function useCompanySearch(searchTerm: string, enabled = true) {
   return useQuery<CompanySearchResult[], Error>({
     queryKey: campaignsQueryKeys.search.companies(searchTerm),
     queryFn: () => searchCompanies(searchTerm),
-    enabled: hasCRMTokens() && enabled,
+    enabled:enabled,
     staleTime: 60 * 1000,
   });
 }
@@ -322,7 +321,7 @@ export function useJobSearch(searchTerm: string, enabled = true) {
   return useQuery<JobSearchResult[], Error>({
     queryKey: campaignsQueryKeys.search.jobs(searchTerm),
     queryFn: () => searchJobs(searchTerm),
-    enabled: hasCRMTokens() && enabled,
+    enabled:enabled,
     staleTime: 60 * 1000,
   });
 }
@@ -335,7 +334,7 @@ export function useTaskSearch(searchTerm: string, enabled = true) {
   return useQuery<TaskSearchResult[], Error>({
     queryKey: campaignsQueryKeys.search.tasks(searchTerm),
     queryFn: () => searchTasks(searchTerm),
-    enabled: hasCRMTokens() && enabled,
+    enabled:enabled,
     staleTime: 60 * 1000,
   });
 }

@@ -1,17 +1,43 @@
 /**
  * Gmail Integration GraphQL Client
  * Handles OAuth flow, connection status, and email sending through Gmail
+ * Uses WorkOS AuthKit for authentication
  */
 
-import { getCRMAccessToken } from './crm-auth';
-import { isTokenServerEnabled, tokenServerClient } from './crm-token-server';
-import {
-  getStoredAccessToken as getSSOAccessToken,
-  getStoredRefreshToken,
-  getValidAccessToken as getValidSSOToken,
-  clearTokens as clearSSOTokens,
-} from './auth';
-import { redirectToLogin } from './redirect';
+// ============================================================================
+// WorkOS Token Management
+// ============================================================================
+
+let cachedToken: string | null = null;
+let tokenExpiry: number = 0;
+
+async function getAccessToken(): Promise<string | null> {
+  if (typeof window === "undefined") return null;
+
+  if (cachedToken && Date.now() < tokenExpiry - 30000) {
+    return cachedToken;
+  }
+
+  try {
+    const response = await fetch("/api/auth/token");
+    if (!response.ok) {
+      cachedToken = null;
+      return null;
+    }
+    const data = await response.json();
+    cachedToken = data.accessToken;
+    tokenExpiry = Date.now() + 5 * 60 * 1000;
+    return cachedToken;
+  } catch {
+    cachedToken = null;
+    return null;
+  }
+}
+
+function clearTokenCache(): void {
+  cachedToken = null;
+  tokenExpiry = 0;
+}
 
 // ============================================================================
 // Configuration
@@ -135,45 +161,22 @@ const GMAIL_SEND_EMAIL = `
 async function gmailGraphQLRequest<T>(
   options: GraphQLRequestOptions
 ): Promise<GraphQLResponse<T>> {
-  let authHeader: string;
-  let usingSSOAuth = false;
+  const accessToken = await getAccessToken();
 
-  // Priority 1: SSO auth (check for stored SSO tokens)
-  const ssoToken = getSSOAccessToken();
-  if (ssoToken) {
-    authHeader = `Bearer ${ssoToken}`;
-    usingSSOAuth = true;
-  }
-  // Priority 2: Token Server
-  else if (isTokenServerEnabled()) {
-    authHeader = await tokenServerClient.getAuthorizationHeader();
-  }
-  // Priority 3: Manual tokens
-  else {
-    const accessToken = getCRMAccessToken();
-    if (!accessToken) {
-      throw new Error(
-        'CRM access token not configured. Please set your tokens in FlowCRM Auth settings.'
-      );
+  if (!accessToken) {
+    if (typeof window !== 'undefined') {
+      window.location.href = '/sign-in';
     }
-    authHeader = `Bearer ${accessToken}`;
+    throw new Error('Authentication required. Redirecting to sign-in...');
   }
 
   const endpoint = getGraphQLEndpoint();
 
-  // Get refresh token for the header
-  const refreshToken = getStoredRefreshToken();
-
-  // Build headers with refresh token if available
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    Authorization: authHeader,
+    Authorization: `Bearer ${accessToken}`,
+    'x-auth-provider': 'WORKOS',
   };
-
-  // Always include refresh token in headers if available
-  if (refreshToken) {
-    headers['X-Refresh-Token'] = refreshToken;
-  }
 
   let response = await fetch(endpoint, {
     method: 'POST',
@@ -185,53 +188,26 @@ async function gmailGraphQLRequest<T>(
     }),
   });
 
-  // Handle 401/403 responses
   if (response.status === 401 || response.status === 403) {
-    // If using SSO auth, try to refresh token
-    if (usingSSOAuth) {
-      const newToken = await getValidSSOToken();
-      if (newToken) {
-        authHeader = `Bearer ${newToken}`;
-        headers['Authorization'] = authHeader;
-        const freshRefreshToken = getStoredRefreshToken();
-        if (freshRefreshToken) {
-          headers['X-Refresh-Token'] = freshRefreshToken;
-        }
-        response = await fetch(endpoint, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            query: options.query,
-            variables: options.variables,
-            operationName: options.operationName,
-          }),
-        });
-      } else {
-        if (typeof window !== 'undefined') {
-          clearSSOTokens();
-          redirectToLogin();
-        }
-        throw new Error('Authentication expired. Redirecting to login...');
-      }
-    }
-    // If using Token Server, try refreshing
-    else if (isTokenServerEnabled()) {
-      try {
-        authHeader = await tokenServerClient.getAuthorizationHeader(true);
-        headers['Authorization'] = authHeader;
+    clearTokenCache();
+    const freshToken = await getAccessToken();
 
-        response = await fetch(endpoint, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            query: options.query,
-            variables: options.variables,
-            operationName: options.operationName,
-          }),
-        });
-      } catch {
-        throw new Error('Authentication failed. Please check your Token Server configuration.');
+    if (freshToken) {
+      headers['Authorization'] = `Bearer ${freshToken}`;
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          query: options.query,
+          variables: options.variables,
+          operationName: options.operationName,
+        }),
+      });
+    } else {
+      if (typeof window !== 'undefined') {
+        window.location.href = '/sign-in';
       }
+      throw new Error('Authentication expired. Redirecting to sign-in...');
     }
   }
 

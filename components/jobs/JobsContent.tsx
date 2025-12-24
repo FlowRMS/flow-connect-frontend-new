@@ -12,7 +12,7 @@ import AdvancedFilters, { ActiveFilter, ActiveSort } from '../AdvancedFilters';
 import SortButton from '../SortButton';
 import CreateJobModal from '../CreateJobModal';
 import { useCRMJobLandingPagesInfinite, useCRMJobStatuses, useUpdateCRMJob, useCRMJob, useDeleteCRMJob } from '../hooks/useCRMApi';
-import { hasCRMTokens } from '../lib/crm-auth';
+
 import { jobToasts } from '../lib/toast';
 import { parseApiError } from '../lib/error-utils';
 import { useJobsState } from './hooks/useJobsState';
@@ -74,7 +74,7 @@ export default function JobsContent() {
   }, []);
 
   // CRM API hooks with infinite scroll pagination - now with server-side filters
-  const isConnected = isMounted ? hasCRMTokens() : false;
+  const isConnected = isMounted ? true : false;
   const {
     data: jobsData,
     isLoading: jobsLoading,

@@ -5,7 +5,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
-import { hasCRMTokens } from '../../lib/crm-auth';
+
 import {
   fetchTasks,
   fetchTasksWithPagination,
@@ -102,7 +102,7 @@ export function useTasks() {
   return useQuery<TaskLandingPage[], Error>({
     queryKey: tasksQueryKeys.list(),
     queryFn: fetchTasks,
-    enabled: hasCRMTokens(),
+    enabled: true,
     staleTime: 30 * 1000, // 30 seconds
   });
 }
@@ -126,7 +126,7 @@ export function useTasksInfinite(
       if (totalFetched >= lastPage.total) return undefined;
       return totalFetched;
     },
-    enabled: hasCRMTokens(),
+    enabled: true,
     staleTime: 30 * 1000,
   });
 }
@@ -138,7 +138,7 @@ export function useTask(taskId: string) {
   return useQuery<Task | null, Error>({
     queryKey: tasksQueryKeys.detail(taskId),
     queryFn: () => fetchTask(taskId),
-    enabled: hasCRMTokens() && !!taskId,
+    enabled: !!taskId,
     staleTime: 30 * 1000,
   });
 }
@@ -150,7 +150,7 @@ export function useTaskConversations(taskId: string) {
   return useQuery<TaskConversation[], Error>({
     queryKey: tasksQueryKeys.conversations(taskId),
     queryFn: () => fetchTaskConversations(taskId),
-    enabled: hasCRMTokens() && !!taskId,
+    enabled: !!taskId,
     staleTime: 30 * 1000,
   });
 }
@@ -162,7 +162,7 @@ export function useTaskRelatedEntities(taskId: string) {
   return useQuery<TaskRelatedEntities, Error>({
     queryKey: tasksQueryKeys.relatedEntities(taskId),
     queryFn: () => fetchTaskRelatedEntities(taskId),
-    enabled: hasCRMTokens() && !!taskId,
+    enabled: !!taskId,
     staleTime: 30 * 1000,
   });
 }
@@ -192,7 +192,7 @@ export function useContactsMap(contactIds: string[]) {
       
       return contactMap;
     },
-    enabled: hasCRMTokens() && contactIds.length > 0,
+    enabled: contactIds.length > 0,
     staleTime: 5 * 60 * 1000, // 5 minutes - contact names don't change often
   });
 }
@@ -370,7 +370,7 @@ export function useCompanySearch(searchTerm: string, enabled = true) {
   return useQuery<CompanySearchResult[], Error>({
     queryKey: tasksQueryKeys.search.companies(searchTerm),
     queryFn: () => searchCompanies(searchTerm),
-    enabled: hasCRMTokens() && enabled,
+    enabled: enabled,
     staleTime: 60 * 1000, // 1 minute
   });
 }
@@ -383,7 +383,7 @@ export function useContactSearch(searchTerm: string, enabled = true) {
   return useQuery<ContactSearchResult[], Error>({
     queryKey: tasksQueryKeys.search.contacts(searchTerm),
     queryFn: () => searchContacts(searchTerm),
-    enabled: hasCRMTokens() && enabled,
+    enabled: enabled,
     staleTime: 60 * 1000,
   });
 }
@@ -396,7 +396,7 @@ export function useJobSearch(searchTerm: string, enabled = true) {
   return useQuery<JobSearchResult[], Error>({
     queryKey: tasksQueryKeys.search.jobs(searchTerm),
     queryFn: () => searchJobs(searchTerm),
-    enabled: hasCRMTokens() && enabled,
+    enabled: enabled,
     staleTime: 60 * 1000,
   });
 }
@@ -409,7 +409,7 @@ export function useNoteSearch(searchTerm: string, enabled = true) {
   return useQuery<NoteSearchResult[], Error>({
     queryKey: tasksQueryKeys.search.notes(searchTerm),
     queryFn: () => searchNotes(searchTerm),
-    enabled: hasCRMTokens() && enabled,
+    enabled: enabled,
     staleTime: 60 * 1000,
   });
 }
@@ -422,7 +422,7 @@ export function usePreOpportunitySearch(searchTerm: string, enabled = true) {
   return useQuery<PreOpportunitySearchResult[], Error>({
     queryKey: tasksQueryKeys.search.preOpportunities(searchTerm),
     queryFn: () => searchPreOpportunities(searchTerm),
-    enabled: hasCRMTokens() && enabled,
+    enabled: enabled,
     staleTime: 60 * 1000,
   });
 }
@@ -435,7 +435,7 @@ export function useUserSearch(searchTerm: string, enabled = true) {
   return useQuery<UserSearchResult[], Error>({
     queryKey: tasksQueryKeys.search.users(searchTerm),
     queryFn: () => searchUsers(searchTerm),
-    enabled: hasCRMTokens() && enabled,
+    enabled: enabled,
     staleTime: 60 * 1000,
     placeholderData: (previousData) => previousData, // Keep previous data while loading new results
   });
@@ -448,7 +448,7 @@ export function useQuoteSearch(searchTerm: string, enabled = true) {
   return useQuery<QuoteSearchResult[], Error>({
     queryKey: tasksQueryKeys.search.quotes(searchTerm),
     queryFn: () => searchQuotes(searchTerm),
-    enabled: hasCRMTokens() && enabled,
+    enabled: enabled,
     staleTime: 60 * 1000,
   });
 }
@@ -460,7 +460,7 @@ export function useOrderSearch(searchTerm: string, enabled = true) {
   return useQuery<OrderSearchResult[], Error>({
     queryKey: tasksQueryKeys.search.orders(searchTerm),
     queryFn: () => searchOrders(searchTerm),
-    enabled: hasCRMTokens() && enabled,
+    enabled: enabled,
     staleTime: 60 * 1000,
   });
 }
@@ -472,7 +472,7 @@ export function useInvoiceSearch(searchTerm: string, enabled = true) {
   return useQuery<InvoiceSearchResult[], Error>({
     queryKey: tasksQueryKeys.search.invoices(searchTerm),
     queryFn: () => searchInvoices(searchTerm),
-    enabled: hasCRMTokens() && enabled,
+    enabled: enabled,
     staleTime: 60 * 1000,
   });
 }
@@ -484,7 +484,7 @@ export function useCheckSearch(searchTerm: string, enabled = true) {
   return useQuery<CheckSearchResult[], Error>({
     queryKey: tasksQueryKeys.search.checks(searchTerm),
     queryFn: () => searchChecks(searchTerm),
-    enabled: hasCRMTokens() && enabled,
+    enabled: enabled,
     staleTime: 60 * 1000,
   });
 }
@@ -496,7 +496,7 @@ export function useFactorySearch(searchTerm: string, enabled = true) {
   return useQuery<FactorySearchResult[], Error>({
     queryKey: tasksQueryKeys.search.factories(searchTerm),
     queryFn: () => searchFactories(searchTerm),
-    enabled: hasCRMTokens() && enabled,
+    enabled: enabled,
     staleTime: 60 * 1000,
   });
 }
@@ -508,7 +508,7 @@ export function useCustomerSearch(searchTerm: string, enabled = true) {
   return useQuery<CustomerSearchResult[], Error>({
     queryKey: tasksQueryKeys.search.customers(searchTerm),
     queryFn: () => searchCustomers(searchTerm),
-    enabled: hasCRMTokens() && enabled,
+    enabled: enabled,
     staleTime: 60 * 1000,
   });
 }
@@ -520,7 +520,7 @@ export function useProductSearch(searchTerm: string, enabled = true) {
   return useQuery<ProductSearchResult[], Error>({
     queryKey: tasksQueryKeys.search.products(searchTerm),
     queryFn: () => searchProducts(searchTerm),
-    enabled: hasCRMTokens() && enabled,
+    enabled: enabled,
     staleTime: 60 * 1000,
   });
 }

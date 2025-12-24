@@ -7,7 +7,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react';
 import type { ParsedNote, ViewMode } from '../types';
 import type { ActiveFilter, ActiveSort } from '../../AdvancedFilters';
 import { useCRMNoteLandingPagesInfinite } from '../../hooks/useCRMApi';
-import { hasCRMTokens } from '../../lib/crm-auth';
+
 import type { NoteLandingPage, LandingPageFilter, LandingPageOrderBy } from '../../lib/crm-graphql';
 import {
   filterNotes,
@@ -68,7 +68,7 @@ export function useNotesState() {
   const [serverOrderBy, setServerOrderBy] = useState<LandingPageOrderBy[]>([]);
 
   // CRM API hooks with infinite scroll - now with server-side filters
-  const isConnected = isMounted ? hasCRMTokens() : false;
+  const isConnected = isMounted ? true : false;
   const {
     data: notesData,
     isLoading,

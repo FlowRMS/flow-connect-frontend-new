@@ -1,18 +1,56 @@
 /**
  * Email Ingestion GraphQL Client
  * Client for interacting with the Python AI Service GraphQL API
+ * Uses WorkOS AuthKit for authentication
  */
 
-import { getCRMAccessToken } from './crm-auth';
-import { isTokenServerEnabled, tokenServerClient } from './crm-token-server';
-import {
-  getStoredAccessToken as getSSOAccessToken,
-  getStoredRefreshToken,
-  getValidAccessToken as getValidSSOToken,
-  clearTokens as clearSSOTokens,
-} from './auth';
-import { redirectToLogin } from './redirect';
 import type { Email, EmailAttachment, EmailStatusAPI } from '../email-ingestion/types';
+
+// ============================================================================
+// WorkOS Token Management
+// ============================================================================
+
+let cachedToken: string | null = null;
+let tokenExpiry: number = 0;
+
+/**
+ * Fetch access token from WorkOS via /api/auth/token endpoint
+ * Caches token for 5 minutes with 30-second buffer
+ */
+async function getAccessToken(): Promise<string | null> {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  // Return cached token if still valid (with 30s buffer)
+  if (cachedToken && Date.now() < tokenExpiry - 30000) {
+    return cachedToken;
+  }
+
+  try {
+    const response = await fetch("/api/auth/token");
+    if (!response.ok) {
+      cachedToken = null;
+      return null;
+    }
+    const data = await response.json();
+    cachedToken = data.accessToken;
+    // Cache for 5 minutes
+    tokenExpiry = Date.now() + 5 * 60 * 1000;
+    return cachedToken;
+  } catch {
+    cachedToken = null;
+    return null;
+  }
+}
+
+/**
+ * Clear token cache (call on sign out)
+ */
+function clearTokenCache(): void {
+  cachedToken = null;
+  tokenExpiry = 0;
+}
 
 // ============================================================================
 // Configuration
@@ -186,74 +224,30 @@ const DELETE_EMAIL_ATTACHMENT = `
 // ============================================================================
 
 /**
- * Check if SSO auth tokens are available (from FlowRMS redirect)
- */
-function hasSSOTokens(): boolean {
-  if (typeof window === 'undefined') return false;
-  return !!getSSOAccessToken();
-}
-
-/**
  * Execute a GraphQL query/mutation against the Email Ingestion API
- * Uses the same authentication strategy as the CRM API
+ * Uses WorkOS AuthKit for authentication
  */
 export async function emailGraphQLRequest<T = unknown>(
   options: GraphQLRequestOptions
 ): Promise<GraphQLResponse<T>> {
-  let authHeader: string;
-  let usingSSOAuth = false;
+  // Get access token from WorkOS
+  const accessToken = await getAccessToken();
 
-  // Priority 1: Check for SSO tokens (from FlowRMS redirect)
-  if (hasSSOTokens()) {
-    const ssoToken = await getValidSSOToken();
-    if (ssoToken) {
-      authHeader = `Bearer ${ssoToken}`;
-      usingSSOAuth = true;
-    } else {
-      // SSO token refresh failed, redirect to login
-      if (typeof window !== 'undefined') {
-        clearSSOTokens();
-        redirectToLogin();
-      }
-      throw new Error('Authentication expired. Redirecting to login...');
+  if (!accessToken) {
+    // Redirect to sign-in if no token available
+    if (typeof window !== 'undefined') {
+      window.location.href = '/sign-in';
     }
-  }
-  // Priority 2: Token Server mode
-  else if (isTokenServerEnabled()) {
-    try {
-      authHeader = await tokenServerClient.getAuthorizationHeader();
-    } catch (error) {
-      throw new Error(
-        `Token Server error: ${error instanceof Error ? error.message : 'Failed to get token'}`
-      );
-    }
-  }
-  // Priority 3: Manual tokens
-  else {
-    const accessToken = getCRMAccessToken();
-    if (!accessToken) {
-      throw new Error(
-        'CRM access token not configured. Please set your tokens in FlowCRM Auth settings.'
-      );
-    }
-    authHeader = `Bearer ${accessToken}`;
+    throw new Error('Authentication required. Redirecting to sign-in...');
   }
 
   const endpoint = getGraphQLEndpoint();
 
-  // Get refresh token for the header
-  const refreshToken = getStoredRefreshToken();
-
-  // Build headers with refresh token if available
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    Authorization: authHeader,
+    Authorization: `Bearer ${accessToken}`,
+    'x-auth-provider': 'WORKOS',
   };
-
-  // Always include refresh token in headers if available
-  if (refreshToken) {
-    headers['X-Refresh-Token'] = refreshToken;
-  }
 
   let response = await fetch(endpoint, {
     method: 'POST',
@@ -265,54 +259,29 @@ export async function emailGraphQLRequest<T = unknown>(
     }),
   });
 
-  // Handle 401/403 responses
+  // Handle 401/403 responses - clear cache and retry once
   if (response.status === 401 || response.status === 403) {
-    // If using SSO auth, try to refresh token
-    if (usingSSOAuth) {
-      const newToken = await getValidSSOToken();
-      if (newToken) {
-        authHeader = `Bearer ${newToken}`;
-        headers['Authorization'] = authHeader;
-        const freshRefreshToken = getStoredRefreshToken();
-        if (freshRefreshToken) {
-          headers['X-Refresh-Token'] = freshRefreshToken;
-        }
-        response = await fetch(endpoint, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            query: options.query,
-            variables: options.variables,
-            operationName: options.operationName,
-          }),
-        });
-      } else {
-        // Refresh failed, redirect to login
-        if (typeof window !== 'undefined') {
-          clearSSOTokens();
-          redirectToLogin();
-        }
-        throw new Error('Authentication expired. Redirecting to login...');
-      }
-    }
-    // If using Token Server, try refreshing
-    else if (isTokenServerEnabled()) {
-      try {
-        authHeader = await tokenServerClient.getAuthorizationHeader(true); // Force refresh
-        headers['Authorization'] = authHeader;
+    // Clear cached token and try to get a fresh one
+    clearTokenCache();
+    const freshToken = await getAccessToken();
 
-        response = await fetch(endpoint, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            query: options.query,
-            variables: options.variables,
-            operationName: options.operationName,
-          }),
-        });
-      } catch {
-        throw new Error('Authentication failed. Please check your Token Server configuration.');
+    if (freshToken) {
+      headers['Authorization'] = `Bearer ${freshToken}`;
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          query: options.query,
+          variables: options.variables,
+          operationName: options.operationName,
+        }),
+      });
+    } else {
+      // Token refresh failed, redirect to sign-in
+      if (typeof window !== 'undefined') {
+        window.location.href = '/sign-in';
       }
+      throw new Error('Authentication expired. Redirecting to sign-in...');
     }
   }
 

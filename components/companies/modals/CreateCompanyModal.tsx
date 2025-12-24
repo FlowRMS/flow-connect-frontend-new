@@ -9,7 +9,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useCreateCRMCompany } from '../../hooks/useCRMApi';
 import { useCompanySearch } from '../../notes/api';
-import { hasCRMTokens } from '../../lib/crm-auth';
+
 import type { CompanyInput, CompanySourceType } from '../../lib/crm-graphql';
 import { companyToasts } from '../../lib/toast';
 
@@ -389,7 +389,7 @@ export default function CreateCompanyModal({ isOpen, onClose, onSuccess }: Creat
   });
   const [error, setError] = useState<string | null>(null);
 
-  const isConnected = hasCRMTokens();
+  const isConnected = true;
   const createCompanyMutation = useCreateCRMCompany();
 
   const resetForm = () => {

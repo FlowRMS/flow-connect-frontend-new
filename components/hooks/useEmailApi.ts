@@ -4,7 +4,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
-import { hasCRMTokens } from '../lib/crm-auth';
+
 import {
   fetchEmails,
   fetchEmail,
@@ -41,7 +41,7 @@ export function useEmails(status?: EmailStatusAPI) {
   return useQuery<Email[], Error>({
     queryKey: emailQueryKeys.list(status),
     queryFn: () => fetchEmails(status),
-    enabled: hasCRMTokens(),
+    enabled: true,
     staleTime: 30 * 1000, // 30 seconds
   });
 }
@@ -63,7 +63,7 @@ export function useEmailsInfinite(status?: EmailStatusAPI) {
       if (!lastPage.hasMore) return undefined;
       return allPages.length * PAGE_SIZE;
     },
-    enabled: hasCRMTokens(),
+    enabled: true,
     staleTime: 30 * 1000,
     refetchOnWindowFocus: true,
   });
@@ -103,7 +103,7 @@ export function useEmail(emailId: string) {
   return useQuery<Email | null, Error>({
     queryKey: emailQueryKeys.detail(emailId),
     queryFn: () => fetchEmail(emailId),
-    enabled: hasCRMTokens() && !!emailId,
+    enabled: !!emailId,
     staleTime: 30 * 1000,
   });
 }
