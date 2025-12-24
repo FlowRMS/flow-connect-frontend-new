@@ -85,24 +85,14 @@ export const OPERATOR_MAP: Record<string, OperatorConfig[]> = {
   ],
 } as const;
 
-// Available tags for filtering
-export const AVAILABLE_TAGS = [
-  'VIP',
-  'Decision Maker',
-  'Follow Up',
-  'Hot Lead',
-  'Cold Lead',
-] as const;
-
 // Send pace configurations
 export const SEND_PACE_OPTIONS = [
-  { value: 'fast', label: 'Fast (500/hour)' },
-  { value: 'medium', label: 'Medium (200/hour)' },
-  { value: 'slow', label: 'Slow (100/hour)' },
-  { value: 'very-slow', label: 'Very Slow (50/hour)' },
-  { value: 'randomized', label: 'Randomized (Human-like)' },
+  { value: 'slow', label: 'Slow (25/hour)', maxPerDay: 25 },
+  { value: 'medium', label: 'Medium (50/hour)', maxPerDay: 50 },
+  { value: 'fast', label: 'Fast (100/hour)', maxPerDay: 100 },
 ] as const;
 
 // Default values
-export const DEFAULT_MAX_PER_DAY = 50;
+export const DEFAULT_MAX_PER_DAY = 75;
 export const DEFAULT_SEND_PACE = 'medium';
+export const MAX_EMAILS_PER_DAY_LIMIT = 100;

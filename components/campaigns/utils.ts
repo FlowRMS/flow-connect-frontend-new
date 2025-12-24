@@ -1,16 +1,10 @@
 /**
  * Utility Functions for Campaigns and Rules
+ * Note: getFieldsForEntity, getOperatorsForFieldType, and getStatusColor are now in types.ts
+ * to align with the API-based field configurations
  */
 
-import type { Contact, FieldConfig, OperatorConfig, RuleCondition } from './types';
-import { STATUS_COLORS, ENTITY_FIELD_MAP, OPERATOR_MAP } from './constants';
-
-/**
- * Get status color class for campaigns and rules
- */
-export function getStatusColor(status: string): string {
-  return STATUS_COLORS[status] || 'bg-gray-100 text-gray-700';
-}
+import type { Contact, RuleCondition } from './types';
 
 /**
  * Format date string to readable format
@@ -20,30 +14,16 @@ export function formatDate(dateString: string): string {
 }
 
 /**
- * Get fields for a given entity type
- */
-export function getFieldsForEntity(entity: string): FieldConfig[] {
-  return ENTITY_FIELD_MAP[entity] || [];
-}
-
-/**
- * Get operators for a given field type
- */
-export function getOperatorsForFieldType(fieldType: string): OperatorConfig[] {
-  return OPERATOR_MAP[fieldType] || OPERATOR_MAP['text'];
-}
-
-/**
  * Filter contacts based on search query
  */
 export function filterContactsBySearch(contacts: Contact[], searchQuery: string): Contact[] {
   if (!searchQuery) return contacts;
-  
+
   const query = searchQuery.toLowerCase();
   return contacts.filter(contact =>
     contact.name.toLowerCase().includes(query) ||
     contact.email.toLowerCase().includes(query) ||
-    contact.company.toLowerCase().includes(query)
+    (contact.company?.toLowerCase().includes(query) ?? false)
   );
 }
 
@@ -52,7 +32,7 @@ export function filterContactsBySearch(contacts: Contact[], searchQuery: string)
  */
 export function filterContactsByCompany(contacts: Contact[], companies: string[]): Contact[] {
   if (companies.length === 0) return contacts;
-  return contacts.filter(contact => companies.includes(contact.company));
+  return contacts.filter(contact => contact.company && companies.includes(contact.company));
 }
 
 /**
@@ -60,7 +40,7 @@ export function filterContactsByCompany(contacts: Contact[], companies: string[]
  */
 export function filterContactsByType(contacts: Contact[], types: string[]): Contact[] {
   if (types.length === 0) return contacts;
-  return contacts.filter(contact => types.includes(contact.type));
+  return contacts.filter(contact => contact.type && types.includes(contact.type));
 }
 
 /**
