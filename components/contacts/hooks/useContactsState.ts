@@ -36,8 +36,8 @@ export function useContactsState() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDedupeModal, setShowDedupeModal] = useState(false);
 
-  // Edit state
-  const [isEditing, setIsEditing] = useState(false);
+  // Edit state - always editable by default
+  const [isEditing, setIsEditing] = useState(true);
   const [editFormData, setEditFormData] = useState<Partial<Contact>>({});
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 

@@ -384,6 +384,8 @@ export default function CreateCompanyModal({ isOpen, onClose, onSuccess }: Creat
     tags: '',
     parentCompanyId: '',
     parentCompanyName: '',
+    standardCommissionRate: '',
+    warehouseCommissionRate: '',
   });
   const [error, setError] = useState<string | null>(null);
 
@@ -399,6 +401,8 @@ export default function CreateCompanyModal({ isOpen, onClose, onSuccess }: Creat
       tags: '',
       parentCompanyId: '',
       parentCompanyName: '',
+      standardCommissionRate: '',
+      warehouseCommissionRate: '',
     });
     setError(null);
   };
@@ -421,6 +425,8 @@ export default function CreateCompanyModal({ isOpen, onClose, onSuccess }: Creat
     if (formData.website.trim()) input.website = formData.website.trim();
     if (formData.tags.trim()) input.tags = formData.tags.trim();
     if (formData.parentCompanyId.trim()) input.parentCompanyId = formData.parentCompanyId.trim();
+    if (formData.standardCommissionRate) input.standardCommissionRate = parseFloat(formData.standardCommissionRate) / 100;
+    if (formData.warehouseCommissionRate) input.warehouseCommissionRate = parseFloat(formData.warehouseCommissionRate) / 100;
 
     try {
       await createCompanyMutation.mutateAsync(input);
@@ -635,6 +641,72 @@ export default function CreateCompanyModal({ isOpen, onClose, onSuccess }: Creat
                   </p>
                 </div>
               </div>
+
+              {/* Commission Rates Section - Only show for Manufacturers */}
+              {formData.companySourceType === 'MANUFACTURER' && (
+                <div className="bg-purple-50 rounded-xl p-4 sm:p-5 space-y-3 sm:space-y-4">
+                  <h3 className="text-xs sm:text-sm font-semibold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                    <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Commission Rates
+                  </h3>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                    {/* Standard Commission Rate */}
+                    <div>
+                      <label className={labelClass}>
+                        <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                        Standard Commission Rate
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          max="100"
+                          value={formData.standardCommissionRate}
+                          onChange={(e) => setFormData(prev => ({ ...prev, standardCommissionRate: e.target.value }))}
+                          placeholder="e.g. 10"
+                          className={`${inputClass} pr-8`}
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">%</span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1.5">
+                        Commission rate for direct/standard sales
+                      </p>
+                    </div>
+
+                    {/* Warehouse Commission Rate */}
+                    <div>
+                      <label className={labelClass}>
+                        <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
+                        </svg>
+                        Warehouse Commission Rate
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          max="100"
+                          value={formData.warehouseCommissionRate}
+                          onChange={(e) => setFormData(prev => ({ ...prev, warehouseCommissionRate: e.target.value }))}
+                          placeholder="e.g. 5"
+                          className={`${inputClass} pr-8`}
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">%</span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1.5">
+                        Commission rate for warehouse sales
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Footer */}

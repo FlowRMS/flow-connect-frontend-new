@@ -1,17 +1,45 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { MobileSidebarContext } from './Sidebar';
+import AIUploaderModal from './ai-uploader/AIUploaderModal';
 
 export default function TopBar() {
   const loginUrl = process.env.NEXT_PUBLIC_LOGIN_URL || 'https://app2.flowrms.com';
   const { setIsOpen, isMobile } = React.useContext(MobileSidebarContext);
+  const [isUploaderOpen, setIsUploaderOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   return (
-    <div className="bg-[var(--card)] border-b border-[var(--border)] px-3 sm:px-6 py-3 flex items-center justify-between">
-      {/* Left: Mobile hamburger & logo */}
+    <div className="relative">
+      {/* Main TopBar Content */}
+      <div
+        className={`bg-[var(--card)] border-b border-[var(--border)] px-3 sm:px-6 py-3 flex items-center justify-between transition-all duration-300 ease-in-out ${
+          isCollapsed ? 'h-0 py-0 overflow-hidden opacity-0' : 'h-auto opacity-100'
+        }`}
+      >
+      {/* Left: Collapse button, Mobile hamburger & logo */}
       <div className="flex items-center gap-3">
+        {/* Collapse Toggle Button */}
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="p-1 hover:bg-[var(--muted)] rounded transition-colors"
+          aria-label={isCollapsed ? 'Expand top bar' : 'Collapse top bar'}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            className={`transition-transform duration-300 ${isCollapsed ? 'rotate-180' : ''}`}
+          >
+            <path d="M18 15l-6-6-6 6" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
         {isMobile && (
           <>
             <button
@@ -37,8 +65,34 @@ export default function TopBar() {
         )}
       </div>
 
-      {/* Right: Back to FlowRMS & Notifications */}
+      {/* Right: AI Uploader, DISC Analytics, Back to FlowRMS & Notifications */}
       <div className="flex items-center gap-2 sm:gap-3">
+        {/* AI Uploader Button */}
+        <button
+          onClick={() => setIsUploaderOpen(true)}
+          className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium bg-gradient-to-r from-violet-500 to-purple-600 text-white rounded-lg hover:from-violet-600 hover:to-purple-700 transition-all shadow-sm"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-4 sm:h-4">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          <span className="hidden sm:inline">AI Uploader</span>
+          <span className="sm:hidden">AI</span>
+        </button>
+
+        {/* DISC Analytics Button */}
+        <Link
+          href="/disc-analytics"
+          className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-4 sm:h-4">
+            <circle cx="12" cy="12" r="10"/>
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M12 2v3M12 19v3"/>
+          </svg>
+          <span className="hidden sm:inline">DISC Analytics</span>
+          <span className="sm:hidden">DISC</span>
+        </Link>
+        
         <a
           href={loginUrl}
           className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium text-[var(--primary)] border border-[var(--primary)] rounded-lg hover:bg-[var(--primary)] hover:text-white transition-colors"
@@ -55,6 +109,34 @@ export default function TopBar() {
           </svg>
         </button>
       </div>
+      </div>
+
+      {/* Expand button (visible when collapsed) */}
+      {isCollapsed && (
+        <button
+          onClick={() => setIsCollapsed(false)}
+          className="absolute left-3 top-1 p-1 hover:bg-[var(--muted)] rounded transition-colors z-10"
+          aria-label="Expand top bar"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            className="rotate-180"
+          >
+            <path d="M18 15l-6-6-6 6" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
+      )}
+
+      {/* AI Uploader Modal */}
+      <AIUploaderModal
+        isOpen={isUploaderOpen}
+        onClose={() => setIsUploaderOpen(false)}
+      />
     </div>
   );
 }

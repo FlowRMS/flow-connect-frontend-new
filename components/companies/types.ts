@@ -4,6 +4,58 @@
 
 import type { CompanyLandingPage, CompanySourceType, Company as APICompany } from '../lib/crm-graphql';
 
+// Address type for company addresses
+export type AddressType = 'shipping' | 'billing' | 'mailing';
+
+// Sales Rep assignment with commission split
+export interface SalesRepAssignment {
+  id: string;
+  repId: string;
+  repName: string;
+  repType: 'inside' | 'outside';
+  commissionSplit: number; // Percentage as decimal (0.5 = 50%)
+}
+
+// Company Address interface
+export interface CompanyAddress {
+  id: string;
+  types: AddressType[];  // Can be multiple: shipping, billing, mailing
+  country: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  isPrimary?: boolean;
+}
+
+// Company hierarchy role - designates the company's role in the parent/child hierarchy
+export type CompanyHierarchyRole = 'none' | 'parent' | 'grandparent';
+
+// Child company reference (for displaying relationships)
+export interface ChildCompanyRef {
+  id: string;
+  name: string;
+  companySourceType: CompanySourceType;
+}
+
+// Manufacturer-specific fields
+export interface ManufacturerInfo {
+  factoryAccountNumber?: string;
+  factoryEmail?: string;
+  logoUrl?: string;
+  freightDiscountType?: 'ADD' | 'SUBTRACT' | 'NONE';
+  leadTime?: string;
+  paymentTerms?: string;
+  baseCommissionRate?: number;      // Base commission rate (e.g., 0.06 for 6%)
+  commissionDiscountRate?: number;  // Commission discount rate
+  overallDiscountRate?: number;     // Overall discount rate
+  externalTerms?: string;
+  additionalInformation?: string;
+  freightTerms?: string;
+  externalPaymentTerms?: string;
+}
+
 // UI Company type (display format)
 export interface Company {
   id: string;
@@ -11,6 +63,7 @@ export interface Company {
   type: string[];
   website: string;
   phone: string;
+  email?: string;
   address: string;
   tags: string[];
   lists: string[];
@@ -20,7 +73,27 @@ export interface Company {
   lastActivity: string;
   followers: string[];
   companySourceType: CompanySourceType;
+  standardCommissionRate?: number;    // Standard/direct commission rate (e.g., 0.10 for 10%)
+  warehouseCommissionRate?: number;   // Warehouse commission rate (e.g., 0.05 for 5%)
+  insideRep?: string;
   createdBy: string;
+  // Extended fields
+  addresses?: CompanyAddress[];
+  manufacturerInfo?: ManufacturerInfo;
+  // Sales rep assignments
+  salesReps?: SalesRepAssignment[];
+  // Document-specific flag - excludes from searches when creating quotes, orders, invoices
+  isDocumentSpecific?: boolean;
+  // Warehouse manufacturer flag - indicates this manufacturer has warehouse operations
+  isWarehouseManufacturer?: boolean;
+  // Company hierarchy fields
+  hierarchyRole?: CompanyHierarchyRole;          // Role: none, parent, or grandparent
+  parentCompanyId?: string;                       // ID of parent company (if this is a child)
+  parentCompanyName?: string;                     // Name of parent company
+  grandparentCompanyId?: string;                  // ID of grandparent company (if parent is a child)
+  grandparentCompanyName?: string;                // Name of grandparent company
+  childCompanies?: ChildCompanyRef[];             // Child companies (if this is a parent)
+  childParentCompanies?: ChildCompanyRef[];       // Child parent companies (if this is a grandparent)
 }
 
 // View mode type
@@ -95,6 +168,8 @@ export function mapLandingPageToUICompany(landingPage: CompanyLandingPage): Comp
     lastActivity: landingPage.createdAt || new Date().toISOString(),
     followers: [], // Followers not in API yet
     companySourceType: normalizedSourceType,
+    standardCommissionRate: landingPage.standardCommissionRate,
+    warehouseCommissionRate: landingPage.warehouseCommissionRate,
     createdBy: landingPage.createdBy || '',
   };
 }
@@ -124,6 +199,8 @@ export function mapAPICompanyToUICompany(apiCompany: APICompany): Company {
     lastActivity: apiCompany.createdAt || new Date().toISOString(),
     followers: [],
     companySourceType: normalizedSourceType,
+    standardCommissionRate: apiCompany.standardCommissionRate ?? undefined,
+    warehouseCommissionRate: apiCompany.warehouseCommissionRate ?? undefined,
     createdBy: apiCompany.createdBy || '',
   };
 }

@@ -4,13 +4,48 @@
 
 import type { ContactLandingPage, Contact as APIContact } from '../lib/crm-graphql';
 
+// Address type for contact addresses
+export type AddressType = 'shipping' | 'billing' | 'mailing';
+
+// Contact Address interface
+export interface ContactAddress {
+  id: string;
+  types: AddressType[];  // Can be multiple: shipping, billing, mailing
+  country: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  isPrimary?: boolean;
+}
+
+// Custom field types
+export type CustomFieldType = 'text' | 'single-select' | 'multi-select';
+
+// Custom field definition
+export interface CustomFieldDefinition {
+  id: string;
+  name: string;
+  type: CustomFieldType;
+  options?: string[];  // For single-select and multi-select
+}
+
+// Custom field value
+export interface CustomFieldValue {
+  fieldId: string;
+  value: string | string[];  // string for text/single-select, string[] for multi-select
+}
+
 // UI Contact type (display format)
 export interface Contact {
   id: string;
   name: string;
   email: string;
   phone: string;
+  linkedIn?: string;
   company: string;
+  companyId?: string;
   role: string;
   contactType: string[];
   tags: string[];
@@ -20,6 +55,12 @@ export interface Contact {
   firstName: string;
   lastName: string;
   createdBy: string;
+  // Extended fields
+  addresses?: ContactAddress[];
+  customFields?: CustomFieldValue[];
+  // Warehouse contact fields
+  isWarehouseContact?: boolean;
+  warehouseRole?: string;
 }
 
 // Duplicate group type

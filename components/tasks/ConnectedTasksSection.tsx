@@ -17,6 +17,7 @@ interface ConnectedTasksSectionProps {
   title?: string;
   onTaskClick?: (task: TaskByEntity) => void;
   onAddClick?: () => void;
+  onNewClick?: () => void;
   onUnlinkSuccess?: () => void;
 }
 
@@ -266,6 +267,7 @@ export default function ConnectedTasksSection({
   title = 'Connected Tasks',
   onTaskClick,
   onAddClick,
+  onNewClick,
   onUnlinkSuccess,
 }: ConnectedTasksSectionProps) {
   const router = useRouter();
@@ -334,7 +336,7 @@ export default function ConnectedTasksSection({
   ).length;
 
   return (
-    <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] mt-6">
+    <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
       <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
         <div className="flex items-center gap-3">
           <h2 className="text-lg font-semibold text-[var(--foreground)]">{title}</h2>
@@ -361,24 +363,28 @@ export default function ConnectedTasksSection({
           {onAddClick && (
             <button
               onClick={onAddClick}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg hover:bg-[var(--muted)] transition-colors"
               title="Link task"
             >
               <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
               Link Task
             </button>
           )}
-          {/* <button
-            onClick={() => refetch()}
-            className="p-2 text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)] rounded-lg transition-colors"
-            title="Refresh tasks"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-          </button> */}
+          {onNewClick && (
+            <button
+              onClick={onNewClick}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+              title="New task"
+            >
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+              </svg>
+              New Task
+            </button>
+          )}
         </div>
       </div>
       <div className="p-6">
@@ -395,14 +401,19 @@ export default function ConnectedTasksSection({
             </button>
           </div>
         ) : tasks.length === 0 ? (
-          <div className="text-center py-8 text-[var(--muted-foreground)]">
-            <div className="inline-flex items-center justify-center w-12 h-12 bg-[var(--muted)] rounded-full mb-3">
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-              </svg>
-            </div>
-            <p className="text-sm font-medium">No tasks found</p>
-            <p className="text-xs mt-1">Tasks linked to this entity will appear here</p>
+          <div className="text-center py-4 text-[var(--muted-foreground)]">
+            <svg className="w-12 h-12 text-[var(--muted-foreground)]/30 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+            <p className="text-sm">No tasks linked</p>
+            {onNewClick && (
+              <button
+                onClick={onNewClick}
+                className="mt-2 text-sm text-[var(--primary)] hover:underline"
+              >
+                + Create a task
+              </button>
+            )}
           </div>
         ) : (
           <div className="space-y-3">
