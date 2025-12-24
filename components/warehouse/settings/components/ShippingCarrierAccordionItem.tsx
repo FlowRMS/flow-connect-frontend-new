@@ -1,0 +1,146 @@
+import React from 'react';
+import type { ShippingCarrier } from '../types';
+import CarrierBasicInfo from './CarrierBasicInfo';
+import CarrierAccountBilling from './CarrierAccountBilling';
+import CarrierContactInfo from './CarrierContactInfo';
+import CarrierServiceConfig from './CarrierServiceConfig';
+import CarrierNotesSection from './CarrierNotesSection';
+
+interface ShippingCarrierAccordionItemProps {
+  carrier: ShippingCarrier;
+  isExpanded: boolean;
+  onToggleExpansion: () => void;
+  onUpdateCarrier: (updates: Partial<ShippingCarrier>) => void;
+  onDeleteCarrier: () => void;
+}
+
+export default function ShippingCarrierAccordionItem({
+  carrier,
+  isExpanded,
+  onToggleExpansion,
+  onUpdateCarrier,
+  onDeleteCarrier,
+}: ShippingCarrierAccordionItemProps) {
+  return (
+    <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
+      {/* Carrier Header - Clickable */}
+      <button
+        onClick={onToggleExpansion}
+        className="w-full flex items-center justify-between p-4 hover:bg-[var(--accent)]/50 transition-colors"
+      >
+        <div className="flex items-center gap-4">
+          <div
+            className={`p-2 rounded-lg ${carrier.isActive ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500'}`}
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+              />
+            </svg>
+          </div>
+          <div className="text-left">
+            <div className="font-medium text-[var(--foreground)] flex items-center gap-2">
+              {carrier.name}
+              {carrier.code && (
+                <span className="px-1.5 py-0.5 text-xs rounded bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 font-mono">
+                  {carrier.code}
+                </span>
+              )}
+              {carrier.isActive ? (
+                <span className="px-1.5 py-0.5 text-xs rounded bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                  Active
+                </span>
+              ) : (
+                <span className="px-1.5 py-0.5 text-xs rounded bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                  Inactive
+                </span>
+              )}
+            </div>
+            <div className="text-sm text-[var(--muted-foreground)]">
+              {carrier.accountNumber ? `Account: ${carrier.accountNumber}` : 'No account configured'}
+              {carrier.serviceTypes && carrier.serviceTypes.length > 0 && ` • ${carrier.serviceTypes.length} services`}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-4">
+          {carrier.defaultServiceType && (
+            <div className="text-sm text-[var(--muted-foreground)] hidden sm:block">
+              Default: {carrier.defaultServiceType}
+            </div>
+          )}
+          <svg
+            className={`w-5 h-5 text-[var(--muted-foreground)] transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </button>
+
+      {/* Expanded Content */}
+      {isExpanded && (
+        <div className="border-t border-[var(--border)] p-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left Column */}
+            <div className="space-y-4">
+              <CarrierBasicInfo carrier={carrier} onUpdate={onUpdateCarrier} />
+              <CarrierAccountBilling carrier={carrier} onUpdate={onUpdateCarrier} />
+              <CarrierContactInfo carrier={carrier} onUpdate={onUpdateCarrier} />
+            </div>
+
+            {/* Right Column */}
+            <div className="space-y-4">
+              <CarrierServiceConfig carrier={carrier} onUpdate={onUpdateCarrier} />
+
+              {/* API Integration - Placeholder */}
+              <div>
+                <h3 className="text-sm font-medium text-[var(--foreground)] mb-3 flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
+                    />
+                  </svg>
+                  API Integration
+                </h3>
+                <div className="bg-[var(--background)] rounded-lg border border-[var(--border)] p-3">
+                  <p className="text-xs text-[var(--muted-foreground)] text-center py-2">
+                    API integration configuration coming soon
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Notes Section - Full Width */}
+          <CarrierNotesSection carrier={carrier} onUpdate={onUpdateCarrier} />
+
+          {/* Delete Action */}
+          <div className="mt-4 pt-4 border-t border-[var(--border)] flex items-center justify-end">
+            <button
+              onClick={onDeleteCarrier}
+              className="text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 flex items-center gap-1"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                />
+              </svg>
+              Delete Carrier
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
