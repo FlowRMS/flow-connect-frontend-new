@@ -6,7 +6,7 @@ import CanvasElement from './CanvasElement';
 import { feetToPixels } from './canvas-utils';
 
 interface CanvasViewProps {
-  canvasRef: React.RefObject<HTMLDivElement>;
+  canvasRef: React.RefObject<HTMLDivElement | null>;
   elements: VisualElement[];
   warehouseDimensions: WarehouseDimensions;
   zoom: number;

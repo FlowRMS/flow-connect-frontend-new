@@ -14,7 +14,7 @@ interface VisualWarehouseBuilderProps {
   zoom: number;
   panOffset: { x: number; y: number };
   warehouseDimensions: WarehouseDimensions;
-  canvasRef: React.RefObject<HTMLDivElement>;
+  canvasRef: React.RefObject<HTMLDivElement | null>;
   onWarehouseDimensionsChange: (width: number, height: number) => void;
   onElementSelect: (id: string | null) => void;
   onElementMove: (id: string, x: number, y: number) => void;

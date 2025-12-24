@@ -9,7 +9,7 @@ import { getPreviewGridClasses } from '../utils';
 interface QRCodeGridProps {
   locations: LocationWithPath[];
   format: PrintFormat;
-  printRef: React.RefObject<HTMLDivElement>;
+  printRef: React.RefObject<HTMLDivElement | null>;
 }
 
 export default function QRCodeGrid({ locations, format, printRef }: QRCodeGridProps) {

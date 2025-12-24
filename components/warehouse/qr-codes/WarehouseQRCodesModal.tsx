@@ -14,7 +14,7 @@ export default function WarehouseQRCodesModal({
   warehouseName,
   locationLevels,
 }: WarehouseQRCodesModalProps) {
-  const printRef = useRef<HTMLDivElement>(null!);
+  const printRef = useRef<HTMLDivElement>(null);
 
   const enabledLevels = locationLevels.filter((l) => l.enabled).map((l) => l.level);
 
