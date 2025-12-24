@@ -22,7 +22,7 @@ export default function WarehouseLayoutModal({
   const [draggedItem, setDraggedItem] = useState<any>(null);
 
   // Canvas ref
-  const canvasRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLDivElement>(null!);
 
   // Get enabled levels
   const enabledLevels = locationLevels.filter((l) => l.enabled).map((l) => l.level);
