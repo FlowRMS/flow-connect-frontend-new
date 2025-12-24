@@ -85,3 +85,10 @@ export interface OrderTooltipState {
   orders: any[]; // Order[] from rms types
 }
 
+// View configuration for saved views
+export interface ViewConfig {
+  id: string;
+  name: string;
+  columns: ColumnKey[];
+}
+

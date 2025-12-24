@@ -18,12 +18,6 @@ export function useCommissionsListState() {
   // Selected check for detail panel
   const [selectedCheck, setSelectedCheck] = useState<CommissionCheck | null>(null);
 
-  // UI state - filter dropdowns
-  const [openFilter, setOpenFilter] = useState<string | null>(null);
-
-  // UI state - quick date field dropdown
-  const [showQuickDateFieldDropdown, setShowQuickDateFieldDropdown] = useState(false);
-
   // Integrate filter hook
   const filterState = useCommissionFilters(checks);
 
@@ -45,12 +39,6 @@ export function useCommissionsListState() {
     // Selected check for sidebar
     selectedCheck,
     setSelectedCheck,
-
-    // UI state
-    openFilter,
-    setOpenFilter,
-    showQuickDateFieldDropdown,
-    setShowQuickDateFieldDropdown,
 
     // Filter state and actions
     ...filterState,
