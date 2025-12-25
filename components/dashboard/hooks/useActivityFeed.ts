@@ -17,6 +17,7 @@ import {
   type NoteLandingPage,
   type TaskLandingPage,
   type CustomerLandingPage,
+  type FactoryLandingPage,
   type LandingPageFilter,
   type LandingPageOrderBy,
 } from '../../lib/crm-graphql';
@@ -29,6 +30,7 @@ export interface ActivityFeedData {
   notes: NoteLandingPage[];
   tasks: TaskLandingPage[];
   customers: CustomerLandingPage[];
+  factories: FactoryLandingPage[];
 }
 
 interface ActivityFeedPage {
@@ -41,6 +43,7 @@ interface ActivityFeedPage {
     notes: number;
     tasks: number;
     customers: number;
+    factories: number;
   };
   pageIndex: number;
 }
@@ -66,7 +69,7 @@ async function fetchActivityPage(
   const offset = pageIndex * PAGE_SIZE;
   const pagination = { limit: PAGE_SIZE, offset };
 
-  // Single query fetches all 7 entity types at once using GraphQL aliases
+  // Single query fetches all 8 entity types at once using GraphQL aliases
   const result = await fetchAllLandingPages(filters, orderBy, pagination).catch(() => ({
     jobs: { records: [], total: 0 },
     companies: { records: [], total: 0 },
@@ -75,6 +78,7 @@ async function fetchActivityPage(
     notes: { records: [], total: 0 },
     tasks: { records: [], total: 0 },
     customers: { records: [], total: 0 },
+    factories: { records: [], total: 0 },
   }));
 
   return {
@@ -86,6 +90,7 @@ async function fetchActivityPage(
       notes: result.notes.records,
       tasks: result.tasks.records,
       customers: result.customers.records,
+      factories: result.factories.records,
     },
     totals: {
       jobs: result.jobs.total,
@@ -95,6 +100,7 @@ async function fetchActivityPage(
       notes: result.notes.total,
       tasks: result.tasks.total,
       customers: result.customers.total,
+      factories: result.factories.total,
     },
     pageIndex,
   };
@@ -123,8 +129,9 @@ export function useActivityFeed(
       const hasMoreNotes = currentOffset < lastPage.totals.notes;
       const hasMoreTasks = currentOffset < lastPage.totals.tasks;
       const hasMoreCustomers = currentOffset < lastPage.totals.customers;
+      const hasMoreFactories = currentOffset < lastPage.totals.factories;
 
-      if (hasMoreJobs || hasMoreCompanies || hasMoreContacts || hasMorePreOpportunities || hasMoreNotes || hasMoreTasks || hasMoreCustomers) {
+      if (hasMoreJobs || hasMoreCompanies || hasMoreContacts || hasMorePreOpportunities || hasMoreNotes || hasMoreTasks || hasMoreCustomers || hasMoreFactories) {
         return lastPage.pageIndex + 1;
       }
       return undefined;
@@ -143,6 +150,7 @@ export function useActivityFeed(
     notes: deduplicateById(query.data.pages.flatMap(page => page.data.notes)),
     tasks: deduplicateById(query.data.pages.flatMap(page => page.data.tasks)),
     customers: deduplicateById(query.data.pages.flatMap(page => page.data.customers)),
+    factories: deduplicateById(query.data.pages.flatMap(page => page.data.factories)),
   } : undefined;
 
   return {

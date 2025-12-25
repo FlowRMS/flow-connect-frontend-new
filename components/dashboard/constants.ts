@@ -23,6 +23,7 @@ export const ACTIVITY_TYPE_LABELS: Record<ActivityType, string> = {
   note: 'Notes',
   task: 'Tasks',
   customer: 'Customers',
+  factory: 'Manufacturers',
 } as const;
 
 // All activity types
@@ -34,6 +35,7 @@ export const ALL_ACTIVITY_TYPES: ActivityType[] = [
   'note',
   'task',
   'customer',
+  'factory',
 ] as const;
 
 // Activity type icons (for UI)
@@ -45,6 +47,7 @@ export const ACTIVITY_TYPE_ICONS: Record<ActivityType, string> = {
   note: '📝',
   task: '✓',
   customer: '👥',
+  factory: '🏭',
 } as const;
 
 // Status color mapping

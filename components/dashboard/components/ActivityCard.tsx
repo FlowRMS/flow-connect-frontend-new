@@ -32,6 +32,7 @@ const ACTIVITY_TYPE_COLORS: Record<Activity['type'], { bg: string; text: string;
   note: { bg: 'bg-gray-100', text: 'text-gray-800', border: 'border-gray-300' },
   task: { bg: 'bg-cyan-100', text: 'text-cyan-800', border: 'border-cyan-300' },
   customer: { bg: 'bg-teal-100', text: 'text-teal-800', border: 'border-teal-300' },
+  factory: { bg: 'bg-indigo-100', text: 'text-indigo-800', border: 'border-indigo-300' },
 };
 
 /**
@@ -45,6 +46,7 @@ const ACTIVITY_TYPE_LABELS: Record<Activity['type'], string> = {
   note: 'NOTE',
   task: 'TASK',
   customer: 'CUSTOMER',
+  factory: 'MANUFACTURER',
 };
 
 /**
@@ -115,6 +117,12 @@ function ActivityTypeIcon({ type }: { type: Activity['type'] }) {
         <circle cx="7.5" cy="6" r="3"/>
         <path d="M19 18v-2a4 4 0 00-3-3.87"/>
         <path d="M13.5 3.13a4 4 0 010 7.75"/>
+      </svg>
+    ),
+    factory: (
+      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M2 18V8l4-4v6l4-4v6l4-4v10H2z"/>
+        <path d="M18 18V4h-4"/>
       </svg>
     ),
   };

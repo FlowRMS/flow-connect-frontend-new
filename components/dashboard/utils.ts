@@ -12,6 +12,7 @@ import type {
   NoteLandingPage,
   TaskLandingPage,
   CustomerLandingPage,
+  FactoryLandingPage,
 } from '../lib/crm-graphql';
 import type { ActivityFeedData } from './hooks/useActivityFeed';
 
@@ -411,6 +412,40 @@ function transformCustomer(customer: CustomerLandingPage): Activity {
 }
 
 /**
+ * Transform Factory to Activity
+ */
+function transformFactory(factory: FactoryLandingPage): Activity {
+  const statusLabel = factory.published ? 'Published' : 'Draft';
+  const commissionInfo = factory.baseCommissionRate ? `${factory.baseCommissionRate}% commission` : '';
+
+  return {
+    id: factory.id,
+    type: 'factory',
+    title: `Manufacturer: ${factory.title}`,
+    time: formatRelativeTime(factory.createdAt || ''),
+    date: formatDate(factory.createdAt || ''),
+    createdAt: factory.createdAt || '',
+    description: `${statusLabel}${commissionInfo ? ` • ${commissionInfo}` : ''}${factory.email ? ` • ${factory.email}` : ''}`,
+    entity: factory.title,
+    entityType: 'Manufacturer',
+    tags: [],
+    assignedTo: factory.createdBy || 'System',
+    mentions: [],
+    status: statusLabel,
+    activityStatus: factory.published ? 'completed' : 'upcoming',
+    link: `/warehouse/manufacturer-profiles?id=${factory.id}`,
+    metadata: {
+      title: factory.title,
+      email: factory.email,
+      phone: factory.phone,
+      accountNumber: factory.accountNumber,
+      baseCommissionRate: factory.baseCommissionRate,
+      published: factory.published,
+    },
+  };
+}
+
+/**
  * Transform all API data to Activity array
  */
 export function transformToActivities(data: ActivityFeedData): Activity[] {
@@ -449,6 +484,11 @@ export function transformToActivities(data: ActivityFeedData): Activity[] {
   // Transform customers
   data.customers.forEach(customer => {
     activities.push(transformCustomer(customer));
+  });
+
+  // Transform factories
+  data.factories.forEach(factory => {
+    activities.push(transformFactory(factory));
   });
 
   return activities;

@@ -516,6 +516,24 @@ export interface CustomerLandingPage {
   published: boolean;
 }
 
+export interface FactoryLandingPage {
+  id: string;
+  title: string;
+  email?: string;
+  phone?: string;
+  published: boolean;
+  accountNumber?: string;
+  baseCommissionRate?: string;
+  commissionDiscountRate?: string;
+  overallDiscountRate?: string;
+  paymentTerms?: number;
+  leadTime?: number;
+  freightDiscountType?: string;
+  splitRates?: string;
+  createdBy?: string;
+  createdAt?: string;
+}
+
 // ============================================================================
 // GraphQL Queries
 // ============================================================================
@@ -3532,6 +3550,34 @@ const FIND_ALL_LANDING_PAGES = `
       }
       total
     }
+    factories: findLandingPages(
+      sourceType: FACTORIES
+      filters: $filters
+      orderBy: $orderBy
+      limit: $limit
+      offset: $offset
+    ) {
+      records {
+        ... on FactoryLandingPage {
+          id
+          title
+          email
+          phone
+          published
+          accountNumber
+          baseCommissionRate
+          commissionDiscountRate
+          overallDiscountRate
+          paymentTerms
+          leadTime
+          freightDiscountType
+          splitRates
+          createdBy
+          createdAt
+        }
+      }
+      total
+    }
   }
 `;
 
@@ -3730,6 +3776,7 @@ export interface AllLandingPagesResponse {
   notes: PaginatedResult<NoteLandingPage>;
   tasks: PaginatedResult<TaskLandingPage>;
   customers: PaginatedResult<CustomerLandingPage>;
+  factories: PaginatedResult<FactoryLandingPage>;
 }
 
 /**
@@ -3753,6 +3800,7 @@ export async function fetchAllLandingPages(
     notes: { records: NoteLandingPage[]; total: number };
     tasks: { records: TaskLandingPage[]; total: number };
     customers: { records: CustomerLandingPage[]; total: number };
+    factories: { records: FactoryLandingPage[]; total: number };
   }>({
     query: FIND_ALL_LANDING_PAGES,
     variables: { filters, orderBy, limit: pagination?.limit, offset: pagination?.offset },
@@ -3792,6 +3840,10 @@ export async function fetchAllLandingPages(
     customers: {
       records: data?.customers?.records || [],
       total: data?.customers?.total || 0,
+    },
+    factories: {
+      records: data?.factories?.records || [],
+      total: data?.factories?.total || 0,
     },
   };
 }
