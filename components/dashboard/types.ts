@@ -2,7 +2,7 @@
  * Dashboard Types and Interfaces
  */
 
-export type ActivityType = 'job' | 'company' | 'contact' | 'pre-opportunity' | 'note' | 'task';
+export type ActivityType = 'job' | 'company' | 'contact' | 'pre-opportunity' | 'note' | 'task' | 'customer';
 export type ActivityStatus = 'upcoming' | 'completed';
 
 export interface Activity {
@@ -62,6 +62,14 @@ export interface ActivityMetadata {
   
   // Note-specific
   content?: string;
+
+  // Customer-specific
+  contactEmail?: string;
+  contactNumber?: string;
+  isParent?: boolean;
+  published?: boolean;
+  insideReps?: string;
+  outsideReps?: string;
 }
 
 export interface ActivityFilters {

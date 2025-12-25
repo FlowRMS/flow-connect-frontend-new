@@ -22,6 +22,7 @@ export const ACTIVITY_TYPE_LABELS: Record<ActivityType, string> = {
   'pre-opportunity': 'Pre-Opportunities',
   note: 'Notes',
   task: 'Tasks',
+  customer: 'Customers',
 } as const;
 
 // All activity types
@@ -32,6 +33,7 @@ export const ALL_ACTIVITY_TYPES: ActivityType[] = [
   'pre-opportunity',
   'note',
   'task',
+  'customer',
 ] as const;
 
 // Activity type icons (for UI)
@@ -42,6 +44,7 @@ export const ACTIVITY_TYPE_ICONS: Record<ActivityType, string> = {
   'pre-opportunity': '💰',
   note: '📝',
   task: '✓',
+  customer: '👥',
 } as const;
 
 // Status color mapping

@@ -31,6 +31,7 @@ const ACTIVITY_TYPE_COLORS: Record<Activity['type'], { bg: string; text: string;
   'pre-opportunity': { bg: 'bg-amber-100', text: 'text-amber-800', border: 'border-amber-300' },
   note: { bg: 'bg-gray-100', text: 'text-gray-800', border: 'border-gray-300' },
   task: { bg: 'bg-cyan-100', text: 'text-cyan-800', border: 'border-cyan-300' },
+  customer: { bg: 'bg-teal-100', text: 'text-teal-800', border: 'border-teal-300' },
 };
 
 /**
@@ -43,6 +44,7 @@ const ACTIVITY_TYPE_LABELS: Record<Activity['type'], string> = {
   'pre-opportunity': 'PRE-OPP',
   note: 'NOTE',
   task: 'TASK',
+  customer: 'CUSTOMER',
 };
 
 /**
@@ -107,8 +109,16 @@ function ActivityTypeIcon({ type }: { type: Activity['type'] }) {
         <path d="M4 10l4 4 8-8" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
     ),
+    customer: (
+      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M14 18v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+        <circle cx="7.5" cy="6" r="3"/>
+        <path d="M19 18v-2a4 4 0 00-3-3.87"/>
+        <path d="M13.5 3.13a4 4 0 010 7.75"/>
+      </svg>
+    ),
   };
-  
+
   return <span className="text-[var(--muted-foreground)]">{iconMap[type]}</span>;
 }
 
@@ -247,6 +257,35 @@ function ActivityMetadata({ activity }: { activity: Activity }) {
                 <path d="M3 8h14M7 2v4M13 2v4"/>
               </svg>
               Due: {formatDate(metadata.dueDate)}
+            </span>
+          )}
+        </div>
+      );
+
+    case 'customer':
+      return (
+        <div className="flex items-center gap-2 flex-wrap text-xs text-[var(--muted-foreground)]">
+          <span className={`px-2 py-0.5 rounded ${metadata.isParent ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'}`}>
+            {metadata.isParent ? 'Parent' : 'Child'}
+          </span>
+          <span className={`px-2 py-0.5 rounded ${metadata.published ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+            {metadata.published ? 'Published' : 'Draft'}
+          </span>
+          {metadata.contactEmail && (
+            <span className="flex items-center gap-1 text-blue-600">
+              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M2 4l8 5 8-5"/>
+                <rect x="2" y="4" width="16" height="12" rx="1"/>
+              </svg>
+              {metadata.contactEmail}
+            </span>
+          )}
+          {metadata.contactNumber && (
+            <span className="flex items-center gap-1">
+              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M2 3a2 2 0 012-2h2.28a2 2 0 011.897 1.368l.886 2.657a2 2 0 01-.477 2.022l-.846.845a1 1 0 00-.277.883 10.065 10.065 0 005.32 5.32 1 1 0 00.883-.277l.845-.846a2 2 0 012.022-.477l2.657.886A2 2 0 0119 15.72V18a2 2 0 01-2 2h-1C7.163 20 0 12.837 0 4V3z"/>
+              </svg>
+              {metadata.contactNumber}
             </span>
           )}
         </div>

@@ -11,6 +11,7 @@ import type {
   PreOpportunityLandingPage,
   NoteLandingPage,
   TaskLandingPage,
+  CustomerLandingPage,
 } from '../lib/crm-graphql';
 import type { ActivityFeedData } from './hooks/useActivityFeed';
 
@@ -341,7 +342,7 @@ function transformNote(note: NoteLandingPage): Activity {
 function transformTask(task: TaskLandingPage): Activity {
   const dueDateText = task.dueDate ? `Due: ${formatDate(task.dueDate)}` : '';
   const priorityText = task.priority ? `[${task.priority}]` : '';
-  
+
   // Parse linkedEntities to linkedTitles format
   const linkedEntities = task.linkedEntities
     ? task.linkedEntities.map(entity => ({
@@ -349,7 +350,7 @@ function transformTask(task: TaskLandingPage): Activity {
         name: entity.title || ''
       })).filter(item => item.name.length > 0)
     : [];
-  
+
   return {
     id: task.id,
     type: 'task',
@@ -370,6 +371,41 @@ function transformTask(task: TaskLandingPage): Activity {
     metadata: {
       priority: task.priority,
       dueDate: task.dueDate,
+    },
+  };
+}
+
+/**
+ * Transform Customer to Activity
+ */
+function transformCustomer(customer: CustomerLandingPage): Activity {
+  const typeLabel = customer.isParent ? 'Parent Customer' : 'Customer';
+  const statusLabel = customer.published ? 'Published' : 'Draft';
+
+  return {
+    id: customer.id,
+    type: 'customer',
+    title: `Customer: ${customer.companyName}`,
+    time: formatRelativeTime(customer.createdAt || ''),
+    date: formatDate(customer.createdAt || ''),
+    createdAt: customer.createdAt || '',
+    description: `${typeLabel} • ${statusLabel}${customer.contactEmail ? ` • ${customer.contactEmail}` : ''}`,
+    entity: customer.companyName,
+    entityType: 'Customer',
+    tags: customer.isParent ? ['Parent'] : [],
+    assignedTo: customer.createdBy || 'System',
+    mentions: [],
+    status: statusLabel,
+    activityStatus: customer.published ? 'completed' : 'upcoming',
+    link: `/customers?id=${customer.id}`,
+    metadata: {
+      companyName: customer.companyName,
+      contactEmail: customer.contactEmail,
+      contactNumber: customer.contactNumber,
+      isParent: customer.isParent,
+      published: customer.published,
+      insideReps: customer.insideReps,
+      outsideReps: customer.outsideReps,
     },
   };
 }
@@ -409,6 +445,11 @@ export function transformToActivities(data: ActivityFeedData): Activity[] {
   data.tasks.forEach(task => {
     activities.push(transformTask(task));
   });
-  
+
+  // Transform customers
+  data.customers.forEach(customer => {
+    activities.push(transformCustomer(customer));
+  });
+
   return activities;
 }

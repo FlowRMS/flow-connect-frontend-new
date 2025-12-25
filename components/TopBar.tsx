@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { MobileSidebarContext } from './Sidebar';
 import AIUploaderModal from './ai-uploader/AIUploaderModal';
+import UniversalSearch from './UniversalSearch';
 import { useUser } from './providers/user-provider';
 import { handleSignOut } from '@/lib/actions';
 
@@ -65,6 +66,11 @@ export default function TopBar() {
             <span className="text-sm font-semibold text-[var(--foreground)] md:hidden">FlowCRM</span>
           </>
         )}
+      </div>
+
+      {/* Center: Universal Search */}
+      <div className="hidden md:flex flex-1 justify-center px-4">
+        <UniversalSearch />
       </div>
 
       {/* Right: AI Uploader, DISC Analytics, Back to FlowRMS & Notifications */}

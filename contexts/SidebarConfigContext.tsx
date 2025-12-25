@@ -99,6 +99,7 @@ const defaultConfig: SidebarConfig = {
       items: [
         { id: 'contacts', name: 'Contacts', href: '/contacts', enabled: true },
         { id: 'companies', name: 'Companies', href: '/companies', enabled: true },
+        { id: 'customers', name: 'Customers', href: '/customers', enabled: true },
         { id: 'products', name: 'Products', href: '/products', enabled: true },
         { id: 'spec-sheets', name: 'Spec Sheets', href: '/spec-sheets', enabled: true },
       ]
@@ -119,7 +120,7 @@ const defaultConfig: SidebarConfig = {
 };
 
 const STORAGE_KEY = 'sidebar-config';
-const CONFIG_VERSION = 15; // Increment this to force a reset of cached sidebar config
+const CONFIG_VERSION = 16; // Increment this to force a reset of cached sidebar config
 
 const SidebarConfigContext = createContext<SidebarConfigContextType | undefined>(undefined);
 

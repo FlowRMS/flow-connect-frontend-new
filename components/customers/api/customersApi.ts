@@ -1,0 +1,551 @@
+/**
+ * Customers API Module
+ * Clean implementation of Customers GraphQL API endpoints
+ */
+
+import { crmGraphQLRequest } from '../../lib/crm-graphql';
+
+// ============================================================================
+// Types
+// ============================================================================
+
+export type RepType = 'INSIDE' | 'OUTSIDE';
+
+export interface User {
+  id: string;
+  authProviderId?: string;
+  email?: string;
+  enabled?: boolean;
+  firstName?: string;
+  fullName?: string;
+  inside?: boolean;
+  lastName?: string;
+  outside?: boolean;
+  role?: string;
+  username?: string;
+}
+
+export interface SplitRate {
+  id: string;
+  customerId?: string;
+  userId: string;
+  repType: RepType;
+  splitRate: string;
+  position: number;
+  user?: User;
+}
+
+export interface SplitRateInput {
+  id?: string;
+  userId: string;
+  repType: RepType;
+  splitRate: string;
+  position: number;
+}
+
+export interface Customer {
+  id: string;
+  companyName: string;
+  contactEmail?: string;
+  contactNumber?: string;
+  isParent: boolean;
+  parentId?: string;
+  published: boolean;
+  createdBy?: User;
+  insideReps?: SplitRate[];
+  outsideReps?: SplitRate[];
+  createdAt?: string;
+}
+
+export interface CustomerLandingPage {
+  id: string;
+  companyName: string;
+  contactEmail?: string;
+  contactNumber?: string;
+  createdAt?: string;
+  createdBy?: string;
+  insideReps?: string;
+  outsideReps?: string;
+  isParent: boolean;
+  published: boolean;
+}
+
+export interface CreateCustomerInput {
+  companyName: string;
+  contactEmail?: string;
+  contactNumber?: string;
+  isParent: boolean;
+  parentId?: string;
+  published: boolean;
+  splitRates?: SplitRateInput[];
+}
+
+export interface UpdateCustomerInput {
+  companyName?: string;
+  contactEmail?: string;
+  contactNumber?: string;
+  isParent?: boolean;
+  parentId?: string;
+  published?: boolean;
+  splitRates?: SplitRateInput[];
+}
+
+// User Search Types
+export interface UserSearchResult {
+  id: string;
+  authProviderId?: string;
+  email?: string;
+  enabled?: boolean;
+  firstName?: string;
+  fullName?: string;
+  inside?: boolean;
+  lastName?: string;
+  outside?: boolean;
+  role?: string;
+  username?: string;
+}
+
+export interface UserSearchParams {
+  searchTerm: string;
+  isInside?: boolean;
+  isOutside?: boolean;
+  enabled?: boolean;
+  limit?: number;
+}
+
+export interface CustomerLandingPageFilter {
+  operator: string;
+  columnName: string;
+  value?: string;
+  values?: string[];
+}
+
+export interface CustomerLandingPageOrderBy {
+  columnName: string;
+  direction: 'ASC' | 'DESC';
+}
+
+export interface PaginationParams {
+  limit?: number;
+  offset?: number;
+}
+
+export interface PaginatedCustomersResult {
+  records: CustomerLandingPage[];
+  total: number;
+}
+
+// ============================================================================
+// GraphQL Queries
+// ============================================================================
+
+const FIND_CUSTOMERS_LANDING_PAGES = `
+  query FindCustomersLandingPages(
+    $filters: [Filter!]
+    $orderBy: [OrderBy!]
+    $limit: Int
+    $offset: Int
+  ) {
+    findLandingPages(
+      sourceType: CUSTOMERS
+      filters: $filters
+      limit: $limit
+      offset: $offset
+      orderBy: $orderBy
+    ) {
+      records {
+        ... on CustomerLandingPage {
+          id
+          companyName
+          contactEmail
+          contactNumber
+          createdAt
+          createdBy
+          insideReps
+          outsideReps
+          isParent
+          published
+        }
+      }
+      total
+    }
+  }
+`;
+
+const FIND_CUSTOMER_BY_ID = `
+  query FindCustomerById($id: UUID!) {
+    findCustomerById(id: $id) {
+      companyName
+      contactEmail
+      contactNumber
+      createdBy {
+        authProviderId
+        email
+        enabled
+        firstName
+        fullName
+        id
+        inside
+        lastName
+        outside
+        role
+        username
+      }
+      id
+      insideReps {
+        customerId
+        id
+        position
+        repType
+        splitRate
+        user {
+          authProviderId
+          email
+          enabled
+          firstName
+          fullName
+          id
+          inside
+          lastName
+          outside
+          role
+          username
+        }
+      }
+      isParent
+      outsideReps {
+        customerId
+        id
+        position
+        repType
+        splitRate
+        user {
+          authProviderId
+          email
+          enabled
+          firstName
+          fullName
+          id
+          inside
+          lastName
+          outside
+          role
+          username
+        }
+      }
+      parentId
+      published
+    }
+  }
+`;
+
+const CREATE_CUSTOMER = `
+  mutation CreateCustomer($input: CustomerInput!) {
+    createCustomer(input: $input) {
+      companyName
+      contactEmail
+      contactNumber
+      createdBy {
+        email
+        authProviderId
+        firstName
+        enabled
+        fullName
+        id
+        inside
+        lastName
+        outside
+        role
+        username
+      }
+      id
+      insideReps {
+        customerId
+        id
+        position
+        repType
+        splitRate
+        user {
+          authProviderId
+          email
+          enabled
+          firstName
+          fullName
+          id
+          inside
+          lastName
+          outside
+          role
+          username
+        }
+      }
+      isParent
+      outsideReps {
+        customerId
+        id
+        position
+        repType
+        splitRate
+        user {
+          authProviderId
+          email
+          enabled
+          firstName
+          fullName
+          inside
+          id
+          lastName
+          outside
+          role
+          username
+        }
+      }
+      parentId
+      published
+    }
+  }
+`;
+
+const UPDATE_CUSTOMER = `
+  mutation UpdateCustomer($id: UUID!, $input: CustomerInput!) {
+    updateCustomer(id: $id, input: $input) {
+      companyName
+      contactEmail
+      contactNumber
+      createdBy {
+        authProviderId
+        email
+        enabled
+        firstName
+        fullName
+        id
+        inside
+        lastName
+        outside
+        role
+        username
+      }
+      id
+      insideReps {
+        customerId
+        id
+        position
+        repType
+        splitRate
+        user {
+          authProviderId
+          enabled
+          email
+          firstName
+          fullName
+          id
+          inside
+          lastName
+          outside
+          role
+          username
+        }
+      }
+      isParent
+      outsideReps {
+        customerId
+        id
+        position
+        repType
+        splitRate
+        user {
+          authProviderId
+          email
+          enabled
+          firstName
+          id
+          inside
+          fullName
+          lastName
+          outside
+          role
+          username
+        }
+      }
+      parentId
+      published
+    }
+  }
+`;
+
+const DELETE_CUSTOMER = `
+  mutation DeleteCustomer($id: UUID!) {
+    deleteCustomer(id: $id)
+  }
+`;
+
+const USER_SEARCH = `
+  query UserSearch(
+    $searchTerm: String!
+    $isInside: Boolean
+    $isOutside: Boolean
+    $enabled: Boolean
+    $limit: Int
+  ) {
+    userSearch(
+      searchTerm: $searchTerm
+      isInside: $isInside
+      isOutside: $isOutside
+      enabled: $enabled
+      limit: $limit
+    ) {
+      authProviderId
+      email
+      enabled
+      firstName
+      fullName
+      id
+      inside
+      lastName
+      outside
+      role
+      username
+    }
+  }
+`;
+
+// ============================================================================
+// API Functions
+// ============================================================================
+
+/**
+ * Fetch customers using findLandingPages endpoint with pagination
+ */
+export async function fetchCustomersWithPagination(
+  filters?: CustomerLandingPageFilter[],
+  orderBy?: CustomerLandingPageOrderBy[],
+  pagination?: PaginationParams
+): Promise<PaginatedCustomersResult> {
+  const response = await crmGraphQLRequest<{
+    findLandingPages: { records: CustomerLandingPage[]; total: number };
+  }>({
+    query: FIND_CUSTOMERS_LANDING_PAGES,
+    variables: {
+      filters,
+      orderBy,
+      limit: pagination?.limit,
+      offset: pagination?.offset
+    },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch customers');
+  }
+
+  return {
+    records: response.data?.findLandingPages?.records || [],
+    total: response.data?.findLandingPages?.total || 0,
+  };
+}
+
+/**
+ * Fetch all customers (no pagination)
+ */
+export async function fetchCustomers(): Promise<CustomerLandingPage[]> {
+  const result = await fetchCustomersWithPagination();
+  return result.records;
+}
+
+/**
+ * Fetch a single customer by ID
+ */
+export async function fetchCustomerById(id: string): Promise<Customer | null> {
+  const response = await crmGraphQLRequest<{ findCustomerById: Customer }>({
+    query: FIND_CUSTOMER_BY_ID,
+    variables: { id },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch customer');
+  }
+
+  return response.data?.findCustomerById || null;
+}
+
+/**
+ * Create a new customer
+ */
+export async function createCustomer(input: CreateCustomerInput): Promise<Customer> {
+  const response = await crmGraphQLRequest<{ createCustomer: Customer }>({
+    query: CREATE_CUSTOMER,
+    variables: { input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to create customer');
+  }
+
+  if (!response.data?.createCustomer) {
+    throw new Error('No customer returned from create mutation');
+  }
+
+  return response.data.createCustomer;
+}
+
+/**
+ * Update an existing customer
+ */
+export async function updateCustomer(
+  id: string,
+  input: UpdateCustomerInput
+): Promise<Customer> {
+  const response = await crmGraphQLRequest<{ updateCustomer: Customer }>({
+    query: UPDATE_CUSTOMER,
+    variables: { id, input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to update customer');
+  }
+
+  if (!response.data?.updateCustomer) {
+    throw new Error('No customer returned from update mutation');
+  }
+
+  return response.data.updateCustomer;
+}
+
+/**
+ * Delete a customer
+ */
+export async function deleteCustomer(id: string): Promise<boolean> {
+  const response = await crmGraphQLRequest<{ deleteCustomer: string }>({
+    query: DELETE_CUSTOMER,
+    variables: { id },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to delete customer');
+  }
+
+  return true;
+}
+
+/**
+ * Search users for rep selection
+ * Returns users filtered by inside/outside rep type
+ * Empty searchTerm returns initial results
+ */
+export async function searchUsers(params: UserSearchParams): Promise<UserSearchResult[]> {
+  const response = await crmGraphQLRequest<{ userSearch: UserSearchResult[] }>({
+    query: USER_SEARCH,
+    variables: {
+      searchTerm: params.searchTerm,
+      isInside: params.isInside,
+      isOutside: params.isOutside,
+      enabled: params.enabled,
+      limit: params.limit ?? 10,
+    },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search users');
+  }
+
+  return response.data?.userSearch || [];
+}

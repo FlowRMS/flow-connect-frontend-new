@@ -16,6 +16,7 @@ import {
   type PreOpportunityLandingPage,
   type NoteLandingPage,
   type TaskLandingPage,
+  type CustomerLandingPage,
   type LandingPageFilter,
   type LandingPageOrderBy,
 } from '../../lib/crm-graphql';
@@ -27,6 +28,7 @@ export interface ActivityFeedData {
   preOpportunities: PreOpportunityLandingPage[];
   notes: NoteLandingPage[];
   tasks: TaskLandingPage[];
+  customers: CustomerLandingPage[];
 }
 
 interface ActivityFeedPage {
@@ -38,6 +40,7 @@ interface ActivityFeedPage {
     preOpportunities: number;
     notes: number;
     tasks: number;
+    customers: number;
   };
   pageIndex: number;
 }
@@ -63,7 +66,7 @@ async function fetchActivityPage(
   const offset = pageIndex * PAGE_SIZE;
   const pagination = { limit: PAGE_SIZE, offset };
 
-  // Single query fetches all 6 entity types at once using GraphQL aliases
+  // Single query fetches all 7 entity types at once using GraphQL aliases
   const result = await fetchAllLandingPages(filters, orderBy, pagination).catch(() => ({
     jobs: { records: [], total: 0 },
     companies: { records: [], total: 0 },
@@ -71,6 +74,7 @@ async function fetchActivityPage(
     preOpportunities: { records: [], total: 0 },
     notes: { records: [], total: 0 },
     tasks: { records: [], total: 0 },
+    customers: { records: [], total: 0 },
   }));
 
   return {
@@ -81,6 +85,7 @@ async function fetchActivityPage(
       preOpportunities: result.preOpportunities.records,
       notes: result.notes.records,
       tasks: result.tasks.records,
+      customers: result.customers.records,
     },
     totals: {
       jobs: result.jobs.total,
@@ -89,6 +94,7 @@ async function fetchActivityPage(
       preOpportunities: result.preOpportunities.total,
       notes: result.notes.total,
       tasks: result.tasks.total,
+      customers: result.customers.total,
     },
     pageIndex,
   };
@@ -116,8 +122,9 @@ export function useActivityFeed(
       const hasMorePreOpportunities = currentOffset < lastPage.totals.preOpportunities;
       const hasMoreNotes = currentOffset < lastPage.totals.notes;
       const hasMoreTasks = currentOffset < lastPage.totals.tasks;
+      const hasMoreCustomers = currentOffset < lastPage.totals.customers;
 
-      if (hasMoreJobs || hasMoreCompanies || hasMoreContacts || hasMorePreOpportunities || hasMoreNotes || hasMoreTasks) {
+      if (hasMoreJobs || hasMoreCompanies || hasMoreContacts || hasMorePreOpportunities || hasMoreNotes || hasMoreTasks || hasMoreCustomers) {
         return lastPage.pageIndex + 1;
       }
       return undefined;
@@ -135,6 +142,7 @@ export function useActivityFeed(
     preOpportunities: deduplicateById(query.data.pages.flatMap(page => page.data.preOpportunities)),
     notes: deduplicateById(query.data.pages.flatMap(page => page.data.notes)),
     tasks: deduplicateById(query.data.pages.flatMap(page => page.data.tasks)),
+    customers: deduplicateById(query.data.pages.flatMap(page => page.data.customers)),
   } : undefined;
 
   return {

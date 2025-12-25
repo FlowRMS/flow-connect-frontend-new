@@ -503,6 +503,19 @@ export interface ContactLandingPage {
   tags?: string[];
 }
 
+export interface CustomerLandingPage {
+  id: string;
+  companyName: string;
+  contactEmail?: string;
+  contactNumber?: string;
+  createdAt?: string;
+  createdBy?: string;
+  insideReps?: string;
+  outsideReps?: string;
+  isParent: boolean;
+  published: boolean;
+}
+
 // ============================================================================
 // GraphQL Queries
 // ============================================================================
@@ -3496,6 +3509,29 @@ const FIND_ALL_LANDING_PAGES = `
       }
       total
     }
+    customers: findLandingPages(
+      sourceType: CUSTOMERS
+      filters: $filters
+      orderBy: $orderBy
+      limit: $limit
+      offset: $offset
+    ) {
+      records {
+        ... on CustomerLandingPage {
+          id
+          companyName
+          contactEmail
+          contactNumber
+          createdAt
+          createdBy
+          insideReps
+          outsideReps
+          isParent
+          published
+        }
+      }
+      total
+    }
   }
 `;
 
@@ -3693,6 +3729,7 @@ export interface AllLandingPagesResponse {
   preOpportunities: PaginatedResult<PreOpportunityLandingPage>;
   notes: PaginatedResult<NoteLandingPage>;
   tasks: PaginatedResult<TaskLandingPage>;
+  customers: PaginatedResult<CustomerLandingPage>;
 }
 
 /**
@@ -3715,6 +3752,7 @@ export async function fetchAllLandingPages(
     preOpportunities: { records: PreOpportunityLandingPage[]; total: number };
     notes: { records: NoteLandingPage[]; total: number };
     tasks: { records: TaskLandingPage[]; total: number };
+    customers: { records: CustomerLandingPage[]; total: number };
   }>({
     query: FIND_ALL_LANDING_PAGES,
     variables: { filters, orderBy, limit: pagination?.limit, offset: pagination?.offset },
@@ -3750,6 +3788,10 @@ export async function fetchAllLandingPages(
     tasks: {
       records: data?.tasks?.records || [],
       total: data?.tasks?.total || 0,
+    },
+    customers: {
+      records: data?.customers?.records || [],
+      total: data?.customers?.total || 0,
     },
   };
 }
@@ -3916,5 +3958,40 @@ export async function fetchTasksByEntity(entityId: string, entityType: TaskEntit
   }
 
   return mapFormattedCreatedBy(response.data?.tasksByEntity);
+}
+
+// ============================================================================
+// Universal Search
+// ============================================================================
+
+export interface UniversalSearchResult {
+  id: string;
+  alias?: string;
+  resultType: string;
+  title: string;
+}
+
+const UNIVERSAL_SEARCH = `
+  query UniversalSearch($searchTerm: String!, $limit: Int) {
+    universalSearch(searchTerm: $searchTerm, limit: $limit) {
+      alias
+      id
+      resultType
+      title
+    }
+  }
+`;
+
+export async function universalSearch(searchTerm: string, limit: number = 10): Promise<UniversalSearchResult[]> {
+  const response = await crmGraphQLRequest<{ universalSearch: UniversalSearchResult[] }>({
+    query: UNIVERSAL_SEARCH,
+    variables: { searchTerm, limit },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to perform universal search');
+  }
+
+  return response.data?.universalSearch || [];
 }
 
