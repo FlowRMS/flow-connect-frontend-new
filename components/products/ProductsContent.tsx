@@ -2,12 +2,12 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useProductsState } from './products/hooks/useProductsState';
-import { CreateProductModal } from './products/modals/CreateProductModal';
-import { DeleteProductModal } from './products/modals/DeleteProductModal';
-import { ManageCategoriesModal } from './products/modals/ManageCategoriesModal';
-import { ManageUomsModal } from './products/modals/ManageUomsModal';
-import type { ProductLandingPage } from './products/api/useProductsApi';
+import { useProductsState } from './hooks/useProductsState';
+import { CreateProductModal } from './modals/CreateProductModal';
+import { DeleteProductModal } from './modals/DeleteProductModal';
+import { ManageCategoriesModal } from './modals/ManageCategoriesModal';
+import { ManageUomsModal } from './modals/ManageUomsModal';
+import type { ProductLandingPage } from './api/useProductsApi';
 
 // Sort direction type
 type SortDirection = 'asc' | 'desc' | null;

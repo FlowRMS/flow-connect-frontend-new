@@ -1,0 +1,357 @@
+/**
+ * Products React Query Hooks
+ * Custom hooks for interacting with the Products GraphQL API
+ */
+
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
+import {
+  // Types
+  type Product,
+  type ProductLandingPage,
+  type ProductSearchResult,
+  type ProductCategory,
+  type ProductUom,
+  type CreateProductInput,
+  type UpdateProductInput,
+  type CreateProductCategoryInput,
+  type UpdateProductCategoryInput,
+  type CreateProductUomInput,
+  type UpdateProductUomInput,
+  type ProductLandingPageFilter,
+  type ProductLandingPageOrderBy,
+  type PaginatedProductsResult,
+  type FactorySearchResult,
+  // API Functions
+  fetchProductsWithPagination,
+  fetchProductById,
+  searchProductsApi,
+  createProduct,
+  updateProduct,
+  deleteProduct,
+  fetchProductUoms,
+  createProductUom,
+  updateProductUom,
+  deleteProductUom,
+  fetchProductCategories,
+  searchProductCategories,
+  createProductCategory,
+  updateProductCategory,
+  deleteProductCategory,
+  searchFactories,
+} from './productsApi';
+
+// ============================================================================
+// Query Keys
+// ============================================================================
+
+export const productQueryKeys = {
+  all: ['products'] as const,
+
+  // Products
+  products: () => [...productQueryKeys.all, 'list'] as const,
+  productLandingPages: (filters?: ProductLandingPageFilter[], orderBy?: ProductLandingPageOrderBy) =>
+    [...productQueryKeys.all, 'landingPages', { filters, orderBy }] as const,
+  product: (id: string) => [...productQueryKeys.all, 'detail', id] as const,
+  productSearch: (searchTerm?: string, factoryId?: string, categoryIds?: string[]) =>
+    [...productQueryKeys.all, 'search', { searchTerm, factoryId, categoryIds }] as const,
+
+  // UOMs
+  uoms: () => [...productQueryKeys.all, 'uoms'] as const,
+
+  // Categories
+  categories: (factoryId?: string) => [...productQueryKeys.all, 'categories', { factoryId }] as const,
+  categorySearch: (searchTerm: string, factoryId: string) =>
+    [...productQueryKeys.all, 'categorySearch', { searchTerm, factoryId }] as const,
+
+  // Factories
+  factorySearch: (searchTerm: string) =>
+    [...productQueryKeys.all, 'factorySearch', { searchTerm }] as const,
+};
+
+// ============================================================================
+// Product Hooks
+// ============================================================================
+
+const DEFAULT_PAGE_SIZE = 50;
+
+/**
+ * Fetch product landing pages with infinite scroll pagination
+ */
+export function useProductsInfinite(
+  filters?: ProductLandingPageFilter[],
+  orderBy?: ProductLandingPageOrderBy,
+  pageSize: number = DEFAULT_PAGE_SIZE
+) {
+  return useInfiniteQuery<PaginatedProductsResult, Error>({
+    queryKey: [...productQueryKeys.productLandingPages(filters, orderBy), 'infinite'],
+    queryFn: async ({ pageParam = 0 }) => {
+      return fetchProductsWithPagination(filters, orderBy, {
+        limit: pageSize,
+        offset: pageParam as number
+      });
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const totalFetched = allPages.reduce((acc, page) => acc + page.records.length, 0);
+      if (totalFetched >= lastPage.total) return undefined;
+      return totalFetched;
+    },
+    enabled: true,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Fetch product landing pages (non-paginated)
+ */
+export function useProducts(
+  filters?: ProductLandingPageFilter[],
+  orderBy?: ProductLandingPageOrderBy
+) {
+  return useQuery<ProductLandingPage[], Error>({
+    queryKey: productQueryKeys.productLandingPages(filters, orderBy),
+    queryFn: async () => {
+      const result = await fetchProductsWithPagination(filters, orderBy, { limit: 1000, offset: 0 });
+      return result.records;
+    },
+    enabled: true,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Fetch single product by ID
+ */
+export function useProduct(id: string) {
+  return useQuery<Product | null, Error>({
+    queryKey: productQueryKeys.product(id),
+    queryFn: () => fetchProductById(id),
+    enabled: !!id,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Search products
+ */
+export function useProductSearch(
+  searchTerm?: string,
+  factoryId?: string,
+  categoryIds?: string[],
+  limit?: number
+) {
+  return useQuery<ProductSearchResult[], Error>({
+    queryKey: productQueryKeys.productSearch(searchTerm, factoryId, categoryIds),
+    queryFn: () => searchProductsApi(searchTerm, factoryId, categoryIds, limit),
+    enabled: true,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Create new product mutation
+ */
+export function useCreateProduct() {
+  const queryClient = useQueryClient();
+
+  return useMutation<Product, Error, CreateProductInput>({
+    mutationFn: createProduct,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: productQueryKeys.products() });
+      queryClient.invalidateQueries({ queryKey: productQueryKeys.all });
+    },
+  });
+}
+
+/**
+ * Update existing product mutation
+ */
+export function useUpdateProduct() {
+  const queryClient = useQueryClient();
+
+  return useMutation<Product, Error, { id: string; input: UpdateProductInput }>({
+    mutationFn: ({ id, input }) => updateProduct(id, input),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: productQueryKeys.products() });
+      queryClient.invalidateQueries({ queryKey: productQueryKeys.product(data.id) });
+      queryClient.invalidateQueries({ queryKey: productQueryKeys.all });
+    },
+  });
+}
+
+/**
+ * Delete product mutation
+ */
+export function useDeleteProduct() {
+  const queryClient = useQueryClient();
+
+  return useMutation<boolean, Error, string>({
+    mutationFn: deleteProduct,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: productQueryKeys.products() });
+      queryClient.invalidateQueries({ queryKey: productQueryKeys.all });
+    },
+  });
+}
+
+// ============================================================================
+// Product UOM Hooks
+// ============================================================================
+
+/**
+ * Fetch all product UOMs
+ */
+export function useProductUoms() {
+  return useQuery<ProductUom[], Error>({
+    queryKey: productQueryKeys.uoms(),
+    queryFn: fetchProductUoms,
+    staleTime: 5 * 60 * 1000, // 5 minutes - UOMs change rarely
+  });
+}
+
+/**
+ * Create new product UOM mutation
+ */
+export function useCreateProductUom() {
+  const queryClient = useQueryClient();
+
+  return useMutation<ProductUom, Error, CreateProductUomInput>({
+    mutationFn: createProductUom,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: productQueryKeys.uoms() });
+    },
+  });
+}
+
+/**
+ * Update existing product UOM mutation
+ */
+export function useUpdateProductUom() {
+  const queryClient = useQueryClient();
+
+  return useMutation<ProductUom, Error, { id: string; input: UpdateProductUomInput }>({
+    mutationFn: ({ id, input }) => updateProductUom(id, input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: productQueryKeys.uoms() });
+    },
+  });
+}
+
+/**
+ * Delete product UOM mutation
+ */
+export function useDeleteProductUom() {
+  const queryClient = useQueryClient();
+
+  return useMutation<boolean, Error, string>({
+    mutationFn: deleteProductUom,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: productQueryKeys.uoms() });
+    },
+  });
+}
+
+// ============================================================================
+// Product Category Hooks
+// ============================================================================
+
+/**
+ * Fetch product categories
+ */
+export function useProductCategories(factoryId?: string, parentId?: string, grandparentId?: string) {
+  return useQuery<ProductCategory[], Error>({
+    queryKey: productQueryKeys.categories(factoryId),
+    queryFn: () => fetchProductCategories(factoryId, parentId, grandparentId),
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  });
+}
+
+/**
+ * Search product categories
+ */
+export function useProductCategorySearch(searchTerm: string, factoryId: string, limit?: number) {
+  return useQuery<ProductCategory[], Error>({
+    queryKey: productQueryKeys.categorySearch(searchTerm, factoryId),
+    queryFn: () => searchProductCategories(searchTerm, factoryId, limit),
+    enabled: !!searchTerm && !!factoryId,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Create new product category mutation
+ */
+export function useCreateProductCategory() {
+  const queryClient = useQueryClient();
+
+  return useMutation<ProductCategory, Error, CreateProductCategoryInput>({
+    mutationFn: createProductCategory,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: productQueryKeys.categories() });
+    },
+  });
+}
+
+/**
+ * Update existing product category mutation
+ */
+export function useUpdateProductCategory() {
+  const queryClient = useQueryClient();
+
+  return useMutation<ProductCategory, Error, { id: string; input: UpdateProductCategoryInput }>({
+    mutationFn: ({ id, input }) => updateProductCategory(id, input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: productQueryKeys.categories() });
+    },
+  });
+}
+
+/**
+ * Delete product category mutation
+ */
+export function useDeleteProductCategory() {
+  const queryClient = useQueryClient();
+
+  return useMutation<boolean, Error, string>({
+    mutationFn: deleteProductCategory,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: productQueryKeys.categories() });
+    },
+  });
+}
+
+// ============================================================================
+// Factory Search Hook
+// ============================================================================
+
+/**
+ * Search factories for product creation
+ * When searchTerm is empty, returns initial factory list
+ */
+export function useFactorySearch(searchTerm: string, enabled: boolean = true) {
+  return useQuery<FactorySearchResult[], Error>({
+    queryKey: productQueryKeys.factorySearch(searchTerm || ''),
+    queryFn: () => searchFactories(searchTerm || '', true), // Only published factories
+    enabled: enabled,
+    staleTime: 30 * 1000,
+  });
+}
+
+// Re-export types for convenience
+export type {
+  Product,
+  ProductLandingPage,
+  ProductSearchResult,
+  ProductCategory,
+  ProductUom,
+  CreateProductInput,
+  UpdateProductInput,
+  CreateProductCategoryInput,
+  UpdateProductCategoryInput,
+  CreateProductUomInput,
+  UpdateProductUomInput,
+  ProductLandingPageFilter,
+  ProductLandingPageOrderBy,
+  PaginatedProductsResult,
+  FactorySearchResult,
+};
