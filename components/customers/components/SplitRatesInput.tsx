@@ -23,7 +23,6 @@ interface SplitRatesInputProps {
   repType: RepType;
   entries: SplitRateEntry[];
   onChange: (entries: SplitRateEntry[]) => void;
-  otherTypeTotal: number; // Total percentage from the other rep type
   disabled?: boolean;
 }
 
@@ -34,7 +33,6 @@ export function SplitRatesInput({
   repType,
   entries,
   onChange,
-  otherTypeTotal,
   disabled = false,
 }: SplitRatesInputProps) {
   const [activeSearchIndex, setActiveSearchIndex] = useState<number | null>(null);
@@ -47,14 +45,13 @@ export function SplitRatesInput({
   const title = isInside ? 'Inside Reps' : 'Outside Reps';
   const accentColor = isInside ? 'blue' : 'purple';
 
-  // Calculate total percentage for this rep type
+  // Calculate total percentage for this rep type (each type must independently total 100%)
   const thisTypeTotal = entries.reduce((sum, entry) => {
     const rate = parseFloat(entry.splitRate) || 0;
     return sum + rate;
   }, 0);
 
-  const grandTotal = thisTypeTotal + otherTypeTotal;
-  const remainingPercentage = Math.max(0, 100 - grandTotal);
+  const remainingPercentage = Math.max(0, 100 - thisTypeTotal);
 
   // User search query
   const { data: searchResults = [], isLoading: isSearching } = useQuery({
@@ -402,25 +399,25 @@ export function SplitRatesInput({
       )}
 
       {/* Validation Message */}
-      {grandTotal > 100 && (
+      {thisTypeTotal > 100 && (
         <div className="flex items-center gap-2 p-2 bg-red-50 border border-red-200 rounded-lg">
           <svg className="w-4 h-4 text-red-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
           <p className="text-xs text-red-700">
-            Total split rate ({grandTotal.toFixed(1)}%) exceeds 100%. Please reduce the percentages.
+            {title} total ({thisTypeTotal.toFixed(1)}%) exceeds 100%. Please reduce the percentages.
           </p>
         </div>
       )}
 
       {/* Remaining Percentage Info */}
-      {grandTotal <= 100 && remainingPercentage > 0 && entries.length > 0 && (
+      {thisTypeTotal <= 100 && remainingPercentage > 0 && entries.length > 0 && (
         <div className="flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded-lg">
           <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <p className="text-xs text-amber-700">
-            {remainingPercentage.toFixed(1)}% remaining to allocate
+            {remainingPercentage.toFixed(1)}% remaining to reach 100%
           </p>
         </div>
       )}

@@ -53,9 +53,12 @@ export function EditCustomerModal({ isOpen, customer, onClose, onSuccess }: Edit
     [outsideRepEntries]
   );
 
-  const grandTotal = insideTotal + outsideTotal;
-  const hasAnyReps = insideRepEntries.length > 0 || outsideRepEntries.length > 0;
-  const isValidSplitRate = !hasAnyReps || grandTotal === 100;
+  // Validation: Each rep type must independently total 100% (if it has entries)
+  const hasInsideReps = insideRepEntries.length > 0;
+  const hasOutsideReps = outsideRepEntries.length > 0;
+  const isInsideValid = !hasInsideReps || insideTotal === 100;
+  const isOutsideValid = !hasOutsideReps || outsideTotal === 100;
+  const isValidSplitRate = isInsideValid && isOutsideValid;
 
   // Check if any reps have been added but not fully configured
   const hasIncompleteEntries = useMemo(() => {
@@ -119,7 +122,13 @@ export function EditCustomerModal({ isOpen, customer, onClose, onSuccess }: Edit
     }
 
     if (!isValidSplitRate) {
-      toast.error('Total split rate must equal exactly 100%');
+      if (!isInsideValid && !isOutsideValid) {
+        toast.error('Both Inside Reps and Outside Reps must each total exactly 100%');
+      } else if (!isInsideValid) {
+        toast.error('Inside Reps split rate must total exactly 100%');
+      } else {
+        toast.error('Outside Reps split rate must total exactly 100%');
+      }
       return;
     }
 
@@ -263,20 +272,32 @@ export function EditCustomerModal({ isOpen, customer, onClose, onSuccess }: Edit
                   Sales Representatives
                 </h3>
 
-                {/* Total Percentage Summary */}
-                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${
-                  grandTotal === 0
-                    ? 'bg-gray-100 text-gray-600'
-                    : grandTotal === 100
-                      ? 'bg-green-100 text-green-700'
-                      : grandTotal > 100
-                        ? 'bg-red-100 text-red-700'
-                        : 'bg-amber-100 text-amber-700'
-                }`}>
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                  </svg>
-                  Total: {grandTotal.toFixed(1)}%
+                {/* Split Rate Summary - Each type must be 100% independently */}
+                <div className="flex items-center gap-2">
+                  {hasInsideReps && (
+                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+                      insideTotal === 100
+                        ? 'bg-green-100 text-green-700'
+                        : insideTotal > 100
+                          ? 'bg-red-100 text-red-700'
+                          : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                      Inside: {insideTotal.toFixed(1)}%
+                    </div>
+                  )}
+                  {hasOutsideReps && (
+                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+                      outsideTotal === 100
+                        ? 'bg-green-100 text-green-700'
+                        : outsideTotal > 100
+                          ? 'bg-red-100 text-red-700'
+                          : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+                      Outside: {outsideTotal.toFixed(1)}%
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -285,7 +306,6 @@ export function EditCustomerModal({ isOpen, customer, onClose, onSuccess }: Edit
                 repType="INSIDE"
                 entries={insideRepEntries}
                 onChange={setInsideRepEntries}
-                otherTypeTotal={outsideTotal}
                 disabled={updateMutation.isPending}
               />
 
@@ -294,7 +314,6 @@ export function EditCustomerModal({ isOpen, customer, onClose, onSuccess }: Edit
                 repType="OUTSIDE"
                 entries={outsideRepEntries}
                 onChange={setOutsideRepEntries}
-                otherTypeTotal={insideTotal}
                 disabled={updateMutation.isPending}
               />
             </div>
