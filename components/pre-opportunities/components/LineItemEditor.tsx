@@ -234,7 +234,7 @@ export function LineItemEditor({
                         className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0"
                       >
                         <div className="font-medium text-gray-900">{product.factoryPartNumber}</div>
-                        <div className="text-xs text-gray-500">Factory ID: {product.factoryId}</div>
+                        <div className="text-xs text-gray-500">Factory: {product.factory.title}</div>
                       </button>
                     ))}
                   </div>

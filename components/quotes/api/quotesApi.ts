@@ -1,0 +1,1085 @@
+/**
+ * Quotes API Module
+ * Complete implementation of Quotes GraphQL API endpoints for Simple Quotes Mode
+ */
+
+import { crmGraphQLRequest } from '../../lib/crm-graphql';
+
+// ============================================================================
+// Enums
+// ============================================================================
+
+export type QuoteStatus = 'OPEN' | 'ORDERED' | 'EXPIRED' | 'LOST';
+export type QuotePipelineStage = 'DISCOVERY' | 'PROSPECT' | 'QUALIFICATION' | 'PROPOSAL' | 'NEGOTIATION' | 'CLOSED_WON' | 'CLOSED_LOST';
+export type QuoteCreationType = 'MANUAL' | 'IMPORT' | 'API' | 'DUPLICATION';
+export type QuoteDetailStatus = 'OPEN' | 'ORDERED' | 'LOST';
+
+// ============================================================================
+// Types
+// ============================================================================
+
+export interface QuoteBalance {
+  id: string;
+  commission?: number;
+  commissionDiscount?: number;
+  commissionDiscountRate?: number;
+  commissionRate?: number;
+  discount?: number;
+  discountRate?: number;
+  quantity?: number;
+  subtotal?: number;
+  total?: number;
+}
+
+export interface QuoteCustomer {
+  id: string;
+  companyName: string;
+  isParent: boolean;
+  parentId?: string;
+  published: boolean;
+}
+
+export interface QuoteCreatedBy {
+  id: string;
+  authProviderId?: string;
+  email?: string;
+  enabled?: boolean;
+  firstName?: string;
+  fullName?: string;
+  lastName?: string;
+  inside?: boolean;
+  outside?: boolean;
+  role?: string;
+  username?: string;
+}
+
+export interface QuoteSplitRate {
+  id: string;
+  createdAt?: string;
+  position?: number;
+  quoteId?: string;
+  quoteDetailId?: string;
+  splitRate?: string;
+  userId?: string;
+}
+
+export interface QuoteDetail {
+  id: string;
+  commission?: number;
+  commissionDiscount?: number;
+  commissionDiscountRate?: string;
+  commissionRate?: string;
+  discount?: number;
+  discountRate?: string;
+  endUserId?: string;
+  factoryId?: string;
+  itemNumber?: number;
+  leadTime?: string;
+  note?: string;
+  productDescriptionAdhoc?: string;
+  productId?: string;
+  productNameAdhoc?: string;
+  quantity?: number;
+  quoteId?: string;
+  splitRates?: QuoteSplitRate[];
+  status?: QuoteDetailStatus;
+  subtotal?: number;
+  total?: number;
+  totalLineCommission?: number;
+  unitPrice?: string;
+}
+
+export interface QuoteInsideRep {
+  id: string;
+  createdAt?: string;
+  position?: number;
+  quoteId?: string;
+  splitRate?: string;
+  userId?: string;
+}
+
+export interface Quote {
+  id: string;
+  acceptDate?: string;
+  balance?: QuoteBalance;
+  balanceId?: string;
+  billToCustomer?: QuoteCustomer;
+  billToCustomerId?: string;
+  blanket?: boolean;
+  createdAt?: string;
+  createdBy?: QuoteCreatedBy;
+  createdById?: string;
+  creationType?: QuoteCreationType;
+  customerRef?: string;
+  details?: QuoteDetail[];
+  duplicatedFrom?: string;
+  entityDate?: string;
+  expDate?: string;
+  freightTerms?: string;
+  insideReps?: QuoteInsideRep[];
+  paymentTerms?: string;
+  pipelineStage?: QuotePipelineStage;
+  published?: boolean;
+  quoteNumber: string;
+  reviseDate?: string;
+  soldToCustomer?: QuoteCustomer;
+  soldToCustomerId?: string;
+  status?: QuoteStatus;
+  url?: string;
+  versionOf?: string;
+}
+
+export interface QuoteLandingPage {
+  id: string;
+  createdAt?: string;
+  createdBy?: string;
+  entityDate?: string;
+  expDate?: string;
+  pipelineStage?: QuotePipelineStage;
+  published?: boolean;
+  quoteNumber: string;
+  status?: QuoteStatus;
+  total?: number;
+  userIds?: string[];
+}
+
+// Input Types
+export interface QuoteSplitRateInput {
+  id?: string;
+  userId: string;
+  splitRate: string;
+  position?: number;
+}
+
+export interface QuoteDetailInput {
+  id?: string;
+  quantity: number;
+  unitPrice: string;
+  commissionDiscountRate?: string;
+  commissionRate?: string;
+  discountRate?: string;
+  endUserId?: string;
+  factoryId?: string;
+  itemNumber?: number;
+  leadTime?: string;
+  note?: string;
+  productDescriptionAdhoc?: string;
+  productNameAdhoc?: string;
+  productId?: string;
+  splitRates?: QuoteSplitRateInput[];
+  status?: QuoteDetailStatus;
+}
+
+export interface CreateQuoteInput {
+  quoteNumber: string;
+  entityDate: string;
+  soldToCustomerId: string;
+  status?: QuoteStatus;
+  pipelineStage?: QuotePipelineStage;
+  details?: QuoteDetailInput[];
+  published?: boolean;
+  creationType?: QuoteCreationType;
+  blanket?: boolean;
+  acceptDate?: string;
+  billToCustomerId?: string;
+  customerRef?: string;
+  expDate?: string;
+  freightTerms?: string;
+  id?: string;
+  insideReps?: QuoteSplitRateInput[];
+  paymentTerms?: string;
+  reviseDate?: string;
+}
+
+export interface UpdateQuoteInput extends CreateQuoteInput {}
+
+// Filter and Pagination Types
+export interface QuoteLandingPageFilter {
+  operator: string;
+  columnName: string;
+  value?: string;
+  values?: string[];
+}
+
+export interface QuoteLandingPageOrderBy {
+  columnName: string;
+  direction: 'ASC' | 'DESC';
+}
+
+export interface PaginationParams {
+  limit?: number;
+  offset?: number;
+}
+
+export interface PaginatedQuotesResult {
+  records: QuoteLandingPage[];
+  total: number;
+}
+
+// ============================================================================
+// GraphQL Queries
+// ============================================================================
+
+const QUOTE_LANDING_PAGES = `
+  query QuoteLandingPages($filters: [Filter!], $limit: Int, $offset: Int, $orderBy: [OrderBy!]) {
+    findLandingPages(
+      sourceType: QUOTES
+      filters: $filters
+      limit: $limit
+      offset: $offset
+      orderBy: $orderBy
+    ) {
+      records {
+        ... on QuoteLandingPage {
+          id
+          createdAt
+          createdBy
+          entityDate
+          expDate
+          pipelineStage
+          published
+          quoteNumber
+          status
+          total
+          userIds
+        }
+      }
+      total
+    }
+  }
+`;
+
+const FIND_QUOTE_BY_ID = `
+  query FindQuoteById($id: UUID!) {
+    findQuoteById(id: $id) {
+      id
+      acceptDate
+      balance {
+        id
+        commission
+        commissionDiscount
+        commissionDiscountRate
+        commissionRate
+        discount
+        discountRate
+        quantity
+        subtotal
+        total
+      }
+      balanceId
+      billToCustomer {
+        id
+        companyName
+        isParent
+        parentId
+        published
+      }
+      billToCustomerId
+      blanket
+      createdAt
+      createdBy {
+        id
+        authProviderId
+        email
+        enabled
+        firstName
+        fullName
+        inside
+        lastName
+        outside
+        role
+        username
+      }
+      createdById
+      creationType
+      customerRef
+      details {
+        id
+        commission
+        commissionDiscount
+        commissionDiscountRate
+        commissionRate
+        discount
+        discountRate
+        endUserId
+        factoryId
+        itemNumber
+        leadTime
+        note
+        productDescriptionAdhoc
+        productId
+        productNameAdhoc
+        quantity
+        quoteId
+        splitRates {
+          id
+          createdAt
+          position
+          quoteDetailId
+          splitRate
+          userId
+        }
+        status
+        subtotal
+        total
+        totalLineCommission
+        unitPrice
+      }
+      duplicatedFrom
+      entityDate
+      expDate
+      freightTerms
+      insideReps {
+        id
+        createdAt
+        position
+        quoteId
+        splitRate
+        userId
+      }
+      paymentTerms
+      pipelineStage
+      published
+      quoteNumber
+      reviseDate
+      soldToCustomer {
+        id
+        companyName
+        isParent
+        parentId
+        published
+      }
+      soldToCustomerId
+      status
+      url
+      versionOf
+    }
+  }
+`;
+
+// ============================================================================
+// GraphQL Mutations
+// ============================================================================
+
+const CREATE_QUOTE = `
+  mutation CreateQuote($input: QuoteInput!) {
+    createQuote(input: $input) {
+      id
+      acceptDate
+      balance {
+        id
+        commission
+        commissionDiscount
+        commissionDiscountRate
+        commissionRate
+        discount
+        discountRate
+        quantity
+        subtotal
+        total
+      }
+      balanceId
+      billToCustomer {
+        id
+        companyName
+        isParent
+        parentId
+        published
+      }
+      billToCustomerId
+      blanket
+      createdAt
+      createdBy {
+        id
+        authProviderId
+        email
+        enabled
+        firstName
+        fullName
+        inside
+        lastName
+        outside
+        role
+        username
+      }
+      createdById
+      creationType
+      customerRef
+      details {
+        id
+        commission
+        commissionDiscount
+        commissionDiscountRate
+        commissionRate
+        discount
+        discountRate
+        endUserId
+        factoryId
+        itemNumber
+        leadTime
+        note
+        productDescriptionAdhoc
+        productId
+        productNameAdhoc
+        quantity
+        quoteId
+        splitRates {
+          id
+          createdAt
+          position
+          quoteDetailId
+          splitRate
+          userId
+        }
+        status
+        subtotal
+        total
+        totalLineCommission
+        unitPrice
+      }
+      duplicatedFrom
+      entityDate
+      expDate
+      freightTerms
+      insideReps {
+        id
+        createdAt
+        position
+        quoteId
+        splitRate
+        userId
+      }
+      paymentTerms
+      pipelineStage
+      published
+      quoteNumber
+      reviseDate
+      soldToCustomer {
+        id
+        companyName
+        isParent
+        parentId
+        published
+      }
+      soldToCustomerId
+      status
+      url
+      versionOf
+    }
+  }
+`;
+
+const UPDATE_QUOTE = `
+  mutation UpdateQuote($input: QuoteInput!) {
+    updateQuote(input: $input) {
+      id
+      acceptDate
+      balance {
+        id
+        commission
+        commissionDiscount
+        commissionDiscountRate
+        commissionRate
+        discount
+        discountRate
+        quantity
+        subtotal
+        total
+      }
+      balanceId
+      billToCustomer {
+        id
+        companyName
+        isParent
+        parentId
+        published
+      }
+      billToCustomerId
+      blanket
+      createdAt
+      createdBy {
+        id
+        authProviderId
+        email
+        enabled
+        firstName
+        fullName
+        inside
+        lastName
+        outside
+        role
+        username
+      }
+      createdById
+      creationType
+      customerRef
+      details {
+        id
+        commission
+        commissionDiscount
+        commissionDiscountRate
+        commissionRate
+        discount
+        discountRate
+        endUserId
+        factoryId
+        itemNumber
+        leadTime
+        note
+        productDescriptionAdhoc
+        productId
+        productNameAdhoc
+        quantity
+        quoteId
+        splitRates {
+          id
+          createdAt
+          position
+          quoteDetailId
+          splitRate
+          userId
+        }
+        status
+        subtotal
+        total
+        totalLineCommission
+        unitPrice
+      }
+      duplicatedFrom
+      entityDate
+      expDate
+      freightTerms
+      insideReps {
+        id
+        createdAt
+        position
+        quoteId
+        splitRate
+        userId
+      }
+      paymentTerms
+      pipelineStage
+      published
+      quoteNumber
+      reviseDate
+      soldToCustomer {
+        id
+        companyName
+        isParent
+        parentId
+        published
+      }
+      soldToCustomerId
+      status
+      url
+      versionOf
+    }
+  }
+`;
+
+const DUPLICATE_QUOTE = `
+  mutation DuplicateQuote($sourceQuoteId: UUID!, $newQuoteNumber: String!) {
+    duplicateQuote(sourceQuoteId: $sourceQuoteId, newQuoteNumber: $newQuoteNumber) {
+      id
+      quoteNumber
+      status
+      pipelineStage
+      soldToCustomerId
+      soldToCustomer {
+        id
+        companyName
+      }
+      createdAt
+      entityDate
+      expDate
+      total: balance {
+        total
+      }
+    }
+  }
+`;
+
+const DELETE_QUOTE = `
+  mutation DeleteQuote($id: UUID!) {
+    deleteQuote(id: $id)
+  }
+`;
+
+const CREATE_QUOTE_FROM_PRE_OPPORTUNITY = `
+  mutation CreateQuoteFromPreOpportunity($preOpportunityId: UUID!, $quoteNumber: String!) {
+    createQuoteFromPreOpportunity(preOpportunityId: $preOpportunityId, quoteNumber: $quoteNumber) {
+      id
+      acceptDate
+      balance {
+        id
+        commission
+        commissionDiscount
+        commissionDiscountRate
+        commissionRate
+        discount
+        discountRate
+        quantity
+        subtotal
+        total
+      }
+      balanceId
+      billToCustomer {
+        id
+        companyName
+        isParent
+        parentId
+        published
+      }
+      billToCustomerId
+      blanket
+      createdAt
+      createdBy {
+        id
+        authProviderId
+        email
+        enabled
+        firstName
+        fullName
+        inside
+        lastName
+        outside
+        role
+        username
+      }
+      createdById
+      creationType
+      customerRef
+      details {
+        id
+        commission
+        commissionDiscount
+        commissionDiscountRate
+        commissionRate
+        discount
+        discountRate
+        endUserId
+        factoryId
+        itemNumber
+        leadTime
+        note
+        productDescriptionAdhoc
+        productId
+        productNameAdhoc
+        quantity
+        quoteId
+        splitRates {
+          id
+          createdAt
+          position
+          quoteDetailId
+          splitRate
+          userId
+        }
+        status
+        subtotal
+        total
+        totalLineCommission
+        unitPrice
+      }
+      duplicatedFrom
+      entityDate
+      expDate
+      freightTerms
+      insideReps {
+        id
+        createdAt
+        position
+        quoteId
+        splitRate
+        userId
+      }
+      paymentTerms
+      pipelineStage
+      published
+      quoteNumber
+      reviseDate
+      soldToCustomer {
+        id
+        companyName
+        isParent
+        parentId
+        published
+      }
+      soldToCustomerId
+      status
+      url
+      versionOf
+    }
+  }
+`;
+
+// ============================================================================
+// Customer Search Query (for dropdowns)
+// ============================================================================
+
+const CUSTOMER_SEARCH = `
+  query CustomerSearch($searchTerm: String!, $published: Boolean) {
+    customerSearch(searchTerm: $searchTerm, published: $published) {
+      id
+      companyName
+      isParent
+      parentId
+      published
+    }
+  }
+`;
+
+// ============================================================================
+// Product Search Query (for line items)
+// ============================================================================
+
+const PRODUCT_SEARCH = `
+  query ProductSearch($searchTerm: String!, $factoryId: UUID, $limit: Int) {
+    productSearch(searchTerm: $searchTerm, factoryId: $factoryId, limit: $limit) {
+      id
+      factoryPartNumber
+      description
+      unitPrice
+      defaultCommissionRate
+      approvalNeeded
+      published
+      category {
+        id
+        title
+      }
+      factory {
+        id
+        title
+      }
+    }
+  }
+`;
+
+// ============================================================================
+// Factory Search Query (for line items)
+// ============================================================================
+
+const FACTORY_SEARCH = `
+  query FactorySearch($searchTerm: String!, $published: Boolean) {
+    factorySearch(searchTerm: $searchTerm, published: $published) {
+      id
+      title
+      accountNumber
+      published
+    }
+  }
+`;
+
+// ============================================================================
+// User Search Query (for inside reps and split rates)
+// ============================================================================
+
+const USER_SEARCH = `
+  query UserSearch($searchTerm: String!, $isInside: Boolean, $isOutside: Boolean, $enabled: Boolean, $limit: Int) {
+    userSearch(
+      searchTerm: $searchTerm
+      isInside: $isInside
+      isOutside: $isOutside
+      enabled: $enabled
+      limit: $limit
+    ) {
+      id
+      authProviderId
+      email
+      enabled
+      firstName
+      fullName
+      inside
+      lastName
+      outside
+      role
+      username
+    }
+  }
+`;
+
+// ============================================================================
+// API Types for Search Results
+// ============================================================================
+
+export interface CustomerSearchResult {
+  id: string;
+  companyName: string;
+  isParent: boolean;
+  parentId?: string;
+  published: boolean;
+}
+
+export interface ProductSearchResult {
+  id: string;
+  factoryPartNumber: string;
+  description?: string;
+  unitPrice?: number;
+  defaultCommissionRate?: number;
+  approvalNeeded: boolean;
+  published: boolean;
+  category?: { id: string; title: string };
+  factory?: { id: string; title: string };
+}
+
+export interface FactorySearchResult {
+  id: string;
+  title: string;
+  accountNumber?: string;
+  published?: boolean;
+}
+
+export interface UserSearchResult {
+  id: string;
+  authProviderId?: string;
+  email?: string;
+  enabled?: boolean;
+  firstName?: string;
+  fullName?: string;
+  inside?: boolean;
+  lastName?: string;
+  outside?: boolean;
+  role?: string;
+  username?: string;
+}
+
+// ============================================================================
+// API Functions - Quotes
+// ============================================================================
+
+/**
+ * Fetch quotes using findLandingPages endpoint with pagination
+ */
+export async function fetchQuotesWithPagination(
+  filters?: QuoteLandingPageFilter[],
+  orderBy?: QuoteLandingPageOrderBy[],
+  pagination?: PaginationParams
+): Promise<PaginatedQuotesResult> {
+  const response = await crmGraphQLRequest<{
+    findLandingPages: { records: QuoteLandingPage[]; total: number };
+  }>({
+    query: QUOTE_LANDING_PAGES,
+    variables: {
+      filters,
+      orderBy,
+      limit: pagination?.limit ?? 50,
+      offset: pagination?.offset ?? 0,
+    },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch quotes');
+  }
+
+  return {
+    records: response.data?.findLandingPages?.records || [],
+    total: response.data?.findLandingPages?.total || 0,
+  };
+}
+
+/**
+ * Fetch all quotes (no pagination)
+ */
+export async function fetchQuotes(): Promise<QuoteLandingPage[]> {
+  const result = await fetchQuotesWithPagination();
+  return result.records;
+}
+
+/**
+ * Fetch a single quote by ID
+ */
+export async function fetchQuoteById(id: string): Promise<Quote | null> {
+  const response = await crmGraphQLRequest<{ findQuoteById: Quote }>({
+    query: FIND_QUOTE_BY_ID,
+    variables: { id },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch quote');
+  }
+
+  return response.data?.findQuoteById || null;
+}
+
+/**
+ * Create a new quote
+ */
+export async function createQuote(input: CreateQuoteInput): Promise<Quote> {
+  const response = await crmGraphQLRequest<{ createQuote: Quote }>({
+    query: CREATE_QUOTE,
+    variables: { input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to create quote');
+  }
+
+  if (!response.data?.createQuote) {
+    throw new Error('No quote returned from create mutation');
+  }
+
+  return response.data.createQuote;
+}
+
+/**
+ * Update an existing quote
+ */
+export async function updateQuote(input: UpdateQuoteInput): Promise<Quote> {
+  const response = await crmGraphQLRequest<{ updateQuote: Quote }>({
+    query: UPDATE_QUOTE,
+    variables: { input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to update quote');
+  }
+
+  if (!response.data?.updateQuote) {
+    throw new Error('No quote returned from update mutation');
+  }
+
+  return response.data.updateQuote;
+}
+
+/**
+ * Duplicate a quote
+ */
+export async function duplicateQuote(sourceQuoteId: string, newQuoteNumber: string): Promise<Quote> {
+  const response = await crmGraphQLRequest<{ duplicateQuote: Quote }>({
+    query: DUPLICATE_QUOTE,
+    variables: { sourceQuoteId, newQuoteNumber },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to duplicate quote');
+  }
+
+  if (!response.data?.duplicateQuote) {
+    throw new Error('No quote returned from duplicate mutation');
+  }
+
+  return response.data.duplicateQuote;
+}
+
+/**
+ * Delete a quote
+ */
+export async function deleteQuote(id: string): Promise<boolean> {
+  const response = await crmGraphQLRequest<{ deleteQuote: string }>({
+    query: DELETE_QUOTE,
+    variables: { id },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to delete quote');
+  }
+
+  return true;
+}
+
+/**
+ * Create a quote from a pre-opportunity
+ */
+export async function createQuoteFromPreOpportunity(
+  preOpportunityId: string,
+  quoteNumber: string
+): Promise<Quote> {
+  const response = await crmGraphQLRequest<{ createQuoteFromPreOpportunity: Quote }>({
+    query: CREATE_QUOTE_FROM_PRE_OPPORTUNITY,
+    variables: { preOpportunityId, quoteNumber },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to create quote from pre-opportunity');
+  }
+
+  if (!response.data?.createQuoteFromPreOpportunity) {
+    throw new Error('No quote returned from createQuoteFromPreOpportunity mutation');
+  }
+
+  return response.data.createQuoteFromPreOpportunity;
+}
+
+// ============================================================================
+// API Functions - Search (for dropdowns)
+// ============================================================================
+
+/**
+ * Search customers for dropdowns
+ */
+export async function searchCustomers(searchTerm: string, published?: boolean): Promise<CustomerSearchResult[]> {
+  const response = await crmGraphQLRequest<{ customerSearch: CustomerSearchResult[] }>({
+    query: CUSTOMER_SEARCH,
+    variables: { searchTerm, published },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search customers');
+  }
+
+  return response.data?.customerSearch || [];
+}
+
+/**
+ * Search products for line items
+ */
+export async function searchProducts(
+  searchTerm: string,
+  factoryId?: string,
+  limit?: number
+): Promise<ProductSearchResult[]> {
+  const response = await crmGraphQLRequest<{ productSearch: ProductSearchResult[] }>({
+    query: PRODUCT_SEARCH,
+    variables: { searchTerm, factoryId, limit: limit ?? 50 },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search products');
+  }
+
+  return response.data?.productSearch || [];
+}
+
+/**
+ * Search factories for line items
+ */
+export async function searchFactories(searchTerm: string, published?: boolean): Promise<FactorySearchResult[]> {
+  const response = await crmGraphQLRequest<{ factorySearch: FactorySearchResult[] }>({
+    query: FACTORY_SEARCH,
+    variables: { searchTerm, published },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search factories');
+  }
+
+  return response.data?.factorySearch || [];
+}
+
+/**
+ * Search users for inside reps and split rates
+ */
+export async function searchUsers(params: {
+  searchTerm: string;
+  isInside?: boolean;
+  isOutside?: boolean;
+  enabled?: boolean;
+  limit?: number;
+}): Promise<UserSearchResult[]> {
+  const response = await crmGraphQLRequest<{ userSearch: UserSearchResult[] }>({
+    query: USER_SEARCH,
+    variables: {
+      searchTerm: params.searchTerm,
+      isInside: params.isInside,
+      isOutside: params.isOutside,
+      enabled: params.enabled,
+      limit: params.limit ?? 10,
+    },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search users');
+  }
+
+  return response.data?.userSearch || [];
+}

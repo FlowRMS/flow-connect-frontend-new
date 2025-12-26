@@ -11,6 +11,7 @@ import { PreOpportunitySummary } from './PreOpportunitySummary';
 import ConnectedTasksSection from '../../tasks/ConnectedTasksSection';
 import ConnectedNotesSection from '../../notes/ConnectedNotesSection';
 import { AddLinkModal } from '../modals/AddLinkModal';
+import { CreateQuoteFromPreOppModal } from '../modals/CreateQuoteFromPreOppModal';
 import type { PreOpportunity, PreOpportunityDetailInput } from '../types';
 
 interface PreOpportunityDetailViewProps {
@@ -47,6 +48,7 @@ export function PreOpportunityDetailView({
   const [addLinkEntityType, setAddLinkEntityType] = useState<'TASK' | 'NOTE'>('TASK');
   const [tasksSectionKey, setTasksSectionKey] = useState(0);
   const [notesSectionKey, setNotesSectionKey] = useState(0);
+  const [showCreateQuoteModal, setShowCreateQuoteModal] = useState(false);
 
   // Handle link success - trigger refetch via key change
   const handleLinkSuccess = () => {
@@ -75,6 +77,7 @@ export function PreOpportunityDetailView({
         onSave={onSave}
         onCancel={onCancel}
         onDelete={onDelete}
+        onCreateQuote={() => setShowCreateQuoteModal(true)}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
@@ -126,6 +129,14 @@ export function PreOpportunityDetailView({
         initialEntityType={addLinkEntityType}
         onClose={() => setShowAddLinkModal(false)}
         onSuccess={handleLinkSuccess}
+      />
+
+      {/* Create Quote Modal */}
+      <CreateQuoteFromPreOppModal
+        isOpen={showCreateQuoteModal}
+        preOpportunityId={preOpp.id}
+        preOpportunityNumber={preOpp.entityNumber}
+        onClose={() => setShowCreateQuoteModal(false)}
       />
     </main>
   );

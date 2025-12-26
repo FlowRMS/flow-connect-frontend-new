@@ -253,8 +253,12 @@ export interface PreOpportunityBalance {
 
 export interface PreOpportunityProduct {
   id: string;
-  factoryId: string;
   factoryPartNumber: string;
+  description?: string;
+  unitPrice?: number;
+  defaultCommissionRate?: number;
+  approvalNeeded?: boolean;
+  published?: boolean;
 }
 
 // Job Search Result for Pre-Opportunity
@@ -403,8 +407,11 @@ export interface UpdatePreOpportunityInput {
 
 export interface ProductSearchResult {
   id: string;
-  factoryId: string;
   factoryPartNumber: string;
+  factory: {
+    id: string;
+    title: string;
+  };
 }
 
 export interface FactorySearchResult {
@@ -1094,8 +1101,12 @@ const GET_PRE_OPPORTUNITY = `
         productCpnId
         product {
           id
-          factoryId
           factoryPartNumber
+          description
+          unitPrice
+          defaultCommissionRate
+          approvalNeeded
+          published
         }
         quantity
         unitPrice
@@ -1152,8 +1163,12 @@ const GET_PRE_OPPORTUNITIES_BY_JOB = `
         productCpnId
         product {
           id
-          factoryId
           factoryPartNumber
+          description
+          unitPrice
+          defaultCommissionRate
+          approvalNeeded
+          published
         }
         quantity
         unitPrice
@@ -1203,8 +1218,12 @@ const GET_PRE_OPPORTUNITIES_BY_CUSTOMER = `
         productCpnId
         product {
           id
-          factoryId
           factoryPartNumber
+          description
+          unitPrice
+          defaultCommissionRate
+          approvalNeeded
+          published
         }
         quantity
         unitPrice
@@ -1224,8 +1243,11 @@ const SEARCH_PRODUCTS = `
   query SearchProducts($searchTerm: String!, $factoryId: UUID) {
     productSearch(searchTerm: $searchTerm, factoryId: $factoryId) {
       id
-      factoryId
       factoryPartNumber
+      factory {
+        id
+        title
+      }
     }
   }
 `;
@@ -1337,8 +1359,12 @@ const CREATE_PRE_OPPORTUNITY = `
         productCpnId
         product {
           id
-          factoryId
           factoryPartNumber
+          description
+          unitPrice
+          defaultCommissionRate
+          approvalNeeded
+          published
         }
         quantity
         unitPrice
@@ -1419,8 +1445,12 @@ const UPDATE_PRE_OPPORTUNITY = `
         productCpnId
         product {
           id
-          factoryId
           factoryPartNumber
+          description
+          unitPrice
+          defaultCommissionRate
+          approvalNeeded
+          published
         }
         quantity
         unitPrice
@@ -1519,7 +1549,24 @@ export async function crmGraphQLRequest<T = unknown>(
     throw new Error(`CRM API request failed: ${response.status} ${response.statusText}`);
   }
 
-  return await response.json();
+  const result = await response.json() as GraphQLResponse<T>;
+
+  // Check for signature expired error in GraphQL response
+  if (result.errors?.some(error =>
+    error.message?.toLowerCase().includes('signature has expired') ||
+    error.message?.toLowerCase().includes('unauthorized')
+  )) {
+    // Clear the cached token
+    clearTokenCache();
+
+    // Redirect to sign-in page
+    if (typeof window !== 'undefined') {
+      window.location.href = '/sign-in';
+    }
+    throw new Error('Session expired. Redirecting to sign-in...');
+  }
+
+  return result;
 }
 
 // ============================================================================

@@ -20,8 +20,12 @@ export interface PreOpportunityBalance {
 
 export interface PreOpportunityProduct {
   id: string;
-  factoryId: string;
   factoryPartNumber: string;
+  description?: string;
+  unitPrice?: number;
+  defaultCommissionRate?: number;
+  approvalNeeded?: boolean;
+  published?: boolean;
 }
 
 export interface PreOpportunityDetail {
@@ -136,8 +140,11 @@ export interface UpdatePreOpportunityInput {
 
 export interface ProductSearchResult {
   id: string;
-  factoryId: string;
   factoryPartNumber: string;
+  factory: {
+    id: string;
+    title: string;
+  };
 }
 
 export interface FactorySearchResult {

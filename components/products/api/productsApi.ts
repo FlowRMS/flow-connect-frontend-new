@@ -366,8 +366,7 @@ const CREATE_PRODUCT = `
         id
         title
         description
-        multiply
-        multiplyBy
+        divisionFactor
       }
       factory {
         id
@@ -397,8 +396,7 @@ const UPDATE_PRODUCT = `
         id
         title
         description
-        multiply
-        multiplyBy
+        divisionFactor
       }
       factory {
         id
