@@ -9,7 +9,8 @@
       "Bash(npm ls:*)",
       "Bash(npm install:*)",
       "Bash(cat:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(dir:*)"
     ],
     "deny": [],
     "ask": []

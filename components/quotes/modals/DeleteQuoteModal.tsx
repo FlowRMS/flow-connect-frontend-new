@@ -2,16 +2,26 @@
 
 import React from 'react';
 import { toast } from 'sonner';
-import { useDeleteQuote, type QuoteLandingPage } from '../api';
+import { useDeleteQuote } from '../api';
+
+// Generic quote type that works with both QuoteLandingPage and local Quote types
+interface QuoteForDelete {
+  id: string;
+  quoteNumber?: string;
+  name?: string;
+}
 
 interface DeleteQuoteModalProps {
-  quote: QuoteLandingPage;
+  quote: QuoteForDelete;
   onClose: () => void;
   onDeleted: () => void;
 }
 
 export function DeleteQuoteModal({ quote, onClose, onDeleted }: DeleteQuoteModalProps) {
   const deleteQuoteMutation = useDeleteQuote();
+
+  // Use quoteNumber if available, otherwise use name or id
+  const displayName = quote.quoteNumber || quote.name || quote.id;
 
   const handleDelete = async () => {
     try {
@@ -60,7 +70,7 @@ export function DeleteQuoteModal({ quote, onClose, onDeleted }: DeleteQuoteModal
         <div className="p-6">
           <p className="text-[var(--foreground)]">
             Are you sure you want to delete quote{' '}
-            <span className="font-semibold">{quote.quoteNumber}</span>?
+            <span className="font-semibold">{displayName}</span>?
           </p>
           <p className="text-sm text-[var(--muted-foreground)] mt-2">
             This will permanently remove the quote and all its associated data.

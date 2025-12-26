@@ -1,0 +1,57 @@
+import type { BuilderApproval, ApprovalRequest } from '../types';
+
+export const mockBuilderApprovals: BuilderApproval[] = [
+  {
+    id: 'BA-001',
+    builderId: 'CO-005',
+    builderName: 'Turner Construction',
+    manufacturerId: 'MFR-001',
+    manufacturerName: 'Acuity Brands',
+    status: 'approved',
+    category: 'Lighting',
+    conditions: null,
+    approvedSkus: null,
+    approvedDate: '2023-06-15',
+    expirationDate: null,
+    approvedBy: 'John Smith (Procurement)',
+    documentUrl: '/docs/acuity-approval.pdf',
+    notes: 'Approved for all lighting products across all projects',
+  },
+  {
+    id: 'BA-002',
+    builderId: 'CO-005',
+    builderName: 'Turner Construction',
+    manufacturerId: 'MFR-003',
+    manufacturerName: 'Lutron',
+    status: 'conditional',
+    category: 'Controls',
+    conditions: 'Approved only for RadioRA 3 and Homeworks QSX systems',
+    approvedSkus: ['RR-3-XXX', 'HQP-XXX'],
+    approvedDate: '2024-01-10',
+    expirationDate: '2024-12-31',
+    approvedBy: 'Mike Johnson (Engineering)',
+    documentUrl: '/docs/lutron-conditional.pdf',
+    notes: 'Exception granted for smart lighting controls only',
+  },
+];
+
+export const mockApprovalRequests: ApprovalRequest[] = [
+  {
+    id: 'AR-001',
+    quoteId: 'Q-2024-001',
+    builderId: 'CO-005',
+    builderName: 'Turner Construction',
+    manufacturerId: 'MFR-003',
+    manufacturerName: 'Lutron',
+    status: 'pending',
+    requestedDate: '2024-03-18',
+    requestedBy: 'Sarah Chen',
+    skus: ['PLX-200-DIM', 'PLX-300-DIM'],
+    justification: 'Lutron dimmers provide superior daylight harvesting integration with the Acuity fixtures already approved. Lead time is 2 weeks vs 6 weeks for alternatives.',
+    attachments: ['lutron-spec-sheet.pdf', 'comparison-chart.pdf'],
+    respondedDate: null,
+    respondedBy: null,
+    responseNotes: null,
+    conditions: null,
+  },
+];
