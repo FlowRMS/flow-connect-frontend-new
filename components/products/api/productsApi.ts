@@ -10,28 +10,6 @@ import { crmGraphQLRequest } from '../../lib/crm-graphql';
 // Types
 // ============================================================================
 
-export interface User {
-  id: string;
-  authProviderId?: string;
-  email?: string;
-  enabled?: boolean;
-  firstName?: string;
-  fullName?: string;
-  inside?: boolean;
-  lastName?: string;
-  outside?: boolean;
-  role?: string;
-  username?: string;
-}
-
-export interface SplitRate {
-  id: string;
-  factoryId: string;
-  position: number;
-  splitRate: string;
-  user?: User;
-}
-
 export interface ProductCategory {
   id: string;
   title: string;
@@ -53,7 +31,6 @@ export interface Factory {
   additionalInformation?: string;
   baseCommissionRate?: number;
   commissionDiscountRate?: number;
-  createdBy?: User;
   email?: string;
   externalPaymentTerms?: string;
   freightDiscountType?: string;
@@ -64,7 +41,6 @@ export interface Factory {
   paymentTerms?: string;
   phone?: string;
   published?: boolean;
-  splitRates?: SplitRate[];
 }
 
 export interface Product {
@@ -246,21 +222,8 @@ const FIND_PRODUCT_BY_ID = `
         additionalInformation
         baseCommissionRate
         commissionDiscountRate
-        createdBy {
-          authProviderId
-          enabled
-          email
-          firstName
-          fullName
-          id
-          inside
-          lastName
-          outside
-          role
-          username
-        }
-        email
         externalPaymentTerms
+        email
         freightDiscountType
         freightTerms
         id
@@ -270,25 +233,6 @@ const FIND_PRODUCT_BY_ID = `
         paymentTerms
         phone
         published
-        splitRates {
-          factoryId
-          id
-          position
-          splitRate
-          user {
-            authProviderId
-            email
-            enabled
-            firstName
-            fullName
-            id
-            inside
-            lastName
-            outside
-            role
-            username
-          }
-        }
         title
       }
       factoryPartNumber
@@ -296,10 +240,10 @@ const FIND_PRODUCT_BY_ID = `
       published
       unitPrice
       uom {
-        id
-        title
         description
         divisionFactor
+        id
+        title
       }
     }
   }

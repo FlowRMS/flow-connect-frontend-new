@@ -1392,29 +1392,6 @@ export default function ProductEditPage() {
                 </div>
               </div>
 
-              {/* Split Rates */}
-              {formData.factory.splitRates && formData.factory.splitRates.length > 0 && (
-                <div className="mt-6 pt-6 border-t border-gray-200">
-                  <h4 className="text-sm font-medium text-gray-900 mb-4">Split Rates</h4>
-                  <div className="bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
-                    <div className="grid grid-cols-4 gap-4 px-4 py-2 bg-gray-100 border-b border-gray-200">
-                      <div className="text-xs font-medium text-gray-500 uppercase">Position</div>
-                      <div className="text-xs font-medium text-gray-500 uppercase">User</div>
-                      <div className="text-xs font-medium text-gray-500 uppercase">Email</div>
-                      <div className="text-xs font-medium text-gray-500 uppercase">Split Rate</div>
-                    </div>
-                    {formData.factory.splitRates.map((splitRate, index) => (
-                      <div key={splitRate.id} className={`grid grid-cols-4 gap-4 px-4 py-3 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                        <div className="text-sm text-gray-900">{splitRate.position}</div>
-                        <div className="text-sm text-gray-900">{splitRate.user?.fullName || '-'}</div>
-                        <div className="text-sm text-gray-500">{splitRate.user?.email || '-'}</div>
-                        <div className="text-sm font-medium text-gray-900">{splitRate.splitRate}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {/* Additional Information */}
               {formData.factory.additionalInformation && (
                 <div className="mt-6 pt-6 border-t border-gray-200">

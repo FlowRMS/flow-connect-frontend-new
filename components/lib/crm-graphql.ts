@@ -527,8 +527,6 @@ export interface FactoryLandingPage {
   paymentTerms?: number;
   leadTime?: number;
   freightDiscountType?: string;
-  splitRates?: string;
-  createdBy?: string;
   createdAt?: string;
 }
 
@@ -3567,8 +3565,6 @@ const FIND_ALL_LANDING_PAGES = `
           paymentTerms
           leadTime
           freightDiscountType
-          splitRates
-          createdBy
           createdAt
         }
       }

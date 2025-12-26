@@ -6,6 +6,7 @@
 'use client';
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import AdvancedFilters from '../AdvancedFilters';
 import SortButton from '../SortButton';
 import { useCustomersState } from './hooks/useCustomersState';
@@ -13,12 +14,10 @@ import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import { getCustomerFilterOptions, getCustomerSortOptions } from './config/filterConfig';
 import { ListView } from './views/ListView';
 import { GridView } from './views/GridView';
-import { CreateCustomerModal } from './modals/CreateCustomerModal';
-import { EditCustomerModal } from './modals/EditCustomerModal';
 import { DeleteCustomerModal } from './modals/DeleteCustomerModal';
-import { CustomerDetailModal } from './modals/CustomerDetailModal';
 
 export default function CustomersContent() {
+  const router = useRouter();
   const {
     viewMode,
     setViewMode,
@@ -26,15 +25,7 @@ export default function CustomersContent() {
     setSearchQuery,
     selectedType,
     setSelectedType,
-    selectedCustomer,
-    setSelectedCustomer,
     filteredCustomers,
-    showCreateModal,
-    setShowCreateModal,
-    showEditModal,
-    setShowEditModal,
-    customerToEdit,
-    setCustomerToEdit,
     deleteConfirmId,
     setDeleteConfirmId,
     isLoading,
@@ -49,9 +40,18 @@ export default function CustomersContent() {
     handleFiltersChange,
     clientSortColumns,
     handleMultiSortChange,
-    handleEditCustomer,
     handleCustomerDeleted,
   } = useCustomersState();
+
+  // Navigate to customer edit page
+  const handleCustomerClick = (customer: { id: string }) => {
+    router.push(`/customers/${customer.id}/edit`);
+  };
+
+  // Navigate to customer edit page
+  const handleEditCustomer = (customer: { id: string }) => {
+    router.push(`/customers/${customer.id}/edit`);
+  };
 
   // Infinite scroll trigger
   const { loadMoreRef } = useInfiniteScroll({
@@ -137,7 +137,7 @@ export default function CustomersContent() {
             />
 
             <button
-              onClick={() => setShowCreateModal(true)}
+              onClick={() => router.push('/customers/new')}
               className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-xs sm:text-sm hover:bg-[var(--primary-hover)] transition-colors"
             >
               <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-4 sm:h-4">
@@ -200,7 +200,7 @@ export default function CustomersContent() {
       {isMounted && !isLoading && !error && viewMode === 'grid' && (
         <GridView
           customers={filteredCustomers}
-          onCustomerClick={setSelectedCustomer}
+          onCustomerClick={handleCustomerClick}
           onEditClick={handleEditCustomer}
           onDeleteClick={(customer) => setDeleteConfirmId(customer.id)}
         />
@@ -209,7 +209,7 @@ export default function CustomersContent() {
       {isMounted && !isLoading && !error && viewMode === 'list' && (
         <ListView
           customers={filteredCustomers}
-          onCustomerClick={setSelectedCustomer}
+          onCustomerClick={handleCustomerClick}
           onEditClick={handleEditCustomer}
           onDeleteClick={(customer) => setDeleteConfirmId(customer.id)}
         />
@@ -233,47 +233,13 @@ export default function CustomersContent() {
         </>
       )}
 
-      {/* Modals */}
-      <CreateCustomerModal
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        onSuccess={() => refetch()}
-      />
-
-      {customerToEdit && (
-        <EditCustomerModal
-          isOpen={showEditModal}
-          customer={customerToEdit}
-          onClose={() => {
-            setShowEditModal(false);
-            setCustomerToEdit(null);
-          }}
-          onSuccess={() => refetch()}
-        />
-      )}
-
+      {/* Delete Modal */}
       {customerToDelete && (
         <DeleteCustomerModal
           isOpen={!!deleteConfirmId}
           customer={customerToDelete}
           onClose={() => setDeleteConfirmId(null)}
           onSuccess={handleCustomerDeleted}
-        />
-      )}
-
-      {selectedCustomer && (
-        <CustomerDetailModal
-          isOpen={!!selectedCustomer}
-          customer={selectedCustomer}
-          onClose={() => setSelectedCustomer(null)}
-          onEdit={() => {
-            handleEditCustomer(selectedCustomer);
-            setSelectedCustomer(null);
-          }}
-          onDelete={() => {
-            setDeleteConfirmId(selectedCustomer.id);
-            setSelectedCustomer(null);
-          }}
         />
       )}
     </main>

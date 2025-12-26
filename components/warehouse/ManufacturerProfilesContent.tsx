@@ -7,19 +7,16 @@
 'use client';
 
 import React, { useState, useMemo, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useFactories, useDeleteFactory, type FactoryLandingPage } from './api/useFactoriesApi';
-import ManufacturerProfileModal from './ManufacturerProfileModal';
-import CreateFactoryModal from './modals/CreateFactoryModal';
 import DeleteFactoryModal from './modals/DeleteFactoryModal';
 
 type SortField = 'title' | 'accountNumber' | 'createdAt';
 type SortDirection = 'asc' | 'desc';
 
 export default function ManufacturerProfilesContent() {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedFactory, setSelectedFactory] = useState<FactoryLandingPage | null>(null);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [sortField, setSortField] = useState<SortField>('title');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -80,9 +77,8 @@ export default function ManufacturerProfilesContent() {
   }, [sortField]);
 
   const handleFactoryClick = useCallback((factory: FactoryLandingPage) => {
-    setSelectedFactory(factory);
-    setShowEditModal(true);
-  }, []);
+    router.push(`/warehouse/manufacturer-profiles/${factory.id}/edit`);
+  }, [router]);
 
   const handleDeleteFactory = useCallback(async (id: string) => {
     try {
@@ -152,7 +148,7 @@ export default function ManufacturerProfilesContent() {
             </div>
 
             <button
-              onClick={() => setShowCreateModal(true)}
+              onClick={() => router.push('/warehouse/manufacturer-profiles/new')}
               className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-xs sm:text-sm hover:bg-[var(--primary-hover)] transition-colors"
             >
               <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-4 sm:h-4">
@@ -458,7 +454,7 @@ export default function ManufacturerProfilesContent() {
               </p>
               {!searchQuery && filterPublished === 'all' && (
                 <button
-                  onClick={() => setShowCreateModal(true)}
+                  onClick={() => router.push('/warehouse/manufacturer-profiles/new')}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -480,32 +476,6 @@ export default function ManufacturerProfilesContent() {
           )}
         </div>
       )}
-
-      {/* Edit Modal */}
-      {showEditModal && selectedFactory && (
-        <ManufacturerProfileModal
-          factoryId={selectedFactory.id}
-          onClose={() => {
-            setShowEditModal(false);
-            setSelectedFactory(null);
-          }}
-          onSave={() => {
-            setShowEditModal(false);
-            setSelectedFactory(null);
-            refetch();
-          }}
-        />
-      )}
-
-      {/* Create Modal */}
-      <CreateFactoryModal
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        onSuccess={() => {
-          setShowCreateModal(false);
-          refetch();
-        }}
-      />
 
       {/* Delete Modal */}
       {factoryToDelete && (

@@ -57,13 +57,7 @@ export function useCustomersState() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<'All' | 'Parent' | 'Child'>('All');
 
-  // Selection state
-  const [selectedCustomer, setSelectedCustomer] = useState<CustomerLandingPage | null>(null);
-
-  // Modal state
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [customerToEdit, setCustomerToEdit] = useState<CustomerLandingPage | null>(null);
+  // Delete modal state (other modals replaced by dedicated pages)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Filter & sort state
@@ -140,13 +134,7 @@ export function useCustomersState() {
     setClientSortColumns(sorts);
   }, []);
 
-  const handleEditCustomer = useCallback((customer: CustomerLandingPage) => {
-    setCustomerToEdit(customer);
-    setShowEditModal(true);
-  }, []);
-
   const handleCustomerDeleted = useCallback(() => {
-    setSelectedCustomer(null);
     setDeleteConfirmId(null);
   }, []);
 
@@ -158,18 +146,10 @@ export function useCustomersState() {
     setSearchQuery,
     selectedType,
     setSelectedType,
-    selectedCustomer,
-    setSelectedCustomer,
     customers,
     filteredCustomers,
 
-    // Modal state
-    showCreateModal,
-    setShowCreateModal,
-    showEditModal,
-    setShowEditModal,
-    customerToEdit,
-    setCustomerToEdit,
+    // Delete modal state
     deleteConfirmId,
     setDeleteConfirmId,
 
@@ -194,7 +174,6 @@ export function useCustomersState() {
     handleMultiSortChange,
 
     // Handlers
-    handleEditCustomer,
     handleCustomerDeleted,
   };
 }

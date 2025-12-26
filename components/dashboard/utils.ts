@@ -427,7 +427,7 @@ function transformFactory(factory: FactoryLandingPage): Activity {
     entity: factory.title,
     entityType: 'Manufacturer',
     tags: [],
-    assignedTo: factory.createdBy || 'System',
+    assignedTo: 'System',
     mentions: [],
     status: statusLabel,
     activityStatus: factory.published ? 'completed' : 'upcoming',
