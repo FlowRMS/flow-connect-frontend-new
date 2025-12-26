@@ -51,12 +51,6 @@ export function ListView({ customers, onCustomerClick, onEditClick, onDeleteClic
                 Company Name
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-                Contact Email
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-                Contact Number
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
                 Inside Reps
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
@@ -96,16 +90,6 @@ export function ListView({ customers, onCustomerClick, onEditClick, onDeleteClic
                       </div>
                     </div>
                   </div>
-                </td>
-                <td className="px-4 py-3">
-                  <span className="text-sm text-[var(--foreground)]">
-                    {customer.contactEmail || '-'}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <span className="text-sm text-[var(--foreground)]">
-                    {customer.contactNumber || '-'}
-                  </span>
                 </td>
                 <td className="px-4 py-3">
                   {customer.insideReps ? (

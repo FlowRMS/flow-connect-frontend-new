@@ -114,9 +114,7 @@ export function useCustomersState() {
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       result = result.filter(customer =>
-        customer.companyName?.toLowerCase().includes(query) ||
-        customer.contactEmail?.toLowerCase().includes(query) ||
-        customer.contactNumber?.toLowerCase().includes(query)
+        customer.companyName?.toLowerCase().includes(query)
       );
     }
 
@@ -132,7 +130,6 @@ export function useCustomersState() {
 
   // Unique values for filter dropdowns
   const uniqueCompanyNames = useMemo(() => getUniqueValues(customers, 'companyName'), [customers]);
-  const uniqueEmails = useMemo(() => getUniqueValues(customers, 'contactEmail'), [customers]);
 
   // Handlers
   const handleFiltersChange = useCallback((filters: ActiveFilter[]) => {
@@ -193,7 +190,6 @@ export function useCustomersState() {
     clientSortColumns,
     setClientSortColumns,
     uniqueCompanyNames,
-    uniqueEmails,
     handleFiltersChange,
     handleMultiSortChange,
 

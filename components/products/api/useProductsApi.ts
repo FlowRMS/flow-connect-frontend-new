@@ -21,6 +21,9 @@ import {
   type ProductLandingPageOrderBy,
   type PaginatedProductsResult,
   type FactorySearchResult,
+  type ProductCpn,
+  type ProductCpnInput,
+  type CustomerSearchResult,
   // API Functions
   fetchProductsWithPagination,
   fetchProductById,
@@ -38,6 +41,13 @@ import {
   updateProductCategory,
   deleteProductCategory,
   searchFactories,
+  // CPN API Functions
+  fetchProductCpnById,
+  listProductCpnsByProductId,
+  createProductCpn,
+  updateProductCpn,
+  deleteProductCpn,
+  searchCustomers,
 } from './productsApi';
 
 // ============================================================================
@@ -66,6 +76,14 @@ export const productQueryKeys = {
   // Factories
   factorySearch: (searchTerm: string) =>
     [...productQueryKeys.all, 'factorySearch', { searchTerm }] as const,
+
+  // CPNs (Customer Part Numbers)
+  cpns: (productId: string) => [...productQueryKeys.all, 'cpns', productId] as const,
+  cpn: (id: string) => [...productQueryKeys.all, 'cpn', id] as const,
+
+  // Customer Search
+  customerSearch: (searchTerm: string) =>
+    [...productQueryKeys.all, 'customerSearch', { searchTerm }] as const,
 };
 
 // ============================================================================
@@ -337,6 +355,94 @@ export function useFactorySearch(searchTerm: string, enabled: boolean = true) {
   });
 }
 
+// ============================================================================
+// Product CPN (Customer Part Number) Hooks
+// ============================================================================
+
+/**
+ * Fetch a single CPN by ID
+ */
+export function useProductCpn(id: string) {
+  return useQuery<ProductCpn | null, Error>({
+    queryKey: productQueryKeys.cpn(id),
+    queryFn: () => fetchProductCpnById(id),
+    enabled: !!id,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * List all CPNs for a product
+ */
+export function useProductCpns(productId: string) {
+  return useQuery<ProductCpn[], Error>({
+    queryKey: productQueryKeys.cpns(productId),
+    queryFn: () => listProductCpnsByProductId(productId),
+    enabled: !!productId,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Create new product CPN mutation
+ */
+export function useCreateProductCpn() {
+  const queryClient = useQueryClient();
+
+  return useMutation<ProductCpn, Error, ProductCpnInput>({
+    mutationFn: createProductCpn,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: productQueryKeys.cpns(data.productId) });
+    },
+  });
+}
+
+/**
+ * Update existing product CPN mutation
+ */
+export function useUpdateProductCpn() {
+  const queryClient = useQueryClient();
+
+  return useMutation<ProductCpn, Error, { id: string; input: ProductCpnInput }>({
+    mutationFn: ({ id, input }) => updateProductCpn(id, input),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: productQueryKeys.cpns(data.productId) });
+      queryClient.invalidateQueries({ queryKey: productQueryKeys.cpn(data.id) });
+    },
+  });
+}
+
+/**
+ * Delete product CPN mutation
+ */
+export function useDeleteProductCpn() {
+  const queryClient = useQueryClient();
+
+  return useMutation<boolean, Error, { id: string; productId: string }>({
+    mutationFn: ({ id }) => deleteProductCpn(id),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: productQueryKeys.cpns(variables.productId) });
+    },
+  });
+}
+
+// ============================================================================
+// Customer Search Hook (for CPN customer selection)
+// ============================================================================
+
+/**
+ * Search customers for CPN creation
+ * When searchTerm is empty, returns initial customer list
+ */
+export function useCustomerSearch(searchTerm: string, enabled: boolean = true) {
+  return useQuery<CustomerSearchResult[], Error>({
+    queryKey: productQueryKeys.customerSearch(searchTerm || ''),
+    queryFn: () => searchCustomers(searchTerm || '', true), // Only published customers
+    enabled: enabled,
+    staleTime: 30 * 1000,
+  });
+}
+
 // Re-export types for convenience
 export type {
   Product,
@@ -354,4 +460,7 @@ export type {
   ProductLandingPageOrderBy,
   PaginatedProductsResult,
   FactorySearchResult,
+  ProductCpn,
+  ProductCpnInput,
+  CustomerSearchResult,
 };

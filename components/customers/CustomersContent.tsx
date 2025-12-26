@@ -45,7 +45,6 @@ export default function CustomersContent() {
     hasNextPage,
     isFetchingNextPage,
     uniqueCompanyNames,
-    uniqueEmails,
     activeFilters,
     handleFiltersChange,
     clientSortColumns,
@@ -62,7 +61,7 @@ export default function CustomersContent() {
   });
 
   // Filter and sort configuration
-  const customerFilterOptions = getCustomerFilterOptions(uniqueCompanyNames, uniqueEmails);
+  const customerFilterOptions = getCustomerFilterOptions(uniqueCompanyNames);
   const customerSortOptions = getCustomerSortOptions();
 
   // Find customer to delete

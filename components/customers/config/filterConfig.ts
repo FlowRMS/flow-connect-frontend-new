@@ -17,8 +17,7 @@ export interface SortOption {
 }
 
 export function getCustomerFilterOptions(
-  uniqueCompanyNames: string[],
-  uniqueEmails: string[]
+  uniqueCompanyNames: string[]
 ): FilterOption[] {
   return [
     {
@@ -27,13 +26,6 @@ export function getCustomerFilterOptions(
       label: 'Company Name',
       type: 'dropdown',
       options: uniqueCompanyNames,
-    },
-    {
-      id: 'contactEmail',
-      columnName: 'contactEmail',
-      label: 'Email',
-      type: 'dropdown',
-      options: uniqueEmails,
     },
     {
       id: 'isParent',
@@ -55,8 +47,6 @@ export function getCustomerFilterOptions(
 export function getCustomerSortOptions(): SortOption[] {
   return [
     { columnName: 'companyName', label: 'Company Name' },
-    { columnName: 'contactEmail', label: 'Email' },
-    { columnName: 'contactNumber', label: 'Phone' },
     { columnName: 'createdAt', label: 'Created Date' },
     { columnName: 'isParent', label: 'Is Parent' },
     { columnName: 'published', label: 'Published' },

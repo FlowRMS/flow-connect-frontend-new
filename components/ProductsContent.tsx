@@ -3,7 +3,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useProductsState } from './products/hooks/useProductsState';
-import { CreateProductModal } from './products/modals/CreateProductModal';
 import { DeleteProductModal } from './products/modals/DeleteProductModal';
 import { ManageCategoriesModal } from './products/modals/ManageCategoriesModal';
 import { ManageUomsModal } from './products/modals/ManageUomsModal';
@@ -287,7 +286,7 @@ export default function ProductsContent() {
                 Manage Categories
               </button>
               <button
-                onClick={() => setShowCreateModal(true)}
+                onClick={() => router.push('/products/new')}
                 className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"
               >
                 <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
@@ -392,7 +391,7 @@ export default function ProductsContent() {
                   {searchQuery ? 'Try adjusting your search or filters' : 'Get started by creating your first product'}
                 </p>
                 <button
-                  onClick={() => setShowCreateModal(true)}
+                  onClick={() => router.push('/products/new')}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"
                 >
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
@@ -605,12 +604,6 @@ export default function ProductsContent() {
       </div>
 
       {/* Modals */}
-      <CreateProductModal
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        onSuccess={() => refetch()}
-      />
-
       <DeleteProductModal
         isOpen={!!deleteConfirmId}
         product={productToDelete}

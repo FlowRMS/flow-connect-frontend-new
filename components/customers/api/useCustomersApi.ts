@@ -130,8 +130,6 @@ export function useUpdateCustomer() {
           return {
             ...customer,
             companyName: input.companyName ?? customer.companyName,
-            contactEmail: input.contactEmail ?? customer.contactEmail,
-            contactNumber: input.contactNumber ?? customer.contactNumber,
             isParent: input.isParent ?? customer.isParent,
             published: input.published ?? customer.published,
           };

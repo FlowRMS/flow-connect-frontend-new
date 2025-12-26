@@ -506,8 +506,6 @@ export interface ContactLandingPage {
 export interface CustomerLandingPage {
   id: string;
   companyName: string;
-  contactEmail?: string;
-  contactNumber?: string;
   createdAt?: string;
   createdBy?: string;
   insideReps?: string;
@@ -3538,8 +3536,6 @@ const FIND_ALL_LANDING_PAGES = `
         ... on CustomerLandingPage {
           id
           companyName
-          contactEmail
-          contactNumber
           createdAt
           createdBy
           insideReps

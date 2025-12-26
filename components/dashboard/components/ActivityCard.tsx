@@ -279,23 +279,6 @@ function ActivityMetadata({ activity }: { activity: Activity }) {
           <span className={`px-2 py-0.5 rounded ${metadata.published ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
             {metadata.published ? 'Published' : 'Draft'}
           </span>
-          {metadata.contactEmail && (
-            <span className="flex items-center gap-1 text-blue-600">
-              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M2 4l8 5 8-5"/>
-                <rect x="2" y="4" width="16" height="12" rx="1"/>
-              </svg>
-              {metadata.contactEmail}
-            </span>
-          )}
-          {metadata.contactNumber && (
-            <span className="flex items-center gap-1">
-              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M2 3a2 2 0 012-2h2.28a2 2 0 011.897 1.368l.886 2.657a2 2 0 01-.477 2.022l-.846.845a1 1 0 00-.277.883 10.065 10.065 0 005.32 5.32 1 1 0 00.883-.277l.845-.846a2 2 0 012.022-.477l2.657.886A2 2 0 0119 15.72V18a2 2 0 01-2 2h-1C7.163 20 0 12.837 0 4V3z"/>
-              </svg>
-              {metadata.contactNumber}
-            </span>
-          )}
         </div>
       );
 

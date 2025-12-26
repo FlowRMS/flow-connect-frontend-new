@@ -390,7 +390,7 @@ function transformCustomer(customer: CustomerLandingPage): Activity {
     time: formatRelativeTime(customer.createdAt || ''),
     date: formatDate(customer.createdAt || ''),
     createdAt: customer.createdAt || '',
-    description: `${typeLabel} • ${statusLabel}${customer.contactEmail ? ` • ${customer.contactEmail}` : ''}`,
+    description: `${typeLabel} • ${statusLabel}`,
     entity: customer.companyName,
     entityType: 'Customer',
     tags: customer.isParent ? ['Parent'] : [],
@@ -401,8 +401,6 @@ function transformCustomer(customer: CustomerLandingPage): Activity {
     link: `/customers?id=${customer.id}`,
     metadata: {
       companyName: customer.companyName,
-      contactEmail: customer.contactEmail,
-      contactNumber: customer.contactNumber,
       isParent: customer.isParent,
       published: customer.published,
       insideReps: customer.insideReps,

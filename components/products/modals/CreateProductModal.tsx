@@ -485,9 +485,9 @@ export function CreateProductModal({ isOpen, onClose, onSuccess }: CreateProduct
                               <div className="text-xs text-[var(--muted-foreground)] truncate">{uom.description}</div>
                             )}
                           </div>
-                          {uom.multiply && uom.multiplyBy && (
+                          {uom.divisionFactor && (
                             <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full flex-shrink-0">
-                              ×{uom.multiplyBy}
+                              ÷{uom.divisionFactor}
                             </span>
                           )}
                           {formData.productUomId === uom.id && (

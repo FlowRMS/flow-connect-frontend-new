@@ -43,8 +43,7 @@ export interface ProductUom {
   id: string;
   title: string;
   description?: string;
-  multiply: boolean;
-  multiplyBy?: number;
+  divisionFactor?: number;
 }
 
 export interface Factory {
@@ -136,7 +135,7 @@ export interface UpdateProductInput {
 
 export interface CreateProductCategoryInput {
   title: string;
-  factoryId: string;
+  factoryId?: string;
   commissionRate?: number;
   parentId?: string;
   grandparentId?: string;
@@ -144,6 +143,7 @@ export interface CreateProductCategoryInput {
 
 export interface UpdateProductCategoryInput {
   title?: string;
+  factoryId?: string;
   commissionRate?: number;
   parentId?: string;
   grandparentId?: string;
@@ -151,16 +151,55 @@ export interface UpdateProductCategoryInput {
 
 export interface CreateProductUomInput {
   title: string;
+  divisionFactor?: number;
   description?: string;
-  multiply: boolean;
-  multiplyBy?: number;
 }
 
 export interface UpdateProductUomInput {
   title?: string;
+  divisionFactor?: number;
   description?: string;
-  multiply?: boolean;
-  multiplyBy?: number;
+}
+
+// ============================================================================
+// Product CPN (Customer Part Number) Types
+// ============================================================================
+
+export interface ProductLiteResponse {
+  id: string;
+  factoryPartNumber: string;
+  description?: string;
+  unitPrice?: number;
+  defaultCommissionRate?: number;
+  approvalNeeded: boolean;
+  published: boolean;
+}
+
+export interface CustomerLiteResponse {
+  id: string;
+  companyName: string;
+  isParent: boolean;
+  parentId?: string;
+  published: boolean;
+}
+
+export interface ProductCpn {
+  id: string;
+  productId: string;
+  customerId: string;
+  customerPartNumber: string;
+  unitPrice: number;
+  commissionRate: number;
+  product?: ProductLiteResponse;
+  customer?: CustomerLiteResponse;
+}
+
+export interface ProductCpnInput {
+  productId: string;
+  customerId: string;
+  customerPartNumber: string;
+  unitPrice: string;
+  commissionRate: string;
 }
 
 // Filter and Pagination Types
@@ -257,11 +296,10 @@ const FIND_PRODUCT_BY_ID = `
       published
       unitPrice
       uom {
-        description
         id
-        multiply
-        multiplyBy
         title
+        description
+        divisionFactor
       }
     }
   }
@@ -270,11 +308,10 @@ const FIND_PRODUCT_BY_ID = `
 const PRODUCT_UOMS = `
   query ProductUoms {
     productUoms {
-      description
       id
-      multiply
-      multiplyBy
       title
+      description
+      divisionFactor
     }
   }
 `;
@@ -321,8 +358,7 @@ const PRODUCT_SEARCH = `
         id
         title
         description
-        multiply
-        multiplyBy
+        divisionFactor
       }
       factory {
         id
@@ -468,8 +504,7 @@ const CREATE_PRODUCT_UOM = `
       id
       title
       description
-      multiply
-      multiplyBy
+      divisionFactor
     }
   }
 `;
@@ -480,8 +515,7 @@ const UPDATE_PRODUCT_UOM = `
       id
       title
       description
-      multiply
-      multiplyBy
+      divisionFactor
     }
   }
 `;
@@ -489,6 +523,132 @@ const UPDATE_PRODUCT_UOM = `
 const DELETE_PRODUCT_UOM = `
   mutation DeleteProductUom($id: UUID!) {
     deleteProductUom(id: $id)
+  }
+`;
+
+// ============================================================================
+// GraphQL - Product CPN (Customer Part Numbers)
+// ============================================================================
+
+const FIND_PRODUCT_CPN_BY_ID = `
+  query FindProductCpnById($id: UUID!) {
+    findProductCpnById(id: $id) {
+      id
+      productId
+      customerId
+      customerPartNumber
+      unitPrice
+      commissionRate
+      product {
+        id
+        factoryPartNumber
+        description
+        unitPrice
+        defaultCommissionRate
+        approvalNeeded
+        published
+      }
+      customer {
+        id
+        companyName
+        isParent
+        parentId
+        published
+      }
+    }
+  }
+`;
+
+const LIST_PRODUCT_CPNS_BY_PRODUCT_ID = `
+  query ListProductCpnsByProductId($productId: UUID!) {
+    listProductCpnsByProductId(productId: $productId) {
+      id
+      productId
+      customerId
+      customerPartNumber
+      unitPrice
+      commissionRate
+      product {
+        id
+        factoryPartNumber
+        description
+        unitPrice
+        defaultCommissionRate
+        approvalNeeded
+        published
+      }
+      customer {
+        id
+        companyName
+        isParent
+        parentId
+        published
+      }
+    }
+  }
+`;
+
+const CREATE_PRODUCT_CPN = `
+  mutation CreateProductCpn($input: ProductCpnInput!) {
+    createProductCpn(input: $input) {
+      id
+      productId
+      customerId
+      customerPartNumber
+      unitPrice
+      commissionRate
+      product {
+        id
+        factoryPartNumber
+        description
+        unitPrice
+        defaultCommissionRate
+        approvalNeeded
+        published
+      }
+      customer {
+        id
+        companyName
+        isParent
+        parentId
+        published
+      }
+    }
+  }
+`;
+
+const UPDATE_PRODUCT_CPN = `
+  mutation UpdateProductCpn($id: UUID!, $input: ProductCpnInput!) {
+    updateProductCpn(id: $id, input: $input) {
+      id
+      productId
+      customerId
+      customerPartNumber
+      unitPrice
+      commissionRate
+      product {
+        id
+        factoryPartNumber
+        description
+        unitPrice
+        defaultCommissionRate
+        approvalNeeded
+        published
+      }
+      customer {
+        id
+        companyName
+        isParent
+        parentId
+        published
+      }
+    }
+  }
+`;
+
+const DELETE_PRODUCT_CPN = `
+  mutation DeleteProductCpn($id: UUID!) {
+    deleteProductCpn(id: $id)
   }
 `;
 
@@ -845,4 +1005,136 @@ export async function searchFactories(searchTerm: string, published?: boolean): 
   }
 
   return response.data?.factorySearch || [];
+}
+
+// ============================================================================
+// API Functions - Product CPN (Customer Part Numbers)
+// ============================================================================
+
+/**
+ * Fetch a single CPN by ID
+ */
+export async function fetchProductCpnById(id: string): Promise<ProductCpn | null> {
+  const response = await crmGraphQLRequest<{ findProductCpnById: ProductCpn }>({
+    query: FIND_PRODUCT_CPN_BY_ID,
+    variables: { id },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch product CPN');
+  }
+
+  return response.data?.findProductCpnById || null;
+}
+
+/**
+ * List all CPNs for a product
+ */
+export async function listProductCpnsByProductId(productId: string): Promise<ProductCpn[]> {
+  const response = await crmGraphQLRequest<{ listProductCpnsByProductId: ProductCpn[] }>({
+    query: LIST_PRODUCT_CPNS_BY_PRODUCT_ID,
+    variables: { productId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch product CPNs');
+  }
+
+  return response.data?.listProductCpnsByProductId || [];
+}
+
+/**
+ * Create a new product CPN
+ */
+export async function createProductCpn(input: ProductCpnInput): Promise<ProductCpn> {
+  const response = await crmGraphQLRequest<{ createProductCpn: ProductCpn }>({
+    query: CREATE_PRODUCT_CPN,
+    variables: { input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to create product CPN');
+  }
+
+  if (!response.data?.createProductCpn) {
+    throw new Error('No CPN returned from create mutation');
+  }
+
+  return response.data.createProductCpn;
+}
+
+/**
+ * Update an existing product CPN
+ */
+export async function updateProductCpn(id: string, input: ProductCpnInput): Promise<ProductCpn> {
+  const response = await crmGraphQLRequest<{ updateProductCpn: ProductCpn }>({
+    query: UPDATE_PRODUCT_CPN,
+    variables: { id, input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to update product CPN');
+  }
+
+  if (!response.data?.updateProductCpn) {
+    throw new Error('No CPN returned from update mutation');
+  }
+
+  return response.data.updateProductCpn;
+}
+
+/**
+ * Delete a product CPN
+ */
+export async function deleteProductCpn(id: string): Promise<boolean> {
+  const response = await crmGraphQLRequest<{ deleteProductCpn: boolean }>({
+    query: DELETE_PRODUCT_CPN,
+    variables: { id },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to delete product CPN');
+  }
+
+  return true;
+}
+
+// ============================================================================
+// API Functions - Customer Search (for CPN customer selection)
+// ============================================================================
+
+export interface CustomerSearchResult {
+  id: string;
+  companyName: string;
+  isParent: boolean;
+  parentId?: string;
+  published: boolean;
+}
+
+const SEARCH_CUSTOMERS = `
+  query CustomerSearch($searchTerm: String!, $published: Boolean) {
+    customerSearch(searchTerm: $searchTerm, published: $published) {
+      id
+      companyName
+      isParent
+      parentId
+      published
+    }
+  }
+`;
+
+/**
+ * Search customers for CPN creation
+ */
+export async function searchCustomers(searchTerm: string, published?: boolean): Promise<CustomerSearchResult[]> {
+  const response = await crmGraphQLRequest<{ customerSearch: CustomerSearchResult[] }>({
+    query: SEARCH_CUSTOMERS,
+    variables: { searchTerm, published },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search customers');
+  }
+
+  return response.data?.customerSearch || [];
 }
