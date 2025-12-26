@@ -178,6 +178,25 @@ export interface ProductCpnInput {
   commissionRate: string;
 }
 
+// ============================================================================
+// Product Quantity Pricing Types
+// ============================================================================
+
+export interface ProductQuantityPricing {
+  id: string;
+  productId: string;
+  quantityLow: number;
+  quantityHigh: number;
+  unitPrice: number;
+}
+
+export interface ProductQuantityPricingInput {
+  productId: string;
+  quantityLow: string;
+  quantityHigh: string;
+  unitPrice: string;
+}
+
 // Filter and Pagination Types
 export interface ProductLandingPageFilter {
   operator: string;
@@ -591,6 +610,64 @@ const UPDATE_PRODUCT_CPN = `
 const DELETE_PRODUCT_CPN = `
   mutation DeleteProductCpn($id: UUID!) {
     deleteProductCpn(id: $id)
+  }
+`;
+
+// ============================================================================
+// GraphQL - Product Quantity Pricing
+// ============================================================================
+
+const FIND_PRODUCT_QUANTITY_PRICING_BY_ID = `
+  query FindProductQuantityPricingById($id: UUID!) {
+    findProductQuantityPricingById(id: $id) {
+      id
+      productId
+      quantityLow
+      quantityHigh
+      unitPrice
+    }
+  }
+`;
+
+const LIST_PRODUCT_QUANTITY_PRICING_BY_PRODUCT_ID = `
+  query ListProductQuantityPricingByProductId($productId: UUID!) {
+    listProductQuantityPricingByProductId(productId: $productId) {
+      id
+      productId
+      quantityLow
+      quantityHigh
+      unitPrice
+    }
+  }
+`;
+
+const CREATE_PRODUCT_QUANTITY_PRICING = `
+  mutation CreateProductQuantityPricing($input: ProductQuantityPricingInput!) {
+    createProductQuantityPricing(input: $input) {
+      id
+      productId
+      quantityLow
+      quantityHigh
+      unitPrice
+    }
+  }
+`;
+
+const UPDATE_PRODUCT_QUANTITY_PRICING = `
+  mutation UpdateProductQuantityPricing($id: UUID!, $input: ProductQuantityPricingInput!) {
+    updateProductQuantityPricing(id: $id, input: $input) {
+      id
+      productId
+      quantityLow
+      quantityHigh
+      unitPrice
+    }
+  }
+`;
+
+const DELETE_PRODUCT_QUANTITY_PRICING = `
+  mutation DeleteProductQuantityPricing($id: UUID!) {
+    deleteProductQuantityPricing(id: $id)
   }
 `;
 
@@ -1079,4 +1156,96 @@ export async function searchCustomers(searchTerm: string, published?: boolean): 
   }
 
   return response.data?.customerSearch || [];
+}
+
+// ============================================================================
+// API Functions - Product Quantity Pricing
+// ============================================================================
+
+/**
+ * Fetch a single quantity pricing by ID
+ */
+export async function fetchProductQuantityPricingById(id: string): Promise<ProductQuantityPricing | null> {
+  const response = await crmGraphQLRequest<{ findProductQuantityPricingById: ProductQuantityPricing }>({
+    query: FIND_PRODUCT_QUANTITY_PRICING_BY_ID,
+    variables: { id },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch product quantity pricing');
+  }
+
+  return response.data?.findProductQuantityPricingById || null;
+}
+
+/**
+ * List all quantity pricing tiers for a product
+ */
+export async function listProductQuantityPricingByProductId(productId: string): Promise<ProductQuantityPricing[]> {
+  const response = await crmGraphQLRequest<{ listProductQuantityPricingByProductId: ProductQuantityPricing[] }>({
+    query: LIST_PRODUCT_QUANTITY_PRICING_BY_PRODUCT_ID,
+    variables: { productId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch product quantity pricing');
+  }
+
+  return response.data?.listProductQuantityPricingByProductId || [];
+}
+
+/**
+ * Create a new product quantity pricing tier
+ */
+export async function createProductQuantityPricing(input: ProductQuantityPricingInput): Promise<ProductQuantityPricing> {
+  const response = await crmGraphQLRequest<{ createProductQuantityPricing: ProductQuantityPricing }>({
+    query: CREATE_PRODUCT_QUANTITY_PRICING,
+    variables: { input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to create product quantity pricing');
+  }
+
+  if (!response.data?.createProductQuantityPricing) {
+    throw new Error('No quantity pricing returned from create mutation');
+  }
+
+  return response.data.createProductQuantityPricing;
+}
+
+/**
+ * Update an existing product quantity pricing tier
+ */
+export async function updateProductQuantityPricing(id: string, input: ProductQuantityPricingInput): Promise<ProductQuantityPricing> {
+  const response = await crmGraphQLRequest<{ updateProductQuantityPricing: ProductQuantityPricing }>({
+    query: UPDATE_PRODUCT_QUANTITY_PRICING,
+    variables: { id, input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to update product quantity pricing');
+  }
+
+  if (!response.data?.updateProductQuantityPricing) {
+    throw new Error('No quantity pricing returned from update mutation');
+  }
+
+  return response.data.updateProductQuantityPricing;
+}
+
+/**
+ * Delete a product quantity pricing tier
+ */
+export async function deleteProductQuantityPricing(id: string): Promise<boolean> {
+  const response = await crmGraphQLRequest<{ deleteProductQuantityPricing: boolean }>({
+    query: DELETE_PRODUCT_QUANTITY_PRICING,
+    variables: { id },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to delete product quantity pricing');
+  }
+
+  return true;
 }

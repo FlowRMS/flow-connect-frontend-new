@@ -24,6 +24,8 @@ import {
   type ProductCpn,
   type ProductCpnInput,
   type CustomerSearchResult,
+  type ProductQuantityPricing,
+  type ProductQuantityPricingInput,
   // API Functions
   fetchProductsWithPagination,
   fetchProductById,
@@ -48,6 +50,12 @@ import {
   updateProductCpn,
   deleteProductCpn,
   searchCustomers,
+  // Quantity Pricing API Functions
+  fetchProductQuantityPricingById,
+  listProductQuantityPricingByProductId,
+  createProductQuantityPricing,
+  updateProductQuantityPricing,
+  deleteProductQuantityPricing,
 } from './productsApi';
 
 // ============================================================================
@@ -84,6 +92,10 @@ export const productQueryKeys = {
   // Customer Search
   customerSearch: (searchTerm: string) =>
     [...productQueryKeys.all, 'customerSearch', { searchTerm }] as const,
+
+  // Quantity Pricing
+  quantityPricing: (productId: string) => [...productQueryKeys.all, 'quantityPricing', productId] as const,
+  quantityPricingItem: (id: string) => [...productQueryKeys.all, 'quantityPricingItem', id] as const,
 };
 
 // ============================================================================
@@ -443,6 +455,77 @@ export function useCustomerSearch(searchTerm: string, enabled: boolean = true) {
   });
 }
 
+// ============================================================================
+// Product Quantity Pricing Hooks
+// ============================================================================
+
+/**
+ * Fetch a single quantity pricing tier by ID
+ */
+export function useProductQuantityPricing(id: string) {
+  return useQuery<ProductQuantityPricing | null, Error>({
+    queryKey: productQueryKeys.quantityPricingItem(id),
+    queryFn: () => fetchProductQuantityPricingById(id),
+    enabled: !!id,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * List all quantity pricing tiers for a product
+ */
+export function useProductQuantityPricingList(productId: string) {
+  return useQuery<ProductQuantityPricing[], Error>({
+    queryKey: productQueryKeys.quantityPricing(productId),
+    queryFn: () => listProductQuantityPricingByProductId(productId),
+    enabled: !!productId,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Create new product quantity pricing tier mutation
+ */
+export function useCreateProductQuantityPricing() {
+  const queryClient = useQueryClient();
+
+  return useMutation<ProductQuantityPricing, Error, ProductQuantityPricingInput>({
+    mutationFn: createProductQuantityPricing,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: productQueryKeys.quantityPricing(data.productId) });
+    },
+  });
+}
+
+/**
+ * Update existing product quantity pricing tier mutation
+ */
+export function useUpdateProductQuantityPricing() {
+  const queryClient = useQueryClient();
+
+  return useMutation<ProductQuantityPricing, Error, { id: string; input: ProductQuantityPricingInput }>({
+    mutationFn: ({ id, input }) => updateProductQuantityPricing(id, input),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: productQueryKeys.quantityPricing(data.productId) });
+      queryClient.invalidateQueries({ queryKey: productQueryKeys.quantityPricingItem(data.id) });
+    },
+  });
+}
+
+/**
+ * Delete product quantity pricing tier mutation
+ */
+export function useDeleteProductQuantityPricing() {
+  const queryClient = useQueryClient();
+
+  return useMutation<boolean, Error, { id: string; productId: string }>({
+    mutationFn: ({ id }) => deleteProductQuantityPricing(id),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: productQueryKeys.quantityPricing(variables.productId) });
+    },
+  });
+}
+
 // Re-export types for convenience
 export type {
   Product,
@@ -463,4 +546,6 @@ export type {
   ProductCpn,
   ProductCpnInput,
   CustomerSearchResult,
+  ProductQuantityPricing,
+  ProductQuantityPricingInput,
 };
