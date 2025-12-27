@@ -1,62 +1,16 @@
 ﻿'use client';
 
-import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { createPortal } from 'react-dom';
-import { useRouter } from 'next/navigation';
-import {
-  DndContext,
-  DragEndEvent,
-  DragOverlay,
-  DragStartEvent,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  closestCorners,
-} from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import AdvancedFilters from './AdvancedFilters';
-import {
-  mockSubmittals,
-  submittalStatusLabels,
-  submittalStatusColors,
-  matchStatusLabels,
-  matchStatusColors,
-} from '../lib/data/submittals-mock';
-import type { Submittal, SubmittalItem, SubmittalConfig, SubmittalStakeholder } from '../lib/types/submittals';
-import { defaultSubmittalConfig } from '../lib/types/submittals';
-import CreateSubmittalModal, { QuoteRecipient, QuoteLineItem } from './submittals/CreateSubmittalModal';
-import PrintSubmittalDialog, { PrintSettings } from './submittals/PrintSubmittalDialog';
-import SubmittalDetailPanel from './submittals/SubmittalDetailPanel';
-import CreditModal from './CreditModal';
-import ConvertQuoteToOrderModal from './orders/ConvertQuoteToOrderModal';
-import type { Order } from '../lib/types/rms';
-import { mockOrders } from '../lib/data/rms-mock';
-import QuotePdfPreviewModal from './quotes/QuotePdfPreviewModal';
-import CreateProductModal from './quotes/CreateProductModal';
-import type { QuoteData } from '../lib/utils/generatePdfFromTemplate';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { mockSubmittals } from '../lib/data/submittals-mock';
+import type { Submittal } from '../lib/types/submittals';
 
 // Import types from quotes module
 import type {
-  Factory,
-  Rep,
-  EndUser,
   Quote,
-  OutsideRepSplit,
-  InsideRepSplit,
   LineItem,
-  QuoteFile,
   Section,
-  BuilderApproval,
-  ApprovalRequest,
-  Manufacturer,
-  PriceCategory,
-  DistributorMatrixEntry,
   DistributorQuote,
   Recipient,
-  DistributorQuoteLine,
-  CrossAuditLog,
   SavedView,
 } from './quotes/types';
 
@@ -65,19 +19,8 @@ import {
   mockQuotes,
   mockSections,
   mockLineItems,
-  mockBuilderApprovals,
   mockApprovalRequests,
   mockManufacturers,
-  mockPriceCategories,
-  mockDistributorMatrix,
-  mockQuoteFiles,
-  mockLinkedPreOpps,
-  mockLinkedOrders,
-  mockLinkedInvoices,
-  mockLinkedCommissionStatements,
-  mockLinkedContacts,
-  mockLinkedCompanies,
-  mockLinkedTags,
   mockDistributorQuotes,
   mockDistributorQuoteLines,
   mockCrossAuditLog,
@@ -88,42 +31,8 @@ import {
   initialProductCatalog,
 } from './quotes/data';
 
-// Import modal components from quotes module
-import { SubmittalConfigModal } from './quotes/modals/SubmittalConfigModal';
-import { RepSplitModal } from './quotes/modals/RepSplitModal';
-import { CommissionSplitsModal } from './quotes/modals/CommissionSplitsModal';
-import { SectionsSettingsModal } from './quotes/modals/SectionsSettingsModal';
-import { GenericRepSplitsModal } from './quotes/modals/GenericRepSplitsModal';
-import { DuplicateQuoteModal } from './quotes/modals/DuplicateQuoteModal';
-import { MarkAsLostModal } from './quotes/modals/MarkAsLostModal';
-import { SetOverageModal } from './quotes/modals/SetOverageModal';
-import { SetMinOverageModal } from './quotes/modals/SetMinOverageModal';
-import { AutoCalcOverageModal } from './quotes/modals/AutoCalcOverageModal';
-import { SetEndUserModal } from './quotes/modals/SetEndUserModal';
-import { CopyPriceModal } from './quotes/modals/CopyPriceModal';
-import { PriceLookupModal } from './quotes/modals/PriceLookupModal';
-import { SaveViewModal } from './quotes/modals/SaveViewModal';
-import { CreateOrderFromQuoteModal } from './quotes/modals/CreateOrderFromQuoteModal';
-import { ColumnsConfigModal } from './quotes/modals/ColumnsConfigModal';
-import { PdfPreviewModal } from './quotes/modals/PdfPreviewModal';
-import { EditTemplateModal } from './quotes/modals/EditTemplateModal';
-import { SendEmailModal } from './quotes/modals/SendEmailModal';
-import { MarkApprovalStatusModal } from './quotes/modals/MarkApprovalStatusModal';
-import { RevertVersionModal } from './quotes/modals/RevertVersionModal';
-import { GenerateDistributorQuotesModal } from './quotes/modals/GenerateDistributorQuotesModal';
-import { DistributorQuoteDetailModal } from './quotes/modals/DistributorQuoteDetailModal';
-import { RecipientQuoteDetailModal } from './quotes/modals/RecipientQuoteDetailModal';
-import { LineItemDetailsModal } from './quotes/modals/LineItemDetailsModal';
-import { ApprovalRequestModal } from './quotes/modals/ApprovalRequestModal';
-
 // Import UI components from quotes module
 import {
-  Sparkline,
-  WinProbabilityBadge,
-  ApprovalStatusBadge,
-  QuoteCard,
-  SortableQuoteCard,
-  LineApprovalIcon,
   QuotesListHeader,
   QuotesKanbanView,
   QuotesListView,
@@ -175,7 +84,6 @@ import {
 // ============================================
 
 export default function QuotesContent() {
-  const router = useRouter();
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [quotes, setQuotes] = useState<Quote[]>(mockQuotes);
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
@@ -226,19 +134,12 @@ export default function QuotesContent() {
     totalValue: number;
   } | null>(null);
 
-  // Quote files state
-  const [quoteFiles, setQuoteFiles] = useState<QuoteFile[]>(mockQuoteFiles);
-
   // Spec sheet selections (line item ID -> include in email)
   const [specSheetSelections, setSpecSheetSelections] = useState<Set<string>>(new Set());
   const [showMarkApprovalModal, setShowMarkApprovalModal] = useState(false);
   const [showDistributorModal, setShowDistributorModal] = useState(false);
   const [selectedDistributorQuote, setSelectedDistributorQuote] = useState<DistributorQuote | null>(null);
-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
-  const [showCreatePdfModal, setShowCreatePdfModal] = useState(false);
   const [printSubmittal, setPrintSubmittal] = useState<Submittal | null>(null);
-  const [selectedLineItems, setSelectedLineItems] = useState<Set<string>>(new Set());
-  const [showBulkActionsMenu, setShowBulkActionsMenu] = useState(false);
   const [showColumnsMenu, setShowColumnsMenu] = useState(false);
   const [showViewsMenu, setShowViewsMenu] = useState(false);
 
@@ -322,8 +223,6 @@ export default function QuotesContent() {
   const [insideRepCommissionSplits, setInsideRepCommissionSplits] = useState<{repId: string; repName: string; percentage: number}[]>([]);
 
   // Line item outside rep splits
-  const [lineItemRepDropdown, setLineItemRepDropdown] = useState<string | null>(null);
-  const [lineItemRepSearch, setLineItemRepSearch] = useState('');
   const [showLineItemRepSplitsModal, setShowLineItemRepSplitsModal] = useState(false);
   const [lineItemRepSplitsTarget, setLineItemRepSplitsTarget] = useState<string | null>(null);
   const [lineItemRepSplits, setLineItemRepSplits] = useState<{repId: string; repName: string; percentage: number}[]>([]);
@@ -332,8 +231,6 @@ export default function QuotesContent() {
   const [showInsideRepSplits, setShowInsideRepSplits] = useState(false);
 
   // Line item inside rep splits
-  const [lineItemInsideRepDropdown, setLineItemInsideRepDropdown] = useState<string | null>(null);
-  const [lineItemInsideRepSearch, setLineItemInsideRepSearch] = useState('');
   const [showLineItemInsideRepSplitsModal, setShowLineItemInsideRepSplitsModal] = useState(false);
   const [lineItemInsideRepSplitsTarget, setLineItemInsideRepSplitsTarget] = useState<string | null>(null);
   const [lineItemInsideRepSplits, setLineItemInsideRepSplits] = useState<{repId: string; repName: string; percentage: number}[]>([]);
@@ -370,47 +267,10 @@ export default function QuotesContent() {
   // Product catalog for searchable part/description fields (initial data imported from ./quotes/data)
   const [productCatalog, setProductCatalog] = useState(initialProductCatalog);
 
-  // Product search state for part number and description dropdowns
-  const [productSearchOpen, setProductSearchOpen] = useState<string | null>(null); // lineItemId
-  const [productSearchField, setProductSearchField] = useState<'partNumber' | 'customerPartNumber' | 'description' | null>(null);
-  const [productSearchQuery, setProductSearchQuery] = useState('');
-  const [showCreateProduct, setShowCreateProduct] = useState(false);
-  const [newProductData, setNewProductData] = useState({ partNumber: '', description: '', manufacturer: '', basePrice: 0 });
-
   // Create Product Modal state (for creating official products)
   const [showCreateProductModal, setShowCreateProductModal] = useState(false);
   const [createProductForLineItem, setCreateProductForLineItem] = useState<string | null>(null);
   const [createProductInitialData, setCreateProductInitialData] = useState({ partNumber: '', description: '' });
-
-  // Product dropdown portal position state
-  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number } | null>(null);
-  const productDropdownRef = useRef<HTMLDivElement>(null);
-
-  // Close product search dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (productSearchOpen && !(e.target as Element).closest('.product-search-container')) {
-        setProductSearchOpen(null);
-        setProductSearchField(null);
-        setProductSearchQuery('');
-        setShowCreateProduct(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [productSearchOpen]);
-
-  // Close line item rep dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (lineItemRepDropdown && !(e.target as Element).closest('.line-item-rep-container')) {
-        setLineItemRepDropdown(null);
-        setLineItemRepSearch('');
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [lineItemRepDropdown]);
 
   // Column visibility state
   type ColumnKey = 'partNumber' | 'customerPartNumber' | 'description' | 'manufacturer' | 'quantity' | 'uom' | 'divisor' | 'unitPrice' | 'endUser' | 'sellTotal' | 'commissionPercent' | 'commission' | 'commissionTotal' | 'linkedOrder' | 'overage' | 'overageAmt' | 'commRate' | 'baseComm' | 'overageShare' | 'overageComm' | 'totalEarn' | 'effRate' | 'l1' | 'l2' | 'l3' | 'trend' | 'specSheet' | 'outsideReps' | 'commissionDiscountPercent' | 'commissionDiscountAmount' | 'lineDiscountPercent' | 'lineDiscountAmount' | 'leadTime';
@@ -546,60 +406,6 @@ export default function QuotesContent() {
   };
 
 
-  // Helper to select a product from catalog and update line item
-  const selectProductForLineItem = (itemId: string, product: typeof productCatalog[0]) => {
-    setQuoteLineItems(prev => prev.map(li =>
-      li.id === itemId ? {
-        ...li,
-        productNumber: product.partNumber,
-        description: product.description,
-        basePrice: product.basePrice,
-        sellPrice: product.basePrice, // Default sell to base
-        manufacturers: [{
-          ...li.manufacturers[0],
-          name: product.manufacturer,
-        }]
-      } : li
-    ));
-    setProductSearchOpen(null);
-    setProductSearchField(null);
-    setProductSearchQuery('');
-  };
-
-  // Helper to create a new product and add it to the catalog
-  const createNewProduct = (itemId: string) => {
-    if (!newProductData.partNumber.trim() || !newProductData.description.trim()) return;
-
-    const newProduct = {
-      id: `prod-${Date.now()}`,
-      partNumber: newProductData.partNumber.trim(),
-      description: newProductData.description.trim(),
-      manufacturer: newProductData.manufacturer.trim() || 'Unknown',
-      basePrice: newProductData.basePrice || 0,
-    };
-
-    // Add to catalog
-    setProductCatalog(prev => [...prev, newProduct]);
-
-    // Update line item
-    selectProductForLineItem(itemId, newProduct);
-
-    // Reset form
-    setNewProductData({ partNumber: '', description: '', manufacturer: '', basePrice: 0 });
-    setShowCreateProduct(false);
-  };
-
-  // Filter products based on search query
-  const getFilteredProducts = () => {
-    if (!productSearchQuery.trim()) return productCatalog;
-    const query = productSearchQuery.toLowerCase();
-    return productCatalog.filter(p =>
-      p.partNumber.toLowerCase().includes(query) ||
-      p.description.toLowerCase().includes(query) ||
-      p.manufacturer.toLowerCase().includes(query)
-    );
-  };
-
   const applyView = (viewId: string) => {
     const view = savedViews.find(v => v.id === viewId);
     if (view) {
@@ -677,224 +483,7 @@ export default function QuotesContent() {
     { id: 'rec-3', company: selectedQuote?.soldToCustomer || 'Turner Construction', contact: 'Mike Johnson', email: 'mike@turner.com', level: 'Sell' as const, price: 0, sent: 'Mar 15', opened: true, distributorQuote: null, version: 3 },
     { id: 'rec-4', company: 'Echo Electric', contact: 'Amy Wong', email: 'amy@echo.com', level: 'L1' as const, price: 0, sent: null, opened: false, distributorQuote: null, version: 1 },
   ];
-  const [showSummaryBar, setShowSummaryBar] = useState(true);
   const [showHeaderFields, setShowHeaderFields] = useState(true);
-
-  // Line items table state
-  const [sortColumn, setSortColumn] = useState<ColumnKey | null>(null);
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
-
-  const [activeFilterColumn, setActiveFilterColumn] = useState<ColumnKey | null>(null);
-  const [editingCell, setEditingCell] = useState<{ itemId: string; column: ColumnKey } | null>(null);
-  const [editValue, setEditValue] = useState('');
-  const editInputRef = useRef<HTMLInputElement>(null);
-
-  // Editable columns in order for navigation
-  const editableColumns: ColumnKey[] = ['unitPrice', 'overage', 'l1', 'l2'];
-
-  const handleSort = (column: ColumnKey) => {
-    if (sortColumn === column) {
-      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortColumn(column);
-      setSortDirection('asc');
-    }
-  };
-
-  const handleFilterChange = (column: string, value: string) => {
-    setColumnFilters(prev => ({
-      ...prev,
-      [column]: value
-    }));
-  };
-
-  const startEditing = (itemId: string, column: ColumnKey, currentValue: string) => {
-    setEditingCell({ itemId, column });
-    setEditValue(currentValue);
-    // Auto-select will happen via onFocus on the input
-  };
-
-  const getItemValue = (item: LineItem, column: ColumnKey): string => {
-    switch (column) {
-      case 'unitPrice': return item.sellPrice.toFixed(2);
-      case 'overage': return item.overagePercent.toFixed(1);
-      case 'l1': return item.level1Price.toFixed(2);
-      case 'l2': return item.level2Price.toFixed(2);
-      case 'quantity': return String(item.quantity);
-      case 'partNumber': return item.productNumber;
-      case 'description': return item.description;
-      default: return '';
-    }
-  };
-
-  const saveEdit = (navigateTo?: { itemId: string; column: ColumnKey } | null) => {
-    // TODO: Implement line item editing with proper state management
-    // Currently quoteLineItems is derived from mockLineItems, so editing is not persisted
-    // When backend is ready, this should update through a proper API call
-    if (editingCell && editValue !== '') {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const numValue = parseFloat(editValue);
-      // Line item updates would go here when state management is implemented
-    }
-
-    if (navigateTo) {
-      const item = quoteLineItems.find(li => li.id === navigateTo.itemId);
-      if (item) {
-        setEditingCell(navigateTo);
-        setEditValue(getItemValue(item, navigateTo.column));
-      }
-    } else {
-      setEditingCell(null);
-      setEditValue('');
-    }
-  };
-
-  const cancelEdit = () => {
-    setEditingCell(null);
-    setEditValue('');
-  };
-
-  const navigateCell = (direction: 'up' | 'down' | 'left' | 'right' | 'tab' | 'shift-tab') => {
-    if (!editingCell) return;
-
-    // Get visible line items in current order
-    const visibleItems = quoteLineItems.filter(item => {
-      const section = quoteSections.find(s => s.id === item.sectionId);
-      return section && !collapsedSections.has(section.id);
-    });
-
-    const currentItemIndex = visibleItems.findIndex(item => item.id === editingCell.itemId);
-    const visibleEditableColumns = editableColumns.filter(col => effectiveVisibleColumns.has(col));
-    const currentColIndex = visibleEditableColumns.indexOf(editingCell.column);
-
-    if (currentItemIndex === -1 || currentColIndex === -1) return;
-
-    let newItemIndex = currentItemIndex;
-    let newColIndex = currentColIndex;
-
-    switch (direction) {
-      case 'up':
-        newItemIndex = Math.max(0, currentItemIndex - 1);
-        break;
-      case 'down':
-        newItemIndex = Math.min(visibleItems.length - 1, currentItemIndex + 1);
-        break;
-      case 'left':
-        newColIndex = Math.max(0, currentColIndex - 1);
-        break;
-      case 'right':
-      case 'tab':
-        if (currentColIndex < visibleEditableColumns.length - 1) {
-          newColIndex = currentColIndex + 1;
-        } else if (currentItemIndex < visibleItems.length - 1) {
-          newItemIndex = currentItemIndex + 1;
-          newColIndex = 0;
-        }
-        break;
-      case 'shift-tab':
-        if (currentColIndex > 0) {
-          newColIndex = currentColIndex - 1;
-        } else if (currentItemIndex > 0) {
-          newItemIndex = currentItemIndex - 1;
-          newColIndex = visibleEditableColumns.length - 1;
-        }
-        break;
-    }
-
-    const newItem = visibleItems[newItemIndex];
-    const newColumn = visibleEditableColumns[newColIndex];
-
-    if (newItem && newColumn && (newItem.id !== editingCell.itemId || newColumn !== editingCell.column)) {
-      saveEdit({ itemId: newItem.id, column: newColumn });
-    }
-  };
-
-  const handleEditKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    switch (e.key) {
-      case 'Enter':
-        e.preventDefault();
-        saveEdit();
-        break;
-      case 'Escape':
-        e.preventDefault();
-        cancelEdit();
-        break;
-      case 'Tab':
-        e.preventDefault();
-        navigateCell(e.shiftKey ? 'shift-tab' : 'tab');
-        break;
-      case 'ArrowUp':
-        e.preventDefault();
-        navigateCell('up');
-        break;
-      case 'ArrowDown':
-        e.preventDefault();
-        navigateCell('down');
-        break;
-      case 'ArrowLeft':
-        // Only navigate if cursor is at start
-        if (e.currentTarget.selectionStart === 0 && e.currentTarget.selectionEnd === 0) {
-          e.preventDefault();
-          navigateCell('left');
-        }
-        break;
-      case 'ArrowRight':
-        // Only navigate if cursor is at end
-        if (e.currentTarget.selectionStart === e.currentTarget.value.length) {
-          e.preventDefault();
-          navigateCell('right');
-        }
-        break;
-    }
-  };
-
-  // Mock data for dropdowns
-  const distributorOptions = [
-    'Ferguson Enterprises', 'Graybar Electric', 'HD Supply', 'Rexel', 'WESCO International',
-    'Consolidated Electrical', 'Border States Electric', 'Sonepar', 'CED Greentech'
-  ];
-  const builderOptions = [
-    'Skanska USA', 'Turner Construction', 'McCarthy Building', 'Hensel Phelps', 'DPR Construction',
-    'Whiting-Turner', 'Clark Construction', 'Holder Construction', 'Brasfield & Gorrie'
-  ];
-  const jobOptions = [
-    'University Lab Building', 'Downtown Medical Center', 'Tech Campus Phase 2', 'Airport Terminal B',
-    'Convention Center Expansion', 'Corporate Headquarters', 'Research Facility', 'Hospital Wing Addition'
-  ];
-
-  const toggleSectionCollapse = (sectionId: string) => {
-    setCollapsedSections(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(sectionId)) {
-        newSet.delete(sectionId);
-      } else {
-        newSet.add(sectionId);
-      }
-      return newSet;
-    });
-  };
-
-  const toggleLineItemSelection = (lineId: string) => {
-    setSelectedLineItems(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(lineId)) {
-        newSet.delete(lineId);
-      } else {
-        newSet.add(lineId);
-      }
-      return newSet;
-    });
-  };
-
-  const selectAllLineItems = (items: LineItem[]) => {
-    setSelectedLineItems(new Set(items.map(item => item.id)));
-  };
-
-  const clearLineItemSelection = () => {
-    setSelectedLineItems(new Set());
-  };
-
 
   // Memoize filter options to prevent re-renders
   const quoteFilterOptions = useMemo(() => [
@@ -943,162 +532,6 @@ export default function QuotesContent() {
       setQuoteLineItems([]);
     }
   }, [selectedQuote?.id]);
-
-  // Get sections that are used in the current quote's line items
-  const currentQuoteSections = useMemo(() => {
-    const sectionIds = new Set(quoteLineItems.map(li => li.sectionId));
-    return quoteSections.filter(s => sectionIds.has(s.id));
-  }, [quoteLineItems, quoteSections]);
-
-  // State for section dropdown with "add new" feature
-  const [sectionDropdownOpen, setSectionDropdownOpen] = useState<string | null>(null);
-  const [newSectionName, setNewSectionName] = useState('');
-  const [showNewSectionInput, setShowNewSectionInput] = useState(false);
-
-  // Close section dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (sectionDropdownOpen && !(e.target as Element).closest('.section-dropdown-container')) {
-        setSectionDropdownOpen(null);
-        setShowNewSectionInput(false);
-        setNewSectionName('');
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [sectionDropdownOpen]);
-
-  // Function to add a new section with a line item
-  const addSection = () => {
-    if (!selectedQuote) return;
-
-    const newSectionId = `SEC-${Date.now()}`;
-    const newSectionName = `New Section ${quoteSections.length + 1}`;
-    const newOrder = Math.max(...quoteSections.map(s => s.order), 0) + 1;
-
-    // Create the new section
-    const newSection: Section = {
-      id: newSectionId,
-      name: newSectionName,
-      order: newOrder,
-    };
-
-    // Add the section to state
-    setQuoteSections(prev => [...prev, newSection]);
-
-    // Add a new line item to the section
-    const newItem: LineItem = {
-      id: `li-${Date.now()}`,
-      quoteId: selectedQuote.id,
-      sectionId: newSectionId,
-      sectionName: newSectionName,
-      productNumber: '',
-      description: 'New Line Item',
-      endUser: '',
-      quantity: 1,
-      uom: 'EA',
-      manufacturers: [{
-        name: '',
-        basePrice: 0,
-        commissionRate: 0.08,
-        overageShare: 0.85,
-        approvalStatus: 'unknown',
-        approvalDate: null,
-        approvalNotes: null,
-      }],
-      basePrice: 0,
-      sellPrice: 0,
-      level1Price: 0,
-      level2Price: 0,
-      level3Price: 0,
-      overagePercent: 0,
-      commissionable: true,
-      locked: false,
-      priceHistory: [],
-      quotedPriceHistory: [],
-      hasSpecSheet: false,
-      outsideRepSplits: [],
-      insideRepSplits: [],
-      useDivisor: false,
-      divisor: 1,
-    };
-
-    setQuoteLineItems(prev => [...prev, newItem]);
-  };
-
-  // Function to add a new line item
-  const addLineItem = (sectionId?: string) => {
-    if (!selectedQuote) return;
-
-    const targetSectionId = sectionId || quoteSections[0]?.id || 'section-1';
-    const targetSection = quoteSections.find(s => s.id === targetSectionId);
-
-    const newItem: LineItem = {
-      id: `li-${Date.now()}`,
-      quoteId: selectedQuote.id,
-      sectionId: targetSectionId,
-      sectionName: targetSection?.name || 'General',
-      productNumber: '',
-      description: 'New Line Item',
-      endUser: '',
-      quantity: 1,
-      uom: 'EA',
-      manufacturers: [{
-        name: '',
-        basePrice: 0,
-        commissionRate: 0.08,
-        overageShare: 0.85,
-        approvalStatus: 'unknown',
-        approvalDate: null,
-        approvalNotes: null,
-      }],
-      basePrice: 0,
-      sellPrice: 0,
-      level1Price: 0,
-      level2Price: 0,
-      level3Price: 0,
-      overagePercent: 0,
-      commissionable: true,
-      locked: false,
-      priceHistory: [],
-      quotedPriceHistory: [],
-      hasSpecSheet: false,
-      outsideRepSplits: [],
-      insideRepSplits: [],
-      useDivisor: false,
-      divisor: 1,
-    };
-
-    setQuoteLineItems(prev => [...prev, newItem]);
-  };
-
-  // Function to create a new section and move a line item to it
-  const createSectionAndMoveItem = (itemId: string, sectionName: string) => {
-    if (!sectionName.trim()) return;
-
-    const newSectionId = `SEC-${Date.now()}`;
-    const newOrder = Math.max(...quoteSections.map(s => s.order), 0) + 1;
-
-    // Create the new section
-    const newSection: Section = {
-      id: newSectionId,
-      name: sectionName.trim(),
-      order: newOrder,
-    };
-
-    // Add the section to state
-    setQuoteSections(prev => [...prev, newSection]);
-
-    // Move the line item to the new section
-    setQuoteLineItems(prev => prev.map(li =>
-      li.id === itemId ? { ...li, sectionId: newSectionId, sectionName: sectionName.trim() } : li
-    ));
-
-    // Reset the dropdown state
-    setSectionDropdownOpen(null);
-    setNewSectionName('');
-    setShowNewSectionInput(false);
-  };
 
   // Get distributor quotes for selected quote - memoized
   const quoteDistributorQuotes = useMemo(() =>
