@@ -8,7 +8,21 @@
       "Bash(npx tsc:*)",
       "Bash(npm ls:*)",
       "Bash(npm install:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(grep:*)",
+      "Bash(dir:*)",
+      "Bash(git checkout:*)",
+      "Bash(powershell -Command \"$content = Get-Content ''components/QuotesContent.tsx''; $part1 = $content[0..576]; $part2 = $content[2891..\\($content.Length-1\\)]; $newContent = $part1 + $part2; $newContent | Set-Content ''components/QuotesContent.tsx'' -Encoding UTF8\")",
+      "Bash(powershell -Command \"$c = Get-Content ''components/QuotesContent.tsx''; $p1 = $c[0..576]; $p2 = $c[2891..\\($c.Length-1\\)]; $new = $p1 + $p2; $new | Set-Content ''components/QuotesContent.tsx'' -Encoding UTF8\")",
+      "Bash(powershell -Command \"$content = Get-Content ''components/QuotesContent.tsx''; $part1 = $content[0..87]; $part2 = $content[575..\\($content.Length-1\\)]; $newContent = $part1 + $part2; $newContent | Set-Content ''components/QuotesContent.tsx'' -Encoding UTF8; Write-Host ''Done. New line count:'' $newContent.Length\")",
+      "Bash(powershell -Command \"$c = Get-Content ''components/QuotesContent.tsx''; $p1 = $c[0..87]; $p2 = $c[575..\\($c.Length-1\\)]; $n = $p1 + $p2; $n | Set-Content ''components/QuotesContent.tsx'' -Encoding UTF8; Write-Host ''Done:'' $n.Length ''lines''\")",
+      "Bash(powershell:*)",
+      "Bash(python scripts/replace_sections_modal.py:*)",
+      "Bash(python scripts/replace_rep_modals.py:*)",
+      "Bash(python scripts/replace_duplicate_modal.py:*)",
+      "Bash(python:*)",
+      "Bash(wc:*)",
+      "Bash(cd:*)"
     ],
     "deny": [],
     "ask": []

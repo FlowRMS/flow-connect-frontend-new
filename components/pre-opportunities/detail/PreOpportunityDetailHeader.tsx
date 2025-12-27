@@ -36,6 +36,7 @@ interface PreOpportunityDetailHeaderProps {
   onSave: () => void;
   onCancel: () => void;
   onDelete: () => void;
+  onCreateQuote?: () => void;
 }
 
 export function PreOpportunityDetailHeader({
@@ -48,6 +49,7 @@ export function PreOpportunityDetailHeader({
   onSave,
   onCancel,
   onDelete,
+  onCreateQuote,
 }: PreOpportunityDetailHeaderProps) {
   const statusColors = STATUS_COLORS[preOpp.status] || STATUS_COLORS.QUALIFIED;
 
@@ -185,6 +187,20 @@ export function PreOpportunityDetailHeader({
                   </svg>
                   <span className="hidden sm:inline">Delete</span>
                 </button>
+                {onCreateQuote && (
+                  <button
+                    onClick={onCreateQuote}
+                    title="Create a new quote from this pre-opportunity"
+                    className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-4 py-2 md:py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all text-xs md:text-sm font-medium shadow-sm"
+                  >
+                    <svg className="w-3.5 h-3.5 md:w-4 md:h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    <span className="hidden md:inline">Convert to Quote</span>
+                    <span className="hidden sm:inline md:hidden">To Quote</span>
+                    <span className="sm:hidden">Quote</span>
+                  </button>
+                )}
                 <button
                   onClick={onEditClick}
                   className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-4 py-2 md:py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-all text-xs md:text-sm font-medium"

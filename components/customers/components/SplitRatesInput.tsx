@@ -122,6 +122,24 @@ export function SplitRatesInput({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [activeSearchIndex]);
 
+  // Calculate equal split rate for all entries
+  const calculateEqualSplitRate = (count: number): string => {
+    if (count === 0) return '';
+    const rate = 100 / count;
+    // Round to 1 decimal place for cleaner display
+    return rate.toFixed(1);
+  };
+
+  // Auto-redistribute split rates equally among all entries (each rep type independently totals 100%)
+  const redistributeSplitRates = (newEntries: SplitRateEntry[]): SplitRateEntry[] => {
+    if (newEntries.length === 0) return newEntries;
+    const newRate = calculateEqualSplitRate(newEntries.length);
+    return newEntries.map(entry => ({
+      ...entry,
+      splitRate: newRate,
+    }));
+  };
+
   const handleAddEntry = () => {
     const newEntry: SplitRateEntry = {
       tempId: generateTempId(),
@@ -129,7 +147,10 @@ export function SplitRatesInput({
       splitRate: '',
       position: entries.length + 1,
     };
-    onChange([...entries, newEntry]);
+    const newEntries = [...entries, newEntry];
+    // Auto-redistribute split rates equally
+    const redistributedEntries = redistributeSplitRates(newEntries);
+    onChange(redistributedEntries);
     // Focus the new entry's search input after render
     setTimeout(() => {
       const newIndex = entries.length;
@@ -146,7 +167,9 @@ export function SplitRatesInput({
       ...entry,
       position: i + 1,
     }));
-    onChange(reorderedEntries);
+    // Auto-redistribute split rates equally among remaining entries
+    const redistributedEntries = redistributeSplitRates(reorderedEntries);
+    onChange(redistributedEntries);
   };
 
   const handleSelectUser = (index: number, user: UserSearchResult) => {

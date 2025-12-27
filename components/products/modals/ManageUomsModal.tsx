@@ -26,13 +26,11 @@ export function ManageUomsModal({ isOpen, onClose }: ManageUomsModalProps) {
   const [formData, setFormData] = useState<{
     title: string;
     description: string;
-    multiply: boolean;
-    multiplyBy: number | undefined;
+    divisionFactor: number | undefined;
   }>({
     title: '',
     description: '',
-    multiply: false,
-    multiplyBy: undefined,
+    divisionFactor: undefined,
   });
 
   // API hooks
@@ -47,7 +45,7 @@ export function ManageUomsModal({ isOpen, onClose }: ManageUomsModalProps) {
       setShowCreateForm(false);
       setEditingUom(null);
       setDeletingUom(null);
-      setFormData({ title: '', description: '', multiply: false, multiplyBy: undefined });
+      setFormData({ title: '', description: '', divisionFactor: undefined });
     }
   }, [isOpen]);
 
@@ -61,14 +59,13 @@ export function ManageUomsModal({ isOpen, onClose }: ManageUomsModalProps) {
     const input: CreateProductUomInput = {
       title: formData.title.trim(),
       description: formData.description.trim() || undefined,
-      multiply: formData.multiply,
-      multiplyBy: formData.multiply ? formData.multiplyBy : undefined,
+      divisionFactor: formData.divisionFactor,
     };
 
     try {
       await createMutation.mutateAsync(input);
       toast.success('UOM created successfully');
-      setFormData({ title: '', description: '', multiply: false, multiplyBy: undefined });
+      setFormData({ title: '', description: '', divisionFactor: undefined });
       setShowCreateForm(false);
       refetchUoms();
     } catch (error) {
@@ -90,13 +87,12 @@ export function ManageUomsModal({ isOpen, onClose }: ManageUomsModalProps) {
         input: {
           title: formData.title.trim(),
           description: formData.description.trim() || undefined,
-          multiply: formData.multiply,
-          multiplyBy: formData.multiply ? formData.multiplyBy : undefined,
+          divisionFactor: formData.divisionFactor,
         },
       });
       toast.success('UOM updated successfully');
       setEditingUom(null);
-      setFormData({ title: '', description: '', multiply: false, multiplyBy: undefined });
+      setFormData({ title: '', description: '', divisionFactor: undefined });
       refetchUoms();
     } catch (error) {
       console.error('Failed to update UOM:', error);
@@ -125,8 +121,7 @@ export function ManageUomsModal({ isOpen, onClose }: ManageUomsModalProps) {
     setFormData({
       title: uom.title,
       description: uom.description || '',
-      multiply: uom.multiply,
-      multiplyBy: uom.multiplyBy,
+      divisionFactor: uom.divisionFactor,
     });
     setShowCreateForm(false);
   };
@@ -134,7 +129,7 @@ export function ManageUomsModal({ isOpen, onClose }: ManageUomsModalProps) {
   // Cancel edit
   const cancelEdit = () => {
     setEditingUom(null);
-    setFormData({ title: '', description: '', multiply: false, multiplyBy: undefined });
+    setFormData({ title: '', description: '', divisionFactor: undefined });
   };
 
   if (!isOpen) return null;
@@ -227,55 +222,28 @@ export function ManageUomsModal({ isOpen, onClose }: ManageUomsModalProps) {
                     </div>
                   </div>
 
-                  {/* Multiply Settings */}
+                  {/* Division Factor */}
                   <div className="p-3 bg-[var(--muted)]/30 rounded-lg space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <label className="block text-sm font-medium text-[var(--foreground)]">
-                          Enable Multiplier
-                        </label>
-                        <p className="text-xs text-[var(--muted-foreground)]">
-                          Multiply unit price by a factor
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setFormData(prev => ({
+                    <div>
+                      <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                        Division Factor
+                      </label>
+                      <p className="text-xs text-[var(--muted-foreground)] mb-2">
+                        Factor to divide quantity by when calculating unit price (optional)
+                      </p>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={formData.divisionFactor ?? ''}
+                        onChange={(e) => setFormData(prev => ({
                           ...prev,
-                          multiply: !prev.multiply,
-                          multiplyBy: !prev.multiply ? 1 : undefined
+                          divisionFactor: e.target.value ? parseFloat(e.target.value) : undefined
                         }))}
-                        className={`relative w-11 h-6 rounded-full transition-colors ${
-                          formData.multiply ? 'bg-[var(--primary)]' : 'bg-[var(--muted)]'
-                        }`}
-                      >
-                        <span
-                          className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
-                            formData.multiply ? 'translate-x-5' : 'translate-x-0'
-                          }`}
-                        />
-                      </button>
+                        placeholder="e.g., 1000 for per-thousand pricing"
+                        className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                      />
                     </div>
-
-                    {formData.multiply && (
-                      <div>
-                        <label className="block text-xs text-[var(--muted-foreground)] mb-1">
-                          Multiply By
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={formData.multiplyBy ?? ''}
-                          onChange={(e) => setFormData(prev => ({
-                            ...prev,
-                            multiplyBy: e.target.value ? parseFloat(e.target.value) : undefined
-                          }))}
-                          placeholder="1.0"
-                          className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-                        />
-                      </div>
-                    )}
                   </div>
 
                   <div className="flex items-center justify-end gap-2">
@@ -285,7 +253,7 @@ export function ManageUomsModal({ isOpen, onClose }: ManageUomsModalProps) {
                           cancelEdit();
                         } else {
                           setShowCreateForm(false);
-                          setFormData({ title: '', description: '', multiply: false, multiplyBy: undefined });
+                          setFormData({ title: '', description: '', divisionFactor: undefined });
                         }
                       }}
                       className="px-3 py-1.5 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
@@ -338,9 +306,9 @@ export function ManageUomsModal({ isOpen, onClose }: ManageUomsModalProps) {
                                 {uom.description && (
                                   <p className="text-xs text-[var(--muted-foreground)]">{uom.description}</p>
                                 )}
-                                {uom.multiply && uom.multiplyBy && (
+                                {uom.divisionFactor && (
                                   <span className="px-1.5 py-0.5 text-[10px] bg-blue-100 text-blue-700 rounded">
-                                    x{uom.multiplyBy}
+                                    ÷{uom.divisionFactor}
                                   </span>
                                 )}
                               </div>

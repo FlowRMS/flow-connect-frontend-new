@@ -27,8 +27,6 @@ const generateTempId = () => `temp_${Date.now()}_${Math.random().toString(36).su
 export function EditCustomerModal({ isOpen, customer, onClose, onSuccess }: EditCustomerModalProps) {
   // Basic customer fields
   const [companyName, setCompanyName] = useState('');
-  const [contactEmail, setContactEmail] = useState('');
-  const [contactNumber, setContactNumber] = useState('');
   const [isParent, setIsParent] = useState(false);
   const [published, setPublished] = useState(false);
 
@@ -70,8 +68,6 @@ export function EditCustomerModal({ isOpen, customer, onClose, onSuccess }: Edit
   useEffect(() => {
     if (isOpen && customer && !initialized) {
       setCompanyName(customer.companyName || '');
-      setContactEmail(customer.contactEmail || '');
-      setContactNumber(customer.contactNumber || '');
       setIsParent(customer.isParent ?? false);
       setPublished(customer.published ?? true);
     }
@@ -147,8 +143,6 @@ export function EditCustomerModal({ isOpen, customer, onClose, onSuccess }: Edit
         id: customer.id,
         input: {
           companyName: companyName.trim(),
-          contactEmail: contactEmail.trim() || undefined,
-          contactNumber: contactNumber.trim() || undefined,
           isParent,
           published,
           splitRates: allSplitRates.length > 0 ? allSplitRates : undefined,
@@ -224,42 +218,6 @@ export function EditCustomerModal({ isOpen, customer, onClose, onSuccess }: Edit
                 />
               </div>
 
-              {/* Contact Email & Phone in row on larger screens */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                {/* Contact Email */}
-                <div>
-                  <label className={labelClass}>
-                    <svg className="w-4 h-4 text-[var(--muted-foreground)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                    Contact Email
-                  </label>
-                  <input
-                    type="email"
-                    value={contactEmail}
-                    onChange={(e) => setContactEmail(e.target.value)}
-                    className={inputClass}
-                    placeholder="contact@company.com"
-                  />
-                </div>
-
-                {/* Contact Number */}
-                <div>
-                  <label className={labelClass}>
-                    <svg className="w-4 h-4 text-[var(--muted-foreground)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                    </svg>
-                    Contact Number
-                  </label>
-                  <input
-                    type="tel"
-                    value={contactNumber}
-                    onChange={(e) => setContactNumber(e.target.value)}
-                    className={inputClass}
-                    placeholder="+1 (555) 123-4567"
-                  />
-                </div>
-              </div>
             </div>
 
             {/* Sales Representatives Section */}

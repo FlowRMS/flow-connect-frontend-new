@@ -64,8 +64,6 @@ export interface ActivityMetadata {
   content?: string;
 
   // Customer-specific
-  contactEmail?: string;
-  contactNumber?: string;
   isParent?: boolean;
   published?: boolean;
   insideReps?: string;

@@ -46,8 +46,6 @@ export interface SplitRateInput {
 export interface Customer {
   id: string;
   companyName: string;
-  contactEmail?: string;
-  contactNumber?: string;
   isParent: boolean;
   parentId?: string;
   published: boolean;
@@ -60,8 +58,6 @@ export interface Customer {
 export interface CustomerLandingPage {
   id: string;
   companyName: string;
-  contactEmail?: string;
-  contactNumber?: string;
   createdAt?: string;
   createdBy?: string;
   insideReps?: string;
@@ -72,8 +68,6 @@ export interface CustomerLandingPage {
 
 export interface CreateCustomerInput {
   companyName: string;
-  contactEmail?: string;
-  contactNumber?: string;
   isParent: boolean;
   parentId?: string;
   published: boolean;
@@ -82,8 +76,6 @@ export interface CreateCustomerInput {
 
 export interface UpdateCustomerInput {
   companyName?: string;
-  contactEmail?: string;
-  contactNumber?: string;
   isParent?: boolean;
   parentId?: string;
   published?: boolean;
@@ -157,8 +149,6 @@ const FIND_CUSTOMERS_LANDING_PAGES = `
         ... on CustomerLandingPage {
           id
           companyName
-          contactEmail
-          contactNumber
           createdAt
           createdBy
           insideReps
@@ -176,8 +166,6 @@ const FIND_CUSTOMER_BY_ID = `
   query FindCustomerById($id: UUID!) {
     findCustomerById(id: $id) {
       companyName
-      contactEmail
-      contactNumber
       createdBy {
         authProviderId
         email
@@ -243,8 +231,6 @@ const CREATE_CUSTOMER = `
   mutation CreateCustomer($input: CustomerInput!) {
     createCustomer(input: $input) {
       companyName
-      contactEmail
-      contactNumber
       createdBy {
         email
         authProviderId
@@ -310,8 +296,6 @@ const UPDATE_CUSTOMER = `
   mutation UpdateCustomer($id: UUID!, $input: CustomerInput!) {
     updateCustomer(id: $id, input: $input) {
       companyName
-      contactEmail
-      contactNumber
       createdBy {
         authProviderId
         email

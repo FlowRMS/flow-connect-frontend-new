@@ -45,30 +45,31 @@ function useDropdownPosition(
 }
 
 export function ManageCategoriesModal({ isOpen, onClose }: ManageCategoriesModalProps) {
-  // Factory selection state
-  const [factorySearchTerm, setFactorySearchTerm] = useState('');
-  const [selectedFactory, setSelectedFactory] = useState<FactorySearchResult | null>(null);
-  const [showFactoryDropdown, setShowFactoryDropdown] = useState(false);
-  const factoryInputRef = useRef<HTMLInputElement>(null);
-  const factoryDropdownRef = useRef<HTMLDivElement>(null);
-
   // Category management state
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingCategory, setEditingCategory] = useState<ProductCategory | null>(null);
   const [deletingCategory, setDeletingCategory] = useState<ProductCategory | null>(null);
 
-  // Form state with parent/grandparent support
+  // Form state with factory and parent/grandparent support
   const [formData, setFormData] = useState<{
     title: string;
     commissionRate: number | undefined;
+    factoryId: string | undefined;
     parentId: string | undefined;
     grandparentId: string | undefined;
   }>({
     title: '',
     commissionRate: undefined,
+    factoryId: undefined,
     parentId: undefined,
     grandparentId: undefined,
   });
+
+  // Factory dropdown state (for create/edit form only)
+  const [factorySearchTerm, setFactorySearchTerm] = useState('');
+  const [showFactoryDropdown, setShowFactoryDropdown] = useState(false);
+  const factoryInputRef = useRef<HTMLInputElement>(null);
+  const factoryDropdownRef = useRef<HTMLDivElement>(null);
 
   // Parent/Grandparent dropdown states
   const [showParentDropdown, setShowParentDropdown] = useState(false);
@@ -87,15 +88,24 @@ export function ManageCategoriesModal({ isOpen, onClose }: ManageCategoriesModal
     setIsMounted(true);
   }, []);
 
-  // API hooks - send empty string to get initial factories list
+  // API hooks - load all factories immediately (not just when dropdown opens)
   const { data: factories = [], isLoading: isLoadingFactories } = useFactorySearch(
     factorySearchTerm,
-    showFactoryDropdown // Enable when dropdown is open
+    true // Always enabled - factories are needed for display and selection
   );
-  const { data: categories = [], isLoading: isLoadingCategories, refetch: refetchCategories } = useProductCategories(selectedFactory?.id);
+  const { data: categories = [], isLoading: isLoadingCategories, refetch: refetchCategories } = useProductCategories();
   const createMutation = useCreateProductCategory();
   const updateMutation = useUpdateProductCategory();
   const deleteMutation = useDeleteProductCategory();
+
+  // Get selected factory for display
+  const selectedFactory = factories.find(f => f.id === formData.factoryId);
+
+  // Helper to get factory title by ID (for displaying in category list)
+  const getFactoryTitle = useCallback((factoryId?: string) => {
+    if (!factoryId) return null;
+    return factories.find(f => f.id === factoryId)?.title || null;
+  }, [factories]);
 
   // Filter categories for parent/grandparent dropdowns (exclude self when editing)
   const availableParentCategories = categories.filter(c =>
@@ -151,7 +161,6 @@ export function ManageCategoriesModal({ isOpen, onClose }: ManageCategoriesModal
   useEffect(() => {
     if (!isOpen) {
       setFactorySearchTerm('');
-      setSelectedFactory(null);
       setShowFactoryDropdown(false);
       setShowCreateForm(false);
       setEditingCategory(null);
@@ -161,16 +170,23 @@ export function ManageCategoriesModal({ isOpen, onClose }: ManageCategoriesModal
   }, [isOpen]);
 
   const resetFormData = () => {
-    setFormData({ title: '', commissionRate: undefined, parentId: undefined, grandparentId: undefined });
+    setFormData({ title: '', commissionRate: undefined, factoryId: undefined, parentId: undefined, grandparentId: undefined });
+    setFactorySearchTerm('');
     setParentSearchTerm('');
     setGrandparentSearchTerm('');
   };
 
-  // Handle factory selection
+  // Handle factory selection (for form)
   const handleFactorySelect = (factory: FactorySearchResult) => {
-    setSelectedFactory(factory);
+    setFormData(prev => ({ ...prev, factoryId: factory.id }));
     setFactorySearchTerm(factory.title);
     setShowFactoryDropdown(false);
+  };
+
+  // Clear factory selection
+  const clearFactory = () => {
+    setFormData(prev => ({ ...prev, factoryId: undefined }));
+    setFactorySearchTerm('');
   };
 
   // Handle parent selection
@@ -202,11 +218,11 @@ export function ManageCategoriesModal({ isOpen, onClose }: ManageCategoriesModal
 
   // Handle create category
   const handleCreate = async () => {
-    if (!selectedFactory || !formData.title.trim()) return;
+    if (!formData.title.trim()) return;
 
     const input: CreateProductCategoryInput = {
       title: formData.title.trim(),
-      factoryId: selectedFactory.id,
+      factoryId: formData.factoryId, // Optional
       commissionRate: formData.commissionRate,
       parentId: formData.parentId,
       grandparentId: formData.grandparentId,
@@ -231,6 +247,7 @@ export function ManageCategoriesModal({ isOpen, onClose }: ManageCategoriesModal
         id: editingCategory.id,
         input: {
           title: formData.title.trim(),
+          factoryId: formData.factoryId,
           commissionRate: formData.commissionRate,
           parentId: formData.parentId,
           grandparentId: formData.grandparentId,
@@ -263,9 +280,19 @@ export function ManageCategoriesModal({ isOpen, onClose }: ManageCategoriesModal
     setFormData({
       title: category.title,
       commissionRate: category.commissionRate,
+      factoryId: category.factoryId,
       parentId: undefined, // TODO: Load from category if API returns it
       grandparentId: undefined,
     });
+    // Set factory search term if category has a factory
+    if (category.factoryId) {
+      const factory = factories.find(f => f.id === category.factoryId);
+      if (factory) {
+        setFactorySearchTerm(factory.title);
+      }
+    } else {
+      setFactorySearchTerm('');
+    }
     setShowCreateForm(false);
   };
 
@@ -480,123 +507,9 @@ export function ManageCategoriesModal({ isOpen, onClose }: ManageCategoriesModal
           </button>
         </div>
 
-        {/* Factory Selector */}
-        <div className="px-6 py-4 border-b border-[var(--border)] bg-[var(--muted)]/20">
-          <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-            Select Factory
-          </label>
-          <div className="relative">
-            <input
-              ref={factoryInputRef}
-              type="text"
-              value={factorySearchTerm}
-              onChange={(e) => {
-                setFactorySearchTerm(e.target.value);
-                setShowFactoryDropdown(true);
-                if (!e.target.value) {
-                  setSelectedFactory(null);
-                }
-              }}
-              onFocus={() => {
-                setShowFactoryDropdown(true);
-                // Send empty string to get initial results
-                if (!factorySearchTerm) {
-                  setFactorySearchTerm('');
-                }
-              }}
-              placeholder="Click to search factories..."
-              className={`w-full px-3 py-2.5 pr-10 border rounded-lg text-sm bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 ${
-                showFactoryDropdown ? 'ring-2 ring-[var(--primary)] border-transparent' : 'border-[var(--border)]'
-              }`}
-            />
-            {isLoadingFactories ? (
-              <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                <svg className="animate-spin h-4 w-4 text-[var(--muted-foreground)]" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                </svg>
-              </div>
-            ) : (
-              <svg className={`absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-foreground)] transition-transform ${showFactoryDropdown ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            )}
-            {showFactoryDropdown && isMounted && createPortal(
-              <div
-                ref={factoryDropdownRef}
-                style={{
-                  position: 'fixed',
-                  top: (factoryInputRef.current?.getBoundingClientRect().bottom ?? 0) + 4,
-                  left: factoryInputRef.current?.getBoundingClientRect().left ?? 0,
-                  width: factoryInputRef.current?.getBoundingClientRect().width ?? 300,
-                  zIndex: 9999,
-                }}
-                className="bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg max-h-64 overflow-y-auto"
-              >
-                {isLoadingFactories ? (
-                  <div className="px-3 py-4 text-center text-sm text-[var(--muted-foreground)] flex items-center justify-center gap-2">
-                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                    </svg>
-                    Loading factories...
-                  </div>
-                ) : factories.length === 0 ? (
-                  <div className="px-3 py-4 text-center text-sm text-[var(--muted-foreground)]">
-                    {factorySearchTerm ? 'No factories found' : 'Type to search factories'}
-                  </div>
-                ) : (
-                  factories.map((factory) => (
-                    <button
-                      key={factory.id}
-                      type="button"
-                      onClick={() => handleFactorySelect(factory)}
-                      className={`w-full px-3 py-2.5 text-left text-sm transition-colors flex items-center gap-3 ${
-                        selectedFactory?.id === factory.id ? 'bg-blue-50 text-blue-700' : 'hover:bg-[var(--muted)]'
-                      }`}
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
-                        <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                        </svg>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-[var(--foreground)] truncate">{factory.title}</div>
-                        {factory.accountNumber && (
-                          <div className="text-xs text-[var(--muted-foreground)]">Account: {factory.accountNumber}</div>
-                        )}
-                      </div>
-                      {factory.published && (
-                        <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full flex-shrink-0">
-                          Active
-                        </span>
-                      )}
-                      {selectedFactory?.id === factory.id && (
-                        <svg className="w-4 h-4 text-blue-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                      )}
-                    </button>
-                  ))
-                )}
-              </div>,
-              document.body
-            )}
-          </div>
-        </div>
-
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
-          {!selectedFactory ? (
-            <div className="text-center py-12">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[var(--muted)] flex items-center justify-center">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--muted-foreground)" strokeWidth="1.5">
-                  <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeLinecap="round"/>
-                </svg>
-              </div>
-              <p className="text-[var(--muted-foreground)]">Select a factory to manage its categories</p>
-            </div>
-          ) : isLoadingCategories ? (
+          {isLoadingCategories ? (
             <div className="flex items-center justify-center py-12">
               <svg className="animate-spin h-8 w-8 text-[var(--primary)]" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
@@ -658,6 +571,104 @@ export function ManageCategoriesModal({ isOpen, onClose }: ManageCategoriesModal
                       />
                     </div>
                   </div>
+                  {/* Factory Field (Optional) */}
+                  <div className="relative">
+                    <label className="block text-xs text-[var(--muted-foreground)] mb-1">
+                      Factory <span className="text-[var(--muted-foreground)]">(Optional)</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        ref={factoryInputRef}
+                        type="text"
+                        value={showFactoryDropdown ? factorySearchTerm : (selectedFactory?.title || '')}
+                        onChange={(e) => {
+                          setFactorySearchTerm(e.target.value);
+                          if (!e.target.value) {
+                            clearFactory();
+                          }
+                        }}
+                        onFocus={() => {
+                          setShowFactoryDropdown(true);
+                          setFactorySearchTerm('');
+                        }}
+                        placeholder="Search factories..."
+                        className={`w-full px-3 py-2 pr-8 border rounded-lg text-sm bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-purple-500/50 ${
+                          showFactoryDropdown ? 'ring-2 ring-purple-500 border-transparent' : 'border-[var(--border)]'
+                        }`}
+                      />
+                      {formData.factoryId ? (
+                        <button
+                          type="button"
+                          onClick={clearFactory}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-[var(--muted)] rounded"
+                        >
+                          <svg className="w-4 h-4 text-[var(--muted-foreground)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      ) : (
+                        <svg className={`absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-foreground)] transition-transform ${showFactoryDropdown ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      )}
+                    </div>
+                    {showFactoryDropdown && isMounted && createPortal(
+                      <div
+                        ref={factoryDropdownRef}
+                        style={{
+                          position: 'fixed',
+                          top: (factoryInputRef.current?.getBoundingClientRect().bottom ?? 0) + 4,
+                          left: factoryInputRef.current?.getBoundingClientRect().left ?? 0,
+                          width: factoryInputRef.current?.getBoundingClientRect().width ?? 300,
+                          zIndex: 9999,
+                        }}
+                        className="bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg max-h-48 overflow-y-auto"
+                      >
+                        {isLoadingFactories ? (
+                          <div className="px-3 py-4 text-center text-sm text-[var(--muted-foreground)] flex items-center justify-center gap-2">
+                            <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                            </svg>
+                            Loading factories...
+                          </div>
+                        ) : factories.length === 0 ? (
+                          <div className="px-3 py-4 text-center text-sm text-[var(--muted-foreground)]">
+                            {factorySearchTerm ? 'No factories found' : 'No factories available'}
+                          </div>
+                        ) : (
+                          factories.map((factory) => (
+                            <button
+                              key={factory.id}
+                              type="button"
+                              onClick={() => handleFactorySelect(factory)}
+                              className={`w-full px-3 py-2.5 text-left text-sm transition-colors flex items-center gap-3 ${
+                                formData.factoryId === factory.id ? 'bg-blue-50 text-blue-700' : 'hover:bg-[var(--muted)]'
+                              }`}
+                            >
+                              <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                                <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                </svg>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-[var(--foreground)] truncate">{factory.title}</div>
+                                {factory.accountNumber && (
+                                  <div className="text-xs text-[var(--muted-foreground)]">Account: {factory.accountNumber}</div>
+                                )}
+                              </div>
+                              {formData.factoryId === factory.id && (
+                                <svg className="w-4 h-4 text-blue-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                              )}
+                            </button>
+                          ))
+                        )}
+                      </div>,
+                      document.body
+                    )}
+                  </div>
                   {/* Parent/Grandparent Fields */}
                   {renderParentFields()}
                   <div className="flex items-center justify-end gap-2 pt-2">
@@ -692,8 +703,13 @@ export function ManageCategoriesModal({ isOpen, onClose }: ManageCategoriesModal
               {/* Categories List */}
               {categories.length === 0 && !showCreateForm ? (
                 <div className="text-center py-8">
+                  <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-purple-100 flex items-center justify-center">
+                    <svg className="w-6 h-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                    </svg>
+                  </div>
                   <p className="text-sm text-[var(--muted-foreground)]">
-                    No categories found for this factory
+                    No categories found. Click &quot;Add New Category&quot; to create one.
                   </p>
                 </div>
               ) : (
@@ -736,6 +752,104 @@ export function ManageCategoriesModal({ isOpen, onClose }: ManageCategoriesModal
                               />
                             </div>
                           </div>
+                          {/* Factory Field (Optional) - Edit Mode */}
+                          <div className="relative">
+                            <label className="block text-xs text-[var(--muted-foreground)] mb-1">
+                              Factory <span className="text-[var(--muted-foreground)]">(Optional)</span>
+                            </label>
+                            <div className="relative">
+                              <input
+                                ref={factoryInputRef}
+                                type="text"
+                                value={showFactoryDropdown ? factorySearchTerm : (selectedFactory?.title || '')}
+                                onChange={(e) => {
+                                  setFactorySearchTerm(e.target.value);
+                                  if (!e.target.value) {
+                                    clearFactory();
+                                  }
+                                }}
+                                onFocus={() => {
+                                  setShowFactoryDropdown(true);
+                                  setFactorySearchTerm('');
+                                }}
+                                placeholder="Search factories..."
+                                className={`w-full px-3 py-2 pr-8 border rounded-lg text-sm bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-purple-500/50 ${
+                                  showFactoryDropdown ? 'ring-2 ring-purple-500 border-transparent' : 'border-[var(--border)]'
+                                }`}
+                              />
+                              {formData.factoryId ? (
+                                <button
+                                  type="button"
+                                  onClick={clearFactory}
+                                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-[var(--muted)] rounded"
+                                >
+                                  <svg className="w-4 h-4 text-[var(--muted-foreground)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              ) : (
+                                <svg className={`absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-foreground)] transition-transform ${showFactoryDropdown ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                              )}
+                            </div>
+                            {showFactoryDropdown && isMounted && createPortal(
+                              <div
+                                ref={factoryDropdownRef}
+                                style={{
+                                  position: 'fixed',
+                                  top: (factoryInputRef.current?.getBoundingClientRect().bottom ?? 0) + 4,
+                                  left: factoryInputRef.current?.getBoundingClientRect().left ?? 0,
+                                  width: factoryInputRef.current?.getBoundingClientRect().width ?? 300,
+                                  zIndex: 9999,
+                                }}
+                                className="bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg max-h-48 overflow-y-auto"
+                              >
+                                {isLoadingFactories ? (
+                                  <div className="px-3 py-4 text-center text-sm text-[var(--muted-foreground)] flex items-center justify-center gap-2">
+                                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                                    </svg>
+                                    Loading factories...
+                                  </div>
+                                ) : factories.length === 0 ? (
+                                  <div className="px-3 py-4 text-center text-sm text-[var(--muted-foreground)]">
+                                    {factorySearchTerm ? 'No factories found' : 'No factories available'}
+                                  </div>
+                                ) : (
+                                  factories.map((factory) => (
+                                    <button
+                                      key={factory.id}
+                                      type="button"
+                                      onClick={() => handleFactorySelect(factory)}
+                                      className={`w-full px-3 py-2.5 text-left text-sm transition-colors flex items-center gap-3 ${
+                                        formData.factoryId === factory.id ? 'bg-blue-50 text-blue-700' : 'hover:bg-[var(--muted)]'
+                                      }`}
+                                    >
+                                      <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                                        <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                        </svg>
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="font-medium text-[var(--foreground)] truncate">{factory.title}</div>
+                                        {factory.accountNumber && (
+                                          <div className="text-xs text-[var(--muted-foreground)]">Account: {factory.accountNumber}</div>
+                                        )}
+                                      </div>
+                                      {formData.factoryId === factory.id && (
+                                        <svg className="w-4 h-4 text-blue-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                      )}
+                                    </button>
+                                  ))
+                                )}
+                              </div>,
+                              document.body
+                            )}
+                          </div>
                           {/* Parent/Grandparent Fields */}
                           {renderParentFields()}
                           <div className="flex items-center justify-end gap-2">
@@ -773,11 +887,21 @@ export function ManageCategoriesModal({ isOpen, onClose }: ManageCategoriesModal
                             </div>
                             <div>
                               <h4 className="text-sm font-medium text-[var(--foreground)]">{category.title}</h4>
-                              {category.commissionRate !== undefined && (
-                                <p className="text-xs text-[var(--muted-foreground)]">
-                                  Commission: {(category.commissionRate * 100).toFixed(1)}%
-                                </p>
-                              )}
+                              <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                                {category.commissionRate !== undefined && (
+                                  <p className="text-xs text-[var(--muted-foreground)]">
+                                    Commission: {(category.commissionRate * 100).toFixed(1)}%
+                                  </p>
+                                )}
+                                {category.factoryId && getFactoryTitle(category.factoryId) && (
+                                  <p className="text-xs text-blue-600 flex items-center gap-1">
+                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                    </svg>
+                                    {getFactoryTitle(category.factoryId)}
+                                  </p>
+                                )}
+                              </div>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">

@@ -8,7 +8,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import type { PreOpportunity, PreOpportunityDetail, PreOpportunityDetailInput, CustomerSearchResult, ProductSearchResult } from '../types';
 import { formatCurrency } from '../utils';
-import { useCRMCustomerSearch, useCRMProductSearch, useCRMFactorySearch } from '../../hooks/useCRMApi';
+import { useCRMCustomerSearch, useCRMProductSearch } from '../../hooks/useCRMApi';
 import { useDebounce } from '../hooks/useDebounce';
 
 interface EditableLineItem {
@@ -17,7 +17,7 @@ interface EditableLineItem {
   productId: string;
   productCpnId?: string;
   factoryPartNumber: string;
-  factoryId: string;
+  description?: string;
   quantity: number;
   unitPrice: number;
   discountRate: number;
@@ -66,17 +66,10 @@ export function PreOpportunityLineItems({ preOpp, isEditing = false, onLineItems
     customerSearchEnabled
   );
 
-  // Fetch all factories and customers for name lookups (view mode)
-  const { data: allFactories = [] } = useCRMFactorySearch('', undefined, !isEditing);
+  // Fetch all customers for name lookups (view mode)
   const { data: allCustomers = [] } = useCRMCustomerSearch('', undefined, !isEditing);
 
-  // Create lookup maps for factory and customer names
-  const factoryNameMap = useMemo(() => {
-    const map = new Map<string, string>();
-    allFactories.forEach(f => map.set(f.id, f.title));
-    return map;
-  }, [allFactories]);
-
+  // Create lookup map for customer names
   const customerNameMap = useMemo(() => {
     const map = new Map<string, string>();
     allCustomers.forEach(c => map.set(c.id, c.companyName));
@@ -85,11 +78,7 @@ export function PreOpportunityLineItems({ preOpp, isEditing = false, onLineItems
     return map;
   }, [allCustomers, customers]);
 
-  // Helper functions to get names
-  const getFactoryName = (factoryId: string): string => {
-    return factoryNameMap.get(factoryId) || factoryId;
-  };
-
+  // Helper function to get customer name
   const getCustomerName = (customerId: string): string => {
     return customerNameMap.get(customerId) || customerId;
   };
@@ -103,7 +92,7 @@ export function PreOpportunityLineItems({ preOpp, isEditing = false, onLineItems
         productId: d.productId,
         productCpnId: d.productCpnId,
         factoryPartNumber: d.product.factoryPartNumber,
-        factoryId: d.product.factoryId,
+        description: d.product.description,
         quantity: d.quantity,
         unitPrice: d.unitPrice,
         discountRate: d.discountRate,
@@ -158,7 +147,7 @@ export function PreOpportunityLineItems({ preOpp, isEditing = false, onLineItems
       itemNumber: editableItems.length + 1,
       productId: product.id,
       factoryPartNumber: product.factoryPartNumber,
-      factoryId: product.factoryId,
+      description: undefined,
       quantity: 1,
       unitPrice: 0,
       discountRate: 0,
@@ -307,7 +296,7 @@ export function PreOpportunityLineItems({ preOpp, isEditing = false, onLineItems
                       className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0 text-sm"
                     >
                       <div className="font-medium text-gray-900">{product.factoryPartNumber}</div>
-                      <div className="text-xs text-gray-500">Factory: {product.factoryId}</div>
+                      <div className="text-xs text-gray-500">Factory: {product.factory.title}</div>
                     </button>
                   ))}
                 </div>
@@ -558,7 +547,9 @@ export function PreOpportunityLineItems({ preOpp, isEditing = false, onLineItems
                   <td className="px-4 py-3 text-sm text-gray-900">{detail.itemNumber}</td>
                   <td className="px-4 py-3">
                     <div className="text-sm font-medium text-gray-900">{detail.product.factoryPartNumber}</div>
-                    <div className="text-xs text-gray-500">Factory: {getFactoryName(detail.product.factoryId)}</div>
+                    {detail.product.description && (
+                      <div className="text-xs text-gray-500">{detail.product.description}</div>
+                    )}
                     {detail.leadTime && (
                       <div className="text-xs text-blue-600">Lead Time: {detail.leadTime}</div>
                     )}
