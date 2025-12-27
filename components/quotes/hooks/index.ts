@@ -3,3 +3,6 @@ export { useLineItemsState } from './useLineItemsState';
 export { useQuotesState } from './useQuotesState';
 export { useQuoteDetailState } from './useQuoteDetailState';
 export { useCommissionSplitsState } from './useCommissionSplitsState';
+export { useQuotesListFilters } from './useQuotesListFilters';
+export type { QuoteSortKey, QuickDatePreset, QuickDateField, QuoteFilterValue } from './useQuotesListFilters';
+export { useKanbanDnD } from './useKanbanDnD';

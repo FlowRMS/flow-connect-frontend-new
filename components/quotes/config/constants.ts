@@ -27,13 +27,16 @@ export const quoteTypeLabels: Record<string, string> = {
   STORM: 'Storm',
 };
 
-// Price level colors
+// Price level colors (EXACT match from QuotesContent.tsx)
 export const priceLevelColors = [
   'text-blue-600',
   'text-purple-600',
   'text-orange-600',
+  'text-green-600',
   'text-pink-600',
-  'text-teal-600',
+  'text-cyan-600',
+  'text-red-600',
+  'text-indigo-600',
 ];
 
 // Default price levels
@@ -59,13 +62,15 @@ export const jobOptions = [
   'Convention Center Expansion', 'Corporate Headquarters', 'Research Facility', 'Hospital Wing Addition'
 ];
 
-// Lost reason options
+// Lost reason options (EXACT match from QuotesContent.tsx)
 export const lostReasonOptions = [
   'Price too high',
   'Lost to competitor',
   'Project cancelled',
-  'Customer went with different solution',
+  'Project delayed',
+  'Spec changed to different brand',
+  'Customer went with another supplier',
+  'No response from customer',
   'Budget constraints',
-  'Timeline issues',
   'Other',
 ];

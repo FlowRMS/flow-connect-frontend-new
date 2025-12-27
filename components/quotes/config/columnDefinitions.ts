@@ -17,7 +17,10 @@ export const columnDefinitions: ColumnDefinition[] = [
   { key: 'l2', label: 'L2', group: 'Pricing', sortable: true },
   { key: 'l3', label: 'L3', group: 'Pricing', sortable: true },
 
-  // Commission columns
+  // Commission columns (including legacy commissionPercent, commission, commissionTotal)
+  { key: 'commissionPercent', label: 'Commission %', group: 'Commission', sortable: true },
+  { key: 'commission', label: 'Commission', group: 'Commission', sortable: true },
+  { key: 'commissionTotal', label: 'Commission Total', group: 'Commission', sortable: true },
   { key: 'overage', label: 'Overage %', group: 'Commission', sortable: true },
   { key: 'overageAmt', label: 'Overage $', group: 'Commission', sortable: true },
   { key: 'commRate', label: 'Comm Rate', group: 'Commission', sortable: true },
@@ -34,12 +37,12 @@ export const columnDefinitions: ColumnDefinition[] = [
   { key: 'lineDiscountPercent', label: 'Line Disc %', group: 'Discounts', sortable: true },
   { key: 'lineDiscountAmount', label: 'Line Disc $', group: 'Discounts', sortable: true },
 
-  // Other columns
-  { key: 'endUser', label: 'End User', group: 'Other', sortable: true, filterable: true },
-  { key: 'linkedOrder', label: 'Linked Order', group: 'Other', sortable: true },
-  { key: 'trend', label: 'Trend', group: 'Other', sortable: false },
-  { key: 'specSheet', label: 'Spec Sheet', group: 'Other', sortable: false },
-  { key: 'leadTime', label: 'Lead Time', group: 'Other', sortable: true },
+  // Other columns (endUser in Basic group to match inline, linkedOrder in Links group)
+  { key: 'endUser', label: 'End User', group: 'Basic', sortable: true, filterable: true },
+  { key: 'linkedOrder', label: 'Order #', group: 'Links', sortable: true },
+  { key: 'trend', label: 'Trend', group: 'Details', sortable: false },
+  { key: 'specSheet', label: 'Spec', group: 'Details', sortable: false },
+  { key: 'leadTime', label: 'Lead Time', group: 'Details', sortable: true },
 ];
 
 // Default visible columns for different view modes

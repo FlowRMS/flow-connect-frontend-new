@@ -36,3 +36,13 @@ export {
 
 // Available Reps Data
 export { availableOutsideReps, availableInsideReps } from './availableReps';
+
+// Available End Users Data
+export { availableEndUsers } from './availableEndUsers';
+
+// Available Manufacturers Data
+export { availableManufacturers } from './availableManufacturers';
+
+// Product Catalog Data
+export { initialProductCatalog } from './productCatalog';
+export type { ProductCatalogItem } from './productCatalog';
