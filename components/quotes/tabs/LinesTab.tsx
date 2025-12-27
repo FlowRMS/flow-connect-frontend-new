@@ -146,7 +146,8 @@ export function LinesTab(props: LinesTabProps) {
   ]));
   const [simpleViewColumns, setSimpleViewColumns] = useState<Set<ColumnKey>>(new Set([
     'partNumber', 'customerPartNumber', 'description', 'manufacturer', 'quantity',
-    'uom', 'unitPrice', 'sellTotal'
+    'uom', 'divisor', 'unitPrice', 'sellTotal', 'commissionPercent', 'commission',
+    'commissionTotal', 'linkedOrder'
   ]));
   const [columnOrder, setColumnOrder] = useState<ColumnKey[]>([
     'partNumber', 'customerPartNumber', 'description', 'manufacturer', 'quantity', 'uom', 'divisor', 'unitPrice', 'endUser',
@@ -453,16 +454,6 @@ export function LinesTab(props: LinesTabProps) {
     }
   }, []);
 
-  const getFilteredProducts = useCallback(() => {
-    if (!productSearchQuery.trim()) return productCatalog;
-    const query = productSearchQuery.toLowerCase();
-    return productCatalog.filter(p =>
-      p.partNumber.toLowerCase().includes(query) ||
-      p.description.toLowerCase().includes(query) ||
-      p.manufacturer.toLowerCase().includes(query)
-    );
-  }, [productCatalog, productSearchQuery]);
-
   const handleAddProduct = useCallback(() => {
     if (!newProductData.partNumber.trim()) return;
     const newProduct = {
@@ -531,53 +522,687 @@ export function LinesTab(props: LinesTabProps) {
     );
   };
 
-  // Render body cell
+  // Helper to select a product from catalog and update line item
+  const selectProductForLineItem = (itemId: string, product: typeof productCatalog[0]) => {
+    setQuoteLineItems(prev => prev.map(li =>
+      li.id === itemId ? {
+        ...li,
+        productNumber: product.partNumber,
+        description: product.description,
+        basePrice: product.basePrice,
+        sellPrice: product.basePrice,
+        manufacturers: [{
+          ...li.manufacturers[0],
+          name: product.manufacturer,
+        }]
+      } : li
+    ));
+    setProductSearchOpen(null);
+    setProductSearchField(null);
+    setProductSearchQuery('');
+  };
+
+  // Filter products based on search query
+  const getFilteredProducts = () => {
+    if (!productSearchQuery.trim()) return productCatalog;
+    const query = productSearchQuery.toLowerCase();
+    return productCatalog.filter(p =>
+      p.partNumber.toLowerCase().includes(query) ||
+      p.description.toLowerCase().includes(query) ||
+      p.manufacturer.toLowerCase().includes(query)
+    );
+  };
+
+  // Render body cell - FULL IMPLEMENTATION with all dropdowns and editing
   const renderBodyCell = (colKey: ColumnKey, item: LineItem): React.ReactNode => {
     if (colKey === 'endUser' && !showEndUserPerLine) return null;
 
     switch (colKey) {
       case 'partNumber':
+        const filteredProducts = getFilteredProducts();
+        const hasSearchQuery = productSearchQuery.trim().length > 0;
+        const queryMatchesExact = hasSearchQuery && filteredProducts.some(p =>
+          p.partNumber.toLowerCase() === productSearchQuery.toLowerCase().trim()
+        );
         return (
-          <td key={colKey} className="px-3 py-2 font-mono text-sm text-center">
-            {item.productNumber || '-'}
+          <td key={colKey} className="px-3 py-2 font-mono text-sm text-center relative">
+            <div className="product-search-container" ref={productSearchOpen === item.id && productSearchField === 'partNumber' ? productDropdownRef : undefined}>
+              <button
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setDropdownPosition({ top: rect.bottom + 4, left: rect.left });
+                  setProductSearchOpen(productSearchOpen === item.id && productSearchField === 'partNumber' ? null : item.id);
+                  setProductSearchField('partNumber');
+                  setProductSearchQuery(item.productNumber || '');
+                  setShowCreateProduct(false);
+                }}
+                className="w-full text-center px-2 py-1 rounded hover:bg-[var(--muted)] transition-colors flex items-center justify-center gap-1"
+              >
+                <span className="flex-1 truncate">{item.productNumber || 'Select...'}</span>
+                <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-[var(--muted-foreground)] flex-shrink-0">
+                  <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                </svg>
+              </button>
+              {productSearchOpen === item.id && productSearchField === 'partNumber' && dropdownPosition && createPortal(
+                <div
+                  className="product-search-container fixed w-80 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-[9999]"
+                  style={{ top: dropdownPosition.top, left: dropdownPosition.left }}
+                >
+                  <div className="p-2 border-b border-[var(--border)]">
+                    <input
+                      type="text"
+                      value={productSearchQuery}
+                      onChange={(e) => setProductSearchQuery(e.target.value)}
+                      placeholder="Search FPN, CPN, or description..."
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="max-h-48 overflow-y-auto">
+                    {filteredProducts.map(product => (
+                      <button
+                        key={product.id}
+                        onClick={() => selectProductForLineItem(item.id, product)}
+                        className="w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors"
+                      >
+                        <div className="font-mono text-sm font-medium">{product.partNumber}</div>
+                        <div className="text-xs text-[var(--muted-foreground)] truncate">{product.description}</div>
+                      </button>
+                    ))}
+                    {filteredProducts.length === 0 && (
+                      <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">No products found</div>
+                    )}
+                  </div>
+                  {hasSearchQuery && !queryMatchesExact && (
+                    <div className="border-t border-[var(--border)]">
+                      <button
+                        onClick={() => {
+                          setQuoteLineItems(prev => prev.map(li =>
+                            li.id === item.id ? { ...li, productNumber: productSearchQuery.trim() } : li
+                          ));
+                          setProductSearchOpen(null);
+                          setProductSearchField(null);
+                          setProductSearchQuery('');
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--primary)] flex-shrink-0">
+                          <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                        </svg>
+                        <div>
+                          <div className="font-mono text-sm font-medium text-[var(--primary)]">{productSearchQuery.trim()}</div>
+                          <div className="text-xs text-[var(--muted-foreground)]">Use as document-specific product</div>
+                        </div>
+                      </button>
+                    </div>
+                  )}
+                  <div className="border-t border-[var(--border)] p-2">
+                    <button
+                      onClick={() => {
+                        setCreateProductForLineItem(item.id);
+                        setCreateProductInitialData({ partNumber: productSearchQuery.trim(), description: '' });
+                        setShowCreateProductModal(true);
+                        setProductSearchOpen(null);
+                        setProductSearchField(null);
+                        setProductSearchQuery('');
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--primary)] hover:bg-[var(--muted)] rounded transition-colors"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                      </svg>
+                      Create Official Product
+                    </button>
+                  </div>
+                </div>,
+                document.body
+              )}
+            </div>
           </td>
         );
+
+      case 'customerPartNumber':
+        return (
+          <td key={colKey} className="px-3 py-2 font-mono text-sm text-center relative">
+            <div className="product-search-container">
+              <button
+                onClick={() => {
+                  setProductSearchOpen(productSearchOpen === item.id && productSearchField === 'customerPartNumber' ? null : item.id);
+                  setProductSearchField('customerPartNumber');
+                  setProductSearchQuery((item as LineItem & { customerPartNumber?: string }).customerPartNumber || '');
+                  setShowCreateProduct(false);
+                }}
+                className="w-full text-center px-2 py-1 rounded hover:bg-[var(--muted)] transition-colors flex items-center justify-center gap-1"
+              >
+                <span className="flex-1 truncate">{(item as LineItem & { customerPartNumber?: string }).customerPartNumber || 'Select...'}</span>
+                <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-[var(--muted-foreground)] flex-shrink-0">
+                  <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                </svg>
+              </button>
+              {productSearchOpen === item.id && productSearchField === 'customerPartNumber' && (
+                <div className="absolute top-full left-0 mt-1 w-80 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                  <div className="p-2 border-b border-[var(--border)]">
+                    <input
+                      type="text"
+                      value={productSearchQuery}
+                      onChange={(e) => setProductSearchQuery(e.target.value)}
+                      placeholder="Search or enter customer part #..."
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="max-h-48 overflow-y-auto">
+                    {getFilteredProducts().map(product => (
+                      <button
+                        key={product.id}
+                        onClick={() => {
+                          setQuoteLineItems(prev => prev.map(li =>
+                            li.id === item.id ? { ...li, customerPartNumber: product.partNumber } : li
+                          ));
+                          setProductSearchOpen(null);
+                          setProductSearchField(null);
+                          setProductSearchQuery('');
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors"
+                      >
+                        <div className="font-mono text-sm font-medium">{product.partNumber}</div>
+                        <div className="text-xs text-[var(--muted-foreground)] truncate">{product.description}</div>
+                      </button>
+                    ))}
+                    {getFilteredProducts().length === 0 && productSearchQuery.trim() && (
+                      <button
+                        onClick={() => {
+                          setQuoteLineItems(prev => prev.map(li =>
+                            li.id === item.id ? { ...li, customerPartNumber: productSearchQuery.trim() } : li
+                          ));
+                          setProductSearchOpen(null);
+                          setProductSearchField(null);
+                          setProductSearchQuery('');
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors"
+                      >
+                        <div className="text-sm text-[var(--primary)]">Use "{productSearchQuery.trim()}"</div>
+                        <div className="text-xs text-[var(--muted-foreground)]">Custom customer part number</div>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </td>
+        );
+
       case 'description':
+        const descFilteredProducts = getFilteredProducts();
+        const descHasSearchQuery = productSearchQuery.trim().length > 0;
+        const descQueryMatchesExact = descHasSearchQuery && descFilteredProducts.some(p =>
+          p.description.toLowerCase() === productSearchQuery.toLowerCase().trim()
+        );
         return (
-          <td key={colKey} className="px-3 py-2 text-sm text-center max-w-[200px] truncate">
-            {item.description || '-'}
+          <td key={colKey} className="px-3 py-2 text-sm text-center max-w-[200px] relative">
+            <div className="product-search-container">
+              <button
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setDropdownPosition({ top: rect.bottom + 4, left: rect.left });
+                  setProductSearchOpen(productSearchOpen === item.id && productSearchField === 'description' ? null : item.id);
+                  setProductSearchField('description');
+                  setProductSearchQuery(item.description || '');
+                  setShowCreateProduct(false);
+                }}
+                className="w-full text-center px-2 py-1 rounded hover:bg-[var(--muted)] transition-colors flex items-center justify-center gap-1"
+              >
+                <span className="flex-1 truncate">{item.description || 'Select...'}</span>
+                <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-[var(--muted-foreground)] flex-shrink-0">
+                  <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                </svg>
+              </button>
+              {productSearchOpen === item.id && productSearchField === 'description' && dropdownPosition && createPortal(
+                <div
+                  className="product-search-container fixed w-80 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-[9999]"
+                  style={{ top: dropdownPosition.top, left: dropdownPosition.left }}
+                >
+                  <div className="p-2 border-b border-[var(--border)]">
+                    <input
+                      type="text"
+                      value={productSearchQuery}
+                      onChange={(e) => setProductSearchQuery(e.target.value)}
+                      placeholder="Search FPN, CPN, or description..."
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="max-h-48 overflow-y-auto">
+                    {descFilteredProducts.map(product => (
+                      <button
+                        key={product.id}
+                        onClick={() => selectProductForLineItem(item.id, product)}
+                        className="w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors"
+                      >
+                        <div className="text-sm">{product.description}</div>
+                        <div className="font-mono text-xs text-[var(--muted-foreground)]">{product.partNumber}</div>
+                      </button>
+                    ))}
+                    {descFilteredProducts.length === 0 && (
+                      <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">No products found</div>
+                    )}
+                  </div>
+                  {descHasSearchQuery && !descQueryMatchesExact && (
+                    <div className="border-t border-[var(--border)]">
+                      <button
+                        onClick={() => {
+                          setQuoteLineItems(prev => prev.map(li =>
+                            li.id === item.id ? { ...li, description: productSearchQuery.trim() } : li
+                          ));
+                          setProductSearchOpen(null);
+                          setProductSearchField(null);
+                          setProductSearchQuery('');
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--primary)] flex-shrink-0">
+                          <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                        </svg>
+                        <div>
+                          <div className="text-sm font-medium text-[var(--primary)]">{productSearchQuery.trim()}</div>
+                          <div className="text-xs text-[var(--muted-foreground)]">Use as document-specific description</div>
+                        </div>
+                      </button>
+                    </div>
+                  )}
+                </div>,
+                document.body
+              )}
+            </div>
           </td>
         );
+
       case 'quantity':
         return (
           <td key={colKey} className="px-3 py-2 text-sm text-center">
-            {item.quantity}
+            <input
+              type="text"
+              value={item.quantity}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => {
+                setQuoteLineItems(prev => prev.map(li =>
+                  li.id === item.id ? { ...li, quantity: parseInt(e.target.value) || 1 } : li
+                ));
+              }}
+              className="w-16 px-2 py-1 text-center border border-transparent hover:border-[var(--border)] focus:border-[var(--primary)] rounded bg-transparent focus:bg-white focus:outline-none"
+            />
           </td>
         );
-      case 'manufacturer':
+
+      case 'uom':
         return (
           <td key={colKey} className="px-3 py-2 text-sm text-center">
-            {item.manufacturers?.[0]?.name || '-'}
+            <input
+              type="text"
+              value={item.uom || 'EA'}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => {
+                setQuoteLineItems(prev => prev.map(li =>
+                  li.id === item.id ? { ...li, uom: e.target.value } : li
+                ));
+              }}
+              className="w-14 px-2 py-1 text-center border border-transparent hover:border-[var(--border)] focus:border-[var(--primary)] rounded bg-transparent focus:bg-white focus:outline-none text-sm"
+            />
           </td>
         );
+
+      case 'endUser':
+        return (
+          <td key={colKey} className="px-3 py-2 text-sm text-center">
+            <input
+              type="text"
+              value={item.endUser || ''}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => {
+                setQuoteLineItems(prev => prev.map(li =>
+                  li.id === item.id ? { ...li, endUser: e.target.value } : li
+                ));
+              }}
+              placeholder="—"
+              className="w-24 px-2 py-1 text-center border border-transparent hover:border-[var(--border)] focus:border-[var(--primary)] rounded bg-transparent focus:bg-white focus:outline-none text-sm"
+            />
+          </td>
+        );
+
+      case 'manufacturer':
+        const currentMfr = item.manufacturers[0]?.name || '';
+        const filteredMfrs = availableManufacturers.filter(mfr =>
+          mfr.name.toLowerCase().includes(manufacturerSearch.toLowerCase())
+        );
+        return (
+          <td key={colKey} className="px-3 py-2 text-sm text-center relative">
+            <div className="manufacturer-dropdown-container">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setManufacturerDropdown(manufacturerDropdown === item.id ? null : item.id);
+                  setManufacturerSearch('');
+                }}
+                className="w-full text-center px-2 py-1 rounded hover:bg-[var(--muted)] transition-colors flex items-center justify-center gap-1"
+              >
+                <span className="flex-1 truncate">{currentMfr || 'Select...'}</span>
+                <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-[var(--muted-foreground)] flex-shrink-0">
+                  <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                </svg>
+              </button>
+              {manufacturerDropdown === item.id && (
+                <div className="absolute top-full left-0 mt-1 w-56 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                  <div className="p-2 border-b border-[var(--border)]">
+                    <input
+                      type="text"
+                      value={manufacturerSearch}
+                      onChange={(e) => setManufacturerSearch(e.target.value)}
+                      placeholder="Search manufacturers..."
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                      autoFocus
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                  <div className="max-h-48 overflow-y-auto">
+                    {filteredMfrs.map(mfr => (
+                      <button
+                        key={mfr.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setQuoteLineItems(prev => prev.map(li =>
+                            li.id === item.id ? {
+                              ...li,
+                              manufacturers: [{ ...li.manufacturers[0], name: mfr.name }]
+                            } : li
+                          ));
+                          setManufacturerDropdown(null);
+                          setManufacturerSearch('');
+                        }}
+                        className={`w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors ${currentMfr === mfr.name ? 'bg-[var(--muted)]' : ''}`}
+                      >
+                        <div className="text-sm">{mfr.name}</div>
+                      </button>
+                    ))}
+                    {filteredMfrs.length === 0 && (
+                      <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">No manufacturers found</div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </td>
+        );
+
       case 'unitPrice':
         return (
           <td key={colKey} className="px-3 py-2 text-sm text-center">
-            ${item.sellPrice.toFixed(2)}
+            <input
+              type="text"
+              value={`$${item.sellPrice.toLocaleString()}`}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value.replace(/[$,]/g, '')) || 0;
+                setQuoteLineItems(prev => prev.map(li =>
+                  li.id === item.id ? { ...li, sellPrice: val } : li
+                ));
+              }}
+              className="w-24 px-2 py-1 text-center border border-transparent hover:border-[var(--border)] focus:border-[var(--primary)] rounded bg-transparent focus:bg-white focus:outline-none"
+            />
           </td>
         );
+
       case 'sellTotal':
-        return (
-          <td key={colKey} className="px-3 py-2 text-sm text-center font-medium">
-            ${(item.quantity * item.sellPrice).toFixed(2)}
-          </td>
-        );
-      default:
+        const divisorVal = item.divisor || 1;
+        const sellTotalCalc = (item.quantity * item.sellPrice) / divisorVal;
+        return <td key={colKey} className="px-3 py-2 text-sm text-center font-medium">${sellTotalCalc.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>;
+
+      case 'divisor':
         return (
           <td key={colKey} className="px-3 py-2 text-sm text-center">
-            -
+            <input
+              type="text"
+              value={item.divisor || 1}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value) || 1;
+                setQuoteLineItems(prev => prev.map(li =>
+                  li.id === item.id ? { ...li, divisor: val, useDivisor: true } : li
+                ));
+              }}
+              className="w-16 px-2 py-1 text-center border border-transparent hover:border-[var(--border)] focus:border-[var(--primary)] rounded bg-transparent focus:bg-white focus:outline-none text-sm"
+            />
           </td>
         );
+
+      case 'commissionPercent':
+        const commPctVal = item.manufacturers[0]?.commissionRate || 8;
+        return (
+          <td key={colKey} className="px-3 py-2 text-sm text-center">
+            <input
+              type="text"
+              value={commPctVal}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value) || 0;
+                setQuoteLineItems(prev => prev.map(li =>
+                  li.id === item.id ? {
+                    ...li,
+                    manufacturers: [{ ...li.manufacturers[0], commissionRate: val }]
+                  } : li
+                ));
+              }}
+              className="w-16 px-2 py-1 text-center border border-transparent hover:border-[var(--border)] focus:border-[var(--primary)] rounded bg-transparent focus:bg-white focus:outline-none text-sm text-purple-600"
+            />
+          </td>
+        );
+
+      case 'commission':
+        const commDivisor = item.divisor || 1;
+        const commSellTotal = (item.quantity * item.sellPrice) / commDivisor;
+        const commPctForCalc = (item.manufacturers[0]?.commissionRate || 8) / 100;
+        const commTotal = commSellTotal * commPctForCalc;
+        const commPerUnit = item.quantity > 0 ? commTotal / item.quantity : 0;
+        return (
+          <td key={colKey} className="px-3 py-2 text-sm text-center">
+            <input
+              type="text"
+              value={`$${commPerUnit.toFixed(2)}`}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value.replace(/[$,]/g, '')) || 0;
+                const newCommTotal = val * item.quantity;
+                const divVal = item.divisor || 1;
+                const sellTot = (item.quantity * item.sellPrice) / divVal;
+                const newCommPct = sellTot > 0 ? (newCommTotal / sellTot) * 100 : 0;
+                setQuoteLineItems(prev => prev.map(li =>
+                  li.id === item.id ? {
+                    ...li,
+                    manufacturers: [{ ...li.manufacturers[0], commissionRate: newCommPct }]
+                  } : li
+                ));
+              }}
+              className="w-20 px-2 py-1 text-center border border-transparent hover:border-[var(--border)] focus:border-[var(--primary)] rounded bg-transparent focus:bg-white focus:outline-none text-sm text-purple-600"
+            />
+          </td>
+        );
+
+      case 'commissionTotal':
+        const ctDivisor = item.divisor || 1;
+        const ctSellTotal = (item.quantity * item.sellPrice) / ctDivisor;
+        const ctCommPct = (item.manufacturers[0]?.commissionRate || 8) / 100;
+        const ctCommTotal = ctSellTotal * ctCommPct;
+        return (
+          <td key={colKey} className="px-3 py-2 text-sm text-center">
+            <input
+              type="text"
+              value={`$${ctCommTotal.toFixed(2)}`}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value.replace(/[$,]/g, '')) || 0;
+                const divVal = item.divisor || 1;
+                const sellTot = (item.quantity * item.sellPrice) / divVal;
+                const newCommPct = sellTot > 0 ? (val / sellTot) * 100 : 0;
+                setQuoteLineItems(prev => prev.map(li =>
+                  li.id === item.id ? {
+                    ...li,
+                    manufacturers: [{ ...li.manufacturers[0], commissionRate: newCommPct }]
+                  } : li
+                ));
+              }}
+              className="w-24 px-2 py-1 text-center border border-transparent hover:border-[var(--border)] focus:border-[var(--primary)] rounded bg-transparent focus:bg-white focus:outline-none text-sm font-medium text-purple-600"
+            />
+          </td>
+        );
+
+      case 'overage':
+        return <td key={colKey} className="px-3 py-2 text-sm text-center">{item.overagePercent}%</td>;
+      case 'overageAmt':
+        return <td key={colKey} className="px-3 py-2 text-sm text-center">${((item.sellPrice - item.basePrice) * item.quantity).toLocaleString()}</td>;
+      case 'commRate':
+        return <td key={colKey} className="px-3 py-2 text-sm text-center">{item.manufacturers[0]?.commissionRate || 0}%</td>;
+      case 'baseComm':
+        return <td key={colKey} className="px-3 py-2 text-sm text-center">${(item.basePrice * item.quantity * (item.manufacturers[0]?.commissionRate || 0) / 100).toLocaleString()}</td>;
+      case 'overageShare':
+        return <td key={colKey} className="px-3 py-2 text-sm text-center">{item.manufacturers[0]?.overageShare || 0}%</td>;
+      case 'overageComm':
+        return <td key={colKey} className="px-3 py-2 text-sm text-center">${(((item.sellPrice - item.basePrice) * item.quantity) * (item.manufacturers[0]?.overageShare || 0) / 100).toLocaleString()}</td>;
+      case 'totalEarn':
+        const baseCommVal = item.basePrice * item.quantity * (item.manufacturers[0]?.commissionRate || 0) / 100;
+        const overageCommVal = ((item.sellPrice - item.basePrice) * item.quantity) * (item.manufacturers[0]?.overageShare || 0) / 100;
+        return <td key={colKey} className="px-3 py-2 text-sm text-center font-medium">${(baseCommVal + overageCommVal).toLocaleString()}</td>;
+      case 'effRate':
+        const totalEarnVal = (item.basePrice * item.quantity * (item.manufacturers[0]?.commissionRate || 0) / 100) + (((item.sellPrice - item.basePrice) * item.quantity) * (item.manufacturers[0]?.overageShare || 0) / 100);
+        const sellTotalVal = item.sellPrice * item.quantity;
+        return <td key={colKey} className="px-3 py-2 text-sm text-center">{sellTotalVal > 0 ? ((totalEarnVal / sellTotalVal) * 100).toFixed(1) : 0}%</td>;
+      case 'l1':
+        return <td key={colKey} className="px-3 py-2 text-sm text-center text-[var(--muted-foreground)]">${item.level1Price.toLocaleString()}</td>;
+      case 'l2':
+        return <td key={colKey} className="px-3 py-2 text-sm text-center text-[var(--muted-foreground)]">${item.level2Price.toLocaleString()}</td>;
+      case 'l3':
+        return <td key={colKey} className="px-3 py-2 text-sm text-center text-[var(--muted-foreground)]">${item.level3Price.toLocaleString()}</td>;
+
+      case 'outsideReps':
+        if (!showCommissionSplits) return null;
+        const currentRep = item.outsideRepSplits.length === 1 ? item.outsideRepSplits[0] : null;
+        const hasMultiple = item.outsideRepSplits.length > 1;
+        const displayText = hasMultiple ? 'Multiple' : (currentRep?.repName || 'Select...');
+        const filteredReps = availableOutsideReps.filter(rep =>
+          rep.name.toLowerCase().includes(lineItemRepSearch.toLowerCase())
+        );
+        return (
+          <td key={colKey} className="px-3 py-2 text-sm text-center relative">
+            <div className="line-item-rep-container">
+              <button
+                onClick={() => {
+                  setLineItemRepDropdown(lineItemRepDropdown === item.id ? null : item.id);
+                  setLineItemRepSearch('');
+                }}
+                className={`w-full text-center px-2 py-1 rounded hover:bg-[var(--muted)] transition-colors flex items-center justify-center gap-1 ${hasMultiple ? 'text-[var(--primary)] font-medium' : ''}`}
+              >
+                <span className="flex-1 truncate">{displayText}</span>
+                <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-[var(--muted-foreground)] flex-shrink-0">
+                  <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                </svg>
+              </button>
+              {lineItemRepDropdown === item.id && (
+                <div className="absolute top-full left-0 mt-1 w-64 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                  <div className="p-2 border-b border-[var(--border)]">
+                    <input
+                      type="text"
+                      value={lineItemRepSearch}
+                      onChange={(e) => setLineItemRepSearch(e.target.value)}
+                      placeholder="Search reps..."
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="max-h-48 overflow-y-auto">
+                    <button
+                      onClick={() => {
+                        setLineItemRepSplitsTarget(item.id);
+                        setLineItemRepSplits(item.outsideRepSplits.length > 0
+                          ? item.outsideRepSplits.map(s => ({ repId: s.repId, repName: s.repName, percentage: s.percentage }))
+                          : [{ repId: availableOutsideReps[0]?.id || '', repName: availableOutsideReps[0]?.name || '', percentage: 100 }]
+                        );
+                        setShowLineItemRepSplitsModal(true);
+                        setLineItemRepDropdown(null);
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors border-b border-[var(--border)] flex items-center gap-2"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--primary)]">
+                        <path d="M12 4.5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zM19 8.5a2 2 0 11-4 0 2 2 0 014 0zM5 8.5a2 2 0 11-4 0 2 2 0 014 0zM10 10v6M6 14h8" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      <span className="font-medium text-[var(--primary)]">Multiple (Split Commission)</span>
+                    </button>
+                    {filteredReps.map(rep => (
+                      <button
+                        key={rep.id}
+                        onClick={() => {
+                          setQuoteLineItems(prev => prev.map(li =>
+                            li.id === item.id ? {
+                              ...li,
+                              outsideRepSplits: [{ repId: rep.id, repName: rep.name, percentage: 100 }]
+                            } : li
+                          ));
+                          setLineItemRepDropdown(null);
+                          setLineItemRepSearch('');
+                        }}
+                        className={`w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors ${currentRep?.repId === rep.id ? 'bg-[var(--muted)]' : ''}`}
+                      >
+                        <div className="text-sm">{rep.name}</div>
+                      </button>
+                    ))}
+                    {filteredReps.length === 0 && (
+                      <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">No reps found</div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </td>
+        );
+
+      case 'linkedOrder':
+        const linkedOrders = mockOrders.filter(order => order.quoteId === selectedQuote?.id);
+        return (
+          <td key={colKey} className="px-3 py-2 text-sm">
+            {linkedOrders.length > 0 ? (
+              <button
+                onClick={() => router.push(`/orders/${linkedOrders[0].id}`)}
+                className="text-[var(--primary)] hover:underline"
+              >
+                {linkedOrders[0].orderNumber}
+                {linkedOrders.length > 1 && ` +${linkedOrders.length - 1}`}
+              </button>
+            ) : (
+              <span className="text-[var(--muted-foreground)]">—</span>
+            )}
+          </td>
+        );
+
+      case 'trend':
+        return <td key={colKey} className="px-3 py-2 text-sm text-center text-[var(--muted-foreground)]">—</td>;
+      case 'specSheet':
+        return (
+          <td key={colKey} className="px-3 py-2 text-sm text-center">
+            {item.hasSpecSheet ? (
+              <a href={item.specSheetUrl} target="_blank" rel="noopener noreferrer" className="text-[var(--primary)] hover:underline">View</a>
+            ) : '—'}
+          </td>
+        );
+      case 'commissionDiscountPercent':
+        return <td key={colKey} className="px-3 py-2 text-sm text-center text-[var(--muted-foreground)]">{item.commissionDiscountPercent ? `${item.commissionDiscountPercent}%` : '—'}</td>;
+      case 'commissionDiscountAmount':
+        return <td key={colKey} className="px-3 py-2 text-sm text-center text-[var(--muted-foreground)]">{item.commissionDiscountAmount ? `$${item.commissionDiscountAmount}` : '—'}</td>;
+      case 'lineDiscountPercent':
+        return <td key={colKey} className="px-3 py-2 text-sm text-center text-[var(--muted-foreground)]">{item.lineDiscountPercent ? `${item.lineDiscountPercent}%` : '—'}</td>;
+      case 'lineDiscountAmount':
+        return <td key={colKey} className="px-3 py-2 text-sm text-center text-[var(--muted-foreground)]">{item.lineDiscountAmount ? `$${item.lineDiscountAmount}` : '—'}</td>;
+      case 'leadTime':
+        return <td key={colKey} className="px-3 py-2 text-sm text-center text-[var(--muted-foreground)]">{item.leadTime || '—'}</td>;
+
+      default:
+        return <td key={colKey} className="px-3 py-2 text-sm text-center">—</td>;
     }
   };
 
@@ -733,6 +1358,20 @@ export function LinesTab(props: LinesTabProps) {
                 </td>
               </tr>
             )}
+            {/* Add Line Row at the bottom */}
+            <tr className="hover:bg-[var(--muted)]/20 transition-colors">
+              <td colSpan={getOrderedVisibleColumns().length + 1} className="px-4 py-2">
+                <button
+                  className="flex items-center gap-2 text-sm text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors"
+                  onClick={() => addLineItem()}
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                  </svg>
+                  Add Line
+                </button>
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>
