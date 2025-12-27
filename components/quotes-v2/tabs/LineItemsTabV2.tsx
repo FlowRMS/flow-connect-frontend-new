@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type { LineItemV2, ColumnConfig, LineItemColumnKey } from '../types';
-import { defaultColumnConfigV2, manufacturerOptions, productOptions } from '../data/mockData';
+import { useProductSearch, useFactorySearch, useProductCpns, useProductUoms } from '../../quotes/api/useQuotesApi';
 
 interface LineItemsTabV2Props {
   lineItems: LineItemV2[];
@@ -11,6 +11,7 @@ interface LineItemsTabV2Props {
   onOpenColumnsModal: () => void;
   onOpenAdditionalDetails: (item: LineItemV2) => void;
   columnConfig: ColumnConfig[];
+  quoteId?: string;
 }
 
 export function LineItemsTabV2({
@@ -19,12 +20,64 @@ export function LineItemsTabV2({
   onOpenColumnsModal,
   onOpenAdditionalDetails,
   columnConfig,
+  quoteId,
 }: LineItemsTabV2Props) {
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [showSectionsMenu, setShowSectionsMenu] = useState(false);
   const [editingCell, setEditingCell] = useState<{ itemId: string; column: LineItemColumnKey } | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState<{ itemId: string; column: LineItemColumnKey; position: { top: number; left: number } } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Determine if we need product, factory, or CPN search based on open dropdown
+  const isProductDropdown = dropdownOpen && ['partNumber', 'description'].includes(dropdownOpen.column);
+  const isFactoryDropdown = dropdownOpen?.column === 'manufacturer';
+  const isCpnDropdown = dropdownOpen?.column === 'customerPartNumber';
+
+  // Get current line item's productId for CPN search
+  const currentLineItem = dropdownOpen ? lineItems.find(li => li.id === dropdownOpen.itemId) : null;
+  const currentProductId = currentLineItem?.productId;
+
+  // API hooks for search - trigger on dropdown open with empty string or debounced search
+  const { data: productResults = [], isLoading: productsLoading } = useProductSearch(
+    debouncedSearch,
+    undefined,
+    isProductDropdown ?? false
+  );
+  const { data: factoryResults = [], isLoading: factoriesLoading } = useFactorySearch(
+    debouncedSearch,
+    isFactoryDropdown ?? false
+  );
+  const { data: cpnResults = [], isLoading: cpnsLoading } = useProductCpns(
+    currentProductId || '',
+    isCpnDropdown && !!currentProductId
+  );
+
+  // Fetch UOMs for selected product (used when selecting a product)
+  const { data: productUoms = [] } = useProductUoms(currentProductId, !!currentProductId);
+
+  // When product UOMs are loaded and there's a current line item without UOM set from product, update it
+  useEffect(() => {
+    if (productUoms.length > 0 && currentLineItem && currentProductId) {
+      const defaultUom = productUoms[0];
+      // Only update if the line item's current UOM is the default 'EA' or empty
+      if (currentLineItem.uom === 'EA' || !currentLineItem.uom) {
+        updateLineItem(currentLineItem.id, {
+          uom: defaultUom.title || 'EA',
+          uomId: defaultUom.id,
+          divisor: defaultUom.divisionFactor || 1,
+        });
+      }
+    }
+  }, [productUoms, currentProductId]);
 
   const visibleColumns = useMemo(
     () => columnConfig.filter((c) => c.visible),
@@ -92,40 +145,48 @@ export function LineItemsTabV2({
 
   const handleCellChange = (itemId: string, column: LineItemColumnKey, value: string) => {
     const updates: Partial<LineItemV2> = {};
+    const item = lineItems.find((li) => li.id === itemId);
+    if (!item) return;
+
     if (column === 'quantity') {
       const qty = parseInt(value) || 1;
-      const item = lineItems.find((li) => li.id === itemId);
-      if (item) {
-        updates.quantity = qty;
-        updates.sellTotal = qty * item.unitPrice / item.divisor;
-        updates.commissionTotal = updates.sellTotal * item.commissionPercent;
-      }
+      const sellTotal = qty * item.unitPrice / item.divisor;
+      const commissionTotal = sellTotal * item.commissionPercent;
+      const commission = qty > 0 ? commissionTotal / qty : 0;
+      updates.quantity = qty;
+      updates.sellTotal = sellTotal;
+      updates.commission = commission;
+      updates.commissionTotal = commissionTotal;
     } else if (column === 'uom') {
       updates.uom = value;
     } else if (column === 'divisor') {
       const divisor = parseFloat(value) || 1;
-      const item = lineItems.find((li) => li.id === itemId);
-      if (item) {
-        updates.divisor = divisor;
-        updates.sellTotal = item.quantity * item.unitPrice / divisor;
-        updates.commissionTotal = updates.sellTotal * item.commissionPercent;
-      }
+      const sellTotal = item.quantity * item.unitPrice / divisor;
+      const commissionTotal = sellTotal * item.commissionPercent;
+      const commission = item.quantity > 0 ? commissionTotal / item.quantity : 0;
+      updates.divisor = divisor;
+      updates.sellTotal = sellTotal;
+      updates.commission = commission;
+      updates.commissionTotal = commissionTotal;
     } else if (column === 'unitPrice') {
       const price = parseFloat(value.replace(/[$,]/g, '')) || 0;
-      const item = lineItems.find((li) => li.id === itemId);
-      if (item) {
-        updates.unitPrice = price;
-        updates.sellTotal = item.quantity * price / item.divisor;
-        updates.commissionTotal = updates.sellTotal * item.commissionPercent;
-      }
+      const sellTotal = item.quantity * price / item.divisor;
+      const commissionTotal = sellTotal * item.commissionPercent;
+      const commission = item.quantity > 0 ? commissionTotal / item.quantity : 0;
+      updates.unitPrice = price;
+      updates.sellTotal = sellTotal;
+      updates.commission = commission;
+      updates.commissionTotal = commissionTotal;
     } else if (column === 'commissionPercent') {
       const pct = parseFloat(value) / 100 || 0;
-      const item = lineItems.find((li) => li.id === itemId);
-      if (item) {
-        updates.commissionPercent = pct;
-        updates.commission = item.sellTotal * pct / item.quantity;
-        updates.commissionTotal = item.sellTotal * pct;
-      }
+      // Recalculate sellTotal to ensure consistency
+      const sellTotal = item.quantity * item.unitPrice / item.divisor;
+      const commissionTotal = sellTotal * pct;
+      const commission = item.quantity > 0 ? commissionTotal / item.quantity : 0;
+      updates.commissionPercent = pct;
+      updates.sellTotal = sellTotal; // Ensure sellTotal is up to date
+      updates.commission = commission;
+      updates.commissionTotal = commissionTotal;
     }
     updateLineItem(itemId, updates);
     setEditingCell(null);
@@ -134,7 +195,7 @@ export function LineItemsTabV2({
   const addLineItem = () => {
     const newItem: LineItemV2 = {
       id: `li-${Date.now()}`,
-      quoteId: lineItems[0]?.quoteId || '',
+      quoteId: quoteId || lineItems[0]?.quoteId || '',
       partNumber: '',
       description: '',
       manufacturerName: '',
@@ -143,6 +204,7 @@ export function LineItemsTabV2({
       divisor: 1,
       unitPrice: 0,
       sellTotal: 0,
+      total: 0,
       commissionPercent: 0.08,
       commission: 0,
       commissionTotal: 0,
@@ -177,33 +239,33 @@ export function LineItemsTabV2({
         displayValue = item.manufacturerName || 'Select...';
         break;
       case 'quantity':
-        displayValue = item.quantity.toString();
-        editValue = item.quantity.toString();
+        displayValue = (item.quantity || 0).toString();
+        editValue = (item.quantity || 0).toString();
         break;
       case 'uom':
-        displayValue = item.uom;
-        editValue = item.uom;
+        displayValue = item.uom || 'EA';
+        editValue = item.uom || 'EA';
         break;
       case 'divisor':
-        displayValue = item.divisor.toString();
-        editValue = item.divisor.toString();
+        displayValue = (item.divisor || 1).toString();
+        editValue = (item.divisor || 1).toString();
         break;
       case 'unitPrice':
-        displayValue = `$${item.unitPrice.toLocaleString()}`;
-        editValue = item.unitPrice.toString();
+        displayValue = `$${Number(item.unitPrice || 0).toLocaleString()}`;
+        editValue = String(item.unitPrice || 0);
         break;
       case 'sellTotal':
-        displayValue = `$${item.sellTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        displayValue = `$${Number(item.sellTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         break;
       case 'commissionPercent':
-        displayValue = (item.commissionPercent * 100).toFixed(2);
-        editValue = (item.commissionPercent * 100).toFixed(2);
+        displayValue = (Number(item.commissionPercent || 0) * 100).toFixed(2);
+        editValue = (Number(item.commissionPercent || 0) * 100).toFixed(2);
         break;
       case 'commission':
-        displayValue = `$${item.commission.toFixed(2)}`;
+        displayValue = `$${Number(item.commission || 0).toFixed(2)}`;
         break;
       case 'commissionTotal':
-        displayValue = `$${item.commissionTotal.toFixed(2)}`;
+        displayValue = `$${Number(item.commissionTotal || 0).toFixed(2)}`;
         break;
       case 'linkedOrder':
         displayValue = item.linkedOrderNumber || '—';
@@ -281,21 +343,6 @@ export function LineItemsTabV2({
     );
   };
 
-  const getDropdownOptions = (column: LineItemColumnKey) => {
-    if (column === 'partNumber' || column === 'customerPartNumber' || column === 'description') {
-      return productOptions.filter(
-        (p) =>
-          p.partNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          p.description.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-    if (column === 'manufacturer') {
-      return manufacturerOptions.filter((m) =>
-        m.name.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-    return [];
-  };
 
   return (
     <div className="flex flex-col h-full">
@@ -431,7 +478,7 @@ export function LineItemsTabV2({
       {dropdownOpen &&
         createPortal(
           <>
-            <div className="fixed inset-0 z-40" onClick={() => { setDropdownOpen(null); setSearchQuery(''); }} />
+            <div className="fixed inset-0 z-40" onClick={() => { setDropdownOpen(null); setSearchQuery(''); setDebouncedSearch(''); }} />
             <div
               className="fixed bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-72"
               style={{ top: dropdownOpen.position.top, left: dropdownOpen.position.left }}
@@ -447,60 +494,148 @@ export function LineItemsTabV2({
                 />
               </div>
               <div className="max-h-48 overflow-y-auto">
-                {dropdownOpen.column === 'manufacturer'
-                  ? manufacturerOptions
-                      .filter((m) => m.name.toLowerCase().includes(searchQuery.toLowerCase()))
-                      .map((opt) => (
-                        <button
-                          key={opt.id}
-                          onClick={() => handleDropdownSelect(dropdownOpen.itemId, 'manufacturer', opt.name)}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition-colors"
-                        >
-                          {opt.name}
-                        </button>
-                      ))
-                  : productOptions
-                      .filter(
-                        (p) =>
-                          p.partNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          p.description.toLowerCase().includes(searchQuery.toLowerCase())
-                      )
-                      .map((opt) => (
-                        <button
-                          key={opt.id}
-                          onClick={() =>
-                            handleDropdownSelect(dropdownOpen.itemId, dropdownOpen.column, dropdownOpen.column === 'partNumber' ? opt.partNumber : dropdownOpen.column === 'description' ? opt.description : opt.partNumber, {
-                              description: opt.description,
-                              manufacturer: opt.manufacturer,
-                            })
-                          }
-                          className="w-full text-left px-3 py-2 hover:bg-gray-50 transition-colors"
-                        >
-                          <div className="font-mono text-sm font-medium">{opt.partNumber}</div>
-                          <div className="text-xs text-gray-500 truncate">{opt.description}</div>
-                        </button>
-                      ))}
-                {((dropdownOpen.column === 'manufacturer' &&
-                  manufacturerOptions.filter((m) => m.name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0) ||
-                  (dropdownOpen.column !== 'manufacturer' &&
-                    productOptions.filter(
-                      (p) =>
-                        p.partNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        p.description.toLowerCase().includes(searchQuery.toLowerCase())
-                    ).length === 0)) && (
-                  <div className="px-3 py-2 text-sm text-gray-500">No results found</div>
+                {/* Loading state */}
+                {(productsLoading || factoriesLoading || cpnsLoading) && (
+                  <div className="px-3 py-4 text-center">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-600 mx-auto" />
+                  </div>
+                )}
+
+                {/* Factory/Manufacturer results */}
+                {dropdownOpen.column === 'manufacturer' && !factoriesLoading && (
+                  <>
+                    {factoryResults.map((factory) => (
+                      <button
+                        key={factory.id}
+                        onClick={() => {
+                          updateLineItem(dropdownOpen.itemId, {
+                            manufacturerId: factory.id,
+                            manufacturerName: factory.title,
+                          });
+                          setDropdownOpen(null);
+                          setSearchQuery('');
+                          setDebouncedSearch('');
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition-colors"
+                      >
+                        {factory.title}
+                      </button>
+                    ))}
+                    {factoryResults.length === 0 && (
+                      <div className="px-3 py-2 text-sm text-gray-500">No manufacturers found</div>
+                    )}
+                  </>
+                )}
+
+                {/* Product results */}
+                {isProductDropdown && !productsLoading && (
+                  <>
+                    {productResults.map((product) => (
+                      <button
+                        key={product.id}
+                        onClick={async () => {
+                          // Get current line item to calculate derived values
+                          const item = lineItems.find(li => li.id === dropdownOpen.itemId);
+                          const quantity = item?.quantity || 1;
+                          const divisor = item?.divisor || 1;
+                          const unitPrice = product.unitPrice || 0;
+                          const commissionRate = product.defaultCommissionRate || 0;
+
+                          // Calculate derived values
+                          const sellTotal = quantity * unitPrice / divisor;
+                          const commission = sellTotal * commissionRate / quantity;
+                          const commissionTotal = sellTotal * commissionRate;
+
+                          // Update with basic product info, calculations, and clear CPN since product changed
+                          updateLineItem(dropdownOpen.itemId, {
+                            productId: product.id,
+                            partNumber: product.factoryPartNumber || '',
+                            description: product.description || '',
+                            manufacturerId: product.factory?.id,
+                            manufacturerName: product.factory?.title || '',
+                            unitPrice: unitPrice,
+                            commissionPercent: commissionRate,
+                            customerPartNumber: '', // Clear CPN when product changes
+                            sellTotal: sellTotal,
+                            commission: commission,
+                            commissionTotal: commissionTotal,
+                          });
+                          setDropdownOpen(null);
+                          setSearchQuery('');
+                          setDebouncedSearch('');
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="font-mono text-sm font-medium">{product.factoryPartNumber}</div>
+                        <div className="text-xs text-gray-500 truncate">{product.description}</div>
+                        {product.factory?.title && (
+                          <div className="text-xs text-gray-400">{product.factory.title}</div>
+                        )}
+                      </button>
+                    ))}
+                    {productResults.length === 0 && (
+                      <div className="px-3 py-2 text-sm text-gray-500">No products found</div>
+                    )}
+                  </>
+                )}
+
+                {/* CPN (Customer Part Number) results */}
+                {isCpnDropdown && !cpnsLoading && (
+                  <>
+                    {!currentProductId && (
+                      <div className="px-3 py-2 text-sm text-amber-600">Select a product first to view CPNs</div>
+                    )}
+                    {currentProductId && cpnResults.length === 0 && (
+                      <div className="px-3 py-2 text-sm text-gray-500">No CPNs found for this product</div>
+                    )}
+                    {cpnResults.map((cpn) => (
+                      <button
+                        key={cpn.id}
+                        onClick={() => {
+                          updateLineItem(dropdownOpen.itemId, {
+                            customerPartNumber: cpn.customerPartNumber,
+                          });
+                          setDropdownOpen(null);
+                          setSearchQuery('');
+                          setDebouncedSearch('');
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition-colors"
+                      >
+                        {cpn.customerPartNumber}
+                      </button>
+                    ))}
+                  </>
                 )}
               </div>
-              {/* Adhoc option */}
+              {/* Adhoc option - allows entering custom values */}
               {searchQuery.trim() && (
                 <div className="border-t border-gray-100">
                   <button
                     onClick={() => {
                       if (dropdownOpen.column === 'manufacturer') {
-                        handleDropdownSelect(dropdownOpen.itemId, 'manufacturer', searchQuery.trim());
-                      } else {
-                        handleDropdownSelect(dropdownOpen.itemId, dropdownOpen.column, searchQuery.trim());
+                        updateLineItem(dropdownOpen.itemId, {
+                          manufacturerId: undefined,
+                          manufacturerName: searchQuery.trim(),
+                        });
+                      } else if (dropdownOpen.column === 'partNumber') {
+                        // Adhoc part number clears productId and CPN
+                        updateLineItem(dropdownOpen.itemId, {
+                          productId: undefined,
+                          partNumber: searchQuery.trim(),
+                          customerPartNumber: '', // Clear CPN when part number changes
+                        });
+                      } else if (dropdownOpen.column === 'description') {
+                        updateLineItem(dropdownOpen.itemId, {
+                          description: searchQuery.trim(),
+                        });
+                      } else if (dropdownOpen.column === 'customerPartNumber') {
+                        updateLineItem(dropdownOpen.itemId, {
+                          customerPartNumber: searchQuery.trim(),
+                        });
                       }
+                      setDropdownOpen(null);
+                      setSearchQuery('');
+                      setDebouncedSearch('');
                     }}
                     className="w-full text-left px-3 py-2 hover:bg-gray-50 transition-colors flex items-center gap-2"
                   >

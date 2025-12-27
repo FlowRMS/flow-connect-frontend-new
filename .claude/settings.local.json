@@ -21,7 +21,8 @@
       "Bash(python scripts/replace_rep_modals.py:*)",
       "Bash(python scripts/replace_duplicate_modal.py:*)",
       "Bash(python:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(cd:*)"
     ],
     "deny": [],
     "ask": []

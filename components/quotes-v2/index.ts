@@ -1,6 +1,7 @@
 // Quotes V2 Module - Barrel Export
 export { QuotesV2Content } from './QuotesV2Content';
 export { QuoteDetailV2 } from './QuoteDetailV2';
+export { QuoteDetailV2Page } from './QuoteDetailV2Page';
 
 // Views
 export { KanbanViewV2 } from './views/KanbanViewV2';
@@ -29,3 +30,15 @@ export type * from './types';
 
 // Data
 export * from './data/mockData';
+
+// API - explicitly export to avoid conflicts with types
+export {
+  quoteV2QueryKeys,
+  useQuotesV2Infinite,
+  useQuotesV2,
+  useQuoteV2,
+  useCreateQuoteV2,
+  useUpdateQuoteV2,
+  useDuplicateQuoteV2,
+  useDeleteQuoteV2,
+} from './api/quotesV2Api';

@@ -464,3 +464,56 @@ export const genericToasts = {
       description: 'Please log in again to continue',
     }),
 };
+
+// Quote Toasts
+export const quoteToasts = {
+  createSuccess: (quoteNumber: string) =>
+    showSuccessToast('Quote Created', {
+      description: `${quoteNumber} has been created successfully`,
+    }),
+
+  createError: (error?: string) =>
+    showErrorToast('Failed to Create Quote', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  updateSuccess: (quoteNumber: string) =>
+    showSuccessToast('Quote Saved', {
+      description: `${quoteNumber} has been updated successfully`,
+    }),
+
+  updateError: (error?: string) =>
+    showErrorToast('Failed to Save Quote', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  deleteSuccess: (quoteNumber: string) =>
+    showSuccessToast('Quote Deleted', {
+      description: `${quoteNumber} has been removed`,
+    }),
+
+  deleteError: (error?: string) =>
+    showErrorToast('Failed to Delete Quote', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  duplicateSuccess: (quoteNumber: string) =>
+    showSuccessToast('Quote Duplicated', {
+      description: `${quoteNumber} has been created as a copy`,
+    }),
+
+  duplicateError: (error?: string) =>
+    showErrorToast('Failed to Duplicate Quote', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  stageChanged: (quoteNumber: string, newStage: string) =>
+    showSuccessToast('Stage Updated', {
+      description: `${quoteNumber} moved to ${newStage}`,
+    }),
+
+  stageChangeError: (error?: string) =>
+    showErrorToast('Failed to Update Stage', {
+      description: error || 'Please try again or contact support',
+    }),
+};

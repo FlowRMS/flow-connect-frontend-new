@@ -858,10 +858,11 @@ const LIST_PRODUCT_CPNS = `
   query ListProductCpnsByProductId($productId: UUID!) {
     listProductCpnsByProductId(productId: $productId) {
       id
-      cpn
+      customerPartNumber
       customerId
       productId
-      published
+      commissionRate
+      unitPrice
     }
   }
 `;
@@ -914,10 +915,11 @@ export interface FactorySearchResult {
 
 export interface ProductCpnResult {
   id: string;
-  cpn: string;
+  customerPartNumber: string;
   customerId?: string;
   productId: string;
-  published?: boolean;
+  commissionRate?: string;
+  unitPrice?: string;
 }
 
 export interface ProductUomResult {

@@ -55,8 +55,8 @@ export const quoteQueryKeys = {
     [...quoteQueryKeys.all, 'productSearch', { searchTerm, factoryId }] as const,
   factorySearch: (searchTerm: string) =>
     [...quoteQueryKeys.all, 'factorySearch', { searchTerm }] as const,
-  userSearch: (searchTerm: string, isInside?: boolean) =>
-    [...quoteQueryKeys.all, 'userSearch', { searchTerm, isInside }] as const,
+  userSearch: (searchTerm: string, isInside?: boolean, isOutside?: boolean) =>
+    [...quoteQueryKeys.all, 'userSearch', { searchTerm, isInside, isOutside }] as const,
   productCpns: (productId: string) =>
     [...quoteQueryKeys.all, 'productCpns', { productId }] as const,
   productUoms: (productId?: string) =>
@@ -249,11 +249,12 @@ export function useFactorySearch(searchTerm: string, enabled: boolean = true) {
 /**
  * Search users for inside reps and split rates
  * When searchTerm is empty, returns initial user list
+ * @param isOutside - if true, filters to only show outside reps
  */
-export function useUserSearch(searchTerm: string, isInside?: boolean, enabled: boolean = true) {
+export function useUserSearch(searchTerm: string, isInside?: boolean, enabled: boolean = true, isOutside?: boolean) {
   return useQuery<UserSearchResult[], Error>({
-    queryKey: quoteQueryKeys.userSearch(searchTerm || '', isInside),
-    queryFn: () => searchUsers({ searchTerm: searchTerm || '', isInside, enabled: true, limit: 20 }),
+    queryKey: quoteQueryKeys.userSearch(searchTerm || '', isInside, isOutside),
+    queryFn: () => searchUsers({ searchTerm: searchTerm || '', isInside, isOutside, enabled: true, limit: 20 }),
     enabled: enabled,
     staleTime: 30 * 1000,
   });

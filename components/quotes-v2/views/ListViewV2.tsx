@@ -1,77 +1,58 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import type { QuoteV2 } from '../types';
+import type { QuoteV2, QuotePipelineStage } from '../types';
 
 interface ListViewV2Props {
   quotes: QuoteV2[];
   onQuoteClick: (quote: QuoteV2) => void;
 }
 
-type SortKey = 'quoteNumber' | 'status' | 'stage' | 'quoteAmount' | 'billToCustomerName' | 'entryDate' | 'quoteDate' | 'expirationDate' | 'factoriesCount' | 'soldToCustomerName' | 'jobName' | 'winProbability' | 'approvalStatus' | 'endUsersCount' | 'insideRepName' | 'outsideRepName' | 'published' | 'tags';
+type SortKey = 'quoteNumber' | 'status' | 'pipelineStage' | 'quoteAmount' | 'entryDate' | 'quoteDate' | 'expirationDate' | 'published';
 
 function getStatusBadgeClass(status: string): string {
   switch (status) {
-    case 'PENDING':
-      return 'bg-yellow-100 text-yellow-700';
     case 'OPEN':
       return 'bg-green-100 text-green-700';
-    case 'CLOSED':
-      return 'bg-gray-100 text-gray-700';
-    default:
-      return 'bg-gray-100 text-gray-700';
-  }
-}
-
-function getStageBadgeClass(stage: string): string {
-  switch (stage) {
-    case 'Draft':
-      return 'bg-gray-100 text-gray-700';
-    case 'Review':
+    case 'ORDERED':
       return 'bg-blue-100 text-blue-700';
-    case 'Sent':
-      return 'bg-purple-100 text-purple-700';
-    case 'Negotiating':
+    case 'EXPIRED':
       return 'bg-yellow-100 text-yellow-700';
-    case 'Won':
-      return 'bg-green-100 text-green-700';
-    case 'Lost':
+    case 'LOST':
       return 'bg-red-100 text-red-700';
-    case 'Dormant':
-      return 'bg-gray-200 text-gray-500';
     default:
       return 'bg-gray-100 text-gray-700';
   }
 }
 
-function getApprovalBadgeClass(status: string, count: number): { class: string; text: string } {
-  if (count === 0) {
-    return { class: 'text-green-600', text: 'Approved' };
+function getPipelineStageBadgeClass(stage?: QuotePipelineStage): string {
+  switch (stage) {
+    case 'DISCOVERY':
+      return 'bg-gray-100 text-gray-700';
+    case 'PROSPECT':
+      return 'bg-slate-100 text-slate-700';
+    case 'QUALIFICATION':
+      return 'bg-blue-100 text-blue-700';
+    case 'PROPOSAL':
+      return 'bg-purple-100 text-purple-700';
+    case 'NEGOTIATION':
+      return 'bg-yellow-100 text-yellow-700';
+    case 'CLOSED_WON':
+      return 'bg-green-100 text-green-700';
+    case 'CLOSED_LOST':
+      return 'bg-red-100 text-red-700';
+    default:
+      return 'bg-gray-100 text-gray-700';
   }
-  if (status === 'blocked') {
-    return { class: 'bg-red-100 text-red-600', text: `${count} Blocked` };
-  }
-  if (status === 'pending') {
-    return { class: 'bg-yellow-100 text-yellow-600', text: `${count} Pending` };
-  }
-  return { class: 'text-green-600', text: 'Approved' };
 }
 
-function getWinProbabilityDisplay(probability: number, approvalStatus: string) {
-  const isDown = probability < 50;
-  let colorClass = '';
-
-  if (approvalStatus === 'blocked') {
-    colorClass = 'text-red-600';
-  } else if (probability >= 70) {
-    colorClass = 'text-green-600';
-  } else if (probability >= 40) {
-    colorClass = 'text-yellow-600';
-  } else {
-    colorClass = 'text-red-600';
-  }
-
-  return { colorClass, isDown };
+// Format pipeline stage for display (e.g., CLOSED_WON -> Closed Won)
+function formatPipelineStage(stage?: QuotePipelineStage): string {
+  if (!stage) return '-';
+  return stage
+    .split('_')
+    .map(word => word.charAt(0) + word.slice(1).toLowerCase())
+    .join(' ');
 }
 
 export function ListViewV2({ quotes, onQuoteClick }: ListViewV2Props) {
@@ -92,8 +73,8 @@ export function ListViewV2({ quotes, onQuoteClick }: ListViewV2Props) {
     if (!sortColumn) return quotes;
 
     return [...quotes].sort((a, b) => {
-      let aVal: string | number = '';
-      let bVal: string | number = '';
+      let aVal: string | number | boolean | undefined = '';
+      let bVal: string | number | boolean | undefined = '';
 
       switch (sortColumn) {
         case 'quoteNumber':
@@ -104,17 +85,13 @@ export function ListViewV2({ quotes, onQuoteClick }: ListViewV2Props) {
           aVal = a.status;
           bVal = b.status;
           break;
-        case 'stage':
-          aVal = a.stage;
-          bVal = b.stage;
+        case 'pipelineStage':
+          aVal = a.pipelineStage || '';
+          bVal = b.pipelineStage || '';
           break;
         case 'quoteAmount':
           aVal = a.quoteAmount;
           bVal = b.quoteAmount;
-          break;
-        case 'billToCustomerName':
-          aVal = a.billToCustomerName;
-          bVal = b.billToCustomerName;
           break;
         case 'entryDate':
           aVal = a.entryDate;
@@ -128,17 +105,9 @@ export function ListViewV2({ quotes, onQuoteClick }: ListViewV2Props) {
           aVal = a.expirationDate;
           bVal = b.expirationDate;
           break;
-        case 'soldToCustomerName':
-          aVal = a.soldToCustomerName;
-          bVal = b.soldToCustomerName;
-          break;
-        case 'jobName':
-          aVal = a.jobName;
-          bVal = b.jobName;
-          break;
-        case 'winProbability':
-          aVal = a.winProbability;
-          bVal = b.winProbability;
+        case 'published':
+          aVal = a.published ? 1 : 0;
+          bVal = b.published ? 1 : 0;
           break;
         default:
           return 0;
@@ -169,11 +138,13 @@ export function ListViewV2({ quotes, onQuoteClick }: ListViewV2Props) {
   };
 
   const formatDate = (dateStr: string): string => {
+    if (!dateStr) return '-';
     const date = new Date(dateStr);
     return date.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
   };
 
   const isExpiringSoon = (dateStr: string): boolean => {
+    if (!dateStr) return false;
     const date = new Date(dateStr);
     const now = new Date();
     const daysUntil = (date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
@@ -206,7 +177,7 @@ export function ListViewV2({ quotes, onQuoteClick }: ListViewV2Props) {
   return (
     <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1800px]">
+        <table className="w-full">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
               {/* Checkbox */}
@@ -232,22 +203,16 @@ export function ListViewV2({ quotes, onQuoteClick }: ListViewV2Props) {
                   Status {renderFilterIcon()} {renderSortIcon('status')}
                 </div>
               </th>
-              {/* Stage */}
+              {/* Pipeline Stage */}
               <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('stage')}>
-                  Stage {renderFilterIcon()} {renderSortIcon('stage')}
+                <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('pipelineStage')}>
+                  Pipeline Stage {renderFilterIcon()} {renderSortIcon('pipelineStage')}
                 </div>
               </th>
               {/* Quote Amount */}
               <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                 <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('quoteAmount')}>
-                  Quote Amount {renderFilterIcon()} {renderSortIcon('quoteAmount')}
-                </div>
-              </th>
-              {/* Bill-To */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('billToCustomerName')}>
-                  Bill-To {renderFilterIcon()} {renderSortIcon('billToCustomerName')}
+                  Total {renderFilterIcon()} {renderSortIcon('quoteAmount')}
                 </div>
               </th>
               {/* Entry Date */}
@@ -268,59 +233,16 @@ export function ListViewV2({ quotes, onQuoteClick }: ListViewV2Props) {
                   Exp. Date {renderFilterIcon()} {renderSortIcon('expirationDate')}
                 </div>
               </th>
-              {/* Factory */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center">Factory {renderFilterIcon()}</div>
-              </th>
-              {/* Customer */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('soldToCustomerName')}>
-                  Customer {renderFilterIcon()} {renderSortIcon('soldToCustomerName')}
-                </div>
-              </th>
-              {/* Job Name */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('jobName')}>
-                  Job Name {renderFilterIcon()} {renderSortIcon('jobName')}
-                </div>
-              </th>
-              {/* Win % */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('winProbability')}>
-                  Win % {renderFilterIcon()} {renderSortIcon('winProbability')}
-                </div>
-              </th>
-              {/* Approvals */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center">Approvals {renderFilterIcon()}</div>
-              </th>
-              {/* End Users */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center">End Users {renderFilterIcon()}</div>
-              </th>
-              {/* Inside Reps */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center">Inside Reps {renderFilterIcon()}</div>
-              </th>
-              {/* Outside Reps */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center">Outside Reps {renderFilterIcon()}</div>
-              </th>
               {/* Published */}
               <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center">Published {renderFilterIcon()}</div>
-              </th>
-              {/* Tags */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center">Tags {renderFilterIcon()}</div>
+                <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('published')}>
+                  Published {renderFilterIcon()} {renderSortIcon('published')}
+                </div>
               </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
             {sortedQuotes.map((quote) => {
-              const approvalInfo = getApprovalBadgeClass(quote.approvalStatus, quote.pendingApprovals + quote.blockedApprovals);
-              const winProb = getWinProbabilityDisplay(quote.winProbability, quote.approvalStatus);
-
               return (
                 <tr
                   key={quote.id}
@@ -355,16 +277,16 @@ export function ListViewV2({ quotes, onQuoteClick }: ListViewV2Props) {
                       {quote.status}
                     </span>
                   </td>
-                  {/* Stage */}
+                  {/* Pipeline Stage */}
                   <td className="px-3 py-3">
-                    <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${getStageBadgeClass(quote.stage)}`}>
-                      {quote.stage}
+                    <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${getPipelineStageBadgeClass(quote.pipelineStage)}`}>
+                      {formatPipelineStage(quote.pipelineStage)}
                     </span>
                   </td>
                   {/* Quote Amount */}
-                  <td className="px-3 py-3 text-sm text-gray-900">${quote.quoteAmount.toLocaleString()}</td>
-                  {/* Bill-To */}
-                  <td className="px-3 py-3 text-sm text-gray-900 max-w-[120px] truncate">{quote.billToCustomerName}</td>
+                  <td className="px-3 py-3 text-sm text-gray-900">
+                    ${Number(quote.quoteAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
                   {/* Entry Date */}
                   <td className="px-3 py-3 text-sm text-gray-900">{formatDate(quote.entryDate)}</td>
                   {/* Quote Date */}
@@ -375,53 +297,6 @@ export function ListViewV2({ quotes, onQuoteClick }: ListViewV2Props) {
                       {formatDate(quote.expirationDate)}
                     </span>
                   </td>
-                  {/* Factory */}
-                  <td className="px-3 py-3">
-                    <div className="flex items-center gap-1">
-                      <span className="w-5 h-5 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center text-xs font-medium">M</span>
-                      <span className="text-sm text-gray-500">{quote.factoriesCount} Factories</span>
-                    </div>
-                  </td>
-                  {/* Customer */}
-                  <td className="px-3 py-3">
-                    <div className="flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-medium">
-                        {quote.soldToCustomerName.charAt(0)}
-                      </span>
-                      <span className="text-sm text-gray-900 truncate max-w-[100px]">{quote.soldToCustomerName}</span>
-                    </div>
-                  </td>
-                  {/* Job Name */}
-                  <td className="px-3 py-3 text-sm text-gray-900 max-w-[150px] truncate">{quote.jobName}</td>
-                  {/* Win % */}
-                  <td className="px-3 py-3">
-                    <div className={`flex items-center gap-1 ${winProb.colorClass}`}>
-                      <span className="text-sm font-medium">{quote.winProbability}%</span>
-                      {winProb.isDown ? (
-                        <svg width="10" height="10" viewBox="0 0 12 12" fill="currentColor">
-                          <path d="M6 9L2 5h8L6 9z" />
-                        </svg>
-                      ) : (
-                        <svg width="10" height="10" viewBox="0 0 12 12" fill="currentColor">
-                          <path d="M6 3L10 7H2L6 3z" />
-                        </svg>
-                      )}
-                    </div>
-                  </td>
-                  {/* Approvals */}
-                  <td className="px-3 py-3">
-                    <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${approvalInfo.class}`}>
-                      {approvalInfo.text}
-                    </span>
-                  </td>
-                  {/* End Users */}
-                  <td className="px-3 py-3 text-sm text-gray-500">
-                    {quote.endUsersCount > 0 ? `${quote.endUsersCount} End Users` : '-'}
-                  </td>
-                  {/* Inside Reps */}
-                  <td className="px-3 py-3 text-sm text-gray-900">{quote.insideRepName || '-'}</td>
-                  {/* Outside Reps */}
-                  <td className="px-3 py-3 text-sm text-gray-900">{quote.outsideRepName || '-'}</td>
                   {/* Published */}
                   <td className="px-3 py-3 text-center">
                     {quote.published ? (
@@ -430,18 +305,11 @@ export function ListViewV2({ quotes, onQuoteClick }: ListViewV2Props) {
                         <path d="M6 10l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     ) : (
-                      <span className="text-gray-400">-</span>
+                      <svg width="18" height="18" viewBox="0 0 20 20" fill="none" className="text-gray-300 mx-auto">
+                        <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="2" />
+                        <path d="M7 7l6 6M13 7l-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      </svg>
                     )}
-                  </td>
-                  {/* Tags */}
-                  <td className="px-3 py-3">
-                    <div className="flex gap-1 flex-wrap">
-                      {quote.tags.map((tag, idx) => (
-                        <span key={idx} className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
                   </td>
                 </tr>
               );
@@ -449,6 +317,13 @@ export function ListViewV2({ quotes, onQuoteClick }: ListViewV2Props) {
           </tbody>
         </table>
       </div>
+
+      {/* Empty state */}
+      {quotes.length === 0 && (
+        <div className="text-center py-12">
+          <p className="text-gray-500">No quotes found</p>
+        </div>
+      )}
     </div>
   );
 }
