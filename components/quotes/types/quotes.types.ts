@@ -21,7 +21,8 @@ export type EndUser = {
 };
 
 export type Quote = {
-  id: string;
+  id: string; // Quote number for display
+  uuid: string; // API UUID for navigation/API calls
   name: string;
   billToCustomer: string;
   soldToCustomer: string;

@@ -8,3 +8,9 @@ export type { QuoteSortKey, QuickDatePreset, QuickDateField, QuoteFilterValue } 
 export { useKanbanDnD } from './useKanbanDnD';
 export { useQuoteDetailFullState, columnDefinitions } from './useQuoteDetailFullState';
 export type { ColumnKey } from './useQuoteDetailFullState';
+export {
+  useCustomerSearchDropdown,
+  useRepSearchDropdown,
+  useFactorySearchDropdown,
+  useProductSearchDropdown,
+} from './useSearchDropdowns';

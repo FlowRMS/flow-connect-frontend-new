@@ -63,6 +63,32 @@ export interface QuoteSplitRate {
   userId?: string;
 }
 
+export interface QuoteProduct {
+  id: string;
+  approvalComments?: string;
+  approvalDate?: string;
+  approvalNeeded?: boolean;
+  commissionDiscountRate?: number;
+  defaultCommissionRate?: number;
+  defaultDivisor?: number;
+  description?: string;
+  factoryPartNumber?: string;
+  leadTime?: string;
+  minOrderQty?: number;
+  published?: boolean;
+  tags?: string[];
+  unitPrice?: number;
+  unitPriceDiscountRate?: number;
+  upc?: string;
+}
+
+export interface QuoteUom {
+  id: string;
+  description?: string;
+  divisionFactor?: number;
+  title?: string;
+}
+
 export interface QuoteDetail {
   id: string;
   commission?: number;
@@ -76,6 +102,7 @@ export interface QuoteDetail {
   itemNumber?: number;
   leadTime?: string;
   note?: string;
+  product?: QuoteProduct;
   productDescriptionAdhoc?: string;
   productId?: string;
   productNameAdhoc?: string;
@@ -87,6 +114,7 @@ export interface QuoteDetail {
   total?: number;
   totalLineCommission?: number;
   unitPrice?: string;
+  uom?: QuoteUom;
 }
 
 export interface QuoteInsideRep {
@@ -251,7 +279,7 @@ const QUOTE_LANDING_PAGES = `
 
 const FIND_QUOTE_BY_ID = `
   query FindQuoteById($id: UUID!) {
-    findQuoteById(id: $id) {
+    quote(id: $id) {
       id
       acceptDate
       balance {
@@ -306,6 +334,24 @@ const FIND_QUOTE_BY_ID = `
         itemNumber
         leadTime
         note
+        product {
+          approvalComments
+          approvalDate
+          approvalNeeded
+          commissionDiscountRate
+          defaultCommissionRate
+          defaultDivisor
+          description
+          factoryPartNumber
+          id
+          leadTime
+          minOrderQty
+          published
+          tags
+          unitPrice
+          unitPriceDiscountRate
+          upc
+        }
         productDescriptionAdhoc
         productId
         productNameAdhoc
@@ -324,6 +370,12 @@ const FIND_QUOTE_BY_ID = `
         total
         totalLineCommission
         unitPrice
+        uom {
+          description
+          divisionFactor
+          id
+          title
+        }
       }
       duplicatedFrom
       entityDate
@@ -799,6 +851,37 @@ const USER_SEARCH = `
 `;
 
 // ============================================================================
+// Product CPNs Query (for Customer Part Numbers by Product ID)
+// ============================================================================
+
+const LIST_PRODUCT_CPNS = `
+  query ListProductCpnsByProductId($productId: UUID!) {
+    listProductCpnsByProductId(productId: $productId) {
+      id
+      cpn
+      customerId
+      productId
+      published
+    }
+  }
+`;
+
+// ============================================================================
+// Product UOMs Query (for Unit of Measure)
+// ============================================================================
+
+const LIST_PRODUCT_UOMS = `
+  query ListProductUoms($productId: UUID) {
+    productUoms(productId: $productId) {
+      id
+      description
+      divisionFactor
+      title
+    }
+  }
+`;
+
+// ============================================================================
 // API Types for Search Results
 // ============================================================================
 
@@ -827,6 +910,21 @@ export interface FactorySearchResult {
   title: string;
   accountNumber?: string;
   published?: boolean;
+}
+
+export interface ProductCpnResult {
+  id: string;
+  cpn: string;
+  customerId?: string;
+  productId: string;
+  published?: boolean;
+}
+
+export interface ProductUomResult {
+  id: string;
+  description?: string;
+  divisionFactor?: number;
+  title?: string;
 }
 
 export interface UserSearchResult {
@@ -889,7 +987,7 @@ export async function fetchQuotes(): Promise<QuoteLandingPage[]> {
  * Fetch a single quote by ID
  */
 export async function fetchQuoteById(id: string): Promise<Quote | null> {
-  const response = await crmGraphQLRequest<{ findQuoteById: Quote }>({
+  const response = await crmGraphQLRequest<{ quote: Quote }>({
     query: FIND_QUOTE_BY_ID,
     variables: { id },
   });
@@ -898,7 +996,7 @@ export async function fetchQuoteById(id: string): Promise<Quote | null> {
     throw new Error(response.errors[0]?.message || 'Failed to fetch quote');
   }
 
-  return response.data?.findQuoteById || null;
+  return response.data?.quote || null;
 }
 
 /**
@@ -1082,4 +1180,36 @@ export async function searchUsers(params: {
   }
 
   return response.data?.userSearch || [];
+}
+
+/**
+ * List customer part numbers (CPNs) for a product
+ */
+export async function listProductCpns(productId: string): Promise<ProductCpnResult[]> {
+  const response = await crmGraphQLRequest<{ listProductCpnsByProductId: ProductCpnResult[] }>({
+    query: LIST_PRODUCT_CPNS,
+    variables: { productId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch product CPNs');
+  }
+
+  return response.data?.listProductCpnsByProductId || [];
+}
+
+/**
+ * List UOMs (Unit of Measure) for a product
+ */
+export async function listProductUoms(productId?: string): Promise<ProductUomResult[]> {
+  const response = await crmGraphQLRequest<{ productUoms: ProductUomResult[] }>({
+    query: LIST_PRODUCT_UOMS,
+    variables: { productId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch product UOMs');
+  }
+
+  return response.data?.productUoms || [];
 }

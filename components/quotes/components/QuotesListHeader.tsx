@@ -27,6 +27,7 @@ interface QuotesListHeaderProps {
   setQuickDateField: (field: QuickDateField) => void;
   showQuickDateFieldDropdown: boolean;
   setShowQuickDateFieldDropdown: (show: boolean) => void;
+  onNewQuote?: () => void;
 }
 
 export function QuotesListHeader({
@@ -40,6 +41,7 @@ export function QuotesListHeader({
   setQuickDateField,
   showQuickDateFieldDropdown,
   setShowQuickDateFieldDropdown,
+  onNewQuote,
 }: QuotesListHeaderProps) {
   return (
     <>
@@ -101,7 +103,10 @@ export function QuotesListHeader({
               </svg>
               Sort
             </button>
-            <button className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors">
+            <button
+              onClick={onNewQuote}
+              className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"
+            >
               <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="10" cy="10" r="7"/>
                 <path d="M10 7v6M7 10h6" strokeLinecap="round"/>

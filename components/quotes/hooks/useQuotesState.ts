@@ -1,8 +1,87 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import type { Quote, QuoteSortKey, QuoteFilterValue, QuickDatePreset, QuickDateField } from '../types';
-import { mockQuotes } from '../data';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import type { Quote } from '../types';
+import type { QuoteSortKey, QuoteFilterValue, QuickDatePreset, QuickDateField } from './useQuotesListFilters';
+import {
+  useQuotesInfinite,
+  type QuoteLandingPage,
+  type QuoteLandingPageFilter,
+  type QuoteLandingPageOrderBy,
+  type QuoteStatus as ApiQuoteStatus,
+  type QuotePipelineStage,
+} from '../api';
+
+/**
+ * Maps API pipeline stage to UI stage
+ */
+function mapPipelineStageToUIStage(stage?: QuotePipelineStage): Quote['stage'] {
+  if (!stage) return 'Draft';
+  switch (stage) {
+    case 'DISCOVERY': return 'Draft';
+    case 'PROSPECT': return 'Review';
+    case 'QUALIFICATION': return 'Review';
+    case 'PROPOSAL': return 'Sent';
+    case 'NEGOTIATION': return 'Negotiating';
+    case 'CLOSED_WON': return 'Won';
+    case 'CLOSED_LOST': return 'Lost';
+    default: return 'Draft';
+  }
+}
+
+/**
+ * Maps API status to UI status
+ */
+function mapApiStatusToUIStatus(status?: ApiQuoteStatus): Quote['status'] {
+  if (!status) return 'Open';
+  switch (status) {
+    case 'OPEN': return 'Open';
+    case 'ORDERED': return 'Closed';
+    case 'EXPIRED': return 'Expired';
+    case 'LOST': return 'Closed';
+    default: return 'Open';
+  }
+}
+
+/**
+ * Maps API QuoteLandingPage to UI Quote type
+ */
+function mapApiQuoteToUIQuote(apiQuote: QuoteLandingPage): Quote {
+  return {
+    id: apiQuote.quoteNumber || apiQuote.id, // Quote number for display
+    uuid: apiQuote.id, // API UUID for navigation/API calls
+    name: apiQuote.quoteNumber,
+    billToCustomer: '', // Not available in landing page - will show 'Coming Soon' or be populated later
+    soldToCustomer: '', // Not available in landing page - will show 'Coming Soon' or be populated later
+    jobId: '', // Not available in landing page
+    jobName: '', // Not available in landing page
+    stage: mapPipelineStageToUIStage(apiQuote.pipelineStage),
+    status: mapApiStatusToUIStatus(apiQuote.status),
+    quoteType: 'NORMAL', // Not available in landing page
+    value: apiQuote.total ? `$${apiQuote.total.toLocaleString()}` : '$0',
+    valueNumber: apiQuote.total || 0,
+    winProbability: 50, // Not available in landing page - will be calculated or set default
+    entryDate: apiQuote.createdAt || '',
+    quoteDate: apiQuote.entityDate || '',
+    expirationDate: apiQuote.expDate || '',
+    revisedDate: '', // Not available in landing page
+    acceptDate: '', // Not available in landing page
+    paymentTerms: '', // Not available in landing page
+    freightTerms: '', // Not available in landing page
+    owner: apiQuote.createdBy || '',
+    version: 1, // Not available in landing page
+    lastUpdated: apiQuote.createdAt || '',
+    tags: [], // Not available in landing page
+    approvalStatus: 'clear', // Not available in landing page
+    pendingApprovals: 0, // Not available in landing page
+    factories: [], // Not available in landing page
+    endUsers: [], // Not available in landing page
+    insideReps: [], // Not available in landing page, but userIds might be available
+    outsideReps: [], // Not available in landing page
+    published: apiQuote.published ?? true,
+    lostReason: undefined,
+  };
+}
 
 /**
  * Hook for managing the main quotes list state including:
@@ -11,14 +90,54 @@ import { mockQuotes } from '../data';
  * - Bulk actions
  * - Drag-and-drop for Kanban board
  * - Mark as lost modal state
+ *
+ * Now integrated with real API data via useQuotesInfinite
  */
 export function useQuotesState() {
   // ============================================
+  // API STATE
+  // ============================================
+  const [apiFilters, setApiFilters] = useState<QuoteLandingPageFilter[]>([]);
+  const [apiOrderBy, setApiOrderBy] = useState<QuoteLandingPageOrderBy[]>([
+    { columnName: 'createdAt', direction: 'DESC' }
+  ]);
+
+  // Fetch quotes from API with infinite scroll
+  const {
+    data: apiData,
+    isLoading,
+    error,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useQuotesInfinite(apiFilters, apiOrderBy);
+
+  // Flatten API data into quotes array and map to UI format
+  const apiQuotes = useMemo(() => {
+    if (!apiData?.pages) return [];
+    const landingPages = apiData.pages.flatMap((page) => page.records);
+    return landingPages.map(mapApiQuoteToUIQuote);
+  }, [apiData]);
+
+  // ============================================
   // MAIN QUOTES STATE
   // ============================================
-  const [quotes, setQuotes] = useState<Quote[]>(mockQuotes);
+  // Local quotes state that can be modified (for optimistic updates, drag-drop, etc.)
+  const [localQuotes, setLocalQuotes] = useState<Quote[]>([]);
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
+
+  // Sync API quotes to local state
+  useEffect(() => {
+    if (apiQuotes.length > 0) {
+      setLocalQuotes(apiQuotes);
+    }
+  }, [apiQuotes]);
+
+  // Combined quotes - prefer local for optimistic updates, fallback to API
+  const quotes = localQuotes.length > 0 ? localQuotes : apiQuotes;
+  const setQuotes = setLocalQuotes;
 
   // DnD state for Kanban
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -72,36 +191,36 @@ export function useQuotesState() {
   // ============================================
   // SORTING HANDLER
   // ============================================
-  const handleQuotesSort = (column: QuoteSortKey) => {
+  const handleQuotesSort = useCallback((column: QuoteSortKey) => {
     if (quotesSortColumn === column) {
       setQuotesSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
       setQuotesSortColumn(column);
       setQuotesSortDirection('asc');
     }
-  };
+  }, [quotesSortColumn]);
 
   // ============================================
   // FILTER HANDLERS
   // ============================================
-  const handleQuoteFilterChange = (column: QuoteSortKey, filter: QuoteFilterValue | null) => {
+  const handleQuoteFilterChange = useCallback((column: QuoteSortKey, filter: QuoteFilterValue | null) => {
     setQuoteColumnFilters(prev => ({
       ...prev,
       [column]: filter
     }));
-  };
+  }, []);
 
-  const clearQuoteFilter = (column: QuoteSortKey) => {
+  const clearQuoteFilter = useCallback((column: QuoteSortKey) => {
     setQuoteColumnFilters(prev => {
       const newFilters = { ...prev };
       delete newFilters[column];
       return newFilters;
     });
     setActiveQuoteFilterColumn(null);
-  };
+  }, []);
 
   // Get unique values for picklist filters
-  const getUniqueValuesForColumn = (column: QuoteSortKey): string[] => {
+  const getUniqueValuesForColumn = useCallback((column: QuoteSortKey): string[] => {
     const values = new Set<string>();
     quotes.forEach(quote => {
       switch (column) {
@@ -115,13 +234,13 @@ export function useQuotesState() {
           quote.factories.forEach(f => values.add(f.name));
           break;
         case 'soldToCustomer':
-          values.add(quote.soldToCustomer);
+          if (quote.soldToCustomer) values.add(quote.soldToCustomer);
           break;
         case 'billToCustomer':
-          values.add(quote.billToCustomer);
+          if (quote.billToCustomer) values.add(quote.billToCustomer);
           break;
         case 'jobName':
-          values.add(quote.jobName);
+          if (quote.jobName) values.add(quote.jobName);
           break;
         case 'endUsers':
           quote.endUsers.forEach(e => values.add(e.name));
@@ -141,10 +260,10 @@ export function useQuotesState() {
       }
     });
     return Array.from(values).sort();
-  };
+  }, [quotes]);
 
   // Determine filter type for each column
-  const getFilterType = (column: QuoteSortKey): 'text' | 'select' | 'multiselect' | 'daterange' => {
+  const getFilterType = useCallback((column: QuoteSortKey): 'text' | 'select' | 'multiselect' | 'daterange' => {
     switch (column) {
       case 'status':
       case 'stage':
@@ -164,10 +283,10 @@ export function useQuotesState() {
       default:
         return 'text';
     }
-  };
+  }, []);
 
   // Check if a column has an active filter
-  const hasActiveFilter = (column: QuoteSortKey): boolean => {
+  const hasActiveFilter = useCallback((column: QuoteSortKey): boolean => {
     const filter = quoteColumnFilters[column];
     if (!filter) return false;
     switch (filter.type) {
@@ -177,10 +296,10 @@ export function useQuotesState() {
       case 'daterange': return !!filter.dateFrom || !!filter.dateTo;
       default: return false;
     }
-  };
+  }, [quoteColumnFilters]);
 
   // Helper function to get date range for quick date filter
-  const getQuickDateRange = (preset: QuickDatePreset): { start: Date | null; end: Date | null } => {
+  const getQuickDateRange = useCallback((preset: QuickDatePreset): { start: Date | null; end: Date | null } => {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
@@ -210,14 +329,14 @@ export function useQuotesState() {
       default:
         return { start: null, end: null };
     }
-  };
+  }, []);
 
   // ============================================
   // SORTED AND FILTERED QUOTES (MEMOIZED)
   // ============================================
   const sortedQuotes = useMemo(() => {
     // First apply quick date filter
-    let result = quotes;
+    let result = [...quotes];
     if (quickDatePreset !== 'all') {
       const { start, end } = getQuickDateRange(quickDatePreset);
       if (start && end) {
@@ -386,7 +505,7 @@ export function useQuotesState() {
     }
 
     return result;
-  }, [quotes, quotesSortColumn, quotesSortDirection, quoteColumnFilters, quickDatePreset, quickDateField]);
+  }, [quotes, quotesSortColumn, quotesSortDirection, quoteColumnFilters, quickDatePreset, quickDateField, getQuickDateRange]);
 
   // ============================================
   // RETURN ALL STATE AND HANDLERS
@@ -399,6 +518,14 @@ export function useQuotesState() {
     setViewMode,
     selectedQuote,
     setSelectedQuote,
+
+    // API state
+    isLoading,
+    error,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
 
     // DnD state
     activeId,

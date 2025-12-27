@@ -12,3 +12,4 @@ export { PricingSummaryBar } from './PricingSummaryBar';
 export { HeaderFieldsSection } from './HeaderFieldsSection';
 export { QuoteDetailTabs } from './QuoteDetailTabs';
 export { QuoteDetailModals } from './QuoteDetailModals';
+export { SearchableDropdown } from './SearchableDropdown';

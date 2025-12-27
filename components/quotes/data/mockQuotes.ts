@@ -1,9 +1,11 @@
 import type { Quote } from '../types';
 
 // Mock Data - 15 quotes across all stages
+// Note: For mock data, uuid is set to a mock UUID. In production, this comes from the API.
 export const mockQuotes: Quote[] = [
   {
     id: 'Q-2024-001',
+    uuid: 'mock-uuid-001',
     name: 'Downtown Medical Center - Lighting Package',
     billToCustomer: 'Graybar Electric',
     soldToCustomer: 'Turner Construction',
@@ -46,6 +48,7 @@ export const mockQuotes: Quote[] = [
   },
   {
     id: 'Q-2024-002',
+    uuid: 'mock-uuid-002',
     name: 'TechCorp HQ - Full Controls Package',
     billToCustomer: 'HD Supply',
     soldToCustomer: 'Hensel Phelps',
@@ -81,6 +84,7 @@ export const mockQuotes: Quote[] = [
   },
   {
     id: 'Q-2024-003',
+    uuid: 'mock-uuid-003',
     name: 'University Lab - Specialty Systems',
     billToCustomer: 'Ferguson Enterprises',
     soldToCustomer: 'Skanska USA',
@@ -113,6 +117,7 @@ export const mockQuotes: Quote[] = [
   },
   {
     id: 'Q-2024-004',
+    uuid: 'mock-uuid-004',
     name: 'Harbor View Apartments - Fixtures',
     billToCustomer: 'Graybar Electric',
     soldToCustomer: 'Swinerton Builders',
@@ -148,6 +153,7 @@ export const mockQuotes: Quote[] = [
   },
   {
     id: 'Q-2024-005',
+    uuid: 'mock-uuid-005',
     name: 'Airport Terminal - Infrastructure',
     billToCustomer: 'HD Supply',
     soldToCustomer: 'Hensel Phelps',
@@ -187,6 +193,7 @@ export const mockQuotes: Quote[] = [
   },
   {
     id: 'Q-2024-006',
+    uuid: 'mock-uuid-006',
     name: 'Westside Mall - Retail Lighting',
     billToCustomer: 'Ferguson Enterprises',
     soldToCustomer: 'Layton Construction',
@@ -219,6 +226,7 @@ export const mockQuotes: Quote[] = [
   },
   {
     id: 'Q-2024-007',
+    uuid: 'mock-uuid-007',
     name: 'City Hall Renovation - Electrical',
     billToCustomer: 'Rexel USA',
     soldToCustomer: 'McCarthy Building',
@@ -254,6 +262,7 @@ export const mockQuotes: Quote[] = [
   },
   {
     id: 'Q-2024-008',
+    uuid: 'mock-uuid-008',
     name: 'Riverside Office Tower - Full MEP',
     billToCustomer: 'Graybar Electric',
     soldToCustomer: 'Clark Construction',
@@ -292,6 +301,7 @@ export const mockQuotes: Quote[] = [
   },
   {
     id: 'Q-2024-009',
+    uuid: 'mock-uuid-009',
     name: 'Metro Transit Hub - Emergency Systems',
     billToCustomer: 'HD Supply',
     soldToCustomer: 'Kiewit Corporation',
@@ -324,6 +334,7 @@ export const mockQuotes: Quote[] = [
   },
   {
     id: 'Q-2024-010',
+    uuid: 'mock-uuid-010',
     name: 'Luxury Hotel - Decorative Lighting',
     billToCustomer: 'Ferguson Enterprises',
     soldToCustomer: 'Mortenson Construction',
@@ -363,6 +374,7 @@ export const mockQuotes: Quote[] = [
   },
   {
     id: 'Q-2024-011',
+    uuid: 'mock-uuid-011',
     name: 'Data Center - Power Distribution',
     billToCustomer: 'Graybar Electric',
     soldToCustomer: 'DPR Construction',
@@ -398,6 +410,7 @@ export const mockQuotes: Quote[] = [
   },
   {
     id: 'Q-2024-012',
+    uuid: 'mock-uuid-012',
     name: 'Sports Arena - LED Upgrades',
     billToCustomer: 'HD Supply',
     soldToCustomer: 'Hunt Construction',
@@ -433,6 +446,7 @@ export const mockQuotes: Quote[] = [
   },
   {
     id: 'Q-2024-013',
+    uuid: 'mock-uuid-013',
     name: 'Community College - Classroom Tech',
     billToCustomer: 'Rexel USA',
     soldToCustomer: 'Gilbane Building',
@@ -465,6 +479,7 @@ export const mockQuotes: Quote[] = [
   },
   {
     id: 'Q-2024-014',
+    uuid: 'mock-uuid-014',
     name: 'Biotech Campus - Cleanroom Systems',
     billToCustomer: 'Ferguson Enterprises',
     soldToCustomer: 'Whiting-Turner',
@@ -507,6 +522,7 @@ export const mockQuotes: Quote[] = [
   },
   {
     id: 'Q-2024-015',
+    uuid: 'mock-uuid-015',
     name: 'Mercy Hospital - ICU Expansion',
     billToCustomer: 'Graybar Electric',
     soldToCustomer: 'Brasfield & Gorrie',

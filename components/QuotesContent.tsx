@@ -14,9 +14,9 @@ import type {
   SavedView,
 } from './quotes/types';
 
-// Import mock data from quotes module
+// Import mock data from quotes module (some still used for detail view until fully integrated)
 import {
-  mockQuotes,
+  // mockQuotes - no longer needed, using real API data
   mockSections,
   mockLineItems,
   mockApprovalRequests,
@@ -60,10 +60,13 @@ import {
 
 // Import hooks from quotes module
 import {
-  useQuotesListFilters,
   useKanbanDnD,
+  useQuotesState,
 } from './quotes/hooks';
 import type { QuoteSortKey, QuickDatePreset, QuickDateField, QuoteFilterValue } from './quotes/hooks';
+
+// Import Next.js router for navigation
+import { useRouter } from 'next/navigation';
 
 // Import tab components from quotes module
 import {
@@ -79,14 +82,201 @@ import {
   LinesTab,
 } from './quotes/tabs';
 
+// Import API hooks for fetching single quote
+import {
+  useQuote,
+  type Quote as ApiQuote,
+  type QuoteStatus as ApiQuoteStatus,
+  type QuotePipelineStage,
+} from './quotes/api';
+
+// ============================================
+// Helper function to map API Quote to UI Quote
+// ============================================
+function mapFullApiQuoteToUIQuote(apiQuote: ApiQuote): Quote {
+  const mapPipelineStageToUIStage = (stage?: QuotePipelineStage): Quote['stage'] => {
+    if (!stage) return 'Draft';
+    switch (stage) {
+      case 'DISCOVERY': return 'Draft';
+      case 'PROSPECT': return 'Review';
+      case 'QUALIFICATION': return 'Review';
+      case 'PROPOSAL': return 'Sent';
+      case 'NEGOTIATION': return 'Negotiating';
+      case 'CLOSED_WON': return 'Won';
+      case 'CLOSED_LOST': return 'Lost';
+      default: return 'Draft';
+    }
+  };
+
+  const mapApiStatusToUIStatus = (status?: ApiQuoteStatus): Quote['status'] => {
+    if (!status) return 'Open';
+    switch (status) {
+      case 'OPEN': return 'Open';
+      case 'ORDERED': return 'Closed';
+      case 'EXPIRED': return 'Expired';
+      case 'LOST': return 'Closed';
+      default: return 'Open';
+    }
+  };
+
+  return {
+    id: apiQuote.quoteNumber || apiQuote.id,
+    uuid: apiQuote.id,
+    name: apiQuote.quoteNumber || 'New Quote',
+    billToCustomer: apiQuote.billToCustomer?.companyName || '',
+    soldToCustomer: apiQuote.soldToCustomer?.companyName || '',
+    jobId: '',
+    jobName: '',
+    stage: mapPipelineStageToUIStage(apiQuote.pipelineStage),
+    status: mapApiStatusToUIStatus(apiQuote.status),
+    quoteType: 'NORMAL',
+    value: apiQuote.balance?.total ? `$${apiQuote.balance.total.toLocaleString()}` : '$0',
+    valueNumber: apiQuote.balance?.total || 0,
+    winProbability: 50,
+    entryDate: apiQuote.createdAt || '',
+    quoteDate: apiQuote.entityDate || '',
+    expirationDate: apiQuote.expDate || '',
+    revisedDate: apiQuote.reviseDate || '',
+    acceptDate: apiQuote.acceptDate || '',
+    paymentTerms: apiQuote.paymentTerms || '',
+    freightTerms: apiQuote.freightTerms || '',
+    owner: apiQuote.createdBy?.fullName || apiQuote.createdBy?.firstName || '',
+    version: 1,
+    lastUpdated: apiQuote.createdAt || '',
+    tags: [],
+    approvalStatus: 'clear',
+    pendingApprovals: 0,
+    factories: [],
+    endUsers: [],
+    insideReps: apiQuote.insideReps?.map(rep => ({
+      id: rep.userId || rep.id,
+      name: '',
+    })) || [],
+    outsideReps: [],
+    published: apiQuote.published ?? true,
+    lostReason: undefined,
+  };
+}
+
+// Helper to create empty quote for "new" mode
+function createEmptyQuote(): Quote {
+  return {
+    id: '',
+    uuid: 'new',
+    name: 'New Quote',
+    billToCustomer: '',
+    soldToCustomer: '',
+    jobId: '',
+    jobName: '',
+    stage: 'Draft',
+    status: 'Open',
+    quoteType: 'NORMAL',
+    value: '$0',
+    valueNumber: 0,
+    winProbability: 50,
+    entryDate: new Date().toISOString(),
+    quoteDate: new Date().toISOString(),
+    expirationDate: '',
+    revisedDate: '',
+    acceptDate: '',
+    paymentTerms: '',
+    freightTerms: '',
+    owner: '',
+    version: 1,
+    lastUpdated: new Date().toISOString(),
+    tags: [],
+    approvalStatus: 'clear',
+    pendingApprovals: 0,
+    factories: [],
+    endUsers: [],
+    insideReps: [],
+    outsideReps: [],
+    published: false,
+    lostReason: undefined,
+  };
+}
+
+// ============================================
+// MAIN COMPONENT PROPS
+// ============================================
+interface QuotesContentProps {
+  initialQuoteId?: string; // If provided, load this quote directly (or 'new' for empty quote)
+}
+
 // ============================================
 // MAIN COMPONENT
 // ============================================
 
-export default function QuotesContent() {
-  const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
-  const [quotes, setQuotes] = useState<Quote[]>(mockQuotes);
-  const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
+export default function QuotesContent({ initialQuoteId }: QuotesContentProps = {}) {
+  const router = useRouter();
+
+  // Use the real API-connected quotes state hook
+  const {
+    quotes,
+    setQuotes,
+    viewMode,
+    setViewMode,
+    selectedQuote,
+    setSelectedQuote,
+    isLoading,
+    error,
+    refetch,
+    sortedQuotes,
+    quotesSortColumn,
+    quotesSortDirection,
+    handleQuotesSort,
+    quickDatePreset,
+    setQuickDatePreset,
+    quickDateField,
+    setQuickDateField,
+    showQuickDateFieldDropdown,
+    setShowQuickDateFieldDropdown,
+    quoteColumnFilters,
+    activeQuoteFilterColumn,
+    setActiveQuoteFilterColumn,
+    filterSearchText,
+    setFilterSearchText,
+    handleQuoteFilterChange,
+    clearQuoteFilter,
+    getUniqueValuesForColumn,
+    getFilterType,
+    hasActiveFilter,
+  } = useQuotesState();
+
+  // ============================================
+  // INITIAL QUOTE LOADING (for /quotes/[id] route)
+  // ============================================
+  const isNewQuote = initialQuoteId === 'new';
+  const shouldFetchQuote = !!initialQuoteId && !isNewQuote;
+
+  // Fetch the specific quote if initialQuoteId is provided
+  const {
+    data: fetchedApiQuote,
+    isLoading: isLoadingInitialQuote,
+    error: initialQuoteError
+  } = useQuote(shouldFetchQuote ? initialQuoteId : '');
+
+  // Set the selected quote when navigating directly to /quotes/[id]
+  useEffect(() => {
+    if (isNewQuote) {
+      // Create a new empty quote
+      setSelectedQuote(createEmptyQuote());
+    } else if (fetchedApiQuote && !selectedQuote) {
+      // Set the fetched quote as selected
+      setSelectedQuote(mapFullApiQuoteToUIQuote(fetchedApiQuote));
+    }
+  }, [isNewQuote, fetchedApiQuote, selectedQuote, setSelectedQuote]);
+
+  // Handle back navigation - go to /quotes list
+  const handleBackToList = useCallback(() => {
+    if (initialQuoteId) {
+      // If we came from a direct URL, navigate back to list
+      router.push('/quotes');
+    } else {
+      // If we're in the same page, just clear selection
+      setSelectedQuote(null);
+    }
+  }, [initialQuoteId, router, setSelectedQuote]);
 
   // Kanban drag-and-drop state (from hook)
   const {
@@ -100,6 +290,12 @@ export default function QuotesContent() {
     activeQuote,
     quotesByStage,
   } = useKanbanDnD(quotes, setQuotes);
+
+  // Handler for navigating to quote detail page
+  const handleQuoteSelect = useCallback((quote: Quote) => {
+    // Navigate to the quote detail page using the UUID
+    router.push(`/quotes/${quote.uuid}`);
+  }, [router]);
   const [detailTab, setDetailTab] = useState<'lines' | 'approvals' | 'recipients' | 'distributors' | 'linkedObjects' | 'versions' | 'notes' | 'tasks' | 'activity' | 'settings' | 'submittals'>('lines');
   const [showApprovalRequestModal, setShowApprovalRequestModal] = useState(false);
   const [showCreateSubmittalModal, setShowCreateSubmittalModal] = useState(false);
@@ -148,29 +344,7 @@ export default function QuotesContent() {
   const [showQuotesBulkActionsMenu, setShowQuotesBulkActionsMenu] = useState(false);
   const [showMarkAsLostModal, setShowMarkAsLostModal] = useState(false);
 
-  // Quotes list filtering and sorting (from hook)
-  const {
-    sortedQuotes,
-    quotesSortColumn,
-    quotesSortDirection,
-    handleQuotesSort,
-    quickDatePreset,
-    setQuickDatePreset,
-    quickDateField,
-    setQuickDateField,
-    showQuickDateFieldDropdown,
-    setShowQuickDateFieldDropdown,
-    quoteColumnFilters,
-    activeQuoteFilterColumn,
-    setActiveQuoteFilterColumn,
-    filterSearchText,
-    setFilterSearchText,
-    handleQuoteFilterChange,
-    clearQuoteFilter,
-    getUniqueValuesForColumn,
-    getFilterType,
-    hasActiveFilter,
-  } = useQuotesListFilters(quotes);
+  // NOTE: Quotes list filtering and sorting now comes from useQuotesState hook above
 
   const [lostReason, setLostReason] = useState('');
   const [customLostReason, setCustomLostReason] = useState('');
@@ -514,9 +688,7 @@ export default function QuotesContent() {
   ], []);
 
 
-  const handleQuoteSelect = useCallback((quote: Quote) => {
-    setSelectedQuote(quote);
-  }, []);
+  // NOTE: handleQuoteSelect is defined above in the useQuotesState section - navigates to /quotes/[id]
 
   // Get line items for selected quote - using state so they can be modified
   const [quoteLineItems, setQuoteLineItems] = useState<LineItem[]>([]);
@@ -552,12 +724,48 @@ export default function QuotesContent() {
     const overage = sellTotal - baseTotal;
     const commission = items.reduce((sum, item) => {
       if (!item.commissionable) return sum;
-      const mfr = item.manufacturers[0];
+      const mfr = item.manufacturers?.[0];
+      if (!mfr?.commissionRate) return sum;
       return sum + ((item.sellPrice - item.basePrice) * item.quantity * mfr.commissionRate);
     }, 0);
 
     return { baseTotal, sellTotal, l1Total, l2Total, l3Total, overage, commission };
   }, [quoteLineItems]);
+
+  // Loading state for initial quote fetch (when navigating to /quotes/[id])
+  // Also show loading when creating new quote and selectedQuote not yet set
+  if ((shouldFetchQuote && isLoadingInitialQuote) || (isNewQuote && !selectedQuote)) {
+    return (
+      <main className="flex-1 flex items-center justify-center bg-[var(--background)]">
+        <div className="text-center">
+          <svg className="animate-spin h-8 w-8 mx-auto text-[var(--primary)]" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          <p className="mt-4 text-[var(--muted-foreground)]">{isNewQuote ? 'Creating new quote...' : 'Loading quote...'}</p>
+        </div>
+      </main>
+    );
+  }
+
+  // Error state for initial quote fetch
+  if (shouldFetchQuote && initialQuoteError) {
+    return (
+      <main className="flex-1 flex items-center justify-center bg-[var(--background)]">
+        <div className="text-center max-w-md">
+          <div className="text-red-500 text-6xl mb-4">⚠</div>
+          <h2 className="text-xl font-semibold text-[var(--foreground)] mb-2">Error Loading Quote</h2>
+          <p className="text-[var(--muted-foreground)] mb-4">{initialQuoteError.message}</p>
+          <button
+            onClick={handleBackToList}
+            className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:opacity-90 transition-opacity"
+          >
+            Back to Quotes
+          </button>
+        </div>
+      </main>
+    );
+  }
 
   // Quote Detail View
   if (selectedQuote) {
@@ -567,6 +775,7 @@ export default function QuotesContent() {
         <QuoteDetailHeader
           selectedQuote={selectedQuote}
           setSelectedQuote={setSelectedQuote}
+          onBack={handleBackToList}
           setQuotes={setQuotes}
           quoteLineItems={quoteLineItems}
           showActionsDropdown={showActionsDropdown}
@@ -937,6 +1146,7 @@ export default function QuotesContent() {
         setQuickDateField={setQuickDateField}
         showQuickDateFieldDropdown={showQuickDateFieldDropdown}
         setShowQuickDateFieldDropdown={setShowQuickDateFieldDropdown}
+        onNewQuote={() => router.push('/quotes/create')}
       />
 
       {/* Kanban View */}

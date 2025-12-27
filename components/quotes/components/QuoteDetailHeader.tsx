@@ -6,6 +6,7 @@ import type { Quote, LineItem } from '../types';
 interface QuoteDetailHeaderProps {
   selectedQuote: Quote;
   setSelectedQuote: (quote: Quote | null) => void;
+  onBack?: () => void; // Optional callback for back navigation
   setQuotes: React.Dispatch<React.SetStateAction<Quote[]>>;
   quoteLineItems: LineItem[];
   showActionsDropdown: boolean;
@@ -40,6 +41,7 @@ interface QuoteDetailHeaderProps {
 export function QuoteDetailHeader({
   selectedQuote,
   setSelectedQuote,
+  onBack,
   setQuotes,
   quoteLineItems,
   showActionsDropdown,
@@ -70,13 +72,21 @@ export function QuoteDetailHeader({
   setDuplicatePercentIncrease,
   setDuplicateCopyNotes,
 }: QuoteDetailHeaderProps) {
+  // Handle back button click
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else {
+      setSelectedQuote(null);
+    }
+  };
   return (
     <div className="border-b border-[var(--border)] bg-[var(--card)] px-6 py-4 flex-shrink-0">
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setSelectedQuote(null)}
+              onClick={handleBack}
               className="p-1 hover:bg-[var(--muted)] rounded-lg transition-colors"
               title="Back to Quotes"
             >
@@ -105,27 +115,20 @@ export function QuoteDetailHeader({
               </svg>
             </button>
             {showActionsDropdown && (
-              <div className="absolute top-full left-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
-                <button
-                  onClick={() => {
-                    // Initialize create order modal with all line items
-                    setCreateOrderSelectedItems(quoteLineItems.map(item => ({
-                      id: item.id,
-                      selected: true,
-                      quantity: item.quantity
-                    })));
-                    setCreateOrderSelectAll(true);
-                    setShowCreateOrderFromQuoteModal(true);
-                    setShowActionsDropdown(false);
-                  }}
-                  className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-t-lg flex items-center gap-2"
+              <div className="absolute top-full left-0 mt-1 w-56 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                {/* Create Order - Coming Soon */}
+                <div
+                  className="w-full px-4 py-2 text-left text-sm text-gray-400 cursor-not-allowed rounded-t-lg flex items-center justify-between"
                 >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M3 7l7 7 7-7" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M10 4v10" strokeLinecap="round"/>
-                  </svg>
-                  Create Order
-                </button>
+                  <div className="flex items-center gap-2">
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="opacity-50">
+                      <path d="M3 7l7 7 7-7" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M10 4v10" strokeLinecap="round"/>
+                    </svg>
+                    Create Order
+                  </div>
+                  <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded">Coming Soon</span>
+                </div>
                 <button
                   onClick={() => {
                     // Initialize duplicate modal with default values
@@ -198,46 +201,15 @@ export function QuoteDetailHeader({
             )}
           </div>
 
-          {/* Version Dropdown - styled like a button */}
+          {/* Version Dropdown - Coming Soon */}
           <div className="relative">
-            <button
-              onClick={() => {
-                setShowVersionDropdown(!showVersionDropdown);
-                setShowActionsDropdown(false);
-                setShowStageDropdown(false);
-                setShowViewModeDropdown(false);
-              }}
-              className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
+            <div
+              className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm font-medium text-gray-400 cursor-not-allowed bg-gray-50"
+              title="Coming Soon"
             >
               v{selectedQuote.version}
-              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </button>
-            {showVersionDropdown && (
-              <div className="absolute top-full left-0 mt-1 w-32 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
-                {[...Array(selectedQuote.version)].map((_, i) => (
-                  <button
-                    key={i + 1}
-                    onClick={() => {
-                      setSelectedQuote({ ...selectedQuote, version: i + 1 });
-                      setQuotes(prev => prev.map(q => q.id === selectedQuote.id ? { ...q, version: i + 1 } : q));
-                      setShowVersionDropdown(false);
-                    }}
-                    className={`w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors first:rounded-t-lg last:rounded-b-lg flex items-center justify-between ${
-                      selectedQuote.version === i + 1 ? 'bg-[var(--primary)]/10 text-[var(--primary)]' : ''
-                    }`}
-                  >
-                    v{i + 1}
-                    {selectedQuote.version === i + 1 && (
-                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M4 10l4 4 8-8" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
+              <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded">Coming Soon</span>
+            </div>
           </div>
 
           {/* Sale Credit Button - only show when admin setting is enabled */}
@@ -253,62 +225,19 @@ export function QuoteDetailHeader({
             </button>
           )}
 
-          {/* View Mode Dropdown */}
+          {/* View Mode Dropdown - Coming Soon */}
           <div className="relative">
-            <button
-              onClick={() => {
-                setShowViewModeDropdown(!showViewModeDropdown);
-                setShowActionsDropdown(false);
-                setShowStageDropdown(false);
-                setShowVersionDropdown(false);
-              }}
-              className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
+            <div
+              className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm font-medium text-gray-400 cursor-not-allowed bg-gray-50"
+              title="Coming Soon"
             >
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="opacity-50">
                 <path d="M1 10s4-6 9-6 9 6 9 6-4 6-9 6-9-6-9-6z" strokeLinecap="round" strokeLinejoin="round"/>
                 <circle cx="10" cy="10" r="3"/>
               </svg>
               {quoteViewMode === 'overage' ? 'Overage View' : 'Simple View'}
-              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </button>
-            {showViewModeDropdown && (
-              <div className="absolute top-full right-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
-                <button
-                  onClick={() => {
-                    setQuoteViewMode('overage');
-                    setShowViewModeDropdown(false);
-                  }}
-                  className={`w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-t-lg flex items-center justify-between ${
-                    quoteViewMode === 'overage' ? 'bg-[var(--primary)]/10 text-[var(--primary)]' : ''
-                  }`}
-                >
-                  Overage View
-                  {quoteViewMode === 'overage' && (
-                    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M4 10l4 4 8-8" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  )}
-                </button>
-                <button
-                  onClick={() => {
-                    setQuoteViewMode('simple');
-                    setShowViewModeDropdown(false);
-                  }}
-                  className={`w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-b-lg flex items-center justify-between ${
-                    quoteViewMode === 'simple' ? 'bg-[var(--primary)]/10 text-[var(--primary)]' : ''
-                  }`}
-                >
-                  Simple View
-                  {quoteViewMode === 'simple' && (
-                    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M4 10l4 4 8-8" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  )}
-                </button>
-              </div>
-            )}
+              <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded">Coming Soon</span>
+            </div>
           </div>
 
           {/* Generate PDF Button */}
@@ -357,28 +286,25 @@ export function QuoteDetailHeader({
               </button>
             </div>
             {showSaveDropdown && (
-              <div className="absolute top-full right-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-10">
+              <div className="absolute top-full right-0 mt-1 w-56 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-10">
                 <button
                   onClick={() => { alert('Quote saved!'); setShowSaveDropdown(false); }}
                   className="w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors rounded-t-lg"
                 >
                   Save
                 </button>
-                <button
-                  onClick={() => {
-                    const newVersion = selectedQuote.version + 1;
-                    setSelectedQuote({ ...selectedQuote, version: newVersion });
-                    setQuotes(prev => prev.map(q => q.id === selectedQuote.id ? { ...q, version: newVersion } : q));
-                    alert(`Saved as v${newVersion}`);
-                    setShowSaveDropdown(false);
-                  }}
-                  className="w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors rounded-b-lg flex items-center gap-2"
+                {/* Save as New Version - Coming Soon */}
+                <div
+                  className="w-full text-left px-4 py-2 text-sm text-gray-400 cursor-not-allowed rounded-b-lg flex items-center justify-between"
                 >
-                  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M10 6v8M6 10h8" strokeLinecap="round"/>
-                  </svg>
-                  Save as New Version
-                </button>
+                  <div className="flex items-center gap-2">
+                    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="opacity-50">
+                      <path d="M10 6v8M6 10h8" strokeLinecap="round"/>
+                    </svg>
+                    Save as New Version
+                  </div>
+                  <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded">Coming Soon</span>
+                </div>
               </div>
             )}
           </div>

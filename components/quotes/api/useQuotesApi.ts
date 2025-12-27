@@ -17,6 +17,8 @@ import {
   type ProductSearchResult,
   type FactorySearchResult,
   type UserSearchResult,
+  type ProductCpnResult,
+  type ProductUomResult,
   // API Functions
   fetchQuotesWithPagination,
   fetchQuoteById,
@@ -29,6 +31,8 @@ import {
   searchProducts,
   searchFactories,
   searchUsers,
+  listProductCpns,
+  listProductUoms,
 } from './quotesApi';
 
 // ============================================================================
@@ -53,6 +57,10 @@ export const quoteQueryKeys = {
     [...quoteQueryKeys.all, 'factorySearch', { searchTerm }] as const,
   userSearch: (searchTerm: string, isInside?: boolean) =>
     [...quoteQueryKeys.all, 'userSearch', { searchTerm, isInside }] as const,
+  productCpns: (productId: string) =>
+    [...quoteQueryKeys.all, 'productCpns', { productId }] as const,
+  productUoms: (productId?: string) =>
+    [...quoteQueryKeys.all, 'productUoms', { productId }] as const,
 };
 
 // ============================================================================
@@ -251,6 +259,32 @@ export function useUserSearch(searchTerm: string, isInside?: boolean, enabled: b
   });
 }
 
+/**
+ * List customer part numbers (CPNs) for a product
+ * Used in line items to select customer part numbers
+ */
+export function useProductCpns(productId: string, enabled: boolean = true) {
+  return useQuery<ProductCpnResult[], Error>({
+    queryKey: quoteQueryKeys.productCpns(productId),
+    queryFn: () => listProductCpns(productId),
+    enabled: enabled && !!productId,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * List UOMs (Unit of Measure) for a product
+ * Used in line items to select unit of measure
+ */
+export function useProductUoms(productId?: string, enabled: boolean = true) {
+  return useQuery<ProductUomResult[], Error>({
+    queryKey: quoteQueryKeys.productUoms(productId),
+    queryFn: () => listProductUoms(productId),
+    enabled: enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
 // ============================================================================
 // Re-export types for convenience
 // ============================================================================
@@ -268,6 +302,8 @@ export type {
   QuotePipelineStage,
   QuoteCreationType,
   QuoteDetailStatus,
+  QuoteProduct,
+  QuoteUom,
   CreateQuoteInput,
   UpdateQuoteInput,
   QuoteDetailInput,
@@ -279,4 +315,9 @@ export type {
   ProductSearchResult,
   FactorySearchResult,
   UserSearchResult,
+  ProductCpnResult,
+  ProductUomResult,
 } from './quotesApi';
+
+// Re-export API functions for convenience
+export { searchUsers, searchProducts, searchCustomers, searchFactories, listProductCpns, listProductUoms } from './quotesApi';

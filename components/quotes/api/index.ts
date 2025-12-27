@@ -32,6 +32,8 @@ export type {
   QuotePipelineStage,
   QuoteCreationType,
   QuoteDetailStatus,
+  QuoteProduct,
+  QuoteUom,
   CreateQuoteInput,
   UpdateQuoteInput,
   QuoteDetailInput,
@@ -43,6 +45,8 @@ export type {
   ProductSearchResult,
   FactorySearchResult,
   UserSearchResult,
+  ProductCpnResult,
+  ProductUomResult,
 } from './quotesApi';
 
 // React Query Hooks
@@ -59,4 +63,6 @@ export {
   useProductSearch,
   useFactorySearch,
   useUserSearch,
+  useProductCpns,
+  useProductUoms,
 } from './useQuotesApi';

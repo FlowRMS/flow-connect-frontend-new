@@ -2,6 +2,11 @@
 
 import React from 'react';
 import type { Quote } from '../types';
+import { SearchableDropdown } from './SearchableDropdown';
+import {
+  useCustomerSearchDropdown,
+  useRepSearchDropdown,
+} from '../hooks';
 
 interface Rep {
   id: string;
@@ -75,6 +80,13 @@ export function HeaderFieldsSection({
   setShowRepSplitsModal,
   setShowInsideRepSplitsModal,
 }: HeaderFieldsSectionProps) {
+  // Use API-connected search dropdowns
+  const soldToSearch = useCustomerSearchDropdown();
+  const billToSearch = useCustomerSearchDropdown();
+  const endUserSearch = useCustomerSearchDropdown();
+  const outsideRepSearch = useRepSearchDropdown(false); // isInside = false for outside reps
+  const insideRepSearch = useRepSearchDropdown(true);   // isInside = true for inside reps
+
   return (
     <div className="border-b border-[var(--border)] bg-blue-50/30 flex-shrink-0">
       <button
@@ -144,94 +156,54 @@ export function HeaderFieldsSection({
               </div>
             </div>
 
-            {/* Sold To Customer */}
-            <div>
-              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Sold To Customer<span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <select
-                  value={selectedQuote.soldToCustomer}
-                  onChange={(e) => {
-                    setSelectedQuote({ ...selectedQuote, soldToCustomer: e.target.value });
-                    setQuotes(prev => prev.map(q => q.id === selectedQuote.id ? { ...q, soldToCustomer: e.target.value } : q));
-                  }}
-                  className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none cursor-pointer pr-8"
-                >
-                  <option value={selectedQuote.soldToCustomer}>{selectedQuote.soldToCustomer}</option>
-                  <option value="Turner Construction">Turner Construction</option>
-                  <option value="Hensel Phelps">Hensel Phelps</option>
-                  <option value="Skanska USA">Skanska USA</option>
-                  <option value="DPR Construction">DPR Construction</option>
-                  <option value="Clark Construction">Clark Construction</option>
-                  <option value="ACME Demo Cus">ACME Demo Cus</option>
-                </select>
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]">
-                  <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
-            </div>
+            {/* Sold To Customer - Searchable Dropdown */}
+            <SearchableDropdown
+              value={selectedQuote.soldToCustomer}
+              onChange={(id, label) => {
+                setSelectedQuote({ ...selectedQuote, soldToCustomer: label });
+                setQuotes(prev => prev.map(q => q.id === selectedQuote.id ? { ...q, soldToCustomer: label } : q));
+              }}
+              placeholder="Select customer..."
+              label="Sold To Customer"
+              required
+              options={soldToSearch.options}
+              isLoading={soldToSearch.isLoading}
+              onSearch={soldToSearch.onSearch}
+            />
 
-            {/* Bill To Customer */}
-            <div>
-              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Bill To Customer<span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <select
-                  value={selectedQuote.billToCustomer}
-                  onChange={(e) => {
-                    setSelectedQuote({ ...selectedQuote, billToCustomer: e.target.value });
-                    setQuotes(prev => prev.map(q => q.id === selectedQuote.id ? { ...q, billToCustomer: e.target.value } : q));
-                  }}
-                  className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none cursor-pointer pr-8"
-                >
-                  <option value={selectedQuote.billToCustomer}>{selectedQuote.billToCustomer}</option>
-                  <option value="Graybar Electric">Graybar Electric</option>
-                  <option value="HD Supply">HD Supply</option>
-                  <option value="Ferguson Enterprises">Ferguson Enterprises</option>
-                  <option value="Rexel USA">Rexel USA</option>
-                  <option value="ABE ENTERPRISES">ABE ENTERPRISES</option>
-                </select>
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]">
-                  <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
-            </div>
+            {/* Bill To Customer - Searchable Dropdown */}
+            <SearchableDropdown
+              value={selectedQuote.billToCustomer}
+              onChange={(id, label) => {
+                setSelectedQuote({ ...selectedQuote, billToCustomer: label });
+                setQuotes(prev => prev.map(q => q.id === selectedQuote.id ? { ...q, billToCustomer: label } : q));
+              }}
+              placeholder="Select customer..."
+              label="Bill To Customer"
+              required
+              options={billToSearch.options}
+              isLoading={billToSearch.isLoading}
+              onSearch={billToSearch.onSearch}
+            />
 
-            {/* End User - Only show if not per-line */}
+            {/* End User - Only show if not per-line - Searchable Dropdown */}
             {!showEndUserPerLine && (
               <div>
-                <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                  End User
-                </label>
-                <div className="relative">
-                  <select
-                    value={endUserSameAsCustomer ? selectedQuote.soldToCustomer : headerEndUser}
-                    onChange={(e) => {
-                      setHeaderEndUser(e.target.value);
-                      if (e.target.value !== selectedQuote.soldToCustomer) {
-                        setEndUserSameAsCustomer(false);
-                      }
-                    }}
-                    disabled={endUserSameAsCustomer}
-                    className={`w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none cursor-pointer pr-8 ${
-                      endUserSameAsCustomer ? 'bg-[var(--muted)]/30 text-[var(--muted-foreground)]' : ''
-                    }`}
-                  >
-                    <option value="">Select End User...</option>
-                    <option value={selectedQuote.soldToCustomer}>{selectedQuote.soldToCustomer}</option>
-                    <option value="Turner Construction">Turner Construction</option>
-                    <option value="Hensel Phelps">Hensel Phelps</option>
-                    <option value="McCarthy Building">McCarthy Building</option>
-                    <option value="Skanska USA">Skanska USA</option>
-                    <option value="Clark Construction">Clark Construction</option>
-                    <option value="DPR Construction">DPR Construction</option>
-                  </select>
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]">
-                    <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </div>
+                <SearchableDropdown
+                  value={endUserSameAsCustomer ? selectedQuote.soldToCustomer : headerEndUser}
+                  onChange={(id, label) => {
+                    setHeaderEndUser(label);
+                    if (label !== selectedQuote.soldToCustomer) {
+                      setEndUserSameAsCustomer(false);
+                    }
+                  }}
+                  placeholder="Select end user..."
+                  label="End User"
+                  disabled={endUserSameAsCustomer}
+                  options={endUserSearch.options}
+                  isLoading={endUserSearch.isLoading}
+                  onSearch={endUserSearch.onSearch}
+                />
                 <label className="flex items-center gap-1.5 mt-1.5 cursor-pointer">
                   <input
                     type="checkbox"
@@ -366,33 +338,24 @@ export function HeaderFieldsSection({
               />
             </div>
 
-            {/* Outside Rep - Hidden when commission splits per line is enabled */}
+            {/* Outside Rep - Hidden when commission splits per line is enabled - Searchable Dropdown */}
             {!showCommissionSplits && (
               <div>
-                <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                  Outside Rep
-                </label>
-                <div className="relative">
-                  <select
-                    value={quoteOutsideRep}
-                    onChange={(e) => {
-                      setQuoteOutsideRep(e.target.value);
-                      if (!e.target.value) {
-                        setSplitCommission(false);
-                        setRepCommissionSplits([]);
-                      }
-                    }}
-                    className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none cursor-pointer pr-8"
-                  >
-                    <option value="">Select Rep...</option>
-                    {availableOutsideReps.map(rep => (
-                      <option key={rep.id} value={rep.id}>{rep.name}</option>
-                    ))}
-                  </select>
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]">
-                    <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </div>
+                <SearchableDropdown
+                  value={quoteOutsideRep}
+                  onChange={(id, label) => {
+                    setQuoteOutsideRep(id);
+                    if (!id) {
+                      setSplitCommission(false);
+                      setRepCommissionSplits([]);
+                    }
+                  }}
+                  placeholder="Select Rep..."
+                  label="Outside Rep"
+                  options={outsideRepSearch.options}
+                  isLoading={outsideRepSearch.isLoading}
+                  onSearch={outsideRepSearch.onSearch}
+                />
                 {quoteOutsideRep && (
                   <div className="mt-2 flex items-center gap-2">
                     <input
@@ -403,9 +366,9 @@ export function HeaderFieldsSection({
                         setSplitCommission(e.target.checked);
                         if (e.target.checked) {
                           // Initialize with the selected rep at 100%
-                          const rep = availableOutsideReps.find(r => r.id === quoteOutsideRep);
+                          const rep = outsideRepSearch.options.find(r => r.id === quoteOutsideRep);
                           if (rep) {
-                            setRepCommissionSplits([{ repId: rep.id, repName: rep.name, percentage: 100 }]);
+                            setRepCommissionSplits([{ repId: rep.id, repName: rep.label, percentage: 100 }]);
                           }
                           setShowRepSplitsModal(true);
                         } else {
@@ -430,33 +393,24 @@ export function HeaderFieldsSection({
               </div>
             )}
 
-            {/* Inside Rep - Hidden when inside rep splits per line is enabled */}
+            {/* Inside Rep - Hidden when inside rep splits per line is enabled - Searchable Dropdown */}
             {!showInsideRepSplits && (
               <div>
-                <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                  Inside Rep
-                </label>
-                <div className="relative">
-                  <select
-                    value={quoteInsideRep}
-                    onChange={(e) => {
-                      setQuoteInsideRep(e.target.value);
-                      if (!e.target.value) {
-                        setSplitInsideCommission(false);
-                        setInsideRepCommissionSplits([]);
-                      }
-                    }}
-                    className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none cursor-pointer pr-8"
-                  >
-                    <option value="">Select Rep...</option>
-                    {availableInsideReps.map(rep => (
-                      <option key={rep.id} value={rep.id}>{rep.name}</option>
-                    ))}
-                  </select>
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]">
-                    <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </div>
+                <SearchableDropdown
+                  value={quoteInsideRep}
+                  onChange={(id, label) => {
+                    setQuoteInsideRep(id);
+                    if (!id) {
+                      setSplitInsideCommission(false);
+                      setInsideRepCommissionSplits([]);
+                    }
+                  }}
+                  placeholder="Select Rep..."
+                  label="Inside Rep"
+                  options={insideRepSearch.options}
+                  isLoading={insideRepSearch.isLoading}
+                  onSearch={insideRepSearch.onSearch}
+                />
                 {quoteInsideRep && (
                   <div className="mt-2 flex items-center gap-2">
                     <input
@@ -467,9 +421,9 @@ export function HeaderFieldsSection({
                         setSplitInsideCommission(e.target.checked);
                         if (e.target.checked) {
                           // Initialize with the selected rep at 100%
-                          const rep = availableInsideReps.find(r => r.id === quoteInsideRep);
+                          const rep = insideRepSearch.options.find(r => r.id === quoteInsideRep);
                           if (rep) {
-                            setInsideRepCommissionSplits([{ repId: rep.id, repName: rep.name, percentage: 100 }]);
+                            setInsideRepCommissionSplits([{ repId: rep.id, repName: rep.label, percentage: 100 }]);
                           }
                           setShowInsideRepSplitsModal(true);
                         } else {
