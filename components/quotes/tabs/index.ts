@@ -7,3 +7,4 @@ export { SubmittalsTab } from './SubmittalsTab';
 export { SettingsTab } from './SettingsTab';
 export { ApprovalsTab } from './ApprovalsTab';
 export { RecipientsTab } from './RecipientsTab';
+export { LinesTab } from './LinesTab';

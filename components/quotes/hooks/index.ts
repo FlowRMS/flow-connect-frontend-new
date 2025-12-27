@@ -6,3 +6,5 @@ export { useCommissionSplitsState } from './useCommissionSplitsState';
 export { useQuotesListFilters } from './useQuotesListFilters';
 export type { QuoteSortKey, QuickDatePreset, QuickDateField, QuoteFilterValue } from './useQuotesListFilters';
 export { useKanbanDnD } from './useKanbanDnD';
+export { useQuoteDetailFullState, columnDefinitions } from './useQuoteDetailFullState';
+export type { ColumnKey } from './useQuoteDetailFullState';
