@@ -111,32 +111,43 @@ export function QuoteDetailTabs({
                 <div className="p-2 border-b border-[var(--border)]">
                   <p className="text-xs font-semibold text-[var(--muted-foreground)] uppercase px-2">Saved Views</p>
                 </div>
-                {savedViews.map(view => (
-                  <div key={view.id} className="flex items-center justify-between hover:bg-[var(--muted)] transition-colors">
-                    <button
-                      onClick={() => applyView(view.id)}
-                      className={`flex-1 text-left px-4 py-2 text-sm ${activeView === view.id ? 'text-[var(--primary)] font-medium' : ''}`}
-                    >
-                      {view.name}
-                      {activeView === view.id && (
-                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5" className="inline ml-2">
-                          <path d="M5 10l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
+                {savedViews.map(view => {
+                  // Grey out "Earnings View" as Coming Soon
+                  const isEarningsView = view.id === 'earnings';
+                  return (
+                    <div key={view.id} className={`flex items-center justify-between ${isEarningsView ? '' : 'hover:bg-[var(--muted)]'} transition-colors`}>
+                      {isEarningsView ? (
+                        <div className="flex-1 px-4 py-2 text-sm text-gray-400 cursor-not-allowed flex items-center justify-between">
+                          <span>{view.name}</span>
+                          <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded">Coming Soon</span>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => applyView(view.id)}
+                          className={`flex-1 text-left px-4 py-2 text-sm ${activeView === view.id ? 'text-[var(--primary)] font-medium' : ''}`}
+                        >
+                          {view.name}
+                          {activeView === view.id && (
+                            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5" className="inline ml-2">
+                              <path d="M5 10l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          )}
+                        </button>
                       )}
-                    </button>
-                    {!['default', 'compact', 'pricing', 'approval'].includes(view.id) && (
-                      <button
-                        onClick={() => deleteView(view.id)}
-                        className="p-2 text-red-500 hover:bg-red-50 rounded mr-1"
-                        title="Delete view"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                ))}
+                      {!['default', 'compact', 'pricing', 'approval', 'earnings'].includes(view.id) && (
+                        <button
+                          onClick={() => deleteView(view.id)}
+                          className="p-2 text-red-500 hover:bg-red-50 rounded mr-1"
+                          title="Delete view"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
                 <div className="border-t border-[var(--border)] p-2">
                   <button
                     onClick={() => { setShowSaveViewModal(true); setShowViewsMenu(false); }}
@@ -152,21 +163,18 @@ export function QuoteDetailTabs({
             )}
           </div>
 
-          {/* Sections Button */}
-          <button
-            onClick={() => setShowSectionsModal(true)}
-            className={`flex items-center gap-2 px-3 py-1.5 text-sm border rounded-lg transition-colors ${
-              showSections
-                ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]'
-                : 'border-[var(--border)] hover:bg-[var(--muted)]'
-            }`}
+          {/* Sections Button - Coming Soon */}
+          <div
+            className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg text-gray-400 cursor-not-allowed bg-gray-50"
+            title="Coming Soon"
           >
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="opacity-50">
               <rect x="3" y="3" width="14" height="4" rx="1"/>
               <rect x="3" y="10" width="14" height="7" rx="1"/>
             </svg>
             Sections
-          </button>
+            <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded">Coming Soon</span>
+          </div>
 
           {/* Columns Button */}
           <button

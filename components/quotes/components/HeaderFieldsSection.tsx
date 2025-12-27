@@ -128,32 +128,33 @@ export function HeaderFieldsSection({
               />
             </div>
 
-            {/* Quote Type */}
+            {/* Quote Type - Greyed out Coming Soon */}
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Quote Type
+                <span className="ml-1 text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded">Coming Soon</span>
               </label>
               <div className="relative">
-                <select
-                  value={selectedQuote.quoteType}
-                  onChange={(e) => {
-                    const newType = e.target.value as 'NORMAL' | 'TAG' | 'BLANKET' | 'STORM';
-                    setSelectedQuote({ ...selectedQuote, quoteType: newType });
-                    setQuotes(prev => prev.map(q => q.id === selectedQuote.id ? { ...q, quoteType: newType } : q));
-                  }}
-                  className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none cursor-pointer pr-8 ${
-                    selectedQuote.quoteType === 'NORMAL' ? 'bg-white' : 'bg-purple-50 text-purple-700'
-                  }`}
+                <div
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm bg-gray-50 text-gray-400 cursor-not-allowed"
+                  title="Coming Soon"
                 >
-                  <option value="NORMAL">NORMAL</option>
-                  <option value="TAG">TAG</option>
-                  <option value="BLANKET">BLANKET</option>
-                  <option value="STORM">STORM</option>
-                </select>
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]">
-                  <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
+                  NORMAL
+                </div>
               </div>
+              {/* Blanket Checkbox */}
+              <label className="flex items-center gap-1.5 mt-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selectedQuote.blanket}
+                  onChange={(e) => {
+                    setSelectedQuote({ ...selectedQuote, blanket: e.target.checked });
+                    setQuotes(prev => prev.map(q => q.id === selectedQuote.id ? { ...q, blanket: e.target.checked } : q));
+                  }}
+                  className="w-3.5 h-3.5 accent-[var(--primary)]"
+                />
+                <span className="text-xs text-[var(--muted-foreground)]">Blanket Quote</span>
+              </label>
             </div>
 
             {/* Sold To Customer - Searchable Dropdown */}
@@ -272,8 +273,25 @@ export function HeaderFieldsSection({
             </div>
           </div>
 
-          {/* Row 2: Quote Date, Expiration Date, Revised Date, Accept Date, Outside Rep, Inside Rep */}
+          {/* Row 2: Customer Ref, Quote Date, Expiration Date, Revised Date, Accept Date, Outside Rep, Inside Rep */}
           <div className={`grid gap-4 ${!showEndUserPerLine ? 'grid-cols-8' : 'grid-cols-7'}`}>
+            {/* Customer Ref */}
+            <div>
+              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
+                Customer Ref
+              </label>
+              <input
+                type="text"
+                value={selectedQuote.customerRef}
+                onChange={(e) => {
+                  setSelectedQuote({ ...selectedQuote, customerRef: e.target.value });
+                  setQuotes(prev => prev.map(q => q.id === selectedQuote.id ? { ...q, customerRef: e.target.value } : q));
+                }}
+                className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
+                placeholder="Reference #"
+              />
+            </div>
+
             {/* Quote Date */}
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">

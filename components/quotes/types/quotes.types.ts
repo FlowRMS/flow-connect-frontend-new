@@ -25,12 +25,16 @@ export type Quote = {
   uuid: string; // API UUID for navigation/API calls
   name: string;
   billToCustomer: string;
+  billToCustomerId?: string; // API customer UUID
   soldToCustomer: string;
+  soldToCustomerId?: string; // API customer UUID
   jobId: string;
   jobName: string;
   stage: 'Draft' | 'Review' | 'Sent' | 'Negotiating' | 'Won' | 'Lost' | 'Dormant';
   status: 'Open' | 'Closed' | 'Expired' | 'Pending';
   quoteType: 'NORMAL' | 'TAG' | 'BLANKET' | 'STORM';
+  blanket: boolean; // API blanket field
+  customerRef: string; // Customer reference number
   value: string;
   valueNumber: number;
   winProbability: number;
@@ -80,6 +84,17 @@ export type AvailableRep = {
   name: string;
 };
 
+// Line item status from API
+export type LineItemStatus = 'OPEN' | 'ORDERED' | 'LOST';
+
+// Rep split for API format (uses decimal splitRate, e.g., 0.5 for 50%)
+export type ApiRepSplit = {
+  id?: string;
+  userId: string;
+  splitRate: string; // Decimal string, e.g., "0.50" for 50%
+  position?: number;
+};
+
 export type LineItem = {
   id: string;
   quoteId: string;
@@ -88,6 +103,7 @@ export type LineItem = {
   productNumber: string;
   description: string;
   endUser: string;
+  endUserId?: string; // API end user UUID
   quantity: number;
   uom?: string; // Unit of measure (EA, FT, LF, etc.) - defaults to 'EA' if not specified
   manufacturers: {
@@ -124,6 +140,17 @@ export type LineItem = {
   lineDiscountPercent?: number;
   lineDiscountAmount?: number;
   leadTime?: string;
+  // API-specific fields (optional for mock data compatibility)
+  itemNumber?: number; // Line item index (1, 2, 3, etc.)
+  status?: LineItemStatus; // Line item status from API
+  productId?: string; // API product UUID
+  productNameAdhoc?: string; // Custom product name override
+  productDescriptionAdhoc?: string; // Custom description override
+  factoryId?: string; // API factory UUID
+  note?: string; // Line item note
+  splitRates?: ApiRepSplit[]; // API format rep splits (decimal)
+  commissionRate?: string; // Commission rate as decimal string
+  discountRate?: string; // Discount rate as decimal string
 };
 
 export type QuoteFile = {

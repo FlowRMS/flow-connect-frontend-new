@@ -80,6 +80,8 @@ function mapApiQuoteToUIQuote(apiQuote: QuoteLandingPage): Quote {
     outsideReps: [], // Not available in landing page
     published: apiQuote.published ?? true,
     lostReason: undefined,
+    blanket: false, // Not available in landing page
+    customerRef: '', // Not available in landing page
   };
 }
 

@@ -36,6 +36,8 @@ interface QuoteDetailHeaderProps {
   setDuplicateCustomer: (customer: string) => void;
   setDuplicatePercentIncrease: (percent: number) => void;
   setDuplicateCopyNotes: (copy: boolean) => void;
+  onSaveQuote?: () => Promise<void>; // Handler for saving quote
+  isSaving?: boolean; // Loading state for save
 }
 
 export function QuoteDetailHeader({
@@ -71,6 +73,8 @@ export function QuoteDetailHeader({
   setDuplicateCustomer,
   setDuplicatePercentIncrease,
   setDuplicateCopyNotes,
+  onSaveQuote,
+  isSaving = false,
 }: QuoteDetailHeaderProps) {
   // Handle back button click
   const handleBack = () => {
@@ -271,14 +275,24 @@ export function QuoteDetailHeader({
           <div className="relative">
             <div className="flex">
               <button
-                onClick={() => alert('Quote saved!')}
-                className="px-4 py-2 bg-green-600 text-white rounded-l-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                onClick={() => onSaveQuote?.()}
+                disabled={isSaving}
+                className={`px-4 py-2 text-white rounded-l-lg transition-colors text-sm font-medium ${
+                  isSaving
+                    ? 'bg-green-400 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-700'
+                }`}
               >
-                Save
+                {isSaving ? 'Saving...' : 'Save'}
               </button>
               <button
                 onClick={() => setShowSaveDropdown(!showSaveDropdown)}
-                className="px-2 py-2 bg-green-600 text-white rounded-r-lg hover:bg-green-700 transition-colors border-l border-green-500"
+                disabled={isSaving}
+                className={`px-2 py-2 text-white rounded-r-lg transition-colors border-l border-green-500 ${
+                  isSaving
+                    ? 'bg-green-400 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-700'
+                }`}
               >
                 <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
@@ -288,10 +302,11 @@ export function QuoteDetailHeader({
             {showSaveDropdown && (
               <div className="absolute top-full right-0 mt-1 w-56 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-10">
                 <button
-                  onClick={() => { alert('Quote saved!'); setShowSaveDropdown(false); }}
+                  onClick={() => { onSaveQuote?.(); setShowSaveDropdown(false); }}
+                  disabled={isSaving}
                   className="w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors rounded-t-lg"
                 >
-                  Save
+                  {isSaving ? 'Saving...' : 'Save'}
                 </button>
                 {/* Save as New Version - Coming Soon */}
                 <div

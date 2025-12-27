@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import type { Quote, LineItem, Section, Recipient, SavedView } from '../types';
 import { priceLevelColors, defaultSavedViews } from '../config';
-import { availableOutsideReps, availableInsideReps, availableEndUsers, availableManufacturers, mockSections, initialProductCatalog } from '../data';
+import { availableEndUsers } from '../data';
 import { mockOrders } from '../../../lib/data/rms-mock';
 import { Sparkline, LineApprovalIcon } from '../components';
 import { SetOverageModal } from '../modals/SetOverageModal';
@@ -16,6 +16,11 @@ import { CopyPriceModal } from '../modals/CopyPriceModal';
 import { PriceLookupModal } from '../modals/PriceLookupModal';
 import { SaveViewModal } from '../modals/SaveViewModal';
 import { RepSplitModal } from '../modals/RepSplitModal';
+import {
+  useProductSearchDropdown,
+  useFactorySearchDropdown,
+  useRepSearchDropdown,
+} from '../hooks';
 
 // Column type definition
 type ColumnKey = 'partNumber' | 'customerPartNumber' | 'description' | 'manufacturer' | 'quantity' | 'uom' | 'divisor' | 'unitPrice' | 'endUser' | 'sellTotal' | 'commissionPercent' | 'commission' | 'commissionTotal' | 'linkedOrder' | 'overage' | 'overageAmt' | 'commRate' | 'baseComm' | 'overageShare' | 'overageComm' | 'totalEarn' | 'effRate' | 'l1' | 'l2' | 'l3' | 'trend' | 'specSheet' | 'outsideReps' | 'commissionDiscountPercent' | 'commissionDiscountAmount' | 'lineDiscountPercent' | 'lineDiscountAmount' | 'leadTime';
@@ -129,6 +134,11 @@ export function LinesTab(props: LinesTabProps) {
   } = props;
 
   const router = useRouter();
+
+  // API search hooks - called at top level of component
+  const productSearch = useProductSearchDropdown();
+  const factorySearch = useFactorySearchDropdown();
+  const outsideRepSearch = useRepSearchDropdown(false);
 
   // ========================================
   // INTERNAL STATE - All UI state managed here
@@ -363,6 +373,8 @@ export function LinesTab(props: LinesTabProps) {
 
   const addLineItem = useCallback((sectionId?: string) => {
     const section = sectionId ? quoteSections.find(s => s.id === sectionId) : null;
+    // Calculate next item number
+    const nextItemNumber = quoteLineItems.length + 1;
     const newItem: LineItem = {
       id: `new-${Date.now()}`,
       quoteId: selectedQuote.id,
@@ -388,9 +400,20 @@ export function LinesTab(props: LinesTabProps) {
       insideRepSplits: [],
       useDivisor: false,
       divisor: 1,
+      // New API-aligned fields
+      itemNumber: nextItemNumber,
+      status: 'OPEN',
+      productId: undefined,
+      productNameAdhoc: undefined,
+      productDescriptionAdhoc: undefined,
+      factoryId: undefined,
+      note: undefined,
+      splitRates: [],
+      commissionRate: undefined,
+      discountRate: undefined,
     };
     setQuoteLineItems(prev => [...prev, newItem]);
-  }, [quoteSections, selectedQuote.id, setQuoteLineItems]);
+  }, [quoteSections, selectedQuote.id, quoteLineItems.length, setQuoteLineItems]);
 
   const addSection = useCallback(() => {
     const newSection: Section = {
@@ -542,28 +565,13 @@ export function LinesTab(props: LinesTabProps) {
     setProductSearchQuery('');
   };
 
-  // Filter products based on search query
-  const getFilteredProducts = () => {
-    if (!productSearchQuery.trim()) return productCatalog;
-    const query = productSearchQuery.toLowerCase();
-    return productCatalog.filter(p =>
-      p.partNumber.toLowerCase().includes(query) ||
-      p.description.toLowerCase().includes(query) ||
-      p.manufacturer.toLowerCase().includes(query)
-    );
-  };
-
   // Render body cell - FULL IMPLEMENTATION with all dropdowns and editing
   const renderBodyCell = (colKey: ColumnKey, item: LineItem): React.ReactNode => {
     if (colKey === 'endUser' && !showEndUserPerLine) return null;
 
     switch (colKey) {
       case 'partNumber':
-        const filteredProducts = getFilteredProducts();
         const hasSearchQuery = productSearchQuery.trim().length > 0;
-        const queryMatchesExact = hasSearchQuery && filteredProducts.some(p =>
-          p.partNumber.toLowerCase() === productSearchQuery.toLowerCase().trim()
-        );
         return (
           <td key={colKey} className="px-3 py-2 font-mono text-sm text-center relative">
             <div className="product-search-container" ref={productSearchOpen === item.id && productSearchField === 'partNumber' ? productDropdownRef : undefined}>
@@ -571,10 +579,14 @@ export function LinesTab(props: LinesTabProps) {
                 onClick={(e) => {
                   const rect = e.currentTarget.getBoundingClientRect();
                   setDropdownPosition({ top: rect.bottom + 4, left: rect.left });
-                  setProductSearchOpen(productSearchOpen === item.id && productSearchField === 'partNumber' ? null : item.id);
-                  setProductSearchField('partNumber');
+                  const isOpen = productSearchOpen === item.id && productSearchField === 'partNumber';
+                  setProductSearchOpen(isOpen ? null : item.id);
+                  setProductSearchField(isOpen ? null : 'partNumber');
                   setProductSearchQuery(item.productNumber || '');
                   setShowCreateProduct(false);
+                  if (!isOpen) {
+                    productSearch.onSearch(item.productNumber || '');
+                  }
                 }}
                 className="w-full text-center px-2 py-1 rounded hover:bg-[var(--muted)] transition-colors flex items-center justify-center gap-1"
               >
@@ -592,33 +604,61 @@ export function LinesTab(props: LinesTabProps) {
                     <input
                       type="text"
                       value={productSearchQuery}
-                      onChange={(e) => setProductSearchQuery(e.target.value)}
+                      onChange={(e) => {
+                        setProductSearchQuery(e.target.value);
+                        productSearch.onSearch(e.target.value);
+                      }}
                       placeholder="Search FPN, CPN, or description..."
                       className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                       autoFocus
                     />
                   </div>
                   <div className="max-h-48 overflow-y-auto">
-                    {filteredProducts.map(product => (
+                    {productSearch.isLoading && (
+                      <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">Loading...</div>
+                    )}
+                    {!productSearch.isLoading && productSearch.options.map(product => (
                       <button
                         key={product.id}
-                        onClick={() => selectProductForLineItem(item.id, product)}
+                        onClick={() => {
+                          setQuoteLineItems(prev => prev.map(li =>
+                            li.id === item.id ? {
+                              ...li,
+                              productId: product.id,
+                              productNumber: product.label,
+                              description: product.sublabel || '',
+                              productNameAdhoc: undefined, // Clear adhoc since selecting real product
+                            } : li
+                          ));
+                          setProductSearchOpen(null);
+                          setProductSearchField(null);
+                          setProductSearchQuery('');
+                        }}
                         className="w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors"
                       >
-                        <div className="font-mono text-sm font-medium">{product.partNumber}</div>
-                        <div className="text-xs text-[var(--muted-foreground)] truncate">{product.description}</div>
+                        <div className="font-mono text-sm font-medium">{product.label}</div>
+                        {product.sublabel && <div className="text-xs text-[var(--muted-foreground)] truncate">{product.sublabel}</div>}
                       </button>
                     ))}
-                    {filteredProducts.length === 0 && (
+                    {!productSearch.isLoading && productSearch.options.length === 0 && !hasSearchQuery && (
+                      <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">Type to search products...</div>
+                    )}
+                    {!productSearch.isLoading && productSearch.options.length === 0 && hasSearchQuery && (
                       <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">No products found</div>
                     )}
                   </div>
-                  {hasSearchQuery && !queryMatchesExact && (
+                  {/* Adhoc option - use custom part number */}
+                  {hasSearchQuery && (
                     <div className="border-t border-[var(--border)]">
                       <button
                         onClick={() => {
                           setQuoteLineItems(prev => prev.map(li =>
-                            li.id === item.id ? { ...li, productNumber: productSearchQuery.trim() } : li
+                            li.id === item.id ? {
+                              ...li,
+                              productNumber: productSearchQuery.trim(),
+                              productNameAdhoc: productSearchQuery.trim(),
+                              productId: undefined, // Clear product ID for adhoc
+                            } : li
                           ));
                           setProductSearchOpen(null);
                           setProductSearchField(null);
@@ -631,29 +671,11 @@ export function LinesTab(props: LinesTabProps) {
                         </svg>
                         <div>
                           <div className="font-mono text-sm font-medium text-[var(--primary)]">{productSearchQuery.trim()}</div>
-                          <div className="text-xs text-[var(--muted-foreground)]">Use as document-specific product</div>
+                          <div className="text-xs text-[var(--muted-foreground)]">Use as adhoc product (document-specific)</div>
                         </div>
                       </button>
                     </div>
                   )}
-                  <div className="border-t border-[var(--border)] p-2">
-                    <button
-                      onClick={() => {
-                        setCreateProductForLineItem(item.id);
-                        setCreateProductInitialData({ partNumber: productSearchQuery.trim(), description: '' });
-                        setShowCreateProductModal(true);
-                        setProductSearchOpen(null);
-                        setProductSearchField(null);
-                        setProductSearchQuery('');
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--primary)] hover:bg-[var(--muted)] rounded transition-colors"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-                      </svg>
-                      Create Official Product
-                    </button>
-                  </div>
                 </div>,
                 document.body
               )}
@@ -662,15 +684,22 @@ export function LinesTab(props: LinesTabProps) {
         );
 
       case 'customerPartNumber':
+        const cpnHasSearchQuery = productSearchQuery.trim().length > 0;
         return (
           <td key={colKey} className="px-3 py-2 font-mono text-sm text-center relative">
             <div className="product-search-container">
               <button
-                onClick={() => {
-                  setProductSearchOpen(productSearchOpen === item.id && productSearchField === 'customerPartNumber' ? null : item.id);
-                  setProductSearchField('customerPartNumber');
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setDropdownPosition({ top: rect.bottom + 4, left: rect.left });
+                  const isOpen = productSearchOpen === item.id && productSearchField === 'customerPartNumber';
+                  setProductSearchOpen(isOpen ? null : item.id);
+                  setProductSearchField(isOpen ? null : 'customerPartNumber');
                   setProductSearchQuery((item as LineItem & { customerPartNumber?: string }).customerPartNumber || '');
                   setShowCreateProduct(false);
+                  if (!isOpen) {
+                    productSearch.onSearch((item as LineItem & { customerPartNumber?: string }).customerPartNumber || '');
+                  }
                 }}
                 className="w-full text-center px-2 py-1 rounded hover:bg-[var(--muted)] transition-colors flex items-center justify-center gap-1"
               >
@@ -679,25 +708,34 @@ export function LinesTab(props: LinesTabProps) {
                   <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
                 </svg>
               </button>
-              {productSearchOpen === item.id && productSearchField === 'customerPartNumber' && (
-                <div className="absolute top-full left-0 mt-1 w-80 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+              {productSearchOpen === item.id && productSearchField === 'customerPartNumber' && dropdownPosition && createPortal(
+                <div
+                  className="product-search-container fixed w-80 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-[9999]"
+                  style={{ top: dropdownPosition.top, left: dropdownPosition.left }}
+                >
                   <div className="p-2 border-b border-[var(--border)]">
                     <input
                       type="text"
                       value={productSearchQuery}
-                      onChange={(e) => setProductSearchQuery(e.target.value)}
+                      onChange={(e) => {
+                        setProductSearchQuery(e.target.value);
+                        productSearch.onSearch(e.target.value);
+                      }}
                       placeholder="Search or enter customer part #..."
                       className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                       autoFocus
                     />
                   </div>
                   <div className="max-h-48 overflow-y-auto">
-                    {getFilteredProducts().map(product => (
+                    {productSearch.isLoading && (
+                      <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">Loading...</div>
+                    )}
+                    {!productSearch.isLoading && productSearch.options.map(product => (
                       <button
                         key={product.id}
                         onClick={() => {
                           setQuoteLineItems(prev => prev.map(li =>
-                            li.id === item.id ? { ...li, customerPartNumber: product.partNumber } : li
+                            li.id === item.id ? { ...li, customerPartNumber: product.label } : li
                           ));
                           setProductSearchOpen(null);
                           setProductSearchField(null);
@@ -705,11 +743,20 @@ export function LinesTab(props: LinesTabProps) {
                         }}
                         className="w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors"
                       >
-                        <div className="font-mono text-sm font-medium">{product.partNumber}</div>
-                        <div className="text-xs text-[var(--muted-foreground)] truncate">{product.description}</div>
+                        <div className="font-mono text-sm font-medium">{product.label}</div>
+                        {product.sublabel && <div className="text-xs text-[var(--muted-foreground)] truncate">{product.sublabel}</div>}
                       </button>
                     ))}
-                    {getFilteredProducts().length === 0 && productSearchQuery.trim() && (
+                    {!productSearch.isLoading && productSearch.options.length === 0 && !cpnHasSearchQuery && (
+                      <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">Type to search...</div>
+                    )}
+                    {!productSearch.isLoading && productSearch.options.length === 0 && cpnHasSearchQuery && (
+                      <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">No products found</div>
+                    )}
+                  </div>
+                  {/* Custom customer part number */}
+                  {cpnHasSearchQuery && (
+                    <div className="border-t border-[var(--border)]">
                       <button
                         onClick={() => {
                           setQuoteLineItems(prev => prev.map(li =>
@@ -719,25 +766,27 @@ export function LinesTab(props: LinesTabProps) {
                           setProductSearchField(null);
                           setProductSearchQuery('');
                         }}
-                        className="w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors"
+                        className="w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
                       >
-                        <div className="text-sm text-[var(--primary)]">Use "{productSearchQuery.trim()}"</div>
-                        <div className="text-xs text-[var(--muted-foreground)]">Custom customer part number</div>
+                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--primary)] flex-shrink-0">
+                          <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+                        </svg>
+                        <div>
+                          <div className="text-sm text-[var(--primary)]">Use "{productSearchQuery.trim()}"</div>
+                          <div className="text-xs text-[var(--muted-foreground)]">Custom customer part number</div>
+                        </div>
                       </button>
-                    )}
-                  </div>
-                </div>
+                    </div>
+                  )}
+                </div>,
+                document.body
               )}
             </div>
           </td>
         );
 
       case 'description':
-        const descFilteredProducts = getFilteredProducts();
         const descHasSearchQuery = productSearchQuery.trim().length > 0;
-        const descQueryMatchesExact = descHasSearchQuery && descFilteredProducts.some(p =>
-          p.description.toLowerCase() === productSearchQuery.toLowerCase().trim()
-        );
         return (
           <td key={colKey} className="px-3 py-2 text-sm text-center max-w-[200px] relative">
             <div className="product-search-container">
@@ -745,10 +794,14 @@ export function LinesTab(props: LinesTabProps) {
                 onClick={(e) => {
                   const rect = e.currentTarget.getBoundingClientRect();
                   setDropdownPosition({ top: rect.bottom + 4, left: rect.left });
-                  setProductSearchOpen(productSearchOpen === item.id && productSearchField === 'description' ? null : item.id);
-                  setProductSearchField('description');
+                  const isOpen = productSearchOpen === item.id && productSearchField === 'description';
+                  setProductSearchOpen(isOpen ? null : item.id);
+                  setProductSearchField(isOpen ? null : 'description');
                   setProductSearchQuery(item.description || '');
                   setShowCreateProduct(false);
+                  if (!isOpen) {
+                    productSearch.onSearch(item.description || '');
+                  }
                 }}
                 className="w-full text-center px-2 py-1 rounded hover:bg-[var(--muted)] transition-colors flex items-center justify-center gap-1"
               >
@@ -766,33 +819,60 @@ export function LinesTab(props: LinesTabProps) {
                     <input
                       type="text"
                       value={productSearchQuery}
-                      onChange={(e) => setProductSearchQuery(e.target.value)}
+                      onChange={(e) => {
+                        setProductSearchQuery(e.target.value);
+                        productSearch.onSearch(e.target.value);
+                      }}
                       placeholder="Search FPN, CPN, or description..."
                       className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                       autoFocus
                     />
                   </div>
                   <div className="max-h-48 overflow-y-auto">
-                    {descFilteredProducts.map(product => (
+                    {productSearch.isLoading && (
+                      <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">Loading...</div>
+                    )}
+                    {!productSearch.isLoading && productSearch.options.map(product => (
                       <button
                         key={product.id}
-                        onClick={() => selectProductForLineItem(item.id, product)}
+                        onClick={() => {
+                          setQuoteLineItems(prev => prev.map(li =>
+                            li.id === item.id ? {
+                              ...li,
+                              productId: product.id,
+                              productNumber: product.label,
+                              description: product.sublabel || '',
+                              productDescriptionAdhoc: undefined,
+                            } : li
+                          ));
+                          setProductSearchOpen(null);
+                          setProductSearchField(null);
+                          setProductSearchQuery('');
+                        }}
                         className="w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors"
                       >
-                        <div className="text-sm">{product.description}</div>
-                        <div className="font-mono text-xs text-[var(--muted-foreground)]">{product.partNumber}</div>
+                        <div className="text-sm">{product.sublabel || product.label}</div>
+                        <div className="font-mono text-xs text-[var(--muted-foreground)]">{product.label}</div>
                       </button>
                     ))}
-                    {descFilteredProducts.length === 0 && (
+                    {!productSearch.isLoading && productSearch.options.length === 0 && !descHasSearchQuery && (
+                      <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">Type to search...</div>
+                    )}
+                    {!productSearch.isLoading && productSearch.options.length === 0 && descHasSearchQuery && (
                       <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">No products found</div>
                     )}
                   </div>
-                  {descHasSearchQuery && !descQueryMatchesExact && (
+                  {/* Adhoc description option */}
+                  {descHasSearchQuery && (
                     <div className="border-t border-[var(--border)]">
                       <button
                         onClick={() => {
                           setQuoteLineItems(prev => prev.map(li =>
-                            li.id === item.id ? { ...li, description: productSearchQuery.trim() } : li
+                            li.id === item.id ? {
+                              ...li,
+                              description: productSearchQuery.trim(),
+                              productDescriptionAdhoc: productSearchQuery.trim(),
+                            } : li
                           ));
                           setProductSearchOpen(null);
                           setProductSearchField(null);
@@ -805,7 +885,7 @@ export function LinesTab(props: LinesTabProps) {
                         </svg>
                         <div>
                           <div className="text-sm font-medium text-[var(--primary)]">{productSearchQuery.trim()}</div>
-                          <div className="text-xs text-[var(--muted-foreground)]">Use as document-specific description</div>
+                          <div className="text-xs text-[var(--muted-foreground)]">Use as adhoc description (document-specific)</div>
                         </div>
                       </button>
                     </div>
@@ -871,17 +951,18 @@ export function LinesTab(props: LinesTabProps) {
 
       case 'manufacturer':
         const currentMfr = item.manufacturers[0]?.name || '';
-        const filteredMfrs = availableManufacturers.filter(mfr =>
-          mfr.name.toLowerCase().includes(manufacturerSearch.toLowerCase())
-        );
         return (
           <td key={colKey} className="px-3 py-2 text-sm text-center relative">
             <div className="manufacturer-dropdown-container">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setManufacturerDropdown(manufacturerDropdown === item.id ? null : item.id);
+                  const isOpen = manufacturerDropdown === item.id;
+                  setManufacturerDropdown(isOpen ? null : item.id);
                   setManufacturerSearch('');
+                  if (!isOpen) {
+                    factorySearch.onSearch('');
+                  }
                 }}
                 className="w-full text-center px-2 py-1 rounded hover:bg-[var(--muted)] transition-colors flex items-center justify-center gap-1"
               >
@@ -896,7 +977,10 @@ export function LinesTab(props: LinesTabProps) {
                     <input
                       type="text"
                       value={manufacturerSearch}
-                      onChange={(e) => setManufacturerSearch(e.target.value)}
+                      onChange={(e) => {
+                        setManufacturerSearch(e.target.value);
+                        factorySearch.onSearch(e.target.value);
+                      }}
                       placeholder="Search manufacturers..."
                       className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                       autoFocus
@@ -904,7 +988,10 @@ export function LinesTab(props: LinesTabProps) {
                     />
                   </div>
                   <div className="max-h-48 overflow-y-auto">
-                    {filteredMfrs.map(mfr => (
+                    {factorySearch.isLoading && (
+                      <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">Loading...</div>
+                    )}
+                    {!factorySearch.isLoading && factorySearch.options.map(mfr => (
                       <button
                         key={mfr.id}
                         onClick={(e) => {
@@ -912,19 +999,23 @@ export function LinesTab(props: LinesTabProps) {
                           setQuoteLineItems(prev => prev.map(li =>
                             li.id === item.id ? {
                               ...li,
-                              manufacturers: [{ ...li.manufacturers[0], name: mfr.name }]
+                              factoryId: mfr.id,
+                              manufacturers: [{ ...li.manufacturers[0], name: mfr.label }]
                             } : li
                           ));
                           setManufacturerDropdown(null);
                           setManufacturerSearch('');
                         }}
-                        className={`w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors ${currentMfr === mfr.name ? 'bg-[var(--muted)]' : ''}`}
+                        className={`w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors ${currentMfr === mfr.label ? 'bg-[var(--muted)]' : ''}`}
                       >
-                        <div className="text-sm">{mfr.name}</div>
+                        <div className="text-sm">{mfr.label}</div>
+                        {mfr.sublabel && <div className="text-xs text-[var(--muted-foreground)]">{mfr.sublabel}</div>}
                       </button>
                     ))}
-                    {filteredMfrs.length === 0 && (
-                      <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">No manufacturers found</div>
+                    {!factorySearch.isLoading && factorySearch.options.length === 0 && (
+                      <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">
+                        {manufacturerSearch ? 'No manufacturers found' : 'Type to search...'}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1086,16 +1177,17 @@ export function LinesTab(props: LinesTabProps) {
         const currentRep = item.outsideRepSplits.length === 1 ? item.outsideRepSplits[0] : null;
         const hasMultiple = item.outsideRepSplits.length > 1;
         const displayText = hasMultiple ? 'Multiple' : (currentRep?.repName || 'Select...');
-        const filteredReps = availableOutsideReps.filter(rep =>
-          rep.name.toLowerCase().includes(lineItemRepSearch.toLowerCase())
-        );
         return (
           <td key={colKey} className="px-3 py-2 text-sm text-center relative">
             <div className="line-item-rep-container">
               <button
                 onClick={() => {
-                  setLineItemRepDropdown(lineItemRepDropdown === item.id ? null : item.id);
+                  const isOpen = lineItemRepDropdown === item.id;
+                  setLineItemRepDropdown(isOpen ? null : item.id);
                   setLineItemRepSearch('');
+                  if (!isOpen) {
+                    outsideRepSearch.onSearch('');
+                  }
                 }}
                 className={`w-full text-center px-2 py-1 rounded hover:bg-[var(--muted)] transition-colors flex items-center justify-center gap-1 ${hasMultiple ? 'text-[var(--primary)] font-medium' : ''}`}
               >
@@ -1110,7 +1202,10 @@ export function LinesTab(props: LinesTabProps) {
                     <input
                       type="text"
                       value={lineItemRepSearch}
-                      onChange={(e) => setLineItemRepSearch(e.target.value)}
+                      onChange={(e) => {
+                        setLineItemRepSearch(e.target.value);
+                        outsideRepSearch.onSearch(e.target.value);
+                      }}
                       placeholder="Search reps..."
                       className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                       autoFocus
@@ -1120,9 +1215,10 @@ export function LinesTab(props: LinesTabProps) {
                     <button
                       onClick={() => {
                         setLineItemRepSplitsTarget(item.id);
+                        const firstRep = outsideRepSearch.options[0];
                         setLineItemRepSplits(item.outsideRepSplits.length > 0
                           ? item.outsideRepSplits.map(s => ({ repId: s.repId, repName: s.repName, percentage: s.percentage }))
-                          : [{ repId: availableOutsideReps[0]?.id || '', repName: availableOutsideReps[0]?.name || '', percentage: 100 }]
+                          : firstRep ? [{ repId: firstRep.id, repName: firstRep.label, percentage: 100 }] : []
                         );
                         setShowLineItemRepSplitsModal(true);
                         setLineItemRepDropdown(null);
@@ -1134,14 +1230,17 @@ export function LinesTab(props: LinesTabProps) {
                       </svg>
                       <span className="font-medium text-[var(--primary)]">Multiple (Split Commission)</span>
                     </button>
-                    {filteredReps.map(rep => (
+                    {outsideRepSearch.isLoading && (
+                      <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">Loading...</div>
+                    )}
+                    {!outsideRepSearch.isLoading && outsideRepSearch.options.map(rep => (
                       <button
                         key={rep.id}
                         onClick={() => {
                           setQuoteLineItems(prev => prev.map(li =>
                             li.id === item.id ? {
                               ...li,
-                              outsideRepSplits: [{ repId: rep.id, repName: rep.name, percentage: 100 }]
+                              outsideRepSplits: [{ repId: rep.id, repName: rep.label, percentage: 100 }]
                             } : li
                           ));
                           setLineItemRepDropdown(null);
@@ -1149,11 +1248,14 @@ export function LinesTab(props: LinesTabProps) {
                         }}
                         className={`w-full text-left px-3 py-2 hover:bg-[var(--muted)] transition-colors ${currentRep?.repId === rep.id ? 'bg-[var(--muted)]' : ''}`}
                       >
-                        <div className="text-sm">{rep.name}</div>
+                        <div className="text-sm">{rep.label}</div>
+                        {rep.sublabel && <div className="text-xs text-[var(--muted-foreground)]">{rep.sublabel}</div>}
                       </button>
                     ))}
-                    {filteredReps.length === 0 && (
-                      <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">No reps found</div>
+                    {!outsideRepSearch.isLoading && outsideRepSearch.options.length === 0 && (
+                      <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">
+                        {lineItemRepSearch ? 'No reps found' : 'Type to search...'}
+                      </div>
                     )}
                   </div>
                 </div>

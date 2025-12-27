@@ -85,51 +85,131 @@ import {
 // Import API hooks for fetching single quote
 import {
   useQuote,
+  createQuote,
+  updateQuote,
   type Quote as ApiQuote,
   type QuoteStatus as ApiQuoteStatus,
   type QuotePipelineStage,
+  type CreateQuoteInput,
+  type QuoteDetailInput,
+  type QuoteSplitRateInput,
 } from './quotes/api';
 
 // ============================================
 // Helper function to map API Quote to UI Quote
 // ============================================
+function mapPipelineStageToUIStage(stage?: QuotePipelineStage): Quote['stage'] {
+  if (!stage) return 'Draft';
+  switch (stage) {
+    case 'DISCOVERY': return 'Draft';
+    case 'PROSPECT': return 'Review';
+    case 'QUALIFICATION': return 'Review';
+    case 'PROPOSAL': return 'Sent';
+    case 'NEGOTIATION': return 'Negotiating';
+    case 'CLOSED_WON': return 'Won';
+    case 'CLOSED_LOST': return 'Lost';
+    default: return 'Draft';
+  }
+}
+
+function mapApiStatusToUIStatus(status?: ApiQuoteStatus): Quote['status'] {
+  if (!status) return 'Open';
+  switch (status) {
+    case 'OPEN': return 'Open';
+    case 'ORDERED': return 'Closed';
+    case 'EXPIRED': return 'Expired';
+    case 'LOST': return 'Closed';
+    default: return 'Open';
+  }
+}
+
+// Helper to map API quote details to UI LineItems
+function mapApiDetailsToLineItems(apiQuote: ApiQuote): LineItem[] {
+  if (!apiQuote.details || apiQuote.details.length === 0) {
+    return [];
+  }
+
+  return apiQuote.details.map((detail, index) => {
+    const unitPrice = typeof detail.unitPrice === 'string'
+      ? parseFloat(detail.unitPrice)
+      : (detail.unitPrice || 0);
+    const quantity = detail.quantity || 1;
+
+    return {
+      id: detail.id,
+      quoteId: apiQuote.id,
+      sectionId: 'default',
+      sectionName: 'Default',
+      // Use adhoc names if provided, otherwise use product data
+      productNumber: detail.productNameAdhoc || detail.product?.factoryPartNumber || '',
+      description: detail.productDescriptionAdhoc || detail.product?.description || '',
+      endUser: '', // Will be populated by customer lookup if needed
+      endUserId: detail.endUserId,
+      quantity: quantity,
+      uom: detail.uom?.title || 'EA',
+      manufacturers: detail.product ? [{
+        name: '', // Factory/manufacturer name from factory lookup
+        basePrice: detail.product.unitPrice || 0,
+        commissionRate: parseFloat(detail.commissionRate || detail.product.defaultCommissionRate?.toString() || '0.03'),
+        overageShare: 0,
+        approvalStatus: detail.product.approvalNeeded ? 'unknown' : 'approved',
+        approvalDate: detail.product.approvalDate || null,
+        approvalNotes: detail.product.approvalComments || null,
+      }] : [],
+      basePrice: detail.product?.unitPrice || unitPrice,
+      sellPrice: unitPrice,
+      level1Price: unitPrice,
+      level2Price: unitPrice,
+      level3Price: unitPrice,
+      overagePercent: 0,
+      commissionable: true,
+      locked: false,
+      priceHistory: [],
+      quotedPriceHistory: [],
+      hasSpecSheet: false,
+      outsideRepSplits: [],
+      insideRepSplits: [],
+      useDivisor: detail.uom?.divisionFactor ? detail.uom.divisionFactor !== 1 : false,
+      divisor: detail.uom?.divisionFactor || 1,
+      commissionDiscountPercent: detail.commissionDiscountRate ? parseFloat(detail.commissionDiscountRate) * 100 : undefined,
+      lineDiscountPercent: detail.discountRate ? parseFloat(detail.discountRate) * 100 : undefined,
+      leadTime: detail.leadTime || detail.product?.leadTime || undefined,
+      // API-specific fields
+      itemNumber: detail.itemNumber || index + 1,
+      status: (detail.status as LineItem['status']) || 'OPEN',
+      productId: detail.productId,
+      productNameAdhoc: detail.productNameAdhoc || undefined,
+      productDescriptionAdhoc: detail.productDescriptionAdhoc || undefined,
+      factoryId: detail.factoryId || undefined,
+      note: detail.note || undefined,
+      splitRates: detail.splitRates?.map(sr => ({
+        id: sr.id,
+        userId: sr.userId || '',
+        splitRate: sr.splitRate || '0',
+        position: sr.position,
+      })) || [],
+      commissionRate: detail.commissionRate || undefined,
+      discountRate: detail.discountRate || undefined,
+    };
+  });
+}
+
 function mapFullApiQuoteToUIQuote(apiQuote: ApiQuote): Quote {
-  const mapPipelineStageToUIStage = (stage?: QuotePipelineStage): Quote['stage'] => {
-    if (!stage) return 'Draft';
-    switch (stage) {
-      case 'DISCOVERY': return 'Draft';
-      case 'PROSPECT': return 'Review';
-      case 'QUALIFICATION': return 'Review';
-      case 'PROPOSAL': return 'Sent';
-      case 'NEGOTIATION': return 'Negotiating';
-      case 'CLOSED_WON': return 'Won';
-      case 'CLOSED_LOST': return 'Lost';
-      default: return 'Draft';
-    }
-  };
-
-  const mapApiStatusToUIStatus = (status?: ApiQuoteStatus): Quote['status'] => {
-    if (!status) return 'Open';
-    switch (status) {
-      case 'OPEN': return 'Open';
-      case 'ORDERED': return 'Closed';
-      case 'EXPIRED': return 'Expired';
-      case 'LOST': return 'Closed';
-      default: return 'Open';
-    }
-  };
-
   return {
     id: apiQuote.quoteNumber || apiQuote.id,
     uuid: apiQuote.id,
     name: apiQuote.quoteNumber || 'New Quote',
     billToCustomer: apiQuote.billToCustomer?.companyName || '',
+    billToCustomerId: apiQuote.billToCustomerId,
     soldToCustomer: apiQuote.soldToCustomer?.companyName || '',
+    soldToCustomerId: apiQuote.soldToCustomerId,
     jobId: '',
     jobName: '',
     stage: mapPipelineStageToUIStage(apiQuote.pipelineStage),
     status: mapApiStatusToUIStatus(apiQuote.status),
     quoteType: 'NORMAL',
+    blanket: apiQuote.blanket ?? false,
+    customerRef: apiQuote.customerRef || '',
     value: apiQuote.balance?.total ? `$${apiQuote.balance.total.toLocaleString()}` : '$0',
     valueNumber: apiQuote.balance?.total || 0,
     winProbability: 50,
@@ -160,22 +240,27 @@ function mapFullApiQuoteToUIQuote(apiQuote: ApiQuote): Quote {
 
 // Helper to create empty quote for "new" mode
 function createEmptyQuote(): Quote {
+  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
   return {
     id: '',
     uuid: 'new',
     name: 'New Quote',
     billToCustomer: '',
+    billToCustomerId: undefined,
     soldToCustomer: '',
+    soldToCustomerId: undefined,
     jobId: '',
     jobName: '',
     stage: 'Draft',
     status: 'Open',
     quoteType: 'NORMAL',
+    blanket: false,
+    customerRef: '',
     value: '$0',
     valueNumber: 0,
     winProbability: 50,
-    entryDate: new Date().toISOString(),
-    quoteDate: new Date().toISOString(),
+    entryDate: today,
+    quoteDate: today,
     expirationDate: '',
     revisedDate: '',
     acceptDate: '',
@@ -183,7 +268,7 @@ function createEmptyQuote(): Quote {
     freightTerms: '',
     owner: '',
     version: 1,
-    lastUpdated: new Date().toISOString(),
+    lastUpdated: today,
     tags: [],
     approvalStatus: 'clear',
     pendingApprovals: 0,
@@ -639,6 +724,7 @@ export default function QuotesContent({ initialQuoteId }: QuotesContentProps = {
   const [autoCalcTargetOverage, setAutoCalcTargetOverage] = useState('');
   const [autoCalcTargetCommission, setAutoCalcTargetCommission] = useState('');
   const [showSaveDropdown, setShowSaveDropdown] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [showRevertModal, setShowRevertModal] = useState(false);
   const [showCreditModal, setShowCreditModal] = useState(false);
   const [showConvertToOrderModal, setShowConvertToOrderModal] = useState(false);
@@ -696,14 +782,24 @@ export default function QuotesContent({ initialQuoteId }: QuotesContentProps = {
   // Sections state - so they can be modified
   const [quoteSections, setQuoteSections] = useState<Section[]>(mockSections);
 
-  // Sync line items when selected quote changes
+  // Sync line items when selected quote changes - use API data if available
   useEffect(() => {
     if (selectedQuote) {
-      setQuoteLineItems(mockLineItems.filter(li => li.quoteId === selectedQuote.id));
+      // If we have fetched API quote data with details, use that
+      if (fetchedApiQuote && fetchedApiQuote.details && fetchedApiQuote.details.length > 0) {
+        const mappedLineItems = mapApiDetailsToLineItems(fetchedApiQuote);
+        setQuoteLineItems(mappedLineItems);
+      } else if (selectedQuote.uuid === 'new') {
+        // New quote - start with empty line items
+        setQuoteLineItems([]);
+      } else {
+        // Fallback to empty if no API data
+        setQuoteLineItems([]);
+      }
     } else {
       setQuoteLineItems([]);
     }
-  }, [selectedQuote?.id]);
+  }, [selectedQuote?.id, fetchedApiQuote]);
 
   // Get distributor quotes for selected quote - memoized
   const quoteDistributorQuotes = useMemo(() =>
@@ -767,6 +863,143 @@ export default function QuotesContent({ initialQuoteId }: QuotesContentProps = {
     );
   }
 
+  // Helper to map UI stage to API pipeline stage
+  const mapUIStageToApiStage = (stage: Quote['stage']): QuotePipelineStage => {
+    switch (stage) {
+      case 'Draft': return 'DISCOVERY';
+      case 'Review': return 'PROSPECT';
+      case 'Sent': return 'PROPOSAL';
+      case 'Negotiating': return 'NEGOTIATION';
+      case 'Won': return 'CLOSED_WON';
+      case 'Lost': return 'CLOSED_LOST';
+      case 'Dormant': return 'DISCOVERY';
+      default: return 'DISCOVERY';
+    }
+  };
+
+  // Helper to map UI status to API status
+  const mapUIStatusToApiStatus = (status: Quote['status']): ApiQuoteStatus => {
+    switch (status) {
+      case 'Open': return 'OPEN';
+      case 'Closed': return 'ORDERED';
+      case 'Expired': return 'EXPIRED';
+      case 'Pending': return 'OPEN';
+      default: return 'OPEN';
+    }
+  };
+
+  // Handle save quote - creates new or updates existing
+  const handleSaveQuote = useCallback(async () => {
+    if (!selectedQuote) return;
+
+    // Validate required fields
+    if (!selectedQuote.name || selectedQuote.name === 'New Quote') {
+      alert('Please enter a quote number');
+      return;
+    }
+    if (!selectedQuote.soldToCustomerId) {
+      alert('Please select a Sold To Customer');
+      return;
+    }
+    if (!selectedQuote.quoteDate) {
+      alert('Please enter a Quote Date');
+      return;
+    }
+    if (!selectedQuote.expirationDate) {
+      alert('Please enter an Expiration Date');
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      // Build line item details for API
+      const details: QuoteDetailInput[] = quoteLineItems.map((item, index) => ({
+        id: item.id.startsWith('new-') ? undefined : item.id, // Only include ID for existing items
+        quantity: item.quantity,
+        unitPrice: item.sellPrice.toString(),
+        commissionDiscountRate: item.commissionDiscountPercent ? (item.commissionDiscountPercent / 100).toString() : undefined,
+        commissionRate: item.commissionRate || (item.manufacturers[0]?.commissionRate?.toString()),
+        discountRate: item.discountRate || (item.lineDiscountPercent ? (item.lineDiscountPercent / 100).toString() : undefined),
+        endUserId: item.endUserId,
+        factoryId: item.factoryId,
+        itemNumber: index + 1,
+        leadTime: item.leadTime,
+        note: item.note,
+        productDescriptionAdhoc: item.productDescriptionAdhoc || (item.description !== '' ? item.description : undefined),
+        productNameAdhoc: item.productNameAdhoc || (item.productNumber !== '' ? item.productNumber : undefined),
+        productId: item.productId,
+        splitRates: item.splitRates?.map(sr => ({
+          id: sr.id,
+          userId: sr.userId,
+          splitRate: sr.splitRate,
+          position: sr.position,
+        })) as QuoteSplitRateInput[],
+        status: item.status || 'OPEN',
+      }));
+
+      // Build inside reps for API
+      const insideReps: QuoteSplitRateInput[] = insideRepCommissionSplits.map((split, index) => ({
+        userId: split.repId,
+        splitRate: (split.percentage / 100).toString(), // Convert percentage to decimal
+        position: index,
+      }));
+
+      // Build quote input
+      const quoteInput: CreateQuoteInput = {
+        id: selectedQuote.uuid !== 'new' ? selectedQuote.uuid : undefined,
+        quoteNumber: selectedQuote.name,
+        entityDate: selectedQuote.quoteDate,
+        soldToCustomerId: selectedQuote.soldToCustomerId!,
+        billToCustomerId: selectedQuote.billToCustomerId,
+        status: mapUIStatusToApiStatus(selectedQuote.status),
+        pipelineStage: mapUIStageToApiStage(selectedQuote.stage),
+        blanket: selectedQuote.blanket,
+        customerRef: selectedQuote.customerRef,
+        expDate: selectedQuote.expirationDate,
+        freightTerms: selectedQuote.freightTerms,
+        paymentTerms: selectedQuote.paymentTerms,
+        reviseDate: selectedQuote.revisedDate || undefined,
+        acceptDate: selectedQuote.acceptDate || undefined,
+        published: selectedQuote.published,
+        details: details.length > 0 ? details : undefined,
+        insideReps: insideReps.length > 0 ? insideReps : undefined,
+      };
+
+      let savedQuote: ApiQuote;
+
+      if (selectedQuote.uuid === 'new') {
+        // Create new quote
+        savedQuote = await createQuote(quoteInput);
+        // Navigate to the new quote's page
+        router.push(`/quotes/${savedQuote.id}`);
+      } else {
+        // Update existing quote
+        savedQuote = await updateQuote(quoteInput);
+      }
+
+      // Update local state with saved data
+      const updatedUIQuote = mapFullApiQuoteToUIQuote(savedQuote);
+      setSelectedQuote(updatedUIQuote);
+
+      // Update the line items from saved response
+      if (savedQuote.details) {
+        const mappedLineItems = mapApiDetailsToLineItems(savedQuote);
+        setQuoteLineItems(mappedLineItems);
+      }
+
+      // Refetch quotes list to include the new/updated quote
+      refetch();
+
+      alert('Quote saved successfully!');
+    } catch (error) {
+      console.error('Error saving quote:', error);
+      alert(`Failed to save quote: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [selectedQuote, quoteLineItems, insideRepCommissionSplits, router, refetch, setSelectedQuote, setQuoteLineItems]);
+
   // Quote Detail View
   if (selectedQuote) {
     return (
@@ -805,6 +1038,8 @@ export default function QuotesContent({ initialQuoteId }: QuotesContentProps = {
           setDuplicateCustomer={setDuplicateCustomer}
           setDuplicatePercentIncrease={setDuplicatePercentIncrease}
           setDuplicateCopyNotes={setDuplicateCopyNotes}
+          onSaveQuote={handleSaveQuote}
+          isSaving={isSaving}
         />
 
         {/* Pricing Summary Bar */}
