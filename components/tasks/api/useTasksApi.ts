@@ -434,7 +434,7 @@ export function usePreOpportunitySearch(searchTerm: string, enabled = true) {
 export function useUserSearch(searchTerm: string, enabled = true) {
   return useQuery<UserSearchResult[], Error>({
     queryKey: tasksQueryKeys.search.users(searchTerm),
-    queryFn: () => searchUsers(searchTerm),
+    queryFn: () => searchUsers({ searchTerm }),
     enabled: enabled,
     staleTime: 60 * 1000,
     placeholderData: (previousData) => previousData, // Keep previous data while loading new results

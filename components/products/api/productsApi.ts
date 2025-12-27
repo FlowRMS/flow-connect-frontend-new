@@ -226,7 +226,7 @@ export interface PaginatedProductsResult {
 
 const FIND_PRODUCT_BY_ID = `
   query FindProductById($id: UUID!) {
-    findProductById(id: $id) {
+    product(id: $id) {
       approvalNeeded
       category {
         commissionRate
@@ -717,7 +717,7 @@ export async function fetchProducts(): Promise<ProductLandingPage[]> {
  * Fetch a single product by ID
  */
 export async function fetchProductById(id: string): Promise<Product | null> {
-  const response = await crmGraphQLRequest<{ findProductById: Product }>({
+  const response = await crmGraphQLRequest<{ product: Product }>({
     query: FIND_PRODUCT_BY_ID,
     variables: { id },
   });
@@ -726,7 +726,7 @@ export async function fetchProductById(id: string): Promise<Product | null> {
     throw new Error(response.errors[0]?.message || 'Failed to fetch product');
   }
 
-  return response.data?.findProductById || null;
+  return response.data?.product || null;
 }
 
 /**
