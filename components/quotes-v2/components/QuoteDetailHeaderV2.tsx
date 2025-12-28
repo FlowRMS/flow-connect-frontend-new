@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import type { QuoteV2, QuotePipelineStage, LineItemV2 } from '../types';
+import type { QuoteV2, QuotePipelineStage, LineItemV2, QuoteSettingsV2 } from '../types';
 import { SearchableDropdownV2 } from './SearchableDropdownV2';
-import { useCustomerSearch, useUserSearch } from '../../quotes/api/useQuotesApi';
+import { useCustomerSearch, useUserSearch, useJobSearch } from '../../quotes/api/useQuotesApi';
 import { searchUsers } from '../../quotes/api/quotesApi';
 
 interface QuoteDetailHeaderV2Props {
@@ -17,6 +17,7 @@ interface QuoteDetailHeaderV2Props {
   hasChanges?: boolean;
   isNew?: boolean;
   lineItems?: LineItemV2[];
+  settings?: QuoteSettingsV2;
 }
 
 // Pipeline stage options using API enum values
@@ -88,6 +89,7 @@ export function QuoteDetailHeaderV2({
   hasChanges = false,
   isNew = false,
   lineItems = [],
+  settings,
 }: QuoteDetailHeaderV2Props) {
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [showStageMenu, setShowStageMenu] = useState(false);
@@ -112,6 +114,10 @@ export function QuoteDetailHeaderV2({
   const [outsideRepSearchTerm, setOutsideRepSearchTerm] = useState('');
   const [insideRepSearchEnabled, setInsideRepSearchEnabled] = useState(false);
   const [outsideRepSearchEnabled, setOutsideRepSearchEnabled] = useState(false);
+
+  // Job search state
+  const [jobSearchTerm, setJobSearchTerm] = useState('');
+  const [jobSearchEnabled, setJobSearchEnabled] = useState(false);
 
   // Split commission state
   const [showInsideSplitCommission, setShowInsideSplitCommission] = useState(
@@ -263,6 +269,7 @@ export function QuoteDetailHeaderV2({
   const { data: billToCustomers, isLoading: isBillToLoading } = useCustomerSearch(billToSearchTerm, billToSearchEnabled);
   const { data: endUserCustomers, isLoading: isEndUserLoading } = useCustomerSearch(endUserSearchTerm, endUserSearchEnabled);
   const { data: insideReps, isLoading: isInsideRepLoading } = useUserSearch(insideRepSearchTerm, true, insideRepSearchEnabled);
+  const { data: jobs, isLoading: isJobsLoading } = useJobSearch(jobSearchTerm, jobSearchEnabled);
   const { data: outsideReps, isLoading: isOutsideRepLoading } = useUserSearch(outsideRepSearchTerm, true, outsideRepSearchEnabled, true); // isOutside = true
   const { data: splitRepResults, isLoading: isSplitRepLoading } = useUserSearch(splitRepSearchTerm, true, splitRepSearchEnabled);
 
@@ -740,39 +747,51 @@ export function QuoteDetailHeaderV2({
               placeholder="Search customers..."
             />
           </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">End User</label>
-            <SearchableDropdownV2
-              value={quote.endUserId || ''}
-              displayValue={quote.endUserName || ''}
-              onChange={(id, label) => onQuoteChange({ endUserId: id, endUserName: label })}
-              options={endUserOptions}
-              onSearch={handleEndUserSearch}
-              isLoading={isEndUserLoading}
-              placeholder="Search customers..."
-              disabled={endUserSameAsSoldTo}
-            />
-            <label className="flex items-center gap-1.5 mt-1 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={endUserSameAsSoldTo}
-                onChange={(e) => handleEndUserSameAsSoldTo(e.target.checked)}
-                className="w-3 h-3 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+          {/* Only show End User at header level if not specifying per line */}
+          {!settings?.specifyEndUserPerLine && (
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">End User</label>
+              <SearchableDropdownV2
+                value={quote.endUserId || ''}
+                displayValue={quote.endUserName || ''}
+                onChange={(id, label) => onQuoteChange({ endUserId: id, endUserName: label })}
+                options={endUserOptions}
+                onSearch={handleEndUserSearch}
+                isLoading={isEndUserLoading}
+                placeholder="Search customers..."
+                disabled={endUserSameAsSoldTo}
               />
-              <span className="text-xs text-gray-500">Same as sold to</span>
-            </label>
-          </div>
+              <label className="flex items-center gap-1.5 mt-1 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={endUserSameAsSoldTo}
+                  onChange={(e) => handleEndUserSameAsSoldTo(e.target.checked)}
+                  className="w-3 h-3 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                />
+                <span className="text-xs text-gray-500">Same as sold to</span>
+              </label>
+            </div>
+          )}
           <div>
-            <label className="flex items-center gap-1 text-xs text-gray-400 mb-1">
-              Job
-              <ComingSoonBadge />
-            </label>
-            <input
-              type="text"
-              value={quote.jobName}
-              disabled
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md bg-gray-50 text-gray-400 cursor-not-allowed"
-              placeholder="Coming soon"
+            <label className="block text-xs text-gray-500 mb-1">Job</label>
+            <SearchableDropdownV2
+              value={quote.jobId || ''}
+              displayValue={quote.jobName || ''}
+              placeholder="Search jobs..."
+              isLoading={isJobsLoading}
+              options={(jobs || []).map((job) => ({
+                id: job.id,
+                label: job.jobName,
+                sublabel: job.jobType ? `${job.jobType}${job.status?.name ? ` • ${job.status.name}` : ''}` : job.status?.name,
+              }))}
+              onSearch={(term) => {
+                setJobSearchTerm(term);
+                setJobSearchEnabled(true);
+              }}
+              onChange={(id, label) => {
+                onQuoteChange({ jobId: id || undefined, jobName: label });
+                setJobSearchEnabled(false);
+              }}
             />
           </div>
           <div>
@@ -859,6 +878,8 @@ export function QuoteDetailHeaderV2({
                   onQuoteChange({
                     outsideRepId: id,
                     outsideRepName: label,
+                    // Set outsideReps array so it gets sent in splitRates on line items
+                    outsideReps: id ? [{ id: '', userId: id, splitRate: '100', position: 0 }] : [],
                   });
                   // Reset split commission when changing rep
                   if (id) {

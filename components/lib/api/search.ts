@@ -1,0 +1,787 @@
+/**
+ * Central Search API Module
+ * Single source of truth for all search GraphQL queries
+ * All search functions should be imported from this file
+ */
+
+import { crmGraphQLRequest } from '../crm-graphql';
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+type CreatedByResponse =
+  | string
+  | null
+  | undefined
+  | {
+      email?: string | null;
+      firstName?: string | null;
+      fullName?: string | null;
+      id?: string | null;
+      lastName?: string | null;
+    };
+
+const formatCreatedBy = (value: CreatedByResponse): string => {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  const fullName = value.fullName || [value.firstName, value.lastName].filter(Boolean).join(' ').trim();
+  return fullName || value.email || value.id || '';
+};
+
+const withFormattedCreatedBy = <T extends { createdBy?: CreatedByResponse }>(item: T): T => ({
+  ...item,
+  createdBy: formatCreatedBy(item.createdBy),
+});
+
+const mapFormattedCreatedBy = <T extends { createdBy?: CreatedByResponse }>(items?: T[]): T[] =>
+  (items || []).map(withFormattedCreatedBy);
+
+// ============================================================================
+// Search Result Types
+// ============================================================================
+
+export interface CompanySearchResult {
+  id: string;
+  name: string;
+  companySourceType: string;
+  createdAt: string;
+  createdBy: string;
+  parentCompanyId: string;
+  phone: string;
+  tags: string;
+  website: string;
+}
+
+export interface ContactSearchResult {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  role: string;
+  notes: string;
+  territory: string;
+  tags: string;
+  companyId?: string;
+  createdAt: string;
+  createdBy?: string;
+}
+
+export interface TaskSearchResult {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  priority: string;
+  dueDate: string;
+  reminderDate?: string;
+  assignedToId: string;
+  tags?: string;
+  createdAt: string;
+  createdBy: string;
+}
+
+export interface JobSearchResult {
+  id: string;
+  jobName: string;
+  jobType: string;
+  description: string;
+  startDate: string;
+  endDate: string;
+  status: { id: string; name?: string };
+  requesterId: string;
+  additionalInformation: string;
+  structuralDetails: string;
+  structuralInformation: string;
+  tags: string;
+  createdAt: string;
+  createdBy: string;
+}
+
+export interface NoteSearchResult {
+  id: string;
+  title: string;
+  content: string;
+  mentions: string;
+  tags: string;
+  createdAt: string;
+  createdBy: string;
+}
+
+export interface PreOpportunitySearchResult {
+  id: string;
+  entityNumber: string;
+  entityDate: string;
+  status: string;
+  soldToCustomerId: string;
+  expDate: string;
+  createdAt: string;
+  createdById: string;
+}
+
+export interface QuoteSearchResult {
+  id: string;
+  quoteNumber: string;
+  acceptDate?: string;
+  balanceId?: string;
+  blanket?: boolean;
+  createdAt?: string;
+  billToCustomerId?: string;
+  createdById?: string;
+  creationType?: string;
+  customerRef?: string;
+  duplicatedFrom?: string;
+  entityDate?: string;
+  expDate?: string;
+  freightTerms?: string;
+  paymentTerms?: string;
+  pipelineStage?: string;
+  published?: boolean;
+  reviseDate?: string;
+  soldToCustomerId?: string;
+  status?: string;
+  url?: string;
+  versionOf?: string;
+  jobName?: string;
+  entryDate?: string;
+  createdBy?: string;
+  userOwnerIds?: string[];
+}
+
+export interface OrderSearchResult {
+  id: string;
+  orderNumber: string;
+  jobName?: string;
+  entityDate: string;
+  entryDate: string;
+  dueDate: string;
+  shipDate: string;
+  status: string;
+  billToCustomerId: string;
+  soldToCustomerId: string;
+  factoryId: string;
+  quoteId: string;
+  balanceId: string;
+  factSoNumber: string;
+  userOwnerIds: string[];
+}
+
+export interface InvoiceSearchResult {
+  id: string;
+  invoiceNumber: string;
+  entityDate: string;
+  entryDate: string;
+  dueDate: string;
+  status: string;
+  factoryId: string;
+  orderId: string;
+  balanceId: string;
+  locked: boolean;
+  published: boolean;
+  creationType: string;
+  createdBy: string;
+  userOwnerIds: string[];
+}
+
+export interface CheckSearchResult {
+  id: string;
+  checkNumber: string;
+  entityDate: string;
+  entryDate: string;
+  postDate: string;
+  status: string;
+  factoryId: string;
+  commission: number;
+  commissionMonth: string;
+  creationType: string;
+  createdBy: string;
+  userOwnerIds: string[];
+}
+
+export interface FactorySearchResult {
+  id: string;
+  title: string;
+  accountNumber?: string;
+  published?: boolean;
+}
+
+export interface CustomerSearchResult {
+  id: string;
+  companyName: string;
+  isParent?: boolean;
+  parentId?: string;
+  insideRepId?: string;
+  published?: boolean;
+}
+
+export interface ProductSearchResult {
+  id: string;
+  factoryPartNumber: string;
+  description?: string;
+  unitPrice?: number;
+  defaultCommissionRate?: number;
+  approvalNeeded?: boolean;
+  published?: boolean;
+  factoryId?: string;
+  category?: { id: string; title: string };
+  factory?: { id: string; title: string };
+}
+
+export interface UserSearchResult {
+  id: string;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  fullName?: string;
+  authProviderId?: string;
+  enabled?: boolean;
+  inside?: boolean;
+  outside?: boolean;
+  role?: string;
+  username?: string;
+}
+
+// ============================================================================
+// GraphQL Queries
+// ============================================================================
+
+const COMPANY_SEARCH = `
+  query CompanySearch($searchTerm: String!, $limit: Int) {
+    companySearch(searchTerm: $searchTerm, limit: $limit) {
+      companySourceType
+      createdAt
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
+      id
+      name
+      parentCompanyId
+      phone
+      tags
+      website
+    }
+  }
+`;
+
+const CONTACT_SEARCH = `
+  query ContactSearch($searchTerm: String!, $limit: Int) {
+    contactSearch(searchTerm: $searchTerm, limit: $limit) {
+      createdAt
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
+      email
+      id
+      firstName
+      lastName
+      notes
+      phone
+      role
+      territory
+      tags
+      companyId
+    }
+  }
+`;
+
+const TASK_SEARCH = `
+  query TaskSearch($searchTerm: String!, $limit: Int) {
+    taskSearch(searchTerm: $searchTerm, limit: $limit) {
+      assignedToId
+      createdAt
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
+      description
+      dueDate
+      id
+      priority
+      reminderDate
+      status
+      tags
+      title
+    }
+  }
+`;
+
+const JOB_SEARCH = `
+  query JobSearch($searchTerm: String!, $limit: Int) {
+    jobSearch(searchTerm: $searchTerm, limit: $limit) {
+      additionalInformation
+      createdAt
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
+      description
+      endDate
+      jobName
+      jobType
+      id
+      startDate
+      requesterId
+      status {
+        id
+        name
+      }
+      structuralDetails
+      structuralInformation
+      tags
+    }
+  }
+`;
+
+const NOTE_SEARCH = `
+  query NoteSearch($searchTerm: String!, $limit: Int) {
+    noteSearch(searchTerm: $searchTerm, limit: $limit) {
+      content
+      createdAt
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
+      id
+      mentions
+      tags
+      title
+    }
+  }
+`;
+
+const PRE_OPPORTUNITY_SEARCH = `
+  query PreOpportunitySearch($searchTerm: String!, $limit: Int) {
+    preOpportunitySearch(searchTerm: $searchTerm, limit: $limit) {
+      id
+      entityNumber
+      entityDate
+      status
+      soldToCustomerId
+      expDate
+      createdAt
+      createdById
+    }
+  }
+`;
+
+const QUOTE_SEARCH = `
+  query QuoteSearch($searchTerm: String!, $limit: Int) {
+    quoteSearch(searchTerm: $searchTerm, limit: $limit) {
+      acceptDate
+      balanceId
+      blanket
+      createdAt
+      billToCustomerId
+      createdById
+      creationType
+      customerRef
+      duplicatedFrom
+      entityDate
+      expDate
+      freightTerms
+      id
+      paymentTerms
+      pipelineStage
+      published
+      quoteNumber
+      reviseDate
+      soldToCustomerId
+      status
+      url
+      versionOf
+    }
+  }
+`;
+
+const ORDER_SEARCH = `
+  query OrderSearch($searchTerm: String!, $limit: Int) {
+    orderSearch(searchTerm: $searchTerm, limit: $limit) {
+      id
+      orderNumber
+      jobName
+      entityDate
+      entryDate
+      dueDate
+      shipDate
+      status
+      billToCustomerId
+      soldToCustomerId
+      factoryId
+      quoteId
+      balanceId
+      factSoNumber
+      userOwnerIds
+    }
+  }
+`;
+
+const INVOICE_SEARCH = `
+  query InvoiceSearch($searchTerm: String!, $limit: Int) {
+    invoiceSearch(searchTerm: $searchTerm, limit: $limit) {
+      id
+      invoiceNumber
+      entityDate
+      entryDate
+      dueDate
+      status
+      factoryId
+      orderId
+      balanceId
+      locked
+      published
+      creationType
+      createdBy
+      userOwnerIds
+    }
+  }
+`;
+
+const CHECK_SEARCH = `
+  query CheckSearch($searchTerm: String!, $limit: Int) {
+    checkSearch(searchTerm: $searchTerm, limit: $limit) {
+      id
+      checkNumber
+      entityDate
+      entryDate
+      postDate
+      status
+      factoryId
+      commission
+      commissionMonth
+      creationType
+      createdBy
+      userOwnerIds
+    }
+  }
+`;
+
+const FACTORY_SEARCH = `
+  query FactorySearch($searchTerm: String!, $published: Boolean, $limit: Int) {
+    factorySearch(searchTerm: $searchTerm, published: $published, limit: $limit) {
+      id
+      title
+      accountNumber
+      published
+    }
+  }
+`;
+
+const CUSTOMER_SEARCH = `
+  query CustomerSearch($searchTerm: String!, $published: Boolean, $limit: Int) {
+    customerSearch(searchTerm: $searchTerm, published: $published, limit: $limit) {
+      id
+      companyName
+      isParent
+      parentId
+      published
+    }
+  }
+`;
+
+const PRODUCT_SEARCH = `
+  query ProductSearch($searchTerm: String!, $factoryId: UUID, $limit: Int) {
+    productSearch(searchTerm: $searchTerm, factoryId: $factoryId, limit: $limit) {
+      id
+      factoryPartNumber
+      description
+      unitPrice
+      defaultCommissionRate
+      approvalNeeded
+      published
+      category {
+        id
+        title
+      }
+      factory {
+        id
+        title
+      }
+    }
+  }
+`;
+
+const USER_SEARCH = `
+  query UserSearch($searchTerm: String!, $isInside: Boolean, $isOutside: Boolean, $enabled: Boolean, $limit: Int) {
+    userSearch(
+      searchTerm: $searchTerm
+      isInside: $isInside
+      isOutside: $isOutside
+      enabled: $enabled
+      limit: $limit
+    ) {
+      id
+      authProviderId
+      email
+      enabled
+      firstName
+      fullName
+      inside
+      lastName
+      outside
+      role
+      username
+    }
+  }
+`;
+
+// ============================================================================
+// Search API Functions
+// ============================================================================
+
+/**
+ * Search for companies
+ */
+export async function searchCompanies(searchTerm: string, limit?: number): Promise<CompanySearchResult[]> {
+  const response = await crmGraphQLRequest<{ companySearch: CompanySearchResult[] }>({
+    query: COMPANY_SEARCH,
+    variables: { searchTerm, limit: limit ?? 50 },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search companies');
+  }
+
+  return mapFormattedCreatedBy(response.data?.companySearch);
+}
+
+/**
+ * Search for contacts
+ */
+export async function searchContacts(searchTerm: string, limit?: number): Promise<ContactSearchResult[]> {
+  const response = await crmGraphQLRequest<{ contactSearch: ContactSearchResult[] }>({
+    query: CONTACT_SEARCH,
+    variables: { searchTerm, limit: limit ?? 50 },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search contacts');
+  }
+
+  return mapFormattedCreatedBy(response.data?.contactSearch);
+}
+
+/**
+ * Search for tasks
+ */
+export async function searchTasks(searchTerm: string, limit?: number): Promise<TaskSearchResult[]> {
+  const response = await crmGraphQLRequest<{ taskSearch: TaskSearchResult[] }>({
+    query: TASK_SEARCH,
+    variables: { searchTerm, limit: limit ?? 50 },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search tasks');
+  }
+
+  return mapFormattedCreatedBy(response.data?.taskSearch);
+}
+
+/**
+ * Search for jobs
+ */
+export async function searchJobs(searchTerm: string, limit?: number): Promise<JobSearchResult[]> {
+  const response = await crmGraphQLRequest<{ jobSearch: JobSearchResult[] }>({
+    query: JOB_SEARCH,
+    variables: { searchTerm, limit: limit ?? 50 },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search jobs');
+  }
+
+  return mapFormattedCreatedBy(response.data?.jobSearch);
+}
+
+/**
+ * Search for notes
+ */
+export async function searchNotes(searchTerm: string, limit?: number): Promise<NoteSearchResult[]> {
+  const response = await crmGraphQLRequest<{ noteSearch: NoteSearchResult[] }>({
+    query: NOTE_SEARCH,
+    variables: { searchTerm, limit: limit ?? 50 },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search notes');
+  }
+
+  return mapFormattedCreatedBy(response.data?.noteSearch);
+}
+
+/**
+ * Search for pre-opportunities
+ */
+export async function searchPreOpportunities(searchTerm: string, limit?: number): Promise<PreOpportunitySearchResult[]> {
+  const response = await crmGraphQLRequest<{ preOpportunitySearch: PreOpportunitySearchResult[] }>({
+    query: PRE_OPPORTUNITY_SEARCH,
+    variables: { searchTerm, limit: limit ?? 50 },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search pre-opportunities');
+  }
+
+  return response.data?.preOpportunitySearch || [];
+}
+
+/**
+ * Search for quotes
+ */
+export async function searchQuotes(searchTerm: string, limit?: number): Promise<QuoteSearchResult[]> {
+  const response = await crmGraphQLRequest<{ quoteSearch: QuoteSearchResult[] }>({
+    query: QUOTE_SEARCH,
+    variables: { searchTerm, limit: limit ?? 10 },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search quotes');
+  }
+
+  return response.data?.quoteSearch || [];
+}
+
+/**
+ * Search for orders
+ */
+export async function searchOrders(searchTerm: string, limit?: number): Promise<OrderSearchResult[]> {
+  const response = await crmGraphQLRequest<{ orderSearch: OrderSearchResult[] }>({
+    query: ORDER_SEARCH,
+    variables: { searchTerm, limit: limit ?? 50 },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search orders');
+  }
+
+  return response.data?.orderSearch || [];
+}
+
+/**
+ * Search for invoices
+ */
+export async function searchInvoices(searchTerm: string, limit?: number): Promise<InvoiceSearchResult[]> {
+  const response = await crmGraphQLRequest<{ invoiceSearch: InvoiceSearchResult[] }>({
+    query: INVOICE_SEARCH,
+    variables: { searchTerm, limit: limit ?? 50 },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search invoices');
+  }
+
+  return response.data?.invoiceSearch || [];
+}
+
+/**
+ * Search for checks
+ */
+export async function searchChecks(searchTerm: string, limit?: number): Promise<CheckSearchResult[]> {
+  const response = await crmGraphQLRequest<{ checkSearch: CheckSearchResult[] }>({
+    query: CHECK_SEARCH,
+    variables: { searchTerm, limit: limit ?? 50 },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search checks');
+  }
+
+  return response.data?.checkSearch || [];
+}
+
+/**
+ * Search for factories
+ */
+export async function searchFactories(searchTerm: string, published?: boolean, limit?: number): Promise<FactorySearchResult[]> {
+  const response = await crmGraphQLRequest<{ factorySearch: FactorySearchResult[] }>({
+    query: FACTORY_SEARCH,
+    variables: { searchTerm, published: published ?? true, limit: limit ?? 50 },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search factories');
+  }
+
+  return response.data?.factorySearch || [];
+}
+
+/**
+ * Search for customers
+ */
+export async function searchCustomers(searchTerm: string, published?: boolean, limit?: number): Promise<CustomerSearchResult[]> {
+  const response = await crmGraphQLRequest<{ customerSearch: CustomerSearchResult[] }>({
+    query: CUSTOMER_SEARCH,
+    variables: { searchTerm, published: published ?? true, limit: limit ?? 50 },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search customers');
+  }
+
+  return response.data?.customerSearch || [];
+}
+
+/**
+ * Search for products
+ */
+export async function searchProducts(
+  searchTerm: string,
+  factoryId?: string,
+  limit?: number
+): Promise<ProductSearchResult[]> {
+  const response = await crmGraphQLRequest<{ productSearch: ProductSearchResult[] }>({
+    query: PRODUCT_SEARCH,
+    variables: { searchTerm, factoryId, limit: limit ?? 50 },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search products');
+  }
+
+  return response.data?.productSearch || [];
+}
+
+/**
+ * Search for users
+ */
+export async function searchUsers(params: {
+  searchTerm: string;
+  isInside?: boolean;
+  isOutside?: boolean;
+  enabled?: boolean;
+  limit?: number;
+}): Promise<UserSearchResult[]> {
+  const response = await crmGraphQLRequest<{ userSearch: UserSearchResult[] }>({
+    query: USER_SEARCH,
+    variables: {
+      searchTerm: params.searchTerm,
+      isInside: params.isInside,
+      isOutside: params.isOutside,
+      enabled: params.enabled,
+      limit: params.limit ?? 10,
+    },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search users');
+  }
+
+  return response.data?.userSearch || [];
+}

@@ -136,6 +136,7 @@ export function PreOpportunityDetailView({
         isOpen={showCreateQuoteModal}
         preOpportunityId={preOpp.id}
         preOpportunityNumber={preOpp.entityNumber}
+        lineItems={preOpp.details}
         onClose={() => setShowCreateQuoteModal(false)}
       />
     </main>

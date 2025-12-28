@@ -11,13 +11,15 @@ interface OrderLineItemsSectionProps {
 }
 
 export function OrderLineItemsSection({ order }: OrderLineItemsSectionProps) {
+  const lineItems = order.lineItems || [];
+
   return (
     <div>
       <h3 className="text-sm font-semibold text-[var(--foreground)] mb-3">
-        Line Items ({order.lineItems.length})
+        Line Items ({lineItems.length})
       </h3>
       <div className="space-y-2">
-        {order.lineItems.map((item) => (
+        {lineItems.map((item) => (
           <div
             key={item.id}
             className="bg-[var(--muted)]/30 rounded-lg p-3"

@@ -1,15 +1,33 @@
 /**
  * OrderDetailsFields Component
  * Collapsible section with order detail form fields
+ * Uses SearchableDropdownV2 for all searchable fields
  */
 
 'use client';
 
-import React from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Order } from '@/lib/types/rms';
 import { formatDate } from '../../utils';
-import { AVAILABLE_OUTSIDE_REPS, AVAILABLE_INSIDE_REPS } from '../../constants';
 import { RepSplit } from '../../types';
+import { SearchableDropdownV2 } from '@/components/quotes-v2/components/SearchableDropdownV2';
+import { StyledDatePicker, parseDateString, formatDateToString } from '@/components/shared/StyledDatePicker';
+import { CustomSelect } from '@/components/tasks/components/CustomSelect';
+import {
+  useCustomerSearch,
+  useFactorySearch,
+  useUserSearch,
+  useJobSearch,
+} from '../../../api';
+
+// ComingSoonBadge component for unsupported features
+function ComingSoonBadge({ inline = false }: { inline?: boolean }) {
+  return (
+    <span className={`text-[10px] bg-gray-200 text-gray-500 px-1 py-0.5 rounded uppercase ${inline ? 'ml-1' : ''}`}>
+      Soon
+    </span>
+  );
+}
 
 interface OrderDetailsFieldsProps {
   order: Order;
@@ -29,6 +47,11 @@ interface OrderDetailsFieldsProps {
   insideRepSplits: RepSplit[];
   setInsideRepSplits: (splits: RepSplit[]) => void;
   openInsideRepModal: () => void;
+  // New props for field updates
+  onUpdateOrder?: (updates: Partial<Order>) => void;
+  isCreateMode?: boolean;
+  // End user setting - if false, show end user in header
+  showEndUserPerLine?: boolean;
 }
 
 export function OrderDetailsFields({
@@ -49,9 +72,115 @@ export function OrderDetailsFields({
   insideRepSplits,
   setInsideRepSplits,
   openInsideRepModal,
+  onUpdateOrder,
+  isCreateMode = false,
+  showEndUserPerLine = false,
 }: OrderDetailsFieldsProps) {
-  const availableOutsideReps = AVAILABLE_OUTSIDE_REPS;
-  const availableInsideReps = AVAILABLE_INSIDE_REPS;
+  // Search states
+  const [soldToSearchTerm, setSoldToSearchTerm] = useState('');
+  const [soldToSearchEnabled, setSoldToSearchEnabled] = useState(false);
+  const [billToSearchTerm, setBillToSearchTerm] = useState('');
+  const [billToSearchEnabled, setBillToSearchEnabled] = useState(false);
+  const [factorySearchTerm, setFactorySearchTerm] = useState('');
+  const [factorySearchEnabled, setFactorySearchEnabled] = useState(false);
+  const [outsideRepSearchTerm, setOutsideRepSearchTerm] = useState('');
+  const [outsideRepSearchEnabled, setOutsideRepSearchEnabled] = useState(false);
+  const [insideRepSearchTerm, setInsideRepSearchTerm] = useState('');
+  const [insideRepSearchEnabled, setInsideRepSearchEnabled] = useState(false);
+  const [jobSearchTerm, setJobSearchTerm] = useState('');
+  const [jobSearchEnabled, setJobSearchEnabled] = useState(false);
+  const [endUserSearchTerm, setEndUserSearchTerm] = useState('');
+  const [endUserSearchEnabled, setEndUserSearchEnabled] = useState(false);
+
+  // End user same as sold to checkbox state
+  // Initialize based on whether endUserId matches customerId
+  const [endUserSameAsSoldTo, setEndUserSameAsSoldTo] = useState(() => {
+    const endUserId = (order as any).endUserId;
+    const customerId = order.customerId;
+    return endUserId && customerId && endUserId === customerId;
+  });
+
+  // Update the checkbox when order changes
+  useEffect(() => {
+    const endUserId = (order as any).endUserId;
+    const customerId = order.customerId;
+    if (endUserId && customerId && endUserId === customerId) {
+      setEndUserSameAsSoldTo(true);
+    }
+  }, [(order as any).endUserId, order.customerId]);
+
+  // Search hooks
+  const { data: soldToCustomers, isLoading: isSoldToLoading } = useCustomerSearch(soldToSearchTerm, soldToSearchEnabled);
+  const { data: billToCustomers, isLoading: isBillToLoading } = useCustomerSearch(billToSearchTerm, billToSearchEnabled);
+  const { data: endUserCustomers, isLoading: isEndUserLoading } = useCustomerSearch(endUserSearchTerm, endUserSearchEnabled);
+  const { data: factories, isLoading: isFactoryLoading } = useFactorySearch(factorySearchTerm, factorySearchEnabled);
+  const { data: outsideReps, isLoading: isOutsideRepLoading } = useUserSearch(outsideRepSearchTerm, { isOutside: true }, outsideRepSearchEnabled);
+  const { data: insideReps, isLoading: isInsideRepLoading } = useUserSearch(insideRepSearchTerm, { isInside: true }, insideRepSearchEnabled);
+  const { data: jobs, isLoading: isJobsLoading } = useJobSearch(jobSearchTerm, jobSearchEnabled);
+
+  // Transform search results to dropdown options
+  const soldToOptions = useMemo(() => {
+    return (soldToCustomers || []).map(c => ({
+      id: c.id,
+      label: c.companyName,
+      sublabel: c.isParent ? 'Parent Company' : undefined,
+    }));
+  }, [soldToCustomers]);
+
+  const billToOptions = useMemo(() => {
+    return (billToCustomers || []).map(c => ({
+      id: c.id,
+      label: c.companyName,
+      sublabel: c.isParent ? 'Parent Company' : undefined,
+    }));
+  }, [billToCustomers]);
+
+  const endUserOptions = useMemo(() => {
+    return (endUserCustomers || []).map(c => ({
+      id: c.id,
+      label: c.companyName,
+      sublabel: c.isParent ? 'Parent Company' : undefined,
+    }));
+  }, [endUserCustomers]);
+
+  const factoryOptions = useMemo(() => {
+    return (factories || []).map(f => ({
+      id: f.id,
+      label: f.title,
+      sublabel: f.accountNumber,
+    }));
+  }, [factories]);
+
+  const outsideRepOptions = useMemo(() => {
+    return (outsideReps || []).map(u => ({
+      id: u.id,
+      label: u.fullName || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || '',
+      sublabel: u.email,
+    }));
+  }, [outsideReps]);
+
+  const insideRepOptions = useMemo(() => {
+    return (insideReps || []).map(u => ({
+      id: u.id,
+      label: u.fullName || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || '',
+      sublabel: u.email,
+    }));
+  }, [insideReps]);
+
+  const jobOptions = useMemo(() => {
+    return (jobs || []).map(j => ({
+      id: j.id,
+      label: j.jobName,
+      sublabel: j.description,
+    }));
+  }, [jobs]);
+
+  // Field update handlers
+  const handleFieldUpdate = (field: keyof Order, value: unknown) => {
+    if (onUpdateOrder) {
+      onUpdateOrder({ [field]: value });
+    }
+  };
 
   return (
     <div className="border-b border-[var(--border)] bg-blue-50/30 flex-shrink-0">
@@ -76,7 +205,7 @@ export function OrderDetailsFields({
       </button>
       {showHeaderFields && (
         <div className="px-6 pb-4">
-          {/* Row 1: Order Number, Factory, Sold To Customer, Bill To Customer, Order Date, Due Date */}
+          {/* Row 1: Order Number, Factory, Sold To Customer, Bill To Customer, End User (if header level), Order Date */}
           <div className="grid grid-cols-6 gap-4 mb-4">
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
@@ -85,8 +214,9 @@ export function OrderDetailsFields({
               <input
                 type="text"
                 value={order.orderNumber}
+                onChange={(e) => handleFieldUpdate('orderNumber', e.target.value)}
                 className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
-                readOnly
+                readOnly={!isCreateMode}
               />
             </div>
 
@@ -94,103 +224,133 @@ export function OrderDetailsFields({
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Factory<span className="text-red-500">*</span>
               </label>
-              <div className="relative">
-                <select
-                  value={order.manufacturerName}
-                  className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none cursor-pointer pr-8"
-                  onChange={() => {}}
-                >
-                  <option value={order.manufacturerName}>{order.manufacturerName}</option>
-                  <option value="ERMCO">ERMCO</option>
-                  <option value="Acuity Brands">Acuity Brands</option>
-                  <option value="Eaton">Eaton</option>
-                  <option value="Schneider Electric">Schneider Electric</option>
-                </select>
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]">
-                  <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
+              <SearchableDropdownV2
+                value={order.manufacturerId || ''}
+                displayValue={order.manufacturerName}
+                onChange={(id, label) => {
+                  handleFieldUpdate('manufacturerId', id);
+                  handleFieldUpdate('manufacturerName', label);
+                  setFactorySearchEnabled(false);
+                }}
+                options={factoryOptions}
+                placeholder="Select Factory..."
+                isLoading={isFactoryLoading}
+                onSearch={(query) => {
+                  setFactorySearchTerm(query);
+                  setFactorySearchEnabled(true);
+                }}
+              />
             </div>
 
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Sold To Customer<span className="text-red-500">*</span>
               </label>
-              <div className="relative">
-                <select
-                  value={order.customerName}
-                  className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none cursor-pointer pr-8"
-                  onChange={() => {}}
-                >
-                  <option value={order.customerName}>{order.customerName}</option>
-                  <option value="Turner Construction">Turner Construction</option>
-                  <option value="Hensel Phelps">Hensel Phelps</option>
-                  <option value="Skanska USA">Skanska USA</option>
-                  <option value="DPR Construction">DPR Construction</option>
-                  <option value="Clark Construction">Clark Construction</option>
-                </select>
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]">
-                  <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
+              <SearchableDropdownV2
+                value={order.customerId || ''}
+                displayValue={order.customerName}
+                onChange={(id, label) => {
+                  handleFieldUpdate('customerId', id);
+                  handleFieldUpdate('customerName', label);
+                  setSoldToSearchEnabled(false);
+                  // If "Same as sold to" is checked, update end user too
+                  if (endUserSameAsSoldTo) {
+                    handleFieldUpdate('endUserId' as keyof Order, id);
+                    handleFieldUpdate('endUserName' as keyof Order, label);
+                  }
+                }}
+                options={soldToOptions}
+                placeholder="Select Customer..."
+                isLoading={isSoldToLoading}
+                onSearch={(query) => {
+                  setSoldToSearchTerm(query);
+                  setSoldToSearchEnabled(true);
+                }}
+              />
             </div>
 
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Bill To Customer<span className="text-red-500">*</span>
               </label>
-              <div className="relative">
-                <select
-                  value=""
-                  className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none cursor-pointer pr-8"
-                  onChange={() => {}}
-                >
-                  <option value="">Select...</option>
-                  <option value="Graybar Electric">Graybar Electric</option>
-                  <option value="HD Supply">HD Supply</option>
-                  <option value="Ferguson Enterprises">Ferguson Enterprises</option>
-                  <option value="Rexel USA">Rexel USA</option>
-                </select>
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]">
-                  <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
+              <SearchableDropdownV2
+                value={(order as any).billToCustomerId || ''}
+                displayValue={(order as any).billToCustomerName}
+                onChange={(id, label) => {
+                  handleFieldUpdate('billToCustomerId' as keyof Order, id);
+                  handleFieldUpdate('billToCustomerName' as keyof Order, label);
+                  setBillToSearchEnabled(false);
+                }}
+                options={billToOptions}
+                placeholder="Select Bill To..."
+                isLoading={isBillToLoading}
+                onSearch={(query) => {
+                  setBillToSearchTerm(query);
+                  setBillToSearchEnabled(true);
+                }}
+              />
+            </div>
+
+            {/* End User - always show in header (when showEndUserPerLine is false, it's header level) */}
+            <div>
+              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
+                End User
+              </label>
+              {!showEndUserPerLine ? (
+                <>
+                  <SearchableDropdownV2
+                    value={(order as any).endUserId || ''}
+                    displayValue={(order as any).endUserName || ''}
+                    onChange={(id, label) => {
+                      handleFieldUpdate('endUserId' as keyof Order, id);
+                      handleFieldUpdate('endUserName' as keyof Order, label);
+                      setEndUserSearchEnabled(false);
+                    }}
+                    options={endUserOptions}
+                    placeholder="Select End User..."
+                    isLoading={isEndUserLoading}
+                    onSearch={(query) => {
+                      setEndUserSearchTerm(query);
+                      setEndUserSearchEnabled(true);
+                    }}
+                    disabled={endUserSameAsSoldTo}
+                  />
+                  <label className="flex items-center gap-1.5 mt-1 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={endUserSameAsSoldTo}
+                      onChange={(e) => {
+                        setEndUserSameAsSoldTo(e.target.checked);
+                        if (e.target.checked && order.customerId) {
+                          handleFieldUpdate('endUserId' as keyof Order, order.customerId);
+                          handleFieldUpdate('endUserName' as keyof Order, order.customerName);
+                        }
+                      }}
+                      className="w-3 h-3 accent-[var(--primary)]"
+                    />
+                    <span className="text-xs text-[var(--muted-foreground)]">Same as sold to</span>
+                  </label>
+                </>
+              ) : (
+                <input
+                  type="text"
+                  value="Per Line Item"
+                  className="w-full px-3 py-2 bg-gray-50 border border-[var(--border)] rounded-md text-sm text-gray-400 cursor-not-allowed"
+                  disabled
+                />
+              )}
             </div>
 
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Order Date<span className="text-red-500">*</span>
               </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={formatDate(order.orderDate)}
-                  className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
-                  readOnly
-                />
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]">
-                  <rect x="3" y="4" width="14" height="14" rx="2"/>
-                  <path d="M16 2v4M8 2v4M3 10h14"/>
-                </svg>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Due Date<span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={order.dueDate ? formatDate(order.dueDate) : 'mm/dd/yyyy'}
-                  className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
-                  readOnly
-                />
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]">
-                  <rect x="3" y="4" width="14" height="14" rx="2"/>
-                  <path d="M16 2v4M8 2v4M3 10h14"/>
-                </svg>
-              </div>
+              <StyledDatePicker
+                selected={parseDateString(order.orderDate)}
+                onChange={(date) => handleFieldUpdate('orderDate', formatDateToString(date))}
+                placeholder="Select date..."
+                className="!py-2 !px-3 !rounded-md !text-sm"
+              />
             </div>
           </div>
 
@@ -200,32 +360,37 @@ export function OrderDetailsFields({
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Order Type<span className="text-red-500">*</span>
               </label>
-              <div className="relative">
-                <select
-                  value="NORMAL"
-                  className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none cursor-pointer pr-8"
-                  onChange={() => {}}
-                >
-                  <option value="NORMAL">NORMAL</option>
-                  <option value="RUSH">RUSH</option>
-                  <option value="BLANKET">BLANKET</option>
-                  <option value="STOCK">STOCK</option>
-                </select>
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]">
-                  <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
+              <CustomSelect
+                value={(order as any).orderType || 'NORMAL'}
+                onChange={(value) => handleFieldUpdate('orderType' as keyof Order, value)}
+                options={[
+                  { value: 'NORMAL', label: 'Normal' },
+                  { value: 'BLANKET', label: 'Blanket' },
+                  { value: 'RELEASE', label: 'Release' },
+                ]}
+                className="!py-2"
+              />
             </div>
 
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Job
               </label>
-              <input
-                type="text"
-                value={order.jobName || ''}
-                className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
-                readOnly
+              <SearchableDropdownV2
+                value={order.jobId || ''}
+                displayValue={order.jobName}
+                onChange={(id, label) => {
+                  handleFieldUpdate('jobId', id);
+                  handleFieldUpdate('jobName', label);
+                  setJobSearchEnabled(false);
+                }}
+                options={jobOptions}
+                placeholder="Select Job..."
+                isLoading={isJobsLoading}
+                onSearch={(query) => {
+                  setJobSearchTerm(query);
+                  setJobSearchEnabled(true);
+                }}
               />
             </div>
 
@@ -235,22 +400,21 @@ export function OrderDetailsFields({
               </label>
               <input
                 type="text"
-                value=""
-                placeholder=""
+                value={(order as any).shippingTerms || ''}
+                onChange={(e) => handleFieldUpdate('shippingTerms' as keyof Order, e.target.value)}
                 className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
-                readOnly
               />
             </div>
 
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Payment Terms
+                Payment Terms <ComingSoonBadge inline />
               </label>
               <input
                 type="text"
-                value="30"
-                className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
-                readOnly
+                value={(order as any).paymentTerms || ''}
+                className="w-full px-3 py-2 bg-gray-50 border border-[var(--border)] rounded-md text-sm text-gray-400 cursor-not-allowed"
+                disabled
               />
             </div>
 
@@ -260,10 +424,9 @@ export function OrderDetailsFields({
               </label>
               <input
                 type="text"
-                value=""
-                placeholder=""
+                value={(order as any).markNumber || ''}
+                onChange={(e) => handleFieldUpdate('markNumber' as keyof Order, e.target.value)}
                 className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
-                readOnly
               />
             </div>
 
@@ -271,32 +434,26 @@ export function OrderDetailsFields({
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Projected Ship Date
               </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={order.shipDate ? formatDate(order.shipDate) : order.requestedShipDate ? formatDate(order.requestedShipDate) : ''}
-                  className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
-                  readOnly
-                />
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]">
-                  <rect x="3" y="4" width="14" height="14" rx="2"/>
-                  <path d="M16 2v4M8 2v4M3 10h14"/>
-                </svg>
-              </div>
+              <StyledDatePicker
+                selected={parseDateString(order.requestedShipDate || order.shipDate)}
+                onChange={(date) => handleFieldUpdate('requestedShipDate', formatDateToString(date))}
+                placeholder="Select date..."
+                className="!py-2 !px-3 !rounded-md !text-sm"
+              />
             </div>
           </div>
 
-          {/* Row 3: SO Number, Outside Rep, Inside Rep */}
+          {/* Row 3: Factory SO Number, Outside Rep, Inside Rep, Quote Reference, Freight Terms, Due Date */}
           <div className="grid grid-cols-6 gap-4">
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                SO Number
+                Factory SO Number
               </label>
               <input
                 type="text"
                 value={order.factorySoNumber || ''}
+                onChange={(e) => handleFieldUpdate('factorySoNumber', e.target.value)}
                 className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
-                readOnly
               />
             </div>
 
@@ -304,29 +461,40 @@ export function OrderDetailsFields({
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Outside Rep
               </label>
-              <div className="relative">
-                <select
-                  value={orderOutsideRep}
-                  onChange={(e) => {
-                    setOrderOutsideRep(e.target.value);
-                    if (!e.target.value) {
-                      setSplitOutsideCommission(false);
-                      setOutsideRepSplits([]);
-                    }
-                  }}
-                  className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none cursor-pointer pr-8"
-                >
-                  <option value="">Select Rep...</option>
-                  {availableOutsideReps.map(rep => (
-                    <option key={rep.id} value={rep.id}>{rep.name}</option>
-                  ))}
-                </select>
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]">
-                  <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <SearchableDropdownV2
+                    value={orderOutsideRep}
+                    displayValue={outsideRepOptions.find(r => r.id === orderOutsideRep)?.label || (order as any).outsideRepName}
+                    onChange={(id, label) => {
+                      setOrderOutsideRep(id);
+                      handleFieldUpdate('outsideRepId' as keyof Order, id);
+                      handleFieldUpdate('outsideRepName' as keyof Order, label);
+                      if (!id) {
+                        setSplitOutsideCommission(false);
+                        setOutsideRepSplits([]);
+                      }
+                    }}
+                    options={outsideRepOptions}
+                    placeholder="Select Rep..."
+                    isLoading={isOutsideRepLoading}
+                    onSearch={(query) => {
+                      setOutsideRepSearchTerm(query);
+                      setOutsideRepSearchEnabled(true);
+                    }}
+                  />
+                </div>
+                {splitOutsideCommission && (
+                  <button
+                    onClick={openOutsideRepModal}
+                    className="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors whitespace-nowrap"
+                  >
+                    Split
+                  </button>
+                )}
               </div>
               {orderOutsideRep && (
-                <div className="mt-2 flex items-center gap-2">
+                <div className="mt-1.5 flex items-center gap-2">
                   <input
                     type="checkbox"
                     id="splitOutsideCommission"
@@ -334,9 +502,9 @@ export function OrderDetailsFields({
                     onChange={(e) => {
                       setSplitOutsideCommission(e.target.checked);
                       if (e.target.checked) {
-                        const rep = availableOutsideReps.find(r => r.id === orderOutsideRep);
+                        const rep = outsideRepOptions.find(r => r.id === orderOutsideRep);
                         if (rep) {
-                          setOutsideRepSplits([{ repId: rep.id, repName: rep.name, percentage: 100 }]);
+                          setOutsideRepSplits([{ repId: rep.id, repName: rep.label, percentage: 100 }]);
                         }
                         openOutsideRepModal();
                       } else {
@@ -346,16 +514,8 @@ export function OrderDetailsFields({
                     className="accent-[var(--primary)]"
                   />
                   <label htmlFor="splitOutsideCommission" className="text-xs text-[var(--muted-foreground)] cursor-pointer">
-                    Split
+                    Split commission
                   </label>
-                  {splitOutsideCommission && outsideRepSplits.length > 0 && (
-                    <button
-                      onClick={openOutsideRepModal}
-                      className="text-xs text-[var(--primary)] hover:underline ml-1"
-                    >
-                      ({outsideRepSplits.length})
-                    </button>
-                  )}
                 </div>
               )}
             </div>
@@ -364,29 +524,40 @@ export function OrderDetailsFields({
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Inside Rep
               </label>
-              <div className="relative">
-                <select
-                  value={orderInsideRep}
-                  onChange={(e) => {
-                    setOrderInsideRep(e.target.value);
-                    if (!e.target.value) {
-                      setSplitInsideCommission(false);
-                      setInsideRepSplits([]);
-                    }
-                  }}
-                  className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none cursor-pointer pr-8"
-                >
-                  <option value="">Select Rep...</option>
-                  {availableInsideReps.map(rep => (
-                    <option key={rep.id} value={rep.id}>{rep.name}</option>
-                  ))}
-                </select>
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]">
-                  <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <SearchableDropdownV2
+                    value={orderInsideRep}
+                    displayValue={insideRepOptions.find(r => r.id === orderInsideRep)?.label || order.insideRepName}
+                    onChange={(id, label) => {
+                      setOrderInsideRep(id);
+                      handleFieldUpdate('insideRepId', id);
+                      handleFieldUpdate('insideRepName', label);
+                      if (!id) {
+                        setSplitInsideCommission(false);
+                        setInsideRepSplits([]);
+                      }
+                    }}
+                    options={insideRepOptions}
+                    placeholder="Select Rep..."
+                    isLoading={isInsideRepLoading}
+                    onSearch={(query) => {
+                      setInsideRepSearchTerm(query);
+                      setInsideRepSearchEnabled(true);
+                    }}
+                  />
+                </div>
+                {splitInsideCommission && (
+                  <button
+                    onClick={openInsideRepModal}
+                    className="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors whitespace-nowrap"
+                  >
+                    Split
+                  </button>
+                )}
               </div>
               {orderInsideRep && (
-                <div className="mt-2 flex items-center gap-2">
+                <div className="mt-1.5 flex items-center gap-2">
                   <input
                     type="checkbox"
                     id="splitInsideCommission"
@@ -394,9 +565,9 @@ export function OrderDetailsFields({
                     onChange={(e) => {
                       setSplitInsideCommission(e.target.checked);
                       if (e.target.checked) {
-                        const rep = availableInsideReps.find(r => r.id === orderInsideRep);
+                        const rep = insideRepOptions.find(r => r.id === orderInsideRep);
                         if (rep) {
-                          setInsideRepSplits([{ repId: rep.id, repName: rep.name, percentage: 100 }]);
+                          setInsideRepSplits([{ repId: rep.id, repName: rep.label, percentage: 100 }]);
                         }
                         openInsideRepModal();
                       } else {
@@ -406,19 +577,61 @@ export function OrderDetailsFields({
                     className="accent-[var(--primary)]"
                   />
                   <label htmlFor="splitInsideCommission" className="text-xs text-[var(--muted-foreground)] cursor-pointer">
-                    Split
+                    Split commission
                   </label>
-                  {splitInsideCommission && insideRepSplits.length > 0 && (
-                    <button
-                      onClick={openInsideRepModal}
-                      className="text-xs text-[var(--primary)] hover:underline ml-1"
-                    >
-                      ({insideRepSplits.length})
-                    </button>
-                  )}
                 </div>
               )}
             </div>
+
+            <div>
+              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
+                Quote Reference <ComingSoonBadge inline />
+              </label>
+              <input
+                type="text"
+                value={order.quoteId || ''}
+                className="w-full px-3 py-2 bg-gray-50 border border-[var(--border)] rounded-md text-sm text-gray-400 cursor-not-allowed"
+                disabled
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
+                Freight Terms
+              </label>
+              <input
+                type="text"
+                value={(order as any).freightTerms || ''}
+                onChange={(e) => handleFieldUpdate('freightTerms' as keyof Order, e.target.value)}
+                className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
+                Due Date<span className="text-red-500">*</span>
+              </label>
+              <StyledDatePicker
+                selected={parseDateString(order.dueDate)}
+                onChange={(date) => handleFieldUpdate('dueDate', formatDateToString(date))}
+                placeholder="Select date..."
+                className="!py-2 !px-3 !rounded-md !text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Row 4: Published checkbox */}
+          <div className="mt-4 pt-3 border-t border-[var(--border)]">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={(order as any).published !== false}
+                onChange={(e) => handleFieldUpdate('published' as keyof Order, e.target.checked)}
+                className="w-4 h-4 accent-[var(--primary)]"
+              />
+              <span className="text-sm text-[var(--foreground)]">Published</span>
+              <span className="text-xs text-[var(--muted-foreground)]">(Order is visible and active)</span>
+            </label>
           </div>
         </div>
       )}

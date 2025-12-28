@@ -197,7 +197,7 @@ export function useUpdateNoteConversation() {
     { id: string; noteId: string; content: string }
   >({
     mutationFn: ({ id, noteId, content }) =>
-      updateNoteConversation(id, { noteId, content }),
+      updateNoteConversation({ noteConversationId: id, noteId, content }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
         queryKey: notesQueryKeys.conversations(variables.noteId),

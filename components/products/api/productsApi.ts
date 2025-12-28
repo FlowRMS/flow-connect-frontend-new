@@ -10,11 +10,16 @@ import { crmGraphQLRequest } from '../../lib/crm-graphql';
 // Types
 // ============================================================================
 
-export interface ProductCategory {
+export interface ProductCategoryBase {
   id: string;
   title: string;
   commissionRate?: number;
   factoryId?: string;
+}
+
+export interface ProductCategory extends ProductCategoryBase {
+  parent?: ProductCategoryBase;
+  grandparent?: ProductCategoryBase;
 }
 
 export interface ProductUom {
@@ -226,13 +231,25 @@ export interface PaginatedProductsResult {
 
 const FIND_PRODUCT_BY_ID = `
   query FindProductById($id: UUID!) {
-    findProductById(id: $id) {
+    product(id: $id) {
       approvalNeeded
       category {
         commissionRate
         factoryId
         id
         title
+        parent {
+          id
+          title
+          commissionRate
+          factoryId
+        }
+        grandparent {
+          id
+          title
+          commissionRate
+          factoryId
+        }
       }
       defaultCommissionRate
       description
@@ -286,6 +303,18 @@ const PRODUCT_CATEGORIES = `
       factoryId
       id
       title
+      parent {
+        id
+        title
+        commissionRate
+        factoryId
+      }
+      grandparent {
+        id
+        title
+        commissionRate
+        factoryId
+      }
     }
   }
 `;
@@ -297,6 +326,18 @@ const PRODUCT_CATEGORY_SEARCH = `
       factoryId
       id
       title
+      parent {
+        id
+        title
+        commissionRate
+        factoryId
+      }
+      grandparent {
+        id
+        title
+        commissionRate
+        factoryId
+      }
     }
   }
 `;
@@ -316,6 +357,18 @@ const PRODUCT_SEARCH = `
         title
         commissionRate
         factoryId
+        parent {
+          id
+          title
+          commissionRate
+          factoryId
+        }
+        grandparent {
+          id
+          title
+          commissionRate
+          factoryId
+        }
       }
       uom {
         id
@@ -380,6 +433,18 @@ const CREATE_PRODUCT = `
         title
         commissionRate
         factoryId
+        parent {
+          id
+          title
+          commissionRate
+          factoryId
+        }
+        grandparent {
+          id
+          title
+          commissionRate
+          factoryId
+        }
       }
       uom {
         id
@@ -410,6 +475,18 @@ const UPDATE_PRODUCT = `
         title
         commissionRate
         factoryId
+        parent {
+          id
+          title
+          commissionRate
+          factoryId
+        }
+        grandparent {
+          id
+          title
+          commissionRate
+          factoryId
+        }
       }
       uom {
         id
@@ -438,6 +515,18 @@ const CREATE_PRODUCT_CATEGORY = `
       title
       commissionRate
       factoryId
+      parent {
+        id
+        title
+        commissionRate
+        factoryId
+      }
+      grandparent {
+        id
+        title
+        commissionRate
+        factoryId
+      }
     }
   }
 `;
@@ -449,6 +538,18 @@ const UPDATE_PRODUCT_CATEGORY = `
       title
       commissionRate
       factoryId
+      parent {
+        id
+        title
+        commissionRate
+        factoryId
+      }
+      grandparent {
+        id
+        title
+        commissionRate
+        factoryId
+      }
     }
   }
 `;
@@ -717,7 +818,7 @@ export async function fetchProducts(): Promise<ProductLandingPage[]> {
  * Fetch a single product by ID
  */
 export async function fetchProductById(id: string): Promise<Product | null> {
-  const response = await crmGraphQLRequest<{ findProductById: Product }>({
+  const response = await crmGraphQLRequest<{ product: Product }>({
     query: FIND_PRODUCT_BY_ID,
     variables: { id },
   });
@@ -726,7 +827,7 @@ export async function fetchProductById(id: string): Promise<Product | null> {
     throw new Error(response.errors[0]?.message || 'Failed to fetch product');
   }
 
-  return response.data?.findProductById || null;
+  return response.data?.product || null;
 }
 
 /**

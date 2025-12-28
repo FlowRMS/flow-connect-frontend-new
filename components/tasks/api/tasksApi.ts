@@ -6,6 +6,45 @@
 
 import { crmGraphQLRequest } from '../../lib/crm-graphql';
 
+// Re-export all search functions from central search API
+export {
+  searchCompanies,
+  searchContacts,
+  searchJobs,
+  searchNotes,
+  searchPreOpportunities,
+  searchQuotes,
+  searchOrders,
+  searchInvoices,
+  searchChecks,
+  searchFactories,
+  searchCustomers,
+  searchProducts,
+  searchUsers,
+  type CompanySearchResult,
+  type ContactSearchResult,
+  type JobSearchResult,
+  type NoteSearchResult,
+  type PreOpportunitySearchResult,
+  type QuoteSearchResult,
+  type OrderSearchResult,
+  type InvoiceSearchResult,
+  type CheckSearchResult,
+  type FactorySearchResult,
+  type CustomerSearchResult,
+  type ProductSearchResult,
+  type UserSearchResult,
+} from '../../lib/api/search';
+
+// Entity link types and functions are re-exported from entity-links.ts
+export type { EntityLink, CRMEntityType } from '../../lib/graphql/entity-links';
+
+// Link functions - re-export from entity-links.ts with task-specific aliases
+export {
+  createLink as createTaskLink,
+  deleteLinkByEntities as deleteTaskLinkByEntities,
+} from '../../lib/graphql/entity-links';
+
 type CreatedByResponse =
   | string
   | null
@@ -39,7 +78,7 @@ const mapFormattedCreatedBy = <T extends { createdBy?: CreatedByResponse }>(item
 
 export type TaskPriority = 'LOW' | 'NORMAL' | 'URGENT' | 'CRITICAL';
 export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
-export type CRMEntityType = 'TASK' | 'JOB' | 'COMPANY' | 'CONTACT' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'FACTORY' | 'CUSTOMER' | 'PRODUCT';
+// CRMEntityType is re-exported from entity-links.ts above
 
 export interface Task {
   id: string;
@@ -229,168 +268,8 @@ export interface TaskRelatedEntities {
   }>;
 }
 
-// Search result types
-export interface CompanySearchResult {
-  id: string;
-  name: string;
-  companySourceType: string;
-  createdAt: string;
-  createdBy: string;
-  parentCompanyId: string;
-  phone: string;
-  tags: string;
-  website: string;
-}
-
-export interface UserSearchResult {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  fullName: string;
-}
-
-export interface ContactSearchResult {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  role: string;
-  notes: string;
-  territory: string;
-  tags: string;
-  companyId: string;
-  createdAt: string;
-  createdBy: string;
-}
-
-export interface JobSearchResult {
-  id: string;
-  jobName: string;
-  jobType: string;
-  description: string;
-  startDate: string;
-  endDate: string;
-  status: { id: string; name: string };
-  requesterId: string;
-  additionalInformation: string;
-  structuralDetails: string;
-  structuralInformation: string;
-  tags: string;
-  createdAt: string;
-  createdBy: string;
-}
-
-export interface NoteSearchResult {
-  id: string;
-  title: string;
-  content: string;
-  mentions: string;
-  tags: string;
-  createdAt: string;
-  createdBy: string;
-}
-
-export interface PreOpportunitySearchResult {
-  id: string;
-  entityNumber: string;
-  entityDate: string;
-  status: string;
-  soldToCustomerId: string;
-  expDate: string;
-  createdAt: string;
-  createdById: string;
-}
-
-export interface QuoteSearchResult {
-  id: string;
-  quoteNumber: string;
-  jobName: string;
-  entityDate: string;
-  entryDate: string;
-  expDate: string;
-  billToCustomerId: string;
-  soldToCustomerId: string;
-  blanket: boolean;
-  createdBy: string;
-  userOwnerIds: string[];
-}
-
-export interface OrderSearchResult {
-  id: string;
-  orderNumber: string;
-  jobName: string;
-  entityDate: string;
-  entryDate: string;
-  dueDate: string;
-  shipDate: string;
-  status: string;
-  billToCustomerId: string;
-  soldToCustomerId: string;
-  factoryId: string;
-  quoteId: string;
-  balanceId: string;
-  factSoNumber: string;
-  userOwnerIds: string[];
-}
-
-export interface InvoiceSearchResult {
-  id: string;
-  invoiceNumber: string;
-  entityDate: string;
-  entryDate: string;
-  dueDate: string;
-  status: string;
-  factoryId: string;
-  orderId: string;
-  balanceId: string;
-  locked: boolean;
-  published: boolean;
-  creationType: string;
-  createdBy: string;
-  userOwnerIds: string[];
-}
-
-export interface CheckSearchResult {
-  id: string;
-  checkNumber: string;
-  entityDate: string;
-  entryDate: string;
-  postDate: string;
-  status: string;
-  factoryId: string;
-  commission: number;
-  commissionMonth: string;
-  creationType: string;
-  createdBy: string;
-  userOwnerIds: string[];
-}
-
-export interface FactorySearchResult {
-  id: string;
-  title: string;
-}
-
-export interface CustomerSearchResult {
-  id: string;
-  companyName: string;
-}
-
-export interface ProductSearchResult {
-  id: string;
-  factoryPartNumber: string;
-}
-
-export interface EntityLink {
-  id: string;
-  sourceEntityType: string;
-  sourceEntityId: string;
-  targetEntityType: string;
-  targetEntityId: string;
-  createdAt: string;
-  createdBy: string;
-}
+// Search result types are imported and re-exported from central search API above
+// EntityLink is re-exported from entity-links.ts above
 
 // Input types
 export interface CreateTaskInput {
@@ -413,6 +292,48 @@ export interface UpdateTaskInput {
   reminderDate?: string;
   tags?: string;
   assignedToId?: string;
+}
+
+// Task relation types
+export type TaskRelatedType = 'JOB' | 'COMPANY' | 'CONTACT' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'FACTORY' | 'CUSTOMER' | 'PRODUCT';
+export type TaskEntityType = TaskRelatedType;
+
+export interface TaskRelation {
+  id: string;
+  taskId: string;
+  relatedEntityType: TaskRelatedType;
+  relatedEntityId: string;
+  createdAt: string;
+}
+
+export interface AddTaskRelationInput {
+  taskId: string;
+  relatedEntityType: TaskRelatedType;
+  relatedEntityId: string;
+}
+
+export interface TaskByEntity {
+  id: string;
+  title: string;
+  description: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  dueDate: string;
+  reminderDate: string;
+  tags: string;
+  assignedToId: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface AddTaskConversationInput {
+  taskId: string;
+  content: string;
+}
+
+export interface UpdateTaskConversationInput {
+  taskId: string;
+  content: string;
 }
 
 // ============================================================================
@@ -735,45 +656,8 @@ const GET_TASK_RELATED_ENTITIES = `
   }
 `;
 
-// Search queries
-const COMPANY_SEARCH = `
-  query CompanySearch($searchTerm: String!) {
-    companySearch(searchTerm: $searchTerm) {
-      companySourceType
-      createdAt
-      createdBy {
-        email
-        firstName
-        fullName
-        id
-        lastName
-      }
-      id
-      name
-      parentCompanyId
-      phone
-      tags
-      website
-    }
-  }
-`;
-
-const CONTACT_SEARCH = `
-  query ContactSearch($searchTerm: String!) {
-    contactSearch(searchTerm: $searchTerm) {
-      createdAt
-      email
-      id
-      firstName
-      lastName
-      notes
-      phone
-      role
-      territory
-      tags
-    }
-  }
-`;
+// Search queries are now in the central search API (components/lib/api/search.ts)
+// Note: GET_CONTACT is kept locally as it's specific to tasks for fetching contact by ID
 
 const GET_CONTACT = `
   query GetContact($id: UUID!) {
@@ -792,41 +676,62 @@ const GET_CONTACT = `
   }
 `;
 
-const JOB_SEARCH = `
-  query JobSearch($searchTerm: String!) {
-    jobSearch(searchTerm: $searchTerm) {
-      additionalInformation
-      createdAt
-      createdBy {
-        email
-        firstName
-        fullName
-        id
-        lastName
-      }
-      description
-      endDate
-      jobName
-      jobType
+// Link mutations are in entity-links.ts - functions re-exported above
+
+// Task relation mutations
+const ADD_TASK_RELATION = `
+  mutation AddTaskRelation($input: TaskRelationInput!) {
+    addTaskRelation(input: $input) {
       id
-      startDate
-      requesterId
-      status {
-        id
-        name
-      }
-      structuralDetails
-      structuralInformation
-      tags
+      taskId
+      relatedEntityType
+      relatedEntityId
+      createdAt
     }
   }
 `;
 
-const NOTE_SEARCH = `
-  query NoteSearch($searchTerm: String!) {
-    noteSearch(searchTerm: $searchTerm) {
+const GET_TASK_RELATIONS = `
+  query GetTaskRelations($taskId: UUID!) {
+    taskRelations(taskId: $taskId) {
+      id
+      taskId
+      relatedEntityType
+      relatedEntityId
+      createdAt
+    }
+  }
+`;
+
+const DELETE_TASK_RELATION = `
+  mutation DeleteTaskRelation($id: UUID!) {
+    deleteTaskRelation(id: $id)
+  }
+`;
+
+const UPDATE_TASK_CONVERSATION = `
+  mutation UpdateTaskConversation($taskConversationId: UUID!, $input: TaskConversationInput!) {
+    updateTaskConversation(taskConversationId: $taskConversationId, input: $input) {
       content
       createdAt
+      id
+      taskId
+    }
+  }
+`;
+
+const GET_TASKS_BY_ENTITY = `
+  query GetTasksByEntity($entityId: UUID!, $entityType: EntityType!) {
+    tasksByEntity(entityId: $entityId, entityType: $entityType) {
+      id
+      title
+      description
+      status
+      priority
+      dueDate
+      reminderDate
+      tags
+      assignedToId
       createdBy {
         email
         firstName
@@ -834,185 +739,8 @@ const NOTE_SEARCH = `
         id
         lastName
       }
-      id
-      mentions
-      tags
-      title
-    }
-  }
-`;
-
-const PRE_OPPORTUNITY_SEARCH = `
-  query PreOpportunitySearch($searchTerm: String!) {
-    preOpportunitySearch(searchTerm: $searchTerm) {
-      id
-      entityNumber
-      entityDate
-      status
-      soldToCustomerId
-      expDate
-      createdAt
-      createdById
-    }
-  }
-`;
-
-const USER_SEARCH = `
-  query UserSearch($searchTerm: String!) {
-    userSearch(searchTerm: $searchTerm) {
-      email
-      firstName
-      fullName
-      id
-      lastName
-    }
-  }
-`;
-
-const QUOTE_SEARCH = `
-  query QuoteSearch($searchTerm: String!) {
-    quoteSearch(searchTerm: $searchTerm) {
-      id
-      quoteNumber
-      jobName
-      entityDate
-      entryDate
-      expDate
-      billToCustomerId
-      soldToCustomerId
-      blanket
-      createdBy
-      userOwnerIds
-    }
-  }
-`;
-
-const ORDER_SEARCH = `
-  query OrderSearch($searchTerm: String!) {
-    orderSearch(searchTerm: $searchTerm) {
-      id
-      orderNumber
-      jobName
-      entityDate
-      entryDate
-      dueDate
-      shipDate
-      status
-      billToCustomerId
-      soldToCustomerId
-      factoryId
-      quoteId
-      balanceId
-      factSoNumber
-      userOwnerIds
-    }
-  }
-`;
-
-const INVOICE_SEARCH = `
-  query InvoiceSearch($searchTerm: String!) {
-    invoiceSearch(searchTerm: $searchTerm) {
-      id
-      invoiceNumber
-      entityDate
-      entryDate
-      dueDate
-      status
-      factoryId
-      orderId
-      balanceId
-      locked
-      published
-      creationType
-      createdBy
-      userOwnerIds
-    }
-  }
-`;
-
-const CHECK_SEARCH = `
-  query CheckSearch($searchTerm: String!) {
-    checkSearch(searchTerm: $searchTerm) {
-      id
-      checkNumber
-      entityDate
-      entryDate
-      postDate
-      status
-      factoryId
-      commission
-      commissionMonth
-      creationType
-      createdBy
-      userOwnerIds
-    }
-  }
-`;
-
-const FACTORY_SEARCH = `
-  query FactorySearch($searchTerm: String!, $published: Boolean) {
-    factorySearch(searchTerm: $searchTerm, published: $published) {
-      id
-      title
-    }
-  }
-`;
-
-const CUSTOMER_SEARCH = `
-  query CustomerSearch($searchTerm: String!, $published: Boolean) {
-    customerSearch(searchTerm: $searchTerm, published: $published) {
-      id
-      companyName
-    }
-  }
-`;
-
-const PRODUCT_SEARCH = `
-  query ProductSearch($searchTerm: String!) {
-    productSearch(searchTerm: $searchTerm) {
-      id
-      factoryPartNumber
-    }
-  }
-`;
-
-// Link mutations
-const CREATE_LINK = `
-  mutation CreateLink(
-    $sourceEntityType: CRMEntityType!
-    $sourceEntityId: UUID!
-    $targetEntityType: CRMEntityType!
-    $targetEntityId: UUID!
-  ) {
-    createLink(input: {
-      sourceEntityType: $sourceEntityType
-      sourceEntityId: $sourceEntityId
-      targetEntityType: $targetEntityType
-      targetEntityId: $targetEntityId
-    }) {
-      id
-      sourceEntityType
-      sourceEntityId
-      targetEntityType
-      targetEntityId
       createdAt
     }
-  }
-`;
-
-const DELETE_LINK_BY_ENTITIES = `
-  mutation DeleteLinkByEntities(
-    $sourceEntityType: CRMEntityType!
-    $sourceEntityId: UUID!
-    $targetEntityType: CRMEntityType!
-    $targetEntityId: UUID!
-  ) {
-    deleteLinkByEntities(input: {
-      sourceEntityType: $sourceEntityType
-      sourceEntityId: $sourceEntityId
-      targetEntityType: $targetEntityType
-      targetEntityId: $targetEntityId
-    })
   }
 `;
 
@@ -1279,49 +1007,28 @@ export async function fetchTaskRelatedEntities(taskId: string): Promise<TaskRela
   );
 }
 
-// ============================================================================
-// API Functions - Search
-// ============================================================================
+// Search functions are now imported and re-exported from central search API (components/lib/api/search.ts)
 
-/**
- * Search for companies
- * Returns all companies when empty string is passed
- */
-export async function searchCompanies(searchTerm: string): Promise<CompanySearchResult[]> {
-  const response = await crmGraphQLRequest<{ companySearch: CompanySearchResult[] }>({
-    query: COMPANY_SEARCH,
-    variables: { searchTerm },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to search companies');
-  }
-
-  return mapFormattedCreatedBy(response.data?.companySearch);
-}
-
-/**
- * Search for contacts
- * Returns all contacts when empty string is passed
- */
-export async function searchContacts(searchTerm: string): Promise<ContactSearchResult[]> {
-  const response = await crmGraphQLRequest<{ contactSearch: ContactSearchResult[] }>({
-    query: CONTACT_SEARCH,
-    variables: { searchTerm },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to search contacts');
-  }
-
-  return mapFormattedCreatedBy(response.data?.contactSearch);
+// Contact type for local fetchContactById function
+interface ContactResult {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  role: string;
+  notes: string;
+  territory: string;
+  tags: string;
+  createdAt: string;
 }
 
 /**
  * Fetch a single contact by ID
+ * This is kept locally as it's specific to tasks for fetching contact details
  */
-export async function fetchContactById(id: string): Promise<ContactSearchResult | null> {
-  const response = await crmGraphQLRequest<{ contact: ContactSearchResult }>({
+export async function fetchContactById(id: string): Promise<ContactResult | null> {
+  const response = await crmGraphQLRequest<{ contact: ContactResult }>({
     query: GET_CONTACT,
     variables: { id },
   });
@@ -1335,249 +1042,101 @@ export async function fetchContactById(id: string): Promise<ContactSearchResult 
   return response.data?.contact || null;
 }
 
-/**
- * Search for jobs
- * Returns all jobs when empty string is passed
- */
-export async function searchJobs(searchTerm: string): Promise<JobSearchResult[]> {
-  const response = await crmGraphQLRequest<{ jobSearch: JobSearchResult[] }>({
-    query: JOB_SEARCH,
-    variables: { searchTerm },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to search jobs');
-  }
-
-  return mapFormattedCreatedBy(response.data?.jobSearch);
-}
-
-/**
- * Search for notes
- * Returns all notes when empty string is passed
- */
-export async function searchNotes(searchTerm: string): Promise<NoteSearchResult[]> {
-  const response = await crmGraphQLRequest<{ noteSearch: NoteSearchResult[] }>({
-    query: NOTE_SEARCH,
-    variables: { searchTerm },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to search notes');
-  }
-
-  return mapFormattedCreatedBy(response.data?.noteSearch);
-}
-
-/**
- * Search for pre-opportunities
- * Returns all pre-opportunities when empty string is passed
- */
-export async function searchPreOpportunities(searchTerm: string): Promise<PreOpportunitySearchResult[]> {
-  const response = await crmGraphQLRequest<{ preOpportunitySearch: PreOpportunitySearchResult[] }>({
-    query: PRE_OPPORTUNITY_SEARCH,
-    variables: { searchTerm },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to search pre-opportunities');
-  }
-
-  return response.data?.preOpportunitySearch || [];
-}
-
-/**
- * Search for users (for assignee selection)
- * Returns users matching the search term
- */
-export async function searchUsers(searchTerm: string): Promise<UserSearchResult[]> {
-  const response = await crmGraphQLRequest<{ userSearch: UserSearchResult[] }>({
-    query: USER_SEARCH,
-    variables: { searchTerm },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to search users');
-  }
-
-  return response.data?.userSearch || [];
-}
-
-/**
- * Search for quotes
- * Returns all quotes when empty string is passed
- */
-export async function searchQuotes(searchTerm: string): Promise<QuoteSearchResult[]> {
-  const response = await crmGraphQLRequest<{ quoteSearch: QuoteSearchResult[] }>({
-    query: QUOTE_SEARCH,
-    variables: { searchTerm },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to search quotes');
-  }
-
-  return response.data?.quoteSearch || [];
-}
-
-/**
- * Search for orders
- * Returns all orders when empty string is passed
- */
-export async function searchOrders(searchTerm: string): Promise<OrderSearchResult[]> {
-  const response = await crmGraphQLRequest<{ orderSearch: OrderSearchResult[] }>({
-    query: ORDER_SEARCH,
-    variables: { searchTerm },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to search orders');
-  }
-
-  return response.data?.orderSearch || [];
-}
-
-/**
- * Search for invoices
- * Returns all invoices when empty string is passed
- */
-export async function searchInvoices(searchTerm: string): Promise<InvoiceSearchResult[]> {
-  const response = await crmGraphQLRequest<{ invoiceSearch: InvoiceSearchResult[] }>({
-    query: INVOICE_SEARCH,
-    variables: { searchTerm },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to search invoices');
-  }
-
-  return response.data?.invoiceSearch || [];
-}
-
-/**
- * Search for checks
- * Returns all checks when empty string is passed
- */
-export async function searchChecks(searchTerm: string): Promise<CheckSearchResult[]> {
-  const response = await crmGraphQLRequest<{ checkSearch: CheckSearchResult[] }>({
-    query: CHECK_SEARCH,
-    variables: { searchTerm },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to search checks');
-  }
-
-  return response.data?.checkSearch || [];
-}
-
-/**
- * Search for factories
- * Returns all factories when empty string is passed
- */
-export async function searchFactories(searchTerm: string): Promise<FactorySearchResult[]> {
-  const response = await crmGraphQLRequest<{ factorySearch: FactorySearchResult[] }>({
-    query: FACTORY_SEARCH,
-    variables: { searchTerm, published: true },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to search factories');
-  }
-
-  return response.data?.factorySearch || [];
-}
-
-/**
- * Search for customers
- * Returns all customers when empty string is passed
- */
-export async function searchCustomers(searchTerm: string): Promise<CustomerSearchResult[]> {
-  const response = await crmGraphQLRequest<{ customerSearch: CustomerSearchResult[] }>({
-    query: CUSTOMER_SEARCH,
-    variables: { searchTerm, published: true },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to search customers');
-  }
-
-  return response.data?.customerSearch || [];
-}
-
-/**
- * Search for products
- * Returns all products when empty string is passed
- */
-export async function searchProducts(searchTerm: string): Promise<ProductSearchResult[]> {
-  const response = await crmGraphQLRequest<{ productSearch: ProductSearchResult[] }>({
-    query: PRODUCT_SEARCH,
-    variables: { searchTerm },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to search products');
-  }
-
-  return response.data?.productSearch || [];
-}
+// Entity Links API Functions are re-exported from entity-links.ts at top of file
+// createTaskLink -> createLink
+// deleteTaskLinkByEntities -> deleteLinkByEntities
 
 // ============================================================================
-// API Functions - Entity Links
+// API Functions - Task Relations
 // ============================================================================
 
 /**
- * Create a link between task and another entity
+ * Add a relation between a task and another entity
  */
-export async function createTaskLink(input: {
-  sourceEntityType: CRMEntityType;
-  sourceEntityId: string;
-  targetEntityType: CRMEntityType;
-  targetEntityId: string;
-}): Promise<EntityLink> {
-  const response = await crmGraphQLRequest<{ createLink: EntityLink }>({
-    query: CREATE_LINK,
-    variables: {
-      sourceEntityType: input.sourceEntityType,
-      sourceEntityId: input.sourceEntityId,
-      targetEntityType: input.targetEntityType,
-      targetEntityId: input.targetEntityId,
-    },
+export async function addTaskRelation(input: AddTaskRelationInput): Promise<TaskRelation> {
+  const response = await crmGraphQLRequest<{ addTaskRelation: TaskRelation }>({
+    query: ADD_TASK_RELATION,
+    variables: { input },
   });
 
   if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to create link');
+    throw new Error(response.errors[0]?.message || 'Failed to add task relation');
   }
 
-  if (!response.data?.createLink) {
-    throw new Error('No link returned from create mutation');
+  if (!response.data?.addTaskRelation) {
+    throw new Error('No relation returned from add mutation');
   }
 
-  return response.data.createLink;
+  return response.data.addTaskRelation;
 }
 
 /**
- * Delete a link between task and another entity by entities
+ * Fetch all relations for a task
  */
-export async function deleteTaskLinkByEntities(input: {
-  sourceEntityType: CRMEntityType;
-  sourceEntityId: string;
-  targetEntityType: CRMEntityType;
-  targetEntityId: string;
-}): Promise<boolean> {
-  const response = await crmGraphQLRequest<{ deleteLinkByEntities: boolean }>({
-    query: DELETE_LINK_BY_ENTITIES,
-    variables: {
-      sourceEntityType: input.sourceEntityType,
-      sourceEntityId: input.sourceEntityId,
-      targetEntityType: input.targetEntityType,
-      targetEntityId: input.targetEntityId,
-    },
+export async function fetchTaskRelations(taskId: string): Promise<TaskRelation[]> {
+  const response = await crmGraphQLRequest<{ taskRelations: TaskRelation[] }>({
+    query: GET_TASK_RELATIONS,
+    variables: { taskId },
   });
 
   if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to delete link');
+    throw new Error(response.errors[0]?.message || 'Failed to fetch task relations');
+  }
+
+  return response.data?.taskRelations || [];
+}
+
+/**
+ * Delete a task relation
+ */
+export async function deleteTaskRelation(id: string): Promise<boolean> {
+  const response = await crmGraphQLRequest<{ deleteTaskRelation: string }>({
+    query: DELETE_TASK_RELATION,
+    variables: { id },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to delete task relation');
   }
 
   return true;
+}
+
+/**
+ * Update a task conversation
+ */
+export async function updateTaskConversation(
+  taskConversationId: string,
+  input: { taskId: string; content: string }
+): Promise<TaskConversation> {
+  const response = await crmGraphQLRequest<{ updateTaskConversation: TaskConversation }>({
+    query: UPDATE_TASK_CONVERSATION,
+    variables: { taskConversationId, input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to update task conversation');
+  }
+
+  if (!response.data?.updateTaskConversation) {
+    throw new Error('No conversation returned from update mutation');
+  }
+
+  return response.data.updateTaskConversation;
+}
+
+/**
+ * Fetch tasks linked to a specific entity
+ */
+export async function fetchTasksByEntity(entityId: string, entityType: TaskEntityType): Promise<TaskByEntity[]> {
+  const response = await crmGraphQLRequest<{ tasksByEntity: TaskByEntity[] }>({
+    query: GET_TASKS_BY_ENTITY,
+    variables: { entityId, entityType },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch tasks by entity');
+  }
+
+  return mapFormattedCreatedBy(response.data?.tasksByEntity) as TaskByEntity[];
 }

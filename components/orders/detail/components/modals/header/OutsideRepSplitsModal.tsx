@@ -1,13 +1,23 @@
 /**
  * OutsideRepSplitsModal Component
  * Modal for managing outside rep commission splits at the order header level
+ * Uses API-based user search like quotes-v2
  */
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { RepSplit } from '../../../types';
-import { AVAILABLE_OUTSIDE_REPS } from '../../../constants';
+import { useUserSearch } from '../../../../api';
+import { SearchableDropdownV2 } from '@/components/quotes-v2/components/SearchableDropdownV2';
+
+// Commission split rep interface matching quotes-v2
+interface CommissionSplitRep {
+  id: string;
+  repId: string;
+  repName: string;
+  percentage: number;
+}
 
 interface OutsideRepSplitsModalProps {
   isOpen: boolean;
@@ -22,11 +32,91 @@ export function OutsideRepSplitsModal({
   splits,
   onSave,
 }: OutsideRepSplitsModalProps) {
-  const [localSplits, setLocalSplits] = useState<RepSplit[]>(splits);
+  const [localSplits, setLocalSplits] = useState<CommissionSplitRep[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchEnabled, setSearchEnabled] = useState(false);
 
+  // Search for outside reps using API
+  const { data: repResults, isLoading: isRepLoading } = useUserSearch(
+    searchTerm,
+    { isOutside: true },
+    searchEnabled
+  );
+
+  // Transform search results to dropdown options
+  const repOptions = useMemo(() => {
+    return (repResults || []).map(u => ({
+      id: u.id,
+      label: u.fullName || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || '',
+      sublabel: u.email,
+      fullName: u.fullName,
+      firstName: u.firstName,
+      lastName: u.lastName,
+    }));
+  }, [repResults]);
+
+  // Initialize local state from props
   useEffect(() => {
-    setLocalSplits(splits);
-  }, [splits]);
+    if (isOpen) {
+      const initialSplits: CommissionSplitRep[] = splits.map((s, idx) => ({
+        id: crypto.randomUUID(),
+        repId: s.repId,
+        repName: s.repName,
+        percentage: s.percentage,
+      }));
+      setLocalSplits(initialSplits);
+    }
+  }, [isOpen, splits]);
+
+  // Handle search
+  const handleSearch = useCallback((term: string) => {
+    setSearchTerm(term);
+    setSearchEnabled(true);
+  }, []);
+
+  // Add rep to split
+  const addRepToSplit = useCallback((rep: { id: string; label: string }) => {
+    const newRep: CommissionSplitRep = {
+      id: crypto.randomUUID(),
+      repId: rep.id,
+      repName: rep.label,
+      percentage: 0,
+    };
+
+    const newSplits = [...localSplits, newRep];
+    // Auto-distribute percentages
+    const perRep = Math.floor(100 / newSplits.length);
+    const remainder = 100 - (perRep * newSplits.length);
+    const updatedSplits = newSplits.map((r, idx) => ({
+      ...r,
+      percentage: idx === newSplits.length - 1 ? perRep + remainder : perRep,
+    }));
+    setLocalSplits(updatedSplits);
+  }, [localSplits]);
+
+  // Remove rep from split
+  const removeRepFromSplit = useCallback((repId: string) => {
+    const newSplits = localSplits.filter(r => r.id !== repId);
+    if (newSplits.length > 0) {
+      // Re-distribute percentages
+      const perRep = Math.floor(100 / newSplits.length);
+      const remainder = 100 - (perRep * newSplits.length);
+      const updatedSplits = newSplits.map((r, idx) => ({
+        ...r,
+        percentage: idx === newSplits.length - 1 ? perRep + remainder : perRep,
+      }));
+      setLocalSplits(updatedSplits);
+    } else {
+      setLocalSplits([]);
+    }
+  }, [localSplits]);
+
+  // Update split percentage
+  const updateSplitPercentage = useCallback((repId: string, percentage: string) => {
+    setLocalSplits(reps => reps.map(r =>
+      r.id === repId ? { ...r, percentage: parseInt(percentage) || 0 } : r
+    ));
+  }, []);
 
   if (!isOpen) return null;
 
@@ -37,177 +127,116 @@ export function OutsideRepSplitsModal({
   };
 
   const handleSave = () => {
-    const totalPercentage = localSplits.reduce((sum, split) => sum + split.percentage, 0);
+    const totalPercentage = localSplits.reduce((sum, r) => sum + r.percentage, 0);
     if (totalPercentage !== 100) {
       return; // Button should be disabled anyway
     }
-    onSave(localSplits);
+    // Convert back to RepSplit format
+    const savedSplits: RepSplit[] = localSplits.map(r => ({
+      repId: r.repId,
+      repName: r.repName,
+      percentage: r.percentage,
+    }));
+    onSave(savedSplits);
     onClose();
   };
 
-  const totalPercentage = localSplits.reduce((sum, split) => sum + split.percentage, 0);
+  const totalPercentage = localSplits.reduce((sum, r) => sum + r.percentage, 0);
   const isValid = totalPercentage === 100;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-lg w-full">
-        <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-[var(--foreground)]">Outside Rep Commission Splits</h2>
-            <p className="text-sm text-[var(--muted-foreground)]">Divide commission among outside reps</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
-          >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
-            </svg>
-          </button>
-        </div>
-
-        <div className="p-6 space-y-4">
-          {/* Total percentage indicator */}
-          <div className={`flex items-center justify-between p-3 rounded-lg ${
-            isValid ? 'bg-green-50 border border-green-200' : 'bg-yellow-50 border border-yellow-200'
-          }`}>
-            <span className={`text-sm font-medium ${isValid ? 'text-green-700' : 'text-yellow-700'}`}>
-              Total: {totalPercentage}%
-            </span>
-            {!isValid && <span className="text-xs text-yellow-600">Must equal 100%</span>}
-            {isValid && (
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-600">
-                <path d="M5 10l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            )}
-          </div>
-
-          {/* Rep splits list */}
-          <div className="space-y-3">
-            {localSplits.map((split, index) => (
-              <div key={split.repId} className="flex items-center gap-3 p-3 border border-[var(--border)] rounded-lg">
-                <div className="flex-1">
-                  <select
-                    value={split.repId}
-                    onChange={(e) => {
-                      const newRep = AVAILABLE_OUTSIDE_REPS.find(r => r.id === e.target.value);
-                      if (newRep) {
-                        setLocalSplits(prev => prev.map((s, i) =>
-                          i === index ? { ...s, repId: newRep.id, repName: newRep.name } : s
-                        ));
-                      }
-                    }}
-                    className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm"
-                  >
-                    {AVAILABLE_OUTSIDE_REPS.map(rep => (
-                      <option key={rep.id} value={rep.id} disabled={localSplits.some(s => s.repId === rep.id && s.repId !== split.repId)}>
-                        {rep.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="w-24 flex items-center gap-1">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={split.percentage}
-                    onChange={(e) => {
-                      const value = Math.min(100, Math.max(0, parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0));
-                      const otherRepsCount = localSplits.length - 1;
-                      if (otherRepsCount > 0) {
-                        // Auto-redistribute remaining percentage among other reps
-                        const remaining = 100 - value;
-                        const perRep = Math.floor(remaining / otherRepsCount);
-                        const remainder = remaining - (perRep * otherRepsCount);
-                        let extraAssigned = 0;
-                        setLocalSplits(prev => prev.map((s, i) => {
-                          if (i === index) return { ...s, percentage: value };
-                          const extraPercent = extraAssigned < remainder ? 1 : 0;
-                          extraAssigned++;
-                          return { ...s, percentage: Math.max(0, perRep + extraPercent) };
-                        }));
-                      } else {
-                        setLocalSplits(prev => prev.map((s, i) => i === index ? { ...s, percentage: value } : s));
-                      }
-                    }}
-                    onFocus={(e) => e.target.select()}
-                    className="w-16 px-2 py-2 bg-white border border-[var(--border)] rounded-md text-sm text-center"
-                  />
-                  <span className="text-sm text-[var(--muted-foreground)]">%</span>
-                </div>
-                {localSplits.length > 1 && (
-                  <button
-                    onClick={() => {
-                      // Remove this rep and redistribute 100% among remaining reps
-                      const remaining = localSplits.filter((_, i) => i !== index);
-                      const newCount = remaining.length;
-                      const perRep = Math.floor(100 / newCount);
-                      const remainder = 100 - (perRep * newCount);
-                      let extraAssigned = 0;
-                      setLocalSplits(remaining.map(s => {
-                        const extraPercent = extraAssigned < remainder ? 1 : 0;
-                        extraAssigned++;
-                        return { ...s, percentage: perRep + extraPercent };
-                      }));
-                    }}
-                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
-                    </svg>
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {/* Add Rep button */}
-          {localSplits.length < AVAILABLE_OUTSIDE_REPS.length && (
+    <>
+      <div className="fixed inset-0 bg-black/50 z-40" onClick={onClose} />
+      <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-900">Split Outside Rep Commission</h3>
             <button
-              onClick={() => {
-                // Add new rep and redistribute 100% equally among all reps
-                const usedRepIds = new Set(localSplits.map(s => s.repId));
-                const availableRep = AVAILABLE_OUTSIDE_REPS.find(r => !usedRepIds.has(r.id));
-                if (availableRep) {
-                  const newCount = localSplits.length + 1;
-                  const perRep = Math.floor(100 / newCount);
-                  const remainder = 100 - (perRep * newCount);
-                  let extraAssigned = 0;
-                  const updatedSplits = localSplits.map(s => {
-                    const extraPercent = extraAssigned < remainder ? 1 : 0;
-                    extraAssigned++;
-                    return { ...s, percentage: perRep + extraPercent };
-                  });
-                  const newRepPercent = perRep + (extraAssigned < remainder ? 1 : 0);
-                  setLocalSplits([...updatedSplits, { repId: availableRep.id, repName: availableRep.name, percentage: newRepPercent }]);
-                }
-              }}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-dashed border-[var(--border)] rounded-lg text-sm text-[var(--muted-foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)] transition-colors"
+              onClick={onClose}
+              className="p-1 hover:bg-gray-100 rounded"
             >
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round" />
               </svg>
-              Add Rep
             </button>
-          )}
-        </div>
+          </div>
+          <div className="p-4">
+            {/* Rep list */}
+            <div className="space-y-3 mb-4">
+              {localSplits.map((rep) => (
+                <div key={rep.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-md">
+                  <div className="flex-1">
+                    <span className="text-sm font-medium text-gray-900">{rep.repName}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={rep.percentage}
+                      onChange={(e) => updateSplitPercentage(rep.id, e.target.value)}
+                      className="w-16 px-2 py-1 text-sm border border-gray-300 rounded text-right"
+                    />
+                    <span className="text-sm text-gray-500">%</span>
+                  </div>
+                  {localSplits.length > 1 && (
+                    <button
+                      onClick={() => removeRepFromSplit(rep.id)}
+                      className="p-1 text-gray-400 hover:text-red-500"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
 
-        <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3">
-          <button
-            onClick={handleCancel}
-            className="px-4 py-2 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors text-sm font-medium"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={!isValid}
-            className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Done
-          </button>
+            {/* Add rep search */}
+            <div className="mb-4">
+              <label className="block text-xs text-gray-500 mb-1">Add Rep</label>
+              <SearchableDropdownV2
+                value=""
+                displayValue=""
+                onChange={(id, label) => {
+                  if (id && !localSplits.some(r => r.repId === id)) {
+                    addRepToSplit({ id, label });
+                  }
+                }}
+                options={repOptions.filter(opt => !localSplits.some(r => r.repId === opt.id))}
+                onSearch={handleSearch}
+                isLoading={isRepLoading}
+                placeholder="Search reps to add..."
+              />
+            </div>
+
+            {/* Total validation */}
+            <div className="flex items-center justify-between text-sm mb-4">
+              <span className="text-gray-500">Total:</span>
+              <span className={`font-semibold ${isValid ? 'text-green-600' : 'text-red-600'}`}>
+                {totalPercentage}%
+              </span>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={handleCancel}
+                className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={!isValid}
+                className="px-4 py-2 text-sm text-white bg-indigo-600 hover:bg-indigo-700 rounded-md disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                Save
+              </button>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

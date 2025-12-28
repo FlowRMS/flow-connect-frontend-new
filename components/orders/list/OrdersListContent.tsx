@@ -8,6 +8,7 @@
 'use client';
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import AdvancedFilters from '@/components/AdvancedFilters';
 import { useOrdersListState } from './hooks/useOrdersListState';
 import { getOrderFilterOptions } from './config/filterConfig';
@@ -15,15 +16,52 @@ import { OrdersTable } from './components/table/OrdersTable';
 import { QuickDateFilter } from './components/QuickDateFilter';
 import { OrderDetailPanel } from './components/sidebar/OrderDetailPanel';
 import {
-  CreateOrderModal,
   CreditModal,
   AcknowledgementModal,
 } from './components/modals';
 
 export default function OrdersListContent() {
+  const router = useRouter();
   const state = useOrdersListState();
 
   const filterOptions = getOrderFilterOptions();
+
+  // Loading state
+  if (state.isLoading) {
+    return (
+      <main className="flex-1 overflow-hidden bg-[var(--background)] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--primary)] mx-auto mb-4" />
+          <p className="text-sm text-[var(--muted-foreground)]">Loading orders...</p>
+        </div>
+      </main>
+    );
+  }
+
+  // Error state
+  if (state.error) {
+    return (
+      <main className="flex-1 overflow-hidden bg-[var(--background)] flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-500 mb-4">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mx-auto">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+          </div>
+          <h2 className="text-lg font-semibold text-[var(--foreground)] mb-2">Error Loading Orders</h2>
+          <p className="text-sm text-[var(--muted-foreground)] mb-4">{state.error.message}</p>
+          <button
+            onClick={() => state.refetch()}
+            className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-sm hover:bg-[var(--primary-hover)] transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="flex-1 overflow-hidden bg-[var(--background)] flex">
@@ -43,7 +81,7 @@ export default function OrdersListContent() {
             <div className="flex items-center gap-3">
               <AdvancedFilters filterOptions={filterOptions} />
               <button
-                onClick={() => state.setShowCreateModal(true)}
+                onClick={() => router.push('/orders/new')}
                 className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"
               >
                 <svg
@@ -122,12 +160,6 @@ export default function OrdersListContent() {
       )}
 
       {/* Modals */}
-      <CreateOrderModal
-        isOpen={state.showCreateModal}
-        onClose={() => state.setShowCreateModal(false)}
-        onSave={state.handleCreateOrder}
-      />
-
       <CreditModal
         isOpen={state.showCreditModal}
         onClose={state.closeCreditModal}

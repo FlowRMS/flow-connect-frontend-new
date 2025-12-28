@@ -442,9 +442,9 @@ export function transformQuoteToQuoteV2(quote: Quote): QuoteV2 {
     billToCustomerId: quote.billToCustomerId || '',
     billToCustomerName: quote.billToCustomer?.companyName || '',
 
-    // Job info - Coming soon
-    jobId: '',
-    jobName: '',
+    // Job info
+    jobId: quote.job?.id || '',
+    jobName: quote.job?.jobName || '',
 
     // Pricing from balance
     quoteAmount: quote.balance?.total || 0,
@@ -516,13 +516,13 @@ export function transformQuoteDetailToLineItemV2(detail: QuoteDetail, quoteId: s
     quoteId: quoteId,
     itemNumber: detail.itemNumber,
 
-    // Product info
+    // Product info - productNameAdhoc and productDescriptionAdhoc store the part # and description
     productId: detail.productId,
     partNumber: detail.productNameAdhoc || detail.product?.factoryPartNumber || '',
-    customerPartNumber: '',
+    customerPartNumber: '', // CPN is fetched separately via product CPNs API
     description: detail.productDescriptionAdhoc || detail.product?.description || '',
     manufacturerId: detail.factoryId,
-    manufacturerName: detail.product?.factoryPartNumber ? '' : '',
+    manufacturerName: '', // Factory name not available in response - selected via dropdown
 
     // Quantity
     quantity,
@@ -576,7 +576,10 @@ function isValidUUID(id: string): boolean {
 /**
  * Transform LineItemV2 back to QuoteDetailInput for API
  */
-export function transformLineItemV2ToDetailInput(lineItem: LineItemV2): {
+export function transformLineItemV2ToDetailInput(
+  lineItem: LineItemV2,
+  outsideReps?: { id: string; userId?: string; splitRate?: string; position?: number }[]
+): {
   id?: string;
   itemNumber?: number;
   quantity: number;
@@ -593,10 +596,19 @@ export function transformLineItemV2ToDetailInput(lineItem: LineItemV2): {
   productId?: string;
   status?: QuoteDetailStatus;
   uomId?: string;
+  splitRates?: { id?: string; userId: string; splitRate: string; position?: number }[];
 } {
   // Only include ID if it's a valid UUID (existing item from API)
   // New items with IDs like "li-123456" should not send ID
   const id = lineItem.id && isValidUUID(lineItem.id) ? lineItem.id : undefined;
+
+  // Build splitRates from outsideReps if provided
+  const splitRates = outsideReps?.map((rep) => ({
+    ...(rep.id && isValidUUID(rep.id) ? { id: rep.id } : {}),
+    userId: rep.userId || '',
+    splitRate: rep.splitRate || '100',
+    position: rep.position,
+  }));
 
   return {
     id,
@@ -615,6 +627,7 @@ export function transformLineItemV2ToDetailInput(lineItem: LineItemV2): {
     productId: lineItem.productId,
     status: lineItem.status,
     uomId: lineItem.uomId,
+    splitRates: splitRates && splitRates.length > 0 ? splitRates : undefined,
   };
 }
 

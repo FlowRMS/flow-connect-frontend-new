@@ -220,11 +220,14 @@ export interface OrderLineItem {
   partNumber?: string; // Optional for order-level credits
   custPartNumber?: string;
   description: string;
+  uom?: string;  // Unit of measure (EA, BOX, etc.)
+  divisor?: number;  // Pricing divisor
   quantity: number;
   unitPrice: number;
   extendedPrice: number;
   commissionRate: number;
   commissionAmount: number;
+  status?: 'open' | 'shipped' | 'partial_shipped' | 'cancelled' | 'invoiced';  // Line item status
   // Fulfillment tracking
   quantityShipped: number;
   quantityInvoiced: number;

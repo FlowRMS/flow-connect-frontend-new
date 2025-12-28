@@ -131,7 +131,7 @@ export function LineCreditModal({
             <div className="border border-[var(--border)] rounded-lg divide-y divide-[var(--border)]">
               {creditLineItems.map((item, index) => {
                 const linkedLineItem = item.linkedLineItemId
-                  ? order.lineItems.find(li => li.id === item.linkedLineItemId)
+                  ? (order.lineItems || []).find(li => li.id === item.linkedLineItemId)
                   : null;
 
                 return (
@@ -153,7 +153,7 @@ export function LineCreditModal({
                               newItems[index].creditAmount = 0;
                               newItems[index].commissionAmount = 0;
                             } else {
-                              const lineItem = order.lineItems.find(li => li.id === selectedValue);
+                              const lineItem = (order.lineItems || []).find(li => li.id === selectedValue);
                               if (lineItem) {
                                 newItems[index].linkedLineItemId = lineItem.id;
                                 newItems[index].partNumber = lineItem.partNumber || '';
@@ -169,7 +169,7 @@ export function LineCreditModal({
                           className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm bg-[var(--background)]"
                         >
                           <option value="order-level">Order-Level Credit (not tied to a line item)</option>
-                          {order.lineItems.filter(li => li.partNumber !== 'FREIGHT').map(li => (
+                          {(order.lineItems || []).filter(li => li.partNumber !== 'FREIGHT').map(li => (
                             <option key={li.id} value={li.id}>
                               {li.partNumber} - {li.description?.substring(0, 40)}{li.description && li.description.length > 40 ? '...' : ''}
                             </option>

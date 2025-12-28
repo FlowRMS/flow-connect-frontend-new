@@ -30,7 +30,7 @@ export function PricingSummaryBar({ order, viewMode, totals }: PricingSummaryBar
       {/* Shipping Status */}
       <div className="flex items-center gap-2">
         {order && (() => {
-          const shipStatus = getOrderShipStatus(order.lineItems);
+          const shipStatus = getOrderShipStatus(order.lineItems || []);
           return (
             <>
               <span className="text-xs text-[var(--muted-foreground)]">Ship Status:</span>

@@ -1,27 +1,22 @@
 /**
  * CreateOrderModal Component
  * Multi-step modal for creating new orders
+ * Connected to real GraphQL API
  */
 
 'use client';
 
 import React, { useState } from 'react';
 import {
-  mockManufacturers,
-  mockCustomers,
   mockSalesReps,
-  mockProducts,
-  getProductsByManufacturer,
-  generateOrderNumber,
-  calculateLineItemTotal,
   calculateCommission,
-  calculateOrderTotals,
 } from '@/lib/data/rms-mock';
 import {
   Order,
   OrderLineItem,
   OrderSplitRate,
 } from '@/lib/types/rms';
+import { useCreateOrder, type CreateOrderInput, type OrderDetailInput, type OrderSplitRateInput } from '../../../api';
 
 interface CreateOrderModalProps {
   isOpen: boolean;
@@ -40,10 +35,15 @@ interface DraftLineItem {
 }
 
 export function CreateOrderModal({ isOpen, onClose, onSave }: CreateOrderModalProps) {
+  const createOrderMutation = useCreateOrder();
+
   const [step, setStep] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [orderNumber, setOrderNumber] = useState('');
   const [manufacturerId, setManufacturerId] = useState('');
   const [customerId, setCustomerId] = useState('');
   const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0]);
+  const [dueDate, setDueDate] = useState('');
   const [requestedShipDate, setRequestedShipDate] = useState('');
   const [poNumber, setPoNumber] = useState('');
   const [notes, setNotes] = useState('');
@@ -51,27 +51,32 @@ export function CreateOrderModal({ isOpen, onClose, onSave }: CreateOrderModalPr
   const [lineItems, setLineItems] = useState<DraftLineItem[]>([]);
   const [splitRates, setSplitRates] = useState<OrderSplitRate[]>([]);
 
-  const selectedManufacturer = mockManufacturers.find(m => m.id === manufacturerId);
-  const selectedCustomer = mockCustomers.find(c => c.id === customerId);
-  const availableProducts = manufacturerId ? getProductsByManufacturer(manufacturerId) : [];
+  // Note: Factory/Manufacturer and Customer lookups would come from API
+  // For now showing "Coming Soon" placeholders
+  const selectedManufacturer = { name: 'Coming Soon', baseCommissionRate: 0.08 };
+  const selectedCustomer = { name: 'Coming Soon' };
+  const availableProducts: any[] = []; // Products would come from API lookup
 
   if (!isOpen) return null;
 
-  const addLineItem = (productId: string) => {
-    const product = mockProducts.find(p => p.id === productId);
-    if (!product) return;
-
+  // Add a manual line item (product lookup coming soon)
+  const addManualLineItem = () => {
     const newItem: DraftLineItem = {
       id: `temp-${Date.now()}`,
-      productId: product.id,
-      partNumber: product.partNumber,
-      description: product.description,
+      productId: '',
+      partNumber: '',
+      description: '',
       quantity: 1,
-      unitPrice: product.unitPrice,
-      commissionRate: product.commissionRate || selectedManufacturer?.baseCommissionRate || 0.08,
+      unitPrice: 0,
+      commissionRate: selectedManufacturer?.baseCommissionRate || 0.08,
     };
 
     setLineItems([...lineItems, newItem]);
+  };
+
+  const addLineItem = (productId: string) => {
+    // Product lookup coming soon - for now add manual entry
+    addManualLineItem();
   };
 
   const updateLineItem = (id: string, field: keyof DraftLineItem, value: string | number) => {
@@ -121,66 +126,111 @@ export function CreateOrderModal({ isOpen, onClose, onSave }: CreateOrderModalPr
   const totalSplitPercentage = splitRates.reduce((sum, sr) => sum + sr.splitPercentage, 0);
 
   const canProceed = () => {
-    if (step === 1) return manufacturerId && customerId;
-    if (step === 2) return lineItems.length > 0;
+    if (step === 1) return orderNumber && customerId;
+    if (step === 2) return lineItems.length > 0 && lineItems.every(li => li.partNumber && li.quantity > 0 && li.unitPrice > 0);
     if (step === 3) return splitRates.length > 0 && totalSplitPercentage === 100;
     return true;
   };
 
-  const handleSave = (asDraft: boolean = false) => {
-    const subtotal = calculateSubtotal();
-    const totalCommission = calculateTotalCommission();
+  const handleSave = async (asDraft: boolean = false) => {
+    setIsSubmitting(true);
 
-    const finalLineItems: OrderLineItem[] = lineItems.map((item, idx) => ({
-      id: `OLI-NEW-${idx + 1}`,
-      lineNumber: idx + 1,
-      productId: item.productId,
-      partNumber: item.partNumber,
-      description: item.description,
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      extendedPrice: item.quantity * item.unitPrice,
-      commissionRate: item.commissionRate,
-      commissionAmount: calculateCommission(item.quantity * item.unitPrice, item.commissionRate),
-      quantityShipped: 0,
-      quantityInvoiced: 0,
-      quantityCredited: 0,
-      isCancelled: false,
-      isConsignment: false,
-    }));
+    try {
+      // Build API input from form data
+      const apiDetails: OrderDetailInput[] = lineItems.map((item, idx) => ({
+        itemNumber: idx + 1,
+        quantity: item.quantity.toString(),
+        unitPrice: item.unitPrice.toString(),
+        commissionRate: item.commissionRate.toString(),
+        productId: item.productId || undefined,
+        productNameAdhoc: item.partNumber,
+        productDescriptionAdhoc: item.description,
+        freightCharge: idx === 0 ? freight.toString() : undefined, // Add freight to first line
+      }));
 
-    const finalSplitRates: OrderSplitRate[] = splitRates.map(sr => ({
-      ...sr,
-      commissionAmount: totalCommission * (sr.splitPercentage / 100),
-    }));
+      const apiInsideReps: OrderSplitRateInput[] = splitRates.map((sr, idx) => ({
+        userId: sr.salesRepId,
+        splitRate: sr.splitPercentage.toString(),
+        position: idx + 1,
+      }));
 
-    const newOrder: Order = {
-      id: `ORD-NEW-${Date.now()}`,
-      orderNumber: generateOrderNumber(),
-      manufacturerId,
-      manufacturerName: selectedManufacturer?.name || '',
-      customerId,
-      customerName: selectedCustomer?.name || '',
-      status: asDraft ? 'draft' : 'open',
-      fulfillmentStatus: 'not_started',
-      billingStatus: 'not_invoiced',
-      commissionStatus: 'pending',
-      orderDate,
-      requestedShipDate: requestedShipDate || undefined,
-      lineItems: finalLineItems,
-      subtotal,
-      freight,
-      total: subtotal + freight,
-      totalCommission,
-      splitRates: finalSplitRates,
-      poNumber: poNumber || undefined,
-      notes: notes || undefined,
-      createdAt: new Date().toISOString(),
-      createdBy: 'Current User',
-      updatedAt: new Date().toISOString(),
-    };
+      const createInput: CreateOrderInput = {
+        orderNumber: orderNumber || `ORD-${Date.now()}`,
+        entityDate: orderDate,
+        dueDate: dueDate || undefined,
+        soldToCustomerId: customerId,
+        factoryId: manufacturerId || undefined,
+        details: apiDetails,
+        published: !asDraft,
+        creationType: 'MANUAL',
+        orderType: 'NORMAL',
+        projectedShipDate: requestedShipDate || undefined,
+        insideReps: apiInsideReps,
+        markNumber: poNumber || undefined,
+      };
 
-    onSave(newOrder);
+      const createdOrder = await createOrderMutation.mutateAsync(createInput);
+
+      // Transform API response to UI Order for optimistic update
+      const subtotal = calculateSubtotal();
+      const totalCommission = calculateTotalCommission();
+
+      const finalLineItems: OrderLineItem[] = lineItems.map((item, idx) => ({
+        id: `OLI-NEW-${idx + 1}`,
+        lineNumber: idx + 1,
+        productId: item.productId,
+        partNumber: item.partNumber,
+        description: item.description,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        extendedPrice: item.quantity * item.unitPrice,
+        commissionRate: item.commissionRate,
+        commissionAmount: calculateCommission(item.quantity * item.unitPrice, item.commissionRate),
+        quantityShipped: 0,
+        quantityInvoiced: 0,
+        quantityCredited: 0,
+        isCancelled: false,
+        isConsignment: false,
+      }));
+
+      const finalSplitRates: OrderSplitRate[] = splitRates.map(sr => ({
+        ...sr,
+        commissionAmount: totalCommission * (sr.splitPercentage / 100),
+      }));
+
+      const newOrder: Order = {
+        id: createdOrder.id,
+        orderNumber: createdOrder.orderNumber,
+        manufacturerId,
+        manufacturerName: selectedManufacturer?.name || 'Coming Soon',
+        customerId,
+        customerName: selectedCustomer?.name || 'Coming Soon',
+        status: asDraft ? 'draft' : 'open',
+        fulfillmentStatus: 'not_started',
+        billingStatus: 'not_invoiced',
+        commissionStatus: 'pending',
+        orderDate,
+        requestedShipDate: requestedShipDate || undefined,
+        lineItems: finalLineItems,
+        subtotal,
+        freight,
+        total: subtotal + freight,
+        totalCommission,
+        splitRates: finalSplitRates,
+        poNumber: poNumber || undefined,
+        notes: notes || undefined,
+        createdAt: new Date().toISOString(),
+        createdBy: 'Current User',
+        updatedAt: new Date().toISOString(),
+      };
+
+      onSave(newOrder);
+    } catch (error) {
+      console.error('Failed to create order:', error);
+      alert(`Failed to create order: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const formatCurrency = (amount: number) => {
@@ -232,41 +282,46 @@ export function CreateOrderModal({ isOpen, onClose, onSave }: CreateOrderModalPr
             <div className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-                  Manufacturer *
+                  Order Number *
                 </label>
-                <select
+                <input
+                  type="text"
+                  value={orderNumber}
+                  onChange={(e) => setOrderNumber(e.target.value)}
+                  placeholder="Enter order number"
+                  className="w-full px-4 py-2.5 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                  Factory ID
+                  <span className="ml-2 px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded">Coming Soon: Factory Lookup</span>
+                </label>
+                <input
+                  type="text"
                   value={manufacturerId}
                   onChange={(e) => {
                     setManufacturerId(e.target.value);
                     setLineItems([]);
                   }}
+                  placeholder="Enter factory ID"
                   className="w-full px-4 py-2.5 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-                >
-                  <option value="">Select a manufacturer...</option>
-                  {mockManufacturers.filter(m => m.isActive).map((mfg) => (
-                    <option key={mfg.id} value={mfg.id}>
-                      {mfg.name} ({(mfg.baseCommissionRate * 100).toFixed(0)}% comm)
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-                  Customer *
+                  Sold To Customer ID *
+                  <span className="ml-2 px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded">Coming Soon: Customer Lookup</span>
                 </label>
-                <select
+                <input
+                  type="text"
                   value={customerId}
                   onChange={(e) => setCustomerId(e.target.value)}
+                  placeholder="Enter customer ID"
                   className="w-full px-4 py-2.5 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-                >
-                  <option value="">Select a customer...</option>
-                  {mockCustomers.filter(c => c.isActive).map((customer) => (
-                    <option key={customer.id} value={customer.id}>
-                      {customer.name}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -313,26 +368,21 @@ export function CreateOrderModal({ isOpen, onClose, onSave }: CreateOrderModalPr
           {step === 2 && (
             <div className="space-y-6">
               {/* Add Product */}
-              <div>
-                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-                  Add Product
-                </label>
-                <select
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      addLineItem(e.target.value);
-                      e.target.value = '';
-                    }
-                  }}
-                  className="w-full px-4 py-2.5 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground)]">
+                    Line Items
+                  </label>
+                  <p className="text-xs text-[var(--muted-foreground)]">
+                    <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded">Coming Soon: Product Lookup</span>
+                  </p>
+                </div>
+                <button
+                  onClick={addManualLineItem}
+                  className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-medium hover:bg-[var(--primary-hover)] transition-colors"
                 >
-                  <option value="">Select a product to add...</option>
-                  {availableProducts.map((product) => (
-                    <option key={product.id} value={product.id}>
-                      {product.partNumber} - {product.description} ({formatCurrency(product.unitPrice)})
-                    </option>
-                  ))}
-                </select>
+                  + Add Line Item
+                </button>
               </div>
 
               {/* Line Items List */}
@@ -345,11 +395,27 @@ export function CreateOrderModal({ isOpen, onClose, onSave }: CreateOrderModalPr
                   lineItems.map((item, index) => (
                     <div key={item.id} className="bg-[var(--muted)]/30 rounded-lg p-4">
                       <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <span className="text-sm font-medium text-[var(--foreground)]">
-                            {index + 1}. {item.partNumber}
-                          </span>
-                          <p className="text-xs text-[var(--muted-foreground)] mt-0.5">{item.description}</p>
+                        <div className="flex-1 grid grid-cols-2 gap-3 mr-4">
+                          <div>
+                            <label className="block text-xs text-[var(--muted-foreground)] mb-1">Part Number *</label>
+                            <input
+                              type="text"
+                              value={item.partNumber}
+                              onChange={(e) => updateLineItem(item.id, 'partNumber', e.target.value)}
+                              placeholder="Enter part number"
+                              className="w-full px-3 py-1.5 border border-[var(--border)] rounded bg-[var(--background)] text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-[var(--muted-foreground)] mb-1">Description</label>
+                            <input
+                              type="text"
+                              value={item.description}
+                              onChange={(e) => updateLineItem(item.id, 'description', e.target.value)}
+                              placeholder="Enter description"
+                              className="w-full px-3 py-1.5 border border-[var(--border)] rounded bg-[var(--background)] text-sm"
+                            />
+                          </div>
                         </div>
                         <button
                           onClick={() => removeLineItem(item.id)}
@@ -362,7 +428,7 @@ export function CreateOrderModal({ isOpen, onClose, onSave }: CreateOrderModalPr
                       </div>
                       <div className="grid grid-cols-4 gap-3">
                         <div>
-                          <label className="block text-xs text-[var(--muted-foreground)] mb-1">Qty</label>
+                          <label className="block text-xs text-[var(--muted-foreground)] mb-1">Qty *</label>
                           <input
                             type="number"
                             min="1"
@@ -372,7 +438,7 @@ export function CreateOrderModal({ isOpen, onClose, onSave }: CreateOrderModalPr
                           />
                         </div>
                         <div>
-                          <label className="block text-xs text-[var(--muted-foreground)] mb-1">Unit Price</label>
+                          <label className="block text-xs text-[var(--muted-foreground)] mb-1">Unit Price *</label>
                           <input
                             type="number"
                             step="0.01"
@@ -637,9 +703,10 @@ export function CreateOrderModal({ isOpen, onClose, onSave }: CreateOrderModalPr
             {step === 4 && (
               <button
                 onClick={() => handleSave(true)}
-                className="px-4 py-2 text-sm font-medium border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                disabled={isSubmitting}
+                className="px-4 py-2 text-sm font-medium border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors disabled:opacity-50"
               >
-                Save as Draft
+                {isSubmitting ? 'Saving...' : 'Save as Draft'}
               </button>
             )}
             {step < 4 ? (
@@ -653,9 +720,10 @@ export function CreateOrderModal({ isOpen, onClose, onSave }: CreateOrderModalPr
             ) : (
               <button
                 onClick={() => handleSave(false)}
-                className="px-6 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-medium hover:bg-[var(--primary-hover)] transition-colors"
+                disabled={isSubmitting}
+                className="px-6 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-medium hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Create Order
+                {isSubmitting ? 'Creating...' : 'Create Order'}
               </button>
             )}
           </div>

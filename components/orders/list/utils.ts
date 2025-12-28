@@ -106,7 +106,7 @@ export const getUniqueValues = <T extends keyof Order>(
  * Get outside reps display string for an order
  */
 export const getOutsideRepsDisplay = (order: Order): string => {
-  const outsideReps = order.splitRates
+  const outsideReps = (order.splitRates || [])
     .filter((sr) => sr.salesRepId !== order.insideRepId)
     .map((sr) => `${sr.salesRepName} (${sr.splitPercentage}%)`)
     .join(', ');

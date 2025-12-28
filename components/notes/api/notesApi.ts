@@ -5,6 +5,34 @@
 
 import { crmGraphQLRequest } from '../../lib/crm-graphql';
 
+// Re-export all search functions from central search API
+export {
+  searchCompanies,
+  searchContacts,
+  searchTasks,
+  searchJobs,
+  searchPreOpportunities,
+  searchQuotes,
+  searchOrders,
+  searchInvoices,
+  searchChecks,
+  searchFactories,
+  searchCustomers,
+  searchProducts,
+  type CompanySearchResult,
+  type ContactSearchResult,
+  type TaskSearchResult,
+  type JobSearchResult,
+  type PreOpportunitySearchResult,
+  type QuoteSearchResult,
+  type OrderSearchResult,
+  type InvoiceSearchResult,
+  type CheckSearchResult,
+  type FactorySearchResult,
+  type CustomerSearchResult,
+  type ProductSearchResult,
+} from '../../lib/api/search';
+
 type CreatedByResponse =
   | string
   | null
@@ -51,6 +79,47 @@ export interface NoteConversation {
   noteId: string;
   content: string;
   createdAt: string;
+}
+
+export interface NoteLandingPage {
+  id: string;
+  title: string;
+  content: string;
+  linkedEntities: Array<{
+    entityType: string;
+    id: string;
+    title: string;
+  }>;
+  mentions: string;
+  tags: string[];
+  createdBy: string;
+  createdAt: string;
+}
+
+// Input types for API operations
+export interface CreateNoteInput {
+  title: string;
+  content: string;
+  mentions?: string;
+  tags?: string;
+}
+
+export interface UpdateNoteInput {
+  title: string;
+  content: string;
+  mentions?: string;
+  tags?: string;
+}
+
+export interface AddNoteConversationInput {
+  noteId: string;
+  content: string;
+}
+
+export interface UpdateNoteConversationInput {
+  noteConversationId: string;
+  noteId: string;
+  content: string;
 }
 
 export interface NoteRelatedEntities {
@@ -204,173 +273,28 @@ export interface NoteRelatedEntities {
   }>;
 }
 
-export interface CompanySearchResult {
-  id: string;
-  name: string;
-  companySourceType: string;
-  createdAt: string;
-  createdBy: string;
-  parentCompanyId: string;
-  phone: string;
-  tags: string;
-  website: string;
-}
-
-export interface ContactSearchResult {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  role: string;
-  notes: string;
-  territory: string;
-  tags: string;
-  companyId: string;
-  createdAt: string;
-  createdBy: string;
-}
-
-export interface TaskSearchResult {
-  id: string;
-  title: string;
-  description: string;
-  status: string;
-  priority: string;
-  dueDate: string;
-  reminderDate: string;
-  assignedToId: string;
-  tags: string;
-  createdAt: string;
-  createdBy: string;
-}
-
-export interface JobSearchResult {
-  id: string;
-  jobName: string;
-  jobType: string;
-  description: string;
-  startDate: string;
-  endDate: string;
-  status: { id: string };
-  requesterId: string;
-  additionalInformation: string;
-  structuralDetails: string;
-  structuralInformation: string;
-  tags: string;
-  createdAt: string;
-  createdBy: string;
-}
-
-export interface PreOpportunitySearchResult {
-  id: string;
-  entityNumber: string;
-  entityDate: string;
-  status: string;
-  soldToCustomerId: string;
-  expDate: string;
-  createdAt: string;
-  createdById: string;
-}
-
-export interface QuoteSearchResult {
-  id: string;
-  quoteNumber: string;
-  jobName: string;
-  entityDate: string;
-  entryDate: string;
-  expDate: string;
-  billToCustomerId: string;
-  soldToCustomerId: string;
-  blanket: boolean;
-  createdBy: string;
-  userOwnerIds: string[];
-}
-
-export interface OrderSearchResult {
-  id: string;
-  orderNumber: string;
-  jobName: string;
-  entityDate: string;
-  entryDate: string;
-  dueDate: string;
-  shipDate: string;
-  status: string;
-  billToCustomerId: string;
-  soldToCustomerId: string;
-  factoryId: string;
-  quoteId: string;
-  balanceId: string;
-  factSoNumber: string;
-  userOwnerIds: string[];
-}
-
-export interface InvoiceSearchResult {
-  id: string;
-  invoiceNumber: string;
-  entityDate: string;
-  entryDate: string;
-  dueDate: string;
-  status: string;
-  factoryId: string;
-  orderId: string;
-  balanceId: string;
-  locked: boolean;
-  published: boolean;
-  creationType: string;
-  createdBy: string;
-  userOwnerIds: string[];
-}
-
-export interface CheckSearchResult {
-  id: string;
-  checkNumber: string;
-  entityDate: string;
-  entryDate: string;
-  postDate: string;
-  status: string;
-  factoryId: string;
-  commission: number;
-  commissionMonth: string;
-  creationType: string;
-  createdBy: string;
-  userOwnerIds: string[];
-}
-
-export interface FactorySearchResult {
-  id: string;
-  title: string;
-}
-
-export interface CustomerSearchResult {
-  id: string;
-  companyName: string;
-}
-
-export interface ProductSearchResult {
-  id: string;
-  factoryPartNumber: string;
-}
-
-export interface EntityLink {
-  id: string;
-  sourceEntityType: string;
-  sourceEntityId: string;
-  targetEntityType: string;
-  targetEntityId: string;
-  createdAt: string;
-  createdBy: string;
-}
-
-export type EntityType = 'NOTE' | 'JOB' | 'COMPANY' | 'CONTACT' | 'TASK' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'FACTORY' | 'CUSTOMER' | 'PRODUCT';
+// Search result types are imported and re-exported from central search API above
+// Entity types are re-exported from entity-links.ts
+export type { EntityLink, CRMEntityType as EntityType } from '../../lib/graphql/entity-links';
 
 // ============================================================================
 // GraphQL Queries
 // ============================================================================
 
 const FIND_NOTES_LANDING_PAGES = `
-  query FindNotesLandingPages {
-    findLandingPages(sourceType: NOTES) {
+  query FindNotesLandingPages(
+    $filters: [Filter!]
+    $orderBy: [OrderBy!]
+    $limit: Int
+    $offset: Int
+  ) {
+    findLandingPages(
+      sourceType: NOTES
+      filters: $filters
+      orderBy: $orderBy
+      limit: $limit
+      offset: $offset
+    ) {
       records {
         ... on NoteLandingPage {
           id
@@ -388,6 +312,26 @@ const FIND_NOTES_LANDING_PAGES = `
         }
       }
       total
+    }
+  }
+`;
+
+const GET_NOTE = `
+  query GetNote($id: UUID!) {
+    note(id: $id) {
+      id
+      title
+      content
+      mentions
+      tags
+      createdBy {
+        email
+        firstName
+        fullName
+        id
+        lastName
+      }
+      createdAt
     }
   }
 `;
@@ -652,271 +596,51 @@ const GET_NOTE_RELATED_ENTITIES = `
   }
 `;
 
-const COMPANY_SEARCH = `
-  query CompanySearch($searchTerm: String!) {
-    companySearch(searchTerm: $searchTerm) {
-      companySourceType
-      createdAt
-      createdBy {
-        email
-        firstName
-        fullName
-        id
-        lastName
-      }
-      id
-      name
-      parentCompanyId
-      phone
-      tags
-      website
-    }
-  }
-`;
-
-const CONTACT_SEARCH = `
-  query ContactSearch($searchTerm: String!) {
-    contactSearch(searchTerm: $searchTerm) {
-      createdAt
-      email
-      id
-      firstName
-      lastName
-      notes
-      phone
-      role
-      territory
-      tags
-    }
-  }
-`;
-
-const TASK_SEARCH = `
-  query TaskSearch($searchTerm: String!) {
-    taskSearch(searchTerm: $searchTerm) {
-      assignedToId
-      createdAt
-      createdBy {
-        email
-        firstName
-        fullName
-        id
-        lastName
-      }
-      description
-      dueDate
-      id
-      priority
-      reminderDate
-      status
-      tags
-      title
-    }
-  }
-`;
-
-const JOB_SEARCH = `
-  query JobSearch($searchTerm: String!) {
-    jobSearch(searchTerm: $searchTerm) {
-      additionalInformation
-      createdAt
-      createdBy {
-        email
-        firstName
-        fullName
-        id
-        lastName
-      }
-      description
-      endDate
-      jobName
-      jobType
-      id
-      startDate
-      requesterId
-      status {
-        id
-      }
-      structuralDetails
-      structuralInformation
-      tags
-    }
-  }
-`;
-
-const PRE_OPPORTUNITY_SEARCH = `
-  query PreOpportunitySearch($searchTerm: String!) {
-    preOpportunitySearch(searchTerm: $searchTerm) {
-      id
-      entityNumber
-      entityDate
-      status
-      soldToCustomerId
-      expDate
-      createdAt
-      createdById
-    }
-  }
-`;
-
-const QUOTE_SEARCH = `
-  query QuoteSearch($searchTerm: String!) {
-    quoteSearch(searchTerm: $searchTerm) {
-      id
-      quoteNumber
-      jobName
-      entityDate
-      entryDate
-      expDate
-      billToCustomerId
-      soldToCustomerId
-      blanket
-      createdBy
-      userOwnerIds
-    }
-  }
-`;
-
-const ORDER_SEARCH = `
-  query OrderSearch($searchTerm: String!) {
-    orderSearch(searchTerm: $searchTerm) {
-      id
-      orderNumber
-      jobName
-      entityDate
-      entryDate
-      dueDate
-      shipDate
-      status
-      billToCustomerId
-      soldToCustomerId
-      factoryId
-      quoteId
-      balanceId
-      factSoNumber
-      userOwnerIds
-    }
-  }
-`;
-
-const INVOICE_SEARCH = `
-  query InvoiceSearch($searchTerm: String!) {
-    invoiceSearch(searchTerm: $searchTerm) {
-      id
-      invoiceNumber
-      entityDate
-      entryDate
-      dueDate
-      status
-      factoryId
-      orderId
-      balanceId
-      locked
-      published
-      creationType
-      createdBy
-      userOwnerIds
-    }
-  }
-`;
-
-const CHECK_SEARCH = `
-  query CheckSearch($searchTerm: String!) {
-    checkSearch(searchTerm: $searchTerm) {
-      id
-      checkNumber
-      entityDate
-      entryDate
-      postDate
-      status
-      factoryId
-      commission
-      commissionMonth
-      creationType
-      createdBy
-      userOwnerIds
-    }
-  }
-`;
-
-const FACTORY_SEARCH = `
-  query FactorySearch($searchTerm: String!, $published: Boolean) {
-    factorySearch(searchTerm: $searchTerm, published: $published) {
-      id
-      title
-    }
-  }
-`;
-
-const CUSTOMER_SEARCH = `
-  query CustomerSearch($searchTerm: String!, $published: Boolean) {
-    customerSearch(searchTerm: $searchTerm, published: $published) {
-      id
-      companyName
-    }
-  }
-`;
-
-const PRODUCT_SEARCH = `
-  query ProductSearch($searchTerm: String!, $factoryId: UUID) {
-    productSearch(searchTerm: $searchTerm, factoryId: $factoryId) {
-      id
-      factoryPartNumber
-    }
-  }
-`;
-
-const CREATE_LINK = `
-  mutation CreateLink(
-    $sourceEntityType: CRMEntityType!
-    $sourceEntityId: UUID!
-    $targetEntityType: CRMEntityType!
-    $targetEntityId: UUID!
-  ) {
-    createLink(input: {
-      sourceEntityType: $sourceEntityType
-      sourceEntityId: $sourceEntityId
-      targetEntityType: $targetEntityType
-      targetEntityId: $targetEntityId
-    }) {
-      id
-      sourceEntityType
-      sourceEntityId
-      targetEntityType
-      targetEntityId
-      createdAt
-    }
-  }
-`;
-
-const DELETE_LINK = `
-  mutation DeleteLink($id: UUID!) {
-    deleteLink(id: $id)
-  }
-`;
-
-const DELETE_LINK_BY_ENTITIES = `
-  mutation DeleteLinkByEntities(
-    $sourceEntityType: CRMEntityType!
-    $sourceEntityId: UUID!
-    $targetEntityType: CRMEntityType!
-    $targetEntityId: UUID!
-  ) {
-    deleteLinkByEntities(input: {
-      sourceEntityType: $sourceEntityType
-      sourceEntityId: $sourceEntityId
-      targetEntityType: $targetEntityType
-      targetEntityId: $targetEntityId
-    })
-  }
-`;
+// Search queries are now in the central search API (components/lib/api/search.ts)
+// Link functions are imported from entity-links.ts
 
 // ============================================================================
 // API Functions
 // ============================================================================
 
+// Filter and sort types
+export type FilterOperator =
+  | 'EQ'
+  | 'NE'
+  | 'GT'
+  | 'GTE'
+  | 'LT'
+  | 'LTE'
+  | 'LIKE'
+  | 'ILIKE'
+  | 'BEGINS_WITH'
+  | 'ENDS_WITH'
+  | 'IN'
+  | 'NOT_IN'
+  | 'IS_NULL'
+  | 'IS_NOT_NULL';
+
+export type SortDirection = 'ASC' | 'DESC';
+
+export interface NoteLandingPageFilter {
+  operator: FilterOperator;
+  columnName: string;
+  value?: string;
+  values?: string[];
+}
+
+export interface NoteLandingPageOrderBy {
+  columnName: string;
+  direction: SortDirection;
+}
+
+export interface PaginatedNotesResult {
+  records: NoteLandingPage[];
+  total: number;
+}
+
 /**
- * Fetch all notes using findLandingPages endpoint
+ * Fetch all notes using findLandingPages endpoint (backward compatible)
  */
 export async function fetchNotes(): Promise<Note[]> {
   const response = await crmGraphQLRequest<{
@@ -933,16 +657,58 @@ export async function fetchNotes(): Promise<Note[]> {
 }
 
 /**
+ * Fetch notes landing pages with pagination support
+ */
+export async function fetchNoteLandingPages(
+  filters?: NoteLandingPageFilter[],
+  orderBy?: NoteLandingPageOrderBy[],
+  pagination?: { limit?: number; offset?: number }
+): Promise<PaginatedNotesResult> {
+  const response = await crmGraphQLRequest<{
+    findLandingPages: { records: NoteLandingPage[]; total: number };
+  }>({
+    query: FIND_NOTES_LANDING_PAGES,
+    variables: {
+      filters: filters && filters.length > 0 ? filters : undefined,
+      orderBy: orderBy && orderBy.length > 0 ? orderBy : undefined,
+      limit: pagination?.limit,
+      offset: pagination?.offset
+    },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch notes');
+  }
+
+  return {
+    records: mapFormattedCreatedBy(response.data?.findLandingPages?.records) as NoteLandingPage[],
+    total: response.data?.findLandingPages?.total || 0,
+  };
+}
+
+/**
+ * Fetch a single note by ID
+ */
+export async function fetchNote(id: string): Promise<Note | null> {
+  const response = await crmGraphQLRequest<{ note: Note }>({
+    query: GET_NOTE,
+    variables: { id },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch note');
+  }
+
+  const note = response.data?.note;
+  return note ? withFormattedCreatedBy(note) : null;
+}
+
+/**
  * Create a new note
  */
-export async function createNote(input: {
-  title: string;
-  content: string;
-  mentions: string;
-  tags: string;
-}): Promise<Note> {
+export async function createNote(input: CreateNoteInput): Promise<Note> {
   // Build input object, excluding mentions if empty (API expects UUID or undefined)
-  const apiInput: { title: string; content: string; tags: string; mentions?: string } = {
+  const apiInput: { title: string; content: string; tags?: string; mentions?: string } = {
     title: input.title,
     content: input.content,
     tags: input.tags,
@@ -972,15 +738,10 @@ export async function createNote(input: {
  */
 export async function updateNote(
   id: string,
-  input: {
-    title: string;
-    content: string;
-    mentions: string;
-    tags: string;
-  }
+  input: UpdateNoteInput
 ): Promise<Note> {
   // Build input object, excluding mentions if empty (API expects UUID or undefined)
-  const apiInput: { title: string; content: string; tags: string; mentions?: string } = {
+  const apiInput: { title: string; content: string; tags?: string; mentions?: string } = {
     title: input.title,
     content: input.content,
     tags: input.tags,
@@ -1048,15 +809,14 @@ export async function addNoteConversation(input: {
  * Update a note conversation/comment
  */
 export async function updateNoteConversation(
-  noteConversationId: string,
-  input: {
-    noteId: string;
-    content: string;
-  }
+  input: UpdateNoteConversationInput
 ): Promise<NoteConversation> {
   const response = await crmGraphQLRequest<{ updateNoteConversation: NoteConversation }>({
     query: UPDATE_NOTE_CONVERSATION,
-    variables: { noteConversationId, input },
+    variables: {
+      noteConversationId: input.noteConversationId,
+      input: { noteId: input.noteId, content: input.content }
+    },
   });
 
   if (response.errors) {
@@ -1146,266 +906,6 @@ export async function fetchNoteRelatedEntities(noteId: string): Promise<NoteRela
   );
 }
 
-/**
- * Search for companies
- */
-export async function searchCompanies(searchTerm: string): Promise<CompanySearchResult[]> {
-  const response = await crmGraphQLRequest<{ companySearch: CompanySearchResult[] }>({
-    query: COMPANY_SEARCH,
-    variables: { searchTerm },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to search companies');
-  }
-
-  return mapFormattedCreatedBy(response.data?.companySearch);
-}
-
-/**
- * Search for contacts
- */
-export async function searchContacts(searchTerm: string): Promise<ContactSearchResult[]> {
-  const response = await crmGraphQLRequest<{ contactSearch: ContactSearchResult[] }>({
-    query: CONTACT_SEARCH,
-    variables: { searchTerm },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to search contacts');
-  }
-
-  return mapFormattedCreatedBy(response.data?.contactSearch);
-}
-
-/**
- * Search for tasks
- */
-export async function searchTasks(searchTerm: string): Promise<TaskSearchResult[]> {
-  const response = await crmGraphQLRequest<{ taskSearch: TaskSearchResult[] }>({
-    query: TASK_SEARCH,
-    variables: { searchTerm },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to search tasks');
-  }
-
-  return mapFormattedCreatedBy(response.data?.taskSearch);
-}
-
-/**
- * Search for jobs
- */
-export async function searchJobs(searchTerm: string): Promise<JobSearchResult[]> {
-  const response = await crmGraphQLRequest<{ jobSearch: JobSearchResult[] }>({
-    query: JOB_SEARCH,
-    variables: { searchTerm },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to search jobs');
-  }
-
-  return mapFormattedCreatedBy(response.data?.jobSearch);
-}
-
-/**
- * Search for pre-opportunities
- */
-export async function searchPreOpportunities(searchTerm: string): Promise<PreOpportunitySearchResult[]> {
-  const response = await crmGraphQLRequest<{ preOpportunitySearch: PreOpportunitySearchResult[] }>({
-    query: PRE_OPPORTUNITY_SEARCH,
-    variables: { searchTerm },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to search pre-opportunities');
-  }
-
-  return response.data?.preOpportunitySearch || [];
-}
-
-/**
- * Search for quotes
- */
-export async function searchQuotes(searchTerm: string): Promise<QuoteSearchResult[]> {
-  const response = await crmGraphQLRequest<{ quoteSearch: QuoteSearchResult[] }>({
-    query: QUOTE_SEARCH,
-    variables: { searchTerm },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to search quotes');
-  }
-
-  return response.data?.quoteSearch || [];
-}
-
-/**
- * Search for orders
- */
-export async function searchOrders(searchTerm: string): Promise<OrderSearchResult[]> {
-  const response = await crmGraphQLRequest<{ orderSearch: OrderSearchResult[] }>({
-    query: ORDER_SEARCH,
-    variables: { searchTerm },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to search orders');
-  }
-
-  return response.data?.orderSearch || [];
-}
-
-/**
- * Search for invoices
- */
-export async function searchInvoices(searchTerm: string): Promise<InvoiceSearchResult[]> {
-  const response = await crmGraphQLRequest<{ invoiceSearch: InvoiceSearchResult[] }>({
-    query: INVOICE_SEARCH,
-    variables: { searchTerm },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to search invoices');
-  }
-
-  return response.data?.invoiceSearch || [];
-}
-
-/**
- * Search for checks
- */
-export async function searchChecks(searchTerm: string): Promise<CheckSearchResult[]> {
-  const response = await crmGraphQLRequest<{ checkSearch: CheckSearchResult[] }>({
-    query: CHECK_SEARCH,
-    variables: { searchTerm },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to search checks');
-  }
-
-  return response.data?.checkSearch || [];
-}
-
-/**
- * Search for factories
- */
-export async function searchFactories(searchTerm: string): Promise<FactorySearchResult[]> {
-  const response = await crmGraphQLRequest<{ factorySearch: FactorySearchResult[] }>({
-    query: FACTORY_SEARCH,
-    variables: { searchTerm, published: true },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to search factories');
-  }
-
-  return response.data?.factorySearch || [];
-}
-
-/**
- * Search for customers
- */
-export async function searchCustomers(searchTerm: string): Promise<CustomerSearchResult[]> {
-  const response = await crmGraphQLRequest<{ customerSearch: CustomerSearchResult[] }>({
-    query: CUSTOMER_SEARCH,
-    variables: { searchTerm, published: true },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to search customers');
-  }
-
-  return response.data?.customerSearch || [];
-}
-
-/**
- * Search for products
- */
-export async function searchProducts(searchTerm: string): Promise<ProductSearchResult[]> {
-  const response = await crmGraphQLRequest<{ productSearch: ProductSearchResult[] }>({
-    query: PRODUCT_SEARCH,
-    variables: { searchTerm },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to search products');
-  }
-
-  return response.data?.productSearch || [];
-}
-
-/**
- * Create a link between entities
- */
-export async function createLink(input: {
-  sourceEntityType: EntityType;
-  sourceEntityId: string;
-  targetEntityType: EntityType;
-  targetEntityId: string;
-}): Promise<EntityLink> {
-  const response = await crmGraphQLRequest<{ createLink: EntityLink }>({
-    query: CREATE_LINK,
-    variables: {
-      sourceEntityType: input.sourceEntityType,
-      sourceEntityId: input.sourceEntityId,
-      targetEntityType: input.targetEntityType,
-      targetEntityId: input.targetEntityId,
-    },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to create link');
-  }
-
-  if (!response.data?.createLink) {
-    throw new Error('No link returned from create mutation');
-  }
-
-  return response.data.createLink;
-}
-
-/**
- * Delete a link between entities
- */
-export async function deleteLink(id: string): Promise<boolean> {
-  const response = await crmGraphQLRequest<{ deleteLink: boolean }>({
-    query: DELETE_LINK,
-    variables: { id },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to delete link');
-  }
-
-  return true;
-}
-
-/**
- * Delete a link by source and target entities
- */
-export async function deleteLinkByEntities(input: {
-  sourceEntityType: EntityType;
-  sourceEntityId: string;
-  targetEntityType: EntityType;
-  targetEntityId: string;
-}): Promise<boolean> {
-  const response = await crmGraphQLRequest<{ deleteLinkByEntities: boolean }>({
-    query: DELETE_LINK_BY_ENTITIES,
-    variables: {
-      sourceEntityType: input.sourceEntityType,
-      sourceEntityId: input.sourceEntityId,
-      targetEntityType: input.targetEntityType,
-      targetEntityId: input.targetEntityId,
-    },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to delete link');
-  }
-
-  return true;
-}
+// Search functions are now imported and re-exported from central search API (components/lib/api/search.ts)
+// Link functions are re-exported from entity-links.ts
+export { createLink, deleteLink, deleteLinkByEntities } from '../../lib/graphql/entity-links';

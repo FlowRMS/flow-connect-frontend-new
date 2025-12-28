@@ -32,6 +32,8 @@ interface HeaderTopBarProps {
   setVisibleColumns: (columns: any) => void;
   setActiveView: (view: string) => void;
   // Actions
+  onSave: () => void;
+  isCreateMode?: boolean;
   updateOrderStatus: (status: Order['status']) => void;
   setShowQuoteLookupModal: (show: boolean) => void;
   handleMakeWarehouseOrder: () => void;
@@ -70,6 +72,8 @@ export function HeaderTopBar({
   setViewMode,
   setVisibleColumns,
   setActiveView,
+  onSave,
+  isCreateMode = false,
   updateOrderStatus,
   setShowQuoteLookupModal,
   handleMakeWarehouseOrder,
@@ -165,7 +169,7 @@ export function HeaderTopBar({
           </div>
 
           {/* Fulfillment Request Button */}
-          {order.lineItems.some(item => item.isWarehouseConsignment && !item.isCredit) && (
+          {(order.lineItems || []).some(item => item.isWarehouseConsignment && !item.isCredit) && (
             <button
               onClick={handleGenerateFulfillmentRequest}
               className="flex items-center gap-2 px-3 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 transition-colors"
@@ -355,14 +359,14 @@ export function HeaderTopBar({
             PDF
           </button>
 
-          {/* Save Button with Dropdown */}
+          {/* Save/Create Button with Dropdown */}
           <div className="relative">
             <div className="flex">
               <button
-                onClick={() => alert('Order saved!')}
+                onClick={onSave}
                 className="px-4 py-2 bg-green-600 text-white rounded-l-lg hover:bg-green-700 transition-colors text-sm font-medium"
               >
-                Save
+                {isCreateMode ? 'Create' : 'Save'}
               </button>
               <button
                 onClick={() => {
@@ -382,7 +386,7 @@ export function HeaderTopBar({
                 <div className="fixed inset-0 z-10" onClick={() => setShowSaveDropdown(false)} />
                 <div className="absolute top-full right-0 mt-1 w-52 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
                   <button
-                    onClick={() => { alert('Order saved!'); setShowSaveDropdown(false); }}
+                    onClick={() => { onSave(); setShowSaveDropdown(false); }}
                     className="w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors rounded-t-lg"
                   >
                     Save

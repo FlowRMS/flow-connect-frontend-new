@@ -64,7 +64,7 @@ export function OrderSplitsSection({
 
       {!editingSplits ? (
         <div className="space-y-2">
-          {order.splitRates.map((split, idx) => (
+          {(order.splitRates || []).map((split, idx) => (
             <div
               key={idx}
               className="flex items-center justify-between bg-[var(--muted)]/30 rounded-lg p-3"

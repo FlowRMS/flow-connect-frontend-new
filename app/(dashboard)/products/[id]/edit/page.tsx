@@ -1511,63 +1511,110 @@ export default function ProductEditPage() {
             </div>
           ) : quantityPricing.length === 0 ? (
             <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
-              <svg className="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <p className="text-gray-500">No quantity pricing tiers defined</p>
-              <p className="text-sm text-gray-400 mt-1">Add volume-based pricing tiers for this product</p>
+              <div className="w-14 h-14 bg-gradient-to-br from-green-100 to-emerald-100 rounded-xl flex items-center justify-center mx-auto mb-4">
+                <svg className="w-7 h-7 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="text-base font-medium text-gray-900 mb-1">No Quantity Pricing Tiers</h3>
+              <p className="text-sm text-gray-500 max-w-sm mx-auto">
+                Add volume-based pricing tiers to offer discounts for larger orders
+              </p>
             </div>
           ) : (
-            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity Range</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Price</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {quantityPricing
-                    .sort((a, b) => a.quantityLow - b.quantityLow)
-                    .map((tier) => (
-                    <tr key={tier.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3">
-                        <span className="text-sm font-medium text-gray-900">
-                          {tier.quantityLow.toLocaleString()} - {tier.quantityHigh.toLocaleString()} units
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {quantityPricing
+                .sort((a, b) => a.quantityLow - b.quantityLow)
+                .map((tier, index) => (
+                <div
+                  key={tier.id}
+                  className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md hover:border-gray-300 transition-all duration-200 group"
+                >
+                  {/* Tier Header */}
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                        index === 0
+                          ? 'bg-blue-100 text-blue-600'
+                          : index === 1
+                            ? 'bg-purple-100 text-purple-600'
+                            : index === 2
+                              ? 'bg-green-100 text-green-600'
+                              : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        <span className="text-sm font-bold">{index + 1}</span>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Tier {index + 1}</p>
+                        <p className="text-sm font-medium text-gray-900">Volume Discount</p>
+                      </div>
+                    </div>
+
+                    {/* Actions - visible on hover */}
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => startEditQuantityPricing(tier)}
+                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        title="Edit tier"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => setDeletingQuantityPricing(tier)}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Delete tier"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Quantity Range */}
+                  <div className="bg-gray-50 rounded-lg p-3 mb-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                        </svg>
+                        <span className="text-xs text-gray-500 font-medium">Quantity Range</span>
+                      </div>
+                    </div>
+                    <p className="text-lg font-semibold text-gray-900 mt-1">
+                      {tier.quantityLow.toLocaleString()} — {tier.quantityHigh.toLocaleString()}
+                    </p>
+                    <p className="text-xs text-gray-500">units</p>
+                  </div>
+
+                  {/* Price */}
+                  <div className="flex items-center justify-between bg-green-50 rounded-lg p-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span className="text-xs text-green-700 font-medium">Unit Price</span>
+                      </div>
+                      <p className="text-xl font-bold text-green-700 mt-1">
+                        {formatCurrency(tier.unitPrice)}
+                      </p>
+                    </div>
+                    {index > 0 && formData.unitPrice && tier.unitPrice < formData.unitPrice && (
+                      <div className="text-right">
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                          </svg>
+                          {Math.round((1 - tier.unitPrice / formData.unitPrice) * 100)}% off
                         </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-sm font-semibold text-green-600">
-                          {formatCurrency(tier.unitPrice)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => startEditQuantityPricing(tier)}
-                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                            title="Edit"
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => setDeletingQuantityPricing(tier)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                            title="Delete"
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 
@@ -1838,23 +1885,128 @@ export default function ProductEditPage() {
                 </div>
               </div>
 
-              {/* Parent/Grandparent Categories - Coming Soon */}
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <div className="flex items-center gap-2 mb-4">
-                  <h4 className="text-sm font-medium text-gray-900">Category Hierarchy</h4>
-                  <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">Coming Soon</span>
-                </div>
-                <div className="grid grid-cols-2 gap-4 opacity-50">
-                  <div className="p-4 bg-gray-50 rounded-lg">
-                    <p className="text-xs text-gray-500 mb-1">Parent Category</p>
-                    <p className="text-sm text-gray-400">Feature not yet available</p>
+              {/* Category Hierarchy */}
+              {(formData.category?.parent || formData.category?.grandparent) && (
+                <div className="mt-6 pt-6 border-t border-gray-200">
+                  <div className="flex items-center gap-2 mb-4">
+                    <h4 className="text-sm font-medium text-gray-900">Category Hierarchy</h4>
                   </div>
-                  <div className="p-4 bg-gray-50 rounded-lg">
-                    <p className="text-xs text-gray-500 mb-1">Grandparent Category</p>
-                    <p className="text-sm text-gray-400">Feature not yet available</p>
+
+                  {/* Beautiful Breadcrumb-style Hierarchy */}
+                  <div className="flex items-center gap-2 p-4 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl border border-purple-100">
+                    {formData.category?.grandparent && (
+                      <>
+                        <div className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg shadow-sm border border-purple-200">
+                          <div className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center">
+                            <svg className="w-3 h-3 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                            </svg>
+                          </div>
+                          <span className="text-sm font-medium text-gray-700">{formData.category.grandparent.title}</span>
+                          {formData.category.grandparent.commissionRate !== undefined && (
+                            <span className="text-xs text-purple-600 font-medium">
+                              {formatPercent(formData.category.grandparent.commissionRate)}
+                            </span>
+                          )}
+                        </div>
+                        <svg className="w-5 h-5 text-purple-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </>
+                    )}
+
+                    {formData.category?.parent && (
+                      <>
+                        <div className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg shadow-sm border border-indigo-200">
+                          <div className="w-6 h-6 bg-indigo-100 rounded-full flex items-center justify-center">
+                            <svg className="w-3 h-3 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                            </svg>
+                          </div>
+                          <span className="text-sm font-medium text-gray-700">{formData.category.parent.title}</span>
+                          {formData.category.parent.commissionRate !== undefined && (
+                            <span className="text-xs text-indigo-600 font-medium">
+                              {formatPercent(formData.category.parent.commissionRate)}
+                            </span>
+                          )}
+                        </div>
+                        <svg className="w-5 h-5 text-indigo-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </>
+                    )}
+
+                    {/* Current Category */}
+                    <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg shadow-sm">
+                      <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
+                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                        </svg>
+                      </div>
+                      <span className="text-sm font-semibold text-white">{formData.category.title}</span>
+                      {formData.category.commissionRate !== undefined && (
+                        <span className="text-xs text-white/80 font-medium">
+                          {formatPercent(formData.category.commissionRate)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Hierarchy Details Grid */}
+                  <div className="mt-4 grid grid-cols-3 gap-3">
+                    {formData.category?.grandparent && (
+                      <div className="p-3 bg-purple-50 rounded-lg border border-purple-100">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-5 h-5 bg-purple-100 rounded-full flex items-center justify-center">
+                            <span className="text-xs font-bold text-purple-600">1</span>
+                          </div>
+                          <p className="text-xs text-purple-600 font-medium">Grandparent</p>
+                        </div>
+                        <p className="text-sm font-medium text-gray-900">{formData.category.grandparent.title}</p>
+                        {formData.category.grandparent.commissionRate !== undefined && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Commission: {formatPercent(formData.category.grandparent.commissionRate)}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {formData.category?.parent && (
+                      <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-100">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-5 h-5 bg-indigo-100 rounded-full flex items-center justify-center">
+                            <span className="text-xs font-bold text-indigo-600">{formData.category?.grandparent ? '2' : '1'}</span>
+                          </div>
+                          <p className="text-xs text-indigo-600 font-medium">Parent</p>
+                        </div>
+                        <p className="text-sm font-medium text-gray-900">{formData.category.parent.title}</p>
+                        {formData.category.parent.commissionRate !== undefined && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Commission: {formatPercent(formData.category.parent.commissionRate)}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center">
+                          <span className="text-xs font-bold text-blue-600">
+                            {formData.category?.grandparent ? '3' : formData.category?.parent ? '2' : '1'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-blue-600 font-medium">Current</p>
+                      </div>
+                      <p className="text-sm font-medium text-gray-900">{formData.category?.title}</p>
+                      {formData.category?.commissionRate !== undefined && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Commission: {formatPercent(formData.category.commissionRate)}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           ) : (
             <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
