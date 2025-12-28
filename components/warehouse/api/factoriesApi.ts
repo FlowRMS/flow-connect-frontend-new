@@ -180,7 +180,7 @@ const FIND_FACTORIES_LANDING_PAGES = `
 
 const FIND_FACTORY_BY_ID = `
   query FindFactoryById($id: UUID!) {
-    findFactoryById(id: $id) {
+    factory(id: $id) {
       accountNumber
       additionalInformation
       baseCommissionRate
@@ -395,7 +395,7 @@ export async function fetchFactories(): Promise<FactoryLandingPage[]> {
  * Fetch a single factory by ID
  */
 export async function fetchFactoryById(id: string): Promise<Factory | null> {
-  const response = await crmGraphQLRequest<{ findFactoryById: Factory }>({
+  const response = await crmGraphQLRequest<{ factory: Factory }>({
     query: FIND_FACTORY_BY_ID,
     variables: { id },
   });
@@ -404,7 +404,7 @@ export async function fetchFactoryById(id: string): Promise<Factory | null> {
     throw new Error(response.errors[0]?.message || 'Failed to fetch factory');
   }
 
-  return response.data?.findFactoryById || null;
+  return response.data?.factory || null;
 }
 
 /**

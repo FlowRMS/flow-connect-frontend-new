@@ -19,6 +19,7 @@ import {
   type UserSearchResult,
   type ProductCpnResult,
   type ProductUomResult,
+  type JobSearchResult,
   // API Functions
   fetchQuotesWithPagination,
   fetchQuoteById,
@@ -33,6 +34,7 @@ import {
   searchUsers,
   listProductCpns,
   listProductUoms,
+  searchJobs,
 } from './quotesApi';
 
 // ============================================================================
@@ -61,6 +63,8 @@ export const quoteQueryKeys = {
     [...quoteQueryKeys.all, 'productCpns', { productId }] as const,
   productUoms: (productId?: string) =>
     [...quoteQueryKeys.all, 'productUoms', { productId }] as const,
+  jobSearch: (searchTerm: string) =>
+    [...quoteQueryKeys.all, 'jobSearch', { searchTerm }] as const,
 };
 
 // ============================================================================
@@ -189,13 +193,14 @@ export function useDeleteQuote() {
 
 /**
  * Create quote from pre-opportunity mutation
+ * @param preOpportunityDetailIds - Optional comma-separated list of detail IDs to include
  */
 export function useCreateQuoteFromPreOpportunity() {
   const queryClient = useQueryClient();
 
-  return useMutation<Quote, Error, { preOpportunityId: string; quoteNumber: string }>({
-    mutationFn: ({ preOpportunityId, quoteNumber }) =>
-      createQuoteFromPreOpportunity(preOpportunityId, quoteNumber),
+  return useMutation<Quote, Error, { preOpportunityId: string; quoteNumber: string; preOpportunityDetailIds?: string }>({
+    mutationFn: ({ preOpportunityId, quoteNumber, preOpportunityDetailIds }) =>
+      createQuoteFromPreOpportunity(preOpportunityId, quoteNumber, preOpportunityDetailIds),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: quoteQueryKeys.quotes() });
       queryClient.invalidateQueries({ queryKey: quoteQueryKeys.all });
@@ -286,6 +291,19 @@ export function useProductUoms(productId?: string, enabled: boolean = true) {
   });
 }
 
+/**
+ * Search jobs for dropdown selection
+ * Used to link quotes to jobs
+ */
+export function useJobSearch(searchTerm: string, enabled: boolean = true) {
+  return useQuery<JobSearchResult[], Error>({
+    queryKey: quoteQueryKeys.jobSearch(searchTerm || ''),
+    queryFn: () => searchJobs(searchTerm || '', 50),
+    enabled: enabled,
+    staleTime: 30 * 1000,
+  });
+}
+
 // ============================================================================
 // Re-export types for convenience
 // ============================================================================
@@ -318,7 +336,9 @@ export type {
   UserSearchResult,
   ProductCpnResult,
   ProductUomResult,
+  JobSearchResult,
+  QuoteJob,
 } from './quotesApi';
 
 // Re-export API functions for convenience
-export { searchUsers, searchProducts, searchCustomers, searchFactories, listProductCpns, listProductUoms } from './quotesApi';
+export { searchUsers, searchProducts, searchCustomers, searchFactories, listProductCpns, listProductUoms, searchJobs } from './quotesApi';

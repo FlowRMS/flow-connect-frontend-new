@@ -465,6 +465,39 @@ export const genericToasts = {
     }),
 };
 
+// Order Toasts
+export const orderToasts = {
+  createSuccess: (orderNumber: string) =>
+    showSuccessToast('Order Created', {
+      description: `${orderNumber} has been created successfully`,
+    }),
+
+  createError: (error?: string) =>
+    showErrorToast('Failed to Create Order', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  updateSuccess: (orderNumber: string) =>
+    showSuccessToast('Order Saved', {
+      description: `${orderNumber} has been updated successfully`,
+    }),
+
+  updateError: (error?: string) =>
+    showErrorToast('Failed to Save Order', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  deleteSuccess: (orderNumber: string) =>
+    showSuccessToast('Order Deleted', {
+      description: `${orderNumber} has been removed`,
+    }),
+
+  deleteError: (error?: string) =>
+    showErrorToast('Failed to Delete Order', {
+      description: error || 'Please try again or contact support',
+    }),
+};
+
 // Quote Toasts
 export const quoteToasts = {
   createSuccess: (quoteNumber: string) =>

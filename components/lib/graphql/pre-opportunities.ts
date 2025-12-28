@@ -90,23 +90,30 @@ const GET_PRE_OPPORTUNITY = `
         jobType
         description
         additionalInformation
-      structuralInformation
-      structuralDetails
-      startDate
-      endDate
-      requesterId
-      createdBy {
-        email
-        firstName
-        fullName
-        id
-        lastName
-      }
-      createdAt
-      status {
-        id
-        name
-      }
+        structuralInformation
+        structuralDetails
+        startDate
+        endDate
+        requesterId
+        createdBy {
+          authProviderId
+          email
+          enabled
+          firstName
+          fullName
+          id
+          inside
+          lastName
+          outside
+          role
+          username
+        }
+        createdAt
+        status {
+          id
+          name
+        }
+        tags
       }
       expDate
       acceptDate
@@ -114,6 +121,7 @@ const GET_PRE_OPPORTUNITY = `
       customerRef
       paymentTerms
       freightTerms
+      tags
       balance {
         id
         quantity
@@ -134,8 +142,17 @@ const GET_PRE_OPPORTUNITY = `
           description
           unitPrice
           defaultCommissionRate
+          commissionDiscountRate
+          defaultDivisor
           approvalNeeded
+          approvalComments
+          approvalDate
+          leadTime
+          minOrderQty
           published
+          tags
+          unitPriceDiscountRate
+          upc
         }
         quantity
         unitPrice
@@ -145,14 +162,31 @@ const GET_PRE_OPPORTUNITY = `
         total
         leadTime
         endUserId
+        quote {
+          id
+          quoteNumber
+          status
+          pipelineStage
+          entityDate
+          expDate
+          createdAt
+          published
+        }
       }
       createdBy {
+        authProviderId
         email
+        enabled
         firstName
         fullName
         id
+        inside
         lastName
+        outside
+        role
+        username
       }
+      createdById
       createdAt
     }
   }
@@ -176,6 +210,7 @@ const GET_PRE_OPPORTUNITIES_BY_JOB = `
       customerRef
       paymentTerms
       freightTerms
+      tags
       balance {
         id
         quantity
@@ -231,6 +266,7 @@ const GET_PRE_OPPORTUNITIES_BY_CUSTOMER = `
       customerRef
       paymentTerms
       freightTerms
+      tags
       balance {
         id
         quantity
@@ -348,23 +384,30 @@ const CREATE_PRE_OPPORTUNITY = `
         jobType
         description
         additionalInformation
-      structuralInformation
-      structuralDetails
-      startDate
-      endDate
-      requesterId
-      createdBy {
-        email
-        firstName
-        fullName
-        id
-        lastName
-      }
-      createdAt
-      status {
-        id
-        name
-      }
+        structuralInformation
+        structuralDetails
+        startDate
+        endDate
+        requesterId
+        createdBy {
+          authProviderId
+          email
+          enabled
+          firstName
+          fullName
+          id
+          inside
+          lastName
+          outside
+          role
+          username
+        }
+        createdAt
+        status {
+          id
+          name
+        }
+        tags
       }
       expDate
       acceptDate
@@ -372,6 +415,7 @@ const CREATE_PRE_OPPORTUNITY = `
       customerRef
       paymentTerms
       freightTerms
+      tags
       balance {
         id
         quantity
@@ -392,8 +436,17 @@ const CREATE_PRE_OPPORTUNITY = `
           description
           unitPrice
           defaultCommissionRate
+          commissionDiscountRate
+          defaultDivisor
           approvalNeeded
+          approvalComments
+          approvalDate
+          leadTime
+          minOrderQty
           published
+          tags
+          unitPriceDiscountRate
+          upc
         }
         quantity
         unitPrice
@@ -403,14 +456,31 @@ const CREATE_PRE_OPPORTUNITY = `
         total
         leadTime
         endUserId
+        quote {
+          id
+          quoteNumber
+          status
+          pipelineStage
+          entityDate
+          expDate
+          createdAt
+          published
+        }
       }
       createdBy {
+        authProviderId
         email
+        enabled
         firstName
         fullName
         id
+        inside
         lastName
+        outside
+        role
+        username
       }
+      createdById
       createdAt
     }
   }
@@ -434,23 +504,30 @@ const UPDATE_PRE_OPPORTUNITY = `
         jobType
         description
         additionalInformation
-      structuralInformation
-      structuralDetails
-      startDate
-      endDate
-      requesterId
-      createdBy {
-        email
-        firstName
-        fullName
-        id
-        lastName
-      }
-      createdAt
-      status {
-        id
-        name
-      }
+        structuralInformation
+        structuralDetails
+        startDate
+        endDate
+        requesterId
+        createdBy {
+          authProviderId
+          email
+          enabled
+          firstName
+          fullName
+          id
+          inside
+          lastName
+          outside
+          role
+          username
+        }
+        createdAt
+        status {
+          id
+          name
+        }
+        tags
       }
       expDate
       acceptDate
@@ -458,6 +535,7 @@ const UPDATE_PRE_OPPORTUNITY = `
       customerRef
       paymentTerms
       freightTerms
+      tags
       balance {
         id
         quantity
@@ -478,8 +556,17 @@ const UPDATE_PRE_OPPORTUNITY = `
           description
           unitPrice
           defaultCommissionRate
+          commissionDiscountRate
+          defaultDivisor
           approvalNeeded
+          approvalComments
+          approvalDate
+          leadTime
+          minOrderQty
           published
+          tags
+          unitPriceDiscountRate
+          upc
         }
         quantity
         unitPrice
@@ -489,14 +576,31 @@ const UPDATE_PRE_OPPORTUNITY = `
         total
         leadTime
         endUserId
+        quote {
+          id
+          quoteNumber
+          status
+          pipelineStage
+          entityDate
+          expDate
+          createdAt
+          published
+        }
       }
       createdBy {
+        authProviderId
         email
+        enabled
         firstName
         fullName
         id
+        inside
         lastName
+        outside
+        role
+        username
       }
+      createdById
       createdAt
     }
   }

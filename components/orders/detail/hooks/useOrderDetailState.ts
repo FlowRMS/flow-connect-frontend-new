@@ -2,14 +2,15 @@
  * useOrderDetailState Hook
  * Main state management hook for order detail
  * Integrates all sub-hooks and manages overall state
+ * Supports both create mode (orderId="new") and edit mode
  */
 
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { Order, OrderLineItem } from '@/lib/types/rms';
 import type { FulfillmentOrder } from '@/lib/types/warehouse';
-import type { TabType, LineItemAcknowledgement, LineItemCredit } from '../types';
-import { mockOrders } from '@/lib/data/rms-mock';
+import type { TabType, LineItemAcknowledgement, LineItemCredit, ColumnKey } from '../types';
 import { mockFulfillmentOrders } from '@/lib/data/warehouse-mock';
+import { useOrder, useUpdateOrder, useCreateOrder, searchUsers, searchFactories, searchCustomers, type Order as ApiOrder, type OrderDetail } from '../../api';
 import { DEFAULT_ACTIVE_TAB } from '../config/tabsConfig';
 import { useOrderHeader } from './useOrderHeader';
 import { useLineItemsTable } from './useLineItemsTable';
@@ -20,17 +21,348 @@ interface UseOrderDetailStateProps {
   orderId: string;
 }
 
+/**
+ * Create an empty order for create mode
+ */
+function createEmptyOrder(): Order {
+  return {
+    id: '',
+    orderNumber: '',
+    factorySoNumber: '',
+    manufacturerId: '',
+    manufacturerName: '',
+    customerId: '',
+    customerName: '',
+    jobId: undefined,
+    jobName: undefined,
+    status: 'draft',
+    fulfillmentStatus: 'not_started',
+    billingStatus: 'not_invoiced',
+    commissionStatus: 'pending',
+    orderDate: new Date().toISOString().split('T')[0],
+    entryDate: new Date().toISOString().split('T')[0],
+    shipDate: undefined,
+    dueDate: undefined,
+    requestedShipDate: undefined,
+    actualShipDate: undefined,
+    quoteId: undefined,
+    lineItems: [],
+    subtotal: 0,
+    freight: 0,
+    total: 0,
+    totalCommission: 0,
+    insideRepId: undefined,
+    insideRepName: '',
+    splitRates: [],
+    createdAt: new Date().toISOString(),
+    createdBy: '',
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Transform API Order detail to UI Order format
+ */
+function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
+  // Map line items from API format to UI format
+  const lineItems: OrderLineItem[] = (apiOrder.details || []).map((detail: OrderDetail, index: number) => ({
+    id: detail.id,
+    lineNumber: detail.itemNumber || index + 1,
+    productId: detail.productId || '',
+    partNumber: detail.product?.factoryPartNumber || detail.productNameAdhoc || '',
+    custPartNumber: '',
+    description: detail.product?.description || detail.productDescriptionAdhoc || '',
+    uom: detail.uom?.title || 'EA',
+    divisor: parseFloat(detail.divisionFactor || '1'),
+    quantity: parseFloat(detail.quantity || '0'),
+    unitPrice: parseFloat(detail.unitPrice || '0'),
+    extendedPrice: detail.subtotal || 0,
+    commissionRate: parseFloat(detail.commissionRate || '0') / 100, // API returns as percent, convert to decimal
+    commissionAmount: detail.commission || 0,
+    quantityShipped: detail.shippingBalance || 0,
+    quantityInvoiced: 0, // API doesn't provide this directly
+    quantityCredited: detail.cancelledBalance || 0,
+    isCancelled: detail.status === 'CANCELLED',
+    isConsignment: false,
+    status: detail.status === 'CANCELLED' ? 'cancelled' : detail.status === 'SHIPPED' ? 'shipped' : 'open',
+    // Store additional fields for line item
+    endUserId: detail.endUserId,
+    endUserName: '', // Will be fetched separately
+    splitRates: detail.splitRates, // Store outside rep split rates from line item
+  }));
+
+  // Extract outside rep from the first line item's splitRates (outside rep is stored per line item)
+  const firstDetailWithSplitRates = apiOrder.details?.find(d => d.splitRates && d.splitRates.length > 0);
+  const outsideRepSplitRate = firstDetailWithSplitRates?.splitRates?.[0];
+
+  // Build the order object with all API fields
+  const order: Order = {
+    id: apiOrder.id,
+    orderNumber: apiOrder.orderNumber,
+    factorySoNumber: apiOrder.factSoNumber,
+    manufacturerId: apiOrder.factoryId || '',
+    manufacturerName: '', // Will be fetched separately
+    customerId: apiOrder.soldToCustomerId || '',
+    customerName: apiOrder.soldToCustomer?.companyName || '',
+    jobId: apiOrder.job?.id,
+    jobName: apiOrder.job?.jobName,
+    status: mapApiStatusToUiStatus(apiOrder.headerStatus),
+    fulfillmentStatus: 'not_started', // API doesn't provide this directly
+    billingStatus: 'not_invoiced', // API doesn't provide this directly
+    commissionStatus: 'pending', // API doesn't provide this directly
+    orderDate: apiOrder.entityDate || '',
+    entryDate: apiOrder.entityDate,
+    shipDate: apiOrder.shipDate,
+    dueDate: apiOrder.dueDate,
+    requestedShipDate: apiOrder.projectedShipDate,
+    actualShipDate: apiOrder.shipDate,
+    quoteId: apiOrder.quoteId,
+    lineItems,
+    subtotal: apiOrder.balance?.subtotal || 0,
+    freight: apiOrder.balance?.freightChargeBalance || 0,
+    total: apiOrder.balance?.total || 0,
+    totalCommission: apiOrder.balance?.commission || 0,
+    insideRepId: apiOrder.insideReps?.[0]?.userId,
+    insideRepName: '', // Will be fetched separately
+    splitRates: (apiOrder.insideReps || []).map(rep => ({
+      salesRepId: rep.userId || '',
+      salesRepName: '', // Will be fetched separately
+      splitPercentage: parseFloat(rep.splitRate || '0'),
+      commissionAmount: 0, // Calculate from total commission
+    })),
+    createdAt: apiOrder.createdAt || '',
+    createdBy: apiOrder.createdBy?.fullName || apiOrder.createdBy?.username || '',
+    updatedAt: apiOrder.createdAt || '',
+  };
+
+  // Add extra fields from API that aren't in the base Order type
+  (order as any).billToCustomerId = apiOrder.billToCustomerId;
+  (order as any).billToCustomerName = apiOrder.billToCustomer?.companyName;
+  (order as any).shippingTerms = apiOrder.shippingTerms;
+  (order as any).freightTerms = apiOrder.freightTerms;
+  (order as any).markNumber = apiOrder.markNumber;
+  (order as any).orderType = apiOrder.orderType;
+
+  // Store outside rep info extracted from line items
+  (order as any).outsideRepId = outsideRepSplitRate?.userId;
+  (order as any).outsideRepName = ''; // Will be fetched separately
+  (order as any).outsideRepSplitRates = firstDetailWithSplitRates?.splitRates?.map(sr => ({
+    id: sr.id,
+    userId: sr.userId,
+    splitRate: sr.splitRate,
+    position: sr.position,
+  })) || [];
+
+  // Extract order-level endUser from line items
+  // If all line items have the same endUserId, set it at order level
+  const lineItemEndUserIds = lineItems
+    .map(li => (li as any).endUserId)
+    .filter((id): id is string => !!id);
+  const uniqueEndUserIds = [...new Set(lineItemEndUserIds)];
+  if (uniqueEndUserIds.length === 1) {
+    // All line items have the same endUserId
+    (order as any).endUserId = uniqueEndUserIds[0];
+    (order as any).endUserName = ''; // Will be fetched separately
+  } else if (uniqueEndUserIds.length === 0) {
+    // No end users set on line items
+    (order as any).endUserId = '';
+    (order as any).endUserName = '';
+  }
+
+  return order;
+}
+
+/**
+ * Map API status/headerStatus to UI status
+ */
+function mapApiStatusToUiStatus(headerStatus?: string): 'draft' | 'open' | 'partial_shipped' | 'shipped' | 'cancelled' | 'dormant' {
+  const hs = headerStatus?.toUpperCase();
+  switch (hs) {
+    case 'DRAFT':
+      return 'draft';
+    case 'OPEN':
+      return 'open';
+    case 'PARTIAL_SHIPPED':
+      return 'partial_shipped';
+    case 'SHIPPED':
+      return 'shipped';
+    case 'CANCELLED':
+      return 'cancelled';
+    case 'DORMANT':
+      return 'dormant';
+    default:
+      return 'open';
+  }
+}
+
 export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
-  // Orders data
-  const [orders, setOrders] = useState<Order[]>(mockOrders);
+  // Determine if we're in create mode
+  const isCreateMode = orderId === 'new';
+
+  // Fetch order from API (skip if create mode)
+  const { data: apiOrder, isLoading, error, refetch } = useOrder(isCreateMode ? null : orderId);
+  const updateOrderMutation = useUpdateOrder();
+  const createOrderMutation = useCreateOrder();
+
+  // Local order state for create mode or local edits
+  const [localOrder, setLocalOrder] = useState<Order>(() => createEmptyOrder());
+  // Track if we've made local edits in edit mode
+  const [hasLocalEdits, setHasLocalEdits] = useState(false);
+
+  // Transform API order to UI format, or use local order in create/edit mode
+  const order = useMemo(() => {
+    if (isCreateMode) {
+      return localOrder;
+    }
+    if (!apiOrder) return undefined;
+    // If we have local edits, use localOrder; otherwise transform from API
+    if (hasLocalEdits) {
+      return localOrder;
+    }
+    return transformApiOrderToUiOrder(apiOrder);
+  }, [isCreateMode, localOrder, apiOrder, hasLocalEdits]);
+
+  // Initialize localOrder when API data loads (for edit mode)
+  useEffect(() => {
+    if (!isCreateMode && apiOrder && !hasLocalEdits) {
+      const transformedOrder = transformApiOrderToUiOrder(apiOrder);
+      setLocalOrder(transformedOrder);
+
+      // Fetch factory name if we have a factoryId
+      if (transformedOrder.manufacturerId) {
+        searchFactories('', true)
+          .then((factories) => {
+            const factory = factories.find(f => f.id === transformedOrder.manufacturerId);
+            if (factory) {
+              setLocalOrder(prev => ({ ...prev, manufacturerName: factory.title }));
+            }
+          })
+          .catch((err) => console.error('Failed to fetch factory name:', err));
+      }
+
+      // Fetch inside rep name
+      if (transformedOrder.insideRepId) {
+        searchUsers({ searchTerm: '', isInside: true, enabled: true, limit: 100 })
+          .then((users) => {
+            const user = users.find(u => u.id === transformedOrder.insideRepId);
+            if (user) {
+              setLocalOrder(prev => ({
+                ...prev,
+                insideRepName: user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || '',
+              }));
+            }
+          })
+          .catch((err) => console.error('Failed to fetch inside rep name:', err));
+      }
+
+      // Fetch outside rep name from splitRates stored on order
+      const outsideRepId = (transformedOrder as any).outsideRepId;
+      if (outsideRepId) {
+        searchUsers({ searchTerm: '', isOutside: true, enabled: true, limit: 100 })
+          .then((users) => {
+            const user = users.find(u => u.id === outsideRepId);
+            if (user) {
+              setLocalOrder(prev => ({
+                ...prev,
+                outsideRepName: user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || '',
+              } as any));
+            }
+          })
+          .catch((err) => console.error('Failed to fetch outside rep name:', err));
+      }
+
+      // Fetch end user names for line items AND order-level end user
+      const endUserIds = new Set<string>();
+      transformedOrder.lineItems.forEach(li => {
+        if ((li as any).endUserId) endUserIds.add((li as any).endUserId);
+      });
+      // Also include order-level endUserId
+      const orderEndUserId = (transformedOrder as any).endUserId;
+      if (orderEndUserId) endUserIds.add(orderEndUserId);
+
+      if (endUserIds.size > 0) {
+        searchCustomers('', true)
+          .then((customers) => {
+            const customerMap = new Map(customers.map(c => [c.id, c.companyName]));
+            setLocalOrder(prev => {
+              const updated = {
+                ...prev,
+                lineItems: (prev.lineItems || []).map(li => ({
+                  ...li,
+                  endUserName: (li as any).endUserId ? customerMap.get((li as any).endUserId) || '' : '',
+                })),
+              };
+              // Also set order-level end user name
+              const prevOrderEndUserId = (prev as any).endUserId;
+              if (prevOrderEndUserId && customerMap.has(prevOrderEndUserId)) {
+                (updated as any).endUserName = customerMap.get(prevOrderEndUserId);
+              }
+              return updated;
+            });
+          })
+          .catch((err) => console.error('Failed to fetch end user names:', err));
+      }
+    }
+  }, [isCreateMode, apiOrder, hasLocalEdits]);
+
+  // Keep orders array for compatibility with existing code
+  const orders = useMemo(() => order ? [order] : [], [order]);
+
+  // Setter function that triggers API update or updates local state in create mode
+  const setOrders = (updater: Order[] | ((prev: Order[]) => Order[])) => {
+    if (isCreateMode) {
+      // In create mode, update local state
+      const newOrders = typeof updater === 'function' ? updater(orders) : updater;
+      if (newOrders.length > 0) {
+        setLocalOrder(newOrders[0]);
+      }
+    } else {
+      // For now, local state updates are optimistic
+      // In a full implementation, this would trigger updateOrderMutation
+    }
+  };
+
+  // Update local order directly (for field changes)
+  const updateLocalOrder = (updates: Partial<Order>) => {
+    if (!isCreateMode) setHasLocalEdits(true);
+    setLocalOrder(prev => ({ ...prev, ...updates }));
+  };
+
+  // Update line items (for both create and edit mode)
+  // Automatically recalculates totals when line items change
+  const updateLineItems = (items: OrderLineItem[]) => {
+    if (!isCreateMode) setHasLocalEdits(true);
+
+    // Recalculate each line item's extended price and commission
+    const updatedItems = items.map(item => {
+      const quantity = item.quantity || 0;
+      const unitPrice = item.unitPrice || 0;
+      const commissionRate = item.commissionRate || 0;
+      const extendedPrice = quantity * unitPrice;
+      const commissionAmount = extendedPrice * commissionRate;
+      return {
+        ...item,
+        extendedPrice,
+        commissionAmount,
+      };
+    });
+
+    // Calculate order totals
+    const subtotal = updatedItems.reduce((sum, item) => sum + (item.extendedPrice || 0), 0);
+    const totalCommission = updatedItems.reduce((sum, item) => sum + (item.commissionAmount || 0), 0);
+
+    setLocalOrder(prev => ({
+      ...prev,
+      lineItems: updatedItems,
+      subtotal,
+      total: subtotal + (prev.freight || 0),
+      totalCommission,
+    }));
+  };
+
+  // Fulfillment orders - keep mock for now (coming soon)
   const [fulfillmentOrders, setFulfillmentOrders] = useState<FulfillmentOrder[]>(
     mockFulfillmentOrders
-  );
-
-  // Get current order
-  const order = useMemo(
-    () => orders.find((o) => o.id === orderId),
-    [orders, orderId]
   );
 
   // Tab state
@@ -67,6 +399,32 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
 
   // Save dropdown (header)
   const [showSaveDropdown, setShowSaveDropdown] = useState(false);
+
+  // Additional details modal state (3-dots menu)
+  const [showAdditionalDetailsModal, setShowAdditionalDetailsModal] = useState(false);
+  const [additionalDetailsLineItem, setAdditionalDetailsLineItem] = useState<OrderLineItem | null>(null);
+
+  // Open additional details modal for a line item
+  const openAdditionalDetails = (lineItem: OrderLineItem) => {
+    setAdditionalDetailsLineItem(lineItem);
+    setShowAdditionalDetailsModal(true);
+  };
+
+  // Close additional details modal
+  const closeAdditionalDetails = () => {
+    setShowAdditionalDetailsModal(false);
+    setAdditionalDetailsLineItem(null);
+  };
+
+  // Save additional details for a line item
+  const saveAdditionalDetails = (updates: Partial<OrderLineItem>) => {
+    if (!additionalDetailsLineItem || !order) return;
+    const updatedItems = (order.lineItems || []).map((li) =>
+      li.id === additionalDetailsLineItem.id ? { ...li, ...updates } : li
+    );
+    updateLineItems(updatedItems);
+    closeAdditionalDetails();
+  };
 
   // Mock data for line item acknowledgements
   const [lineItemAcknowledgements] = useState<
@@ -176,7 +534,7 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
   // Check if order has freight line
   const hasFreightLine = useMemo(() => {
     return (
-      order?.lineItems.some((item) => item.partNumber === 'FREIGHT') || false
+      (order?.lineItems || []).some((item) => item.partNumber === 'FREIGHT')
     );
   }, [order]);
 
@@ -196,7 +554,7 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
   // Select all line items
   const selectAllLineItems = () => {
     if (!order) return;
-    setSelectedLineItems(toggleAllLineItems(order.lineItems, selectedLineItems));
+    setSelectedLineItems(toggleAllLineItems(order.lineItems || [], selectedLineItems));
   };
 
   // Clear selection
@@ -206,7 +564,7 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
 
   // Integrate header hook
   const headerState = useOrderHeader({
-    order: order!,
+    order,
     setOrders,
   });
 
@@ -219,15 +577,219 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
     clearSelection: clearLineItemSelection,
   });
 
-  if (!order) {
-    return null;
+  // Return loading/error state if order not available (skip for create mode - we have a local order)
+  if (!isCreateMode && (isLoading || error || !order)) {
+    // Stub function for all callbacks
+    const noop = () => {};
+    const noopWithArg = (_: any) => {};
+
+    return {
+      // Loading/Error state
+      isLoading,
+      error,
+      refetch,
+      isCreateMode: false,
+      order: null,
+      orders: [],
+      setOrders: noop,
+      updateLocalOrder: noop,
+      updateLineItems: noopWithArg,
+      fulfillmentOrders: [],
+      setFulfillmentOrders: noop,
+      activeTab: DEFAULT_ACTIVE_TAB,
+      setActiveTab: noop,
+      selectedLineItems: new Set<string>(),
+      toggleLineItemSelection: noop,
+      selectAllLineItems: noop,
+      clearLineItemSelection: noop,
+      showEndUserPerLine: false,
+      setShowEndUserPerLine: noop,
+      showOutsideRepPerLine: false,
+      setShowOutsideRepPerLine: noop,
+      showInsideRepPerLine: false,
+      setShowInsideRepPerLine: noop,
+      customerPartNumberSource: 'soldTo' as const,
+      setCustomerPartNumberSource: noop,
+      showSections: false,
+      setShowSections: noop,
+      showSectionsModal: false,
+      setShowSectionsModal: noop,
+      sectionDisplayMode: 'column' as const,
+      setSectionDisplayMode: noop,
+      showQuoteLookupModal: false,
+      setShowQuoteLookupModal: noop,
+      quoteLookupPartNumber: '',
+      setQuoteLookupPartNumber: noop,
+      quoteLookupQuoteNumber: '',
+      setQuoteLookupQuoteNumber: noop,
+      quoteLookupStartDate: '',
+      setQuoteLookupStartDate: noop,
+      quoteLookupEndDate: '',
+      setQuoteLookupEndDate: noop,
+      quoteLookupOpenOnly: false,
+      setQuoteLookupOpenOnly: noop,
+      quoteLookupBlanketOnly: false,
+      setQuoteLookupBlanketOnly: noop,
+      showSaveDropdown: false,
+      setShowSaveDropdown: noop,
+      showAdditionalDetailsModal: false,
+      additionalDetailsLineItem: null,
+      openAdditionalDetails: noopWithArg,
+      closeAdditionalDetails: noop,
+      saveAdditionalDetails: noopWithArg,
+      lineItemAcknowledgements: {},
+      lineItemCredits: {},
+      hasFreightLine: false,
+      createOrderMutation: null,
+      updateOrderMutation: null,
+
+      // Header state stubs
+      showHeaderFields: false,
+      setShowHeaderFields: noop,
+      toggleHeaderFields: noop,
+      viewMode: 'simple' as const,
+      setViewMode: noop,
+      showViewModeDropdown: false,
+      setShowViewModeDropdown: noop,
+      currentVersion: 1,
+      setCurrentVersion: noop,
+      showVersionDropdown: false,
+      setShowVersionDropdown: noop,
+      availableVersions: [],
+      setAvailableVersions: noop,
+      showStatusDropdown: false,
+      setShowStatusDropdown: noop,
+      updateOrderStatus: noop,
+      orderOutsideRep: '',
+      setOrderOutsideRep: noop,
+      splitOutsideCommission: false,
+      setSplitOutsideCommission: noop,
+      showOutsideRepSplitsModal: false,
+      openOutsideRepModal: noop,
+      closeOutsideRepModal: noop,
+      outsideRepSplits: [],
+      setOutsideRepSplits: noop,
+      orderInsideRep: '',
+      setOrderInsideRep: noop,
+      splitInsideCommission: false,
+      setSplitInsideCommission: noop,
+      showInsideRepSplitsModal: false,
+      openInsideRepModal: noop,
+      closeInsideRepModal: noop,
+      insideRepSplits: [],
+      setInsideRepSplits: noop,
+      editingSplits: false,
+      editedSplits: [],
+      startEditingSplits: noop,
+      cancelEditingSplits: noop,
+      saveSplits: noop,
+      updateSplitPercentage: noop,
+      splitPercentageTotal: 0,
+
+      // Table state stubs
+      visibleColumns: new Set<ColumnKey>(),
+      setVisibleColumns: noop,
+      visibleColumnsArray: [],
+      toggleColumn: noop,
+      pinnedColumns: new Set<ColumnKey>(),
+      setPinnedColumns: noop,
+      pinnedColumnsArray: [],
+      togglePinColumn: noop,
+      savedViews: [],
+      showViewsMenu: false,
+      setShowViewsMenu: noop,
+      activeView: '',
+      setActiveView: noop,
+      applyView: noop,
+      resetToDefaultView: noop,
+      showColumnsModal: false,
+      openColumnsModal: noop,
+      closeColumnsModal: noop,
+      invoiceTooltip: { visible: false, x: 0, y: 0, invoices: [] },
+      showInvoiceTooltip: noop,
+      hideInvoiceTooltip: noop,
+      setInvoiceTooltip: noop,
+      showActionsDropdown: false,
+      setShowActionsDropdown: noop,
+      isPinned: () => false,
+      getPinnedColumnStyle: () => ({}),
+
+      // Bulk actions stubs
+      showLineItemsBulkActionsMenu: false,
+      setShowLineItemsBulkActionsMenu: noop,
+      showLineCreditModal: false,
+      openCreditModal: noop,
+      closeCreditModal: noop,
+      saveCredit: noop,
+      creditName: '',
+      setCreditName: noop,
+      creditDate: '',
+      setCreditDate: noop,
+      creditNote: '',
+      setCreditNote: noop,
+      creditLineItems: [],
+      setCreditLineItems: noop,
+      showLineAcknowledgementModal: false,
+      openAcknowledgementModal: noop,
+      closeAcknowledgementModal: noop,
+      saveAcknowledgement: noop,
+      ackNumber: '',
+      setAckNumber: noop,
+      ackDate: '',
+      setAckDate: noop,
+      ackLineItems: [],
+      setAckLineItems: noop,
+      showSetOverageModal: false,
+      openOverageModal: noop,
+      closeOverageModal: noop,
+      saveOverage: noop,
+      bulkOveragePercent: '',
+      setBulkOveragePercent: noop,
+      showSetEndUserModal: false,
+      openEndUserModal: noop,
+      closeEndUserModal: noop,
+      saveEndUser: noop,
+      bulkEndUser: '',
+      setBulkEndUser: noop,
+      showSetOutsideRepSplitsModal: false,
+      openOutsideRepSplitsModal: noop,
+      closeOutsideRepSplitsModal: noop,
+      saveOutsideRepSplits: noop,
+      showWarehouseConversionModal: false,
+      openWarehouseConversionModal: noop,
+      closeWarehouseConversionModal: noop,
+      saveWarehouseConversion: noop,
+      warehouseConversionMode: 'all' as const,
+      setWarehouseConversionMode: noop,
+      productsToConvert: [],
+      setProductsToConvert: noop,
+      showFulfillmentRequestModal: false,
+      openFulfillmentRequestModal: noop,
+      closeFulfillmentRequestModal: noop,
+      saveFulfillmentRequest: noop,
+      fulfillmentRequestMode: 'all' as const,
+      setFulfillmentRequestMode: noop,
+      lineItemsForFulfillment: [],
+      setLineItemsForFulfillment: noop,
+    };
   }
 
   return {
+    // Loading/Error state
+    isLoading,
+    error,
+    refetch,
+    // Create mode flag
+    isCreateMode,
     // Order data
     order,
     orders,
     setOrders,
+    updateLocalOrder,
+    updateLineItems,
+    // Mutations
+    createOrderMutation,
+    updateOrderMutation,
     fulfillmentOrders,
     setFulfillmentOrders,
 
@@ -278,6 +840,13 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
     // Save dropdown
     showSaveDropdown,
     setShowSaveDropdown,
+
+    // Additional details modal (3-dots menu)
+    showAdditionalDetailsModal,
+    additionalDetailsLineItem,
+    openAdditionalDetails,
+    closeAdditionalDetails,
+    saveAdditionalDetails,
 
     // Mock data
     lineItemAcknowledgements,

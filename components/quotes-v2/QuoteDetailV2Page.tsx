@@ -35,7 +35,7 @@ import {
   useDeleteQuoteV2,
   useDuplicateQuoteV2,
 } from './api/quotesV2Api';
-import { searchUsers } from '../quotes/api/quotesApi';
+import { searchUsers, searchFactories, searchCustomers } from '../quotes/api/quotesApi';
 import { quoteToasts } from '../lib/toast';
 
 type TabType = 'lineItems' | 'notes' | 'tasks' | 'activity' | 'linkedObjects' | 'versions' | 'settings';
@@ -93,6 +93,44 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
           transformQuoteDetailToLineItemV2(detail, apiQuote.id)
         );
         setLineItems(transformedLineItems);
+
+        // Collect unique factory and end user IDs to fetch their names
+        const factoryIds = new Set<string>();
+        const endUserIds = new Set<string>();
+        transformedLineItems.forEach((li) => {
+          if (li.manufacturerId) factoryIds.add(li.manufacturerId);
+          if (li.endUserId) endUserIds.add(li.endUserId);
+        });
+
+        // Fetch factory names
+        if (factoryIds.size > 0) {
+          searchFactories('', true)
+            .then((factories) => {
+              const factoryMap = new Map(factories.map((f) => [f.id, f.title]));
+              setLineItems((prev) =>
+                prev.map((li) => ({
+                  ...li,
+                  manufacturerName: li.manufacturerId ? factoryMap.get(li.manufacturerId) || '' : '',
+                }))
+              );
+            })
+            .catch((err) => console.error('Failed to fetch factory names:', err));
+        }
+
+        // Fetch end user names
+        if (endUserIds.size > 0) {
+          searchCustomers('', true)
+            .then((customers) => {
+              const customerMap = new Map(customers.map((c) => [c.id, c.companyName]));
+              setLineItems((prev) =>
+                prev.map((li) => ({
+                  ...li,
+                  endUserName: li.endUserId ? customerMap.get(li.endUserId) || '' : '',
+                }))
+              );
+            })
+            .catch((err) => console.error('Failed to fetch end user names:', err));
+        }
       }
       setHasChanges(false);
 
@@ -109,6 +147,49 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
           .catch((err) => {
             console.error('Failed to fetch inside rep name:', err);
           });
+      }
+
+      // Extract outside reps from line item splitRates
+      // The backend stores outside reps in the splitRates of each line item
+      if (apiQuote.details && apiQuote.details.length > 0) {
+        // Get splitRates from the first line item (they should be the same across all line items)
+        const firstDetailWithSplitRates = apiQuote.details.find(d => d.splitRates && d.splitRates.length > 0);
+
+        if (firstDetailWithSplitRates?.splitRates && firstDetailWithSplitRates.splitRates.length > 0) {
+          const splitRates = firstDetailWithSplitRates.splitRates;
+
+          // Fetch outside users to get their names
+          searchUsers({ searchTerm: '', isOutside: true, enabled: true, limit: 100 })
+            .then((outsideUsers) => {
+              const outsideRepsFromSplitRates: { id: string; userId?: string; splitRate?: string; position?: number }[] = [];
+
+              // Map splitRates to outsideReps
+              splitRates.forEach(sr => {
+                if (sr.userId) {
+                  outsideRepsFromSplitRates.push({
+                    id: sr.id,
+                    userId: sr.userId,
+                    splitRate: sr.splitRate,
+                    position: sr.position,
+                  });
+                }
+              });
+
+              if (outsideRepsFromSplitRates.length > 0) {
+                const firstOutsideRep = outsideRepsFromSplitRates[0];
+                const matchingUser = outsideUsers.find(u => u.id === firstOutsideRep.userId);
+                setQuote((prev) => ({
+                  ...prev,
+                  outsideReps: outsideRepsFromSplitRates,
+                  outsideRepId: firstOutsideRep.userId,
+                  outsideRepName: matchingUser?.fullName || '',
+                }));
+              }
+            })
+            .catch((err) => {
+              console.error('Failed to fetch outside reps:', err);
+            });
+        }
       }
     }
   }, [apiQuote, isNew]);
@@ -167,10 +248,11 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       customerRef: quote.customerRef || undefined,
       expDate: quote.expirationDate || undefined,
       freightTerms: quote.freightTerms || undefined,
+      jobId: quote.jobId || undefined,
       paymentTerms: quote.paymentTerms || undefined,
       reviseDate: quote.revisedDate || undefined,
       details: lineItems.map((li, index) => ({
-        ...transformLineItemV2ToDetailInput(li),
+        ...transformLineItemV2ToDetailInput(li, quote.outsideReps),
         itemNumber: li.itemNumber ?? index + 1,
       })),
       insideReps: quote.insideReps?.map((rep) => ({
@@ -320,6 +402,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         hasChanges={hasChanges}
         isNew={isNew}
         lineItems={lineItems}
+        settings={settings}
       />
 
       {/* Tabs */}
@@ -359,6 +442,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
             onOpenAdditionalDetails={handleOpenAdditionalDetails}
             columnConfig={columnConfig}
             quoteId={quote.id}
+            settings={settings}
           />
         )}
 

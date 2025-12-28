@@ -10,11 +10,16 @@ import { crmGraphQLRequest } from '../../lib/crm-graphql';
 // Types
 // ============================================================================
 
-export interface ProductCategory {
+export interface ProductCategoryBase {
   id: string;
   title: string;
   commissionRate?: number;
   factoryId?: string;
+}
+
+export interface ProductCategory extends ProductCategoryBase {
+  parent?: ProductCategoryBase;
+  grandparent?: ProductCategoryBase;
 }
 
 export interface ProductUom {
@@ -233,6 +238,18 @@ const FIND_PRODUCT_BY_ID = `
         factoryId
         id
         title
+        parent {
+          id
+          title
+          commissionRate
+          factoryId
+        }
+        grandparent {
+          id
+          title
+          commissionRate
+          factoryId
+        }
       }
       defaultCommissionRate
       description
@@ -286,6 +303,18 @@ const PRODUCT_CATEGORIES = `
       factoryId
       id
       title
+      parent {
+        id
+        title
+        commissionRate
+        factoryId
+      }
+      grandparent {
+        id
+        title
+        commissionRate
+        factoryId
+      }
     }
   }
 `;
@@ -297,6 +326,18 @@ const PRODUCT_CATEGORY_SEARCH = `
       factoryId
       id
       title
+      parent {
+        id
+        title
+        commissionRate
+        factoryId
+      }
+      grandparent {
+        id
+        title
+        commissionRate
+        factoryId
+      }
     }
   }
 `;
@@ -316,6 +357,18 @@ const PRODUCT_SEARCH = `
         title
         commissionRate
         factoryId
+        parent {
+          id
+          title
+          commissionRate
+          factoryId
+        }
+        grandparent {
+          id
+          title
+          commissionRate
+          factoryId
+        }
       }
       uom {
         id
@@ -380,6 +433,18 @@ const CREATE_PRODUCT = `
         title
         commissionRate
         factoryId
+        parent {
+          id
+          title
+          commissionRate
+          factoryId
+        }
+        grandparent {
+          id
+          title
+          commissionRate
+          factoryId
+        }
       }
       uom {
         id
@@ -410,6 +475,18 @@ const UPDATE_PRODUCT = `
         title
         commissionRate
         factoryId
+        parent {
+          id
+          title
+          commissionRate
+          factoryId
+        }
+        grandparent {
+          id
+          title
+          commissionRate
+          factoryId
+        }
       }
       uom {
         id
@@ -438,6 +515,18 @@ const CREATE_PRODUCT_CATEGORY = `
       title
       commissionRate
       factoryId
+      parent {
+        id
+        title
+        commissionRate
+        factoryId
+      }
+      grandparent {
+        id
+        title
+        commissionRate
+        factoryId
+      }
     }
   }
 `;
@@ -449,6 +538,18 @@ const UPDATE_PRODUCT_CATEGORY = `
       title
       commissionRate
       factoryId
+      parent {
+        id
+        title
+        commissionRate
+        factoryId
+      }
+      grandparent {
+        id
+        title
+        commissionRate
+        factoryId
+      }
     }
   }
 `;

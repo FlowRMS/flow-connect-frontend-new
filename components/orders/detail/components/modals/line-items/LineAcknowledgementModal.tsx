@@ -115,7 +115,7 @@ export function LineAcknowledgementModal({
                       value={item.lineId}
                       onChange={(e) => {
                         const newItems = [...ackLineItems];
-                        const selectedLineItem = order.lineItems.find(li => li.id === e.target.value);
+                        const selectedLineItem = (order.lineItems || []).find(li => li.id === e.target.value);
                         if (selectedLineItem) {
                           newItems[index].lineId = selectedLineItem.id;
                           newItems[index].partNumber = selectedLineItem.partNumber || '';
@@ -127,7 +127,7 @@ export function LineAcknowledgementModal({
                       className="px-2 py-1 border border-[var(--border)] rounded text-sm bg-[var(--background)] w-full"
                     >
                       <option value="">Select line item...</option>
-                      {order.lineItems.filter(li => li.partNumber !== 'FREIGHT').map(li => (
+                      {(order.lineItems || []).filter(li => li.partNumber !== 'FREIGHT').map(li => (
                         <option key={li.id} value={li.id}>
                           {li.partNumber}
                         </option>

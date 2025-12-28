@@ -126,6 +126,21 @@ export interface QuoteInsideRep {
   userId?: string;
 }
 
+export interface QuoteJob {
+  id: string;
+  jobName: string;
+  jobType?: string;
+  description?: string;
+  additionalInformation?: string;
+  structuralInformation?: string;
+  structuralDetails?: string;
+  startDate?: string;
+  endDate?: string;
+  requesterId?: string;
+  createdAt?: string;
+  tags?: string;
+}
+
 export interface Quote {
   id: string;
   acceptDate?: string;
@@ -145,6 +160,7 @@ export interface Quote {
   expDate?: string;
   freightTerms?: string;
   insideReps?: QuoteInsideRep[];
+  job?: QuoteJob;
   paymentTerms?: string;
   pipelineStage?: QuotePipelineStage;
   published?: boolean;
@@ -215,6 +231,7 @@ export interface CreateQuoteInput {
   freightTerms?: string;
   id?: string;
   insideReps?: QuoteSplitRateInput[];
+  jobId?: string;
   paymentTerms?: string;
   reviseDate?: string;
 }
@@ -389,6 +406,20 @@ const FIND_QUOTE_BY_ID = `
         splitRate
         userId
       }
+      job {
+        id
+        jobName
+        jobType
+        description
+        additionalInformation
+        structuralInformation
+        structuralDetails
+        startDate
+        endDate
+        requesterId
+        createdAt
+        tags
+      }
       paymentTerms
       pipelineStage
       published
@@ -501,6 +532,20 @@ const CREATE_QUOTE = `
         splitRate
         userId
       }
+      job {
+        id
+        jobName
+        jobType
+        description
+        additionalInformation
+        structuralInformation
+        structuralDetails
+        startDate
+        endDate
+        requesterId
+        createdAt
+        tags
+      }
       paymentTerms
       pipelineStage
       published
@@ -609,6 +654,20 @@ const UPDATE_QUOTE = `
         splitRate
         userId
       }
+      job {
+        id
+        jobName
+        jobType
+        description
+        additionalInformation
+        structuralInformation
+        structuralDetails
+        startDate
+        endDate
+        requesterId
+        createdAt
+        tags
+      }
       paymentTerms
       pipelineStage
       published
@@ -658,8 +717,8 @@ const DELETE_QUOTE = `
 `;
 
 const CREATE_QUOTE_FROM_PRE_OPPORTUNITY = `
-  mutation CreateQuoteFromPreOpportunity($preOpportunityId: UUID!, $quoteNumber: String!) {
-    createQuoteFromPreOpportunity(preOpportunityId: $preOpportunityId, quoteNumber: $quoteNumber) {
+  mutation CreateQuoteFromPreOpportunity($preOpportunityId: UUID!, $quoteNumber: String!, $preOpportunityDetailIds: String) {
+    createQuoteFromPreOpportunity(preOpportunityId: $preOpportunityId, quoteNumber: $quoteNumber, preOpportunityDetailIds: $preOpportunityDetailIds) {
       id
       acceptDate
       balance {
@@ -793,16 +852,13 @@ const PRODUCT_SEARCH = `
       description
       unitPrice
       defaultCommissionRate
+      defaultDivisor
       approvalNeeded
       published
-      category {
-        id
-        title
-      }
-      factory {
-        id
-        title
-      }
+      leadTime
+      minOrderQty
+      commissionDiscountRate
+      unitPriceDiscountRate
     }
   }
 `;
@@ -900,10 +956,13 @@ export interface ProductSearchResult {
   description?: string;
   unitPrice?: number;
   defaultCommissionRate?: number;
-  approvalNeeded: boolean;
-  published: boolean;
-  category?: { id: string; title: string };
-  factory?: { id: string; title: string };
+  defaultDivisor?: number;
+  approvalNeeded?: boolean;
+  published?: boolean;
+  leadTime?: string;
+  minOrderQty?: number;
+  commissionDiscountRate?: number;
+  unitPriceDiscountRate?: number;
 }
 
 export interface FactorySearchResult {
@@ -1079,14 +1138,18 @@ export async function deleteQuote(id: string): Promise<boolean> {
 
 /**
  * Create a quote from a pre-opportunity
+ * @param preOpportunityId - The ID of the pre-opportunity
+ * @param quoteNumber - The quote number to assign
+ * @param preOpportunityDetailIds - Optional comma-separated list of detail IDs to include (if not provided, all details are included)
  */
 export async function createQuoteFromPreOpportunity(
   preOpportunityId: string,
-  quoteNumber: string
+  quoteNumber: string,
+  preOpportunityDetailIds?: string
 ): Promise<Quote> {
   const response = await crmGraphQLRequest<{ createQuoteFromPreOpportunity: Quote }>({
     query: CREATE_QUOTE_FROM_PRE_OPPORTUNITY,
-    variables: { preOpportunityId, quoteNumber },
+    variables: { preOpportunityId, quoteNumber, preOpportunityDetailIds },
   });
 
   if (response.errors) {
@@ -1128,9 +1191,18 @@ export async function searchProducts(
   factoryId?: string,
   limit?: number
 ): Promise<ProductSearchResult[]> {
+  // Only include factoryId if it's a non-empty string (avoid sending empty string as UUID)
+  const variables: { searchTerm: string; factoryId?: string; limit: number } = {
+    searchTerm,
+    limit: limit ?? 50,
+  };
+  if (factoryId && factoryId.trim() !== '') {
+    variables.factoryId = factoryId;
+  }
+
   const response = await crmGraphQLRequest<{ productSearch: ProductSearchResult[] }>({
     query: PRODUCT_SEARCH,
-    variables: { searchTerm, factoryId, limit: limit ?? 50 },
+    variables,
   });
 
   if (response.errors) {
@@ -1214,4 +1286,100 @@ export async function listProductUoms(productId?: string): Promise<ProductUomRes
   }
 
   return response.data?.productUoms || [];
+}
+
+// ============================================================================
+// Job Search Types and API
+// ============================================================================
+
+export interface JobSearchResult {
+  id: string;
+  jobName: string;
+  jobType?: string;
+  description?: string;
+  startDate?: string;
+  endDate?: string;
+  status?: { id: string; name?: string };
+  requesterId?: string;
+  additionalInformation?: string;
+  structuralDetails?: string;
+  structuralInformation?: string;
+  tags?: string;
+  createdAt?: string;
+  createdBy?: string;
+}
+
+const JOB_SEARCH = `
+  query JobSearch($searchTerm: String!, $limit: Int) {
+    jobSearch(searchTerm: $searchTerm, limit: $limit) {
+      id
+      jobName
+      jobType
+      description
+      startDate
+      endDate
+      status {
+        id
+        name
+      }
+      requesterId
+      additionalInformation
+      structuralDetails
+      structuralInformation
+      tags
+      createdAt
+      createdBy {
+        fullName
+      }
+    }
+  }
+`;
+
+interface JobSearchApiResult {
+  id: string;
+  jobName: string;
+  jobType?: string;
+  description?: string;
+  startDate?: string;
+  endDate?: string;
+  status?: { id: string; name?: string };
+  requesterId?: string;
+  additionalInformation?: string;
+  structuralDetails?: string;
+  structuralInformation?: string;
+  tags?: string;
+  createdAt?: string;
+  createdBy?: { fullName?: string };
+}
+
+/**
+ * Search jobs for dropdowns
+ */
+export async function searchJobs(searchTerm: string, limit?: number): Promise<JobSearchResult[]> {
+  const response = await crmGraphQLRequest<{ jobSearch: JobSearchApiResult[] }>({
+    query: JOB_SEARCH,
+    variables: { searchTerm, limit: limit ?? 50 },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search jobs');
+  }
+
+  // Format createdBy to be a string
+  return (response.data?.jobSearch || []).map(job => ({
+    id: job.id,
+    jobName: job.jobName,
+    jobType: job.jobType,
+    description: job.description,
+    startDate: job.startDate,
+    endDate: job.endDate,
+    status: job.status,
+    requesterId: job.requesterId,
+    additionalInformation: job.additionalInformation,
+    structuralDetails: job.structuralDetails,
+    structuralInformation: job.structuralInformation,
+    tags: job.tags,
+    createdAt: job.createdAt,
+    createdBy: job.createdBy?.fullName,
+  }));
 }

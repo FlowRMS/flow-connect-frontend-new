@@ -41,6 +41,11 @@ interface OrderDetailHeaderProps {
   insideRepSplits: RepSplit[];
   setInsideRepSplits: (splits: RepSplit[]) => void;
   openInsideRepModal: () => void;
+  // New props for field updates
+  onUpdateOrder?: (updates: Partial<Order>) => void;
+  isCreateMode?: boolean;
+  // End user setting
+  showEndUserPerLine?: boolean;
   // Additional props needed for HeaderTopBar
   showActionsDropdown?: boolean;
   setShowActionsDropdown?: (show: boolean) => void;
@@ -87,6 +92,11 @@ export function OrderDetailHeader(props: OrderDetailHeaderProps) {
     insideRepSplits,
     setInsideRepSplits,
     openInsideRepModal,
+    // New props for field updates
+    onUpdateOrder,
+    isCreateMode = false,
+    // End user setting
+    showEndUserPerLine = false,
     // Additional props with defaults
     showActionsDropdown = false,
     setShowActionsDropdown = () => {},
@@ -109,7 +119,7 @@ export function OrderDetailHeader(props: OrderDetailHeaderProps) {
   // Calculate totals
   const totals = React.useMemo(() => {
     // Filter product lines (non-freight)
-    const productLines = order.lineItems.filter(item => item.partNumber !== 'FREIGHT');
+    const productLines = (order.lineItems || []).filter(item => item.partNumber !== 'FREIGHT');
 
     const subtotal = order.subtotal;
     const freight = order.freight;
@@ -148,6 +158,8 @@ export function OrderDetailHeader(props: OrderDetailHeaderProps) {
         setViewMode={setViewMode}
         setVisibleColumns={setVisibleColumns}
         setActiveView={setActiveView}
+        onSave={onSave}
+        isCreateMode={isCreateMode}
         updateOrderStatus={updateOrderStatus}
         setShowQuoteLookupModal={setShowQuoteLookupModal}
         handleMakeWarehouseOrder={handleMakeWarehouseOrder}
@@ -178,6 +190,9 @@ export function OrderDetailHeader(props: OrderDetailHeaderProps) {
         insideRepSplits={insideRepSplits}
         setInsideRepSplits={setInsideRepSplits}
         openInsideRepModal={openInsideRepModal}
+        onUpdateOrder={onUpdateOrder}
+        isCreateMode={isCreateMode}
+        showEndUserPerLine={showEndUserPerLine}
       />
     </>
   );

@@ -25,9 +25,11 @@ import {
   InsideRepSplitsModal,
   WarehouseConversionModal,
   FulfillmentRequestModal,
+  AdditionalDetailsModal,
 } from './components/modals';
 import { getLinkedInvoicesForLineItem, getLinkedChecksForInvoice, getLineShipStatus } from './utils';
 import { mockInvoices, mockChecks } from '@/lib/data/rms-mock';
+import { orderToasts } from '@/components/lib/toast';
 
 interface OrderDetailContentProps {
   orderId: string;
@@ -37,7 +39,53 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   const router = useRouter();
   const state = useOrderDetailState({ orderId });
 
-  if (!state || !state.order) {
+  // Loading state
+  if (state?.isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-[var(--background)]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--primary)] mx-auto mb-4" />
+          <p className="text-sm text-[var(--muted-foreground)]">Loading order...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (state?.error) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-[var(--background)]">
+        <div className="text-center">
+          <div className="text-red-500 mb-4">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mx-auto">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+          </div>
+          <h2 className="text-lg font-semibold text-[var(--foreground)] mb-2">Error Loading Order</h2>
+          <p className="text-sm text-[var(--muted-foreground)] mb-4">{state.error.message}</p>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={() => state.refetch()}
+              className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-sm hover:bg-[var(--primary-hover)] transition-colors"
+            >
+              Try Again
+            </button>
+            <button
+              onClick={() => router.push('/orders')}
+              className="px-4 py-2 border border-[var(--border)] rounded-lg text-sm hover:bg-[var(--muted)] transition-colors"
+            >
+              Back to Orders
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Only show "not found" for edit mode when order is missing
+  if (!state || (!state.isCreateMode && !state.order)) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
@@ -58,8 +106,134 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
     );
   }
 
-  const handleSave = () => {
-    alert('Order saved successfully');
+  // For create mode, we have an empty order from the hook
+  const isCreateMode = state.isCreateMode;
+
+  // At this point, order should be defined (either from API or create mode)
+  // Use non-null assertion since we've handled null case above
+  const order = state.order!;
+
+  const handleSave = async () => {
+    if (!order) return;
+
+    try {
+      // Helper to check if ID is a valid UUID (from API)
+      const isValidUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
+      // Build inside reps array from insideRepId
+      const insideReps = order.insideRepId ? [{
+        userId: order.insideRepId,
+        splitRate: '100',
+        position: 0,
+      }] : undefined;
+
+      // Get outside rep from order (stored as outsideRepId on the order)
+      const outsideRepId = (order as any).outsideRepId || state.orderOutsideRep;
+      const outsideRepSplitRates = outsideRepId ? [{
+        userId: outsideRepId,
+        splitRate: '100',
+        position: 0,
+      }] : undefined;
+
+      // Get order-level endUserId (used when not in per-line mode)
+      const orderEndUserId = (order as any).endUserId;
+
+      // Build details with proper splitRates for outside rep
+      const buildDetails = (includeId: boolean) => (order.lineItems || []).map((item, index) => {
+        const detail: any = {
+          itemNumber: item.lineNumber || index + 1,
+          quantity: String(item.quantity || 0),
+          unitPrice: String(item.unitPrice || 0),
+          productId: item.productId || undefined,
+          productNameAdhoc: item.partNumber || undefined,
+          productDescriptionAdhoc: item.description || undefined,
+          commissionRate: String((item.commissionRate || 0) * 100), // Convert decimal to percent for API
+          divisionFactor: item.divisor ? String(item.divisor) : undefined,
+          // Include outside rep splitRates on each line item
+          splitRates: outsideRepSplitRates,
+        };
+        // Get endUserId: use line-item level if set, otherwise fall back to order-level
+        const lineEndUserId = (item as any).endUserId;
+        const endUserIdToUse = (lineEndUserId && isValidUUID(lineEndUserId))
+          ? lineEndUserId
+          : (orderEndUserId && isValidUUID(orderEndUserId) ? orderEndUserId : undefined);
+
+        if (endUserIdToUse) {
+          detail.endUserId = endUserIdToUse;
+        }
+        // Only include id for existing items (update mode)
+        if (includeId && item.id && isValidUUID(item.id)) {
+          detail.id = item.id;
+        }
+        return detail;
+      });
+
+      if (isCreateMode) {
+        // Create new order
+        const createInput = {
+          orderNumber: order.orderNumber || `ORD-${Date.now()}`,
+          entityDate: order.orderDate || new Date().toISOString().split('T')[0],
+          soldToCustomerId: order.customerId || '',
+          billToCustomerId: (order as any).billToCustomerId || undefined,
+          factoryId: order.manufacturerId || undefined,
+          dueDate: order.dueDate || undefined,
+          shipDate: order.shipDate || undefined,
+          projectedShipDate: order.requestedShipDate || undefined,
+          quoteId: order.quoteId || undefined,
+          factSoNumber: order.factorySoNumber || undefined,
+          freightTerms: (order as any).freightTerms || undefined,
+          shippingTerms: (order as any).shippingTerms || undefined,
+          markNumber: (order as any).markNumber || undefined,
+          orderType: ((order as any).orderType || 'NORMAL') as 'NORMAL' | 'BLANKET' | 'RELEASE',
+          creationType: 'MANUAL' as const,
+          published: (order as any).published !== false,
+          insideReps,
+          details: buildDetails(false),
+        };
+
+        console.log('Creating order with input:', createInput);
+        const result = await state.createOrderMutation.mutateAsync(createInput);
+        console.log('Order created:', result);
+        orderToasts.createSuccess(result.orderNumber || createInput.orderNumber);
+        router.push('/orders');
+      } else {
+        // Update existing order
+        if (state.updateOrderMutation) {
+          const updateInput = {
+            id: order.id,
+            orderNumber: order.orderNumber,
+            entityDate: order.orderDate || new Date().toISOString().split('T')[0],
+            soldToCustomerId: order.customerId || '',
+            billToCustomerId: (order as any).billToCustomerId || undefined,
+            factoryId: order.manufacturerId || undefined,
+            dueDate: order.dueDate || undefined,
+            shipDate: order.shipDate || undefined,
+            projectedShipDate: order.requestedShipDate || undefined,
+            quoteId: order.quoteId || undefined,
+            factSoNumber: order.factorySoNumber || undefined,
+            freightTerms: (order as any).freightTerms || undefined,
+            shippingTerms: (order as any).shippingTerms || undefined,
+            markNumber: (order as any).markNumber || undefined,
+            orderType: ((order as any).orderType || 'NORMAL') as 'NORMAL' | 'BLANKET' | 'RELEASE',
+            creationType: 'MANUAL' as const,
+            published: (order as any).published !== false,
+            insideReps,
+            details: buildDetails(true),
+          };
+
+          await state.updateOrderMutation.mutateAsync(updateInput);
+          orderToasts.updateSuccess(order.orderNumber);
+        }
+      }
+    } catch (error) {
+      console.error('Error saving order:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      if (isCreateMode) {
+        orderToasts.createError(errorMessage);
+      } else {
+        orderToasts.updateError(errorMessage);
+      }
+    }
   };
 
   const handleDelete = () => {
@@ -125,7 +299,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
     <main className="flex flex-col h-screen bg-[var(--background)]">
       {/* Header */}
       <OrderDetailHeader
-        order={state.order}
+        order={order}
         showHeaderFields={state.showHeaderFields}
         toggleHeaderFields={state.toggleHeaderFields}
         viewMode={state.viewMode}
@@ -150,6 +324,9 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         insideRepSplits={state.insideRepSplits}
         setInsideRepSplits={state.setInsideRepSplits}
         openInsideRepModal={state.openInsideRepModal}
+        onUpdateOrder={state.updateLocalOrder}
+        isCreateMode={isCreateMode}
+        showEndUserPerLine={state.showEndUserPerLine}
         showActionsDropdown={state.showActionsDropdown}
         setShowActionsDropdown={state.setShowActionsDropdown}
         showStatusDropdown={state.showStatusDropdown}
@@ -172,7 +349,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         <div className="flex items-center justify-between gap-1 mb-6 border-b border-[var(--border)] flex-shrink-0 bg-white pt-4 px-4 -mx-6 -mt-6">
           <div className="flex gap-1">
             {[
-              { id: 'line-items', label: 'Line Items', count: state.order.lineItems.length },
+              { id: 'line-items', label: 'Line Items', count: (order.lineItems || []).length },
               { id: 'credits', label: 'Credits' },
               { id: 'acknowledgements', label: 'Acknowledgements' },
               { id: 'notes', label: 'Notes' },
@@ -285,7 +462,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         <div className="flex-1 overflow-auto">
           {state.activeTab === 'line-items' && (
             <LineItemsTable
-              order={state.order}
+              order={order}
               selectedLineItems={state.selectedLineItems}
               onToggleLineItemSelection={state.toggleLineItemSelection}
               onToggleAllLineItems={state.selectAllLineItems}
@@ -311,6 +488,9 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               onAddCredit={handleAddCredit}
               onAddAcknowledgement={handleAddAcknowledgement}
               onDeleteLines={handleDeleteLines}
+              onUpdateLineItems={state.updateLineItems}
+              showEndUserPerLine={state.showEndUserPerLine}
+              onOpenAdditionalDetails={state.openAdditionalDetails}
             />
           )}
 
@@ -384,7 +564,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
       <LineCreditModal
         isOpen={state.showLineCreditModal}
         onClose={state.closeCreditModal}
-        order={state.order}
+        order={order}
         onSubmit={() => {
           alert('Credit added successfully');
           state.closeCreditModal();
@@ -395,7 +575,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
       <LineAcknowledgementModal
         isOpen={state.showLineAcknowledgementModal}
         onClose={state.closeAcknowledgementModal}
-        order={state.order}
+        order={order}
         onSubmit={() => {
           alert('Acknowledgement added successfully');
           state.closeAcknowledgementModal();
@@ -481,6 +661,15 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           alert('Fulfillment request generated');
           state.closeFulfillmentRequestModal();
         }}
+      />
+
+      {/* Additional Details Modal (3-dots menu) */}
+      <AdditionalDetailsModal
+        isOpen={state.showAdditionalDetailsModal}
+        onClose={state.closeAdditionalDetails}
+        lineItem={state.additionalDetailsLineItem}
+        onSave={state.saveAdditionalDetails}
+        showEndUserPerLine={state.showEndUserPerLine}
       />
     </main>
   );

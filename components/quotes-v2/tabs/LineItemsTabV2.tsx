@@ -2,8 +2,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import type { LineItemV2, ColumnConfig, LineItemColumnKey } from '../types';
-import { useProductSearch, useFactorySearch, useProductCpns, useProductUoms } from '../../quotes/api/useQuotesApi';
+import type { LineItemV2, ColumnConfig, LineItemColumnKey, QuoteSettingsV2 } from '../types';
+import { useProductSearch, useFactorySearch, useProductCpns, useCustomerSearch } from '../../quotes/api/useQuotesApi';
 
 interface LineItemsTabV2Props {
   lineItems: LineItemV2[];
@@ -12,6 +12,7 @@ interface LineItemsTabV2Props {
   onOpenAdditionalDetails: (item: LineItemV2) => void;
   columnConfig: ColumnConfig[];
   quoteId?: string;
+  settings?: QuoteSettingsV2;
 }
 
 export function LineItemsTabV2({
@@ -21,6 +22,7 @@ export function LineItemsTabV2({
   onOpenAdditionalDetails,
   columnConfig,
   quoteId,
+  settings,
 }: LineItemsTabV2Props) {
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [showSectionsMenu, setShowSectionsMenu] = useState(false);
@@ -29,18 +31,25 @@ export function LineItemsTabV2({
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
-  // Debounce search query
+  // Debounce search query - immediately trigger on dropdown open (when searchQuery is empty)
   useEffect(() => {
+    // If searchQuery is empty (dropdown just opened), update immediately
+    if (searchQuery === '') {
+      setDebouncedSearch('');
+      return;
+    }
+    // Otherwise debounce to avoid too many API calls while typing
     const timer = setTimeout(() => {
       setDebouncedSearch(searchQuery);
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Determine if we need product, factory, or CPN search based on open dropdown
+  // Determine if we need product, factory, CPN, or end user search based on open dropdown
   const isProductDropdown = dropdownOpen && ['partNumber', 'description'].includes(dropdownOpen.column);
   const isFactoryDropdown = dropdownOpen?.column === 'manufacturer';
   const isCpnDropdown = dropdownOpen?.column === 'customerPartNumber';
+  const isEndUserDropdown = dropdownOpen?.column === 'endUser' && settings?.specifyEndUserPerLine;
 
   // Get current line item's productId for CPN search
   const currentLineItem = dropdownOpen ? lineItems.find(li => li.id === dropdownOpen.itemId) : null;
@@ -60,28 +69,24 @@ export function LineItemsTabV2({
     currentProductId || '',
     isCpnDropdown && !!currentProductId
   );
+  // End user search (customers)
+  const { data: endUserResults = [], isLoading: endUsersLoading } = useCustomerSearch(
+    debouncedSearch,
+    isEndUserDropdown ?? false
+  );
 
-  // Fetch UOMs for selected product (used when selecting a product)
-  const { data: productUoms = [] } = useProductUoms(currentProductId, !!currentProductId);
-
-  // When product UOMs are loaded and there's a current line item without UOM set from product, update it
-  useEffect(() => {
-    if (productUoms.length > 0 && currentLineItem && currentProductId) {
-      const defaultUom = productUoms[0];
-      // Only update if the line item's current UOM is the default 'EA' or empty
-      if (currentLineItem.uom === 'EA' || !currentLineItem.uom) {
-        updateLineItem(currentLineItem.id, {
-          uom: defaultUom.title || 'EA',
-          uomId: defaultUom.id,
-          divisor: defaultUom.divisionFactor || 1,
-        });
-      }
-    }
-  }, [productUoms, currentProductId]);
+  // Note: UOMs are now handled at product selection time - no need to fetch separately
+  // The product's defaultDivisor is used directly when a product is selected
 
   const visibleColumns = useMemo(
-    () => columnConfig.filter((c) => c.visible),
-    [columnConfig]
+    () => columnConfig.filter((c) => {
+      // Always show End User column when specifyEndUserPerLine is enabled
+      if (c.key === 'endUser' && settings?.specifyEndUserPerLine) {
+        return true;
+      }
+      return c.visible;
+    }),
+    [columnConfig, settings?.specifyEndUserPerLine]
   );
 
   const toggleSelectAll = () => {
@@ -109,7 +114,11 @@ export function LineItemsTabV2({
   };
 
   const handleCellClick = (itemId: string, column: LineItemColumnKey, e: React.MouseEvent) => {
+    // Add endUser to dropdown columns when specifying per line
     const dropdownColumns: LineItemColumnKey[] = ['partNumber', 'customerPartNumber', 'description', 'manufacturer'];
+    if (settings?.specifyEndUserPerLine) {
+      dropdownColumns.push('endUser');
+    }
     if (dropdownColumns.includes(column)) {
       const rect = e.currentTarget.getBoundingClientRect();
       setDropdownOpen({
@@ -219,7 +228,11 @@ export function LineItemsTabV2({
   const renderCell = (item: LineItemV2, column: ColumnConfig) => {
     const isEditing = editingCell?.itemId === item.id && editingCell?.column === column.key;
     const isDropdown = dropdownOpen?.itemId === item.id && dropdownOpen?.column === column.key;
+    // Add endUser to dropdown columns when specifying per line
     const dropdownColumns: LineItemColumnKey[] = ['partNumber', 'customerPartNumber', 'description', 'manufacturer'];
+    if (settings?.specifyEndUserPerLine) {
+      dropdownColumns.push('endUser');
+    }
     const isDropdownColumn = dropdownColumns.includes(column.key);
 
     let displayValue = '';
@@ -271,14 +284,18 @@ export function LineItemsTabV2({
         displayValue = item.linkedOrderNumber || '—';
         break;
       case 'endUser':
-        displayValue = item.endUserName || '—';
+        displayValue = item.endUserName || (settings?.specifyEndUserPerLine ? 'Select...' : '—');
         break;
       default:
         displayValue = '—';
     }
 
-    // Read-only cells
-    if (['sellTotal', 'commission', 'commissionTotal', 'linkedOrder', 'endUser'].includes(column.key)) {
+    // Read-only cells - endUser is editable when specifyEndUserPerLine is true
+    const readOnlyCells = ['sellTotal', 'commission', 'commissionTotal', 'linkedOrder'];
+    if (!settings?.specifyEndUserPerLine) {
+      readOnlyCells.push('endUser');
+    }
+    if (readOnlyCells.includes(column.key)) {
       return (
         <td key={column.key} className="px-3 py-2 text-sm text-center">
           <span className={column.key === 'commissionTotal' ? 'font-medium text-purple-600' : ''}>
@@ -537,7 +554,7 @@ export function LineItemsTabV2({
                           // Get current line item to calculate derived values
                           const item = lineItems.find(li => li.id === dropdownOpen.itemId);
                           const quantity = item?.quantity || 1;
-                          const divisor = item?.divisor || 1;
+                          const divisor = product.defaultDivisor || item?.divisor || 1;
                           const unitPrice = product.unitPrice || 0;
                           const commissionRate = product.defaultCommissionRate || 0;
 
@@ -547,14 +564,14 @@ export function LineItemsTabV2({
                           const commissionTotal = sellTotal * commissionRate;
 
                           // Update with basic product info, calculations, and clear CPN since product changed
+                          // Note: Factory info not available in ProductLiteResponse - manufacturer will be set separately
                           updateLineItem(dropdownOpen.itemId, {
                             productId: product.id,
                             partNumber: product.factoryPartNumber || '',
                             description: product.description || '',
-                            manufacturerId: product.factory?.id,
-                            manufacturerName: product.factory?.title || '',
                             unitPrice: unitPrice,
                             commissionPercent: commissionRate,
+                            divisor: divisor,
                             customerPartNumber: '', // Clear CPN when product changes
                             sellTotal: sellTotal,
                             commission: commission,
@@ -568,8 +585,8 @@ export function LineItemsTabV2({
                       >
                         <div className="font-mono text-sm font-medium">{product.factoryPartNumber}</div>
                         <div className="text-xs text-gray-500 truncate">{product.description}</div>
-                        {product.factory?.title && (
-                          <div className="text-xs text-gray-400">{product.factory.title}</div>
+                        {product.leadTime && (
+                          <div className="text-xs text-gray-400">Lead: {product.leadTime}</div>
                         )}
                       </button>
                     ))}
@@ -604,6 +621,35 @@ export function LineItemsTabV2({
                         {cpn.customerPartNumber}
                       </button>
                     ))}
+                  </>
+                )}
+
+                {/* End User results (when specifyEndUserPerLine is enabled) */}
+                {isEndUserDropdown && !endUsersLoading && (
+                  <>
+                    {endUserResults.map((customer) => (
+                      <button
+                        key={customer.id}
+                        onClick={() => {
+                          updateLineItem(dropdownOpen.itemId, {
+                            endUserId: customer.id,
+                            endUserName: customer.companyName,
+                          });
+                          setDropdownOpen(null);
+                          setSearchQuery('');
+                          setDebouncedSearch('');
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="text-sm font-medium">{customer.companyName}</div>
+                        {customer.isParent && (
+                          <div className="text-xs text-gray-400">Parent Company</div>
+                        )}
+                      </button>
+                    ))}
+                    {endUserResults.length === 0 && (
+                      <div className="px-3 py-2 text-sm text-gray-500">No customers found</div>
+                    )}
                   </>
                 )}
               </div>
