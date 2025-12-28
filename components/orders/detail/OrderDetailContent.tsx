@@ -120,20 +120,43 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
       // Helper to check if ID is a valid UUID (from API)
       const isValidUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
-      // Build inside reps array from insideRepId
-      const insideReps = order.insideRepId ? [{
-        userId: order.insideRepId,
-        splitRate: '100',
-        position: 0,
-      }] : undefined;
+      // Build inside reps array from insideRepSplits (supports multiple reps with split commission)
+      // If split commission is enabled, use all reps from insideRepSplits; otherwise use primary insideRepId
+      let insideReps: { userId: string; splitRate: string; position: number }[] | undefined;
+      if (state.splitInsideCommission && state.insideRepSplits.length > 0) {
+        // Use all inside reps from split modal
+        insideReps = state.insideRepSplits.map((rep, idx) => ({
+          userId: rep.repId,
+          splitRate: String(rep.percentage),
+          position: idx,
+        }));
+      } else if (state.orderInsideRep || order.insideRepId) {
+        // Single inside rep
+        insideReps = [{
+          userId: state.orderInsideRep || order.insideRepId || '',
+          splitRate: '100',
+          position: 0,
+        }];
+      }
 
-      // Get outside rep from order (stored as outsideRepId on the order)
-      const outsideRepId = (order as any).outsideRepId || state.orderOutsideRep;
-      const outsideRepSplitRates = outsideRepId ? [{
-        userId: outsideRepId,
-        splitRate: '100',
-        position: 0,
-      }] : undefined;
+      // Build outside reps array from outsideRepSplits (supports multiple reps with split commission)
+      // If split commission is enabled, use all reps from outsideRepSplits; otherwise use primary outsideRepId
+      let outsideRepSplitRates: { userId: string; splitRate: string; position: number }[] | undefined;
+      if (state.splitOutsideCommission && state.outsideRepSplits.length > 0) {
+        // Use all outside reps from split modal
+        outsideRepSplitRates = state.outsideRepSplits.map((rep, idx) => ({
+          userId: rep.repId,
+          splitRate: String(rep.percentage),
+          position: idx,
+        }));
+      } else if (state.orderOutsideRep || (order as any).outsideRepId) {
+        // Single outside rep
+        outsideRepSplitRates = [{
+          userId: state.orderOutsideRep || (order as any).outsideRepId || '',
+          splitRate: '100',
+          position: 0,
+        }];
+      }
 
       // Get order-level endUserId (used when not in per-line mode)
       const orderEndUserId = (order as any).endUserId;

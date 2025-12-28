@@ -143,15 +143,27 @@ function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
   (order as any).markNumber = apiOrder.markNumber;
   (order as any).orderType = apiOrder.orderType;
 
+  // Store all inside reps for split commission support
+  (order as any).insideReps = (apiOrder.insideReps || []).map((rep, idx) => ({
+    id: rep.id || '',
+    userId: rep.userId || '',
+    splitRate: rep.splitRate || '100',
+    position: rep.position ?? idx,
+  }));
+
   // Store outside rep info extracted from line items
+  // Store ALL outside reps for split commission support
+  const allOutsideReps = firstDetailWithSplitRates?.splitRates?.map((sr, idx) => ({
+    id: sr.id || '',
+    userId: sr.userId || '',
+    splitRate: sr.splitRate || '100',
+    position: sr.position ?? idx,
+  })) || [];
+
   (order as any).outsideRepId = outsideRepSplitRate?.userId;
   (order as any).outsideRepName = ''; // Will be fetched separately
-  (order as any).outsideRepSplitRates = firstDetailWithSplitRates?.splitRates?.map(sr => ({
-    id: sr.id,
-    userId: sr.userId,
-    splitRate: sr.splitRate,
-    position: sr.position,
-  })) || [];
+  (order as any).outsideReps = allOutsideReps; // Store all outside reps
+  (order as any).outsideRepSplitRates = allOutsideReps; // Alias for compatibility
 
   // Extract order-level endUser from line items
   // If all line items have the same endUserId, set it at order level
@@ -208,6 +220,14 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
   const [localOrder, setLocalOrder] = useState<Order>(() => createEmptyOrder());
   // Track if we've made local edits in edit mode
   const [hasLocalEdits, setHasLocalEdits] = useState(false);
+  // Track if we've initialized localOrder from API (includes name fetches)
+  const [hasInitialized, setHasInitialized] = useState(false);
+
+  // Reset initialization state when orderId changes (navigating to different order)
+  useEffect(() => {
+    setHasInitialized(false);
+    setHasLocalEdits(false);
+  }, [orderId]);
 
   // Transform API order to UI format, or use local order in create/edit mode
   const order = useMemo(() => {
@@ -215,22 +235,25 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
       return localOrder;
     }
     if (!apiOrder) return undefined;
-    // If we have local edits, use localOrder; otherwise transform from API
-    if (hasLocalEdits) {
+    // If we have local edits OR we've initialized (names fetched), use localOrder
+    if (hasLocalEdits || hasInitialized) {
       return localOrder;
     }
     return transformApiOrderToUiOrder(apiOrder);
-  }, [isCreateMode, localOrder, apiOrder, hasLocalEdits]);
+  }, [isCreateMode, localOrder, apiOrder, hasLocalEdits, hasInitialized]);
 
   // Initialize localOrder when API data loads (for edit mode)
   useEffect(() => {
-    if (!isCreateMode && apiOrder && !hasLocalEdits) {
+    if (!isCreateMode && apiOrder && !hasLocalEdits && !hasInitialized) {
       const transformedOrder = transformApiOrderToUiOrder(apiOrder);
       setLocalOrder(transformedOrder);
 
+      // Collect all fetch promises
+      const fetchPromises: Promise<void>[] = [];
+
       // Fetch factory name if we have a factoryId
       if (transformedOrder.manufacturerId) {
-        searchFactories('', true)
+        const factoryPromise = searchFactories('', true)
           .then((factories) => {
             const factory = factories.find(f => f.id === transformedOrder.manufacturerId);
             if (factory) {
@@ -238,11 +261,12 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
             }
           })
           .catch((err) => console.error('Failed to fetch factory name:', err));
+        fetchPromises.push(factoryPromise);
       }
 
       // Fetch inside rep name
       if (transformedOrder.insideRepId) {
-        searchUsers({ searchTerm: '', isInside: true, enabled: true, limit: 100 })
+        const insideRepPromise = searchUsers({ searchTerm: '', isInside: true, enabled: true, limit: 100 })
           .then((users) => {
             const user = users.find(u => u.id === transformedOrder.insideRepId);
             if (user) {
@@ -253,12 +277,13 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
             }
           })
           .catch((err) => console.error('Failed to fetch inside rep name:', err));
+        fetchPromises.push(insideRepPromise);
       }
 
       // Fetch outside rep name from splitRates stored on order
       const outsideRepId = (transformedOrder as any).outsideRepId;
       if (outsideRepId) {
-        searchUsers({ searchTerm: '', isOutside: true, enabled: true, limit: 100 })
+        const outsideRepPromise = searchUsers({ searchTerm: '', isOutside: true, enabled: true, limit: 100 })
           .then((users) => {
             const user = users.find(u => u.id === outsideRepId);
             if (user) {
@@ -269,6 +294,7 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
             }
           })
           .catch((err) => console.error('Failed to fetch outside rep name:', err));
+        fetchPromises.push(outsideRepPromise);
       }
 
       // Fetch end user names for line items AND order-level end user
@@ -281,7 +307,7 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
       if (orderEndUserId) endUserIds.add(orderEndUserId);
 
       if (endUserIds.size > 0) {
-        searchCustomers('', true)
+        const endUserPromise = searchCustomers('', true)
           .then((customers) => {
             const customerMap = new Map(customers.map(c => [c.id, c.companyName]));
             setLocalOrder(prev => {
@@ -301,9 +327,20 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
             });
           })
           .catch((err) => console.error('Failed to fetch end user names:', err));
+        fetchPromises.push(endUserPromise);
+      }
+
+      // After all fetches complete (or if no fetches needed), mark as initialized so useMemo uses localOrder
+      if (fetchPromises.length > 0) {
+        Promise.all(fetchPromises).finally(() => {
+          setHasInitialized(true);
+        });
+      } else {
+        // No fetches needed, mark as initialized immediately
+        setHasInitialized(true);
       }
     }
-  }, [isCreateMode, apiOrder, hasLocalEdits]);
+  }, [isCreateMode, apiOrder, hasLocalEdits, hasInitialized]);
 
   // Keep orders array for compatibility with existing code
   const orders = useMemo(() => order ? [order] : [], [order]);

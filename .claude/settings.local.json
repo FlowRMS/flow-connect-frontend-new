@@ -22,7 +22,8 @@
       "Bash(python scripts/replace_duplicate_modal.py:*)",
       "Bash(python:*)",
       "Bash(wc:*)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(npm i:*)"
     ],
     "deny": [],
     "ask": []

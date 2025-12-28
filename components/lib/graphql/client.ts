@@ -4,6 +4,7 @@
  * Uses WorkOS AuthKit for authentication
  */
 
+
 // ============================================================================
 // WorkOS Token Management
 // ============================================================================
@@ -111,6 +112,155 @@ export const mapFormattedCreatedBy = <T extends { createdBy?: CreatedByResponse 
 // ============================================================================
 // Core GraphQL Request Function
 // ============================================================================
+
+/**
+ * Check if a value is an extractable file (File, Blob, or FileList)
+ */
+function isExtractableFileValue(value: unknown): value is File | Blob {
+  return (
+    (typeof File !== 'undefined' && value instanceof File) ||
+    (typeof Blob !== 'undefined' && value instanceof Blob)
+  );
+}
+
+/**
+ * Extract files from variables and replace with null
+ */
+function extractFilesFromVariables(
+  variables: Record<string, unknown>
+): { clone: Record<string, unknown>; files: Map<File | Blob, string> } {
+  const files = new Map<File | Blob, string>();
+
+  function extract(obj: unknown, path: string): unknown {
+    if (isExtractableFileValue(obj)) {
+      files.set(obj, path);
+      return null;
+    }
+
+    if (Array.isArray(obj)) {
+      return obj.map((item, index) => extract(item, `${path}.${index}`));
+    }
+
+    if (obj !== null && typeof obj === 'object') {
+      const result: Record<string, unknown> = {};
+      for (const [key, val] of Object.entries(obj)) {
+        const newPath = path ? `${path}.${key}` : key;
+        result[key] = extract(val, newPath);
+      }
+      return result;
+    }
+
+    return obj;
+  }
+
+  const clone = extract(variables, 'variables') as Record<string, unknown>;
+  return { clone, files };
+}
+
+/**
+ * Execute a GraphQL mutation with file upload using multipart/form-data
+ * Uses a Next.js API route as proxy to avoid CORS/middleware issues
+ * Follows the GraphQL multipart request specification
+ * https://github.com/jaydenseric/graphql-multipart-request-spec
+ */
+export async function crmGraphQLMultipartRequest<T = unknown>(
+  options: GraphQLRequestOptions
+): Promise<GraphQLResponse<T>> {
+  // Get access token from WorkOS
+  const accessToken = await getAccessToken();
+
+  if (!accessToken) {
+    if (typeof window !== 'undefined') {
+      window.location.href = '/sign-in';
+    }
+    throw new Error('Authentication required. Redirecting to sign-in...');
+  }
+
+  // Use the upload proxy endpoint
+  const uploadProxyUrl = '/api/upload';
+
+  // Extract files from variables
+  const { clone, files } = extractFilesFromVariables(options.variables || {});
+
+  // Build FormData according to GraphQL multipart spec
+  const formData = new FormData();
+
+  // operations: query + variables with files replaced by null
+  const operations = {
+    query: options.query,
+    variables: clone,
+    operationName: options.operationName,
+  };
+  formData.append('operations', JSON.stringify(operations));
+
+  // map: { "0": ["variables.file"] }
+  const map: Record<string, string[]> = {};
+  let fileIndex = 0;
+  files.forEach((path) => {
+    map[fileIndex.toString()] = [path];
+    fileIndex++;
+  });
+  formData.append('map', JSON.stringify(map));
+
+  // Append each file
+  fileIndex = 0;
+  files.forEach((_path, file) => {
+    formData.append(fileIndex.toString(), file);
+    fileIndex++;
+  });
+
+  // Headers for the proxy
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${accessToken}`,
+    'x-auth-provider': 'WORKOS',
+  };
+
+  let response = await fetch(uploadProxyUrl, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+
+  // Handle 401/403 responses - clear cache and retry once
+  if (response.status === 401 || response.status === 403) {
+    clearTokenCache();
+    const freshToken = await getAccessToken();
+
+    if (freshToken) {
+      headers['Authorization'] = `Bearer ${freshToken}`;
+      response = await fetch(uploadProxyUrl, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+    } else {
+      if (typeof window !== 'undefined') {
+        window.location.href = '/sign-in';
+      }
+      throw new Error('Authentication expired. Redirecting to sign-in...');
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(`CRM API request failed: ${response.status} ${response.statusText}`);
+  }
+
+  const result = await response.json() as GraphQLResponse<T>;
+
+  // Check for signature expired error in GraphQL response
+  if (result.errors?.some(error =>
+    error.message?.toLowerCase().includes('signature has expired') ||
+    error.message?.toLowerCase().includes('unauthorized')
+  )) {
+    clearTokenCache();
+    if (typeof window !== 'undefined') {
+      window.location.href = '/sign-in';
+    }
+    throw new Error('Session expired. Redirecting to sign-in...');
+  }
+
+  return result;
+}
 
 /**
  * Execute a GraphQL query/mutation against the CRM API

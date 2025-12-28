@@ -16,6 +16,7 @@
 // Core client
 export {
   crmGraphQLRequest,
+  crmGraphQLMultipartRequest,
   clearTokenCache,
   formatCreatedBy,
   withFormattedCreatedBy,
@@ -167,3 +168,27 @@ export {
   fetchAllLandingPages,
   type AllLandingPagesResponse,
 } from './landing-pages';
+
+// Files module
+export {
+  fetchFile,
+  searchFiles,
+  fetchFilesByLinkedEntity,
+  fetchFilesByFolder,
+  getFilePresignedUrl,
+  uploadFile,
+  uploadFiles,
+  archiveFile,
+  deleteFile,
+  linkFileToEntity,
+  uploadAndLinkFile,
+  uploadAndLinkFiles,
+  formatFileSize,
+  getFileIcon,
+  getFileExtension,
+  type FileResponse,
+  type FileCreatedBy,
+  type FileUploadInput,
+  type MultiFileUploadInput,
+  type FileEntityType,
+} from './files';

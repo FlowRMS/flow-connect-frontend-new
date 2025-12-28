@@ -6,6 +6,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import type { Order, OrderSplitRate } from '@/lib/types/rms';
 import type { RepSplit, ViewMode, VersionInfo } from '../types';
+import { searchUsers } from '@/components/quotes/api/quotesApi';
 
 interface UseOrderHeaderProps {
   order: Order | undefined | null;
@@ -40,22 +41,93 @@ export function useOrderHeader({ order, setOrders }: UseOrderHeaderProps) {
   const [showInsideRepSplitsModal, setShowInsideRepSplitsModal] = useState(false);
   const [insideRepSplits, setInsideRepSplits] = useState<RepSplit[]>([]);
 
-  // Initialize rep states from order when order changes
+  // Initialize inside rep states from order when order changes
+  // Similar to quotes-v2: sync split commission state and fetch rep names
   useEffect(() => {
-    // Set inside rep from order (always update when order data changes)
+    const insideReps = (order as any)?.insideReps || [];
+    const hasMultipleInsideReps = insideReps.length > 1;
+
+    // Set split checkbox based on count
+    setSplitInsideCommission(hasMultipleInsideReps);
+
+    // Set primary inside rep
     if (order?.insideRepId) {
       setOrderInsideRep(order.insideRepId);
     }
-  }, [order?.insideRepId, order?.id]);
 
-  // Handle outside rep separately to avoid lint issues with 'as any' in deps
+    // Initialize insideRepSplits from order data with names
+    if (insideReps.length > 0) {
+      searchUsers({ searchTerm: '', isInside: true, enabled: true, limit: 100 })
+        .then((users) => {
+          const repsWithNames: RepSplit[] = insideReps.map((rep: any, idx: number) => {
+            const matchingUser = users.find((u) => u.id === rep.userId);
+            return {
+              repId: rep.userId || '',
+              repName: matchingUser?.fullName || `${matchingUser?.firstName || ''} ${matchingUser?.lastName || ''}`.trim() || '',
+              percentage: parseFloat(rep.splitRate || '100'),
+            };
+          });
+          setInsideRepSplits(repsWithNames);
+        })
+        .catch((err) => {
+          console.error('Failed to fetch inside rep names:', err);
+          // Still set reps without names
+          setInsideRepSplits(
+            insideReps.map((rep: any) => ({
+              repId: rep.userId || '',
+              repName: '',
+              percentage: parseFloat(rep.splitRate || '100'),
+            }))
+          );
+        });
+    } else {
+      setInsideRepSplits([]);
+    }
+  }, [order?.id, order?.insideRepId]);
+
+  // Initialize outside rep states from order when order changes
   useEffect(() => {
-    // Set outside rep from order (stored as outsideRepId on the order)
+    const outsideReps = (order as any)?.outsideReps || [];
+    const hasMultipleOutsideReps = outsideReps.length > 1;
+
+    // Set split checkbox based on count
+    setSplitOutsideCommission(hasMultipleOutsideReps);
+
+    // Set primary outside rep
     const outsideRepId = (order as any)?.outsideRepId;
     if (outsideRepId) {
       setOrderOutsideRep(outsideRepId);
     }
-  }, [order]);
+
+    // Initialize outsideRepSplits from order data with names
+    if (outsideReps.length > 0) {
+      searchUsers({ searchTerm: '', isOutside: true, enabled: true, limit: 100 })
+        .then((users) => {
+          const repsWithNames: RepSplit[] = outsideReps.map((rep: any, idx: number) => {
+            const matchingUser = users.find((u) => u.id === rep.userId);
+            return {
+              repId: rep.userId || '',
+              repName: matchingUser?.fullName || `${matchingUser?.firstName || ''} ${matchingUser?.lastName || ''}`.trim() || '',
+              percentage: parseFloat(rep.splitRate || '100'),
+            };
+          });
+          setOutsideRepSplits(repsWithNames);
+        })
+        .catch((err) => {
+          console.error('Failed to fetch outside rep names:', err);
+          // Still set reps without names
+          setOutsideRepSplits(
+            outsideReps.map((rep: any) => ({
+              repId: rep.userId || '',
+              repName: '',
+              percentage: parseFloat(rep.splitRate || '100'),
+            }))
+          );
+        });
+    } else {
+      setOutsideRepSplits([]);
+    }
+  }, [order?.id]);
 
   // Commission splits editing (from order splitRates)
   const [editingSplits, setEditingSplits] = useState(false);

@@ -17,6 +17,7 @@ import { ActivityTabV2 } from './tabs/ActivityTabV2';
 import { LinkedObjectsTabV2 } from './tabs/LinkedObjectsTabV2';
 import { VersionsTabV2 } from './tabs/VersionsTabV2';
 import { SettingsTabV2 } from './tabs/SettingsTabV2';
+import { FilesTabV2 } from './tabs/FilesTabV2';
 import { ColumnsConfigModalV2 } from './modals/ColumnsConfigModalV2';
 import { AdditionalDetailsModalV2 } from './modals/AdditionalDetailsModalV2';
 import {
@@ -38,7 +39,7 @@ import {
 import { searchUsers, searchFactories, searchCustomers } from '../quotes/api/quotesApi';
 import { quoteToasts } from '../lib/toast';
 
-type TabType = 'lineItems' | 'notes' | 'tasks' | 'activity' | 'linkedObjects' | 'versions' | 'settings';
+type TabType = 'lineItems' | 'notes' | 'tasks' | 'activity' | 'linkedObjects' | 'versions' | 'settings' | 'files';
 
 interface QuoteDetailV2PageProps {
   quoteId: string | null;
@@ -339,6 +340,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
 
   const tabs: { key: TabType; label: string; count?: number; comingSoon?: boolean }[] = useMemo(() => [
     { key: 'lineItems', label: 'Line Items', count: lineItems.length },
+    { key: 'files', label: 'Files' },
     { key: 'notes', label: 'Notes', comingSoon: true },
     { key: 'tasks', label: 'Tasks', comingSoon: true },
     { key: 'activity', label: 'Activity', comingSoon: true },
@@ -443,6 +445,13 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
             columnConfig={columnConfig}
             quoteId={quote.id}
             settings={settings}
+          />
+        )}
+
+        {activeTab === 'files' && (
+          <FilesTabV2
+            entityId={quote.id}
+            entityType="QUOTE"
           />
         )}
 
