@@ -68,4 +68,4 @@ export interface ContainerType {
   order: number; // order in dropdown
 }
 
-export type SettingsTab = 'warehouses' | 'shipping-carriers' | 'containers';
+export type SettingsTab = 'warehouses' | 'shipping-carriers' | 'containers' | 'manufacturer-profiles';
