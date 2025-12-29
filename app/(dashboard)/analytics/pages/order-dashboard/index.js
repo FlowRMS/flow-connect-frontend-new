@@ -429,10 +429,13 @@ const OrderDashboardContent = () => {
         />
       </div>
 
-      <div className="mb-6 flex flex-wrap items-center gap-4">
+      <div className="mb-4">
         <GlobalFilterPane
           valueType={valueType}
         />
+      </div>
+
+      <div className="mb-6">
         <ActiveGlobalFilters />
       </div>
 

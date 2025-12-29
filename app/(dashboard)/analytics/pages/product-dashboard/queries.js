@@ -6,7 +6,20 @@ export const FACTORY_SEARCH = gql`
     factorySearch(searchTerm: $searchTerm, limit: $limit, useCustomOrder: $useCustomOrder, published: $published) {
       id
       title
-      url
+      accountNumber
+      additionalInformation
+      commissionDiscountRate
+      baseCommissionRate
+      email
+      externalPaymentTerms
+      freightDiscountType
+      freightTerms
+      leadTime
+      logoId
+      published
+      phone
+      paymentTerms
+      overallDiscountRate
     }
   }
 `;

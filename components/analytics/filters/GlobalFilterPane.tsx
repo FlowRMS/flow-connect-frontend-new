@@ -6,19 +6,20 @@ import { Loader2, Search, X, Filter, ChevronDown, ChevronUp, Check, Users, Build
 
 import { useGlobalDashFilters } from "@/lib/analytics/features/order-dashboard/GlobalDashFilterContext";
 import { ValueType, GetComparisonData, GetComparisonVariables } from "@/lib/analytics/graphql/types";
-import { FIND_ALL_USER } from "@/lib/analytics/graphql/queries/orderDashboardFilters";
+import { USER_SEARCH } from "@/lib/analytics/graphql/queries/orderDashboardFilters";
 import { GET_COMPARISON } from "@/lib/analytics/graphql/queries/orderDashboard";
 
 interface User {
   id: string;
   firstName?: string | null;
   lastName?: string | null;
+  fullName?: string | null;
   email?: string | null;
-  isOutside?: boolean;
+  outside?: boolean;
 }
 
-interface FindAllUserData {
-  findAllUser: User[];
+interface UserSearchData {
+  userSearch: User[];
 }
 
 type LabeledValue = {
@@ -79,8 +80,53 @@ export const GlobalFilterPane: React.FC<GlobalFilterPaneProps> = ({
   const [outsideReps, setOutsideReps] = React.useState<LabeledValue[]>([]);
   const [factoryPartNumberOptions, setFactoryPartNumberOptions] = React.useState<LabeledValue[]>([]);
   const [loading, setLoading] = React.useState(false);
+  const [repsLoading, setRepsLoading] = React.useState(false);
 
   const baseValueType = valueType === "BOTH" ? "SALES" : valueType;
+
+  // Debounce timer ref for reps search
+  const repsSearchTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Load reps based on search term
+  const loadOutsideReps = React.useCallback(async (searchTerm: string) => {
+    setRepsLoading(true);
+    try {
+      const { data } = await client.query<UserSearchData>({
+        query: USER_SEARCH,
+        variables: {
+          searchTerm: searchTerm,
+          limit: 1000,
+          isOutside: true, // Get outside reps only
+        },
+        fetchPolicy: "network-only",
+      });
+
+      const reps: LabeledValue[] = [];
+      (data?.userSearch ?? []).forEach((user) => {
+        const label = user.fullName || labelFromName(user.firstName, user.lastName) || user.email || user.id;
+        reps.push({ label, value: user.id });
+      });
+
+      setOutsideReps(ensureUnique(reps.sort((a, b) => a.label.localeCompare(b.label))));
+    } catch (err) {
+      console.error("[GlobalFilterPane] Failed to load reps:", err);
+    } finally {
+      setRepsLoading(false);
+    }
+  }, [client]);
+
+  // Handle reps search with debounce
+  const handleRepsSearchChange = React.useCallback((searchTerm: string) => {
+    setSearchTerms((prev) => ({ ...prev, outsideReps: searchTerm }));
+    
+    if (repsSearchTimerRef.current) {
+      clearTimeout(repsSearchTimerRef.current);
+    }
+    
+    repsSearchTimerRef.current = setTimeout(() => {
+      loadOutsideReps(searchTerm);
+    }, 300);
+  }, [loadOutsideReps]);
 
   // Load data on mount
   React.useEffect(() => {
@@ -107,11 +153,6 @@ export const GlobalFilterPane: React.FC<GlobalFilterPaneProps> = ({
       fetchPolicy: "network-only",
     });
 
-    const loadReps = client.query<FindAllUserData>({
-      query: FIND_ALL_USER,
-      fetchPolicy: "cache-first",
-    });
-
     const loadFactoryPartNumbers = client.query<GetComparisonData, GetComparisonVariables>({
       query: GET_COMPARISON,
       variables: {
@@ -122,8 +163,11 @@ export const GlobalFilterPane: React.FC<GlobalFilterPaneProps> = ({
       fetchPolicy: "network-only",
     });
 
-    Promise.all([loadCustomers, loadFactories, loadReps, loadFactoryPartNumbers])
-      .then(([custResult, factResult, repsResult, fpnResult]) => {
+    // Load reps with empty search to populate on open
+    loadOutsideReps("");
+
+    Promise.all([loadCustomers, loadFactories, loadFactoryPartNumbers])
+      .then(([custResult, factResult, fpnResult]) => {
         if (!isActive) return;
 
         // Process customers
@@ -150,20 +194,6 @@ export const GlobalFilterPane: React.FC<GlobalFilterPaneProps> = ({
         );
         setFactoryOptions(factories);
 
-        // Process reps
-        const outside: LabeledValue[] = [];
-
-        (repsResult.data?.findAllUser ?? []).forEach((user) => {
-          const label = labelFromName(user.firstName, user.lastName) || user.email || user.id;
-          const item = { label, value: user.id };
-          
-          if (user.isOutside) {
-            outside.push(item);
-          }
-        });
-
-        setOutsideReps(ensureUnique(outside));
-
         // Process factory part numbers
         const fpnItems = fpnResult.data?.getComparison?.items ?? [];
         const factoryPartNumbers = ensureUnique(
@@ -185,8 +215,11 @@ export const GlobalFilterPane: React.FC<GlobalFilterPaneProps> = ({
 
     return () => {
       isActive = false;
+      if (repsSearchTimerRef.current) {
+        clearTimeout(repsSearchTimerRef.current);
+      }
     };
-  }, [client, baseValueType]);
+  }, [client, baseValueType, loadOutsideReps]);
 
   // Close on outside click
   React.useEffect(() => {
@@ -420,16 +453,23 @@ export const GlobalFilterPane: React.FC<GlobalFilterPaneProps> = ({
                             {section.options.length > 5 && (
                               <div className="relative flex-1 max-w-[200px]">
                                 <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400" />
+                                {section.key === "outsideReps" && repsLoading && (
+                                  <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-blue-500 animate-spin" />
+                                )}
                                 <input
                                   type="text"
                                   placeholder="Search..."
                                   value={searchTerms[section.key] || ""}
-                                  onChange={(e) =>
-                                    setSearchTerms({
-                                      ...searchTerms,
-                                      [section.key]: e.target.value,
-                                    })
-                                  }
+                                  onChange={(e) => {
+                                    if (section.key === "outsideReps") {
+                                      handleRepsSearchChange(e.target.value);
+                                    } else {
+                                      setSearchTerms({
+                                        ...searchTerms,
+                                        [section.key]: e.target.value,
+                                      });
+                                    }
+                                  }}
                                   onClick={(e) => e.stopPropagation()}
                                   className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                 />

@@ -7,18 +7,19 @@ import { Loader2, Search, X, Filter, ChevronDown } from "lucide-react";
 import { useGlobalDashFilters } from "@/lib/analytics/features/order-dashboard/GlobalDashFilterContext";
 import { ValueType, GetComparisonData, GetComparisonVariables } from "@/lib/analytics/graphql/types";
 import { GET_COMPARISON } from "@/lib/analytics/graphql/queries/orderDashboard";
-import { FIND_ALL_USER } from "@/lib/analytics/graphql/queries/orderDashboardFilters";
+import { USER_SEARCH } from "@/lib/analytics/graphql/queries/orderDashboardFilters";
 
 interface User {
   id: string;
   firstName?: string | null;
   lastName?: string | null;
+  fullName?: string | null;
   email?: string | null;
-  isOutside?: boolean;
+  outside?: boolean;
 }
 
-interface FindAllUserData {
-  findAllUser: User[];
+interface UserSearchData {
+  userSearch: User[];
 }
 
 type LabeledValue = {
@@ -328,22 +329,24 @@ export const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({
     [client, baseValueType]
   );
 
-  const loadOutsideReps = React.useCallback(async () => {
+  const loadOutsideReps = React.useCallback(async (searchTerm: string = "") => {
     setOutsideRepLoading(true);
     try {
-      const { data } = await client.query<FindAllUserData>({
-        query: FIND_ALL_USER,
+      const { data } = await client.query<UserSearchData>({
+        query: USER_SEARCH,
+        variables: {
+          searchTerm: searchTerm,
+          limit: 1000,
+          isOutside: true, // Get outside reps only
+        },
         fetchPolicy: "network-only",
       });
 
       const reps: LabeledValue[] =
-        data?.findAllUser
-          ?.filter(
-            (user) => user?.isOutside === true
-          )
-          .map(
+        data?.userSearch
+          ?.map(
             (user) => {
-              const label = labelFromName(
+              const label = user.fullName || labelFromName(
                 user.firstName,
                 user.lastName
               ).trim();
@@ -368,7 +371,7 @@ export const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({
   React.useEffect(() => {
     loadCustomers();
     loadFactories();
-    loadOutsideReps();
+    loadOutsideReps(""); // Load with empty string on mount
   }, [loadCustomers, loadFactories, loadOutsideReps]);
 
   // Close dropdown when clicking outside

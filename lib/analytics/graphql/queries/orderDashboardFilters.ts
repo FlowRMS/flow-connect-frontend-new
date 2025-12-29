@@ -21,6 +21,24 @@ export const FIND_FACTORY_BY_TITLE = gql`
   }
 `;
 
+export const USER_SEARCH = gql`
+  query UserSearch($searchTerm: String!, $limit: Int, $isOutside: Boolean) {
+    userSearch(searchTerm: $searchTerm, limit: $limit, isOutside: $isOutside) {
+      id
+      firstName
+      lastName
+      fullName
+      email
+      username
+      role
+      inside
+      outside
+      enabled
+      authProviderId
+    }
+  }
+`;
+
 export const FIND_ALL_USER = gql`
   query FindAllUser {
     findAllUser {

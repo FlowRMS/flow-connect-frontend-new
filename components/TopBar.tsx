@@ -7,10 +7,12 @@ import { MobileSidebarContext } from './Sidebar';
 import AIUploaderModal from './ai-uploader/AIUploaderModal';
 import UniversalSearch from './UniversalSearch';
 import { useUser } from './providers/user-provider';
+import { useOrgName } from './hooks/useOrgName';
 import { handleSignOut } from '@/lib/actions';
 
 export default function TopBar() {
   const user = useUser();
+  const { orgName, isLoading: orgLoading } = useOrgName();
   const { setIsOpen, isMobile } = React.useContext(MobileSidebarContext);
   const [isUploaderOpen, setIsUploaderOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -23,7 +25,7 @@ export default function TopBar() {
           isCollapsed ? 'h-0 py-0 overflow-hidden opacity-0' : 'h-auto opacity-100'
         }`}
       >
-      {/* Left: Collapse button, Mobile hamburger & logo */}
+      {/* Left: Collapse button, Mobile hamburger, logo & Org Name */}
       <div className="flex items-center gap-3">
         {/* Collapse Toggle Button */}
         <button
@@ -65,6 +67,105 @@ export default function TopBar() {
             />
             <span className="text-sm font-semibold text-[var(--foreground)] md:hidden">FlowCRM</span>
           </>
+        )}
+        
+        {/* Organization Name - Clean Premium Design */}
+        {!orgLoading && orgName && (
+          <div className="hidden md:flex items-center ml-4">
+            <div className="group relative cursor-default flex items-center gap-3">
+              
+              {/* Premium icon with gentle pulse */}
+              <div className="relative flex-shrink-0">
+                <div 
+                  className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600 flex items-center justify-center shadow-md shadow-blue-500/25"
+                  style={{ animation: 'gentlePulse 3s ease-in-out infinite' }}
+                >
+                  <svg 
+                    width="18" 
+                    height="18" 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    className="text-white"
+                  >
+                    <path d="M12 2L2 7l10 5 10-5-10-5z" fill="currentColor" opacity="0.95"/>
+                    <path d="M2 17l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+                {/* Soft ambient glow */}
+                <div 
+                  className="absolute inset-0 rounded-xl bg-blue-400/20 blur-lg -z-10"
+                  style={{ animation: 'gentleGlow 3s ease-in-out infinite' }}
+                ></div>
+              </div>
+              
+              {/* Org Name - premium gradient text with glow */}
+              <div className="relative">
+                <span 
+                  className="relative text-xl font-black uppercase bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 dark:from-blue-400 dark:via-indigo-400 dark:to-purple-400"
+                  style={{ 
+                    fontFamily: '"Inter", "SF Pro Display", system-ui, -apple-system, sans-serif', 
+                    letterSpacing: '0.18em',
+                    textShadow: '0 0 30px rgba(99, 102, 241, 0.3)',
+                    WebkitBackgroundClip: 'text',
+                    backgroundSize: '200% auto',
+                    animation: 'textGradient 4s linear infinite'
+                  }}
+                >
+                  {orgName}
+                </span>
+                {/* Glowing underline */}
+                <div 
+                  className="absolute -bottom-1 left-0 right-0 h-[2px] rounded-full"
+                  style={{ 
+                    background: 'linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899, #8b5cf6, #3b82f6)',
+                    backgroundSize: '200% 100%',
+                    animation: 'gradientFlow 3s ease-in-out infinite',
+                    boxShadow: '0 0 12px rgba(139, 92, 246, 0.5), 0 0 24px rgba(139, 92, 246, 0.3)'
+                  }}
+                ></div>
+                {/* Text shadow glow layer */}
+                <span 
+                  className="absolute inset-0 text-xl font-black uppercase text-indigo-500/20 dark:text-indigo-400/30 blur-[2px] -z-10"
+                  style={{ 
+                    fontFamily: '"Inter", "SF Pro Display", system-ui, -apple-system, sans-serif', 
+                    letterSpacing: '0.18em'
+                  }}
+                  aria-hidden="true"
+                >
+                  {orgName}
+                </span>
+              </div>
+              
+              {/* CSS Keyframes */}
+              <style jsx>{`
+                @keyframes gentlePulse {
+                  0%, 100% { transform: scale(1); opacity: 1; }
+                  50% { transform: scale(1.03); opacity: 0.95; }
+                }
+                @keyframes gentleGlow {
+                  0%, 100% { opacity: 0.3; transform: scale(1); }
+                  50% { opacity: 0.5; transform: scale(1.1); }
+                }
+                @keyframes gradientFlow {
+                  0%, 100% { background-position: 0% 0; }
+                  50% { background-position: 100% 0; }
+                }
+                @keyframes textGradient {
+                  0%, 100% { background-position: 0% center; }
+                  50% { background-position: 200% center; }
+                }
+              `}</style>
+            </div>
+          </div>
+        )}
+        
+        {/* Loading skeleton for org name */}
+        {orgLoading && (
+          <div className="hidden md:flex items-center ml-4 gap-3">
+            <div className="w-9 h-9 rounded-xl bg-slate-200 dark:bg-slate-700 animate-pulse"></div>
+            <div className="w-16 h-5 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></div>
+          </div>
         )}
       </div>
 

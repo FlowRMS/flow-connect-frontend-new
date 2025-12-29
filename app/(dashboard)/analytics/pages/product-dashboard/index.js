@@ -31,7 +31,7 @@ const ProductAnalyticsDashboardContent = () => {
   } = useQuery(FACTORY_SEARCH, {
     variables: {
       searchTerm: showFactoryDropdown ? searchTerm : DEFAULT_FACTORY_NAME,
-      limit: 10,
+      limit: 1000,
       useCustomOrder: false,
       published: true,
     },
