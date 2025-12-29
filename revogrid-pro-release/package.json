@@ -1,0 +1,56 @@
+{
+  "version": "1.7.2",
+  "name": "@revolist/revogrid-pro",
+  "main": "./dist/revogrid-pro.umd.cjs",
+  "module": "./dist/revogrid-pro.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/revogrid-pro.js",
+      "require": "./dist/revogrid-pro.umd.cjs"
+    },
+    "./dist/revogrid-pro.css": "./dist/revogrid-pro.css"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:obfuscated": "TRIAL=true vite build && node scripts/obfuscate.js",
+    "docs": "typedoc"
+  },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/revolist/revogrid-pro.git"
+  },
+  "author": "revolist",
+  "license": "Commercial",
+  "dependencies": {
+    "@formulajs/formulajs": "^4.5.3",
+    "@revolist/revogrid": "^4.17.3",
+    "@stencil/core": "^4.36.3",
+    "lodash": "^4.17.21",
+    "ts-morph": "^25.0.1",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.2",
+    "@types/lodash": "^4.17.7",
+    "@types/node": "^22.10.2",
+    "@unocss/preset-wind3": "^66.5.1",
+    "javascript-obfuscator": "^4.1.0",
+    "preact": "^10.27.1",
+    "sass-embedded": "^1.83.4",
+    "typescript": "^5.7.3",
+    "unocss": "^66.5.1",
+    "vite": "^7.1.5",
+    "vite-plugin-dts": "^4.5.4"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  }
+}

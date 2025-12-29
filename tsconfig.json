@@ -40,6 +40,8 @@
   "exclude": [
     "node_modules",
     "flow-crm-disc_analytics",
-    "flow-crm-orders"
+    "flow-crm-orders",
+    "flow-analytics-main (1)",
+    "revogrid-pro-main"
   ]
 }

@@ -41,7 +41,7 @@ const defaultConfig: SidebarConfig = {
         { id: 'tasks', name: 'Tasks', href: '/tasks', enabled: true },
         { id: 'notes', name: 'Notes', href: '/notes', enabled: true },
         { id: 'jobs', name: 'Jobs', href: '/jobs', enabled: true },
-        { id: 'pre-quotes', name: 'Pre Quotes', href: '/pre-opportunities', enabled: true },
+        { id: 'pre-quotes', name: 'Pre Opportunities', href: '/pre-opportunities', enabled: true },
       ]
     },
     {
@@ -94,6 +94,24 @@ const defaultConfig: SidebarConfig = {
       ]
     },
     {
+      id: 'analytics',
+      label: 'Analytics',
+      collapsed: false,
+      items: [
+        { id: 'analytics-order-dashboard', name: 'Order Dashboard', href: '/analytics/order-dashboard', enabled: true },
+        { id: 'analytics-product-dashboard', name: 'Product Dashboard', href: '/analytics/product-dashboard', enabled: true },
+        { id: 'analytics-commission-gap', name: 'Commission Gap Reports', href: '/analytics/commission-gap-reports', enabled: true },
+        { id: 'analytics-orders-report', name: 'Orders Detail', href: '/analytics/orders-report', enabled: true },
+        { id: 'analytics-check-detail', name: 'Check Detail', href: '/analytics/check-detail', enabled: true },
+        { id: 'analytics-quote-detail', name: 'Quote Detail', href: '/analytics/quote-detail', enabled: true },
+        { id: 'analytics-order-split-rate', name: 'Order Split Rate', href: '/analytics/order-split-rate-commission-detail', enabled: true },
+        { id: 'analytics-orders-pivot', name: 'Order Pivot', href: '/analytics/orders-pivot', enabled: true },
+        { id: 'analytics-check-pivot', name: 'Check Pivot', href: '/analytics/check-pivot', enabled: true },
+        { id: 'analytics-quote-pivot', name: 'Quote Pivot', href: '/analytics/quote-pivot', enabled: true },
+        { id: 'analytics-commission-state-pivot', name: 'Commission by State', href: '/analytics/commission-by-state-pivot', enabled: true },
+      ]
+    },
+    {
       id: 'foundational',
       label: 'Foundational',
       collapsed: false,
@@ -121,7 +139,7 @@ const defaultConfig: SidebarConfig = {
 };
 
 const STORAGE_KEY = 'sidebar-config';
-const CONFIG_VERSION = 17; // Increment this to force a reset of cached sidebar config
+const CONFIG_VERSION = 18; // Increment this to force a reset of cached sidebar config (added analytics)
 
 const SidebarConfigContext = createContext<SidebarConfigContextType | undefined>(undefined);
 
