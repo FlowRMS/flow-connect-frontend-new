@@ -122,17 +122,17 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
 
       // Build inside reps array from insideRepSplits (supports multiple reps with split commission)
       // If split commission is enabled, use all reps from insideRepSplits; otherwise use primary insideRepId
-      let insideReps: { userId: string; splitRate: string; position: number }[] | undefined;
+      let insideSplitRates: { userId: string; splitRate: string; position: number }[] | undefined;
       if (state.splitInsideCommission && state.insideRepSplits.length > 0) {
         // Use all inside reps from split modal
-        insideReps = state.insideRepSplits.map((rep, idx) => ({
+        insideSplitRates = state.insideRepSplits.map((rep, idx) => ({
           userId: rep.repId,
           splitRate: String(rep.percentage),
           position: idx,
         }));
       } else if (state.orderInsideRep || order.insideRepId) {
         // Single inside rep
-        insideReps = [{
+        insideSplitRates = [{
           userId: state.orderInsideRep || order.insideRepId || '',
           splitRate: '100',
           position: 0,
@@ -141,17 +141,17 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
 
       // Build outside reps array from outsideRepSplits (supports multiple reps with split commission)
       // If split commission is enabled, use all reps from outsideRepSplits; otherwise use primary outsideRepId
-      let outsideRepSplitRates: { userId: string; splitRate: string; position: number }[] | undefined;
+      let outsideSplitRates: { userId: string; splitRate: string; position: number }[] | undefined;
       if (state.splitOutsideCommission && state.outsideRepSplits.length > 0) {
         // Use all outside reps from split modal
-        outsideRepSplitRates = state.outsideRepSplits.map((rep, idx) => ({
+        outsideSplitRates = state.outsideRepSplits.map((rep, idx) => ({
           userId: rep.repId,
           splitRate: String(rep.percentage),
           position: idx,
         }));
       } else if (state.orderOutsideRep || (order as any).outsideRepId) {
         // Single outside rep
-        outsideRepSplitRates = [{
+        outsideSplitRates = [{
           userId: state.orderOutsideRep || (order as any).outsideRepId || '',
           splitRate: '100',
           position: 0,
@@ -161,8 +161,34 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
       // Get order-level endUserId (used when not in per-line mode)
       const orderEndUserId = (order as any).endUserId;
 
-      // Build details with proper splitRates for outside rep
+      // Build details with insideSplitRates and outsideSplitRates at detail level
       const buildDetails = (includeId: boolean) => (order.lineItems || []).map((item, index) => {
+        // Determine which split rates to use based on per-line-item settings:
+        // - If per-line-item is enabled, use the line item's own split rates
+        // - If disabled, use header-level split rates for all line items
+        let lineInsideSplitRates = insideSplitRates;
+        let lineOutsideSplitRates = outsideSplitRates;
+
+        if (state.showInsideRepPerLine && (item as any).insideSplitRates?.length > 0) {
+          // Use line item's own inside split rates
+          lineInsideSplitRates = (item as any).insideSplitRates.map((sr: any, idx: number) => ({
+            ...(sr.id && isValidUUID(sr.id) ? { id: sr.id } : {}),
+            userId: sr.userId || '',
+            splitRate: sr.splitRate || '100',
+            position: sr.position ?? idx,
+          }));
+        }
+
+        if (state.showOutsideRepPerLine && (item as any).outsideSplitRates?.length > 0) {
+          // Use line item's own outside split rates
+          lineOutsideSplitRates = (item as any).outsideSplitRates.map((sr: any, idx: number) => ({
+            ...(sr.id && isValidUUID(sr.id) ? { id: sr.id } : {}),
+            userId: sr.userId || '',
+            splitRate: sr.splitRate || '100',
+            position: sr.position ?? idx,
+          }));
+        }
+
         const detail: any = {
           itemNumber: item.lineNumber || index + 1,
           quantity: String(item.quantity || 0),
@@ -172,8 +198,9 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           productDescriptionAdhoc: item.description || undefined,
           commissionRate: String((item.commissionRate || 0) * 100), // Convert decimal to percent for API
           divisionFactor: item.divisor ? String(item.divisor) : undefined,
-          // Include outside rep splitRates on each line item
-          splitRates: outsideRepSplitRates,
+          // Include inside and outside rep splitRates on each line item
+          insideSplitRates: lineInsideSplitRates,
+          outsideSplitRates: lineOutsideSplitRates,
         };
         // Get endUserId: use line-item level if set, otherwise fall back to order-level
         const lineEndUserId = (item as any).endUserId;
@@ -192,7 +219,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
       });
 
       if (isCreateMode) {
-        // Create new order
+        // Create new order - split rates are now at detail level
         const createInput = {
           orderNumber: order.orderNumber || `ORD-${Date.now()}`,
           entityDate: order.orderDate || new Date().toISOString().split('T')[0],
@@ -210,7 +237,6 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           orderType: ((order as any).orderType || 'NORMAL') as 'NORMAL' | 'BLANKET' | 'RELEASE',
           creationType: 'MANUAL' as const,
           published: (order as any).published !== false,
-          insideReps,
           details: buildDetails(false),
         };
 
@@ -220,7 +246,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         orderToasts.createSuccess(result.orderNumber || createInput.orderNumber);
         router.push('/orders');
       } else {
-        // Update existing order
+        // Update existing order - split rates are now at detail level
         if (state.updateOrderMutation) {
           const updateInput = {
             id: order.id,
@@ -240,7 +266,6 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
             orderType: ((order as any).orderType || 'NORMAL') as 'NORMAL' | 'BLANKET' | 'RELEASE',
             creationType: 'MANUAL' as const,
             published: (order as any).published !== false,
-            insideReps,
             details: buildDetails(true),
           };
 
@@ -350,6 +375,8 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         onUpdateOrder={state.updateLocalOrder}
         isCreateMode={isCreateMode}
         showEndUserPerLine={state.showEndUserPerLine}
+        showOutsideRepPerLine={state.showOutsideRepPerLine}
+        showInsideRepPerLine={state.showInsideRepPerLine}
         showActionsDropdown={state.showActionsDropdown}
         setShowActionsDropdown={state.setShowActionsDropdown}
         showStatusDropdown={state.showStatusDropdown}
@@ -693,6 +720,8 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         lineItem={state.additionalDetailsLineItem}
         onSave={state.saveAdditionalDetails}
         showEndUserPerLine={state.showEndUserPerLine}
+        showOutsideRepPerLine={state.showOutsideRepPerLine}
+        showInsideRepPerLine={state.showInsideRepPerLine}
       />
     </main>
   );

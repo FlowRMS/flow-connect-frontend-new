@@ -1,13 +1,26 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import type { LineItemV2 } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import type { LineItemV2, QuoteSettingsV2 } from '../types';
+import { SearchableDropdownV2 } from '../components/SearchableDropdownV2';
+import { useCustomerSearch, useUserSearch } from '../../quotes/api/useQuotesApi';
+import { searchUsers } from '../../quotes/api/quotesApi';
+
+// Commission split rep interface
+interface CommissionSplitRep {
+  id: string;
+  userId: string;
+  userName: string;
+  splitRate: string;
+  position: number;
+}
 
 interface AdditionalDetailsModalV2Props {
   isOpen: boolean;
   onClose: () => void;
   lineItem: LineItemV2 | null;
   onSave: (updates: Partial<LineItemV2>) => void;
+  settings?: QuoteSettingsV2;
 }
 
 export function AdditionalDetailsModalV2({
@@ -15,8 +28,10 @@ export function AdditionalDetailsModalV2({
   onClose,
   lineItem,
   onSave,
+  settings,
 }: AdditionalDetailsModalV2Props) {
   const [formData, setFormData] = useState({
+    endUserId: '',
     endUserName: '',
     commissionDiscountPercent: 0,
     commissionDiscountAmount: 0,
@@ -25,9 +40,68 @@ export function AdditionalDetailsModalV2({
     leadTime: '',
   });
 
+  // Inside/Outside rep state for line item level
+  const [insideSplitReps, setInsideSplitReps] = useState<CommissionSplitRep[]>([]);
+  const [outsideSplitReps, setOutsideSplitReps] = useState<CommissionSplitRep[]>([]);
+
+  // Search states
+  const [endUserSearchTerm, setEndUserSearchTerm] = useState('');
+  const [endUserSearchEnabled, setEndUserSearchEnabled] = useState(false);
+  const [insideRepSearchTerm, setInsideRepSearchTerm] = useState('');
+  const [insideRepSearchEnabled, setInsideRepSearchEnabled] = useState(false);
+  const [outsideRepSearchTerm, setOutsideRepSearchTerm] = useState('');
+  const [outsideRepSearchEnabled, setOutsideRepSearchEnabled] = useState(false);
+
+  // API hooks
+  const { data: endUserCustomers, isLoading: isEndUserLoading } = useCustomerSearch(
+    endUserSearchTerm,
+    endUserSearchEnabled && !!settings?.specifyEndUserPerLine
+  );
+  const { data: insideReps, isLoading: isInsideRepLoading } = useUserSearch(
+    insideRepSearchTerm,
+    true, // enabled flag
+    insideRepSearchEnabled && !!settings?.insideRepAtLineLevel
+  );
+  const { data: outsideReps, isLoading: isOutsideRepLoading } = useUserSearch(
+    outsideRepSearchTerm,
+    true,
+    outsideRepSearchEnabled && !!settings?.outsideRepAtLineLevel,
+    true // isOutside
+  );
+
+  const endUserOptions = useMemo(() => {
+    return (endUserCustomers || []).map(c => ({
+      id: c.id,
+      label: c.companyName,
+    }));
+  }, [endUserCustomers]);
+
+  const insideRepOptions = useMemo(() => {
+    return (insideReps || []).map(u => ({
+      id: u.id,
+      label: u.fullName || `${u.firstName} ${u.lastName}`,
+      sublabel: u.email,
+      fullName: u.fullName,
+      firstName: u.firstName,
+      lastName: u.lastName,
+    }));
+  }, [insideReps]);
+
+  const outsideRepOptions = useMemo(() => {
+    return (outsideReps || []).map(u => ({
+      id: u.id,
+      label: u.fullName || `${u.firstName} ${u.lastName}`,
+      sublabel: u.email,
+      fullName: u.fullName,
+      firstName: u.firstName,
+      lastName: u.lastName,
+    }));
+  }, [outsideReps]);
+
   useEffect(() => {
     if (lineItem) {
       setFormData({
+        endUserId: lineItem.endUserId || '',
         endUserName: lineItem.endUserName || '',
         commissionDiscountPercent: lineItem.commissionDiscountPercent || 0,
         commissionDiscountAmount: lineItem.commissionDiscountAmount || 0,
@@ -35,15 +109,161 @@ export function AdditionalDetailsModalV2({
         lineDiscountAmount: lineItem.lineDiscountAmount || 0,
         leadTime: lineItem.leadTime || '',
       });
+
+      // Initialize inside split reps from line item
+      if (lineItem.insideSplitRates && lineItem.insideSplitRates.length > 0) {
+        // Fetch user names for inside reps
+        searchUsers({ searchTerm: '', isInside: true, enabled: true, limit: 100 })
+          .then((users) => {
+            const repsWithNames: CommissionSplitRep[] = lineItem.insideSplitRates!.map((rep, idx) => {
+              const matchingUser = users.find(u => u.id === rep.userId);
+              return {
+                id: rep.id || crypto.randomUUID(),
+                userId: rep.userId || '',
+                userName: matchingUser?.fullName || '',
+                splitRate: rep.splitRate || '100',
+                position: rep.position || idx + 1,
+              };
+            });
+            setInsideSplitReps(repsWithNames);
+          })
+          .catch(() => {
+            setInsideSplitReps(lineItem.insideSplitRates!.map((rep, idx) => ({
+              id: rep.id || crypto.randomUUID(),
+              userId: rep.userId || '',
+              userName: '',
+              splitRate: rep.splitRate || '100',
+              position: rep.position || idx + 1,
+            })));
+          });
+      } else {
+        setInsideSplitReps([]);
+      }
+
+      // Initialize outside split reps from line item
+      if (lineItem.outsideSplitRates && lineItem.outsideSplitRates.length > 0) {
+        // Fetch user names for outside reps
+        searchUsers({ searchTerm: '', isOutside: true, enabled: true, limit: 100 })
+          .then((users) => {
+            const repsWithNames: CommissionSplitRep[] = lineItem.outsideSplitRates!.map((rep, idx) => {
+              const matchingUser = users.find(u => u.id === rep.userId);
+              return {
+                id: rep.id || crypto.randomUUID(),
+                userId: rep.userId || '',
+                userName: matchingUser?.fullName || '',
+                splitRate: rep.splitRate || '100',
+                position: rep.position || idx + 1,
+              };
+            });
+            setOutsideSplitReps(repsWithNames);
+          })
+          .catch(() => {
+            setOutsideSplitReps(lineItem.outsideSplitRates!.map((rep, idx) => ({
+              id: rep.id || crypto.randomUUID(),
+              userId: rep.userId || '',
+              userName: '',
+              splitRate: rep.splitRate || '100',
+              position: rep.position || idx + 1,
+            })));
+          });
+      } else {
+        setOutsideSplitReps([]);
+      }
     }
   }, [lineItem]);
 
   if (!isOpen || !lineItem) return null;
 
+  // Add rep to split commission
+  const addRepToSplit = (rep: { id: string; fullName?: string; firstName?: string; lastName?: string }, isInside: boolean) => {
+    const repName = rep.fullName || `${rep.firstName || ''} ${rep.lastName || ''}`.trim();
+    const targetReps = isInside ? insideSplitReps : outsideSplitReps;
+    const setReps = isInside ? setInsideSplitReps : setOutsideSplitReps;
+
+    const newRep: CommissionSplitRep = {
+      id: crypto.randomUUID(),
+      userId: rep.id,
+      userName: repName,
+      splitRate: '0',
+      position: targetReps.length + 1,
+    };
+
+    const newReps = [...targetReps, newRep];
+    // Auto-distribute percentages
+    const splitRate = Math.floor(100 / newReps.length).toString();
+    const updatedReps = newReps.map((r, idx) => ({
+      ...r,
+      splitRate: idx === newReps.length - 1 ? (100 - (parseInt(splitRate) * (newReps.length - 1))).toString() : splitRate,
+    }));
+    setReps(updatedReps);
+  };
+
+  // Remove rep from split commission
+  const removeRepFromSplit = (repId: string, isInside: boolean) => {
+    const targetReps = isInside ? insideSplitReps : outsideSplitReps;
+    const setReps = isInside ? setInsideSplitReps : setOutsideSplitReps;
+
+    const newReps = targetReps.filter(r => r.id !== repId);
+    if (newReps.length > 0) {
+      // Re-distribute percentages
+      const splitRate = Math.floor(100 / newReps.length).toString();
+      const updatedReps = newReps.map((r, idx) => ({
+        ...r,
+        splitRate: idx === newReps.length - 1 ? (100 - (parseInt(splitRate) * (newReps.length - 1))).toString() : splitRate,
+        position: idx + 1,
+      }));
+      setReps(updatedReps);
+    } else {
+      setReps([]);
+    }
+  };
+
+  // Update split rate for a rep
+  const updateSplitRate = (repId: string, rate: string, isInside: boolean) => {
+    const setReps = isInside ? setInsideSplitReps : setOutsideSplitReps;
+    setReps(reps => reps.map(r => r.id === repId ? { ...r, splitRate: rate } : r));
+  };
+
   const handleSave = () => {
-    onSave(formData);
+    const updates: Partial<LineItemV2> = {
+      ...formData,
+    };
+
+    // Add inside/outside split rates if per-line-item is enabled
+    if (settings?.insideRepAtLineLevel && insideSplitReps.length > 0) {
+      updates.insideSplitRates = insideSplitReps.map((r, idx) => ({
+        id: r.id,
+        userId: r.userId,
+        splitRate: r.splitRate,
+        position: idx + 1,
+      }));
+    }
+
+    if (settings?.outsideRepAtLineLevel && outsideSplitReps.length > 0) {
+      updates.outsideSplitRates = outsideSplitReps.map((r, idx) => ({
+        id: r.id,
+        userId: r.userId,
+        splitRate: r.splitRate,
+        position: idx + 1,
+      }));
+    }
+
+    if (settings?.specifyEndUserPerLine) {
+      updates.endUserId = formData.endUserId;
+      updates.endUserName = formData.endUserName;
+    }
+
+    onSave(updates);
     onClose();
   };
+
+  const insideSplitTotal = insideSplitReps.reduce((sum, r) => sum + parseInt(r.splitRate || '0'), 0);
+  const outsideSplitTotal = outsideSplitReps.reduce((sum, r) => sum + parseInt(r.splitRate || '0'), 0);
+
+  // Validate split totals - only check if per-line-item is enabled AND reps are added
+  const isInsideSplitValid = !settings?.insideRepAtLineLevel || insideSplitReps.length === 0 || insideSplitTotal === 100;
+  const isOutsideSplitValid = !settings?.outsideRepAtLineLevel || outsideSplitReps.length === 0 || outsideSplitTotal === 100;
+  const canSave = isInsideSplitValid && isOutsideSplitValid;
 
   return (
     <>
@@ -52,12 +272,12 @@ export function AdditionalDetailsModalV2({
 
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+        <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col">
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
             <div>
               <h2 className="text-lg font-semibold text-gray-900">Additional Details</h2>
-              <p className="text-sm text-gray-500 truncate max-w-[300px]">
+              <p className="text-sm text-gray-500 truncate max-w-[350px]">
                 {lineItem.partNumber} - {lineItem.description}
               </p>
             </div>
@@ -72,18 +292,159 @@ export function AdditionalDetailsModalV2({
           </div>
 
           {/* Content */}
-          <div className="px-6 py-4 space-y-4">
-            {/* End User */}
-            <div>
-              <label className="block text-sm text-gray-700 mb-1">End User</label>
-              <input
-                type="text"
-                value={formData.endUserName}
-                onChange={(e) => setFormData({ ...formData, endUserName: e.target.value })}
-                placeholder="Enter end user"
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
+          <div className="px-6 py-4 space-y-4 overflow-y-auto flex-1">
+            {/* End User - only show when per-line-item is enabled */}
+            {settings?.specifyEndUserPerLine && (
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">End User</label>
+                <SearchableDropdownV2
+                  value={formData.endUserId}
+                  displayValue={formData.endUserName}
+                  onChange={(id, label) => {
+                    setFormData({
+                      ...formData,
+                      endUserId: id,
+                      endUserName: label,
+                    });
+                  }}
+                  options={endUserOptions}
+                  placeholder="Search end user..."
+                  onSearch={(term) => {
+                    setEndUserSearchTerm(term);
+                    setEndUserSearchEnabled(true);
+                  }}
+                  isLoading={isEndUserLoading}
+                />
+              </div>
+            )}
+
+            {/* Inside Rep - only show when per-line-item is enabled */}
+            {settings?.insideRepAtLineLevel && (
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">Inside Rep(s)</label>
+
+                {/* Rep list */}
+                {insideSplitReps.length > 0 && (
+                  <div className="space-y-2 mb-2">
+                    {insideSplitReps.map((rep) => (
+                      <div key={rep.id} className="flex items-center gap-2 p-2 bg-gray-50 rounded-md">
+                        <div className="flex-1">
+                          <span className="text-sm font-medium text-gray-900">{rep.userName || 'Unknown'}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={rep.splitRate}
+                            onChange={(e) => updateSplitRate(rep.id, e.target.value, true)}
+                            className="w-14 px-2 py-1 text-sm border border-gray-300 rounded text-right"
+                          />
+                          <span className="text-sm text-gray-500">%</span>
+                        </div>
+                        <button
+                          onClick={() => removeRepFromSplit(rep.id, true)}
+                          className="p-1 text-gray-400 hover:text-red-500"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-500">Total:</span>
+                      <span className={`font-medium ${insideSplitTotal === 100 ? 'text-green-600' : 'text-red-600'}`}>
+                        {insideSplitTotal}%
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Add rep search */}
+                <SearchableDropdownV2
+                  value=""
+                  displayValue=""
+                  onChange={(id) => {
+                    const rep = insideReps?.find(r => r.id === id);
+                    if (rep) {
+                      addRepToSplit(rep, true);
+                    }
+                  }}
+                  options={insideRepOptions.filter(opt => !insideSplitReps.some(r => r.userId === opt.id))}
+                  onSearch={(term) => {
+                    setInsideRepSearchTerm(term);
+                    setInsideRepSearchEnabled(true);
+                  }}
+                  isLoading={isInsideRepLoading}
+                  placeholder="Add inside rep..."
+                />
+              </div>
+            )}
+
+            {/* Outside Rep - only show when per-line-item is enabled */}
+            {settings?.outsideRepAtLineLevel && (
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">Outside Rep(s)</label>
+
+                {/* Rep list */}
+                {outsideSplitReps.length > 0 && (
+                  <div className="space-y-2 mb-2">
+                    {outsideSplitReps.map((rep) => (
+                      <div key={rep.id} className="flex items-center gap-2 p-2 bg-gray-50 rounded-md">
+                        <div className="flex-1">
+                          <span className="text-sm font-medium text-gray-900">{rep.userName || 'Unknown'}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={rep.splitRate}
+                            onChange={(e) => updateSplitRate(rep.id, e.target.value, false)}
+                            className="w-14 px-2 py-1 text-sm border border-gray-300 rounded text-right"
+                          />
+                          <span className="text-sm text-gray-500">%</span>
+                        </div>
+                        <button
+                          onClick={() => removeRepFromSplit(rep.id, false)}
+                          className="p-1 text-gray-400 hover:text-red-500"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-500">Total:</span>
+                      <span className={`font-medium ${outsideSplitTotal === 100 ? 'text-green-600' : 'text-red-600'}`}>
+                        {outsideSplitTotal}%
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Add rep search */}
+                <SearchableDropdownV2
+                  value=""
+                  displayValue=""
+                  onChange={(id) => {
+                    const rep = outsideReps?.find(r => r.id === id);
+                    if (rep) {
+                      addRepToSplit(rep, false);
+                    }
+                  }}
+                  options={outsideRepOptions.filter(opt => !outsideSplitReps.some(r => r.userId === opt.id))}
+                  onSearch={(term) => {
+                    setOutsideRepSearchTerm(term);
+                    setOutsideRepSearchEnabled(true);
+                  }}
+                  isLoading={isOutsideRepLoading}
+                  placeholder="Add outside rep..."
+                />
+              </div>
+            )}
 
             {/* Commission Discount % */}
             <div>
@@ -155,10 +516,20 @@ export function AdditionalDetailsModalV2({
           </div>
 
           {/* Footer */}
-          <div className="px-6 py-4 border-t border-gray-200">
+          <div className="px-6 py-4 border-t border-gray-200 flex-shrink-0">
+            {!canSave && (
+              <p className="text-xs text-red-500 mb-2 text-center">
+                Split percentages must total 100%
+              </p>
+            )}
             <button
               onClick={handleSave}
-              className="w-full px-4 py-2 text-sm text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+              disabled={!canSave}
+              className={`w-full px-4 py-2 text-sm text-white rounded-lg transition-colors ${
+                canSave
+                  ? 'bg-indigo-600 hover:bg-indigo-700'
+                  : 'bg-gray-400 cursor-not-allowed'
+              }`}
             >
               Done
             </button>

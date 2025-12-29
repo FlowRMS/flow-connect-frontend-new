@@ -97,6 +97,7 @@ export interface QuoteDetail {
   commissionRate?: string;
   discount?: number;
   discountRate?: string;
+  divisionFactor?: string;
   endUserId?: string;
   factoryId?: string;
   itemNumber?: number;
@@ -108,7 +109,8 @@ export interface QuoteDetail {
   productNameAdhoc?: string;
   quantity?: number;
   quoteId?: string;
-  splitRates?: QuoteSplitRate[];
+  insideSplitRates?: QuoteSplitRate[];
+  outsideSplitRates?: QuoteSplitRate[];
   status?: QuoteDetailStatus;
   subtotal?: number;
   total?: number;
@@ -118,6 +120,15 @@ export interface QuoteDetail {
 }
 
 export interface QuoteInsideRep {
+  id: string;
+  createdAt?: string;
+  position?: number;
+  quoteId?: string;
+  splitRate?: string;
+  userId?: string;
+}
+
+export interface QuoteOutsideRep {
   id: string;
   createdAt?: string;
   position?: number;
@@ -159,7 +170,6 @@ export interface Quote {
   entityDate?: string;
   expDate?: string;
   freightTerms?: string;
-  insideReps?: QuoteInsideRep[];
   job?: QuoteJob;
   paymentTerms?: string;
   pipelineStage?: QuotePipelineStage;
@@ -202,6 +212,7 @@ export interface QuoteDetailInput {
   commissionDiscountRate?: string;
   commissionRate?: string;
   discountRate?: string;
+  divisionFactor?: string;
   endUserId?: string;
   factoryId?: string;
   itemNumber?: number;
@@ -210,7 +221,9 @@ export interface QuoteDetailInput {
   productDescriptionAdhoc?: string;
   productNameAdhoc?: string;
   productId?: string;
-  splitRates?: QuoteSplitRateInput[];
+  uomId?: string;
+  insideSplitRates?: QuoteSplitRateInput[];
+  outsideSplitRates?: QuoteSplitRateInput[];
   status?: QuoteDetailStatus;
 }
 
@@ -230,7 +243,6 @@ export interface CreateQuoteInput {
   expDate?: string;
   freightTerms?: string;
   id?: string;
-  insideReps?: QuoteSplitRateInput[];
   jobId?: string;
   paymentTerms?: string;
   reviseDate?: string;
@@ -374,7 +386,13 @@ const FIND_QUOTE_BY_ID = `
         productNameAdhoc
         quantity
         quoteId
-        splitRates {
+        insideSplitRates {
+          id
+          position
+          splitRate
+          userId
+        }
+        outsideSplitRates {
           id
           createdAt
           position
@@ -398,14 +416,6 @@ const FIND_QUOTE_BY_ID = `
       entityDate
       expDate
       freightTerms
-      insideReps {
-        id
-        createdAt
-        position
-        quoteId
-        splitRate
-        userId
-      }
       job {
         id
         jobName
@@ -506,7 +516,13 @@ const CREATE_QUOTE = `
         productNameAdhoc
         quantity
         quoteId
-        splitRates {
+        insideSplitRates {
+          id
+          position
+          splitRate
+          userId
+        }
+        outsideSplitRates {
           id
           createdAt
           position
@@ -524,14 +540,6 @@ const CREATE_QUOTE = `
       entityDate
       expDate
       freightTerms
-      insideReps {
-        id
-        createdAt
-        position
-        quoteId
-        splitRate
-        userId
-      }
       job {
         id
         jobName
@@ -628,7 +636,13 @@ const UPDATE_QUOTE = `
         productNameAdhoc
         quantity
         quoteId
-        splitRates {
+        insideSplitRates {
+          id
+          position
+          splitRate
+          userId
+        }
+        outsideSplitRates {
           id
           createdAt
           position
@@ -646,14 +660,6 @@ const UPDATE_QUOTE = `
       entityDate
       expDate
       freightTerms
-      insideReps {
-        id
-        createdAt
-        position
-        quoteId
-        splitRate
-        userId
-      }
       job {
         id
         jobName
@@ -778,7 +784,13 @@ const CREATE_QUOTE_FROM_PRE_OPPORTUNITY = `
         productNameAdhoc
         quantity
         quoteId
-        splitRates {
+        insideSplitRates {
+          id
+          position
+          splitRate
+          userId
+        }
+        outsideSplitRates {
           id
           createdAt
           position
@@ -796,14 +808,6 @@ const CREATE_QUOTE_FROM_PRE_OPPORTUNITY = `
       entityDate
       expDate
       freightTerms
-      insideReps {
-        id
-        createdAt
-        position
-        quoteId
-        splitRate
-        userId
-      }
       paymentTerms
       pipelineStage
       published

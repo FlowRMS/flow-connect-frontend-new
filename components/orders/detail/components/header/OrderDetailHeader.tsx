@@ -44,8 +44,10 @@ interface OrderDetailHeaderProps {
   // New props for field updates
   onUpdateOrder?: (updates: Partial<Order>) => void;
   isCreateMode?: boolean;
-  // End user setting
+  // Settings for per-line-item fields
   showEndUserPerLine?: boolean;
+  showOutsideRepPerLine?: boolean;
+  showInsideRepPerLine?: boolean;
   // Additional props needed for HeaderTopBar
   showActionsDropdown?: boolean;
   setShowActionsDropdown?: (show: boolean) => void;
@@ -95,8 +97,10 @@ export function OrderDetailHeader(props: OrderDetailHeaderProps) {
     // New props for field updates
     onUpdateOrder,
     isCreateMode = false,
-    // End user setting
+    // Settings for per-line-item fields
     showEndUserPerLine = false,
+    showOutsideRepPerLine = false,
+    showInsideRepPerLine = false,
     // Additional props with defaults
     showActionsDropdown = false,
     setShowActionsDropdown = () => {},
@@ -193,6 +197,8 @@ export function OrderDetailHeader(props: OrderDetailHeaderProps) {
         onUpdateOrder={onUpdateOrder}
         isCreateMode={isCreateMode}
         showEndUserPerLine={showEndUserPerLine}
+        showOutsideRepPerLine={showOutsideRepPerLine}
+        showInsideRepPerLine={showInsideRepPerLine}
       />
     </>
   );

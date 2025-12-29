@@ -24,8 +24,42 @@ export interface PreOpportunityProduct {
   description?: string;
   unitPrice?: number;
   defaultCommissionRate?: number;
+  commissionDiscountRate?: number;
+  defaultDivisor?: number;
   approvalNeeded?: boolean;
+  approvalComments?: string;
+  approvalDate?: string;
+  leadTime?: string;
+  minOrderQty?: number;
   published?: boolean;
+  tags?: string;
+  unitPriceDiscountRate?: number;
+  upc?: string;
+}
+
+export interface PreOpportunityDetailQuote {
+  id: string;
+  quoteNumber: string;
+  status?: string;
+  pipelineStage?: string;
+  entityDate?: string;
+  expDate?: string;
+  createdAt?: string;
+  published?: boolean;
+  versionOf?: string;
+  url?: string;
+  reviseDate?: string;
+  soldToCustomerId?: string;
+  blanket?: boolean;
+  billToCustomerId?: string;
+  acceptDate?: string;
+  balanceId?: string;
+  customerRef?: string;
+  creationType?: string;
+  createdById?: string;
+  duplicatedFrom?: string;
+  freightTerms?: string;
+  paymentTerms?: string;
 }
 
 export interface PreOpportunityDetail {
@@ -43,6 +77,7 @@ export interface PreOpportunityDetail {
   total: number;
   leadTime?: string;
   endUserId?: string;
+  quote?: PreOpportunityDetailQuote;
 }
 
 export interface PreOpportunity {

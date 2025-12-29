@@ -155,6 +155,69 @@ export function PreOpportunitySummary({ preOpp }: PreOpportunitySummaryProps) {
         </div>
       </div>
 
+      {/* Linked Quotes Card */}
+      {preOpp.details.some(d => d.quote) && (
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Linked Quotes</h3>
+          <div className="space-y-3">
+            {(() => {
+              // Get unique quotes from details
+              const uniqueQuotes = new Map<string, NonNullable<typeof preOpp.details[0]['quote']>>();
+              preOpp.details.forEach(d => {
+                if (d.quote && !uniqueQuotes.has(d.quote.id)) {
+                  uniqueQuotes.set(d.quote.id, d.quote);
+                }
+              });
+              return Array.from(uniqueQuotes.values()).map(quote => (
+                <div key={quote.id} className="p-3 bg-purple-50 rounded-lg border border-purple-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-purple-900">{quote.quoteNumber}</span>
+                    {quote.status && (
+                      <span className="px-2 py-0.5 bg-purple-200 text-purple-700 rounded text-xs uppercase">
+                        {quote.status}
+                      </span>
+                    )}
+                  </div>
+                  {quote.pipelineStage && (
+                    <div className="text-xs text-purple-600 mb-1">
+                      Stage: {quote.pipelineStage}
+                    </div>
+                  )}
+                  {quote.entityDate && (
+                    <div className="text-xs text-gray-500">
+                      Date: {formatDate(quote.entityDate)}
+                    </div>
+                  )}
+                  {quote.expDate && (
+                    <div className="text-xs text-gray-500">
+                      Expires: {formatDate(quote.expDate)}
+                    </div>
+                  )}
+                  {quote.customerRef && (
+                    <div className="text-xs text-gray-500 mt-1">
+                      Customer Ref: {quote.customerRef}
+                    </div>
+                  )}
+                  {quote.url && (
+                    <a
+                      href={quote.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800 mt-2"
+                    >
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                      View Quote
+                    </a>
+                  )}
+                </div>
+              ));
+            })()}
+          </div>
+        </div>
+      )}
+
       {/* Dates Card */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Timeline</h3>

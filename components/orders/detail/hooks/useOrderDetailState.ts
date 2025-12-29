@@ -88,12 +88,17 @@ function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
     // Store additional fields for line item
     endUserId: detail.endUserId,
     endUserName: '', // Will be fetched separately
-    splitRates: detail.splitRates, // Store outside rep split rates from line item
+    insideSplitRates: detail.insideSplitRates, // Store inside rep split rates from line item
+    outsideSplitRates: detail.outsideSplitRates, // Store outside rep split rates from line item
   }));
 
-  // Extract outside rep from the first line item's splitRates (outside rep is stored per line item)
-  const firstDetailWithSplitRates = apiOrder.details?.find(d => d.splitRates && d.splitRates.length > 0);
-  const outsideRepSplitRate = firstDetailWithSplitRates?.splitRates?.[0];
+  // Extract inside rep from the first line item's insideSplitRates
+  const firstDetailWithInsideReps = apiOrder.details?.find(d => d.insideSplitRates && d.insideSplitRates.length > 0);
+  const insideRepSplitRate = firstDetailWithInsideReps?.insideSplitRates?.[0];
+
+  // Extract outside rep from the first line item's outsideSplitRates
+  const firstDetailWithOutsideReps = apiOrder.details?.find(d => d.outsideSplitRates && d.outsideSplitRates.length > 0);
+  const outsideRepSplitRate = firstDetailWithOutsideReps?.outsideSplitRates?.[0];
 
   // Build the order object with all API fields
   const order: Order = {
@@ -122,9 +127,9 @@ function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
     freight: apiOrder.balance?.freightChargeBalance || 0,
     total: apiOrder.balance?.total || 0,
     totalCommission: apiOrder.balance?.commission || 0,
-    insideRepId: apiOrder.insideReps?.[0]?.userId,
+    insideRepId: insideRepSplitRate?.userId,
     insideRepName: '', // Will be fetched separately
-    splitRates: (apiOrder.insideReps || []).map(rep => ({
+    splitRates: (firstDetailWithInsideReps?.insideSplitRates || []).map(rep => ({
       salesRepId: rep.userId || '',
       salesRepName: '', // Will be fetched separately
       splitPercentage: parseFloat(rep.splitRate || '0'),
@@ -143,17 +148,18 @@ function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
   (order as any).markNumber = apiOrder.markNumber;
   (order as any).orderType = apiOrder.orderType;
 
-  // Store all inside reps for split commission support
-  (order as any).insideReps = (apiOrder.insideReps || []).map((rep, idx) => ({
-    id: rep.id || '',
-    userId: rep.userId || '',
-    splitRate: rep.splitRate || '100',
-    position: rep.position ?? idx,
-  }));
+  // Store all inside reps from line item for split commission support
+  const allInsideReps = firstDetailWithInsideReps?.insideSplitRates?.map((sr, idx) => ({
+    id: sr.id || '',
+    userId: sr.userId || '',
+    splitRate: sr.splitRate || '100',
+    position: sr.position ?? idx,
+  })) || [];
 
-  // Store outside rep info extracted from line items
-  // Store ALL outside reps for split commission support
-  const allOutsideReps = firstDetailWithSplitRates?.splitRates?.map((sr, idx) => ({
+  (order as any).insideReps = allInsideReps;
+
+  // Store all outside reps from line item for split commission support
+  const allOutsideReps = firstDetailWithOutsideReps?.outsideSplitRates?.map((sr, idx) => ({
     id: sr.id || '',
     userId: sr.userId || '',
     splitRate: sr.splitRate || '100',
@@ -328,6 +334,38 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
           })
           .catch((err) => console.error('Failed to fetch end user names:', err));
         fetchPromises.push(endUserPromise);
+      }
+
+      // Auto-detect per-line-item settings by checking if line items have different values
+      if (apiOrder.details && apiOrder.details.length > 1) {
+        // Helper to serialize split rates for comparison (ignoring IDs)
+        const serializeSplitRates = (rates?: { userId?: string; splitRate?: string }[]) => {
+          if (!rates || rates.length === 0) return '';
+          return rates
+            .map(r => `${r.userId || ''}:${r.splitRate || ''}`)
+            .sort()
+            .join('|');
+        };
+
+        // Check if inside reps differ across line items
+        const insideRateSignatures = apiOrder.details.map(d => serializeSplitRates(d.insideSplitRates));
+        const hasDistinctInsideReps = new Set(insideRateSignatures).size > 1;
+
+        // Check if outside reps differ across line items
+        const outsideRateSignatures = apiOrder.details.map(d => serializeSplitRates(d.outsideSplitRates));
+        const hasDistinctOutsideReps = new Set(outsideRateSignatures).size > 1;
+
+        // Check if end users differ across line items
+        // Include empty strings in comparison - empty vs non-empty IS different
+        const endUserIdList = apiOrder.details.map(d => d.endUserId || '');
+        const hasDistinctEndUsers = new Set(endUserIdList).size > 1;
+
+        // ALWAYS set settings based on current data state - derive purely from data
+        // If all line items have SAME values → toggle OFF (header mode)
+        // If line items have DIFFERENT values → toggle ON (per-line mode)
+        setShowInsideRepPerLine(hasDistinctInsideReps);
+        setShowOutsideRepPerLine(hasDistinctOutsideReps);
+        setShowEndUserPerLine(hasDistinctEndUsers);
       }
 
       // After all fetches complete (or if no fetches needed), mark as initialized so useMemo uses localOrder
