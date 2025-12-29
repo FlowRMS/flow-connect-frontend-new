@@ -28,6 +28,7 @@ export type {
   PreOpportunityProduct,
   PreOpportunityJob,
   PreOpportunityDetail,
+  PreOpportunityDetailQuote,
   PreOpportunityDetailInput,
   CreatePreOpportunityInput,
   UpdatePreOpportunityInput,
@@ -171,6 +172,20 @@ const GET_PRE_OPPORTUNITY = `
           expDate
           createdAt
           published
+          versionOf
+          url
+          reviseDate
+          soldToCustomerId
+          blanket
+          billToCustomerId
+          acceptDate
+          balanceId
+          customerRef
+          creationType
+          createdById
+          duplicatedFrom
+          freightTerms
+          paymentTerms
         }
       }
       createdBy {
@@ -465,6 +480,20 @@ const CREATE_PRE_OPPORTUNITY = `
           expDate
           createdAt
           published
+          versionOf
+          url
+          reviseDate
+          soldToCustomerId
+          blanket
+          billToCustomerId
+          acceptDate
+          balanceId
+          customerRef
+          creationType
+          createdById
+          duplicatedFrom
+          freightTerms
+          paymentTerms
         }
       }
       createdBy {
@@ -585,6 +614,20 @@ const UPDATE_PRE_OPPORTUNITY = `
           expDate
           createdAt
           published
+          versionOf
+          url
+          reviseDate
+          soldToCustomerId
+          blanket
+          billToCustomerId
+          acceptDate
+          balanceId
+          customerRef
+          creationType
+          createdById
+          duplicatedFrom
+          freightTerms
+          paymentTerms
         }
       }
       createdBy {

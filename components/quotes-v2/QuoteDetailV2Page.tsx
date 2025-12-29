@@ -135,37 +135,94 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       }
       setHasChanges(false);
 
-      // Fetch inside rep name if we have userId but no name
-      if (transformedQuote.insideRepId && !transformedQuote.insideRepName) {
-        // Search for the user to get their name
-        searchUsers({ searchTerm: '', isInside: true, enabled: true, limit: 100 })
-          .then((users) => {
-            const matchingUser = users.find((u) => u.id === transformedQuote.insideRepId);
-            if (matchingUser?.fullName) {
-              setQuote((prev) => ({ ...prev, insideRepName: matchingUser.fullName || '' }));
-            }
-          })
-          .catch((err) => {
-            console.error('Failed to fetch inside rep name:', err);
-          });
+      // Auto-detect per-line-item settings by checking if line items have different values
+      if (apiQuote.details && apiQuote.details.length > 1) {
+        // Helper to serialize split rates for comparison (ignoring IDs)
+        const serializeSplitRates = (rates?: { userId?: string; splitRate?: string }[]) => {
+          if (!rates || rates.length === 0) return '';
+          return rates
+            .map(r => `${r.userId || ''}:${r.splitRate || ''}`)
+            .sort()
+            .join('|');
+        };
+
+        // Check if inside reps differ across line items
+        const insideRateSignatures = apiQuote.details.map(d => serializeSplitRates(d.insideSplitRates));
+        const hasDistinctInsideReps = new Set(insideRateSignatures).size > 1;
+
+        // Check if outside reps differ across line items
+        const outsideRateSignatures = apiQuote.details.map(d => serializeSplitRates(d.outsideSplitRates));
+        const hasDistinctOutsideReps = new Set(outsideRateSignatures).size > 1;
+
+        // Check if end users differ across line items
+        // Include empty strings in comparison - empty vs non-empty IS different
+        const endUserIds = apiQuote.details.map(d => d.endUserId || '');
+        const hasDistinctEndUsers = new Set(endUserIds).size > 1;
+
+        // ALWAYS set settings based on current data state - derive purely from data
+        // If all line items have SAME values → toggle OFF (header mode)
+        // If line items have DIFFERENT values → toggle ON (per-line mode)
+        setSettings(prev => ({
+          ...prev,
+          insideRepAtLineLevel: hasDistinctInsideReps,
+          outsideRepAtLineLevel: hasDistinctOutsideReps,
+          specifyEndUserPerLine: hasDistinctEndUsers,
+        }));
       }
 
-      // Extract outside reps from line item splitRates
-      // The backend stores outside reps in the splitRates of each line item
+      // Extract inside and outside reps from line item split rates
+      // The backend now stores both insideSplitRates and outsideSplitRates at detail level
       if (apiQuote.details && apiQuote.details.length > 0) {
-        // Get splitRates from the first line item (they should be the same across all line items)
-        const firstDetailWithSplitRates = apiQuote.details.find(d => d.splitRates && d.splitRates.length > 0);
+        // Get split rates from the first line item (used for header display when not in per-line mode)
+        const firstDetailWithInsideReps = apiQuote.details.find(d => d.insideSplitRates && d.insideSplitRates.length > 0);
+        const firstDetailWithOutsideReps = apiQuote.details.find(d => d.outsideSplitRates && d.outsideSplitRates.length > 0);
 
-        if (firstDetailWithSplitRates?.splitRates && firstDetailWithSplitRates.splitRates.length > 0) {
-          const splitRates = firstDetailWithSplitRates.splitRates;
+        // Extract inside reps
+        if (firstDetailWithInsideReps?.insideSplitRates && firstDetailWithInsideReps.insideSplitRates.length > 0) {
+          const insideSplitRates = firstDetailWithInsideReps.insideSplitRates;
+
+          // Fetch inside users to get their names
+          searchUsers({ searchTerm: '', isInside: true, enabled: true, limit: 100 })
+            .then((insideUsers) => {
+              const insideRepsFromSplitRates: { id: string; userId?: string; splitRate?: string; position?: number }[] = [];
+
+              insideSplitRates.forEach(sr => {
+                if (sr.userId) {
+                  insideRepsFromSplitRates.push({
+                    id: sr.id,
+                    userId: sr.userId,
+                    splitRate: sr.splitRate,
+                    position: sr.position,
+                  });
+                }
+              });
+
+              if (insideRepsFromSplitRates.length > 0) {
+                const firstInsideRep = insideRepsFromSplitRates[0];
+                const matchingUser = insideUsers.find(u => u.id === firstInsideRep.userId);
+                setQuote((prev) => ({
+                  ...prev,
+                  insideReps: insideRepsFromSplitRates,
+                  insideRepId: firstInsideRep.userId,
+                  insideRepName: matchingUser?.fullName || '',
+                }));
+              }
+            })
+            .catch((err) => {
+              console.error('Failed to fetch inside reps:', err);
+            });
+        }
+
+        // Extract outside reps
+        if (firstDetailWithOutsideReps?.outsideSplitRates && firstDetailWithOutsideReps.outsideSplitRates.length > 0) {
+          const outsideSplitRates = firstDetailWithOutsideReps.outsideSplitRates;
 
           // Fetch outside users to get their names
           searchUsers({ searchTerm: '', isOutside: true, enabled: true, limit: 100 })
             .then((outsideUsers) => {
               const outsideRepsFromSplitRates: { id: string; userId?: string; splitRate?: string; position?: number }[] = [];
 
-              // Map splitRates to outsideReps
-              splitRates.forEach(sr => {
+              outsideSplitRates.forEach(sr => {
                 if (sr.userId) {
                   outsideRepsFromSplitRates.push({
                     id: sr.id,
@@ -252,19 +309,22 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       jobId: quote.jobId || undefined,
       paymentTerms: quote.paymentTerms || undefined,
       reviseDate: quote.revisedDate || undefined,
+      // Split rates are now at detail level (insideSplitRates and outsideSplitRates per line item)
+      // Pass settings so each line item uses its own split rates when per-line-item is enabled
       details: lineItems.map((li, index) => ({
-        ...transformLineItemV2ToDetailInput(li, quote.outsideReps),
+        ...transformLineItemV2ToDetailInput(
+          li,
+          quote.insideReps,
+          quote.outsideReps,
+          {
+            insideRepAtLineLevel: settings.insideRepAtLineLevel,
+            outsideRepAtLineLevel: settings.outsideRepAtLineLevel,
+          }
+        ),
         itemNumber: li.itemNumber ?? index + 1,
       })),
-      insideReps: quote.insideReps?.map((rep) => ({
-        // Only include id if it's a valid UUID (existing from API)
-        ...(rep.id && isValidUUID(rep.id) ? { id: rep.id } : {}),
-        userId: rep.userId || '',
-        splitRate: rep.splitRate || '100',
-        position: rep.position,
-      })),
     };
-  }, [quote, lineItems]);
+  }, [quote, lineItems, settings]);
 
   const handleSave = useCallback(async () => {
     if (!quote.quoteNumber || !quote.soldToCustomerId) {
@@ -539,6 +599,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         onClose={() => setShowAdditionalDetailsModal(false)}
         lineItem={selectedLineItem}
         onSave={handleSaveAdditionalDetails}
+        settings={settings}
       />
     </div>
   );

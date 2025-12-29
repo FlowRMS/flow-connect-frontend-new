@@ -190,8 +190,9 @@ export interface LineItemV2 {
   // Status
   status?: QuoteDetailStatus;
 
-  // Split rates
-  splitRates?: { id: string; userId?: string; splitRate?: string; position?: number }[];
+  // Split rates - inside and outside reps at line item level
+  insideSplitRates?: { id: string; userId?: string; splitRate?: string; position?: number }[];
+  outsideSplitRates?: { id: string; userId?: string; splitRate?: string; position?: number }[];
 }
 
 export interface NoteV2 {
@@ -472,12 +473,8 @@ export function transformQuoteToQuoteV2(quote: Quote): QuoteV2 {
     // Customer reference
     customerRef: quote.customerRef,
 
-    // Inside reps - try to get name from createdBy if userId matches
-    insideReps: quote.insideReps,
-    insideRepId: quote.insideReps?.[0]?.userId,
-    insideRepName: quote.insideReps?.[0]?.userId === quote.createdBy?.id
-      ? quote.createdBy?.fullName || ''
-      : '',
+    // Inside and outside reps are now extracted from line item split rates
+    // They will be populated by QuoteDetailV2Page from the details' insideSplitRates/outsideSplitRates
 
     // Version
     version: 1,
@@ -560,8 +557,9 @@ export function transformQuoteDetailToLineItemV2(detail: QuoteDetail, quoteId: s
     // Status
     status: detail.status,
 
-    // Split rates
-    splitRates: detail.splitRates,
+    // Split rates - inside and outside reps at line item level
+    insideSplitRates: detail.insideSplitRates,
+    outsideSplitRates: detail.outsideSplitRates,
   };
 }
 
@@ -575,10 +573,20 @@ function isValidUUID(id: string): boolean {
 
 /**
  * Transform LineItemV2 back to QuoteDetailInput for API
+ *
+ * When per-line-item settings are enabled, each line item uses its own split rates.
+ * When disabled, all line items use the header-level split rates.
+ *
+ * @param lineItem - The line item to transform
+ * @param headerInsideReps - Header-level inside reps (only used when insideRepAtLineLevel is false)
+ * @param headerOutsideReps - Header-level outside reps (only used when outsideRepAtLineLevel is false)
+ * @param settings - Quote settings to determine whether to use header or line-item level reps
  */
 export function transformLineItemV2ToDetailInput(
   lineItem: LineItemV2,
-  outsideReps?: { id: string; userId?: string; splitRate?: string; position?: number }[]
+  headerInsideReps?: { id: string; userId?: string; splitRate?: string; position?: number }[],
+  headerOutsideReps?: { id: string; userId?: string; splitRate?: string; position?: number }[],
+  settings?: { insideRepAtLineLevel?: boolean; outsideRepAtLineLevel?: boolean }
 ): {
   id?: string;
   itemNumber?: number;
@@ -596,14 +604,32 @@ export function transformLineItemV2ToDetailInput(
   productId?: string;
   status?: QuoteDetailStatus;
   uomId?: string;
-  splitRates?: { id?: string; userId: string; splitRate: string; position?: number }[];
+  insideSplitRates?: { id?: string; userId: string; splitRate: string; position?: number }[];
+  outsideSplitRates?: { id?: string; userId: string; splitRate: string; position?: number }[];
 } {
   // Only include ID if it's a valid UUID (existing item from API)
   // New items with IDs like "li-123456" should not send ID
   const id = lineItem.id && isValidUUID(lineItem.id) ? lineItem.id : undefined;
 
-  // Build splitRates from outsideReps if provided
-  const splitRates = outsideReps?.map((rep) => ({
+  // Determine which split rates to use based on settings:
+  // - If per-line-item is enabled (insideRepAtLineLevel/outsideRepAtLineLevel = true), use lineItem's split rates
+  // - If per-line-item is disabled (false), use header-level reps for all line items
+  // - Default: use line item's split rates (backwards compatible)
+  const useLineItemInsideReps = settings?.insideRepAtLineLevel !== false;
+  const useLineItemOutsideReps = settings?.outsideRepAtLineLevel !== false;
+
+  // Build insideSplitRates - use line item's rates or header rates based on setting
+  const insideRepsSource = useLineItemInsideReps ? lineItem.insideSplitRates : headerInsideReps;
+  const insideSplitRates = insideRepsSource?.map((rep) => ({
+    ...(rep.id && isValidUUID(rep.id) ? { id: rep.id } : {}),
+    userId: rep.userId || '',
+    splitRate: rep.splitRate || '100',
+    position: rep.position,
+  }));
+
+  // Build outsideSplitRates - use line item's rates or header rates based on setting
+  const outsideRepsSource = useLineItemOutsideReps ? lineItem.outsideSplitRates : headerOutsideReps;
+  const outsideSplitRates = outsideRepsSource?.map((rep) => ({
     ...(rep.id && isValidUUID(rep.id) ? { id: rep.id } : {}),
     userId: rep.userId || '',
     splitRate: rep.splitRate || '100',
@@ -618,7 +644,8 @@ export function transformLineItemV2ToDetailInput(
     commissionDiscountRate: lineItem.commissionDiscountPercent?.toString(),
     commissionRate: lineItem.commissionPercent?.toString(),
     discountRate: lineItem.lineDiscountPercent?.toString(),
-    endUserId: lineItem.endUserId,
+    // Only include endUserId if it's a valid UUID (not empty string)
+    endUserId: lineItem.endUserId && isValidUUID(lineItem.endUserId) ? lineItem.endUserId : undefined,
     factoryId: lineItem.manufacturerId,
     leadTime: lineItem.leadTime,
     note: lineItem.note,
@@ -627,7 +654,8 @@ export function transformLineItemV2ToDetailInput(
     productId: lineItem.productId,
     status: lineItem.status,
     uomId: lineItem.uomId,
-    splitRates: splitRates && splitRates.length > 0 ? splitRates : undefined,
+    insideSplitRates: insideSplitRates && insideSplitRates.length > 0 ? insideSplitRates : undefined,
+    outsideSplitRates: outsideSplitRates && outsideSplitRates.length > 0 ? outsideSplitRates : undefined,
   };
 }
 

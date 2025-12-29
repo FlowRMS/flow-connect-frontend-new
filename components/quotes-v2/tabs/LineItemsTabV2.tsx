@@ -80,13 +80,11 @@ export function LineItemsTabV2({
 
   const visibleColumns = useMemo(
     () => columnConfig.filter((c) => {
-      // Always show End User column when specifyEndUserPerLine is enabled
-      if (c.key === 'endUser' && settings?.specifyEndUserPerLine) {
-        return true;
-      }
+      // End User is now handled in Additional Details modal when specifyEndUserPerLine is enabled
+      // Don't auto-show the column - user can enable it via column config if needed
       return c.visible;
     }),
-    [columnConfig, settings?.specifyEndUserPerLine]
+    [columnConfig]
   );
 
   const toggleSelectAll = () => {

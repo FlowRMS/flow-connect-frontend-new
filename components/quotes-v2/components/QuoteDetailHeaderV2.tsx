@@ -747,31 +747,42 @@ export function QuoteDetailHeaderV2({
               placeholder="Search customers..."
             />
           </div>
-          {/* Only show End User at header level if not specifying per line */}
-          {!settings?.specifyEndUserPerLine && (
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">End User</label>
-              <SearchableDropdownV2
-                value={quote.endUserId || ''}
-                displayValue={quote.endUserName || ''}
-                onChange={(id, label) => onQuoteChange({ endUserId: id, endUserName: label })}
-                options={endUserOptions}
-                onSearch={handleEndUserSearch}
-                isLoading={isEndUserLoading}
-                placeholder="Search customers..."
-                disabled={endUserSameAsSoldTo}
-              />
-              <label className="flex items-center gap-1.5 mt-1 cursor-pointer">
+          {/* End User - grey out and show "per line item" when settings enabled */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">End User</label>
+            {settings?.specifyEndUserPerLine ? (
+              <div className="relative">
                 <input
-                  type="checkbox"
-                  checked={endUserSameAsSoldTo}
-                  onChange={(e) => handleEndUserSameAsSoldTo(e.target.checked)}
-                  className="w-3 h-3 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                  type="text"
+                  value="Per line item"
+                  disabled
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md bg-gray-100 text-gray-400 cursor-not-allowed"
                 />
-                <span className="text-xs text-gray-500">Same as sold to</span>
-              </label>
-            </div>
-          )}
+              </div>
+            ) : (
+              <>
+                <SearchableDropdownV2
+                  value={quote.endUserId || ''}
+                  displayValue={quote.endUserName || ''}
+                  onChange={(id, label) => onQuoteChange({ endUserId: id, endUserName: label })}
+                  options={endUserOptions}
+                  onSearch={handleEndUserSearch}
+                  isLoading={isEndUserLoading}
+                  placeholder="Search customers..."
+                  disabled={endUserSameAsSoldTo}
+                />
+                <label className="flex items-center gap-1.5 mt-1 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={endUserSameAsSoldTo}
+                    onChange={(e) => handleEndUserSameAsSoldTo(e.target.checked)}
+                    className="w-3 h-3 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                  />
+                  <span className="text-xs text-gray-500">Same as sold to</span>
+                </label>
+              </>
+            )}
+          </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Job</label>
             <SearchableDropdownV2
@@ -854,141 +865,169 @@ export function QuoteDetailHeaderV2({
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Outside Rep</label>
-            {/* Show clickable field with split count when multiple reps */}
-            {showOutsideSplitCommission && outsideSplitReps.length > 0 ? (
-              <button
-                onClick={() => setShowOutsideSplitModal(true)}
-                className="w-full px-3 py-2 text-sm text-left border border-gray-300 rounded-md bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 flex items-center justify-between"
-              >
-                <span className="truncate">
-                  {outsideSplitReps[0]?.userName || quote.outsideRepName || 'Multiple Reps'}
-                  {outsideSplitReps.length > 1 && (
-                    <span className="ml-1 text-indigo-600 font-medium">+{outsideSplitReps.length - 1}</span>
-                  )}
-                </span>
-                <span className="text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded ml-2 flex-shrink-0">
-                  Split
-                </span>
-              </button>
-            ) : (
-              <SearchableDropdownV2
-                value={quote.outsideRepId || ''}
-                displayValue={quote.outsideRepName || ''}
-                onChange={(id, label) => {
-                  onQuoteChange({
-                    outsideRepId: id,
-                    outsideRepName: label,
-                    // Set outsideReps array so it gets sent in splitRates on line items
-                    outsideReps: id ? [{ id: '', userId: id, splitRate: '100', position: 0 }] : [],
-                  });
-                  // Reset split commission when changing rep
-                  if (id) {
-                    setShowOutsideSplitCommission(false);
-                    setOutsideSplitReps([]);
-                  }
-                }}
-                options={outsideRepOptions}
-                onSearch={handleOutsideRepSearch}
-                isLoading={isOutsideRepLoading}
-                placeholder="Search outside reps..."
-              />
-            )}
-            {quote.outsideRepId && (
-              <label className="flex items-center gap-1.5 mt-1 cursor-pointer">
+            {/* Grey out and show "per line item" when settings enabled */}
+            {settings?.outsideRepAtLineLevel ? (
+              <div className="relative">
                 <input
-                  type="checkbox"
-                  checked={showOutsideSplitCommission}
-                  onChange={(e) => {
-                    setShowOutsideSplitCommission(e.target.checked);
-                    if (e.target.checked) {
-                      setShowOutsideSplitModal(true);
-                      // Initialize with current rep if no split reps exist
-                      if (outsideSplitReps.length === 0) {
-                        setOutsideSplitReps([{
-                          id: crypto.randomUUID(),
-                          userId: quote.outsideRepId || '',
-                          userName: quote.outsideRepName || '',
-                          splitRate: '100',
-                          position: 1,
-                        }]);
-                      }
-                    } else {
-                      setOutsideSplitReps([]);
-                    }
-                  }}
-                  className="w-3 h-3 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                  type="text"
+                  value="Per line item"
+                  disabled
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md bg-gray-100 text-gray-400 cursor-not-allowed"
                 />
-                <span className="text-xs text-gray-500">Split Commission</span>
-              </label>
+              </div>
+            ) : (
+              <>
+                {/* Show clickable field with split count when multiple reps */}
+                {showOutsideSplitCommission && outsideSplitReps.length > 0 ? (
+                  <button
+                    onClick={() => setShowOutsideSplitModal(true)}
+                    className="w-full px-3 py-2 text-sm text-left border border-gray-300 rounded-md bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 flex items-center justify-between"
+                  >
+                    <span className="truncate">
+                      {outsideSplitReps[0]?.userName || quote.outsideRepName || 'Multiple Reps'}
+                      {outsideSplitReps.length > 1 && (
+                        <span className="ml-1 text-indigo-600 font-medium">+{outsideSplitReps.length - 1}</span>
+                      )}
+                    </span>
+                    <span className="text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded ml-2 flex-shrink-0">
+                      Split
+                    </span>
+                  </button>
+                ) : (
+                  <SearchableDropdownV2
+                    value={quote.outsideRepId || ''}
+                    displayValue={quote.outsideRepName || ''}
+                    onChange={(id, label) => {
+                      onQuoteChange({
+                        outsideRepId: id,
+                        outsideRepName: label,
+                        // Set outsideReps array so it gets sent in splitRates on line items
+                        outsideReps: id ? [{ id: '', userId: id, splitRate: '100', position: 0 }] : [],
+                      });
+                      // Reset split commission when changing rep
+                      if (id) {
+                        setShowOutsideSplitCommission(false);
+                        setOutsideSplitReps([]);
+                      }
+                    }}
+                    options={outsideRepOptions}
+                    onSearch={handleOutsideRepSearch}
+                    isLoading={isOutsideRepLoading}
+                    placeholder="Search outside reps..."
+                  />
+                )}
+                {quote.outsideRepId && (
+                  <label className="flex items-center gap-1.5 mt-1 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showOutsideSplitCommission}
+                      onChange={(e) => {
+                        setShowOutsideSplitCommission(e.target.checked);
+                        if (e.target.checked) {
+                          setShowOutsideSplitModal(true);
+                          // Initialize with current rep if no split reps exist
+                          if (outsideSplitReps.length === 0) {
+                            setOutsideSplitReps([{
+                              id: crypto.randomUUID(),
+                              userId: quote.outsideRepId || '',
+                              userName: quote.outsideRepName || '',
+                              splitRate: '100',
+                              position: 1,
+                            }]);
+                          }
+                        } else {
+                          setOutsideSplitReps([]);
+                        }
+                      }}
+                      className="w-3 h-3 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                    />
+                    <span className="text-xs text-gray-500">Split Commission</span>
+                  </label>
+                )}
+              </>
             )}
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Inside Rep</label>
-            {/* Show clickable field with split count when multiple reps */}
-            {showInsideSplitCommission && insideSplitReps.length > 0 ? (
-              <button
-                onClick={() => setShowInsideSplitModal(true)}
-                className="w-full px-3 py-2 text-sm text-left border border-gray-300 rounded-md bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 flex items-center justify-between"
-              >
-                <span className="truncate">
-                  {insideSplitReps[0]?.userName || quote.insideRepName || 'Multiple Reps'}
-                  {insideSplitReps.length > 1 && (
-                    <span className="ml-1 text-indigo-600 font-medium">+{insideSplitReps.length - 1}</span>
-                  )}
-                </span>
-                <span className="text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded ml-2 flex-shrink-0">
-                  Split
-                </span>
-              </button>
-            ) : (
-              <SearchableDropdownV2
-                value={quote.insideRepId || ''}
-                displayValue={quote.insideRepName || ''}
-                onChange={(id, label) => {
-                  onQuoteChange({
-                    insideRepId: id,
-                    insideRepName: label,
-                    insideReps: [{ id: '', userId: id, splitRate: '100', position: 1 }],
-                  });
-                  // Reset split commission when changing rep
-                  if (id) {
-                    setShowInsideSplitCommission(false);
-                    setInsideSplitReps([]);
-                  }
-                }}
-                options={insideRepOptions}
-                onSearch={handleInsideRepSearch}
-                isLoading={isInsideRepLoading}
-                placeholder="Search reps..."
-              />
-            )}
-            {quote.insideRepId && (
-              <label className="flex items-center gap-1.5 mt-1 cursor-pointer">
+            {/* Grey out and show "per line item" when settings enabled */}
+            {settings?.insideRepAtLineLevel ? (
+              <div className="relative">
                 <input
-                  type="checkbox"
-                  checked={showInsideSplitCommission}
-                  onChange={(e) => {
-                    setShowInsideSplitCommission(e.target.checked);
-                    if (e.target.checked) {
-                      setShowInsideSplitModal(true);
-                      // Initialize with current rep if no split reps exist
-                      if (insideSplitReps.length === 0) {
-                        setInsideSplitReps([{
-                          id: crypto.randomUUID(),
-                          userId: quote.insideRepId || '',
-                          userName: quote.insideRepName || '',
-                          splitRate: '100',
-                          position: 1,
-                        }]);
-                      }
-                    } else {
-                      setInsideSplitReps([]);
-                    }
-                  }}
-                  className="w-3 h-3 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                  type="text"
+                  value="Per line item"
+                  disabled
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md bg-gray-100 text-gray-400 cursor-not-allowed"
                 />
-                <span className="text-xs text-gray-500">Split Commission</span>
-              </label>
+              </div>
+            ) : (
+              <>
+                {/* Show clickable field with split count when multiple reps */}
+                {showInsideSplitCommission && insideSplitReps.length > 0 ? (
+                  <button
+                    onClick={() => setShowInsideSplitModal(true)}
+                    className="w-full px-3 py-2 text-sm text-left border border-gray-300 rounded-md bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 flex items-center justify-between"
+                  >
+                    <span className="truncate">
+                      {insideSplitReps[0]?.userName || quote.insideRepName || 'Multiple Reps'}
+                      {insideSplitReps.length > 1 && (
+                        <span className="ml-1 text-indigo-600 font-medium">+{insideSplitReps.length - 1}</span>
+                      )}
+                    </span>
+                    <span className="text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded ml-2 flex-shrink-0">
+                      Split
+                    </span>
+                  </button>
+                ) : (
+                  <SearchableDropdownV2
+                    value={quote.insideRepId || ''}
+                    displayValue={quote.insideRepName || ''}
+                    onChange={(id, label) => {
+                      onQuoteChange({
+                        insideRepId: id,
+                        insideRepName: label,
+                        insideReps: [{ id: '', userId: id, splitRate: '100', position: 1 }],
+                      });
+                      // Reset split commission when changing rep
+                      if (id) {
+                        setShowInsideSplitCommission(false);
+                        setInsideSplitReps([]);
+                      }
+                    }}
+                    options={insideRepOptions}
+                    onSearch={handleInsideRepSearch}
+                    isLoading={isInsideRepLoading}
+                    placeholder="Search reps..."
+                  />
+                )}
+                {quote.insideRepId && (
+                  <label className="flex items-center gap-1.5 mt-1 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showInsideSplitCommission}
+                      onChange={(e) => {
+                        setShowInsideSplitCommission(e.target.checked);
+                        if (e.target.checked) {
+                          setShowInsideSplitModal(true);
+                          // Initialize with current rep if no split reps exist
+                          if (insideSplitReps.length === 0) {
+                            setInsideSplitReps([{
+                              id: crypto.randomUUID(),
+                              userId: quote.insideRepId || '',
+                              userName: quote.insideRepName || '',
+                              splitRate: '100',
+                              position: 1,
+                            }]);
+                          }
+                        } else {
+                          setInsideSplitReps([]);
+                        }
+                      }}
+                      className="w-3 h-3 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                    />
+                    <span className="text-xs text-gray-500">Split Commission</span>
+                  </label>
+                )}
+              </>
             )}
           </div>
           <div>

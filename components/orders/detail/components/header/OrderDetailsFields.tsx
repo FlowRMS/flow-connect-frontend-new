@@ -50,8 +50,10 @@ interface OrderDetailsFieldsProps {
   // New props for field updates
   onUpdateOrder?: (updates: Partial<Order>) => void;
   isCreateMode?: boolean;
-  // End user setting - if false, show end user in header
+  // Settings for per-line-item fields
   showEndUserPerLine?: boolean;
+  showOutsideRepPerLine?: boolean;
+  showInsideRepPerLine?: boolean;
 }
 
 export function OrderDetailsFields({
@@ -75,6 +77,8 @@ export function OrderDetailsFields({
   onUpdateOrder,
   isCreateMode = false,
   showEndUserPerLine = false,
+  showOutsideRepPerLine = false,
+  showInsideRepPerLine = false,
 }: OrderDetailsFieldsProps) {
   // Search states
   const [soldToSearchTerm, setSoldToSearchTerm] = useState('');
@@ -461,62 +465,73 @@ export function OrderDetailsFields({
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Outside Rep
               </label>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <SearchableDropdownV2
-                    value={orderOutsideRep}
-                    displayValue={outsideRepOptions.find(r => r.id === orderOutsideRep)?.label || (order as any).outsideRepName}
-                    onChange={(id, label) => {
-                      setOrderOutsideRep(id);
-                      handleFieldUpdate('outsideRepId' as keyof Order, id);
-                      handleFieldUpdate('outsideRepName' as keyof Order, label);
-                      if (!id) {
-                        setSplitOutsideCommission(false);
-                        setOutsideRepSplits([]);
-                      }
-                    }}
-                    options={outsideRepOptions}
-                    placeholder="Select Rep..."
-                    isLoading={isOutsideRepLoading}
-                    onSearch={(query) => {
-                      setOutsideRepSearchTerm(query);
-                      setOutsideRepSearchEnabled(true);
-                    }}
-                  />
-                </div>
-                {splitOutsideCommission && (
-                  <button
-                    onClick={openOutsideRepModal}
-                    className="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors whitespace-nowrap"
-                  >
-                    Split
-                  </button>
-                )}
-              </div>
-              {orderOutsideRep && (
-                <div className="mt-1.5 flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="splitOutsideCommission"
-                    checked={splitOutsideCommission}
-                    onChange={(e) => {
-                      setSplitOutsideCommission(e.target.checked);
-                      if (e.target.checked) {
-                        const rep = outsideRepOptions.find(r => r.id === orderOutsideRep);
-                        if (rep) {
-                          setOutsideRepSplits([{ repId: rep.id, repName: rep.label, percentage: 100 }]);
-                        }
-                        openOutsideRepModal();
-                      } else {
-                        setOutsideRepSplits([]);
-                      }
-                    }}
-                    className="accent-[var(--primary)]"
-                  />
-                  <label htmlFor="splitOutsideCommission" className="text-xs text-[var(--muted-foreground)] cursor-pointer">
-                    Split commission
-                  </label>
-                </div>
+              {showOutsideRepPerLine ? (
+                <input
+                  type="text"
+                  value="Per line item"
+                  className="w-full px-3 py-2 bg-gray-50 border border-[var(--border)] rounded-md text-sm text-gray-400 cursor-not-allowed"
+                  disabled
+                />
+              ) : (
+                <>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <SearchableDropdownV2
+                        value={orderOutsideRep}
+                        displayValue={outsideRepOptions.find(r => r.id === orderOutsideRep)?.label || (order as any).outsideRepName}
+                        onChange={(id, label) => {
+                          setOrderOutsideRep(id);
+                          handleFieldUpdate('outsideRepId' as keyof Order, id);
+                          handleFieldUpdate('outsideRepName' as keyof Order, label);
+                          if (!id) {
+                            setSplitOutsideCommission(false);
+                            setOutsideRepSplits([]);
+                          }
+                        }}
+                        options={outsideRepOptions}
+                        placeholder="Select Rep..."
+                        isLoading={isOutsideRepLoading}
+                        onSearch={(query) => {
+                          setOutsideRepSearchTerm(query);
+                          setOutsideRepSearchEnabled(true);
+                        }}
+                      />
+                    </div>
+                    {splitOutsideCommission && (
+                      <button
+                        onClick={openOutsideRepModal}
+                        className="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors whitespace-nowrap"
+                      >
+                        Split
+                      </button>
+                    )}
+                  </div>
+                  {orderOutsideRep && (
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="splitOutsideCommission"
+                        checked={splitOutsideCommission}
+                        onChange={(e) => {
+                          setSplitOutsideCommission(e.target.checked);
+                          if (e.target.checked) {
+                            const rep = outsideRepOptions.find(r => r.id === orderOutsideRep);
+                            if (rep) {
+                              setOutsideRepSplits([{ repId: rep.id, repName: rep.label, percentage: 100 }]);
+                            }
+                            openOutsideRepModal();
+                          } else {
+                            setOutsideRepSplits([]);
+                          }
+                        }}
+                        className="accent-[var(--primary)]"
+                      />
+                      <label htmlFor="splitOutsideCommission" className="text-xs text-[var(--muted-foreground)] cursor-pointer">
+                        Split commission
+                      </label>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -524,62 +539,73 @@ export function OrderDetailsFields({
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Inside Rep
               </label>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <SearchableDropdownV2
-                    value={orderInsideRep}
-                    displayValue={insideRepOptions.find(r => r.id === orderInsideRep)?.label || order.insideRepName}
-                    onChange={(id, label) => {
-                      setOrderInsideRep(id);
-                      handleFieldUpdate('insideRepId', id);
-                      handleFieldUpdate('insideRepName', label);
-                      if (!id) {
-                        setSplitInsideCommission(false);
-                        setInsideRepSplits([]);
-                      }
-                    }}
-                    options={insideRepOptions}
-                    placeholder="Select Rep..."
-                    isLoading={isInsideRepLoading}
-                    onSearch={(query) => {
-                      setInsideRepSearchTerm(query);
-                      setInsideRepSearchEnabled(true);
-                    }}
-                  />
-                </div>
-                {splitInsideCommission && (
-                  <button
-                    onClick={openInsideRepModal}
-                    className="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors whitespace-nowrap"
-                  >
-                    Split
-                  </button>
-                )}
-              </div>
-              {orderInsideRep && (
-                <div className="mt-1.5 flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="splitInsideCommission"
-                    checked={splitInsideCommission}
-                    onChange={(e) => {
-                      setSplitInsideCommission(e.target.checked);
-                      if (e.target.checked) {
-                        const rep = insideRepOptions.find(r => r.id === orderInsideRep);
-                        if (rep) {
-                          setInsideRepSplits([{ repId: rep.id, repName: rep.label, percentage: 100 }]);
-                        }
-                        openInsideRepModal();
-                      } else {
-                        setInsideRepSplits([]);
-                      }
-                    }}
-                    className="accent-[var(--primary)]"
-                  />
-                  <label htmlFor="splitInsideCommission" className="text-xs text-[var(--muted-foreground)] cursor-pointer">
-                    Split commission
-                  </label>
-                </div>
+              {showInsideRepPerLine ? (
+                <input
+                  type="text"
+                  value="Per line item"
+                  className="w-full px-3 py-2 bg-gray-50 border border-[var(--border)] rounded-md text-sm text-gray-400 cursor-not-allowed"
+                  disabled
+                />
+              ) : (
+                <>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <SearchableDropdownV2
+                        value={orderInsideRep}
+                        displayValue={insideRepOptions.find(r => r.id === orderInsideRep)?.label || order.insideRepName}
+                        onChange={(id, label) => {
+                          setOrderInsideRep(id);
+                          handleFieldUpdate('insideRepId', id);
+                          handleFieldUpdate('insideRepName', label);
+                          if (!id) {
+                            setSplitInsideCommission(false);
+                            setInsideRepSplits([]);
+                          }
+                        }}
+                        options={insideRepOptions}
+                        placeholder="Select Rep..."
+                        isLoading={isInsideRepLoading}
+                        onSearch={(query) => {
+                          setInsideRepSearchTerm(query);
+                          setInsideRepSearchEnabled(true);
+                        }}
+                      />
+                    </div>
+                    {splitInsideCommission && (
+                      <button
+                        onClick={openInsideRepModal}
+                        className="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors whitespace-nowrap"
+                      >
+                        Split
+                      </button>
+                    )}
+                  </div>
+                  {orderInsideRep && (
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="splitInsideCommission"
+                        checked={splitInsideCommission}
+                        onChange={(e) => {
+                          setSplitInsideCommission(e.target.checked);
+                          if (e.target.checked) {
+                            const rep = insideRepOptions.find(r => r.id === orderInsideRep);
+                            if (rep) {
+                              setInsideRepSplits([{ repId: rep.id, repName: rep.label, percentage: 100 }]);
+                            }
+                            openInsideRepModal();
+                          } else {
+                            setInsideRepSplits([]);
+                          }
+                        }}
+                        className="accent-[var(--primary)]"
+                      />
+                      <label htmlFor="splitInsideCommission" className="text-xs text-[var(--muted-foreground)] cursor-pointer">
+                        Split commission
+                      </label>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 

@@ -1,0 +1,702 @@
+/* Enhanced Pivot Table Styles */
+
+/* Responsive Grid Container */
+.pivot-grid-container {
+  position: relative;
+  width: 100% !important;
+  min-width: 100%;
+  overflow: auto;
+  background: white;
+  border-top: 1px solid rgb(226, 232, 240);
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db #f9fafb;
+}
+
+/* Light gray scrollbars for pivot container */
+.pivot-grid-container::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+.pivot-grid-container::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 4px;
+  border: 1px solid #f3f4f6;
+  min-height: 40px;
+}
+.pivot-grid-container::-webkit-scrollbar-thumb:hover {
+  background-color: #9ca3af;
+}
+.pivot-grid-container::-webkit-scrollbar-track {
+  background: #f9fafb;
+  border-radius: 4px;
+}
+
+/* Scrollbar buttons for pivot container */
+.pivot-grid-container::-webkit-scrollbar-button {
+  display: block;
+  height: 20px;
+  width: 20px;
+  background-color: #e5e7eb;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 14px;
+}
+
+.pivot-grid-container::-webkit-scrollbar-button:hover {
+  background-color: #d1d5db;
+}
+
+.pivot-grid-container::-webkit-scrollbar-button:vertical:decrement {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 16 16"><path fill="%23374151" d="M8 5l-5 5h10z"/></svg>');
+}
+
+.pivot-grid-container::-webkit-scrollbar-button:vertical:increment {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 16 16"><path fill="%23374151" d="M8 11l5-5H3z"/></svg>');
+}
+
+.pivot-grid-container::-webkit-scrollbar-button:horizontal:decrement {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 16 16"><path fill="%23374151" d="M5 8l5-5v10z"/></svg>');
+}
+
+.pivot-grid-container::-webkit-scrollbar-button:horizontal:increment {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 16 16"><path fill="%23374151" d="M11 8l-5 5V3z"/></svg>');
+}
+
+/* Force horizontal scrolling for the grid */
+.pivot-grid-wrapper {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  position: relative;
+}
+
+/* Ensure grid scrolls properly */
+revo-grid {
+  display: block;
+  width: 100% !important;
+  min-width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* Force RevoGrid internal elements to handle scrolling */
+revo-grid revogr-viewport-scroll {
+  overflow: auto !important;
+}
+
+revo-grid .rgViewport {
+  overflow: auto !important;
+}
+
+/* Pivot table specific scrolling fixes */
+revo-grid .pivot-header-area,
+revo-grid .pivot-data-area {
+  overflow: visible !important;
+}
+
+/* Ensure columns can expand beyond container */
+revo-grid revogr-header,
+revo-grid revogr-data {
+  min-width: max-content;
+  overflow-x: auto !important;
+  overflow-y: visible;
+}
+
+/* Custom RevoGrid Styling */
+revo-grid {
+  --rgRow-height: 42px;
+  --rgHeaderRow-height: 56px;
+  --rg-color-primary: rgb(51, 65, 85);
+  --rg-color-border: rgb(226, 232, 240);
+  --rg-color-bg-primary: rgb(255, 255, 255);
+  --rg-color-text: rgb(51, 65, 85);
+  --rg-color-header-bg: rgb(248, 250, 252);
+  --rg-color-header-text: rgb(51, 65, 85);
+  --rg-color-row-even: rgb(255, 255, 255);
+  --rg-color-row-odd: rgb(248, 250, 252);
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  width: 100%;
+  min-width: 100%;
+  overflow: visible;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Pivot table specific header styling */
+.pivot-grid-container revo-grid revogr-header {
+  background-color: #f3f4f6 !important;
+}
+
+.pivot-grid-container revo-grid .rgHeaderRow {
+  background-color: #f3f4f6 !important;
+}
+
+.pivot-grid-container revo-grid .rgHeaderCell {
+  background-color: transparent !important;
+  font-weight: 600;
+  color: #374151;
+}
+
+.pivot-grid-container revo-grid .rgPinnedTopRow {
+  background-color: #f3f4f6 !important;
+}
+
+.pivot-grid-container revo-grid .rgPinnedTopRow .rgCell {
+  background-color: transparent !important;
+}
+
+/* Ensure the grid content can scroll horizontally */
+revo-grid revogr-viewport-scroll {
+  overflow: auto !important;
+}
+
+revo-grid revogr-data,
+revo-grid revogr-header {
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+}
+
+/* Enhanced Header Styling */
+revo-grid revogr-header .rgHeaderCell {
+  background-color: rgb(248, 250, 252);
+  border-bottom: 1px solid rgb(226, 232, 240);
+  border-right: 1px solid rgb(226, 232, 240);
+  font-weight: 600;
+  font-size: 14px;
+  color: rgb(51, 65, 85);
+  text-transform: none;
+  letter-spacing: 0.025em;
+  padding: 16px 16px;
+  transition: all 0.2s ease;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  white-space: normal;
+  flex-wrap: wrap;
+  word-break: keep-all;
+  word-wrap: normal;
+  overflow-wrap: normal;
+  hyphens: manual;
+}
+
+revo-grid revogr-header .rgHeaderCell:hover {
+  background-color: rgb(248, 250, 252);
+}
+
+/* Pivot Configurator Styling */
+revo-grid .pivot-configurator {
+  background: rgb(255, 255, 255);
+  border: 1px solid rgb(226, 232, 240);
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  padding: 1.5rem;
+  margin: 1.5rem 0;
+}
+
+/* Hide duplicate pivot configurators - keep only the first one */
+revo-grid .pivot-configurator:not(:first-of-type) {
+  display: none !important;
+}
+
+/* Also hide duplicate pivot-config elements */
+revo-grid .pivot-config:not(:first-of-type) {
+  display: none !important;
+}
+
+/* Alternative selector to catch all duplicates */
+.pivot-grid-container .pivot-config ~ .pivot-config,
+.pivot-grid-container .pivot-configurator ~ .pivot-configurator {
+  display: none !important;
+}
+
+revo-grid .pivot-configurator .configurator-section {
+  background: rgb(248, 250, 252);
+  border: 2px dashed rgb(203, 213, 225);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 0.75rem 0;
+  min-height: 70px;
+  transition: all 0.3s ease;
+}
+
+revo-grid .pivot-configurator .configurator-section:hover {
+  background: rgb(241, 245, 249);
+  border-color: rgb(59, 130, 246);
+  transform: translateY(-1px);
+}
+
+revo-grid .pivot-configurator .configurator-section.drag-over {
+  background: rgb(239, 246, 255);
+  border-color: rgb(59, 130, 246);
+  border-style: solid;
+  box-shadow: 0 0 0 4px rgb(59, 130, 246, 0.1);
+}
+
+/* Field Pills Styling */
+revo-grid .pivot-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: linear-gradient(
+    135deg,
+    rgb(59, 130, 246) 0%,
+    rgb(37, 99, 235) 100%
+  );
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: move;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  margin: 0.25rem;
+  box-shadow: 0 2px 4px rgb(0 0 0 / 0.1), 0 1px 2px rgb(0 0 0 / 0.05);
+  border: 1px solid rgb(29, 78, 216);
+}
+
+revo-grid .pivot-field:hover {
+  background: linear-gradient(
+    135deg,
+    rgb(37, 99, 235) 0%,
+    rgb(29, 78, 216) 100%
+  );
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 8px 16px rgb(0 0 0 / 0.15), 0 4px 8px rgb(0 0 0 / 0.1);
+}
+
+revo-grid .pivot-field.dragging {
+  opacity: 0.8;
+  transform: rotate(3deg) scale(1.05);
+  box-shadow: 0 12px 24px rgb(0 0 0 / 0.2);
+}
+
+/* Aggregator Dropdown */
+revo-grid .pivot-field .aggregator-selector {
+  background: hsl(var(--primary-foreground) / 0.2);
+  border: none;
+  border-radius: 0.25rem;
+  color: hsl(var(--primary-foreground));
+  font-size: 0.75rem;
+  padding: 0.125rem 0.25rem;
+  margin-left: 0.25rem;
+}
+
+/* Filter Styling */
+revo-grid .rgFilterButton {
+  background: hsl(var(--secondary));
+  color: hsl(var(--secondary-foreground));
+  border-radius: 0.25rem;
+  border: none;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  transition: all 0.2s ease;
+}
+
+revo-grid .rgFilterButton:hover {
+  background: hsl(var(--secondary) / 0.9);
+}
+
+revo-grid .rgFilterButton.active {
+  background: hsl(var(--destructive));
+  color: hsl(var(--destructive-foreground));
+}
+
+/* Cell Styling */
+revo-grid .rgCell {
+  transition: all 0.2s ease;
+  color: rgb(51, 65, 85) !important;
+  background: rgb(255, 255, 255) !important;
+  border-right: 1px solid rgb(241, 245, 249);
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+revo-grid .rgCell:hover {
+  background: rgb(239, 246, 255) !important;
+  color: rgb(30, 58, 138) !important;
+  border-right-color: rgb(219, 234, 254);
+}
+
+revo-grid .rgCell.selected {
+  background: rgb(239, 246, 255) !important;
+  border: 2px solid rgb(59, 130, 246) !important;
+  color: rgb(30, 58, 138) !important;
+  box-shadow: 0 0 0 1px rgb(59, 130, 246, 0.2);
+}
+
+/* Pivot data cells - ensure text is visible */
+revo-grid .rgCell[data-col*="pivot"] {
+  color: hsl(var(--foreground)) !important;
+  background: white !important;
+}
+
+/* Make sure all text in cells is visible */
+revo-grid .rgCell * {
+  color: hsl(var(--foreground)) !important;
+}
+
+/* Numeric Cells */
+revo-grid .rgCell[data-type="currency"],
+revo-grid .rgCell[data-type="integer"] {
+  text-align: right;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace;
+}
+
+/* Pivot Summary Cells */
+revo-grid .rgCell.pivot-total {
+  background: rgb(248, 250, 252) !important;
+  font-weight: 700;
+  border-top: 2px solid rgb(203, 213, 225) !important;
+  color: rgb(51, 65, 85) !important;
+}
+
+revo-grid .rgCell.pivot-grand-total {
+  background: rgb(239, 246, 255) !important;
+  font-weight: 800;
+  color: rgb(30, 58, 138) !important;
+  border: 2px solid rgb(59, 130, 246) !important;
+}
+
+/* Force all pivot cells to have proper text color */
+revo-grid revogr-data .rgCell,
+revo-grid revogr-data .rgCell div,
+revo-grid revogr-data .rgCell span {
+  color: rgb(51, 65, 85) !important;
+  font-weight: 500;
+}
+
+/* Headers should also be visible */
+revo-grid revogr-header .rgHeaderCell,
+revo-grid revogr-header .rgHeaderCell div,
+revo-grid revogr-header .rgHeaderCell span {
+  color: rgb(51, 65, 85) !important;
+  font-weight: 600;
+  white-space: normal;
+  word-break: keep-all;
+  word-wrap: normal;
+  overflow-wrap: normal;
+  hyphens: manual;
+}
+
+/* Enhanced Scrolling */
+revo-grid revogr-data,
+revo-grid revogr-header {
+  overflow: auto !important;
+}
+
+/* Scrollbar Styling */
+revo-grid revogr-data::-webkit-scrollbar,
+revo-grid revogr-header::-webkit-scrollbar,
+.pivot-grid-container::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+
+revo-grid revogr-data::-webkit-scrollbar-track,
+revo-grid revogr-header::-webkit-scrollbar-track,
+.pivot-grid-container::-webkit-scrollbar-track {
+  background: rgb(248, 250, 252);
+  border-radius: 8px;
+  border: 1px solid rgb(241, 245, 249);
+}
+
+revo-grid revogr-data::-webkit-scrollbar-thumb,
+revo-grid revogr-header::-webkit-scrollbar-thumb,
+.pivot-grid-container::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    135deg,
+    rgb(203, 213, 225) 0%,
+    rgb(148, 163, 184) 100%
+  );
+  border-radius: 8px;
+  border: 1px solid rgb(226, 232, 240);
+  transition: all 0.2s ease;
+  min-height: 40px;
+}
+
+revo-grid revogr-data::-webkit-scrollbar-thumb:hover,
+revo-grid revogr-header::-webkit-scrollbar-thumb:hover,
+.pivot-grid-container::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    135deg,
+    rgb(148, 163, 184) 0%,
+    rgb(100, 116, 139) 100%
+  );
+  border-color: rgb(203, 213, 225);
+}
+
+/* Scrollbar buttons */
+revo-grid revogr-data::-webkit-scrollbar-button,
+revo-grid revogr-header::-webkit-scrollbar-button {
+  display: block;
+  height: 20px;
+  width: 20px;
+  background-color: #e5e7eb;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 14px;
+}
+
+revo-grid revogr-data::-webkit-scrollbar-button:hover,
+revo-grid revogr-header::-webkit-scrollbar-button:hover {
+  background-color: #d1d5db;
+}
+
+revo-grid revogr-data::-webkit-scrollbar-button:vertical:decrement,
+revo-grid revogr-header::-webkit-scrollbar-button:vertical:decrement {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 16 16"><path fill="%23374151" d="M8 5l-5 5h10z"/></svg>');
+}
+
+revo-grid revogr-data::-webkit-scrollbar-button:vertical:increment,
+revo-grid revogr-header::-webkit-scrollbar-button:vertical:increment {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 16 16"><path fill="%23374151" d="M8 11l5-5H3z"/></svg>');
+}
+
+revo-grid revogr-data::-webkit-scrollbar-button:horizontal:decrement,
+revo-grid revogr-header::-webkit-scrollbar-button:horizontal:decrement {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 16 16"><path fill="%23374151" d="M5 8l5-5v10z"/></svg>');
+}
+
+revo-grid revogr-data::-webkit-scrollbar-button:horizontal:increment,
+revo-grid revogr-header::-webkit-scrollbar-button:horizontal:increment {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 16 16"><path fill="%23374151" d="M11 8l-5 5V3z"/></svg>');
+}
+
+/* Hide RevoGrid attribution link */
+revo-grid a[href*="revolist.github.io"],
+revo-grid a[href*="revogrid"],
+revo-grid .attribution,
+revo-grid .revo-attribution,
+.pivot-grid-container a[href*="revolist.github.io"],
+.pivot-grid-container a[href*="revogrid"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Ensure horizontal scrolling works */
+revo-grid .rgViewport {
+  overflow: auto !important;
+}
+
+/* Fix for pivot table scrolling */
+revo-grid .pivot-data-container {
+  overflow: auto !important;
+  max-width: 100%;
+}
+
+/* Loading State */
+.pivot-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.pivot-loading-spinner {
+  width: 2rem;
+  height: 2rem;
+  border: 3px solid hsl(var(--border));
+  border-top: 3px solid hsl(var(--primary));
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+revo-grid .rgCell[data-col="0"] {
+  background: rgb(249, 250, 251) !important;
+  font-weight: 600;
+  border-right: 2px solid rgb(229, 231, 235) !important;
+}
+
+/* Row stripe enhancement */
+revo-grid revogr-data .rgRow:nth-child(even) .rgCell {
+  background: rgb(249, 250, 251) !important;
+}
+
+revo-grid revogr-data .rgRow:nth-child(odd) .rgCell {
+  background: rgb(255, 255, 255) !important;
+}
+
+/* Filter button styling */
+revo-grid .rgFilterButton {
+  background: rgb(239, 246, 255);
+  color: rgb(59, 130, 246);
+  border: 1px solid rgb(191, 219, 254);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+revo-grid .rgFilterButton:hover {
+  background: rgb(219, 234, 254);
+  border-color: rgb(147, 197, 253);
+}
+
+revo-grid .rgFilterButton.active {
+  background: rgb(59, 130, 246);
+  color: white;
+  border-color: rgb(37, 99, 235);
+}
+
+revo-grid button,
+revogr-filter button,
+[class*="filter"] button {
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%) !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 6px !important;
+  color: #475569 !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  padding: 6px 6px !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Mobile Responsive Adjustments */
+@media (max-width: 768px) {
+  revo-grid {
+    --rgRow-height: 38px;
+    --rgHeaderRow-height: 42px;
+    font-size: 13px;
+  }
+
+  revo-grid .pivot-configurator {
+    padding: 1rem;
+    margin: 1rem 0;
+    border-radius: 8px;
+  }
+
+  revo-grid .pivot-field {
+    font-size: 12px;
+    padding: 0.375rem 0.75rem;
+  }
+
+  .pivot-grid-container {
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  revo-grid revogr-header,
+  revo-grid revogr-data {
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+  }
+}
+
+/* Compact Theme Overrides */
+revo-grid[theme="compact"] {
+  --rgRow-height: 35px;
+  --rgHeaderRow-height: 40px;
+}
+
+revo-grid[theme="compact"] .rgCell {
+  padding: 0.375rem 0.5rem;
+}
+
+revo-grid[theme="compact"] revogr-header .rgHeaderCell {
+  padding: 0.5rem;
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+  revo-grid {
+    --rg-color-row-even: hsl(var(--card));
+    --rg-color-row-odd: hsl(var(--muted) / 0.2);
+  }
+}
+
+/* Animation for smooth transitions */
+revo-grid .rgCell,
+revo-grid revogr-header .rgHeaderCell {
+  /* Limit transitions to color changes so virtualized transforms don't flicker during scroll */
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+/* Focus states for accessibility */
+revo-grid .rgCell:focus,
+revo-grid revogr-header .rgHeaderCell:focus {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* Enhanced Scrolling Support */
+revo-grid .pivot-data-container,
+revo-grid .pivot-header-container {
+  overflow: auto !important;
+  max-width: 100%;
+}
+
+/* Make sure the grid viewport can scroll horizontally */
+revo-grid revogr-viewport-scroll,
+revo-grid revogr-scroll-virtual {
+  overflow: auto !important;
+}
+
+/* Force horizontal scrolling when content overflows */
+revo-grid .revo-grid-content {
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+  width: 100%;
+}
+
+/* Ensure pivot cells don't shrink inappropriately */
+revo-grid .rgCell {
+  min-width: 80px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Print styles */
+@media print {
+  .pivot-grid-container {
+    box-shadow: none;
+    border: 1px solid #ccc;
+  }
+
+  revo-grid .pivot-configurator {
+    display: none;
+  }
+}
+
+/* Enable cell text selection and copying */
+revo-grid .rgCell,
+revo-grid revogr-header .rgHeaderCell {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+}
+
+/* Allow text selection in cell content */
+revo-grid .rgCell *,
+revo-grid revogr-header .rgHeaderCell * {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+}
+
+/* Ensure cursor shows text selection is possible */
+revo-grid .rgCell:not([data-editable="true"]) {
+  cursor: text !important;
+}

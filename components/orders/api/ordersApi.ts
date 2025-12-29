@@ -111,7 +111,8 @@ export interface OrderDetail {
   productNameAdhoc?: string;
   quantity?: string;
   shippingBalance?: number;
-  splitRates?: OrderSplitRate[];
+  insideSplitRates?: OrderSplitRate[];
+  outsideSplitRates?: OrderSplitRate[];
   status?: OrderDetailStatus;
   subtotal?: number;
   total?: number;
@@ -122,6 +123,13 @@ export interface OrderDetail {
 }
 
 export interface OrderInsideRep {
+  id: string;
+  position?: number;
+  splitRate?: string;
+  userId?: string;
+}
+
+export interface OrderOutsideRep {
   id: string;
   position?: number;
   splitRate?: string;
@@ -160,7 +168,6 @@ export interface Order {
   factoryId?: string;
   freightTerms?: string;
   headerStatus?: OrderHeaderStatus;
-  insideReps?: OrderInsideRep[];
   job?: OrderJob;
   markNumber?: string;
   orderNumber: string;
@@ -215,7 +222,8 @@ export interface OrderDetailInput {
   productDescriptionAdhoc?: string;
   productId?: string;
   productNameAdhoc?: string;
-  splitRates?: OrderSplitRateInput[];
+  insideSplitRates?: OrderSplitRateInput[];
+  outsideSplitRates?: OrderSplitRateInput[];
   uomId?: string;
 }
 
@@ -233,7 +241,6 @@ export interface CreateOrderInput {
   factSoNumber?: string;
   id?: string;
   freightTerms?: string;
-  insideReps?: OrderSplitRateInput[];
   markNumber?: string;
   projectedShipDate?: string;
   quoteId?: string;
@@ -382,7 +389,13 @@ const FIND_ORDER_BY_ID = `
         productNameAdhoc
         quantity
         shippingBalance
-        splitRates {
+        insideSplitRates {
+          id
+          position
+          splitRate
+          userId
+        }
+        outsideSplitRates {
           id
           position
           splitRate
@@ -406,12 +419,6 @@ const FIND_ORDER_BY_ID = `
       factoryId
       freightTerms
       headerStatus
-      insideReps {
-        id
-        position
-        splitRate
-        userId
-      }
       job {
         additionalInformation
         createdAt
@@ -534,7 +541,13 @@ const CREATE_ORDER = `
         productNameAdhoc
         quantity
         shippingBalance
-        splitRates {
+        insideSplitRates {
+          id
+          position
+          splitRate
+          userId
+        }
+        outsideSplitRates {
           id
           position
           splitRate
@@ -558,12 +571,6 @@ const CREATE_ORDER = `
       factoryId
       freightTerms
       headerStatus
-      insideReps {
-        id
-        position
-        splitRate
-        userId
-      }
       job {
         additionalInformation
         createdAt
@@ -682,7 +689,13 @@ const UPDATE_ORDER = `
         productNameAdhoc
         quantity
         shippingBalance
-        splitRates {
+        insideSplitRates {
+          id
+          position
+          splitRate
+          userId
+        }
+        outsideSplitRates {
           id
           position
           splitRate
@@ -706,12 +719,6 @@ const UPDATE_ORDER = `
       factoryId
       freightTerms
       headerStatus
-      insideReps {
-        id
-        position
-        splitRate
-        userId
-      }
       job {
         additionalInformation
         createdAt

@@ -136,7 +136,14 @@ export function CreateOrderModal({ isOpen, onClose, onSave }: CreateOrderModalPr
     setIsSubmitting(true);
 
     try {
-      // Build API input from form data
+      // Build insideSplitRates for line items
+      const insideSplitRates: OrderSplitRateInput[] = splitRates.map((sr, idx) => ({
+        userId: sr.salesRepId,
+        splitRate: sr.splitPercentage.toString(),
+        position: idx + 1,
+      }));
+
+      // Build API input from form data - split rates are now at detail level
       const apiDetails: OrderDetailInput[] = lineItems.map((item, idx) => ({
         itemNumber: idx + 1,
         quantity: item.quantity.toString(),
@@ -146,12 +153,8 @@ export function CreateOrderModal({ isOpen, onClose, onSave }: CreateOrderModalPr
         productNameAdhoc: item.partNumber,
         productDescriptionAdhoc: item.description,
         freightCharge: idx === 0 ? freight.toString() : undefined, // Add freight to first line
-      }));
-
-      const apiInsideReps: OrderSplitRateInput[] = splitRates.map((sr, idx) => ({
-        userId: sr.salesRepId,
-        splitRate: sr.splitPercentage.toString(),
-        position: idx + 1,
+        // Include inside split rates on each line item
+        insideSplitRates: insideSplitRates.length > 0 ? insideSplitRates : undefined,
       }));
 
       const createInput: CreateOrderInput = {
@@ -165,7 +168,6 @@ export function CreateOrderModal({ isOpen, onClose, onSave }: CreateOrderModalPr
         creationType: 'MANUAL',
         orderType: 'NORMAL',
         projectedShipDate: requestedShipDate || undefined,
-        insideReps: apiInsideReps,
         markNumber: poNumber || undefined,
       };
 

@@ -172,6 +172,7 @@ export function QuoteDetailV2({ quote: initialQuote, onBack }: QuoteDetailV2Prop
         onClose={() => setShowAdditionalDetailsModal(false)}
         lineItem={selectedLineItem}
         onSave={handleSaveAdditionalDetails}
+        settings={settings}
       />
     </div>
   );
