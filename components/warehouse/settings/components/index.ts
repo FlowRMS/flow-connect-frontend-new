@@ -18,6 +18,3 @@ export { default as CarrierNotesSection } from './CarrierNotesSection';
 
 // Container components
 export { default as ContainerTypesList } from './ContainerTypesList';
-
-// Manufacturer Profiles components
-export { default as ManufacturerProfilesTab } from './ManufacturerProfilesTab';

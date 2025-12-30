@@ -5,12 +5,12 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import WarehouseLayoutModal from '../layout/WarehouseLayoutModal';
 import WarehouseQRCodesModal from '../qr-codes/WarehouseQRCodesModal';
 import { useWarehouseSettings, useShippingCarriers, useContainerTypes } from './hooks';
-import { WarehouseSettingsHeader, WarehousesList, ShippingCarriersList, ContainerTypesList, ManufacturerProfilesTab } from './components';
+import { WarehouseSettingsHeader, WarehousesList, ShippingCarriersList, ContainerTypesList } from './components';
 import { NewWarehouseModal, AddWorkerModal } from './modals';
 import { mockAvailableWorkers } from './mockData';
 import type { SettingsTab } from './types';
 
-const ALL_TAB_IDS: SettingsTab[] = ['warehouses', 'shipping-carriers', 'containers', 'manufacturer-profiles'];
+const ALL_TAB_IDS: SettingsTab[] = ['warehouses', 'shipping-carriers', 'containers'];
 
 export default function WarehouseSettingsContent() {
   const router = useRouter();
@@ -64,7 +64,6 @@ export default function WarehouseSettingsContent() {
         isSaving={isSaving}
         onSave={handleSave}
         onAddWarehouse={() => warehouseSettings.setShowNewWarehouseModal(true)}
-        onAddManufacturer={() => router.push('/warehouse/manufacturer-profiles/new')}
         onTabChange={handleTabChange}
       />
 
@@ -117,11 +116,6 @@ export default function WarehouseSettingsContent() {
           onDragOver={containerSettings.handleDragOver}
           onDragEnd={containerSettings.endDrag}
         />
-      )}
-
-      {/* Manufacturer Profiles Tab Content */}
-      {activeTab === 'manufacturer-profiles' && (
-        <ManufacturerProfilesTab />
       )}
 
       {/* Modals */}

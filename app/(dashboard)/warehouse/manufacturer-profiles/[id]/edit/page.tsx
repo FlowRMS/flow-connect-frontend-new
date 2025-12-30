@@ -238,7 +238,7 @@ export default function ManufacturerEditPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => router.push('/warehouse/settings?tab=manufacturer-profiles')}
+              onClick={() => router.push('/warehouse/manufacturer-profiles')}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -272,7 +272,7 @@ export default function ManufacturerEditPage() {
             </span>
 
             <button
-              onClick={() => router.push('/warehouse/settings?tab=manufacturer-profiles')}
+              onClick={() => router.push('/warehouse/manufacturer-profiles')}
               className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors"
             >
               Cancel
