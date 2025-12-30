@@ -75,10 +75,50 @@ export default function OrdersListContent() {
                 Orders
               </h1>
               <p className="text-sm text-[var(--muted-foreground)] mt-1">
-                Manage sales orders and track fulfillment
+                {state.searchQuery.length >= 2
+                  ? `${state.filteredOrders.length} results for "${state.searchQuery}"`
+                  : `Showing ${state.filteredOrders.length} of ${state.totalCount} orders`}
               </p>
             </div>
             <div className="flex items-center gap-3">
+              {/* Search Bar */}
+              <div className="relative">
+                <svg
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="M21 21l-4.35-4.35" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search orders..."
+                  value={state.searchQuery}
+                  onChange={(e) => state.setSearchQuery(e.target.value)}
+                  className="w-64 pl-10 pr-4 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                />
+                {state.searchQuery && (
+                  <button
+                    onClick={() => state.setSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                )}
+                {state.isSearching && (
+                  <div className="absolute right-10 top-1/2 -translate-y-1/2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[var(--primary)]" />
+                  </div>
+                )}
+              </div>
+
               <AdvancedFilters filterOptions={filterOptions} />
               <button
                 onClick={() => router.push('/orders/new')}
@@ -112,7 +152,7 @@ export default function OrdersListContent() {
         </div>
 
         {/* Orders Table */}
-        <div className="flex-1 overflow-auto p-6 pt-4">
+        <div className="flex-1 overflow-auto p-6 pt-4" onScroll={state.handleScroll}>
           <OrdersTable
             filteredOrders={state.filteredOrders}
             selectedOrderIds={state.selectedOrderIds}
@@ -138,6 +178,21 @@ export default function OrdersListContent() {
             bulkDelete={state.bulkDelete}
             setSelectedOrder={state.setSelectedOrder}
           />
+
+          {/* Loading indicator for infinite scroll */}
+          {state.isFetchingNextPage && (
+            <div className="flex items-center justify-center py-4">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[var(--primary)]" />
+              <span className="ml-2 text-sm text-[var(--muted-foreground)]">Loading more orders...</span>
+            </div>
+          )}
+
+          {/* End of list indicator */}
+          {!state.hasNextPage && state.filteredOrders.length > 0 && !state.searchQuery && (
+            <div className="text-center py-4 text-sm text-[var(--muted-foreground)]">
+              All {state.totalCount} orders loaded
+            </div>
+          )}
         </div>
       </div>
 

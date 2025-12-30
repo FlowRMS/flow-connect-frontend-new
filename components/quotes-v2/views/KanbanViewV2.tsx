@@ -8,6 +8,9 @@ interface KanbanViewV2Props {
   quotes: QuoteV2[];
   onQuoteClick: (quote: QuoteV2) => void;
   onStageChange?: (quoteId: string, newStage: QuotePipelineStage) => Promise<void>;
+  onLoadMore?: () => void;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
 }
 
 // Use API pipeline stage enum values for Kanban columns
@@ -50,14 +53,18 @@ function formatStageName(stage: QuotePipelineStage): string {
     .join(' ');
 }
 
-export function KanbanViewV2({ quotes, onQuoteClick, onStageChange }: KanbanViewV2Props) {
+export function KanbanViewV2({ quotes, onQuoteClick, onStageChange, onLoadMore, hasMore, isLoadingMore }: KanbanViewV2Props) {
   // Drag and drop state
   const [draggedQuote, setDraggedQuote] = useState<QuoteV2 | null>(null);
   const [dragOverStage, setDragOverStage] = useState<QuotePipelineStage | null>(null);
-  const [isUpdating, setIsUpdating] = useState<string | null>(null);
+  const [updatingQuotes, setUpdatingQuotes] = useState<Set<string>>(new Set());
   const dragCounter = useRef<Record<string, number>>({});
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Group quotes by pipelineStage (API enum)
+  // Optimistic state - tracks quotes that have been moved locally but API hasn't responded yet
+  const [optimisticMoves, setOptimisticMoves] = useState<Map<string, QuotePipelineStage>>(new Map());
+
+  // Group quotes by pipelineStage (API enum) - with optimistic updates applied
   const quotesByStage = useMemo(() => {
     const grouped: Record<QuotePipelineStage, QuoteV2[]> = {
       DISCOVERY: [],
@@ -70,14 +77,15 @@ export function KanbanViewV2({ quotes, onQuoteClick, onStageChange }: KanbanView
     };
 
     quotes.forEach((quote) => {
-      const stage = quote.pipelineStage || 'DISCOVERY';
+      // Use optimistic stage if available, otherwise use actual stage
+      const stage = optimisticMoves.get(quote.id) || quote.pipelineStage || 'DISCOVERY';
       if (grouped[stage]) {
         grouped[stage].push(quote);
       }
     });
 
     return grouped;
-  }, [quotes]);
+  }, [quotes, optimisticMoves]);
 
   // Calculate totals per stage
   const stageTotals = useMemo(() => {
@@ -157,7 +165,7 @@ export function KanbanViewV2({ quotes, onQuoteClick, onStageChange }: KanbanView
     e.dataTransfer.dropEffect = 'move';
   }, []);
 
-  const handleDrop = useCallback(async (e: React.DragEvent, targetStage: QuotePipelineStage) => {
+  const handleDrop = useCallback((e: React.DragEvent, targetStage: QuotePipelineStage) => {
     e.preventDefault();
     e.stopPropagation();
 
@@ -165,27 +173,73 @@ export function KanbanViewV2({ quotes, onQuoteClick, onStageChange }: KanbanView
     dragCounter.current = {};
 
     if (!draggedQuote || !onStageChange) return;
-    if (draggedQuote.pipelineStage === targetStage) return;
 
-    setIsUpdating(draggedQuote.id);
+    // Get current stage (could be from optimistic move or original)
+    const currentStage = optimisticMoves.get(draggedQuote.id) || draggedQuote.pipelineStage;
+    if (currentStage === targetStage) return;
 
-    try {
-      await onStageChange(draggedQuote.id, targetStage);
-    } catch (error) {
-      console.error('Failed to update quote stage:', error);
-    } finally {
-      setIsUpdating(null);
-      setDraggedQuote(null);
+    const quoteId = draggedQuote.id;
+
+    // OPTIMISTIC UPDATE: Move the card immediately in the UI
+    setOptimisticMoves(prev => new Map(prev).set(quoteId, targetStage));
+    setUpdatingQuotes(prev => new Set(prev).add(quoteId));
+    setDraggedQuote(null);
+
+    // Fire and forget - don't await, let the UI update immediately
+    onStageChange(quoteId, targetStage)
+      .then(() => {
+        // Success - remove from optimistic moves (API data will reflect the change)
+        setOptimisticMoves(prev => {
+          const next = new Map(prev);
+          next.delete(quoteId);
+          return next;
+        });
+      })
+      .catch((error) => {
+        console.error('Failed to update quote stage:', error);
+        // ROLLBACK: Remove optimistic move so it goes back to original position
+        setOptimisticMoves(prev => {
+          const next = new Map(prev);
+          next.delete(quoteId);
+          return next;
+        });
+      })
+      .finally(() => {
+        setUpdatingQuotes(prev => {
+          const next = new Set(prev);
+          next.delete(quoteId);
+          return next;
+        });
+      });
+  }, [draggedQuote, onStageChange, optimisticMoves]);
+
+  // Vertical scroll handler for loading more quotes (within any column)
+  const handleColumnScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    if (!onLoadMore || !hasMore || isLoadingMore) return;
+
+    const target = e.target as HTMLDivElement;
+    const { scrollTop, scrollHeight, clientHeight } = target;
+
+    // Load more when scrolled near the bottom of any column (within 200px)
+    if (scrollHeight - scrollTop - clientHeight < 200) {
+      onLoadMore();
     }
-  }, [draggedQuote, onStageChange]);
+  }, [onLoadMore, hasMore, isLoadingMore]);
 
   return (
-    <div className="flex gap-3 overflow-x-auto pb-4 h-full">
+    <div
+      ref={scrollContainerRef}
+      className="flex gap-3 overflow-x-auto pb-4 h-full"
+    >
       {pipelineStages.map((stage) => {
         const stageQuotes = quotesByStage[stage];
         const count = stageQuotes.length;
         const total = stageTotals[stage];
-        const isDropTarget = dragOverStage === stage && draggedQuote?.pipelineStage !== stage;
+        // Check if this is a valid drop target - considering optimistic moves
+        const draggedQuoteCurrentStage = draggedQuote
+          ? (optimisticMoves.get(draggedQuote.id) || draggedQuote.pipelineStage)
+          : null;
+        const isDropTarget = dragOverStage === stage && draggedQuoteCurrentStage !== stage;
 
         return (
           <div
@@ -216,14 +270,17 @@ export function KanbanViewV2({ quotes, onQuoteClick, onStageChange }: KanbanView
             </div>
 
             {/* Cards Container */}
-            <div className="flex-1 overflow-y-auto p-2 min-h-0">
+            <div
+              className="flex-1 overflow-y-auto p-2 min-h-0"
+              onScroll={handleColumnScroll}
+            >
               {stageQuotes.map((quote) => (
                 <div
                   key={quote.id}
-                  draggable={!!onStageChange}
+                  draggable={!!onStageChange && !updatingQuotes.has(quote.id)}
                   onDragStart={(e) => handleDragStart(e, quote)}
                   onDragEnd={handleDragEnd}
-                  className={`${isUpdating === quote.id ? 'opacity-50 pointer-events-none' : ''}`}
+                  className={`transition-opacity ${updatingQuotes.has(quote.id) ? 'opacity-70' : ''}`}
                 >
                   <QuoteCardV2
                     quote={quote}
@@ -253,6 +310,25 @@ export function KanbanViewV2({ quotes, onQuoteClick, onStageChange }: KanbanView
           </div>
         );
       })}
+
+      {/* Loading indicator for infinite scroll - shows as an extra column on the right */}
+      {isLoadingMore && (
+        <div className="flex-shrink-0 w-[100px] flex items-center justify-center">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600" />
+        </div>
+      )}
+
+      {/* Show load more button if there are more quotes to load */}
+      {hasMore && !isLoadingMore && (
+        <div className="flex-shrink-0 w-[100px] flex items-center justify-center">
+          <button
+            onClick={onLoadMore}
+            className="text-xs text-indigo-600 hover:text-indigo-700 underline"
+          >
+            Load more
+          </button>
+        </div>
+      )}
     </div>
   );
 }

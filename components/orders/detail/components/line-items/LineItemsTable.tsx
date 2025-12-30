@@ -12,7 +12,7 @@ import type { Order, OrderLineItem } from '@/lib/types/rms';
 import type { ColumnKey, ViewMode } from '../../types';
 import { BulkActionsBar } from './BulkActionsBar';
 import { LineItemsTableHeader } from './LineItemsTableHeader';
-import { useProductSearch, useFactorySearch, useCustomerSearch, useProductCpns, getProductCpnByCustomer } from '../../../api';
+import { useProductSearch, useFactorySearch, useCustomerSearch, useProductCpns, useProductUoms, getProductCpnByCustomer } from '../../../api';
 import { formatCurrency } from '../../utils';
 
 type EditableColumnKey = 'partNumber' | 'custPartNumber' | 'description' | 'uom' | 'divisor' | 'quantity' | 'unitPrice' | 'commissionPercent' | 'manufacturer' | 'endUser';
@@ -102,6 +102,7 @@ export function LineItemsTable({
   const isProductDropdown = dropdownOpen && ['partNumber', 'description'].includes(dropdownOpen.column);
   const isFactoryDropdown = dropdownOpen?.column === 'manufacturer';
   const isCpnDropdown = dropdownOpen?.column === 'custPartNumber';
+  const isUomDropdown = dropdownOpen?.column === 'uom';
   const isEndUserDropdown = dropdownOpen?.column === 'endUser' && showEndUserPerLine;
 
   // Get current line item's productId for CPN search
@@ -131,6 +132,12 @@ export function LineItemsTable({
   const { data: endUserResults = [], isLoading: endUsersLoading } = useCustomerSearch(
     debouncedSearch,
     isEndUserDropdown ?? false
+  );
+
+  // UOM (Unit of Measure) - fetch all when UOM dropdown is open
+  const { data: uomResults = [], isLoading: uomsLoading } = useProductUoms(
+    undefined,
+    isUomDropdown ?? false
   );
 
   // Update line item
@@ -174,8 +181,8 @@ export function LineItemsTable({
   // Handle cell click - open dropdown or start inline edit
   const handleCellClick = (itemId: string, column: EditableColumnKey, e: React.MouseEvent) => {
     // custPartNumber and description are read-only (populated when product is selected)
-    // Only partNumber and manufacturer are dropdown columns
-    const dropdownColumns: EditableColumnKey[] = ['partNumber', 'manufacturer'];
+    // partNumber, manufacturer, and uom are dropdown columns
+    const dropdownColumns: EditableColumnKey[] = ['partNumber', 'manufacturer', 'uom'];
     if (showEndUserPerLine) {
       dropdownColumns.push('endUser');
     }
@@ -277,6 +284,28 @@ export function LineItemsTable({
     setSearchQuery('');
   };
 
+  // Handle dropdown selection for UOM
+  const handleUomSelect = (itemId: string, uom: any) => {
+    const item = (order.lineItems || []).find(li => li.id === itemId);
+    if (!item) return;
+
+    const divisor = uom.divisionFactor || 1;
+    const quantity = item.quantity || 1;
+    const unitPrice = item.unitPrice || 0;
+    const extendedPrice = quantity * unitPrice / divisor;
+    const commissionRate = item.commissionRate || 0.08;
+
+    updateLineItem(itemId, {
+      uomId: uom.id,
+      uom: uom.title,
+      divisor: divisor,
+      extendedPrice: extendedPrice,
+      commissionAmount: extendedPrice * commissionRate,
+    } as any);
+    setDropdownOpen(null);
+    setSearchQuery('');
+  };
+
   // Handle cell value change
   const handleCellChange = (itemId: string, column: EditableColumnKey, value: string) => {
     const item = (order.lineItems || []).find((li) => li.id === itemId);
@@ -307,9 +336,6 @@ export function LineItemsTable({
         updates.commissionAmount = item.extendedPrice * pct;
         break;
       }
-      case 'uom':
-        updates.uom = value || 'EA';
-        break;
       case 'divisor':
         updates.divisor = parseFloat(value) || 1;
         break;
@@ -325,9 +351,9 @@ export function LineItemsTable({
   // Render editable cell
   const renderEditableCell = (item: OrderLineItem, column: EditableColumnKey, align: 'left' | 'center' | 'right' = 'left') => {
     const isEditing = editingCell?.itemId === item.id && editingCell?.column === column;
-    // Only partNumber and manufacturer are dropdown columns
+    // partNumber, manufacturer, and uom are dropdown columns
     // custPartNumber and description are read-only (populated when product is selected)
-    const dropdownColumns: EditableColumnKey[] = ['partNumber', 'manufacturer'];
+    const dropdownColumns: EditableColumnKey[] = ['partNumber', 'manufacturer', 'uom'];
     if (showEndUserPerLine) {
       dropdownColumns.push('endUser');
     }
@@ -357,8 +383,7 @@ export function LineItemsTable({
         displayValue = (item as any).endUserName || (showEndUserPerLine ? 'Select...' : '—');
         break;
       case 'uom':
-        displayValue = item.uom || 'EA';
-        editValue = item.uom || 'EA';
+        displayValue = item.uom || 'Select...';
         break;
       case 'divisor':
         displayValue = String(item.divisor || 1);
@@ -820,6 +845,7 @@ export function LineItemsTable({
                     isProductDropdown ? "Type to search..." :
                     isFactoryDropdown ? "Search manufacturers..." :
                     isCpnDropdown ? "Customer part numbers..." :
+                    isUomDropdown ? "Search UOMs..." :
                     isEndUserDropdown ? "Search customers..." : "Search..."
                   }
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -916,6 +942,41 @@ export function LineItemsTable({
                 ))}
                 {isEndUserDropdown && !endUsersLoading && endUserResults.length === 0 && (
                   <div className="px-3 py-2 text-sm text-gray-500">No customers found</div>
+                )}
+
+                {/* UOM (Unit of Measure) results */}
+                {isUomDropdown && uomsLoading && (
+                  <div className="px-3 py-4 text-center">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-600 mx-auto" />
+                  </div>
+                )}
+                {isUomDropdown && !uomsLoading && (
+                  <>
+                    {uomResults
+                      .filter(uom =>
+                        !searchQuery.trim() ||
+                        (uom.title && uom.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                        (uom.description && uom.description.toLowerCase().includes(searchQuery.toLowerCase()))
+                      )
+                      .map((uom) => (
+                        <button
+                          key={uom.id}
+                          onClick={() => handleUomSelect(dropdownOpen.itemId, uom)}
+                          className="w-full text-left px-3 py-2 hover:bg-gray-50 transition-colors"
+                        >
+                          <div className="text-sm font-medium">{uom.title}</div>
+                          {uom.description && (
+                            <div className="text-xs text-gray-500">{uom.description}</div>
+                          )}
+                          {uom.divisionFactor && uom.divisionFactor !== 1 && (
+                            <div className="text-xs text-gray-400">Divisor: {uom.divisionFactor}</div>
+                          )}
+                        </button>
+                      ))}
+                    {uomResults.length === 0 && (
+                      <div className="px-3 py-2 text-sm text-gray-500">No UOMs found</div>
+                    )}
+                  </>
                 )}
               </div>
               {/* Adhoc option for product columns */}

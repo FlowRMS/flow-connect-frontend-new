@@ -84,9 +84,15 @@ export interface ProductSearchResult {
   defaultCommissionRate?: number;
   approvalNeeded: boolean;
   published: boolean;
-  category?: ProductCategory;
-  uom?: ProductUom;
-  factory?: { id: string; title: string };
+  approvalComments?: string;
+  approvalDate?: string;
+  commissionDiscountRate?: number;
+  defaultDivisor?: number;
+  leadTime?: string;
+  minOrderQty?: number;
+  tags?: string[];
+  unitPriceDiscountRate?: number;
+  upc?: string;
 }
 
 // Input Types
@@ -343,43 +349,24 @@ const PRODUCT_CATEGORY_SEARCH = `
 `;
 
 const PRODUCT_SEARCH = `
-  query ProductSearch($searchTerm: String!, $factoryId: UUID, $limit: Int) {
-    productSearch(searchTerm: $searchTerm, factoryId: $factoryId, limit: $limit) {
-      id
-      factoryPartNumber
-      description
-      unitPrice
-      defaultCommissionRate
+  query ProductSearch($searchTerm: String!, $limit: Int) {
+    productSearch(searchTerm: $searchTerm, limit: $limit) {
+      approvalComments
+      approvalDate
       approvalNeeded
+      commissionDiscountRate
+      defaultCommissionRate
+      defaultDivisor
+      description
+      factoryPartNumber
+      id
+      leadTime
+      minOrderQty
       published
-      category {
-        id
-        title
-        commissionRate
-        factoryId
-        parent {
-          id
-          title
-          commissionRate
-          factoryId
-        }
-        grandparent {
-          id
-          title
-          commissionRate
-          factoryId
-        }
-      }
-      uom {
-        id
-        title
-        description
-        divisionFactor
-      }
-      factory {
-        id
-        title
-      }
+      tags
+      unitPrice
+      unitPriceDiscountRate
+      upc
     }
   }
 `;
@@ -835,7 +822,7 @@ export async function fetchProductById(id: string): Promise<Product | null> {
  */
 export async function searchProductsApi(
   searchTerm?: string,
-  factoryId?: string,
+  _factoryId?: string, // Kept for API compatibility but not used in query
   _productCategoryIds?: string[], // Kept for API compatibility but not used in query
   limit?: number
 ): Promise<ProductSearchResult[]> {
@@ -843,7 +830,6 @@ export async function searchProductsApi(
     query: PRODUCT_SEARCH,
     variables: {
       searchTerm: searchTerm || '', // Ensure non-null for GraphQL String!
-      factoryId,
       limit: limit ?? 50,
     },
   });

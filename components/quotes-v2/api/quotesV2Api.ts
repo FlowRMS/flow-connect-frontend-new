@@ -1,9 +1,12 @@
+'use client';
+
 /**
  * Quotes V2 API Module
  * Reuses the existing quotes API with V2-specific hooks and utilities
  */
 
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
 
 // Re-export everything from the existing quotes API
 export * from '../../quotes/api/quotesApi';
@@ -31,6 +34,9 @@ import {
   deleteQuote,
 } from '../../quotes/api/quotesApi';
 
+// Import quote search from central API
+import { searchQuotes, type QuoteSearchResult } from '@/components/lib/api/search';
+
 // ============================================================================
 // V2-Specific Query Keys
 // ============================================================================
@@ -41,6 +47,7 @@ export const quoteV2QueryKeys = {
   quoteLandingPages: (filters?: QuoteLandingPageFilter[], orderBy?: QuoteLandingPageOrderBy[]) =>
     [...quoteV2QueryKeys.all, 'landingPages', { filters, orderBy }] as const,
   quote: (id: string) => [...quoteV2QueryKeys.all, 'detail', id] as const,
+  quoteSearch: (searchTerm: string) => [...quoteV2QueryKeys.all, 'search', { searchTerm }] as const,
 };
 
 // ============================================================================
@@ -244,6 +251,7 @@ export function useDeleteQuoteV2() {
 
 /**
  * Update quote pipeline stage (for drag & drop in Kanban)
+ * Uses optimistic updates for immediate visual feedback
  */
 export function useUpdateQuoteStageV2() {
   const queryClient = useQueryClient();
@@ -296,6 +304,30 @@ export function useUpdateQuoteStageV2() {
     },
   });
 }
+
+/**
+ * Search quotes hook with debounce
+ */
+export function useQuoteSearchV2(searchTerm: string, limit: number = 50) {
+  const [debouncedTerm, setDebouncedTerm] = useState(searchTerm);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedTerm(searchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  return useQuery<QuoteSearchResult[], Error>({
+    queryKey: quoteV2QueryKeys.quoteSearch(debouncedTerm),
+    queryFn: () => searchQuotes(debouncedTerm, limit),
+    enabled: debouncedTerm.length >= 2,
+    staleTime: 30 * 1000,
+  });
+}
+
+// Re-export QuoteSearchResult type
+export type { QuoteSearchResult } from '@/components/lib/api/search';
 
 // ============================================================================
 // Utility Types for V2 UI

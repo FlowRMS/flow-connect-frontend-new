@@ -1,8 +1,11 @@
+'use client';
+
 /**
  * Products React Query Hooks
  * Custom hooks for interacting with the Products GraphQL API
  */
 
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import {
   // Types
@@ -162,7 +165,7 @@ export function useProduct(id: string) {
 }
 
 /**
- * Search products
+ * Search products with debounce
  */
 export function useProductSearch(
   searchTerm?: string,
@@ -170,10 +173,21 @@ export function useProductSearch(
   categoryIds?: string[],
   limit?: number
 ) {
+  // Debounce the search term
+  const [debouncedTerm, setDebouncedTerm] = useState(searchTerm);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedTerm(searchTerm);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
   return useQuery<ProductSearchResult[], Error>({
-    queryKey: productQueryKeys.productSearch(searchTerm, factoryId, categoryIds),
-    queryFn: () => searchProductsApi(searchTerm, factoryId, categoryIds, limit),
-    enabled: true,
+    queryKey: productQueryKeys.productSearch(debouncedTerm, factoryId, categoryIds),
+    queryFn: () => searchProductsApi(debouncedTerm, factoryId, categoryIds, limit),
+    enabled: !!debouncedTerm && debouncedTerm.length >= 2,
     staleTime: 30 * 1000,
   });
 }

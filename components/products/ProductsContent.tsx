@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useProductsState } from './hooks/useProductsState';
 import { CreateProductModal } from './modals/CreateProductModal';
@@ -197,6 +197,7 @@ export default function ProductsContent() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
+    handleScroll,
     // Filter options
     uniqueFactories,
     uniqueCategories,
@@ -370,8 +371,8 @@ export default function ProductsContent() {
         </div>
 
         {/* Products Table */}
-        <div className="flex-1 overflow-auto p-6 pt-0">
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
+        <div className="flex-1 overflow-auto p-6 pt-0" onScroll={handleScroll}>
+          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
             {isLoading && filteredProducts.length === 0 ? (
               <div className="p-12 text-center">
                 <svg className="animate-spin h-8 w-8 mx-auto text-[var(--primary)]" fill="none" viewBox="0 0 24 24">
@@ -588,16 +589,18 @@ export default function ProductsContent() {
               </div>
             )}
 
-            {/* Load More */}
-            {hasNextPage && (
-              <div className="p-4 border-t border-[var(--border)] text-center">
-                <button
-                  onClick={() => fetchNextPage()}
-                  disabled={isFetchingNextPage}
-                  className="px-4 py-2 text-sm font-medium text-[var(--primary)] hover:bg-[var(--muted)] rounded-lg transition-colors disabled:opacity-50"
-                >
-                  {isFetchingNextPage ? 'Loading more...' : 'Load more products'}
-                </button>
+            {/* Loading indicator for infinite scroll */}
+            {isFetchingNextPage && (
+              <div className="flex items-center justify-center py-4 border-t border-[var(--border)]">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[var(--primary)]" />
+                <span className="ml-2 text-sm text-[var(--muted-foreground)]">Loading more products...</span>
+              </div>
+            )}
+
+            {/* End of list indicator */}
+            {!hasNextPage && filteredProducts.length > 0 && !searchQuery && (
+              <div className="text-center py-4 text-sm text-[var(--muted-foreground)] border-t border-[var(--border)]">
+                All {totalCount} products loaded
               </div>
             )}
           </div>

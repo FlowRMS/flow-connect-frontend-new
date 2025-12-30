@@ -4,6 +4,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
 import {
   fetchOrdersWithPagination,
   fetchOrderById,
@@ -18,6 +19,8 @@ import {
   type CreateOrderInput,
   type UpdateOrderInput,
 } from './ordersApi';
+// Import order search from central API
+import { searchOrders, type OrderSearchResult } from '@/components/lib/api/search';
 // Import search functions from quotes API (same as quotes-v2 uses - avoids GraphQL schema issues)
 import {
   searchCustomers,
@@ -51,6 +54,8 @@ export const orderQueryKeys = {
     [...orderQueryKeys.all, 'landingPages', { filters, orderBy }] as const,
   order: (id: string) => [...orderQueryKeys.all, 'detail', id] as const,
   // Search keys
+  orderSearch: (searchTerm: string) =>
+    [...orderQueryKeys.all, 'orderSearch', { searchTerm }] as const,
   customerSearch: (searchTerm: string) =>
     [...orderQueryKeys.all, 'customerSearch', { searchTerm }] as const,
   factorySearch: (searchTerm: string) =>
@@ -265,13 +270,13 @@ export function useProductCpns(productId: string, enabled: boolean = true) {
 }
 
 /**
- * List UOMs (Unit of Measure) for a product
+ * List all UOMs (Unit of Measure)
  * Used in line items to select unit of measure
  */
-export function useProductUoms(productId?: string, enabled: boolean = true) {
+export function useProductUoms(_productId?: string, enabled: boolean = true) {
   return useQuery<ProductUomResult[], Error>({
-    queryKey: [...orderQueryKeys.all, 'productUoms', { productId }] as const,
-    queryFn: () => listProductUoms(productId),
+    queryKey: [...orderQueryKeys.all, 'productUoms'] as const,
+    queryFn: () => listProductUoms(),
     enabled: enabled,
     staleTime: 60 * 1000,
   });
@@ -323,4 +328,28 @@ export type { JobSearchResult } from '@/components/lib/api/search';
 export { searchCustomers, searchFactories, searchUsers, searchProducts, listProductCpns, getProductCpnByCustomer, listProductUoms } from '@/components/quotes/api/quotesApi';
 
 // Re-export job search from central API
-export { searchJobs } from '@/components/lib/api/search';
+export { searchJobs, searchOrders } from '@/components/lib/api/search';
+
+// Re-export order search type
+export type { OrderSearchResult } from '@/components/lib/api/search';
+
+/**
+ * Search orders hook with debounce
+ */
+export function useOrderSearch(searchTerm: string, limit: number = 50) {
+  const [debouncedTerm, setDebouncedTerm] = useState(searchTerm);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedTerm(searchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  return useQuery<OrderSearchResult[], Error>({
+    queryKey: orderQueryKeys.orderSearch(debouncedTerm),
+    queryFn: () => searchOrders(debouncedTerm, limit),
+    enabled: debouncedTerm.length >= 2,
+    staleTime: 30 * 1000,
+  });
+}

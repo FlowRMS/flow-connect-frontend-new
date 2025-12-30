@@ -4,10 +4,10 @@
  * Integrates all sub-hooks and manages overall state
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import type { Order, OrderSplitRate } from '@/lib/types/rms';
 import { mockSalesReps } from '@/lib/data/rms-mock';
-import { useOrders, type OrderLandingPage } from '../../api';
+import { useOrdersInfinite, useOrderSearch, type OrderLandingPage, type OrderSearchResult } from '../../api';
 import { useOrderFilters } from './useOrderFilters';
 import { useOrderSelection } from './useOrderSelection';
 import { useOrderBulkActions } from './useOrderBulkActions';
@@ -66,15 +66,87 @@ function mapApiStatusToUiStatus(headerStatus?: string, status?: string): 'draft'
   }
 }
 
-export function useOrdersListState() {
-  // Fetch orders from API
-  const { data: apiOrders, isLoading, error, refetch } = useOrders();
+/**
+ * Transform OrderSearchResult to UI Order type
+ */
+function transformSearchResultToOrder(result: OrderSearchResult): Order {
+  return {
+    id: result.id,
+    orderNumber: result.orderNumber,
+    manufacturerId: result.factoryId || '',
+    manufacturerName: '',
+    customerId: result.soldToCustomerId || '',
+    customerName: '',
+    status: mapApiStatusToUiStatus(result.headerStatus, result.status),
+    fulfillmentStatus: 'not_started',
+    billingStatus: 'not_invoiced',
+    commissionStatus: 'pending',
+    orderDate: result.entityDate || '',
+    createdAt: result.createdAt || '',
+    createdBy: '',
+    updatedAt: result.createdAt || '',
+    lineItems: [],
+    subtotal: 0,
+    freight: 0,
+    total: 0,
+    totalCommission: 0,
+    splitRates: [],
+    dueDate: result.dueDate,
+  };
+}
 
-  // Transform API data to UI format
+export function useOrdersListState() {
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Fetch orders from API with infinite scroll
+  const {
+    data: ordersData,
+    isLoading,
+    error,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useOrdersInfinite();
+
+  // Search orders
+  const { data: searchResults, isLoading: isSearching } = useOrderSearch(searchQuery, 100);
+
+  // Flatten paginated data
+  const allOrdersData = useMemo(() => {
+    if (!ordersData?.pages) return [];
+    return ordersData.pages.flatMap(page => page.records);
+  }, [ordersData]);
+
+  // Get total count
+  const totalCount = useMemo(() => {
+    if (!ordersData?.pages || ordersData.pages.length === 0) return 0;
+    return ordersData.pages[0].total;
+  }, [ordersData]);
+
+  // Transform API data to UI format, using search results when searching
   const orders = useMemo(() => {
-    if (!apiOrders) return [];
-    return apiOrders.map(transformLandingPageToOrder);
-  }, [apiOrders]);
+    // If searching and we have results, transform search results
+    if (searchQuery.length >= 2 && searchResults) {
+      return searchResults.map((result: OrderSearchResult) => transformSearchResultToOrder(result));
+    }
+
+    if (!allOrdersData.length) return [];
+    return allOrdersData.map(transformLandingPageToOrder);
+  }, [allOrdersData, searchQuery, searchResults]);
+
+  // Scroll handler for infinite scroll
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLDivElement;
+    const { scrollTop, scrollHeight, clientHeight } = target;
+    // Load more when within 200px of bottom
+    if (scrollHeight - scrollTop - clientHeight < 200) {
+      if (hasNextPage && !isFetchingNextPage && !searchQuery) {
+        fetchNextPage();
+      }
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, searchQuery]);
 
   // Local orders state for optimistic updates (bulk actions, etc.)
   const [localOrders, setLocalOrders] = useState<Order[]>([]);
@@ -213,8 +285,18 @@ export function useOrdersListState() {
     setOrders,
     // Loading and error state
     isLoading,
+    isSearching,
     error,
     refetch,
+    // Pagination
+    totalCount,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    handleScroll,
+    // Search
+    searchQuery,
+    setSearchQuery,
     // Selected order
     selectedOrder,
     setSelectedOrder,

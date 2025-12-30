@@ -966,8 +966,8 @@ const GET_PRODUCT_CPN_BY_PRODUCT_AND_CUSTOMER = `
 // ============================================================================
 
 const LIST_PRODUCT_UOMS = `
-  query ListProductUoms($productId: UUID) {
-    productUoms(productId: $productId) {
+  query ListProductUoms {
+    productUoms {
       id
       description
       divisionFactor
@@ -1332,12 +1332,11 @@ export async function getProductCpnByCustomer(productId: string, customerId: str
 }
 
 /**
- * List UOMs (Unit of Measure) for a product
+ * List all UOMs (Unit of Measure)
  */
-export async function listProductUoms(productId?: string): Promise<ProductUomResult[]> {
+export async function listProductUoms(): Promise<ProductUomResult[]> {
   const response = await crmGraphQLRequest<{ productUoms: ProductUomResult[] }>({
     query: LIST_PRODUCT_UOMS,
-    variables: { productId },
   });
 
   if (response.errors) {

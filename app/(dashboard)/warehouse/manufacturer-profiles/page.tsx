@@ -3,8 +3,10 @@ import ManufacturerProfilesContent from '@/components/warehouse/ManufacturerProf
 
 export default function ManufacturerProfilesPage() {
   return (
-    <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="text-[var(--muted-foreground)]">Loading...</div></div>}>
-      <ManufacturerProfilesContent />
-    </Suspense>
+    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-3 sm:p-6">
+      <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="text-[var(--muted-foreground)]">Loading...</div></div>}>
+        <ManufacturerProfilesContent />
+      </Suspense>
+    </main>
   );
 }

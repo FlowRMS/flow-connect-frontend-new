@@ -152,19 +152,23 @@ export interface QuoteSearchResult {
 export interface OrderSearchResult {
   id: string;
   orderNumber: string;
+  entityDate?: string;
+  entryDate?: string;
+  dueDate?: string;
+  shipDate?: string;
+  status?: string;
+  headerStatus?: string;
+  billToCustomerId?: string;
+  soldToCustomerId?: string;
+  factoryId?: string;
+  quoteId?: string;
+  balanceId?: string;
+  factSoNumber?: string;
+  published?: boolean;
+  createdAt?: string;
+  createdById?: string;
   jobName?: string;
-  entityDate: string;
-  entryDate: string;
-  dueDate: string;
-  shipDate: string;
-  status: string;
-  billToCustomerId: string;
-  soldToCustomerId: string;
-  factoryId: string;
-  quoteId: string;
-  balanceId: string;
-  factSoNumber: string;
-  userOwnerIds: string[];
+  userOwnerIds?: string[];
 }
 
 export interface InvoiceSearchResult {
@@ -221,11 +225,17 @@ export interface ProductSearchResult {
   description?: string;
   unitPrice?: number;
   defaultCommissionRate?: number;
+  defaultDivisor?: number;
   approvalNeeded?: boolean;
+  approvalComments?: string;
+  approvalDate?: string;
   published?: boolean;
-  factoryId?: string;
-  category?: { id: string; title: string };
-  factory?: { id: string; title: string };
+  commissionDiscountRate?: number;
+  unitPriceDiscountRate?: number;
+  leadTime?: string;
+  minOrderQty?: number;
+  tags?: string;
+  upc?: string;
 }
 
 export interface UserSearchResult {
@@ -240,6 +250,13 @@ export interface UserSearchResult {
   outside?: boolean;
   role?: string;
   username?: string;
+}
+
+export interface ProductUomResult {
+  id: string;
+  title: string;
+  description?: string;
+  divisionFactor?: number;
 }
 
 // ============================================================================
@@ -416,19 +433,20 @@ const ORDER_SEARCH = `
     orderSearch(searchTerm: $searchTerm, limit: $limit) {
       id
       orderNumber
-      jobName
       entityDate
-      entryDate
       dueDate
       shipDate
       status
+      headerStatus
       billToCustomerId
       soldToCustomerId
       factoryId
       quoteId
       balanceId
       factSoNumber
-      userOwnerIds
+      published
+      createdAt
+      createdById
     }
   }
 `;
@@ -497,23 +515,24 @@ const CUSTOMER_SEARCH = `
 `;
 
 const PRODUCT_SEARCH = `
-  query ProductSearch($searchTerm: String!, $factoryId: UUID, $limit: Int) {
-    productSearch(searchTerm: $searchTerm, factoryId: $factoryId, limit: $limit) {
-      id
-      factoryPartNumber
-      description
-      unitPrice
-      defaultCommissionRate
+  query ProductSearch($searchTerm: String!, $limit: Int) {
+    productSearch(searchTerm: $searchTerm, limit: $limit) {
+      approvalComments
+      approvalDate
       approvalNeeded
+      commissionDiscountRate
+      defaultCommissionRate
+      defaultDivisor
+      description
+      factoryPartNumber
+      id
+      leadTime
+      minOrderQty
       published
-      category {
-        id
-        title
-      }
-      factory {
-        id
-        title
-      }
+      tags
+      unitPrice
+      unitPriceDiscountRate
+      upc
     }
   }
 `;
@@ -538,6 +557,17 @@ const USER_SEARCH = `
       outside
       role
       username
+    }
+  }
+`;
+
+const PRODUCT_UOMS = `
+  query ProductUoms {
+    productUoms {
+      id
+      title
+      description
+      divisionFactor
     }
   }
 `;
@@ -743,12 +773,12 @@ export async function searchCustomers(searchTerm: string, published?: boolean, l
  */
 export async function searchProducts(
   searchTerm: string,
-  factoryId?: string,
+  _factoryId?: string,
   limit?: number
 ): Promise<ProductSearchResult[]> {
   const response = await crmGraphQLRequest<{ productSearch: ProductSearchResult[] }>({
     query: PRODUCT_SEARCH,
-    variables: { searchTerm, factoryId, limit: limit ?? 50 },
+    variables: { searchTerm, limit: limit ?? 50 },
   });
 
   if (response.errors) {
@@ -784,4 +814,19 @@ export async function searchUsers(params: {
   }
 
   return response.data?.userSearch || [];
+}
+
+/**
+ * Fetch all product UOMs
+ */
+export async function fetchProductUoms(): Promise<ProductUomResult[]> {
+  const response = await crmGraphQLRequest<{ productUoms: ProductUomResult[] }>({
+    query: PRODUCT_UOMS,
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch product UOMs');
+  }
+
+  return response.data?.productUoms || [];
 }

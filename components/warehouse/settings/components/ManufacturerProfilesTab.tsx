@@ -104,10 +104,10 @@ export default function ManufacturerProfilesContent() {
   };
 
   return (
-    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-[var(--foreground)]">Manufacturer Profiles</h1>
+      <div>
+        <h2 className="text-lg font-semibold text-[var(--foreground)]">Manufacturer Profiles</h2>
         <p className="text-sm text-[var(--muted-foreground)] mt-1">
           Configure vendor settings, customer cross-references, and freight categories for your manufacturers
         </p>
@@ -379,7 +379,7 @@ export default function ManufacturerProfilesContent() {
           onSave={handleSaveProfile}
         />
       )}
-    </main>
+    </div>
   );
 }
 

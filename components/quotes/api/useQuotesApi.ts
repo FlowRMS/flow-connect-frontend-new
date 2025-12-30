@@ -280,13 +280,13 @@ export function useProductCpns(productId: string, enabled: boolean = true) {
 }
 
 /**
- * List UOMs (Unit of Measure) for a product
+ * List all UOMs (Unit of Measure)
  * Used in line items to select unit of measure
  */
 export function useProductUoms(productId?: string, enabled: boolean = true) {
   return useQuery<ProductUomResult[], Error>({
     queryKey: quoteQueryKeys.productUoms(productId),
-    queryFn: () => listProductUoms(productId),
+    queryFn: () => listProductUoms(),
     enabled: enabled,
     staleTime: 60 * 1000,
   });

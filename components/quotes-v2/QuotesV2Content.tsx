@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import type { QuoteV2, QuoteLandingPageFilter, QuoteLandingPageOrderBy, QuotePipelineStage } from './types';
+import type { QuoteV2, QuoteLandingPageFilter, QuoteLandingPageOrderBy } from './types';
+import type { QuotePipelineStage } from './types';
 import { transformLandingPageToQuoteV2 } from './types';
 import { KanbanViewV2 } from './views/KanbanViewV2';
 import { ListViewV2 } from './views/ListViewV2';
-import { useQuotesV2, useUpdateQuoteStageV2 } from './api/quotesV2Api';
+import { useQuotesV2Infinite, useUpdateQuoteStageV2, useQuoteSearchV2, type QuoteSearchResult } from './api/quotesV2Api';
 import { quoteToasts } from '../lib/toast';
 
 type ViewMode = 'kanban' | 'list';
@@ -23,6 +24,10 @@ export function QuotesV2Content() {
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>('createdAt');
   const [sortDirection, setSortDirection] = useState<'ASC' | 'DESC'>('DESC');
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Build filters based on quick filter selection
   const filters = useMemo<QuoteLandingPageFilter[]>(() => {
@@ -73,14 +78,94 @@ export function QuotesV2Content() {
     return [{ columnName: sortBy, direction: sortDirection }];
   }, [sortBy, sortDirection]);
 
-  // Fetch quotes from API
-  const { data: quotesData, isLoading, error, refetch } = useQuotesV2(filters, orderBy);
+  // Fetch quotes from API with infinite scroll
+  const {
+    data: quotesData,
+    isLoading,
+    error,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useQuotesV2Infinite(filters, orderBy);
+
   const updateStageMutation = useUpdateQuoteStageV2();
 
-  // Transform API data to UI format
+  // Search quotes
+  const { data: searchResults, isLoading: isSearching } = useQuoteSearchV2(searchQuery, 100);
+
+  // Flatten paginated data
+  const allQuotesData = useMemo(() => {
+    if (!quotesData?.pages) return [];
+    return quotesData.pages.flatMap(page => page.records);
+  }, [quotesData]);
+
+  // Transform API data to UI format, using search results when searching
   const quotes = useMemo<QuoteV2[]>(() => {
-    if (!quotesData) return [];
-    return quotesData.map(transformLandingPageToQuoteV2);
+    // If searching and we have results, transform search results
+    if (searchQuery.length >= 2 && searchResults) {
+      return searchResults.map((result: QuoteSearchResult) => ({
+        id: result.id,
+        quoteNumber: result.quoteNumber,
+        stage: 'Draft' as const,
+        status: (result.status || 'OPEN') as 'OPEN' | 'ORDERED' | 'EXPIRED' | 'LOST',
+        pipelineStage: result.pipelineStage as QuotePipelineStage | undefined,
+        apiStatus: result.status as 'OPEN' | 'ORDERED' | 'EXPIRED' | 'LOST' | undefined,
+        published: result.published,
+        soldToCustomerId: result.soldToCustomerId || '',
+        soldToCustomerName: '',
+        billToCustomerId: result.billToCustomerId || '',
+        billToCustomerName: '',
+        jobId: '',
+        jobName: '',
+        quoteAmount: 0,
+        basePrice: 0,
+        sellPrice: 0,
+        commission: 0,
+        winProbability: 0,
+        approvalStatus: 'clear' as const,
+        pendingApprovals: 0,
+        blockedApprovals: 0,
+        quoteDate: result.entityDate || '',
+        expirationDate: result.expDate || '',
+        entryDate: result.createdAt || '',
+        paymentTerms: result.paymentTerms || '',
+        freightTerms: result.freightTerms || '',
+        version: 1,
+        tags: [],
+        factoriesCount: 0,
+        endUsersCount: 0,
+        createdById: result.createdById,
+      }));
+    }
+
+    if (!allQuotesData.length) return [];
+    return allQuotesData.map(transformLandingPageToQuoteV2);
+  }, [allQuotesData, searchQuery, searchResults]);
+
+  // Scroll-based pagination - load more when scrolling near bottom
+  useEffect(() => {
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+      // Load more when within 200px of bottom
+      if (scrollHeight - scrollTop - clientHeight < 200) {
+        if (hasNextPage && !isFetchingNextPage && !searchQuery) {
+          fetchNextPage();
+        }
+      }
+    };
+
+    scrollContainer.addEventListener('scroll', handleScroll);
+    return () => scrollContainer.removeEventListener('scroll', handleScroll);
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, searchQuery]);
+
+  // Get total count from first page
+  const totalCount = useMemo(() => {
+    if (!quotesData?.pages || quotesData.pages.length === 0) return 0;
+    return quotesData.pages[0].total;
   }, [quotesData]);
 
   // Computed totals
@@ -134,13 +219,58 @@ export function QuotesV2Content() {
   }, [updateStageMutation, quotes]);
 
   return (
-    <div className="flex flex-col h-full bg-gray-50">
+    <div className="flex flex-col h-full overflow-hidden bg-gray-50">
       {/* Header */}
       <div className="flex-shrink-0 px-6 py-4 bg-white border-b border-gray-200">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold text-gray-900">Quotes</h1>
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900">Quotes</h1>
+            <p className="text-sm text-gray-500 mt-1">
+              {searchQuery.length >= 2
+                ? `${quotes.length} results for "${searchQuery}"`
+                : `Showing ${quotes.length} of ${totalCount} quotes`}
+            </p>
+          </div>
 
           <div className="flex items-center gap-4">
+            {/* Search Bar */}
+            <div className="relative">
+              <svg
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path d="M21 21l-4.35-4.35" />
+              </svg>
+              <input
+                type="text"
+                placeholder="Search quotes..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-64 pl-10 pr-4 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              )}
+              {isSearching && (
+                <div className="absolute right-10 top-1/2 -translate-y-1/2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600" />
+                </div>
+              )}
+            </div>
+
             {/* Pipeline & Won YTD */}
             <div className="flex items-center gap-6 text-sm">
               <div>
@@ -316,8 +446,8 @@ export function QuotesV2Content() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-hidden p-4">
-        {isLoading ? (
+      <div ref={scrollContainerRef} className="flex-1 overflow-auto p-4">
+        {isLoading && quotes.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-4" />
@@ -336,10 +466,42 @@ export function QuotesV2Content() {
               </button>
             </div>
           </div>
-        ) : viewMode === 'kanban' ? (
-          <KanbanViewV2 quotes={quotes} onQuoteClick={handleQuoteClick} onStageChange={handleStageChange} />
         ) : (
-          <ListViewV2 quotes={quotes} onQuoteClick={handleQuoteClick} />
+          <>
+            {viewMode === 'kanban' ? (
+              <KanbanViewV2
+                quotes={quotes}
+                onQuoteClick={handleQuoteClick}
+                onStageChange={handleStageChange}
+                onLoadMore={() => {
+                  if (hasNextPage && !isFetchingNextPage && !searchQuery) {
+                    fetchNextPage();
+                  }
+                }}
+                hasMore={hasNextPage && !searchQuery}
+                isLoadingMore={isFetchingNextPage}
+              />
+            ) : (
+              <>
+                <ListViewV2 quotes={quotes} onQuoteClick={handleQuoteClick} />
+
+                {/* Loading indicator for infinite scroll - list view */}
+                {isFetchingNextPage && (
+                  <div className="flex items-center justify-center py-4">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600" />
+                    <span className="ml-2 text-sm text-gray-500">Loading more quotes...</span>
+                  </div>
+                )}
+
+                {/* End of list indicator - list view */}
+                {!hasNextPage && quotes.length > 0 && !searchQuery && (
+                  <div className="text-center py-4 text-sm text-gray-400">
+                    All {totalCount} quotes loaded
+                  </div>
+                )}
+              </>
+            )}
+          </>
         )}
       </div>
     </div>

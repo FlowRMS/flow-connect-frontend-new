@@ -90,7 +90,6 @@ const defaultConfig: SidebarConfig = {
         { id: 'warehouse-cycle-counts', name: 'Cycle Counts', href: '/warehouse/cycle-counts', enabled: true },
         { id: 'warehouse-reports', name: 'Reports', href: '/warehouse/reports', enabled: true },
         { id: 'warehouse-settings', name: 'Settings', href: '/warehouse/settings', enabled: true },
-        { id: 'warehouse-manufacturer-profiles', name: 'Manufacturer Profiles', href: '/warehouse/manufacturer-profiles', enabled: true },
       ]
     },
     {
@@ -139,7 +138,7 @@ const defaultConfig: SidebarConfig = {
 };
 
 const STORAGE_KEY = 'sidebar-config';
-const CONFIG_VERSION = 18; // Increment this to force a reset of cached sidebar config (added analytics)
+const CONFIG_VERSION = 19; // Increment this to force a reset of cached sidebar config (removed manufacturer profiles - now in warehouse settings)
 
 const SidebarConfigContext = createContext<SidebarConfigContextType | undefined>(undefined);
 

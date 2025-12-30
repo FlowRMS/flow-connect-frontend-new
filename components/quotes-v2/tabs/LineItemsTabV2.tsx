@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type { LineItemV2, ColumnConfig, LineItemColumnKey, QuoteSettingsV2 } from '../types';
-import { useProductSearch, useFactorySearch, useProductCpns, useCustomerSearch, getProductCpnByCustomer } from '../../quotes/api/useQuotesApi';
+import { useProductSearch, useFactorySearch, useProductCpns, useCustomerSearch, useProductUoms, getProductCpnByCustomer } from '../../quotes/api/useQuotesApi';
 
 interface LineItemsTabV2Props {
   lineItems: LineItemV2[];
@@ -47,10 +47,11 @@ export function LineItemsTabV2({
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Determine if we need product, factory, CPN, or end user search based on open dropdown
+  // Determine if we need product, factory, CPN, UOM, or end user search based on open dropdown
   const isProductDropdown = dropdownOpen && ['partNumber', 'description'].includes(dropdownOpen.column);
   const isFactoryDropdown = dropdownOpen?.column === 'manufacturer';
   const isCpnDropdown = dropdownOpen?.column === 'customerPartNumber';
+  const isUomDropdown = dropdownOpen?.column === 'uom';
   const isEndUserDropdown = dropdownOpen?.column === 'endUser' && settings?.specifyEndUserPerLine;
 
   // Get current line item's productId for CPN search
@@ -77,7 +78,11 @@ export function LineItemsTabV2({
     isEndUserDropdown ?? false
   );
 
-  // Note: UOMs are now handled at product selection time - no need to fetch separately
+  // Fetch UOMs when UOM dropdown is open (empty string to get all)
+  const { data: uomResults = [], isLoading: uomsLoading } = useProductUoms(
+    undefined,
+    isUomDropdown ?? false
+  );
   // The product's defaultDivisor is used directly when a product is selected
 
   const visibleColumns = useMemo(
@@ -115,8 +120,8 @@ export function LineItemsTabV2({
 
   const handleCellClick = (itemId: string, column: LineItemColumnKey, e: React.MouseEvent) => {
     // customerPartNumber and description are read-only (populated when product is selected)
-    // Only partNumber and manufacturer are dropdown columns
-    const dropdownColumns: LineItemColumnKey[] = ['partNumber', 'manufacturer'];
+    // partNumber, manufacturer, and uom are dropdown columns
+    const dropdownColumns: LineItemColumnKey[] = ['partNumber', 'manufacturer', 'uom'];
     if (settings?.specifyEndUserPerLine) {
       dropdownColumns.push('endUser');
     }
@@ -172,8 +177,6 @@ export function LineItemsTabV2({
       updates.sellTotal = sellTotal;
       updates.commission = commission;
       updates.commissionTotal = commissionTotal;
-    } else if (column === 'uom') {
-      updates.uom = value;
     } else if (column === 'divisor') {
       const divisor = parseFloat(value) || 1;
       const sellTotal = item.quantity * item.unitPrice / divisor;
@@ -234,9 +237,9 @@ export function LineItemsTabV2({
   const renderCell = (item: LineItemV2, column: ColumnConfig) => {
     const isEditing = editingCell?.itemId === item.id && editingCell?.column === column.key;
     const isDropdown = dropdownOpen?.itemId === item.id && dropdownOpen?.column === column.key;
-    // Only partNumber and manufacturer are dropdown columns
+    // partNumber, manufacturer, and uom are dropdown columns
     // customerPartNumber and description are read-only (populated when product is selected)
-    const dropdownColumns: LineItemColumnKey[] = ['partNumber', 'manufacturer'];
+    const dropdownColumns: LineItemColumnKey[] = ['partNumber', 'manufacturer', 'uom'];
     if (settings?.specifyEndUserPerLine) {
       dropdownColumns.push('endUser');
     }
@@ -267,8 +270,7 @@ export function LineItemsTabV2({
         editValue = (item.quantity || 0).toString();
         break;
       case 'uom':
-        displayValue = item.uom || 'EA';
-        editValue = item.uom || 'EA';
+        displayValue = item.uom || 'Select...';
         break;
       case 'divisor':
         displayValue = (item.divisor || 1).toString();
@@ -528,7 +530,11 @@ export function LineItemsTabV2({
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={dropdownOpen.column === 'manufacturer' ? 'Search manufacturers...' : 'Type to search...'}
+                  placeholder={
+                    dropdownOpen.column === 'manufacturer' ? 'Search manufacturers...' :
+                    dropdownOpen.column === 'uom' ? 'Search UOMs...' :
+                    'Type to search...'
+                  }
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   autoFocus
                 />
@@ -540,7 +546,7 @@ export function LineItemsTabV2({
               </div>
               <div className="max-h-48 overflow-y-auto">
                 {/* Loading state */}
-                {(productsLoading || factoriesLoading || cpnsLoading) && (
+                {(productsLoading || factoriesLoading || cpnsLoading || uomsLoading) && (
                   <div className="px-3 py-4 text-center">
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-600 mx-auto" />
                   </div>
@@ -695,6 +701,60 @@ export function LineItemsTabV2({
                     ))}
                     {endUserResults.length === 0 && (
                       <div className="px-3 py-2 text-sm text-gray-500">No customers found</div>
+                    )}
+                  </>
+                )}
+
+                {/* UOM (Unit of Measure) results */}
+                {isUomDropdown && !uomsLoading && (
+                  <>
+                    {uomResults
+                      .filter(uom =>
+                        !searchQuery.trim() ||
+                        (uom.title && uom.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                        (uom.description && uom.description.toLowerCase().includes(searchQuery.toLowerCase()))
+                      )
+                      .map((uom) => {
+                        // Get current item to recalculate sellTotal when divisor changes
+                        const item = lineItems.find(li => li.id === dropdownOpen.itemId);
+                        return (
+                          <button
+                            key={uom.id}
+                            onClick={() => {
+                              const divisor = uom.divisionFactor || 1;
+                              const quantity = item?.quantity || 1;
+                              const unitPrice = item?.unitPrice || 0;
+                              const commissionPercent = item?.commissionPercent || 0;
+                              const sellTotal = quantity * unitPrice / divisor;
+                              const commissionTotal = sellTotal * commissionPercent;
+                              const commission = quantity > 0 ? commissionTotal / quantity : 0;
+
+                              updateLineItem(dropdownOpen.itemId, {
+                                uomId: uom.id,
+                                uom: uom.title,
+                                divisor: divisor,
+                                sellTotal: sellTotal,
+                                commission: commission,
+                                commissionTotal: commissionTotal,
+                              });
+                              setDropdownOpen(null);
+                              setSearchQuery('');
+                              setDebouncedSearch('');
+                            }}
+                            className="w-full text-left px-3 py-2 hover:bg-gray-50 transition-colors"
+                          >
+                            <div className="text-sm font-medium">{uom.title}</div>
+                            {uom.description && (
+                              <div className="text-xs text-gray-400">{uom.description}</div>
+                            )}
+                            {uom.divisionFactor && uom.divisionFactor !== 1 && (
+                              <div className="text-xs text-gray-400">Divisor: {uom.divisionFactor}</div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    {uomResults.length === 0 && (
+                      <div className="px-3 py-2 text-sm text-gray-500">No UOMs found</div>
                     )}
                   </>
                 )}

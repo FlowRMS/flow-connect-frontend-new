@@ -217,7 +217,7 @@ export default function ManufacturerEditPage() {
           <h3 className="text-lg font-medium text-gray-900 mb-2">Manufacturer not found</h3>
           <p className="text-gray-500 mb-4">The manufacturer you're looking for doesn't exist or has been deleted.</p>
           <button
-            onClick={() => router.push('/warehouse/manufacturer-profiles')}
+            onClick={() => router.push('/warehouse/settings?tab=manufacturer-profiles')}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             Back to Manufacturers
@@ -238,7 +238,7 @@ export default function ManufacturerEditPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => router.push('/warehouse/manufacturer-profiles')}
+              onClick={() => router.push('/warehouse/settings?tab=manufacturer-profiles')}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -272,7 +272,7 @@ export default function ManufacturerEditPage() {
             </span>
 
             <button
-              onClick={() => router.push('/warehouse/manufacturer-profiles')}
+              onClick={() => router.push('/warehouse/settings?tab=manufacturer-profiles')}
               className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors"
             >
               Cancel

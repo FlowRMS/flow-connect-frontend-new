@@ -3,7 +3,7 @@
  * Manages UI state for the products list page
  */
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   useProductsInfinite,
   useProductSearch,
@@ -129,6 +129,7 @@ export function useProductsState() {
     // If we have search results from the API, use those
     if (searchQuery.length >= 2 && searchResults) {
       // Convert ProductSearchResult to ProductLandingPage format
+      // Note: category, uom, factory are not available in the search results
       return searchResults.map((p: ProductSearchResult) => ({
         id: p.id,
         factoryPartNumber: p.factoryPartNumber,
@@ -137,9 +138,9 @@ export function useProductsState() {
         defaultCommissionRate: p.defaultCommissionRate,
         approvalNeeded: p.approvalNeeded,
         published: p.published,
-        categoryTitle: p.category?.title,
-        uomTitle: p.uom?.title,
-        factoryTitle: p.factory?.title,
+        categoryTitle: undefined,
+        uomTitle: undefined,
+        factoryTitle: undefined,
       })) as ProductLandingPage[];
     }
 
@@ -279,6 +280,18 @@ export function useProductsState() {
     uniqueFactories: uniqueFactories.length,
   }), [totalCount, products, uniqueCategories.length, uniqueFactories.length]);
 
+  // Scroll handler for infinite scroll
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLDivElement;
+    const { scrollTop, scrollHeight, clientHeight } = target;
+    // Load more when within 200px of bottom
+    if (scrollHeight - scrollTop - clientHeight < 200) {
+      if (hasNextPage && !isFetchingNextPage && searchQuery.length < 2) {
+        fetchNextPage();
+      }
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, searchQuery]);
+
   // Handlers
   const handleSort = useCallback((column: string) => {
     setSortState((prev) => {
@@ -351,6 +364,7 @@ export function useProductsState() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
+    handleScroll,
 
     // Filter and sort
     activeFilters,

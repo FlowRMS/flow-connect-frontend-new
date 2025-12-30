@@ -119,7 +119,7 @@ export default function ManufacturerProfilesContent() {
   };
 
   return (
-    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-3 sm:p-6">
+    <div className="flex-1 overflow-y-auto bg-[var(--background)]">
       {/* Header */}
       <div className="mb-4 sm:mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2 mb-4">
@@ -487,6 +487,6 @@ export default function ManufacturerProfilesContent() {
           isDeleting={deleteFactoryMutation.isPending}
         />
       )}
-    </main>
+    </div>
   );
 }
