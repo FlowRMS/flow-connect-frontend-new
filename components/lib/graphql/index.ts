@@ -192,3 +192,34 @@ export {
   type MultiFileUploadInput,
   type FileEntityType,
 } from './files';
+
+// Takeoffs module
+export {
+  fetchUserTakeoffs,
+  fetchTakeoff,
+  createTakeoff,
+  updateTakeoff,
+  deleteTakeoff,
+  updateTakeoffDocument,
+  type TakeoffStatusEnum,
+  type TakeoffDocumentResponse,
+  type TakeoffResponse,
+  type PageAnalysis,
+  type ParsedItem,
+  type TakeoffDocumentInput,
+  type CreateTakeoffInput,
+  type UpdateTakeoffInput,
+  type UpdateTakeoffDocumentInput,
+} from './takeoffs';
+
+// Product Crosses module
+export {
+  crossProducts,
+  crossProductsFromDocument,
+  transformResultsToDisplayItems,
+  type ProductCrossTypeEnum,
+  type ProductAlternative,
+  type ProductCrossResult,
+  type ParsedProductCross,
+  type ProductCrossDisplayItem,
+} from './product-crosses';

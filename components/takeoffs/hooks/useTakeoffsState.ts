@@ -1,27 +1,33 @@
 /**
  * Custom Hook for Take-Offs State Management
+ * Connects to flow-ai backend for real data
  */
 
-import { useState, useMemo, useCallback } from 'react';
-import type { 
-  Takeoff, 
-  TakeoffDocument, 
-  ParsedItem, 
-  TakeoffViewMode, 
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import type {
+  Takeoff,
+  TakeoffDocument,
+  ParsedItem,
+  TakeoffViewMode,
   TakeoffStep,
-  DocumentClassification 
+  DocumentClassification
 } from '../types';
+import { transformTakeoffResponse } from '../types';
 import type { ActiveFilter } from '../../AdvancedFilters';
-import { mockTakeoffs, mockDocuments, mockParsedItems } from '../mockData';
-import { 
-  abridgeDocument, 
-  abridgeAllDocuments, 
-  classifyDocument, 
-  crossItem, 
-  crossItems, 
+import {
+  fetchUserTakeoffs,
+  createTakeoff as apiCreateTakeoff,
+  deleteTakeoff as apiDeleteTakeoff,
+  type CreateTakeoffInput,
+} from '../../lib/graphql/takeoffs';
+import {
+  abridgeDocument,
+  abridgeAllDocuments,
+  classifyDocument,
+  crossItem,
+  crossItems,
   crossAllItems,
   getInitialStep,
-  createNewTakeoff 
 } from '../utils';
 
 export function useTakeoffsState() {
@@ -40,34 +46,62 @@ export function useTakeoffsState() {
   const [selectedDocument, setSelectedDocument] = useState<TakeoffDocument | null>(null);
 
   // Data state
-  const [documents, setDocuments] = useState<TakeoffDocument[]>(mockDocuments);
-  const [parsedItems, setParsedItems] = useState<ParsedItem[]>(mockParsedItems);
+  const [takeoffsData, setTakeoffsData] = useState<Takeoff[]>([]);
+  const [documents, setDocuments] = useState<TakeoffDocument[]>([]);
+  const [parsedItems, setParsedItems] = useState<ParsedItem[]>([]);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
 
-  // Takeoffs list (from mock data) with filtering
+  // Loading and error states
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch takeoffs from API
+  const loadTakeoffs = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetchUserTakeoffs({ limit: 100 });
+      const transformedTakeoffs = response.map(transformTakeoffResponse);
+      setTakeoffsData(transformedTakeoffs);
+    } catch (err) {
+      console.error('Failed to fetch takeoffs:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load takeoffs');
+      // Keep empty array on error
+      setTakeoffsData([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Load takeoffs on mount
+  useEffect(() => {
+    loadTakeoffs();
+  }, [loadTakeoffs]);
+
+  // Filtered takeoffs
   const takeoffs = useMemo(() => {
-    let result = mockTakeoffs;
-    
+    let result = takeoffsData;
+
     // Apply search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      result = result.filter(t => 
+      result = result.filter(t =>
         t.title.toLowerCase().includes(query) ||
         t.source.toLowerCase().includes(query) ||
         t.createdBy.toLowerCase().includes(query)
       );
     }
-    
+
     // Apply advanced filters
     activeFilters.forEach(filter => {
       if (filter.columnName === 'status' && filter.values && filter.values.length > 0) {
         result = result.filter(t => filter.values!.includes(t.status));
       }
     });
-    
+
     return result;
-  }, [searchQuery, activeFilters]);
+  }, [takeoffsData, searchQuery, activeFilters]);
 
   // Document handlers
   const handleClassifyDocument = useCallback((docId: string, classification: DocumentClassification) => {
@@ -75,7 +109,7 @@ export function useTakeoffsState() {
   }, []);
 
   const handleAbridgeDocument = useCallback((docId: string) => {
-    setDocuments(docs => 
+    setDocuments(docs =>
       docs.map(doc => doc.id === docId ? abridgeDocument(doc) : doc)
     );
   }, []);
@@ -86,7 +120,7 @@ export function useTakeoffsState() {
 
   // Parsed items handlers
   const handleCrossItem = useCallback((itemId: string) => {
-    setParsedItems(items => 
+    setParsedItems(items =>
       items.map(item => item.id === itemId ? crossItem(item) : item)
     );
   }, []);
@@ -139,24 +173,75 @@ export function useTakeoffsState() {
     setUploadedFiles([]);
   }, []);
 
-  // Navigation handlers
-  const handleUploadStart = useCallback(() => {
-    setShowUploadModal(false);
-    setViewMode('detail');
-    setCurrentStep('classification');
-    setSelectedTakeoff(createNewTakeoff());
-    setUploadedFiles([]);
-  }, []);
+  // Create new takeoff
+  const handleUploadStart = useCallback(async () => {
+    if (uploadedFiles.length === 0) return;
 
+    setShowUploadModal(false);
+
+    try {
+      // Create takeoff with document metadata
+      const input: CreateTakeoffInput = {
+        title: `New Takeoff - ${new Date().toLocaleDateString()}`,
+        source: 'Upload',
+        createdBy: 'Current User', // TODO: Get from auth context
+        status: 'CLASSIFICATION',
+        documents: uploadedFiles.map(file => ({
+          name: file.name,
+          fileType: file.type || 'application/pdf',
+          fileSize: `${(file.size / 1024).toFixed(1)} KB`,
+          pages: 0,
+          abridged: false,
+        })),
+      };
+
+      const newTakeoff = await apiCreateTakeoff(input);
+      const transformed = transformTakeoffResponse(newTakeoff);
+
+      // Add to list and select it
+      setTakeoffsData(prev => [transformed, ...prev]);
+      setSelectedTakeoff(transformed);
+      setViewMode('detail');
+      setCurrentStep('classification');
+
+      // Set documents for the detail view
+      if (transformed.documents) {
+        setDocuments(transformed.documents);
+      }
+    } catch (err) {
+      console.error('Failed to create takeoff:', err);
+      setError(err instanceof Error ? err.message : 'Failed to create takeoff');
+    }
+
+    setUploadedFiles([]);
+  }, [uploadedFiles]);
+
+  // Navigation handlers
   const handleSelectTakeoff = useCallback((takeoff: Takeoff) => {
     setSelectedTakeoff(takeoff);
     setViewMode('detail');
     setCurrentStep(getInitialStep(takeoff.status));
+
+    // Load documents for the selected takeoff
+    if (takeoff.documents) {
+      setDocuments(takeoff.documents);
+      // Extract parsed items from documents
+      const allParsedItems: ParsedItem[] = [];
+      takeoff.documents.forEach(doc => {
+        if (doc.parsedItems) {
+          allParsedItems.push(...doc.parsedItems);
+        }
+      });
+      setParsedItems(allParsedItems);
+    }
   }, []);
 
   const handleBackToList = useCallback(() => {
     setViewMode('list');
     setSelectedTakeoff(null);
+    setDocuments([]);
+    setParsedItems([]);
+    setSelectedItems(new Set());
   }, []);
 
   const handleCreateQuote = useCallback(() => {
@@ -164,6 +249,22 @@ export function useTakeoffsState() {
     setViewMode('list');
     setSelectedTakeoff(null);
   }, []);
+
+  // Delete takeoff
+  const handleDeleteTakeoff = useCallback(async (takeoffId: string) => {
+    try {
+      await apiDeleteTakeoff(takeoffId);
+      setTakeoffsData(prev => prev.filter(t => t.id !== takeoffId));
+    } catch (err) {
+      console.error('Failed to delete takeoff:', err);
+      setError(err instanceof Error ? err.message : 'Failed to delete takeoff');
+    }
+  }, []);
+
+  // Refresh data
+  const handleRefresh = useCallback(() => {
+    loadTakeoffs();
+  }, [loadTakeoffs]);
 
   // Modal handlers
   const handleOpenUploadModal = useCallback(() => {
@@ -191,48 +292,54 @@ export function useTakeoffsState() {
     selectedTakeoff,
     currentStep,
     setCurrentStep,
-    
+
     // Filter state
     activeFilters,
     setActiveFilters,
     searchQuery,
     setSearchQuery,
-    
+
     // Data
     takeoffs,
     documents,
     parsedItems,
     selectedItems,
     uploadedFiles,
-    
+
+    // Loading/Error states
+    isLoading,
+    error,
+
     // Modal state
     showUploadModal,
     showAbridgmentReportModal,
     selectedDocument,
-    
+
     // Document handlers
     handleClassifyDocument,
     handleAbridgeDocument,
     handleAbridgeAll,
-    
+
     // Parsed items handlers
     handleCrossItem,
     handleCrossSelected,
     handleCrossAll,
     handleToggleSelectItem,
     handleSelectAllItems,
-    
+
     // File handlers
     handleFileSelect,
     handleRemoveFile,
     handleClearFiles,
-    
+
     // Navigation handlers
     handleUploadStart,
     handleSelectTakeoff,
     handleBackToList,
     handleCreateQuote,
-    
+    handleDeleteTakeoff,
+    handleRefresh,
+
     // Modal handlers
     handleOpenUploadModal,
     handleCloseUploadModal,
