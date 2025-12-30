@@ -7,7 +7,7 @@ export default async function SignInPage() {
   const { user } = await withAuth();
 
   if (user) {
-    redirect("/dashboard");
+    redirect("/");
   }
 
   const signInUrl = await getSignInUrl();
