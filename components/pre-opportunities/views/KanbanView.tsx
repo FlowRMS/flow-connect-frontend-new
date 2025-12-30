@@ -8,6 +8,7 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
+import { DeleteConfirmModal } from '../modals/DeleteConfirmModal';
 import {
   DndContext,
   DragOverlay,
@@ -343,6 +344,10 @@ export function KanbanView({
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [createModalInitialStatus, setCreateModalInitialStatus] = useState<PreOpportunityStatus>('QUALIFIED');
   
+  // Delete modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [preOppToDelete, setPreOppToDelete] = useState<{ id: string; entityNumber: string } | null>(null);
+  
   // Active dragging item and over state
   const [activeDragItem, setActiveDragItem] = useState<PreOpportunityLandingPage | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -511,20 +516,32 @@ export function KanbanView({
   }, [applyOptimisticStatusUpdate, getTargetStatus, persistStatusChange, preOpps]);
 
   // Handle delete
-  const handleDelete = async (preOppId: string) => {
+  const handleDelete = (preOppId: string) => {
     const preOpp = preOpps.find(p => p.id === preOppId);
-    if (!confirm('Are you sure you want to delete this pre-opportunity?')) {
-      return;
+    if (preOpp) {
+      setPreOppToDelete({ id: preOppId, entityNumber: preOpp.entityNumber });
+      setShowDeleteModal(true);
     }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!preOppToDelete) return;
 
     try {
-      await deleteMutation.mutateAsync(preOppId);
-      preOpportunityToasts.deleteSuccess(preOpp?.entityNumber || 'Pre-Opportunity');
+      await deleteMutation.mutateAsync(preOppToDelete.id);
+      preOpportunityToasts.deleteSuccess(preOppToDelete.entityNumber);
+      setShowDeleteModal(false);
+      setPreOppToDelete(null);
       onRefresh();
     } catch (error) {
       console.error('Failed to delete:', error);
       preOpportunityToasts.deleteError(error instanceof Error ? error.message : 'Failed to delete pre-opportunity');
     }
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteModal(false);
+    setPreOppToDelete(null);
   };
 
   // Handle new click
@@ -599,6 +616,16 @@ export function KanbanView({
             onRefresh();
           }}
           initialStatus={createModalInitialStatus}
+        />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && preOppToDelete && (
+        <DeleteConfirmModal
+          entityNumber={preOppToDelete.entityNumber}
+          isPending={deleteMutation.isPending}
+          onConfirm={handleDeleteConfirm}
+          onCancel={handleDeleteCancel}
         />
       )}
     </>

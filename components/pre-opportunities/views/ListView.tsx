@@ -3,12 +3,13 @@
  * Enhanced with Jobs-style styling, hover states, and visual feedback
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import type { PreOpportunityLandingPage, PreOpportunityStatus } from '../types';
 import { formatCurrency, formatDate, getStatusLabel } from '../utils';
 import { useDeleteCRMPreOpportunity } from '../../hooks/useCRMApi';
 import { preOpportunityToasts } from '../../lib/toast';
+import { DeleteConfirmModal } from '../modals/DeleteConfirmModal';
 
 // Status color mapping - Jobs style
 const STATUS_COLORS: Record<PreOpportunityStatus, { bg: string; text: string; dot: string }> = {
@@ -27,20 +28,32 @@ interface ListViewProps {
 
 export function ListView({ preOpps, onRefresh }: ListViewProps) {
   const deleteMutation = useDeleteCRMPreOpportunity();
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [preOppToDelete, setPreOppToDelete] = useState<{ id: string; entityNumber: string } | null>(null);
 
-  const handleDelete = async (id: string, entityNumber: string) => {
-    if (!confirm(`Are you sure you want to delete pre-opportunity ${entityNumber}?`)) {
-      return;
-    }
+  const handleDelete = (id: string, entityNumber: string) => {
+    setPreOppToDelete({ id, entityNumber });
+    setShowDeleteModal(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!preOppToDelete) return;
 
     try {
-      await deleteMutation.mutateAsync(id);
-      preOpportunityToasts.deleteSuccess(entityNumber);
+      await deleteMutation.mutateAsync(preOppToDelete.id);
+      preOpportunityToasts.deleteSuccess(preOppToDelete.entityNumber);
+      setShowDeleteModal(false);
+      setPreOppToDelete(null);
       onRefresh();
     } catch (error) {
       console.error('Failed to delete:', error);
       preOpportunityToasts.deleteError(error instanceof Error ? error.message : undefined);
     }
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteModal(false);
+    setPreOppToDelete(null);
   };
 
   const getStatusColor = (status: PreOpportunityStatus) => {
@@ -213,6 +226,16 @@ export function ListView({ preOpps, onRefresh }: ListViewProps) {
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && preOppToDelete && (
+        <DeleteConfirmModal
+          entityNumber={preOppToDelete.entityNumber}
+          isPending={deleteMutation.isPending}
+          onConfirm={handleDeleteConfirm}
+          onCancel={handleDeleteCancel}
+        />
+      )}
     </div>
   );
 }
