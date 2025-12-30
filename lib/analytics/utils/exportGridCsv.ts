@@ -1,5 +1,5 @@
 import type { ColumnRegular as RevoGridColumn } from "@revolist/revogrid";
-import { formatMoney, isMoneyField } from "@/lib/analytics/hooks/useColumnConfig";
+import { formatMoney, isMoneyField } from "../hooks/useColumnConfig";
 import { RAW_VALUES_KEY } from "./reportData";
 
 export type ColumnForExport = RevoGridColumn & { 

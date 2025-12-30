@@ -84,7 +84,7 @@ export default function ShipmentDetailModal({ shipment, onClose, onReceive, onUp
 
           {/* Shipment Details */}
           <div className="bg-[var(--muted)]/20 rounded-lg p-4">
-            <h3 className="text-sm font-medium text-[var(--foreground)] mb-3">Shipment Details</h3>
+            <h3 className="text-sm font-medium text-[var(--foreground)] mb-3">Delivery Details</h3>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-[var(--muted-foreground)]">Vendor:</span>

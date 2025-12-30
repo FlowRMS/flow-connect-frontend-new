@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 import { ShipmentRequest, shipmentRequestMethodLabels, shipmentRequestStatusColors, shipmentRequestStatusLabels } from '@/lib/types/warehouse';
 
 interface ShipmentRequestsTableProps {
@@ -6,7 +7,6 @@ interface ShipmentRequestsTableProps {
     onViewDetails: (request: ShipmentRequest) => void;
     onConfirm: (requestId: string) => void;
     onCancel: (requestId: string) => void;
-    onShowRequestModal: () => void;
 }
 
 export default function ShipmentRequestsTable({
@@ -14,7 +14,6 @@ export default function ShipmentRequestsTable({
     onViewDetails,
     onConfirm,
     onCancel,
-    onShowRequestModal,
 }: ShipmentRequestsTableProps) {
     const formatDate = (dateString: string | undefined | null) => {
         if (!dateString) return '-';
@@ -152,12 +151,12 @@ export default function ShipmentRequestsTable({
                 {requests.length === 0 && (
                     <div className="px-6 py-12 text-center text-[var(--muted-foreground)]">
                         <p>No shipment requests found</p>
-                        <button
-                            onClick={onShowRequestModal}
+                        <Link
+                            href="/warehouse/inventory/request/new"
                             className="mt-2 text-sm text-[var(--primary)] hover:underline"
                         >
                             Create your first request
-                        </button>
+                        </Link>
                     </div>
                 )}
             </div>

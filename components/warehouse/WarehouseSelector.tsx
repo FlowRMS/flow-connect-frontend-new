@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useWarehouse } from './WarehouseContext';
+import ViewModeToggle from './ViewModeToggle';
 
 export default function WarehouseSelector() {
   const { warehouses, selectedWarehouse, setSelectedWarehouse } = useWarehouse();
@@ -31,8 +32,10 @@ export default function WarehouseSelector() {
   }, []);
 
   return (
-    <div ref={dropdownRef} className="relative">
-      <button
+    <div className="flex items-center gap-3">
+      <ViewModeToggle />
+      <div ref={dropdownRef} className="relative">
+        <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 px-3 py-2 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]/50 transition-colors min-w-[240px]"
@@ -128,6 +131,7 @@ export default function WarehouseSelector() {
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }

@@ -79,6 +79,7 @@ export type AdjustmentType =
   | 'ADJUSTMENT';
 
 export type ShipmentStatus =
+  | 'DRAFT'
   | 'PENDING'
   | 'CONFIRMED'
   | 'IN_TRANSIT'
@@ -103,6 +104,31 @@ export type BuySellStatus =
   | 'PAID'                  // Payment received
   | 'RETURNED'              // Customer returned product
   | 'WRITTEN_OFF';          // Inventory written off (damaged, lost, etc.)
+
+// Document types for attachments
+export type DocumentType =
+  | 'PACKING_SLIP'
+  | 'BILL_OF_LADING'
+  | 'SHIPPING_LABEL'
+  | 'PROOF_OF_DELIVERY'
+  | 'INVOICE'
+  | 'RECEIPT'
+  | 'PHOTO'
+  | 'OTHER';
+
+// Attached document interface
+export interface AttachedDocument {
+  id: string;
+  name: string;
+  type: DocumentType;
+  fileUrl: string;           // URL to the document file or base64 data URL
+  thumbnailUrl?: string;     // Optional thumbnail for preview
+  mimeType: string;          // e.g., 'image/jpeg', 'application/pdf'
+  fileSize?: number;         // File size in bytes
+  uploadedAt: string;
+  uploadedBy: string;
+  notes?: string;
+}
 
 // -----------------------------------------------------------------------------
 // Warehouse Structure - Location Hierarchy
@@ -224,11 +250,24 @@ export interface BinLocation {
 // ABC classification for inventory value/movement
 export type InventoryAbcClass = 'A' | 'B' | 'C';
 
+// Location for storing inventory
+export interface InventoryStorageLocation {
+  id: string;
+  locationName: string;       // e.g., "Aisle 3, Shelf B, Bin 12"
+  locationCode: string;       // Short code e.g., "A3-B-12"
+  warehouseId: string;
+  warehouseName: string;
+  maxCapacity?: number;       // Max units this location can hold
+  currentQuantity: number;    // Current units stored here
+  notes?: string;
+}
+
 export interface Inventory {
   id: string;
   productId: string;
   productName: string;
   partNumber: string;
+  description?: string;       // Product description
   factoryId: string;          // Links to Company (Manufacturer)
   factoryName: string;
   totalQuantity: number;
@@ -243,7 +282,12 @@ export interface Inventory {
   onHoldQuantity: number;
   returnedQuantity: number;
   reorderPoint?: number;
+  reorderQuantity?: number;  // Default quantity to order when restocking
   maxQuantity?: number;
+
+  // Location management
+  primaryLocation?: InventoryStorageLocation;     // Main storage location
+  overflowLocations?: InventoryStorageLocation[]; // Additional overflow locations
 
   // Ownership & Financial
   ownershipType: OwnershipType;
@@ -309,6 +353,22 @@ export interface InventoryItemInput {
   expirationDate?: string;
   isPerishable: boolean;
   notes?: string;
+}
+
+// -----------------------------------------------------------------------------
+// Assigned Users (Managers, Workers, Inside Sales)
+// -----------------------------------------------------------------------------
+
+export type AssignedUserRole = 'manager' | 'worker' | 'inside_sales';
+
+export interface AssignedUser {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail?: string;
+  role: AssignedUserRole;
+  assignedAt: string;
+  assignedBy?: string;
 }
 
 // -----------------------------------------------------------------------------
@@ -390,16 +450,58 @@ export interface PickTask {
 
 export type FulfillmentMethod = 'SHIP' | 'WILL_CALL' | 'JOBSITE';
 
+// Status for manufacturer direct fulfillment lines
+export type ManufacturerFulfillmentStatus =
+  | 'PENDING_MANUFACTURER'     // Waiting for manufacturer to process
+  | 'MANUFACTURER_CONFIRMED'   // Manufacturer confirmed the order
+  | 'MANUFACTURER_SHIPPED'     // Manufacturer has shipped
+  | 'MANUFACTURER_DELIVERED';  // Manufacturer delivery complete
+
 export type FulfillmentOrderStatus =
   | 'PENDING'
   | 'RELEASED'
   | 'PICKING'
+  | 'BACKORDER_REVIEW'  // Worker found less inventory than expected, needs manager review
   | 'PACKING'
   | 'SHIPPING'
   | 'SHIPPED'
   | 'PARTIAL_SHIPPED'
+  | 'COMMUNICATED'      // Shipping confirmation email sent to customer
   | 'DELIVERED'
   | 'CANCELLED';
+
+// Location types for picking priority
+export type LocationType = 'PRIMARY' | 'OVERFLOW' | 'RESERVE' | 'STAGING';
+
+// Inventory location with quantity for multi-location picking
+export interface InventoryLocation {
+  locationId: string;
+  locationName: string;        // e.g., "Shelf 1A, Bin A"
+  locationType: LocationType;
+  quantity: number;
+  priority: number;            // Lower = pick first (Overflow = 1, Primary = 2, etc.)
+}
+
+// Picking record for a specific location
+export interface PickingLocationRecord {
+  locationId: string;
+  locationName: string;
+  expectedQty: number;         // System thinks this much is here
+  pickedQty: number;           // Worker actually picked this much
+  shortQty: number;            // Difference if picked < expected
+}
+
+// Backorder review data when worker reports shortage
+export interface BackorderReviewData {
+  lineItemId: string;
+  expectedTotal: number;
+  actualTotal: number;
+  shortageQty: number;
+  workerNotes: string;
+  reportedBy: string;
+  reportedAt: string;
+  locationRecords: PickingLocationRecord[];
+}
 
 export interface ShipToAddress {
   name: string;
@@ -432,6 +534,13 @@ export interface FulfillmentOrderLineItem {
   warehouseLocationOverride?: string;  // Override from order-level warehouse
   pickLocation?: string;               // Bin location for picking
   shortReason?: string;                // Reason if backorder > 0
+
+  // Manufacturer fulfillment fields (for backorder handling)
+  fulfilledByManufacturer?: boolean;   // If true, this line is fulfilled directly by manufacturer
+  manufacturerFulfillmentStatus?: ManufacturerFulfillmentStatus;
+  linkedShipmentRequestId?: string;    // Link to shipment request if option 2 was chosen
+  manufacturerId?: string;             // Manufacturer ID for direct fulfillment
+  manufacturerName?: string;           // Manufacturer name for display
 
   notes?: string;
   createdAt: string;
@@ -492,11 +601,30 @@ export interface FulfillmentOrder {
   pickupDriverName?: string;   // Name of person who picked up
   pickupNotes?: string;        // Notes from pickup (ID verified, condition, etc.)
 
+  // 9) Backorder/Manufacturer fulfillment tracking
+  hasBackorderItems?: boolean;           // True if any line items are on backorder
+  manufacturerOrderStatus?: 'NONE' | 'PARTIAL' | 'FULL';  // Overall manufacturer fulfillment status
+  linkedShipmentRequestIds?: string[];   // Shipment requests created for this order
+  pendingShipmentRequestId?: string;     // Active shipment request waiting for inventory
+  holdReason?: string;                   // Reason if order is on hold (e.g., "Pending inventory shipment SR-2024-003")
+  backorderReviewData?: BackorderReviewData;  // Data from worker-reported shortage during picking
+
   // Overall status
   status: FulfillmentOrderStatus;
 
   // Line items
   lineItems: FulfillmentOrderLineItem[];
+
+  // 10) Assignment - Managers, Workers & Inside Sales
+  assignedManagers?: AssignedUser[];   // Managers responsible for this order
+  assignedWorkers?: AssignedUser[];    // Workers assigned to fulfill this order
+  assignedInsideSales?: AssignedUser[]; // Inside salesperson responsible for this order
+
+  // 11) Attached Documents
+  documents?: AttachedDocument[];      // Packing slips, BOL, shipping labels, photos, etc.
+
+  // 12) Activity Feed
+  activities?: FulfillmentActivity[];  // Activity feed for notes, status changes, etc.
 
   // Metadata
   notes?: string;
@@ -511,10 +639,12 @@ export const fulfillmentOrderStatusLabels: Record<FulfillmentOrderStatus, string
   PENDING: 'Pending',
   RELEASED: 'Released',
   PICKING: 'Picking',
+  BACKORDER_REVIEW: 'Backorder Review',
   PACKING: 'Packing',
   SHIPPING: 'Shipping',
   SHIPPED: 'Shipped',
   PARTIAL_SHIPPED: 'Partial Shipped',
+  COMMUNICATED: 'Communicated',
   DELIVERED: 'Delivered',
   CANCELLED: 'Cancelled',
 };
@@ -523,10 +653,12 @@ export const fulfillmentOrderStatusColors: Record<FulfillmentOrderStatus, string
   PENDING: 'bg-gray-100 text-gray-700',
   RELEASED: 'bg-cyan-100 text-cyan-700',
   PICKING: 'bg-yellow-100 text-yellow-700',
+  BACKORDER_REVIEW: 'bg-red-100 text-red-700',
   PACKING: 'bg-orange-100 text-orange-700',
   SHIPPING: 'bg-purple-100 text-purple-700',
   SHIPPED: 'bg-green-100 text-green-700',
   PARTIAL_SHIPPED: 'bg-blue-100 text-blue-700',
+  COMMUNICATED: 'bg-teal-100 text-teal-700',
   DELIVERED: 'bg-emerald-100 text-emerald-700',
   CANCELLED: 'bg-red-100 text-red-700',
 };
@@ -547,6 +679,21 @@ export const shipStatusColors: Record<'NOT_SHIPPED' | 'PARTIAL' | 'SHIPPED', str
   NOT_SHIPPED: 'bg-gray-100 text-gray-700',
   PARTIAL: 'bg-yellow-100 text-yellow-700',
   SHIPPED: 'bg-green-100 text-green-700',
+};
+
+// Manufacturer fulfillment status labels and colors
+export const manufacturerFulfillmentStatusLabels: Record<ManufacturerFulfillmentStatus, string> = {
+  PENDING_MANUFACTURER: 'Pending Manufacturer',
+  MANUFACTURER_CONFIRMED: 'Manufacturer Confirmed',
+  MANUFACTURER_SHIPPED: 'Manufacturer Shipped',
+  MANUFACTURER_DELIVERED: 'Manufacturer Delivered',
+};
+
+export const manufacturerFulfillmentStatusColors: Record<ManufacturerFulfillmentStatus, string> = {
+  PENDING_MANUFACTURER: 'bg-amber-100 text-amber-700',
+  MANUFACTURER_CONFIRMED: 'bg-blue-100 text-blue-700',
+  MANUFACTURER_SHIPPED: 'bg-indigo-100 text-indigo-700',
+  MANUFACTURER_DELIVERED: 'bg-green-100 text-green-700',
 };
 
 // -----------------------------------------------------------------------------
@@ -572,6 +719,13 @@ export interface IncomingShipment {
   carrier?: string;
   receivedAt?: string;
   notes?: string;
+  // Recurring shipment link
+  recurringShipmentId?: string;  // If generated from a recurring shipment
+  // Assignment - Managers & Workers
+  assignedManagers?: AssignedUser[];   // Managers responsible for this delivery
+  assignedWorkers?: AssignedUser[];    // Workers assigned to receive this delivery
+  // Attached Documents
+  documents?: AttachedDocument[];      // Packing slips, BOL, receipts, photos, etc.
   createdAt: string;
   updatedAt: string;
 }
@@ -850,17 +1004,84 @@ export type CycleCountDiscrepancyReason =
   | 'SHIPPING_ERROR'
   | 'RECEIVING_ERROR'
   | 'SYSTEM_ERROR'
+  | 'EXPIRED'
+  | 'WRONG_LOCATION'
+  | 'OVERAGE'
   | 'OTHER';
 
 export const cycleCountDiscrepancyReasonLabels: Record<CycleCountDiscrepancyReason, string> = {
-  DAMAGE: 'Damage',
-  MISPLACED: 'Misplaced Product',
+  DAMAGE: 'Damaged',
+  MISPLACED: 'Misplaced',
   THEFT: 'Suspected Theft',
   SHIPPING_ERROR: 'Shipping Error',
   RECEIVING_ERROR: 'Receiving Error',
   SYSTEM_ERROR: 'System Error',
+  EXPIRED: 'Expired',
+  WRONG_LOCATION: 'Wrong Location',
+  OVERAGE: 'Overage',
   OTHER: 'Other',
 };
+
+export const cycleCountDiscrepancyReasonColors: Record<CycleCountDiscrepancyReason, string> = {
+  DAMAGE: 'bg-orange-100 text-orange-700',
+  MISPLACED: 'bg-purple-100 text-purple-700',
+  THEFT: 'bg-red-100 text-red-700',
+  SHIPPING_ERROR: 'bg-yellow-100 text-yellow-700',
+  RECEIVING_ERROR: 'bg-yellow-100 text-yellow-700',
+  SYSTEM_ERROR: 'bg-blue-100 text-blue-700',
+  EXPIRED: 'bg-gray-100 text-gray-700',
+  WRONG_LOCATION: 'bg-indigo-100 text-indigo-700',
+  OVERAGE: 'bg-green-100 text-green-700',
+  OTHER: 'bg-gray-100 text-gray-700',
+};
+
+// Inventory issue breakdown for cycle count (like delivery issues)
+export interface CycleCountInventoryIssue {
+  type: CycleCountDiscrepancyReason;
+  quantity: number;
+  notes?: string;
+  // Damage-specific
+  damageDescription?: string;
+  // Misplaced/wrong location specific
+  foundLocation?: string;
+  expectedLocation?: string;
+  // Expired specific
+  expirationDate?: string;
+}
+
+// Activity feed for cycle counts (like delivery issues)
+export type CycleCountActivityType =
+  | 'CREATED'
+  | 'RELEASED'
+  | 'ITEM_COUNTED'
+  | 'ITEM_VERIFIED'
+  | 'ITEM_SKIPPED'
+  | 'ITEM_RECOUNT_REQUESTED'
+  | 'DISCREPANCY_REPORTED'
+  | 'NOTE_ADDED'
+  | 'SUBMITTED_FOR_REVIEW'
+  | 'COMPLETED'
+  | 'CANCELLED';
+
+export interface CycleCountActivity {
+  id: string;
+  cycleCountId: string;
+  type: CycleCountActivityType;
+  timestamp: string;
+  createdBy: string;
+  createdByName: string;
+  content?: string;
+  metadata?: {
+    lineItemId?: string;
+    productName?: string;
+    partNumber?: string;
+    systemQuantity?: number;
+    countedQuantity?: number;
+    variance?: number;
+    discrepancyReason?: CycleCountDiscrepancyReason;
+    issues?: CycleCountInventoryIssue[];
+  };
+}
 
 export interface CycleCountLineItem {
   id: string;
@@ -897,11 +1118,14 @@ export interface CycleCountLineItem {
   recountedBy?: string;
   recountedAt?: string;
 
-  // Discrepancy feedback
+  // Detailed inventory issues (like delivery issues - can have multiple)
+  inventoryIssues?: CycleCountInventoryIssue[];
+
+  // Legacy discrepancy fields (kept for backwards compatibility)
   discrepancyReason?: CycleCountDiscrepancyReason;
-  damageNotes?: string;        // Notes specifically for damage
-  misplacedNotes?: string;     // Notes for misplaced product (where it was found, etc.)
-  correctLocation?: string;    // If misplaced, where the product was actually found
+  damageNotes?: string;
+  misplacedNotes?: string;
+  correctLocation?: string;
 
   notes?: string;
 }
@@ -965,6 +1189,9 @@ export interface CycleCount {
   totalVariance?: number;
   accuracyPercentage?: number;
 
+  // Activity feed
+  activities?: CycleCountActivity[];
+
   notes?: string;
   createdAt: string;
   updatedAt: string;
@@ -1011,6 +1238,80 @@ export const cycleCountPriorityColors: Record<CycleCountPriority, string> = {
   medium: 'bg-blue-100 text-blue-700',
   high: 'bg-orange-100 text-orange-700',
   urgent: 'bg-red-100 text-red-700',
+};
+
+// Inventory velocity type
+export type InventoryVelocity = 'fast' | 'medium' | 'slow';
+
+export const inventoryVelocityLabels: Record<InventoryVelocity, string> = {
+  fast: 'Fast Moving',
+  medium: 'Medium Moving',
+  slow: 'Slow Moving',
+};
+
+export const inventoryVelocityColors: Record<InventoryVelocity, string> = {
+  fast: 'bg-red-100 text-red-700',
+  medium: 'bg-yellow-100 text-yellow-700',
+  slow: 'bg-green-100 text-green-700',
+};
+
+// Recurring Cycle Count Job
+export type RecurringCycleCountStatus = 'ACTIVE' | 'PAUSED' | 'CANCELLED';
+
+export interface RecurringCycleCountJob {
+  id: string;
+  name: string;
+  description?: string;
+
+  // Warehouse context
+  warehouseId: string;
+  warehouseName: string;
+
+  // What to count - auto-generation settings
+  triggerType: CycleCountTriggerType;
+  itemCount: number;                      // How many items to count per job
+  velocityFilter?: InventoryVelocity[];   // Filter by fast/medium/slow moving
+  excludeRecentlyCountedDays: number;     // Default 60 days
+
+  // Recurrence settings
+  recurrencePattern: {
+    frequency: 'DAILY' | 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'MONTHLY_WEEK';
+    interval: number;
+    dayOfWeek?: 'SUNDAY' | 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY';
+    weekOfMonth?: 'FIRST' | 'SECOND' | 'THIRD' | 'FOURTH' | 'LAST';
+    dayOfMonth?: number;
+  };
+  startDate: string;
+  endDate?: string;
+
+  // Assignment
+  assignedTo?: string;
+  assignedToName?: string;
+
+  // Status tracking
+  status: RecurringCycleCountStatus;
+  lastGeneratedDate?: string;
+  nextScheduledDate?: string;
+
+  // Linked cycle counts
+  generatedCycleCountIds: string[];
+
+  // Metadata
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: string;
+}
+
+export const recurringCycleCountStatusLabels: Record<RecurringCycleCountStatus, string> = {
+  ACTIVE: 'Active',
+  PAUSED: 'Paused',
+  CANCELLED: 'Cancelled',
+};
+
+export const recurringCycleCountStatusColors: Record<RecurringCycleCountStatus, string> = {
+  ACTIVE: 'bg-green-100 text-green-700',
+  PAUSED: 'bg-yellow-100 text-yellow-700',
+  CANCELLED: 'bg-red-100 text-red-700',
 };
 
 // -----------------------------------------------------------------------------
@@ -1128,6 +1429,7 @@ export const rmaReasonLabels: Record<RmaReason, string> = {
 };
 
 export const shipmentStatusLabels: Record<ShipmentStatus, string> = {
+  DRAFT: 'Draft',
   PENDING: 'Expected',
   CONFIRMED: 'Expected',
   IN_TRANSIT: 'Expected',
@@ -1141,6 +1443,7 @@ export const shipmentStatusLabels: Record<ShipmentStatus, string> = {
 };
 
 export const shipmentStatusColors: Record<ShipmentStatus, string> = {
+  DRAFT: 'bg-slate-100 text-slate-600',
   PENDING: 'bg-gray-100 text-gray-700',
   CONFIRMED: 'bg-blue-100 text-blue-700',
   IN_TRANSIT: 'bg-indigo-100 text-indigo-700',
@@ -1498,4 +1801,331 @@ export interface ManufacturerProfile {
   updatedAt: string;
   createdBy?: string;
   updatedBy?: string;
+}
+
+// -----------------------------------------------------------------------------
+// Recurring Shipments
+// -----------------------------------------------------------------------------
+
+export type RecurrenceFrequency =
+  | 'DAILY'
+  | 'WEEKLY'
+  | 'BIWEEKLY'
+  | 'MONTHLY'
+  | 'MONTHLY_WEEK';  // e.g., "First Monday of every month"
+
+export type DayOfWeek = 'SUNDAY' | 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY';
+
+export type WeekOfMonth = 'FIRST' | 'SECOND' | 'THIRD' | 'FOURTH' | 'LAST';
+
+export type RecurringShipmentStatus = 'ACTIVE' | 'PAUSED' | 'CANCELLED';
+
+export interface RecurrencePattern {
+  frequency: RecurrenceFrequency;
+  interval: number;              // Every X days/weeks/months
+  dayOfWeek?: DayOfWeek;         // For WEEKLY/BIWEEKLY/MONTHLY_WEEK
+  weekOfMonth?: WeekOfMonth;     // For MONTHLY_WEEK (e.g., "First Monday")
+  dayOfMonth?: number;           // For MONTHLY (1-31)
+}
+
+export interface RecurringShipment {
+  id: string;
+  name: string;                  // Display name for this recurring shipment
+
+  // Template data - copied to each generated shipment
+  vendorId: string;
+  vendorName: string;
+  vendorContact?: string;
+  vendorEmail?: string;
+  warehouseId: string;
+  warehouseName: string;
+  carrier?: string;
+  expectedItems: ExpectedItem[];
+  notes?: string;
+
+  // Recurrence settings
+  recurrencePattern: RecurrencePattern;
+  startDate: string;             // When the recurrence starts
+  endDate?: string;              // Optional end date
+
+  // Status tracking
+  status: RecurringShipmentStatus;
+  lastGeneratedDate?: string;    // Last time a shipment was auto-generated
+  nextExpectedDate?: string;     // Next expected shipment date
+
+  // Linked shipments
+  generatedShipmentIds: string[]; // All shipments created from this recurring template
+
+  // Metadata
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: string;
+}
+
+export const recurrenceFrequencyLabels: Record<RecurrenceFrequency, string> = {
+  DAILY: 'Daily',
+  WEEKLY: 'Weekly',
+  BIWEEKLY: 'Every 2 Weeks',
+  MONTHLY: 'Monthly (Day of Month)',
+  MONTHLY_WEEK: 'Monthly (Week & Day)',
+};
+
+export const dayOfWeekLabels: Record<DayOfWeek, string> = {
+  SUNDAY: 'Sunday',
+  MONDAY: 'Monday',
+  TUESDAY: 'Tuesday',
+  WEDNESDAY: 'Wednesday',
+  THURSDAY: 'Thursday',
+  FRIDAY: 'Friday',
+  SATURDAY: 'Saturday',
+};
+
+export const weekOfMonthLabels: Record<WeekOfMonth, string> = {
+  FIRST: 'First',
+  SECOND: 'Second',
+  THIRD: 'Third',
+  FOURTH: 'Fourth',
+  LAST: 'Last',
+};
+
+export const recurringShipmentStatusLabels: Record<RecurringShipmentStatus, string> = {
+  ACTIVE: 'Active',
+  PAUSED: 'Paused',
+  CANCELLED: 'Cancelled',
+};
+
+export const recurringShipmentStatusColors: Record<RecurringShipmentStatus, string> = {
+  ACTIVE: 'bg-green-100 text-green-700',
+  PAUSED: 'bg-yellow-100 text-yellow-700',
+  CANCELLED: 'bg-red-100 text-red-700',
+};
+
+// -----------------------------------------------------------------------------
+// Delivery Issues
+// -----------------------------------------------------------------------------
+
+export type DeliveryIssueType =
+  | 'DAMAGED'
+  | 'MISSING'
+  | 'OVERAGE'
+  | 'WRONG_ITEM'
+  | 'OTHER';
+
+export type DeliveryIssueStatus =
+  | 'OPEN'
+  | 'COMMUNICATED'
+  | 'RESOLVED'
+  | 'CLOSED';
+
+export interface DeliveryIssueItem {
+  id: string;
+  productId: string;
+  productName: string;
+  partNumber: string;
+  issueType: DeliveryIssueType;
+  customIssueType?: string; // For 'OTHER' type - user-defined issue type name
+  quantity: number;
+  description?: string;
+  notes?: string; // Notes specific to this item
+}
+
+// Activity feed entry for delivery issues
+export type DeliveryIssueActivityType =
+  | 'CREATED'
+  | 'COMMUNICATED'
+  | 'RESOLVED'
+  | 'CLOSED'
+  | 'REOPENED'
+  | 'NOTE_ADDED'
+  | 'ITEM_NOTE_ADDED';
+
+export interface DeliveryIssueActivity {
+  id: string;
+  type: DeliveryIssueActivityType;
+  timestamp: string;
+  createdBy: string;
+  content?: string; // Note content or description
+  metadata?: {
+    method?: 'EMAIL' | 'PHONE' | 'PORTAL';
+    resolutionType?: string;
+    creditAmount?: number;
+    itemId?: string; // For item-specific notes
+  };
+}
+
+export interface DeliveryIssue {
+  id: string;
+  issueNumber: string;
+  shipmentId: string;
+  poNumber: string;
+  vendorId: string;
+  vendorName: string;
+  vendorEmail?: string;
+  vendorContact?: string;
+  warehouseId: string;
+  warehouseName: string;
+  status: DeliveryIssueStatus;
+  items: DeliveryIssueItem[];
+  totalAffectedQuantity: number;
+
+  // Communication tracking
+  communicatedAt?: string;
+  communicatedBy?: string;
+  communicationMethod?: 'EMAIL' | 'PHONE' | 'PORTAL';
+  communicationNotes?: string;
+
+  // Resolution tracking
+  resolvedAt?: string;
+  resolvedBy?: string;
+  resolutionType?: 'CREDIT' | 'REPLACEMENT' | 'PARTIAL_CREDIT' | 'NO_ACTION' | 'OTHER';
+  resolutionNotes?: string;
+  creditAmount?: number;
+  replacementShipmentId?: string;
+
+  // General
+  notes?: string;
+  reportedAt: string;
+  reportedBy: string;
+  createdAt: string;
+  updatedAt: string;
+
+  // Activity feed
+  activities?: DeliveryIssueActivity[];
+}
+
+export const deliveryIssueTypeLabels: Record<DeliveryIssueType, string> = {
+  DAMAGED: 'Damaged',
+  MISSING: 'Missing',
+  OVERAGE: 'Overage',
+  WRONG_ITEM: 'Wrong Item',
+  OTHER: 'Other',
+};
+
+export const deliveryIssueTypeColors: Record<DeliveryIssueType, string> = {
+  DAMAGED: 'bg-orange-100 text-orange-700',
+  MISSING: 'bg-red-100 text-red-700',
+  OVERAGE: 'bg-blue-100 text-blue-700',
+  WRONG_ITEM: 'bg-purple-100 text-purple-700',
+  OTHER: 'bg-gray-100 text-gray-700',
+};
+
+export const deliveryIssueStatusLabels: Record<DeliveryIssueStatus, string> = {
+  OPEN: 'Open',
+  COMMUNICATED: 'Communicated',
+  RESOLVED: 'Resolved',
+  CLOSED: 'Closed',
+};
+
+export const deliveryIssueStatusColors: Record<DeliveryIssueStatus, string> = {
+  OPEN: 'bg-yellow-100 text-yellow-700',
+  COMMUNICATED: 'bg-blue-100 text-blue-700',
+  RESOLVED: 'bg-green-100 text-green-700',
+  CLOSED: 'bg-gray-100 text-gray-700',
+};
+
+// -----------------------------------------------------------------------------
+// Product Profile - Bin Location Management
+// -----------------------------------------------------------------------------
+
+export interface ProductBinLocation {
+  id: string;
+  binId: string;
+  locationCode: string;           // Short code e.g., "A3-B-12"
+  locationName: string;           // e.g., "Aisle 3, Shelf B, Bin 12"
+  fullPath: string;               // Full path for display
+  warehouseId: string;
+  warehouseName: string;
+  priority: number;               // 1 = main bin, 2+ = alternate bins (lower number = higher priority)
+  maxCapacity?: number;
+  currentQuantity: number;
+  notes?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProductProfile {
+  id: string;
+  productId: string;
+  productName: string;
+  partNumber: string;
+  description?: string;
+  factoryId: string;
+  factoryName: string;
+
+  // Inventory summary
+  totalQuantity: number;
+  availableQuantity: number;
+  reservedQuantity: number;
+
+  // Bin locations with priority
+  binLocations: ProductBinLocation[];
+
+  // Product specifications
+  unitOfMeasure?: string;
+  weight?: number;
+  dimensions?: {
+    length?: number;
+    width?: number;
+    height?: number;
+  };
+
+  // Financial info (for managers)
+  ownershipType: OwnershipType;
+  unitCost?: number;
+  commissionPercentage?: number;
+
+  // Inventory settings
+  reorderPoint?: number;
+  reorderQuantity?: number;
+  maxQuantity?: number;
+  abcClass?: InventoryAbcClass;
+  movementVelocity?: 'fast' | 'medium' | 'slow';
+
+  // Cycle count info
+  lastCycleCountDate?: string;
+  cycleCountFrequency?: number;
+
+  createdAt: string;
+  updatedAt: string;
+}
+
+// -----------------------------------------------------------------------------
+// Fulfillment Order Activity Feed
+// -----------------------------------------------------------------------------
+
+export type FulfillmentActivityType =
+  | 'CREATED'
+  | 'RELEASED'
+  | 'PICK_STARTED'
+  | 'PICK_COMPLETED'
+  | 'PACK_STARTED'
+  | 'PACK_COMPLETED'
+  | 'SHIPPED'
+  | 'DELIVERED'
+  | 'CANCELLED'
+  | 'NOTE_ADDED'
+  | 'ITEM_NOTE_ADDED'
+  | 'BACKORDER_REPORTED'
+  | 'ASSIGNMENT_ADDED'
+  | 'ASSIGNMENT_REMOVED';
+
+export interface FulfillmentActivity {
+  id: string;
+  type: FulfillmentActivityType;
+  timestamp: string;
+  createdBy: string;
+  content?: string;
+  metadata?: {
+    lineItemId?: string;
+    partNumber?: string;
+    assignmentType?: 'manager' | 'worker';
+    assigneeName?: string;
+    trackingNumber?: string;
+    carrier?: string;
+    // Email confirmation metadata
+    emailTo?: string;
+    emailSubject?: string;
+    attachedDocIds?: string[];
+  };
 }

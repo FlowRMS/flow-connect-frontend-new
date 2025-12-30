@@ -91,7 +91,7 @@ export default function WarehouseOverviewContent() {
           href="/warehouse/deliveries"
           className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4 transition-all cursor-pointer hover:shadow-md hover:border-[var(--primary)]/50"
         >
-          <div className="text-sm text-[var(--muted-foreground)]">Incoming Shipments</div>
+          <div className="text-sm text-[var(--muted-foreground)]">Incoming Deliveries</div>
           <div className="text-2xl font-semibold text-blue-600 mt-1">{warehouseStats.pendingShipments}</div>
           <div className="text-xs text-[var(--muted-foreground)] mt-1">Expected deliveries</div>
         </Link>

@@ -13,6 +13,7 @@ import {
   Bin,
   Inventory,
   InventoryItem,
+  InventoryStorageLocation,
   Fulfillment,
   Wave,
   IncomingShipment,
@@ -41,9 +42,27 @@ import {
   CycleCountStatus,
   CycleCountTriggerType,
   CycleCountDiscrepancyReason,
+  CycleCountActivity,
+  CycleCountActivityType,
+  CycleCountInventoryIssue,
   ManufacturerProfile,
   VendorCustomerXRef,
   FreightCategory,
+  RecurringShipment,
+  RecurrencePattern,
+  RecurringShipmentStatus,
+  ExpectedItem,
+  AssignedUser,
+  AssignedUserRole,
+  InventoryLocation,
+  LocationType,
+  BackorderReviewData,
+  DeliveryIssue,
+  DeliveryIssueStatus,
+  DeliveryIssueType,
+  RecurringCycleCountJob,
+  RecurringCycleCountStatus,
+  InventoryVelocity,
 } from '../types/warehouse';
 
 import { Task } from '../types/tasks';
@@ -63,6 +82,153 @@ export interface Adjustment {
   reason: string;
   adjustedBy: string;
   adjustedAt: string;
+}
+
+// -----------------------------------------------------------------------------
+// Warehouse Users (Managers & Workers)
+// -----------------------------------------------------------------------------
+
+export interface WarehouseUser {
+  id: string;
+  name: string;
+  email: string;
+  role: AssignedUserRole;
+  warehouseIds: string[];  // Which warehouses they can work in
+  isActive: boolean;
+}
+
+export const mockWarehouseUsers: WarehouseUser[] = [
+  // Managers
+  {
+    id: 'user-mgr-001',
+    name: 'Sarah Johnson',
+    email: 'sarah.johnson@flowcrm.com',
+    role: 'manager',
+    warehouseIds: ['WH-001', 'WH-002'],
+    isActive: true,
+  },
+  {
+    id: 'user-mgr-002',
+    name: 'David Park',
+    email: 'david.park@flowcrm.com',
+    role: 'manager',
+    warehouseIds: ['WH-001'],
+    isActive: true,
+  },
+  {
+    id: 'user-mgr-003',
+    name: 'Jennifer Lee',
+    email: 'jennifer.lee@flowcrm.com',
+    role: 'manager',
+    warehouseIds: ['WH-002'],
+    isActive: true,
+  },
+  // Workers
+  {
+    id: 'user-wkr-001',
+    name: 'Mike Chen',
+    email: 'mike.chen@flowcrm.com',
+    role: 'worker',
+    warehouseIds: ['WH-001'],
+    isActive: true,
+  },
+  {
+    id: 'user-wkr-002',
+    name: 'Lisa Rodriguez',
+    email: 'lisa.rodriguez@flowcrm.com',
+    role: 'worker',
+    warehouseIds: ['WH-001'],
+    isActive: true,
+  },
+  {
+    id: 'user-wkr-003',
+    name: 'James Wilson',
+    email: 'james.wilson@flowcrm.com',
+    role: 'worker',
+    warehouseIds: ['WH-001', 'WH-002'],
+    isActive: true,
+  },
+  {
+    id: 'user-wkr-004',
+    name: 'Tony Martinez',
+    email: 'tony.martinez@flowcrm.com',
+    role: 'worker',
+    warehouseIds: ['WH-001'],
+    isActive: true,
+  },
+  {
+    id: 'user-wkr-005',
+    name: 'Amanda Brooks',
+    email: 'amanda.brooks@flowcrm.com',
+    role: 'worker',
+    warehouseIds: ['WH-002'],
+    isActive: true,
+  },
+  {
+    id: 'user-wkr-006',
+    name: 'Kevin Thompson',
+    email: 'kevin.thompson@flowcrm.com',
+    role: 'worker',
+    warehouseIds: ['WH-001', 'WH-002'],
+    isActive: true,
+  },
+  // Inside Sales
+  {
+    id: 'user-is-001',
+    name: 'Lisa Martinez',
+    email: 'lisa.martinez@flowcrm.com',
+    role: 'inside_sales',
+    warehouseIds: ['WH-001', 'WH-002'],
+    isActive: true,
+  },
+  {
+    id: 'user-is-002',
+    name: 'Mark Anderson',
+    email: 'mark.anderson@flowcrm.com',
+    role: 'inside_sales',
+    warehouseIds: ['WH-001', 'WH-002'],
+    isActive: true,
+  },
+  {
+    id: 'user-is-003',
+    name: 'Rachel Kim',
+    email: 'rachel.kim@flowcrm.com',
+    role: 'inside_sales',
+    warehouseIds: ['WH-001'],
+    isActive: true,
+  },
+  {
+    id: 'user-is-004',
+    name: 'Brian Wilson',
+    email: 'brian.wilson@flowcrm.com',
+    role: 'inside_sales',
+    warehouseIds: ['WH-002'],
+    isActive: true,
+  },
+];
+
+// Get warehouse users by role
+export function getWarehouseUsersByRole(role: AssignedUserRole, warehouseId?: string): WarehouseUser[] {
+  return mockWarehouseUsers.filter(user =>
+    user.role === role &&
+    user.isActive &&
+    (!warehouseId || user.warehouseIds.includes(warehouseId))
+  );
+}
+
+// Get all warehouse managers
+export function getWarehouseManagers(warehouseId?: string): WarehouseUser[] {
+  return getWarehouseUsersByRole('manager', warehouseId);
+}
+
+// Get all warehouse workers
+export function getWarehouseWorkers(warehouseId?: string): WarehouseUser[] {
+  return getWarehouseUsersByRole('worker', warehouseId);
+}
+
+// Get all inside sales users
+export function getInsideSalesUsers(warehouseId?: string): WarehouseUser[] {
+  return getWarehouseUsersByRole('inside_sales', warehouseId);
 }
 
 // -----------------------------------------------------------------------------
@@ -177,6 +343,7 @@ export const mockInventory: Inventory[] = [
     productId: 'ALF-LS600-T3-G1-FSK-PSC-ASR',
     productName: 'ALF Flexible Area Light, 60000Lm',
     partNumber: 'ALF LS600 T3 G1 FSK PSC ASR',
+    description: 'High-output flexible LED area light with 60,000 lumens. Features Type III distribution, Generation 1 optics, fuse/surge kit, photocell, and adjustable square/round mounting. Ideal for parking lots, roadways, and large outdoor areas.',
     factoryId: 'CO-012',  // Legrand North America (Manufacturer)
     factoryName: 'Legrand North America',
     totalQuantity: 150,
@@ -191,7 +358,38 @@ export const mockInventory: Inventory[] = [
     onHoldQuantity: 0,
     returnedQuantity: 0,
     reorderPoint: 50,
+    reorderQuantity: 100,
     maxQuantity: 500,
+    primaryLocation: {
+      id: 'LOC-001',
+      locationName: 'Aisle 3, Shelf B, Bin 12',
+      locationCode: 'A3-B-12',
+      warehouseId: 'WH-001',
+      warehouseName: 'Atlanta Distribution Center',
+      maxCapacity: 100,
+      currentQuantity: 85,
+    },
+    overflowLocations: [
+      {
+        id: 'LOC-002',
+        locationName: 'Aisle 3, Shelf B, Bin 13',
+        locationCode: 'A3-B-13',
+        warehouseId: 'WH-001',
+        warehouseName: 'Atlanta Distribution Center',
+        maxCapacity: 50,
+        currentQuantity: 35,
+      },
+      {
+        id: 'LOC-003',
+        locationName: 'Aisle 5, Shelf A, Bin 1',
+        locationCode: 'A5-A-01',
+        warehouseId: 'WH-001',
+        warehouseName: 'Atlanta Distribution Center',
+        maxCapacity: 100,
+        currentQuantity: 30,
+        notes: 'Overflow storage - check primary first',
+      },
+    ],
     ownershipType: 'CONSIGNMENT',
     isConsignment: true,
     commissionPercentage: 10,
@@ -207,6 +405,7 @@ export const mockInventory: Inventory[] = [
     productId: 'ALF-ASR',
     productName: 'Adjustable Square & Round Pole Mounting',
     partNumber: 'ALF-ASR',
+    description: 'Universal adjustable mounting bracket for square and round poles. Compatible with various pole diameters from 2" to 6". Heavy-duty construction with corrosion-resistant finish.',
     factoryId: 'CO-012',
     factoryName: 'Legrand North America',
     totalQuantity: 500,
@@ -221,7 +420,28 @@ export const mockInventory: Inventory[] = [
     onHoldQuantity: 0,
     returnedQuantity: 0,
     reorderPoint: 100,
+    reorderQuantity: 200,
     maxQuantity: 1000,
+    primaryLocation: {
+      id: 'LOC-004',
+      locationName: 'Aisle 2, Shelf C, Bin 5',
+      locationCode: 'A2-C-05',
+      warehouseId: 'WH-001',
+      warehouseName: 'Atlanta Distribution Center',
+      maxCapacity: 300,
+      currentQuantity: 280,
+    },
+    overflowLocations: [
+      {
+        id: 'LOC-005',
+        locationName: 'Aisle 2, Shelf C, Bin 6',
+        locationCode: 'A2-C-06',
+        warehouseId: 'WH-001',
+        warehouseName: 'Atlanta Distribution Center',
+        maxCapacity: 300,
+        currentQuantity: 220,
+      },
+    ],
     ownershipType: 'BUY_SELL',
     isConsignment: false,
     unitCost: 18.50,
@@ -253,6 +473,7 @@ export const mockInventory: Inventory[] = [
     onHoldQuantity: 0,
     returnedQuantity: 0,
     reorderPoint: 50,
+    reorderQuantity: 100,
     maxQuantity: 500,
     ownershipType: 'CONSIGNMENT',
     isConsignment: true,
@@ -283,6 +504,7 @@ export const mockInventory: Inventory[] = [
     onHoldQuantity: 0,
     returnedQuantity: 0,
     reorderPoint: 40,
+    reorderQuantity: 75,
     maxQuantity: 200,
     ownershipType: 'BUY_SELL',
     isConsignment: false,
@@ -315,6 +537,7 @@ export const mockInventory: Inventory[] = [
     onHoldQuantity: 0,
     returnedQuantity: 0,
     reorderPoint: 75,
+    reorderQuantity: 150,
     maxQuantity: 600,
     ownershipType: 'BUY_SELL',
     isConsignment: false,
@@ -327,6 +550,236 @@ export const mockInventory: Inventory[] = [
     movementVelocity: 'slow',
     createdAt: '2024-06-15T10:00:00Z',
     updatedAt: '2024-12-11T10:00:00Z',
+  },
+  // LOW STOCK items for Legrand
+  {
+    id: 'INV-006',
+    productId: 'ALF-DRV-480',
+    productName: 'LED Driver 480V, Programmable',
+    partNumber: 'ALF-DRV-480',
+    factoryId: 'CO-012',
+    factoryName: 'Legrand North America',
+    totalQuantity: 15,
+    availableQuantity: 8,
+    reservedQuantity: 5,
+    pickingQuantity: 2,
+    pickedQuantity: 0,
+    quarantineQuantity: 0,
+    damagedQuantity: 0,
+    expiredQuantity: 0,
+    inTransitQuantity: 0,
+    onHoldQuantity: 0,
+    returnedQuantity: 0,
+    reorderPoint: 25,
+    reorderQuantity: 50,
+    maxQuantity: 100,
+    ownershipType: 'BUY_SELL',
+    isConsignment: false,
+    unitCost: 125.00,
+    targetMargin: 35,
+    totalCostBasis: 1875.00,
+    lastCycleCountDate: '2024-12-15T10:00:00Z',
+    cycleCountFrequency: 30,
+    abcClass: 'A',
+    movementVelocity: 'fast',
+    createdAt: '2024-06-01T10:00:00Z',
+    updatedAt: '2024-12-20T10:00:00Z',
+  },
+  {
+    id: 'INV-007',
+    productId: 'ALF-SURGE-20K',
+    productName: 'Surge Protector 20kA, Outdoor Rated',
+    partNumber: 'ALF-SURGE-20K',
+    factoryId: 'CO-012',
+    factoryName: 'Legrand North America',
+    totalQuantity: 5,
+    availableQuantity: 3,
+    reservedQuantity: 2,
+    pickingQuantity: 0,
+    pickedQuantity: 0,
+    quarantineQuantity: 0,
+    damagedQuantity: 0,
+    expiredQuantity: 0,
+    inTransitQuantity: 0,
+    onHoldQuantity: 0,
+    returnedQuantity: 0,
+    reorderPoint: 20,
+    reorderQuantity: 40,
+    maxQuantity: 80,
+    ownershipType: 'CONSIGNMENT',
+    isConsignment: true,
+    commissionPercentage: 12,
+    lastCycleCountDate: '2024-12-10T10:00:00Z',
+    cycleCountFrequency: 30,
+    abcClass: 'A',
+    movementVelocity: 'fast',
+    createdAt: '2024-07-01T10:00:00Z',
+    updatedAt: '2024-12-18T10:00:00Z',
+  },
+  {
+    id: 'INV-008',
+    productId: 'ALF-LENS-WIDE',
+    productName: 'Wide Beam Lens Kit for ALF Series',
+    partNumber: 'ALF-LENS-WIDE',
+    factoryId: 'CO-012',
+    factoryName: 'Legrand North America',
+    totalQuantity: 45,
+    availableQuantity: 42,
+    reservedQuantity: 3,
+    pickingQuantity: 0,
+    pickedQuantity: 0,
+    quarantineQuantity: 0,
+    damagedQuantity: 0,
+    expiredQuantity: 0,
+    inTransitQuantity: 0,
+    onHoldQuantity: 0,
+    returnedQuantity: 0,
+    reorderPoint: 30,
+    reorderQuantity: 60,
+    maxQuantity: 150,
+    ownershipType: 'BUY_SELL',
+    isConsignment: false,
+    unitCost: 35.00,
+    targetMargin: 40,
+    totalCostBasis: 1575.00,
+    lastCycleCountDate: '2024-12-01T10:00:00Z',
+    cycleCountFrequency: 45,
+    abcClass: 'B',
+    movementVelocity: 'medium',
+    createdAt: '2024-06-15T10:00:00Z',
+    updatedAt: '2024-12-15T10:00:00Z',
+  },
+  // OUT OF STOCK item
+  {
+    id: 'INV-009',
+    productId: 'ALF-DIMMER-0-10V',
+    productName: '0-10V Dimming Module',
+    partNumber: 'ALF-DIMMER-0-10V',
+    factoryId: 'CO-012',
+    factoryName: 'Legrand North America',
+    totalQuantity: 0,
+    availableQuantity: 0,
+    reservedQuantity: 0,
+    pickingQuantity: 0,
+    pickedQuantity: 0,
+    quarantineQuantity: 0,
+    damagedQuantity: 0,
+    expiredQuantity: 0,
+    inTransitQuantity: 25,
+    onHoldQuantity: 0,
+    returnedQuantity: 0,
+    reorderPoint: 15,
+    reorderQuantity: 50,
+    maxQuantity: 100,
+    ownershipType: 'BUY_SELL',
+    isConsignment: false,
+    unitCost: 65.00,
+    targetMargin: 38,
+    totalCostBasis: 0,
+    lastCycleCountDate: '2024-12-10T10:00:00Z',
+    cycleCountFrequency: 30,
+    abcClass: 'A',
+    movementVelocity: 'fast',
+    createdAt: '2024-08-01T10:00:00Z',
+    updatedAt: '2024-12-22T10:00:00Z',
+  },
+  {
+    id: 'INV-010',
+    productId: 'ALF-BRACKET-WALL',
+    productName: 'Wall Mount Bracket Kit',
+    partNumber: 'ALF-BRACKET-WALL',
+    factoryId: 'CO-012',
+    factoryName: 'Legrand North America',
+    totalQuantity: 180,
+    availableQuantity: 165,
+    reservedQuantity: 10,
+    pickingQuantity: 5,
+    pickedQuantity: 0,
+    quarantineQuantity: 0,
+    damagedQuantity: 0,
+    expiredQuantity: 0,
+    inTransitQuantity: 0,
+    onHoldQuantity: 0,
+    returnedQuantity: 0,
+    reorderPoint: 50,
+    reorderQuantity: 100,
+    maxQuantity: 300,
+    ownershipType: 'BUY_SELL',
+    isConsignment: false,
+    unitCost: 28.00,
+    targetMargin: 35,
+    totalCostBasis: 5040.00,
+    lastCycleCountDate: '2024-11-20T10:00:00Z',
+    cycleCountFrequency: 45,
+    abcClass: 'B',
+    movementVelocity: 'medium',
+    createdAt: '2024-06-01T10:00:00Z',
+    updatedAt: '2024-12-10T10:00:00Z',
+  },
+  // More Johnson Controls items
+  {
+    id: 'INV-011',
+    productId: 'JC-SENSOR-TEMP',
+    productName: 'Temperature Sensor Module',
+    partNumber: 'JC-SENSOR-TEMP',
+    factoryId: 'CO-004',
+    factoryName: 'Johnson Controls',
+    totalQuantity: 12,
+    availableQuantity: 5,
+    reservedQuantity: 7,
+    pickingQuantity: 0,
+    pickedQuantity: 0,
+    quarantineQuantity: 0,
+    damagedQuantity: 0,
+    expiredQuantity: 0,
+    inTransitQuantity: 0,
+    onHoldQuantity: 0,
+    returnedQuantity: 0,
+    reorderPoint: 20,
+    reorderQuantity: 40,
+    maxQuantity: 100,
+    ownershipType: 'CONSIGNMENT',
+    isConsignment: true,
+    commissionPercentage: 10,
+    lastCycleCountDate: '2024-12-12T10:00:00Z',
+    cycleCountFrequency: 30,
+    abcClass: 'A',
+    movementVelocity: 'fast',
+    createdAt: '2024-07-01T10:00:00Z',
+    updatedAt: '2024-12-20T10:00:00Z',
+  },
+  {
+    id: 'INV-012',
+    productId: 'JC-RELAY-24V',
+    productName: '24V Control Relay',
+    partNumber: 'JC-RELAY-24V',
+    factoryId: 'CO-004',
+    factoryName: 'Johnson Controls',
+    totalQuantity: 85,
+    availableQuantity: 78,
+    reservedQuantity: 5,
+    pickingQuantity: 2,
+    pickedQuantity: 0,
+    quarantineQuantity: 0,
+    damagedQuantity: 0,
+    expiredQuantity: 0,
+    inTransitQuantity: 0,
+    onHoldQuantity: 0,
+    returnedQuantity: 0,
+    reorderPoint: 30,
+    reorderQuantity: 60,
+    maxQuantity: 200,
+    ownershipType: 'BUY_SELL',
+    isConsignment: false,
+    unitCost: 42.00,
+    targetMargin: 35,
+    totalCostBasis: 3570.00,
+    lastCycleCountDate: '2024-12-05T10:00:00Z',
+    cycleCountFrequency: 45,
+    abcClass: 'B',
+    movementVelocity: 'medium',
+    createdAt: '2024-06-15T10:00:00Z',
+    updatedAt: '2024-12-15T10:00:00Z',
   },
 ];
 
@@ -403,6 +856,105 @@ export const mockInventoryItems: InventoryItem[] = [
     updatedAt: '2024-12-09T10:00:00Z',
   },
 ];
+
+// -----------------------------------------------------------------------------
+// Inventory Locations - Multi-location storage with picking priority
+// Priority: 1 = Overflow (pick first), 2 = Primary, 3 = Reserve
+// -----------------------------------------------------------------------------
+
+export interface ProductInventoryLocations {
+  productId: string;
+  locations: InventoryLocation[];
+}
+
+export const mockProductLocations: ProductInventoryLocations[] = [
+  {
+    productId: 'ALF-LS600-T3-G1-FSK-PSC-ASR',
+    locations: [
+      { locationId: 'LOC-001-OVF', locationName: 'Overflow A-1', locationType: 'OVERFLOW', quantity: 35, priority: 1 },
+      { locationId: 'LOC-001-PRI', locationName: 'Shelf 1A, Bin A', locationType: 'PRIMARY', quantity: 55, priority: 2 },
+      { locationId: 'LOC-001-RES', locationName: 'Reserve R-12', locationType: 'RESERVE', quantity: 30, priority: 3 },
+    ],
+  },
+  {
+    productId: 'ALF-ASR',
+    locations: [
+      { locationId: 'LOC-002-OVF', locationName: 'Overflow A-2', locationType: 'OVERFLOW', quantity: 120, priority: 1 },
+      { locationId: 'LOC-002-PRI', locationName: 'Shelf 1A, Bin C', locationType: 'PRIMARY', quantity: 200, priority: 2 },
+      { locationId: 'LOC-002-RES', locationName: 'Reserve R-15', locationType: 'RESERVE', quantity: 160, priority: 3 },
+    ],
+  },
+  {
+    productId: 'PC-2',
+    locations: [
+      { locationId: 'LOC-003-OVF', locationName: 'Overflow B-1', locationType: 'OVERFLOW', quantity: 45, priority: 1 },
+      { locationId: 'LOC-003-PRI', locationName: 'Shelf 1A, Bin D', locationType: 'PRIMARY', quantity: 85, priority: 2 },
+      { locationId: 'LOC-003-RES', locationName: 'Reserve R-20', locationType: 'RESERVE', quantity: 50, priority: 3 },
+    ],
+  },
+  {
+    productId: 'MS-DCE-09-L7-W',
+    locations: [
+      { locationId: 'LOC-004-OVF', locationName: 'Overflow B-3', locationType: 'OVERFLOW', quantity: 20, priority: 1 },
+      { locationId: 'LOC-004-PRI', locationName: 'Shelf 2A, Bin B', locationType: 'PRIMARY', quantity: 45, priority: 2 },
+    ],
+  },
+  {
+    productId: 'ALF-DRV-480',
+    locations: [
+      { locationId: 'LOC-005-PRI', locationName: 'Shelf 2B, Bin C', locationType: 'PRIMARY', quantity: 25, priority: 2 },
+      { locationId: 'LOC-005-RES', locationName: 'Reserve R-25', locationType: 'RESERVE', quantity: 15, priority: 3 },
+    ],
+  },
+  {
+    productId: 'ALF-DIMMER-0-10V',
+    locations: [
+      { locationId: 'LOC-006-OVF', locationName: 'Overflow C-1', locationType: 'OVERFLOW', quantity: 30, priority: 1 },
+      { locationId: 'LOC-006-PRI', locationName: 'Shelf 3A, Bin A', locationType: 'PRIMARY', quantity: 50, priority: 2 },
+    ],
+  },
+  {
+    productId: 'ALF-SURGE-20K',
+    locations: [
+      { locationId: 'LOC-007-PRI', locationName: 'Shelf 2B, Bin D', locationType: 'PRIMARY', quantity: 18, priority: 2 },
+    ],
+  },
+];
+
+// Get inventory locations for a product, sorted by picking priority (overflow first)
+export function getProductLocations(productId: string): InventoryLocation[] {
+  const productLocs = mockProductLocations.find(pl => pl.productId === productId);
+  if (!productLocs) return [];
+  // Sort by priority (lower = pick first)
+  return [...productLocs.locations].sort((a, b) => a.priority - b.priority);
+}
+
+// Get total available quantity across all locations for a product
+export function getTotalAvailableQty(productId: string): number {
+  const locations = getProductLocations(productId);
+  return locations.reduce((sum, loc) => sum + loc.quantity, 0);
+}
+
+// Calculate picking allocation across locations for a given quantity needed
+export function calculatePickingAllocation(productId: string, qtyNeeded: number): InventoryLocation[] {
+  const locations = getProductLocations(productId);
+  const allocations: InventoryLocation[] = [];
+  let remaining = qtyNeeded;
+
+  for (const loc of locations) {
+    if (remaining <= 0) break;
+    const pickFromHere = Math.min(loc.quantity, remaining);
+    if (pickFromHere > 0) {
+      allocations.push({
+        ...loc,
+        quantity: pickFromHere, // This is the qty to pick from this location
+      });
+      remaining -= pickFromHere;
+    }
+  }
+
+  return allocations;
+}
 
 
 // -----------------------------------------------------------------------------
@@ -526,7 +1078,106 @@ export const mockWaves: Wave[] = [
     createdAt: '2024-12-09T08:00:00Z',
     updatedAt: '2024-12-09T14:00:00Z',
   },
+  {
+    id: 'WAVE-003',
+    waveNumber: 'W-2024-003',
+    status: 'IN_PROGRESS' as WaveStatus,
+    priority: 1,
+    fulfillmentCount: 3,
+    totalItems: 45,
+    pickedItems: 28,
+    pickerId: 'user-004',
+    pickerName: 'Lisa Anderson',
+    releasedAt: '2024-12-10T10:00:00Z',
+    startedAt: '2024-12-10T10:30:00Z',
+    notes: 'Afternoon rush orders',
+    createdAt: '2024-12-10T09:45:00Z',
+    updatedAt: '2024-12-10T11:00:00Z',
+  },
+  {
+    id: 'WAVE-004',
+    waveNumber: 'W-2024-004',
+    status: 'PENDING' as WaveStatus,
+    priority: 3,
+    fulfillmentCount: 4,
+    totalItems: 85,
+    pickedItems: 0,
+    notes: 'Low priority wave for tomorrow',
+    createdAt: '2024-12-10T14:00:00Z',
+    updatedAt: '2024-12-10T14:00:00Z',
+  },
 ];
+
+// Wave management functions
+let waveCounter = mockWaves.length;
+
+export function addWave(
+  orderIds: string[],
+  totalItems: number,
+  pickerName?: string
+): Wave {
+  waveCounter++;
+  const now = new Date().toISOString();
+  const newWave: Wave = {
+    id: `WAVE-${String(waveCounter).padStart(3, '0')}`,
+    waveNumber: `W-${new Date().getFullYear()}-${String(waveCounter).padStart(3, '0')}`,
+    status: 'PENDING',
+    priority: 1,
+    fulfillmentCount: orderIds.length,
+    totalItems,
+    pickedItems: 0,
+    pickerId: pickerName ? `user-${String(Math.random()).slice(2, 5)}` : undefined,
+    pickerName,
+    notes: `Wave created with ${orderIds.length} orders`,
+    createdAt: now,
+    updatedAt: now,
+  };
+  mockWaves.unshift(newWave); // Add to beginning so it shows first
+  return newWave;
+}
+
+export function updateWaveStatus(
+  waveId: string,
+  status: WaveStatus,
+  additionalFields?: Partial<Wave>
+): Wave | undefined {
+  const index = mockWaves.findIndex(w => w.id === waveId);
+  if (index === -1) return undefined;
+
+  const now = new Date().toISOString();
+  const updatedWave: Wave = {
+    ...mockWaves[index],
+    ...additionalFields,
+    status,
+    updatedAt: now,
+  };
+
+  // Set timestamps based on status
+  if (status === 'RELEASED' && !updatedWave.releasedAt) {
+    updatedWave.releasedAt = now;
+  } else if (status === 'IN_PROGRESS' && !updatedWave.startedAt) {
+    updatedWave.startedAt = now;
+  } else if (status === 'COMPLETED' && !updatedWave.completedAt) {
+    updatedWave.completedAt = now;
+    updatedWave.pickedItems = updatedWave.totalItems; // Mark all as picked
+  }
+
+  mockWaves[index] = updatedWave;
+  return updatedWave;
+}
+
+export function assignWavePicker(waveId: string, pickerName: string): Wave | undefined {
+  const index = mockWaves.findIndex(w => w.id === waveId);
+  if (index === -1) return undefined;
+
+  mockWaves[index] = {
+    ...mockWaves[index],
+    pickerName,
+    pickerId: `user-${String(Math.random()).slice(2, 5)}`,
+    updatedAt: new Date().toISOString(),
+  };
+  return mockWaves[index];
+}
 
 // -----------------------------------------------------------------------------
 // Mock Fulfillment Orders
@@ -583,6 +1234,37 @@ export const mockFulfillmentOrders: any[] = [
     createdAt: '2024-12-10T08:00:00Z',
     updatedAt: '2024-12-10T09:00:00Z',
     createdBy: 'John Smith',
+    assignedManagers: [
+      {
+        id: 'AM-001',
+        userId: 'user-mgr-001',
+        userName: 'Sarah Johnson',
+        userEmail: 'sarah.johnson@flowcrm.com',
+        role: 'manager',
+        assignedAt: '2024-12-10T08:00:00Z',
+        assignedBy: 'System',
+      },
+    ],
+    assignedWorkers: [
+      {
+        id: 'AW-001',
+        userId: 'user-wkr-001',
+        userName: 'Mike Chen',
+        userEmail: 'mike.chen@flowcrm.com',
+        role: 'worker',
+        assignedAt: '2024-12-10T08:15:00Z',
+        assignedBy: 'Sarah Johnson',
+      },
+      {
+        id: 'AW-002',
+        userId: 'user-wkr-002',
+        userName: 'Lisa Rodriguez',
+        userEmail: 'lisa.rodriguez@flowcrm.com',
+        role: 'worker',
+        assignedAt: '2024-12-10T08:15:00Z',
+        assignedBy: 'Sarah Johnson',
+      },
+    ],
   },
   {
     id: 'FO-002',
@@ -631,6 +1313,28 @@ export const mockFulfillmentOrders: any[] = [
     createdAt: '2024-12-10T08:30:00Z',
     updatedAt: '2024-12-10T09:30:00Z',
     createdBy: 'John Smith',
+    assignedManagers: [
+      {
+        id: 'AM-002',
+        userId: 'user-mgr-002',
+        userName: 'David Park',
+        userEmail: 'david.park@flowcrm.com',
+        role: 'manager',
+        assignedAt: '2024-12-10T08:30:00Z',
+        assignedBy: 'System',
+      },
+    ],
+    assignedWorkers: [
+      {
+        id: 'AW-003',
+        userId: 'user-wkr-003',
+        userName: 'James Wilson',
+        userEmail: 'james.wilson@flowcrm.com',
+        role: 'worker',
+        assignedAt: '2024-12-10T08:45:00Z',
+        assignedBy: 'David Park',
+      },
+    ],
   },
   {
     id: 'FO-003',
@@ -803,6 +1507,695 @@ export const mockFulfillmentOrders: any[] = [
     updatedAt: '2024-12-13T14:30:00Z',
     createdBy: 'Sarah Williams',
   },
+  // BACKORDER DEMO: Order with multiple products on backorder
+  {
+    id: 'FO-006',
+    fulfillmentOrderNumber: 'FO-2024-006',
+    orderId: 'ORD-2024-006',
+    orderNumber: 'SO-2024-006',
+    customerId: 'CO-011',
+    customerName: 'Graybar Electric',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    fulfillmentMethod: 'SHIP',
+    shipTo: {
+      name: 'Graybar Electric - Savannah Branch',
+      addressLine1: '8500 Abercorn Street',
+      city: 'Savannah',
+      state: 'GA',
+      postalCode: '31406',
+      country: 'USA',
+      contactPhone: '(912) 555-8234',
+      contactEmail: 'savannah@graybar.com',
+    },
+    needByDate: '2024-12-28',
+    allowPartialShipment: true,
+    shipStatus: 'NOT_SHIPPED',
+    status: 'PENDING' as FulfillmentOrderStatus,
+    hasBackorderItems: true,
+    lineItems: [
+      {
+        id: 'FOLI-006a',
+        fulfillmentOrderId: 'FO-006',
+        orderLineItemId: 'OLI-006a',
+        productId: 'ALF-LS600-T3-G1-FSK-PSC-ASR',
+        productName: 'ALF Flexible Area Light, 60000Lm',
+        partNumber: 'ALF LS600 T3 G1 FSK PSC ASR',
+        uom: 'EA',
+        orderedQty: 200, // Ordered 200, but only 120 available
+        allocatedQty: 120,
+        shippedQty: 0,
+        backorderQty: 80,
+        shortReason: 'Insufficient stock - 80 units on backorder',
+        pickLocation: 'Shelf 1A, Bin A',
+        createdAt: '2024-12-14T10:00:00Z',
+        updatedAt: '2024-12-14T10:00:00Z',
+      },
+      {
+        id: 'FOLI-006b',
+        fulfillmentOrderId: 'FO-006',
+        orderLineItemId: 'OLI-006b',
+        productId: 'MS-DCE-09-L7-W',
+        productName: 'Motion Sensor, DC, Fixture External',
+        partNumber: 'MS-DCE-09-L7-W',
+        uom: 'EA',
+        orderedQty: 100, // Ordered 100, but only 30 available
+        allocatedQty: 30,
+        shippedQty: 0,
+        backorderQty: 70,
+        shortReason: 'Insufficient stock - 70 units on backorder',
+        pickLocation: 'Shelf 1A, Bay-01, Row 2, Bin A',
+        createdAt: '2024-12-14T10:00:00Z',
+        updatedAt: '2024-12-14T10:00:00Z',
+      },
+      {
+        id: 'FOLI-006c',
+        fulfillmentOrderId: 'FO-006',
+        orderLineItemId: 'OLI-006c',
+        productId: 'ALF-ASR',
+        productName: 'Adjustable Square & Round Pole Mounting',
+        partNumber: 'ALF-ASR',
+        uom: 'EA',
+        orderedQty: 50, // Ordered 50, 480 available - NO backorder
+        allocatedQty: 50,
+        shippedQty: 0,
+        backorderQty: 0,
+        pickLocation: 'Shelf 1A, Bin C',
+        createdAt: '2024-12-14T10:00:00Z',
+        updatedAt: '2024-12-14T10:00:00Z',
+      },
+    ],
+    notes: 'DEMO ORDER: This order has 2 products on backorder to demonstrate the backorder handling workflow.',
+    createdAt: '2024-12-14T10:00:00Z',
+    updatedAt: '2024-12-14T10:00:00Z',
+    createdBy: 'System Demo',
+  },
+  // MANUFACTURER FULFILLED DEMO: Order that was sent to manufacturer
+  {
+    id: 'FO-007',
+    fulfillmentOrderNumber: 'FO-2024-007',
+    orderId: 'ORD-2024-007',
+    orderNumber: 'SO-2024-007',
+    customerId: 'CO-006',
+    customerName: 'Summit Electric',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    fulfillmentMethod: 'SHIP',
+    shipTo: {
+      name: 'Summit Electric Supply - Greenville',
+      addressLine1: '1200 Industrial Park Drive',
+      city: 'Greenville',
+      state: 'SC',
+      postalCode: '29615',
+      country: 'USA',
+      contactPhone: '(864) 555-4321',
+    },
+    needByDate: '2024-12-30',
+    allowPartialShipment: true,
+    shipStatus: 'NOT_SHIPPED',
+    status: 'PENDING' as FulfillmentOrderStatus,
+    manufacturerOrderStatus: 'PARTIAL',
+    hasBackorderItems: true,
+    lineItems: [
+      {
+        id: 'FOLI-007a',
+        fulfillmentOrderId: 'FO-007',
+        orderLineItemId: 'OLI-007a',
+        productId: 'PC-2',
+        productName: 'Twist-lock Photocell with receptacle',
+        partNumber: 'PC-2',
+        uom: 'EA',
+        orderedQty: 50,
+        allocatedQty: 50,
+        shippedQty: 0,
+        backorderQty: 0,
+        pickLocation: 'Shelf 1A, Bin D',
+        createdAt: '2024-12-14T11:00:00Z',
+        updatedAt: '2024-12-14T11:00:00Z',
+      },
+      {
+        id: 'FOLI-007b',
+        fulfillmentOrderId: 'FO-007',
+        orderLineItemId: 'OLI-007b',
+        productId: 'ALF-LS600-T3-G1-FSK-PSC-ASR',
+        productName: 'ALF Flexible Area Light, 60000Lm',
+        partNumber: 'ALF LS600 T3 G1 FSK PSC ASR',
+        uom: 'EA',
+        orderedQty: 0, // Reduced to 0 for warehouse
+        allocatedQty: 0,
+        shippedQty: 0,
+        backorderQty: 0,
+        pickLocation: 'Shelf 1A, Bin A',
+        createdAt: '2024-12-14T11:00:00Z',
+        updatedAt: '2024-12-14T14:00:00Z',
+      },
+      {
+        id: 'FOLI-007b-MFR',
+        fulfillmentOrderId: 'FO-007',
+        orderLineItemId: 'OLI-007b',
+        productId: 'ALF-LS600-T3-G1-FSK-PSC-ASR',
+        productName: 'ALF Flexible Area Light, 60000Lm',
+        partNumber: 'ALF LS600 T3 G1 FSK PSC ASR',
+        uom: 'EA',
+        orderedQty: 150,
+        allocatedQty: 0,
+        shippedQty: 0,
+        backorderQty: 150,
+        fulfilledByManufacturer: true,
+        manufacturerFulfillmentStatus: 'PENDING_MANUFACTURER',
+        manufacturerId: 'CO-012',
+        manufacturerName: 'Legrand North America',
+        createdAt: '2024-12-14T14:00:00Z',
+        updatedAt: '2024-12-14T14:00:00Z',
+      },
+    ],
+    notes: 'DEMO ORDER: This order shows a split fulfillment - some items from warehouse, some from manufacturer.',
+    createdAt: '2024-12-14T11:00:00Z',
+    updatedAt: '2024-12-14T14:00:00Z',
+    createdBy: 'System Demo',
+  },
+  // Additional orders with backorders for Legrand items
+  {
+    id: 'FO-008',
+    fulfillmentOrderNumber: 'FO-2024-008',
+    orderId: 'ORD-2024-008',
+    orderNumber: 'SO-2024-008',
+    customerId: 'CO-011',
+    customerName: 'Graybar Electric',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    fulfillmentMethod: 'SHIP',
+    shipTo: {
+      name: 'Graybar Electric - Savannah',
+      addressLine1: '1500 Industrial Ave',
+      city: 'Savannah',
+      state: 'GA',
+      postalCode: '31401',
+      country: 'USA',
+      contactPhone: '(912) 555-4321',
+    },
+    needByDate: '2024-12-28',
+    allowPartialShipment: true,
+    releasedAt: '2024-12-20T10:00:00Z',
+    releasedBy: 'John Smith',
+    shipStatus: 'NOT_SHIPPED',
+    status: 'RELEASED' as FulfillmentOrderStatus,
+    lineItems: [
+      {
+        id: 'FOLI-008a',
+        fulfillmentOrderId: 'FO-008',
+        orderLineItemId: 'OLI-008a',
+        productId: 'ALF-DRV-480',
+        productName: 'LED Driver 480V, Programmable',
+        partNumber: 'ALF-DRV-480',
+        uom: 'EA',
+        orderedQty: 15,
+        allocatedQty: 8,
+        shippedQty: 0,
+        backorderQty: 7,
+        shortReason: 'Low inventory - reorder needed',
+        pickLocation: 'Shelf 2B, Bin C',
+        createdAt: '2024-12-20T10:00:00Z',
+        updatedAt: '2024-12-20T10:00:00Z',
+      },
+      {
+        id: 'FOLI-008b',
+        fulfillmentOrderId: 'FO-008',
+        orderLineItemId: 'OLI-008b',
+        productId: 'ALF-SURGE-20K',
+        productName: 'Surge Protector 20kA, Outdoor Rated',
+        partNumber: 'ALF-SURGE-20K',
+        uom: 'EA',
+        orderedQty: 10,
+        allocatedQty: 3,
+        shippedQty: 0,
+        backorderQty: 7,
+        shortReason: 'Critical low stock',
+        pickLocation: 'Shelf 2B, Bin D',
+        createdAt: '2024-12-20T10:00:00Z',
+        updatedAt: '2024-12-20T10:00:00Z',
+      },
+    ],
+    createdAt: '2024-12-20T09:00:00Z',
+    updatedAt: '2024-12-20T10:00:00Z',
+    createdBy: 'John Smith',
+  },
+  {
+    id: 'FO-009',
+    fulfillmentOrderNumber: 'FO-2024-009',
+    orderId: 'ORD-2024-009',
+    orderNumber: 'SO-2024-009',
+    customerId: 'CO-006',
+    customerName: 'Summit Electric',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    fulfillmentMethod: 'SHIP',
+    shipTo: {
+      name: 'Summit Electric - Raleigh',
+      addressLine1: '800 Commerce Way',
+      city: 'Raleigh',
+      state: 'NC',
+      postalCode: '27601',
+      country: 'USA',
+      contactPhone: '(919) 555-8765',
+    },
+    needByDate: '2024-12-30',
+    allowPartialShipment: false,
+    releasedAt: '2024-12-21T08:00:00Z',
+    releasedBy: 'Sarah Williams',
+    shipStatus: 'NOT_SHIPPED',
+    status: 'RELEASED' as FulfillmentOrderStatus,
+    lineItems: [
+      {
+        id: 'FOLI-009a',
+        fulfillmentOrderId: 'FO-009',
+        orderLineItemId: 'OLI-009a',
+        productId: 'ALF-DIMMER-0-10V',
+        productName: '0-10V Dimming Module',
+        partNumber: 'ALF-DIMMER-0-10V',
+        uom: 'EA',
+        orderedQty: 20,
+        allocatedQty: 0,
+        shippedQty: 0,
+        backorderQty: 20,
+        shortReason: 'Out of stock - in transit from vendor',
+        pickLocation: 'Shelf 3A, Bin A',
+        createdAt: '2024-12-21T08:00:00Z',
+        updatedAt: '2024-12-21T08:00:00Z',
+      },
+      {
+        id: 'FOLI-009b',
+        fulfillmentOrderId: 'FO-009',
+        orderLineItemId: 'OLI-009b',
+        productId: 'MS-DCE-09-L7-W',
+        productName: 'Motion Sensor, DC, Fixture External',
+        partNumber: 'MS-DCE-09-L7-W',
+        uom: 'EA',
+        orderedQty: 25,
+        allocatedQty: 20,
+        shippedQty: 0,
+        backorderQty: 5,
+        shortReason: 'Partial allocation - low stock',
+        pickLocation: 'Shelf 2A, Bin B',
+        createdAt: '2024-12-21T08:00:00Z',
+        updatedAt: '2024-12-21T08:00:00Z',
+      },
+    ],
+    createdAt: '2024-12-21T07:30:00Z',
+    updatedAt: '2024-12-21T08:00:00Z',
+    createdBy: 'Sarah Williams',
+  },
+  // Additional orders for scrollable demo
+  {
+    id: 'FO-010',
+    fulfillmentOrderNumber: 'FO-2024-010',
+    orderId: 'ORD-2024-010',
+    orderNumber: 'SO-2024-010',
+    customerId: 'CO-015',
+    customerName: 'Metro Electrical Supply',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    fulfillmentMethod: 'SHIP',
+    shipTo: {
+      name: 'Metro Electrical Supply - Main',
+      addressLine1: '2200 Commerce Drive',
+      city: 'Birmingham',
+      state: 'AL',
+      postalCode: '35203',
+      country: 'USA',
+      contactPhone: '(205) 555-3421',
+    },
+    needByDate: '2024-12-26',
+    allowPartialShipment: true,
+    shipStatus: 'NOT_SHIPPED',
+    status: 'PENDING' as FulfillmentOrderStatus,
+    lineItems: [
+      {
+        id: 'FOLI-010a',
+        fulfillmentOrderId: 'FO-010',
+        orderLineItemId: 'OLI-010a',
+        productId: 'ALF-LS600-T3-G1-FSK-PSC-ASR',
+        productName: 'ALF Flexible Area Light, 60000Lm',
+        partNumber: 'ALF LS600 T3 G1 FSK PSC ASR',
+        uom: 'EA',
+        orderedQty: 30,
+        allocatedQty: 30,
+        shippedQty: 0,
+        backorderQty: 0,
+        pickLocation: 'Shelf 1A, Bin A',
+        createdAt: '2024-12-22T09:00:00Z',
+        updatedAt: '2024-12-22T09:00:00Z',
+      },
+    ],
+    createdAt: '2024-12-22T09:00:00Z',
+    updatedAt: '2024-12-22T09:00:00Z',
+    createdBy: 'John Smith',
+  },
+  {
+    id: 'FO-011',
+    fulfillmentOrderNumber: 'FO-2024-011',
+    orderId: 'ORD-2024-011',
+    orderNumber: 'SO-2024-011',
+    customerId: 'CO-016',
+    customerName: 'Delta Lighting Solutions',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    fulfillmentMethod: 'SHIP',
+    shipTo: {
+      name: 'Delta Lighting - Nashville',
+      addressLine1: '450 Music Row',
+      city: 'Nashville',
+      state: 'TN',
+      postalCode: '37203',
+      country: 'USA',
+      contactPhone: '(615) 555-7890',
+    },
+    needByDate: '2024-12-27',
+    allowPartialShipment: false,
+    shipStatus: 'NOT_SHIPPED',
+    status: 'PENDING' as FulfillmentOrderStatus,
+    hasBackorderItems: true,
+    lineItems: [
+      {
+        id: 'FOLI-011a',
+        fulfillmentOrderId: 'FO-011',
+        orderLineItemId: 'OLI-011a',
+        productId: 'PC-2',
+        productName: 'Twist-lock Photocell with receptacle',
+        partNumber: 'PC-2',
+        uom: 'EA',
+        orderedQty: 100,
+        allocatedQty: 65,
+        shippedQty: 0,
+        backorderQty: 35,
+        shortReason: 'Partial stock available',
+        pickLocation: 'Shelf 1A, Bin D',
+        createdAt: '2024-12-22T10:30:00Z',
+        updatedAt: '2024-12-22T10:30:00Z',
+      },
+      {
+        id: 'FOLI-011b',
+        fulfillmentOrderId: 'FO-011',
+        orderLineItemId: 'OLI-011b',
+        productId: 'ALF-ASR',
+        productName: 'Adjustable Square & Round Pole Mounting',
+        partNumber: 'ALF-ASR',
+        uom: 'EA',
+        orderedQty: 50,
+        allocatedQty: 50,
+        shippedQty: 0,
+        backorderQty: 0,
+        pickLocation: 'Shelf 1A, Bin C',
+        createdAt: '2024-12-22T10:30:00Z',
+        updatedAt: '2024-12-22T10:30:00Z',
+      },
+    ],
+    createdAt: '2024-12-22T10:30:00Z',
+    updatedAt: '2024-12-22T10:30:00Z',
+    createdBy: 'Sarah Williams',
+  },
+  {
+    id: 'FO-012',
+    fulfillmentOrderNumber: 'FO-2024-012',
+    orderId: 'ORD-2024-012',
+    orderNumber: 'SO-2024-012',
+    customerId: 'CO-017',
+    customerName: 'Southeast Power & Light',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    fulfillmentMethod: 'WILL_CALL',
+    shipTo: {
+      name: 'Southeast P&L - Will Call',
+      addressLine1: '1000 Warehouse Way',
+      city: 'Atlanta',
+      state: 'GA',
+      postalCode: '30318',
+      country: 'USA',
+      contactPhone: '(404) 555-2345',
+    },
+    needByDate: '2024-12-24',
+    allowPartialShipment: true,
+    shipStatus: 'NOT_SHIPPED',
+    status: 'RELEASED' as FulfillmentOrderStatus,
+    releasedAt: '2024-12-22T14:00:00Z',
+    releasedBy: 'John Smith',
+    lineItems: [
+      {
+        id: 'FOLI-012a',
+        fulfillmentOrderId: 'FO-012',
+        orderLineItemId: 'OLI-012a',
+        productId: 'MS-DCE-09-L7-W',
+        productName: 'Motion Sensor, DC, Fixture External',
+        partNumber: 'MS-DCE-09-L7-W',
+        uom: 'EA',
+        orderedQty: 40,
+        allocatedQty: 40,
+        shippedQty: 0,
+        backorderQty: 0,
+        pickLocation: 'Shelf 1A, Bay-01, Row 2, Bin A',
+        createdAt: '2024-12-22T14:00:00Z',
+        updatedAt: '2024-12-22T14:00:00Z',
+      },
+    ],
+    createdAt: '2024-12-22T13:00:00Z',
+    updatedAt: '2024-12-22T14:00:00Z',
+    createdBy: 'John Smith',
+  },
+  {
+    id: 'FO-013',
+    fulfillmentOrderNumber: 'FO-2024-013',
+    orderId: 'ORD-2024-013',
+    orderNumber: 'SO-2024-013',
+    customerId: 'CO-006',
+    customerName: 'Summit Electric',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    fulfillmentMethod: 'SHIP',
+    shipTo: {
+      name: 'Summit Electric - Columbia',
+      addressLine1: '3300 Assembly Street',
+      city: 'Columbia',
+      state: 'SC',
+      postalCode: '29201',
+      country: 'USA',
+      contactPhone: '(803) 555-6543',
+    },
+    needByDate: '2024-12-29',
+    allowPartialShipment: true,
+    shipStatus: 'NOT_SHIPPED',
+    status: 'PENDING' as FulfillmentOrderStatus,
+    hasBackorderItems: true,
+    lineItems: [
+      {
+        id: 'FOLI-013a',
+        fulfillmentOrderId: 'FO-013',
+        orderLineItemId: 'OLI-013a',
+        productId: 'ALF-DRV-480',
+        productName: 'LED Driver 480V, Programmable',
+        partNumber: 'ALF-DRV-480',
+        uom: 'EA',
+        orderedQty: 25,
+        allocatedQty: 10,
+        shippedQty: 0,
+        backorderQty: 15,
+        shortReason: 'Limited inventory',
+        pickLocation: 'Shelf 2B, Bin C',
+        createdAt: '2024-12-23T08:00:00Z',
+        updatedAt: '2024-12-23T08:00:00Z',
+      },
+      {
+        id: 'FOLI-013b',
+        fulfillmentOrderId: 'FO-013',
+        orderLineItemId: 'OLI-013b',
+        productId: 'ALF-SURGE-20K',
+        productName: 'Surge Protector 20kA, Outdoor Rated',
+        partNumber: 'ALF-SURGE-20K',
+        uom: 'EA',
+        orderedQty: 12,
+        allocatedQty: 0,
+        shippedQty: 0,
+        backorderQty: 12,
+        shortReason: 'Out of stock',
+        pickLocation: 'Shelf 2B, Bin D',
+        createdAt: '2024-12-23T08:00:00Z',
+        updatedAt: '2024-12-23T08:00:00Z',
+      },
+    ],
+    createdAt: '2024-12-23T08:00:00Z',
+    updatedAt: '2024-12-23T08:00:00Z',
+    createdBy: 'Sarah Williams',
+  },
+  {
+    id: 'FO-014',
+    fulfillmentOrderNumber: 'FO-2024-014',
+    orderId: 'ORD-2024-014',
+    orderNumber: 'SO-2024-014',
+    customerId: 'CO-011',
+    customerName: 'Graybar Electric',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    fulfillmentMethod: 'SHIP',
+    shipTo: {
+      name: 'Graybar Electric - Macon',
+      addressLine1: '4100 Riverside Drive',
+      city: 'Macon',
+      state: 'GA',
+      postalCode: '31210',
+      country: 'USA',
+      contactPhone: '(478) 555-9876',
+    },
+    needByDate: '2024-12-30',
+    allowPartialShipment: false,
+    shipStatus: 'NOT_SHIPPED',
+    status: 'PENDING' as FulfillmentOrderStatus,
+    lineItems: [
+      {
+        id: 'FOLI-014a',
+        fulfillmentOrderId: 'FO-014',
+        orderLineItemId: 'OLI-014a',
+        productId: 'ALF-DIMMER-0-10V',
+        productName: '0-10V Dimming Module',
+        partNumber: 'ALF-DIMMER-0-10V',
+        uom: 'EA',
+        orderedQty: 60,
+        allocatedQty: 60,
+        shippedQty: 0,
+        backorderQty: 0,
+        pickLocation: 'Shelf 3A, Bin A',
+        createdAt: '2024-12-23T11:00:00Z',
+        updatedAt: '2024-12-23T11:00:00Z',
+      },
+    ],
+    createdAt: '2024-12-23T11:00:00Z',
+    updatedAt: '2024-12-23T11:00:00Z',
+    createdBy: 'John Smith',
+  },
+  {
+    id: 'FO-015',
+    fulfillmentOrderNumber: 'FO-2024-015',
+    orderId: 'ORD-2024-015',
+    orderNumber: 'SO-2024-015',
+    customerId: 'CO-018',
+    customerName: 'Coastal Electric Co',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    fulfillmentMethod: 'SHIP',
+    shipTo: {
+      name: 'Coastal Electric - Jacksonville',
+      addressLine1: '5500 Beach Blvd',
+      city: 'Jacksonville',
+      state: 'FL',
+      postalCode: '32207',
+      country: 'USA',
+      contactPhone: '(904) 555-1122',
+    },
+    needByDate: '2024-12-31',
+    allowPartialShipment: true,
+    shipStatus: 'NOT_SHIPPED',
+    status: 'RELEASED' as FulfillmentOrderStatus,
+    releasedAt: '2024-12-23T15:00:00Z',
+    releasedBy: 'Sarah Williams',
+    hasBackorderItems: true,
+    lineItems: [
+      {
+        id: 'FOLI-015a',
+        fulfillmentOrderId: 'FO-015',
+        orderLineItemId: 'OLI-015a',
+        productId: 'ALF-LS600-T3-G1-FSK-PSC-ASR',
+        productName: 'ALF Flexible Area Light, 60000Lm',
+        partNumber: 'ALF LS600 T3 G1 FSK PSC ASR',
+        uom: 'EA',
+        orderedQty: 80,
+        allocatedQty: 55,
+        shippedQty: 0,
+        backorderQty: 25,
+        shortReason: 'Partial availability',
+        pickLocation: 'Shelf 1A, Bin A',
+        createdAt: '2024-12-23T15:00:00Z',
+        updatedAt: '2024-12-23T15:00:00Z',
+      },
+      {
+        id: 'FOLI-015b',
+        fulfillmentOrderId: 'FO-015',
+        orderLineItemId: 'OLI-015b',
+        productId: 'PC-2',
+        productName: 'Twist-lock Photocell with receptacle',
+        partNumber: 'PC-2',
+        uom: 'EA',
+        orderedQty: 80,
+        allocatedQty: 80,
+        shippedQty: 0,
+        backorderQty: 0,
+        pickLocation: 'Shelf 1A, Bin D',
+        createdAt: '2024-12-23T15:00:00Z',
+        updatedAt: '2024-12-23T15:00:00Z',
+      },
+    ],
+    createdAt: '2024-12-23T14:30:00Z',
+    updatedAt: '2024-12-23T15:00:00Z',
+    createdBy: 'Sarah Williams',
+  },
+  {
+    id: 'FO-016',
+    fulfillmentOrderNumber: 'FO-2024-016',
+    orderId: 'ORD-2024-016',
+    orderNumber: 'SO-2024-016',
+    customerId: 'CO-019',
+    customerName: 'Piedmont Electrical',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    fulfillmentMethod: 'SHIP',
+    shipTo: {
+      name: 'Piedmont Electrical - Charlotte',
+      addressLine1: '6700 South Blvd',
+      city: 'Charlotte',
+      state: 'NC',
+      postalCode: '28217',
+      country: 'USA',
+      contactPhone: '(704) 555-8899',
+    },
+    needByDate: '2025-01-02',
+    allowPartialShipment: true,
+    shipStatus: 'NOT_SHIPPED',
+    status: 'PENDING' as FulfillmentOrderStatus,
+    lineItems: [
+      {
+        id: 'FOLI-016a',
+        fulfillmentOrderId: 'FO-016',
+        orderLineItemId: 'OLI-016a',
+        productId: 'ALF-ASR',
+        productName: 'Adjustable Square & Round Pole Mounting',
+        partNumber: 'ALF-ASR',
+        uom: 'EA',
+        orderedQty: 100,
+        allocatedQty: 100,
+        shippedQty: 0,
+        backorderQty: 0,
+        pickLocation: 'Shelf 1A, Bin C',
+        createdAt: '2024-12-24T09:00:00Z',
+        updatedAt: '2024-12-24T09:00:00Z',
+      },
+      {
+        id: 'FOLI-016b',
+        fulfillmentOrderId: 'FO-016',
+        orderLineItemId: 'OLI-016b',
+        productId: 'MS-DCE-09-L7-W',
+        productName: 'Motion Sensor, DC, Fixture External',
+        partNumber: 'MS-DCE-09-L7-W',
+        uom: 'EA',
+        orderedQty: 75,
+        allocatedQty: 75,
+        shippedQty: 0,
+        backorderQty: 0,
+        pickLocation: 'Shelf 1A, Bay-01, Row 2, Bin A',
+        createdAt: '2024-12-24T09:00:00Z',
+        updatedAt: '2024-12-24T09:00:00Z',
+      },
+    ],
+    createdAt: '2024-12-24T09:00:00Z',
+    updatedAt: '2024-12-24T09:00:00Z',
+    createdBy: 'John Smith',
+  },
 ];
 
 // Helper to get fulfillment order stats
@@ -848,6 +2241,218 @@ export function updateFulfillmentOrder(id: string, updates: Partial<FulfillmentO
   return mockFulfillmentOrders[index];
 }
 
+// Add a user assignment to a fulfillment order
+export function addFulfillmentOrderAssignment(
+  fulfillmentOrderId: string,
+  userId: string,
+  role: AssignedUserRole,
+  assignedBy?: string
+): FulfillmentOrder | undefined {
+  const order = getFulfillmentOrderById(fulfillmentOrderId);
+  if (!order) return undefined;
+
+  const user = mockWarehouseUsers.find(u => u.id === userId);
+  if (!user) return undefined;
+
+  const newAssignment: AssignedUser = {
+    id: `assign-${Date.now()}`,
+    userId: user.id,
+    userName: user.name,
+    userEmail: user.email,
+    role,
+    assignedAt: new Date().toISOString(),
+    assignedBy,
+  };
+
+  if (role === 'manager') {
+    const currentManagers = order.assignedManagers || [];
+    // Don't add if already assigned
+    if (currentManagers.some(m => m.userId === userId)) return order;
+    return updateFulfillmentOrder(fulfillmentOrderId, {
+      assignedManagers: [...currentManagers, newAssignment],
+    });
+  } else if (role === 'inside_sales') {
+    const currentInsideSales = order.assignedInsideSales || [];
+    // Don't add if already assigned
+    if (currentInsideSales.some(s => s.userId === userId)) return order;
+    return updateFulfillmentOrder(fulfillmentOrderId, {
+      assignedInsideSales: [...currentInsideSales, newAssignment],
+    });
+  } else {
+    const currentWorkers = order.assignedWorkers || [];
+    // Don't add if already assigned
+    if (currentWorkers.some(w => w.userId === userId)) return order;
+    return updateFulfillmentOrder(fulfillmentOrderId, {
+      assignedWorkers: [...currentWorkers, newAssignment],
+    });
+  }
+}
+
+// Remove a user assignment from a fulfillment order
+export function removeFulfillmentOrderAssignment(
+  fulfillmentOrderId: string,
+  assignmentId: string,
+  role: AssignedUserRole
+): FulfillmentOrder | undefined {
+  const order = getFulfillmentOrderById(fulfillmentOrderId);
+  if (!order) return undefined;
+
+  if (role === 'manager') {
+    const updatedManagers = (order.assignedManagers || []).filter(m => m.id !== assignmentId);
+    return updateFulfillmentOrder(fulfillmentOrderId, {
+      assignedManagers: updatedManagers,
+    });
+  } else if (role === 'inside_sales') {
+    const updatedInsideSales = (order.assignedInsideSales || []).filter(s => s.id !== assignmentId);
+    return updateFulfillmentOrder(fulfillmentOrderId, {
+      assignedInsideSales: updatedInsideSales,
+    });
+  } else {
+    const updatedWorkers = (order.assignedWorkers || []).filter(w => w.id !== assignmentId);
+    return updateFulfillmentOrder(fulfillmentOrderId, {
+      assignedWorkers: updatedWorkers,
+    });
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Backorder Helper Functions
+// -----------------------------------------------------------------------------
+
+export interface BackorderItem {
+  lineItem: FulfillmentOrderLineItem;
+  inventoryOnHand: number;
+  manufacturerName: string;
+  manufacturerId: string;
+}
+
+// Check if a fulfillment order has backorder items (inventory < ordered)
+// Backorder = Ordered - On Hand (positive number showing the shortage)
+export function getBackorderItems(fulfillmentOrderId: string): BackorderItem[] {
+  const fo = getFulfillmentOrderById(fulfillmentOrderId);
+  if (!fo) return [];
+
+  const backorderItems: BackorderItem[] = [];
+
+  for (const lineItem of fo.lineItems) {
+    // Skip items already marked as fulfilled by manufacturer
+    if (lineItem.fulfilledByManufacturer) continue;
+
+    // Find the inventory for this product
+    const inv = mockInventory.find(i => i.productId === lineItem.productId);
+    const inventoryOnHand = inv?.availableQuantity || 0;
+
+    // Check if we have a backorder situation: ordered > inventory on hand
+    if (lineItem.orderedQty > inventoryOnHand) {
+      // Backorder qty = Ordered - On Hand (the shortage amount)
+      const backorderQty = lineItem.orderedQty - inventoryOnHand;
+
+      backorderItems.push({
+        lineItem: {
+          ...lineItem,
+          backorderQty, // Calculate: Ordered - On Hand
+        },
+        inventoryOnHand,
+        manufacturerName: inv?.factoryName || 'Unknown Manufacturer',
+        manufacturerId: inv?.factoryId || 'unknown',
+      });
+    }
+  }
+
+  return backorderItems;
+}
+
+// Get draft/pending shipment requests for a manufacturer
+export function getPendingShipmentRequestsForManufacturer(manufacturerId: string): ShipmentRequest[] {
+  return mockShipmentRequests.filter(
+    req => req.vendorId === manufacturerId && (req.status === 'DRAFT' || req.status === 'PENDING')
+  );
+}
+
+// Mark line items as fulfilled by manufacturer (Option 1)
+export function markAsManufacturerFulfilled(
+  fulfillmentOrderId: string,
+  lineItemIds: string[]
+): FulfillmentOrder | undefined {
+  const fo = getFulfillmentOrderById(fulfillmentOrderId);
+  if (!fo) return undefined;
+
+  const updatedLineItems = fo.lineItems.map(li => {
+    if (lineItemIds.includes(li.id)) {
+      const inv = mockInventory.find(i => i.productId === li.productId);
+      return {
+        ...li,
+        fulfilledByManufacturer: true,
+        manufacturerFulfillmentStatus: 'PENDING_MANUFACTURER' as const,
+        manufacturerId: inv?.factoryId,
+        manufacturerName: inv?.factoryName,
+        // Adjust quantities - move ordered qty to manufacturer, zero out warehouse allocation
+        allocatedQty: 0,
+        backorderQty: li.orderedQty,
+      };
+    }
+    return li;
+  });
+
+  return updateFulfillmentOrder(fulfillmentOrderId, {
+    lineItems: updatedLineItems,
+    manufacturerOrderStatus: lineItemIds.length === fo.lineItems.length ? 'FULL' : 'PARTIAL',
+    hasBackorderItems: true,
+  });
+}
+
+// Split line items between warehouse and manufacturer (Option 3)
+export function splitLineItemForManufacturer(
+  fulfillmentOrderId: string,
+  lineItemId: string,
+  warehouseQty: number,
+  manufacturerQty: number
+): FulfillmentOrder | undefined {
+  const fo = getFulfillmentOrderById(fulfillmentOrderId);
+  if (!fo) return undefined;
+
+  const originalLineItem = fo.lineItems.find(li => li.id === lineItemId);
+  if (!originalLineItem) return undefined;
+
+  const inv = mockInventory.find(i => i.productId === originalLineItem.productId);
+
+  // Update original line item with warehouse qty
+  const updatedLineItems = fo.lineItems.map(li => {
+    if (li.id === lineItemId) {
+      return {
+        ...li,
+        orderedQty: warehouseQty,
+        allocatedQty: warehouseQty,
+        backorderQty: 0,
+      };
+    }
+    return li;
+  });
+
+  // Add new line item for manufacturer fulfillment
+  if (manufacturerQty > 0) {
+    const newLineItem: FulfillmentOrderLineItem = {
+      ...originalLineItem,
+      id: `${lineItemId}-MFR`,
+      orderedQty: manufacturerQty,
+      allocatedQty: 0,
+      shippedQty: 0,
+      backorderQty: manufacturerQty,
+      fulfilledByManufacturer: true,
+      manufacturerFulfillmentStatus: 'PENDING_MANUFACTURER',
+      manufacturerId: inv?.factoryId,
+      manufacturerName: inv?.factoryName,
+    };
+    updatedLineItems.push(newLineItem);
+  }
+
+  return updateFulfillmentOrder(fulfillmentOrderId, {
+    lineItems: updatedLineItems,
+    manufacturerOrderStatus: 'PARTIAL',
+    hasBackorderItems: manufacturerQty > 0,
+  });
+}
+
 // -----------------------------------------------------------------------------
 // Mock Incoming Shipments
 // -----------------------------------------------------------------------------
@@ -878,6 +2483,28 @@ export const mockIncomingShipments: IncomingShipment[] = [
     carrier: 'UPS',
     createdAt: '2024-12-05T10:00:00Z',
     updatedAt: '2024-12-10T10:00:00Z',
+    assignedManagers: [
+      {
+        id: 'AM-003',
+        userId: 'user-mgr-001',
+        userName: 'Sarah Johnson',
+        userEmail: 'sarah.johnson@flowcrm.com',
+        role: 'manager',
+        assignedAt: '2024-12-05T10:00:00Z',
+        assignedBy: 'System',
+      },
+    ],
+    assignedWorkers: [
+      {
+        id: 'AW-004',
+        userId: 'user-wkr-004',
+        userName: 'Tony Martinez',
+        userEmail: 'tony.martinez@flowcrm.com',
+        role: 'worker',
+        assignedAt: '2024-12-05T10:30:00Z',
+        assignedBy: 'Sarah Johnson',
+      },
+    ],
   },
   {
     id: 'SHIP-002',
@@ -902,6 +2529,37 @@ export const mockIncomingShipments: IncomingShipment[] = [
     carrier: 'FedEx',
     createdAt: '2024-12-08T10:00:00Z',
     updatedAt: '2024-12-10T10:00:00Z',
+    assignedManagers: [
+      {
+        id: 'AM-004',
+        userId: 'user-mgr-002',
+        userName: 'David Park',
+        userEmail: 'david.park@flowcrm.com',
+        role: 'manager',
+        assignedAt: '2024-12-08T10:00:00Z',
+        assignedBy: 'System',
+      },
+    ],
+    assignedWorkers: [
+      {
+        id: 'AW-005',
+        userId: 'user-wkr-001',
+        userName: 'Mike Chen',
+        userEmail: 'mike.chen@flowcrm.com',
+        role: 'worker',
+        assignedAt: '2024-12-08T10:15:00Z',
+        assignedBy: 'David Park',
+      },
+      {
+        id: 'AW-006',
+        userId: 'user-wkr-003',
+        userName: 'James Wilson',
+        userEmail: 'james.wilson@flowcrm.com',
+        role: 'worker',
+        assignedAt: '2024-12-08T10:15:00Z',
+        assignedBy: 'David Park',
+      },
+    ],
   },
   {
     id: 'SHIP-003',
@@ -923,7 +2581,306 @@ export const mockIncomingShipments: IncomingShipment[] = [
     createdAt: '2024-12-10T10:00:00Z',
     updatedAt: '2024-12-10T10:00:00Z',
   },
+  {
+    id: 'SHIP-004',
+    poNumber: 'PO-2024-790',
+    vendorId: 'CO-004',
+    vendorName: 'Johnson Controls',
+    vendorContact: 'Sarah Supplier',
+    vendorEmail: 'ssupplier@jci.com',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    eta: '2024-12-28T10:00:00Z',
+    status: 'DRAFT' as ShipmentStatus,
+    expectedItems: [
+      { id: 'EI-005', productId: 'ALF-LS400-T3-G1-FSK-PSC-ASR', productName: 'ALF Flexible Area Light, 40000Lm', partNumber: 'ALF LS400', expectedQuantity: 50, receivedQuantity: 0, status: 'pending' },
+      { id: 'EI-006', productId: 'PC-2', productName: 'Twist-lock Photocell', partNumber: 'PC-2', expectedQuantity: 75, receivedQuantity: 0, status: 'pending' },
+    ],
+    items: [
+      { id: 'SLI-005', productId: 'ALF-LS400-T3-G1-FSK-PSC-ASR', productName: 'ALF Flexible Area Light, 40000Lm', partNumber: 'ALF LS400', expectedQuantity: 50, receivedQuantity: 0 },
+      { id: 'SLI-006', productId: 'PC-2', productName: 'Twist-lock Photocell', partNumber: 'PC-2', expectedQuantity: 75, receivedQuantity: 0 },
+    ],
+    itemCount: 2,
+    expectedQuantity: 125,
+    createdAt: '2024-12-20T10:00:00Z',
+    updatedAt: '2024-12-20T10:00:00Z',
+    notes: 'Awaiting vendor confirmation on pricing',
+  },
+  {
+    id: 'SHIP-005',
+    poNumber: 'PO-2024-791',
+    vendorId: 'CO-012',
+    vendorName: 'Legrand North America',
+    vendorContact: 'John Vendor',
+    vendorEmail: 'jvendor@legrand.com',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    eta: '2025-01-05T10:00:00Z',
+    status: 'DRAFT' as ShipmentStatus,
+    expectedItems: [
+      { id: 'EI-007', productId: 'MS-DCE-09-L7-W', productName: 'Motion Sensor, DC', partNumber: 'MS-DCE-09-L7-W', expectedQuantity: 200, receivedQuantity: 0, status: 'pending' },
+    ],
+    items: [
+      { id: 'SLI-007', productId: 'MS-DCE-09-L7-W', productName: 'Motion Sensor, DC', partNumber: 'MS-DCE-09-L7-W', expectedQuantity: 200, receivedQuantity: 0 },
+    ],
+    itemCount: 1,
+    expectedQuantity: 200,
+    createdAt: '2024-12-22T14:30:00Z',
+    updatedAt: '2024-12-22T14:30:00Z',
+    notes: 'Q1 restock - needs manager approval',
+  },
+  {
+    id: 'SHIP-006',
+    poNumber: 'PO-2024-792',
+    vendorId: 'CO-006',
+    vendorName: 'Summit Electric',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    eta: '2025-01-10T10:00:00Z',
+    status: 'DRAFT' as ShipmentStatus,
+    expectedItems: [
+      { id: 'EI-008', productId: 'ALF-ASR', productName: 'Adjustable Square & Round Pole Mounting', partNumber: 'ALF-ASR', expectedQuantity: 100, receivedQuantity: 0, status: 'pending' },
+      { id: 'EI-009', productId: 'ALF-LS600-T3-G1-FSK-PSC-ASR', productName: 'ALF Flexible Area Light, 60000Lm', partNumber: 'ALF LS600', expectedQuantity: 25, receivedQuantity: 0, status: 'pending' },
+      { id: 'EI-010', productId: 'PC-2', productName: 'Twist-lock Photocell', partNumber: 'PC-2', expectedQuantity: 50, receivedQuantity: 0, status: 'pending' },
+    ],
+    items: [
+      { id: 'SLI-008', productId: 'ALF-ASR', productName: 'Adjustable Square & Round Pole Mounting', partNumber: 'ALF-ASR', expectedQuantity: 100, receivedQuantity: 0 },
+      { id: 'SLI-009', productId: 'ALF-LS600-T3-G1-FSK-PSC-ASR', productName: 'ALF Flexible Area Light, 60000Lm', partNumber: 'ALF LS600', expectedQuantity: 25, receivedQuantity: 0 },
+      { id: 'SLI-010', productId: 'PC-2', productName: 'Twist-lock Photocell', partNumber: 'PC-2', expectedQuantity: 50, receivedQuantity: 0 },
+    ],
+    itemCount: 3,
+    expectedQuantity: 175,
+    createdAt: '2024-12-24T09:00:00Z',
+    updatedAt: '2024-12-24T09:00:00Z',
+  },
 ];
+
+// -----------------------------------------------------------------------------
+// Mock Delivery Issues
+// -----------------------------------------------------------------------------
+
+export const mockDeliveryIssues: DeliveryIssue[] = [
+  {
+    id: 'DI-001',
+    issueNumber: 'DI-2024-001',
+    shipmentId: 'SHIP-001',
+    poNumber: 'PO-2024-782',
+    vendorId: 'CO-012',
+    vendorName: 'Legrand North America',
+    vendorEmail: 'jvendor@legrand.com',
+    vendorContact: 'John Vendor',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    status: 'OPEN' as DeliveryIssueStatus,
+    items: [
+      {
+        id: 'DII-001',
+        productId: 'ALF-LS600-T3-G1-FSK-PSC-ASR',
+        productName: 'ALF Flexible Area Light, 60000Lm',
+        partNumber: 'ALF LS600',
+        issueType: 'DAMAGED' as DeliveryIssueType,
+        quantity: 5,
+        description: 'Box crushed during shipping, visible damage to fixtures',
+      },
+      {
+        id: 'DII-002',
+        productId: 'ALF-ASR',
+        productName: 'Adjustable Square & Round Pole Mounting',
+        partNumber: 'ALF-ASR',
+        issueType: 'MISSING' as DeliveryIssueType,
+        quantity: 10,
+        description: 'Short shipped - only received 190 of 200 expected',
+      },
+    ],
+    totalAffectedQuantity: 15,
+    reportedAt: '2024-12-15T14:30:00Z',
+    reportedBy: 'Sarah Johnson',
+    createdAt: '2024-12-15T14:30:00Z',
+    updatedAt: '2024-12-15T14:30:00Z',
+    notes: 'Photos taken and uploaded to vendor portal',
+  },
+  {
+    id: 'DI-002',
+    issueNumber: 'DI-2024-002',
+    shipmentId: 'SHIP-002',
+    poNumber: 'PO-2024-783',
+    vendorId: 'CO-004',
+    vendorName: 'Johnson Controls',
+    vendorEmail: 'ssupplier@jci.com',
+    vendorContact: 'Sarah Supplier',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    status: 'COMMUNICATED' as DeliveryIssueStatus,
+    items: [
+      {
+        id: 'DII-003',
+        productId: 'PC-2',
+        productName: 'Twist-lock Photocell',
+        partNumber: 'PC-2',
+        issueType: 'WRONG_ITEM' as DeliveryIssueType,
+        quantity: 25,
+        description: 'Received 277V version instead of 480V',
+      },
+    ],
+    totalAffectedQuantity: 25,
+    communicatedAt: '2024-12-19T10:00:00Z',
+    communicatedBy: 'David Park',
+    communicationMethod: 'EMAIL',
+    communicationNotes: 'Email sent to vendor with photos and order details. Ref #JCI-2024-1219',
+    reportedAt: '2024-12-18T16:00:00Z',
+    reportedBy: 'Mike Chen',
+    createdAt: '2024-12-18T16:00:00Z',
+    updatedAt: '2024-12-19T10:00:00Z',
+    notes: 'Awaiting vendor response for replacement shipment',
+  },
+  {
+    id: 'DI-003',
+    issueNumber: 'DI-2024-003',
+    shipmentId: 'SHIP-003',
+    poNumber: 'PO-2024-785',
+    vendorId: 'CO-012',
+    vendorName: 'Legrand North America',
+    vendorEmail: 'jvendor@legrand.com',
+    vendorContact: 'John Vendor',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    status: 'RESOLVED' as DeliveryIssueStatus,
+    items: [
+      {
+        id: 'DII-004',
+        productId: 'MS-DCE-09-L7-W',
+        productName: 'Motion Sensor, DC',
+        partNumber: 'MS-DCE-09-L7-W',
+        issueType: 'OVERAGE' as DeliveryIssueType,
+        quantity: 12,
+        description: 'Received 112 units instead of expected 100',
+      },
+    ],
+    totalAffectedQuantity: 12,
+    communicatedAt: '2024-12-21T09:00:00Z',
+    communicatedBy: 'Sarah Johnson',
+    communicationMethod: 'EMAIL',
+    communicationNotes: 'Vendor confirmed overage, will deduct from next order',
+    resolvedAt: '2024-12-22T11:00:00Z',
+    resolvedBy: 'Sarah Johnson',
+    resolutionType: 'CREDIT',
+    resolutionNotes: 'Vendor will apply credit of $276.00 to next invoice',
+    creditAmount: 276.00,
+    reportedAt: '2024-12-20T15:00:00Z',
+    reportedBy: 'James Wilson',
+    createdAt: '2024-12-20T15:00:00Z',
+    updatedAt: '2024-12-22T11:00:00Z',
+    activities: [
+      {
+        id: 'ACT-001',
+        type: 'CREATED',
+        timestamp: '2024-12-20T15:00:00Z',
+        createdBy: 'James Wilson',
+        content: 'Delivery issue reported: Received 112 units instead of expected 100',
+      },
+      {
+        id: 'ACT-002',
+        type: 'COMMUNICATED',
+        timestamp: '2024-12-21T09:00:00Z',
+        createdBy: 'Sarah Johnson',
+        content: 'Vendor confirmed overage, will deduct from next order',
+        metadata: { method: 'EMAIL' },
+      },
+      {
+        id: 'ACT-003',
+        type: 'NOTE_ADDED',
+        timestamp: '2024-12-21T14:30:00Z',
+        createdBy: 'Sarah Johnson',
+        content: 'Vendor contact confirmed receipt of our email. They will process the credit within 5 business days.',
+      },
+      {
+        id: 'ACT-004',
+        type: 'RESOLVED',
+        timestamp: '2024-12-22T11:00:00Z',
+        createdBy: 'Sarah Johnson',
+        content: 'Vendor will apply credit of $276.00 to next invoice',
+        metadata: { resolutionType: 'CREDIT', creditAmount: 276.00 },
+      },
+    ],
+  },
+  {
+    id: 'DI-004',
+    issueNumber: 'DI-2024-004',
+    shipmentId: 'SHIP-001',
+    poNumber: 'PO-2024-782',
+    vendorId: 'CO-012',
+    vendorName: 'Legrand North America',
+    vendorEmail: 'jvendor@legrand.com',
+    vendorContact: 'John Vendor',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    status: 'CLOSED' as DeliveryIssueStatus,
+    items: [
+      {
+        id: 'DII-005',
+        productId: 'ALF-LS600-T3-G1-FSK-PSC-ASR',
+        productName: 'ALF Flexible Area Light, 60000Lm',
+        partNumber: 'ALF LS600',
+        issueType: 'DAMAGED' as DeliveryIssueType,
+        quantity: 2,
+        description: 'Minor cosmetic damage to packaging',
+      },
+    ],
+    totalAffectedQuantity: 2,
+    communicatedAt: '2024-12-10T09:00:00Z',
+    communicatedBy: 'Sarah Johnson',
+    communicationMethod: 'PHONE',
+    communicationNotes: 'Called vendor, they agreed to accept return',
+    resolvedAt: '2024-12-12T14:00:00Z',
+    resolvedBy: 'Sarah Johnson',
+    resolutionType: 'REPLACEMENT',
+    resolutionNotes: 'Replacement units received on 12/12',
+    replacementShipmentId: 'SHIP-REP-001',
+    reportedAt: '2024-12-08T10:00:00Z',
+    reportedBy: 'Tony Martinez',
+    createdAt: '2024-12-08T10:00:00Z',
+    updatedAt: '2024-12-12T14:00:00Z',
+  },
+];
+
+// Helper functions for delivery issues
+export function getDeliveryIssuesByWarehouse(warehouseId: string): DeliveryIssue[] {
+  return mockDeliveryIssues.filter(di => di.warehouseId === warehouseId);
+}
+
+export function getDeliveryIssueById(id: string): DeliveryIssue | undefined {
+  return mockDeliveryIssues.find(di => di.id === id);
+}
+
+export function getDeliveryIssuesByShipment(shipmentId: string): DeliveryIssue[] {
+  return mockDeliveryIssues.filter(di => di.shipmentId === shipmentId);
+}
+
+export function updateDeliveryIssue(id: string, updates: Partial<DeliveryIssue>): DeliveryIssue | null {
+  const index = mockDeliveryIssues.findIndex(di => di.id === id);
+  if (index === -1) return null;
+
+  mockDeliveryIssues[index] = {
+    ...mockDeliveryIssues[index],
+    ...updates,
+    updatedAt: new Date().toISOString(),
+  };
+
+  return mockDeliveryIssues[index];
+}
+
+export function createDeliveryIssue(issue: Omit<DeliveryIssue, 'id' | 'issueNumber' | 'createdAt' | 'updatedAt'>): DeliveryIssue {
+  const newIssue: DeliveryIssue = {
+    ...issue,
+    id: `DI-${Date.now()}`,
+    issueNumber: `DI-2024-${String(mockDeliveryIssues.length + 1).padStart(3, '0')}`,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  mockDeliveryIssues.push(newIssue);
+  return newIssue;
+}
 
 // -----------------------------------------------------------------------------
 // Mock RMAs
@@ -1561,6 +3518,19 @@ export function updateShipmentStatus(shipmentId: string, status: ShipmentStatus)
   return mockIncomingShipments[index];
 }
 
+// Update shipment details
+export function updateShipmentDetails(shipmentId: string, updates: Partial<IncomingShipment>): IncomingShipment | undefined {
+  const index = mockIncomingShipments.findIndex(s => s.id === shipmentId);
+  if (index === -1) return undefined;
+
+  mockIncomingShipments[index] = {
+    ...mockIncomingShipments[index],
+    ...updates,
+    updatedAt: new Date().toISOString(),
+  };
+  return mockIncomingShipments[index];
+}
+
 // Add a new incoming shipment
 export function addIncomingShipment(shipment: Omit<IncomingShipment, 'id' | 'createdAt' | 'updatedAt'>): IncomingShipment {
   const newShipment: IncomingShipment = {
@@ -1576,6 +3546,68 @@ export function addIncomingShipment(shipment: Omit<IncomingShipment, 'id' | 'cre
 // Get shipment by ID
 export function getShipmentById(id: string): IncomingShipment | undefined {
   return mockIncomingShipments.find(s => s.id === id);
+}
+
+// Add a user assignment to an incoming shipment
+export function addIncomingShipmentAssignment(
+  shipmentId: string,
+  userId: string,
+  role: AssignedUserRole,
+  assignedBy?: string
+): IncomingShipment | undefined {
+  const shipment = getShipmentById(shipmentId);
+  if (!shipment) return undefined;
+
+  const user = mockWarehouseUsers.find(u => u.id === userId);
+  if (!user) return undefined;
+
+  const newAssignment: AssignedUser = {
+    id: `assign-${Date.now()}`,
+    userId: user.id,
+    userName: user.name,
+    userEmail: user.email,
+    role,
+    assignedAt: new Date().toISOString(),
+    assignedBy,
+  };
+
+  if (role === 'manager') {
+    const currentManagers = shipment.assignedManagers || [];
+    // Don't add if already assigned
+    if (currentManagers.some(m => m.userId === userId)) return shipment;
+    return updateShipmentDetails(shipmentId, {
+      assignedManagers: [...currentManagers, newAssignment],
+    });
+  } else {
+    const currentWorkers = shipment.assignedWorkers || [];
+    // Don't add if already assigned
+    if (currentWorkers.some(w => w.userId === userId)) return shipment;
+    return updateShipmentDetails(shipmentId, {
+      assignedWorkers: [...currentWorkers, newAssignment],
+    });
+  }
+}
+
+// Remove a user assignment from an incoming shipment
+export function removeIncomingShipmentAssignment(
+  shipmentId: string,
+  assignmentId: string,
+  role: AssignedUserRole
+): IncomingShipment | undefined {
+  const shipment = getShipmentById(shipmentId);
+  if (!shipment) return undefined;
+
+  if (role === 'manager') {
+    const updatedManagers = (shipment.assignedManagers || []).filter(m => m.id !== assignmentId);
+    return updateShipmentDetails(shipmentId, {
+      assignedManagers: updatedManagers,
+    });
+  } else {
+    const updatedWorkers = (shipment.assignedWorkers || []).filter(w => w.id !== assignmentId);
+    return updateShipmentDetails(shipmentId, {
+      assignedWorkers: updatedWorkers,
+    });
+  }
 }
 
 // Complete receiving for a shipment (update items and mark as received)
@@ -1821,6 +3853,20 @@ export function addShipmentRequest(request: Omit<ShipmentRequest, 'id' | 'reques
   return newRequest;
 }
 
+// Save a draft shipment request
+export function saveDraftShipmentRequest(request: Omit<ShipmentRequest, 'id' | 'requestNumber' | 'createdAt' | 'updatedAt' | 'status'>): ShipmentRequest {
+  const newRequest: ShipmentRequest = {
+    ...request,
+    id: `REQ-${String(mockShipmentRequests.length + 1).padStart(3, '0')}`,
+    requestNumber: `SR-${new Date().getFullYear()}-${String(mockShipmentRequests.length + 1).padStart(3, '0')}`,
+    status: 'DRAFT',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  mockShipmentRequests.push(newRequest);
+  return newRequest;
+}
+
 // Update shipment request status
 export function updateShipmentRequestStatus(
   requestId: string,
@@ -1847,6 +3893,114 @@ export function getAllShipmentRequests(): ShipmentRequest[] {
 // Get shipment request by ID
 export function getShipmentRequestById(id: string): ShipmentRequest | undefined {
   return mockShipmentRequests.find(r => r.id === id);
+}
+
+// Get shipment requests for a specific manufacturer
+export function getShipmentRequestsForManufacturer(manufacturerId: string): ShipmentRequest[] {
+  return mockShipmentRequests
+    .filter(r => r.vendorId === manufacturerId)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+// -----------------------------------------------------------------------------
+// Inventory Functions
+// -----------------------------------------------------------------------------
+
+// Get inventory by ID
+export function getInventoryById(id: string): Inventory | undefined {
+  return mockInventory.find(inv => inv.id === id);
+}
+
+// Update inventory item
+export function updateInventory(id: string, updates: Partial<Inventory>): Inventory | undefined {
+  const index = mockInventory.findIndex(inv => inv.id === id);
+  if (index === -1) return undefined;
+
+  mockInventory[index] = {
+    ...mockInventory[index],
+    ...updates,
+    updatedAt: new Date().toISOString(),
+  };
+  return mockInventory[index];
+}
+
+// Add overflow location to inventory
+export function addOverflowLocation(
+  inventoryId: string,
+  location: InventoryStorageLocation
+): Inventory | undefined {
+  const index = mockInventory.findIndex(inv => inv.id === inventoryId);
+  if (index === -1) return undefined;
+
+  const existingOverflow = mockInventory[index].overflowLocations || [];
+  mockInventory[index] = {
+    ...mockInventory[index],
+    overflowLocations: [...existingOverflow, location],
+    updatedAt: new Date().toISOString(),
+  };
+  return mockInventory[index];
+}
+
+// Remove overflow location from inventory
+export function removeOverflowLocation(
+  inventoryId: string,
+  locationId: string
+): Inventory | undefined {
+  const index = mockInventory.findIndex(inv => inv.id === inventoryId);
+  if (index === -1) return undefined;
+
+  const existingOverflow = mockInventory[index].overflowLocations || [];
+  mockInventory[index] = {
+    ...mockInventory[index],
+    overflowLocations: existingOverflow.filter(loc => loc.id !== locationId),
+    updatedAt: new Date().toISOString(),
+  };
+  return mockInventory[index];
+}
+
+// Update primary location
+export function updatePrimaryLocation(
+  inventoryId: string,
+  location: InventoryStorageLocation
+): Inventory | undefined {
+  const index = mockInventory.findIndex(inv => inv.id === inventoryId);
+  if (index === -1) return undefined;
+
+  mockInventory[index] = {
+    ...mockInventory[index],
+    primaryLocation: location,
+    updatedAt: new Date().toISOString(),
+  };
+  return mockInventory[index];
+}
+
+// Get all products from inventory (unique products)
+export interface Product {
+  id: string;
+  name: string;
+  partNumber: string;
+  description?: string;
+  factoryId: string;
+  factoryName: string;
+}
+
+export function getAllProducts(): Product[] {
+  const productsMap = new Map<string, Product>();
+
+  mockInventory.forEach(inv => {
+    if (!productsMap.has(inv.productId)) {
+      productsMap.set(inv.productId, {
+        id: inv.productId,
+        name: inv.productName,
+        partNumber: inv.partNumber,
+        description: inv.description,
+        factoryId: inv.factoryId,
+        factoryName: inv.factoryName,
+      });
+    }
+  });
+
+  return Array.from(productsMap.values());
 }
 
 // -----------------------------------------------------------------------------
@@ -2286,6 +4440,113 @@ export function updateCycleCountLineItem(
       (1 - Math.abs(cycleCount.totalVariance || 0) / cycleCount.totalSystemQuantity) * 10000
     ) / 100;
   }
+
+  cycleCount.updatedAt = new Date().toISOString();
+  mockCycleCounts[countIndex] = cycleCount;
+
+  return cycleCount;
+}
+
+// Add an activity to a cycle count
+export function addCycleCountActivity(
+  countId: string,
+  type: CycleCountActivityType,
+  createdBy: string,
+  createdByName: string,
+  content?: string,
+  metadata?: CycleCountActivity['metadata']
+): CycleCount | undefined {
+  const index = mockCycleCounts.findIndex(cc => cc.id === countId);
+  if (index === -1) return undefined;
+
+  const cycleCount = mockCycleCounts[index];
+
+  if (!cycleCount.activities) {
+    cycleCount.activities = [];
+  }
+
+  const activity: CycleCountActivity = {
+    id: `CCA-${countId}-${cycleCount.activities.length + 1}`,
+    cycleCountId: countId,
+    type,
+    timestamp: new Date().toISOString(),
+    createdBy,
+    createdByName,
+    content,
+    metadata,
+  };
+
+  cycleCount.activities.push(activity);
+  cycleCount.updatedAt = new Date().toISOString();
+  mockCycleCounts[index] = cycleCount;
+
+  return cycleCount;
+}
+
+// Update line item with inventory issues (like delivery issues)
+export function updateCycleCountLineItemWithIssues(
+  countId: string,
+  lineItemId: string,
+  countedQuantity: number,
+  issues: CycleCountInventoryIssue[],
+  notes?: string,
+  countedBy?: string,
+  countedByName?: string
+): CycleCount | undefined {
+  const countIndex = mockCycleCounts.findIndex(cc => cc.id === countId);
+  if (countIndex === -1) return undefined;
+
+  const cycleCount = mockCycleCounts[countIndex];
+  const lineItemIndex = cycleCount.lineItems.findIndex(li => li.id === lineItemId);
+  if (lineItemIndex === -1) return undefined;
+
+  const lineItem = cycleCount.lineItems[lineItemIndex];
+
+  // Update line item
+  cycleCount.lineItems[lineItemIndex] = {
+    ...lineItem,
+    countedQuantity,
+    variance: countedQuantity - lineItem.systemQuantity,
+    variancePercent: lineItem.systemQuantity > 0
+      ? Math.round(((countedQuantity - lineItem.systemQuantity) / lineItem.systemQuantity) * 10000) / 100
+      : 0,
+    status: 'counted',
+    isMatch: countedQuantity === lineItem.systemQuantity && issues.length === 0,
+    countedBy: countedBy || 'current-user',
+    countedByName: countedByName || 'Current User',
+    countedAt: new Date().toISOString(),
+    inventoryIssues: issues.length > 0 ? issues : undefined,
+    notes,
+  };
+
+  // Recalculate stats
+  cycleCount.countedItems = cycleCount.lineItems.filter(li =>
+    li.status === 'counted' || li.status === 'verified' || li.status === 'adjusted'
+  ).length;
+  cycleCount.itemsWithVariance = cycleCount.lineItems.filter(li =>
+    (li.variance !== undefined && li.variance !== 0) ||
+    (li.inventoryIssues && li.inventoryIssues.length > 0)
+  ).length;
+
+  // Add activity
+  addCycleCountActivity(
+    countId,
+    issues.length > 0 ? 'DISCREPANCY_REPORTED' : 'ITEM_COUNTED',
+    countedBy || 'current-user',
+    countedByName || 'Current User',
+    issues.length > 0
+      ? `Counted ${countedQuantity} (variance: ${countedQuantity - lineItem.systemQuantity}) with ${issues.length} issue(s) reported`
+      : `Counted ${countedQuantity} (variance: ${countedQuantity - lineItem.systemQuantity})`,
+    {
+      lineItemId,
+      productName: lineItem.productName,
+      partNumber: lineItem.partNumber,
+      systemQuantity: lineItem.systemQuantity,
+      countedQuantity,
+      variance: countedQuantity - lineItem.systemQuantity,
+      issues: issues.length > 0 ? issues : undefined,
+    }
+  );
 
   cycleCount.updatedAt = new Date().toISOString();
   mockCycleCounts[countIndex] = cycleCount;
@@ -2954,3 +5215,720 @@ export const mockManufacturerProfiles: ManufacturerProfile[] = [
     updatedAt: '2024-08-01T10:00:00Z',
   },
 ];
+
+// ============================================================================
+// Recurring Shipments
+// ============================================================================
+
+export const mockRecurringShipments: RecurringShipment[] = [
+  {
+    id: 'RS-001',
+    name: 'Weekly Legrand Restock',
+    vendorId: 'CO-012',
+    vendorName: 'Legrand North America',
+    vendorContact: 'John Vendor',
+    vendorEmail: 'jvendor@legrand.com',
+    warehouseId: 'WH-001',
+    warehouseName: 'Main Distribution Center',
+    carrier: 'FedEx Freight',
+    expectedItems: [
+      {
+        id: 'EI-R001-1',
+        productId: 'ALF-LS600',
+        productName: 'ALF Flexible Area Light, 60000Lm',
+        partNumber: 'ALF LS600',
+        expectedQuantity: 25,
+        receivedQuantity: 0,
+        status: 'pending',
+      },
+      {
+        id: 'EI-R001-2',
+        productId: 'WMT-LITE',
+        productName: 'Wattstopper Multi-Tech Sensor',
+        partNumber: 'WMT-LITE',
+        expectedQuantity: 50,
+        receivedQuantity: 0,
+        status: 'pending',
+      },
+    ],
+    notes: 'Regular weekly restock for high-velocity items',
+    recurrencePattern: {
+      frequency: 'WEEKLY',
+      interval: 1,
+      dayOfWeek: 'TUESDAY',
+    },
+    startDate: '2024-01-01',
+    status: 'ACTIVE',
+    lastGeneratedDate: '2024-12-17',
+    nextExpectedDate: '2024-12-24',
+    generatedShipmentIds: ['SH-R001-001', 'SH-R001-002', 'SH-R001-003'],
+    createdAt: '2024-01-01T10:00:00Z',
+    updatedAt: '2024-12-17T10:00:00Z',
+  },
+  {
+    id: 'RS-002',
+    name: 'Monthly JCI First Monday',
+    vendorId: 'CO-004',
+    vendorName: 'Johnson Controls',
+    vendorContact: 'Sarah Supplier',
+    vendorEmail: 'ssupplier@jci.com',
+    warehouseId: 'WH-001',
+    warehouseName: 'Main Distribution Center',
+    carrier: 'UPS Freight',
+    expectedItems: [
+      {
+        id: 'EI-R002-1',
+        productId: 'JCI-T40',
+        productName: 'Thermostat T40 Series',
+        partNumber: 'T40-001',
+        expectedQuantity: 100,
+        receivedQuantity: 0,
+        status: 'pending',
+      },
+    ],
+    notes: 'Monthly thermostat restock - first Monday of each month',
+    recurrencePattern: {
+      frequency: 'MONTHLY_WEEK',
+      interval: 1,
+      dayOfWeek: 'MONDAY',
+      weekOfMonth: 'FIRST',
+    },
+    startDate: '2024-01-01',
+    status: 'ACTIVE',
+    lastGeneratedDate: '2024-12-02',
+    nextExpectedDate: '2025-01-06',
+    generatedShipmentIds: ['SH-R002-001', 'SH-R002-002'],
+    createdAt: '2024-01-01T10:00:00Z',
+    updatedAt: '2024-12-02T10:00:00Z',
+  },
+  {
+    id: 'RS-003',
+    name: 'Bi-weekly Safety Equipment',
+    vendorId: 'CO-003',
+    vendorName: 'Eaton Corporation',
+    warehouseId: 'WH-001',
+    warehouseName: 'Main Distribution Center',
+    expectedItems: [
+      {
+        id: 'EI-R003-1',
+        productId: 'EAT-CB100',
+        productName: 'Circuit Breaker 100A',
+        partNumber: 'CB-100A',
+        expectedQuantity: 20,
+        receivedQuantity: 0,
+        status: 'pending',
+      },
+    ],
+    recurrencePattern: {
+      frequency: 'BIWEEKLY',
+      interval: 1,
+      dayOfWeek: 'FRIDAY',
+    },
+    startDate: '2024-06-01',
+    status: 'PAUSED',
+    lastGeneratedDate: '2024-11-15',
+    nextExpectedDate: '2024-11-29',
+    generatedShipmentIds: ['SH-R003-001'],
+    createdAt: '2024-06-01T10:00:00Z',
+    updatedAt: '2024-11-15T10:00:00Z',
+  },
+];
+
+// Helper function to calculate the next date based on recurrence pattern
+export function calculateNextDate(pattern: RecurrencePattern, fromDate: Date = new Date()): Date {
+  const result = new Date(fromDate);
+
+  switch (pattern.frequency) {
+    case 'DAILY':
+      result.setDate(result.getDate() + pattern.interval);
+      break;
+
+    case 'WEEKLY':
+    case 'BIWEEKLY': {
+      const daysOfWeek = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+      const targetDay = pattern.dayOfWeek ? daysOfWeek.indexOf(pattern.dayOfWeek) : 1;
+      const currentDay = result.getDay();
+      let daysToAdd = targetDay - currentDay;
+      if (daysToAdd <= 0) daysToAdd += 7;
+      if (pattern.frequency === 'BIWEEKLY') daysToAdd += 7 * (pattern.interval - 1);
+      result.setDate(result.getDate() + daysToAdd);
+      break;
+    }
+
+    case 'MONTHLY': {
+      result.setMonth(result.getMonth() + pattern.interval);
+      if (pattern.dayOfMonth) {
+        result.setDate(Math.min(pattern.dayOfMonth, new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate()));
+      }
+      break;
+    }
+
+    case 'MONTHLY_WEEK': {
+      // Move to next month
+      result.setMonth(result.getMonth() + pattern.interval);
+      result.setDate(1);
+
+      // Find the target week and day
+      const daysOfWeek = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+      const targetDay = pattern.dayOfWeek ? daysOfWeek.indexOf(pattern.dayOfWeek) : 1;
+      const weekNumber = pattern.weekOfMonth === 'FIRST' ? 1 : pattern.weekOfMonth === 'SECOND' ? 2 :
+                        pattern.weekOfMonth === 'THIRD' ? 3 : pattern.weekOfMonth === 'FOURTH' ? 4 : 5;
+
+      // Find first occurrence of target day
+      while (result.getDay() !== targetDay) {
+        result.setDate(result.getDate() + 1);
+      }
+
+      // Move to the correct week
+      if (pattern.weekOfMonth === 'LAST') {
+        // Find last occurrence
+        const month = result.getMonth();
+        while (result.getMonth() === month) {
+          result.setDate(result.getDate() + 7);
+        }
+        result.setDate(result.getDate() - 7);
+      } else {
+        result.setDate(result.getDate() + (weekNumber - 1) * 7);
+      }
+      break;
+    }
+  }
+
+  return result;
+}
+
+// Generate a human-readable description of the recurrence pattern
+export function getRecurrenceDescription(pattern: RecurrencePattern): string {
+  const dayLabels: Record<string, string> = {
+    SUNDAY: 'Sunday', MONDAY: 'Monday', TUESDAY: 'Tuesday', WEDNESDAY: 'Wednesday',
+    THURSDAY: 'Thursday', FRIDAY: 'Friday', SATURDAY: 'Saturday'
+  };
+  const weekLabels: Record<string, string> = {
+    FIRST: 'first', SECOND: 'second', THIRD: 'third', FOURTH: 'fourth', LAST: 'last'
+  };
+
+  switch (pattern.frequency) {
+    case 'DAILY':
+      return pattern.interval === 1 ? 'Every day' : `Every ${pattern.interval} days`;
+    case 'WEEKLY':
+      return pattern.interval === 1
+        ? `Every ${dayLabels[pattern.dayOfWeek || 'MONDAY']}`
+        : `Every ${pattern.interval} weeks on ${dayLabels[pattern.dayOfWeek || 'MONDAY']}`;
+    case 'BIWEEKLY':
+      return `Every 2 weeks on ${dayLabels[pattern.dayOfWeek || 'MONDAY']}`;
+    case 'MONTHLY':
+      return pattern.interval === 1
+        ? `Monthly on the ${pattern.dayOfMonth}${getOrdinalSuffix(pattern.dayOfMonth || 1)}`
+        : `Every ${pattern.interval} months on the ${pattern.dayOfMonth}${getOrdinalSuffix(pattern.dayOfMonth || 1)}`;
+    case 'MONTHLY_WEEK':
+      return pattern.interval === 1
+        ? `Monthly on the ${weekLabels[pattern.weekOfMonth || 'FIRST']} ${dayLabels[pattern.dayOfWeek || 'MONDAY']}`
+        : `Every ${pattern.interval} months on the ${weekLabels[pattern.weekOfMonth || 'FIRST']} ${dayLabels[pattern.dayOfWeek || 'MONDAY']}`;
+    default:
+      return 'Custom schedule';
+  }
+}
+
+function getOrdinalSuffix(n: number): string {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return s[(v - 20) % 10] || s[v] || s[0];
+}
+
+// Get all recurring shipments
+export function getAllRecurringShipments(): RecurringShipment[] {
+  return [...mockRecurringShipments];
+}
+
+// Get a single recurring shipment by ID
+export function getRecurringShipmentById(id: string): RecurringShipment | undefined {
+  return mockRecurringShipments.find(rs => rs.id === id);
+}
+
+// Add a new recurring shipment
+export function addRecurringShipment(data: Omit<RecurringShipment, 'id' | 'createdAt' | 'updatedAt' | 'generatedShipmentIds'>): RecurringShipment {
+  const id = `RS-${String(mockRecurringShipments.length + 1).padStart(3, '0')}`;
+  const now = new Date().toISOString();
+
+  const newRecurring: RecurringShipment = {
+    ...data,
+    id,
+    generatedShipmentIds: [],
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  mockRecurringShipments.push(newRecurring);
+  return newRecurring;
+}
+
+// Update a recurring shipment
+export function updateRecurringShipment(id: string, updates: Partial<RecurringShipment>): RecurringShipment | undefined {
+  const index = mockRecurringShipments.findIndex(rs => rs.id === id);
+  if (index === -1) return undefined;
+
+  mockRecurringShipments[index] = {
+    ...mockRecurringShipments[index],
+    ...updates,
+    updatedAt: new Date().toISOString(),
+  };
+
+  return mockRecurringShipments[index];
+}
+
+// Update recurring shipment status
+export function updateRecurringShipmentStatus(id: string, status: RecurringShipmentStatus): RecurringShipment | undefined {
+  return updateRecurringShipment(id, { status });
+}
+
+// Generate a shipment from a recurring template
+export function generateShipmentFromRecurring(recurringId: string, eta?: string, status: ShipmentStatus = 'PENDING'): IncomingShipment | undefined {
+  const recurring = getRecurringShipmentById(recurringId);
+  if (!recurring || recurring.status !== 'ACTIVE') return undefined;
+
+  const expectedDate = eta || recurring.nextExpectedDate || new Date().toISOString();
+
+  // Create the shipment using existing function
+  const shipmentData: Omit<IncomingShipment, 'id' | 'createdAt' | 'updatedAt'> = {
+    poNumber: `PO-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 900) + 100)}`,
+    vendorId: recurring.vendorId,
+    vendorName: recurring.vendorName,
+    vendorContact: recurring.vendorContact,
+    vendorEmail: recurring.vendorEmail,
+    warehouseId: recurring.warehouseId,
+    warehouseName: recurring.warehouseName,
+    carrier: recurring.carrier,
+    eta: expectedDate,
+    status: status,
+    expectedItems: recurring.expectedItems.map(item => ({
+      ...item,
+      id: `EI-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      receivedQuantity: 0,
+      status: 'pending' as const,
+    })),
+    items: [],
+    itemCount: recurring.expectedItems.length,
+    expectedQuantity: recurring.expectedItems.reduce((sum, item) => sum + item.expectedQuantity, 0),
+    notes: recurring.notes,
+    recurringShipmentId: recurring.id,
+  };
+
+  const newShipment = addIncomingShipment(shipmentData);
+
+  // Update the recurring shipment
+  const nextDate = calculateNextDate(recurring.recurrencePattern, new Date(expectedDate));
+  updateRecurringShipment(recurringId, {
+    lastGeneratedDate: expectedDate.split('T')[0],
+    nextExpectedDate: nextDate.toISOString().split('T')[0],
+    generatedShipmentIds: [...recurring.generatedShipmentIds, newShipment.id],
+  });
+
+  return newShipment;
+}
+
+// Get all shipments generated from a recurring shipment
+export function getShipmentsForRecurring(recurringId: string): IncomingShipment[] {
+  return mockIncomingShipments.filter(s => s.recurringShipmentId === recurringId);
+}
+
+// Get all scheduled dates for a recurring shipment within a date range
+export function getRecurringShipmentDates(
+  recurring: RecurringShipment,
+  rangeStart: Date,
+  rangeEnd: Date
+): Date[] {
+  if (recurring.status !== 'ACTIVE') return [];
+
+  const dates: Date[] = [];
+  let currentDate = new Date(recurring.startDate);
+
+  // If recurring has an end date before our range starts, return empty
+  if (recurring.endDate && new Date(recurring.endDate) < rangeStart) {
+    return [];
+  }
+
+  // Advance to start of our range (or use start date if it's within range)
+  while (currentDate < rangeStart) {
+    currentDate = calculateNextDate(recurring.recurrencePattern, currentDate);
+  }
+
+  // Collect dates within range
+  while (currentDate <= rangeEnd) {
+    // Check if within recurring's own date range
+    if (recurring.endDate && currentDate > new Date(recurring.endDate)) {
+      break;
+    }
+    dates.push(new Date(currentDate));
+    currentDate = calculateNextDate(recurring.recurrencePattern, currentDate);
+  }
+
+  return dates;
+}
+
+// Get all deliveries and recurring schedules for a specific month
+export function getDeliveriesForMonth(year: number, month: number): {
+  oneOff: { date: string; shipment: IncomingShipment }[];
+  recurring: { date: string; recurring: RecurringShipment }[];
+} {
+  const startDate = new Date(year, month, 1);
+  const endDate = new Date(year, month + 1, 0); // Last day of month
+
+  // Get one-off shipments (not from recurring, or any shipment with an ETA in this month)
+  const oneOff = mockIncomingShipments
+    .filter(shipment => {
+      const eta = new Date(shipment.eta);
+      return eta >= startDate && eta <= endDate &&
+             !['RECEIVED', 'CANCELLED'].includes(shipment.status);
+    })
+    .map(shipment => ({
+      date: shipment.eta.split('T')[0],
+      shipment,
+    }));
+
+  // Get recurring schedules
+  const recurring: { date: string; recurring: RecurringShipment }[] = [];
+  mockRecurringShipments.forEach(rs => {
+    const dates = getRecurringShipmentDates(rs, startDate, endDate);
+    dates.forEach(date => {
+      recurring.push({
+        date: date.toISOString().split('T')[0],
+        recurring: rs,
+      });
+    });
+  });
+
+  return { oneOff, recurring };
+}
+
+// Check if any recurring shipments are late (next expected date has passed)
+export function getLateRecurringShipments(): RecurringShipment[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return mockRecurringShipments.filter(rs => {
+    if (rs.status !== 'ACTIVE' || !rs.nextExpectedDate) return false;
+    const nextDate = new Date(rs.nextExpectedDate);
+    nextDate.setHours(0, 0, 0, 0);
+    return nextDate < today;
+  });
+}
+
+// Create recurring shipment from a draft shipment
+export function convertToRecurringShipment(
+  shipmentId: string,
+  name: string,
+  pattern: RecurrencePattern,
+  startDate: string,
+  endDate?: string
+): RecurringShipment | undefined {
+  const shipment = getShipmentById(shipmentId);
+  if (!shipment) return undefined;
+
+  // Calculate next expected date
+  const nextDate = calculateNextDate(pattern, new Date(startDate));
+
+  const recurringData: Omit<RecurringShipment, 'id' | 'createdAt' | 'updatedAt' | 'generatedShipmentIds'> = {
+    name,
+    vendorId: shipment.vendorId,
+    vendorName: shipment.vendorName,
+    vendorContact: shipment.vendorContact,
+    vendorEmail: shipment.vendorEmail,
+    warehouseId: shipment.warehouseId,
+    warehouseName: shipment.warehouseName,
+    carrier: shipment.carrier,
+    expectedItems: shipment.expectedItems,
+    notes: shipment.notes,
+    recurrencePattern: pattern,
+    startDate,
+    endDate,
+    status: 'ACTIVE',
+    nextExpectedDate: nextDate.toISOString().split('T')[0],
+  };
+
+  const recurring = addRecurringShipment(recurringData);
+
+  // Link the original shipment to the recurring
+  updateShipmentDetails(shipmentId, { recurringShipmentId: recurring.id });
+
+  // Add the original shipment ID to the recurring's list
+  updateRecurringShipment(recurring.id, {
+    generatedShipmentIds: [shipmentId],
+  });
+
+  return recurring;
+}
+
+// -----------------------------------------------------------------------------
+// Recurring Cycle Count Jobs
+// -----------------------------------------------------------------------------
+
+export const mockRecurringCycleCountJobs: RecurringCycleCountJob[] = [
+  {
+    id: 'RCC-001',
+    name: 'Weekly Fast Movers Count',
+    description: 'Count top-selling products weekly to maintain accuracy',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    triggerType: 'FAST_MOVING',
+    itemCount: 20,
+    velocityFilter: ['fast'],
+    excludeRecentlyCountedDays: 60,
+    recurrencePattern: {
+      frequency: 'WEEKLY',
+      interval: 1,
+      dayOfWeek: 'MONDAY',
+    },
+    startDate: '2024-12-01',
+    status: 'ACTIVE',
+    lastGeneratedDate: '2024-12-23',
+    nextScheduledDate: '2024-12-30',
+    generatedCycleCountIds: ['CC-001', 'CC-003'],
+    createdAt: '2024-12-01T10:00:00Z',
+    updatedAt: '2024-12-23T10:00:00Z',
+    createdBy: 'user-001',
+  },
+  {
+    id: 'RCC-002',
+    name: 'Monthly Random A-Items Audit',
+    description: 'Random sampling of high-value A-class items',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    triggerType: 'RANDOM_A_ITEMS',
+    itemCount: 15,
+    velocityFilter: ['fast', 'medium'],
+    excludeRecentlyCountedDays: 30,
+    recurrencePattern: {
+      frequency: 'MONTHLY_WEEK',
+      interval: 1,
+      dayOfWeek: 'WEDNESDAY',
+      weekOfMonth: 'FIRST',
+    },
+    startDate: '2024-11-01',
+    status: 'ACTIVE',
+    lastGeneratedDate: '2024-12-04',
+    nextScheduledDate: '2025-01-01',
+    generatedCycleCountIds: ['CC-002'],
+    createdAt: '2024-11-01T10:00:00Z',
+    updatedAt: '2024-12-04T10:00:00Z',
+    createdBy: 'user-001',
+  },
+  {
+    id: 'RCC-003',
+    name: 'Bi-Weekly Low Stock Verification',
+    description: 'Verify accuracy of items approaching reorder point',
+    warehouseId: 'WH-001',
+    warehouseName: 'Atlanta Distribution Center',
+    triggerType: 'LOW_QUANTITY',
+    itemCount: 10,
+    excludeRecentlyCountedDays: 14,
+    recurrencePattern: {
+      frequency: 'BIWEEKLY',
+      interval: 1,
+      dayOfWeek: 'FRIDAY',
+    },
+    startDate: '2024-12-01',
+    status: 'PAUSED',
+    lastGeneratedDate: '2024-12-13',
+    nextScheduledDate: '2024-12-27',
+    generatedCycleCountIds: [],
+    createdAt: '2024-12-01T10:00:00Z',
+    updatedAt: '2024-12-15T10:00:00Z',
+    createdBy: 'user-001',
+  },
+];
+
+// Get all recurring cycle count jobs
+export function getAllRecurringCycleCountJobs(): RecurringCycleCountJob[] {
+  return mockRecurringCycleCountJobs;
+}
+
+// Get recurring cycle count job by ID
+export function getRecurringCycleCountJobById(id: string): RecurringCycleCountJob | undefined {
+  return mockRecurringCycleCountJobs.find(job => job.id === id);
+}
+
+// Add a new recurring cycle count job
+export function addRecurringCycleCountJob(
+  data: Omit<RecurringCycleCountJob, 'id' | 'createdAt' | 'updatedAt' | 'generatedCycleCountIds'>
+): RecurringCycleCountJob {
+  const newJob: RecurringCycleCountJob = {
+    ...data,
+    id: `RCC-${String(mockRecurringCycleCountJobs.length + 1).padStart(3, '0')}`,
+    generatedCycleCountIds: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  mockRecurringCycleCountJobs.push(newJob);
+  return newJob;
+}
+
+// Update a recurring cycle count job
+export function updateRecurringCycleCountJob(
+  id: string,
+  updates: Partial<RecurringCycleCountJob>
+): RecurringCycleCountJob | undefined {
+  const index = mockRecurringCycleCountJobs.findIndex(job => job.id === id);
+  if (index === -1) return undefined;
+
+  mockRecurringCycleCountJobs[index] = {
+    ...mockRecurringCycleCountJobs[index],
+    ...updates,
+    updatedAt: new Date().toISOString(),
+  };
+  return mockRecurringCycleCountJobs[index];
+}
+
+// Update recurring cycle count job status
+export function updateRecurringCycleCountJobStatus(
+  id: string,
+  status: RecurringCycleCountStatus
+): RecurringCycleCountJob | undefined {
+  return updateRecurringCycleCountJob(id, { status });
+}
+
+// Get cycle counts generated by a recurring job
+export function getCycleCountsForRecurringJob(recurringJobId: string): CycleCount[] {
+  const job = getRecurringCycleCountJobById(recurringJobId);
+  if (!job) return [];
+  return mockCycleCounts.filter(cc => job.generatedCycleCountIds.includes(cc.id));
+}
+
+// Get inventory items with their last cycle count info
+export interface InventoryWithCycleCountInfo {
+  id: string;
+  productId: string;
+  productName: string;
+  partNumber: string;
+  factoryName: string;
+  totalQuantity: number;
+  availableQuantity: number;
+  primaryLocation: string;
+  abcClass?: 'A' | 'B' | 'C';
+  movementVelocity?: InventoryVelocity;
+  lastCycleCountDate?: string;
+  daysSinceLastCount?: number;
+  nextScheduledCountDate?: string;
+  isScheduledForCount: boolean;
+}
+
+export function getInventoryWithCycleCountInfo(): InventoryWithCycleCountInfo[] {
+  const now = new Date();
+
+  // Get all scheduled/draft cycle counts to check if items are scheduled
+  const upcomingCounts = mockCycleCounts.filter(
+    cc => cc.status === 'DRAFT' || cc.status === 'SCHEDULED'
+  );
+
+  const scheduledItemIds = new Set<string>();
+  const itemScheduleDates = new Map<string, string>();
+
+  upcomingCounts.forEach(cc => {
+    cc.lineItems.forEach(li => {
+      scheduledItemIds.add(li.inventoryItemId);
+      const existingDate = itemScheduleDates.get(li.inventoryItemId);
+      if (!existingDate || cc.scheduledDate < existingDate) {
+        itemScheduleDates.set(li.inventoryItemId, cc.scheduledDate);
+      }
+    });
+  });
+
+  return mockInventory.map(inv => {
+    const lastCountDate = inv.lastCycleCountDate ? new Date(inv.lastCycleCountDate) : undefined;
+    const daysSinceLastCount = lastCountDate
+      ? Math.floor((now.getTime() - lastCountDate.getTime()) / (1000 * 60 * 60 * 24))
+      : undefined;
+
+    return {
+      id: inv.id,
+      productId: inv.productId,
+      productName: inv.productName,
+      partNumber: inv.partNumber,
+      factoryName: inv.factoryName,
+      totalQuantity: inv.totalQuantity,
+      availableQuantity: inv.availableQuantity,
+      primaryLocation: inv.primaryLocation?.locationCode || 'N/A',
+      abcClass: inv.abcClass,
+      movementVelocity: inv.movementVelocity as InventoryVelocity | undefined,
+      lastCycleCountDate: inv.lastCycleCountDate,
+      daysSinceLastCount,
+      nextScheduledCountDate: itemScheduleDates.get(inv.id),
+      isScheduledForCount: scheduledItemIds.has(inv.id),
+    };
+  });
+}
+
+// Get inventory filtered by velocity
+export function getInventoryByVelocity(velocities: InventoryVelocity[]): Inventory[] {
+  return mockInventory.filter(inv =>
+    inv.movementVelocity && velocities.includes(inv.movementVelocity as InventoryVelocity)
+  );
+}
+
+// Get items eligible for auto-generate (not recently counted)
+export function getEligibleItemsForAutoGenerate(
+  excludeDays: number = 60,
+  velocityFilter?: InventoryVelocity[],
+  limit?: number
+): Inventory[] {
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - excludeDays);
+
+  let items = mockInventory.filter(inv => {
+    if (inv.lastCycleCountDate) {
+      const lastCount = new Date(inv.lastCycleCountDate);
+      if (lastCount > cutoffDate) return false;
+    }
+    return true;
+  });
+
+  // Filter by velocity if specified
+  if (velocityFilter && velocityFilter.length > 0) {
+    items = items.filter(inv =>
+      inv.movementVelocity && velocityFilter.includes(inv.movementVelocity as InventoryVelocity)
+    );
+  }
+
+  // Apply limit if specified
+  if (limit) {
+    items = items.slice(0, limit);
+  }
+
+  return items;
+}
+
+// Generate cycle count from recurring job
+export function generateCycleCountFromRecurringJob(
+  jobId: string,
+  scheduledDate?: string
+): CycleCount | undefined {
+  const job = getRecurringCycleCountJobById(jobId);
+  if (!job || job.status !== 'ACTIVE') return undefined;
+
+  const eligibleItems = getEligibleItemsForAutoGenerate(
+    job.excludeRecentlyCountedDays,
+    job.velocityFilter,
+    job.itemCount
+  );
+
+  if (eligibleItems.length === 0) return undefined;
+
+  const cycleCount = autoGenerateCycleCount({
+    warehouseId: job.warehouseId,
+    warehouseName: job.warehouseName,
+    triggerType: job.triggerType,
+    excludeRecentlyCountedDays: job.excludeRecentlyCountedDays,
+    createdBy: job.createdBy || 'System',
+  });
+
+  // Update job with the new cycle count
+  updateRecurringCycleCountJob(jobId, {
+    lastGeneratedDate: new Date().toISOString(),
+    nextScheduledDate: calculateNextDate(
+      job.recurrencePattern as RecurrencePattern,
+      new Date()
+    ).toISOString().split('T')[0],
+    generatedCycleCountIds: [...job.generatedCycleCountIds, cycleCount.id],
+  });
+
+  return cycleCount;
+}

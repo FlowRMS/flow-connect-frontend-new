@@ -1,17 +1,16 @@
 import React from 'react';
+import Link from 'next/link';
 import { BackorderItem } from './types';
 
 interface BackordersTableProps {
     backorders: BackorderItem[];
     searchQuery: string;
-    onRequestInventory: () => void;
     onRemoveBackorder: (backorderId: string) => void;
 }
 
 export default function BackordersTable({
     backorders,
     searchQuery,
-    onRequestInventory,
     onRemoveBackorder,
 }: BackordersTableProps) {
     const formatDate = (dateString: string | undefined | null) => {
@@ -83,13 +82,13 @@ export default function BackordersTable({
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex items-center justify-end gap-2">
-                                            <button
-                                                onClick={onRequestInventory}
+                                            <Link
+                                                href="/warehouse/inventory/request/new"
                                                 className="px-2 py-1 text-xs font-medium text-[var(--primary)] hover:bg-[var(--primary)]/10 rounded transition-colors"
                                                 title="Request Inventory"
                                             >
                                                 Request
-                                            </button>
+                                            </Link>
                                             <button
                                                 onClick={() => onRemoveBackorder(backorder.id)}
                                                 className="px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 rounded transition-colors"

@@ -15,6 +15,7 @@ interface ShipmentLineItem {
 interface CreateShipmentRecordModalProps {
   onClose: () => void;
   onSubmit: (record: ShipmentRecord) => void;
+  initialStatus?: ShipmentStatus;
 }
 
 export interface ShipmentRecord {
@@ -33,15 +34,18 @@ export interface ShipmentRecord {
 
 const carriers = ['UPS', 'FedEx', 'USPS', 'DHL', 'Freight', 'Other'];
 
-export default function CreateShipmentRecordModal({ onClose, onSubmit }: CreateShipmentRecordModalProps) {
+export default function CreateShipmentRecordModal({ onClose, onSubmit, initialStatus }: CreateShipmentRecordModalProps) {
   const factories = useMemo(() => getWarehouseFactories(), []);
+  const isArrivingNow = initialStatus === 'ARRIVED';
   const [poNumber, setPoNumber] = useState<string>(`PO-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 900) + 100)}`);
   const [selectedVendorId, setSelectedVendorId] = useState<string>('');
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>(mockWarehouses[0]?.id || '');
   const [eta, setEta] = useState<string>(
-    new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    isArrivingNow
+      ? new Date().toISOString().split('T')[0]
+      : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   );
-  const [status, setStatus] = useState<ShipmentStatus>('PENDING');
+  const [status, setStatus] = useState<ShipmentStatus>(initialStatus || 'PENDING');
   const [trackingNumber, setTrackingNumber] = useState('');
   const [carrier, setCarrier] = useState('');
   const [notes, setNotes] = useState('');
@@ -83,7 +87,10 @@ export default function CreateShipmentRecordModal({ onClose, onSubmit }: CreateS
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedVendorId || !selectedWarehouseId || lineItems.length === 0 || !poNumber) return;
+    // For arriving now, line items are optional
+    const lineItemsRequired = !isArrivingNow;
+    if (!selectedWarehouseId || !poNumber) return;
+    if (lineItemsRequired && (lineItems.length === 0 || !selectedVendorId)) return;
 
     onSubmit({
       poNumber,
@@ -108,9 +115,14 @@ export default function CreateShipmentRecordModal({ onClose, onSubmit }: CreateS
         {/* Header */}
         <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-[var(--foreground)]">Create Shipment Record</h2>
+            <h2 className="text-lg font-semibold text-[var(--foreground)]">
+              {isArrivingNow ? 'Record Arriving Delivery' : 'Create Delivery Record'}
+            </h2>
             <p className="text-sm text-[var(--muted-foreground)]">
-              Manually record an incoming shipment
+              {isArrivingNow
+                ? 'Record a delivery that has arrived - items can be added during receiving'
+                : 'Record an expected incoming delivery'
+              }
             </p>
           </div>
           <button
@@ -143,16 +155,22 @@ export default function CreateShipmentRecordModal({ onClose, onSubmit }: CreateS
               <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
                 Status
               </label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value as ShipmentStatus)}
-                className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-              >
-                <option value="PENDING">Pending</option>
-                <option value="CONFIRMED">Confirmed</option>
-                <option value="IN_TRANSIT">In Transit</option>
-                <option value="ARRIVED">Arrived</option>
-              </select>
+              {isArrivingNow ? (
+                <div className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--muted)]/50 text-sm text-[var(--foreground)]">
+                  Arrived
+                </div>
+              ) : (
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as ShipmentStatus)}
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                >
+                  <option value="PENDING">Pending</option>
+                  <option value="CONFIRMED">Confirmed</option>
+                  <option value="IN_TRANSIT">In Transit</option>
+                  <option value="ARRIVED">Arrived</option>
+                </select>
+              )}
             </div>
           </div>
 
@@ -160,7 +178,7 @@ export default function CreateShipmentRecordModal({ onClose, onSubmit }: CreateS
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
-                Vendor/Manufacturer <span className="text-red-500">*</span>
+                Vendor/Manufacturer {!isArrivingNow && <span className="text-red-500">*</span>}
               </label>
               <select
                 value={selectedVendorId}
@@ -169,7 +187,7 @@ export default function CreateShipmentRecordModal({ onClose, onSubmit }: CreateS
                   setLineItems([]);
                 }}
                 className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-                required
+                required={!isArrivingNow}
               >
                 <option value="">Select vendor</option>
                 {factories.map((factory) => (
@@ -202,7 +220,7 @@ export default function CreateShipmentRecordModal({ onClose, onSubmit }: CreateS
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
-                Expected Arrival Date <span className="text-red-500">*</span>
+                {isArrivingNow ? 'Arrival Date' : 'Expected Arrival Date'} <span className="text-red-500">*</span>
               </label>
               <input
                 type="date"
@@ -243,86 +261,106 @@ export default function CreateShipmentRecordModal({ onClose, onSubmit }: CreateS
             />
           </div>
 
-          {/* Line Items */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <label className="block text-sm font-medium text-[var(--foreground)]">
-                Expected Items <span className="text-red-500">*</span>
-              </label>
-              {selectedVendorId && (
-                <button
-                  type="button"
-                  onClick={() => setShowProductSelector(true)}
-                  className="text-sm text-[var(--primary)] hover:underline flex items-center gap-1"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="12" y1="5" x2="12" y2="19"/>
-                    <line x1="5" y1="12" x2="19" y2="12"/>
-                  </svg>
-                  Add Product
-                </button>
+          {/* Line Items - Only show for expected shipments or if user wants to add items */}
+          {!isArrivingNow ? (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <label className="block text-sm font-medium text-[var(--foreground)]">
+                  Expected Items <span className="text-red-500">*</span>
+                </label>
+                {selectedVendorId && (
+                  <button
+                    type="button"
+                    onClick={() => setShowProductSelector(true)}
+                    className="text-sm text-[var(--primary)] hover:underline flex items-center gap-1"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="12" y1="5" x2="12" y2="19"/>
+                      <line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    Add Product
+                  </button>
+                )}
+              </div>
+
+              {!selectedVendorId ? (
+                <div className="border border-dashed border-[var(--border)] rounded-lg p-8 text-center text-[var(--muted-foreground)]">
+                  Select a vendor to add products
+                </div>
+              ) : lineItems.length === 0 ? (
+                <div className="border border-dashed border-[var(--border)] rounded-lg p-8 text-center">
+                  <p className="text-[var(--muted-foreground)] mb-2">No products added yet</p>
+                  <button
+                    type="button"
+                    onClick={() => setShowProductSelector(true)}
+                    className="text-sm text-[var(--primary)] hover:underline"
+                  >
+                    Add expected products
+                  </button>
+                </div>
+              ) : (
+                <div className="border border-[var(--border)] rounded-lg overflow-hidden">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-[var(--border)] bg-[var(--muted)]/30">
+                        <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase">Product</th>
+                        <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase">Expected Qty</th>
+                        <th className="px-4 py-2 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--border)]">
+                      {lineItems.map((item) => (
+                        <tr key={item.id}>
+                          <td className="px-4 py-3">
+                            <div className="font-medium text-sm text-[var(--foreground)]">{item.productName}</div>
+                            <div className="text-xs text-[var(--muted-foreground)]">{item.partNumber}</div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <input
+                              type="number"
+                              min="1"
+                              value={item.expectedQuantity}
+                              onChange={(e) => handleQuantityChange(item.id, parseInt(e.target.value) || 1)}
+                              className="w-24 px-2 py-1 border border-[var(--border)] rounded bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                            />
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveProduct(item.id)}
+                              className="text-red-500 hover:text-red-700 p-1"
+                            >
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                              </svg>
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
-
-            {!selectedVendorId ? (
-              <div className="border border-dashed border-[var(--border)] rounded-lg p-8 text-center text-[var(--muted-foreground)]">
-                Select a vendor to add products
+          ) : (
+            <div className="border border-dashed border-green-300 rounded-lg p-6 bg-green-50/50">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-600">
+                    <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                    <line x1="12" y1="22.08" x2="12" y2="12"/>
+                  </svg>
+                </div>
+                <div>
+                  <h4 className="font-medium text-[var(--foreground)]">Items will be added during receiving</h4>
+                  <p className="text-sm text-[var(--muted-foreground)] mt-1">
+                    Once created, you&apos;ll be taken to the receiving screen where you can scan or add items as they are counted.
+                  </p>
+                </div>
               </div>
-            ) : lineItems.length === 0 ? (
-              <div className="border border-dashed border-[var(--border)] rounded-lg p-8 text-center">
-                <p className="text-[var(--muted-foreground)] mb-2">No products added yet</p>
-                <button
-                  type="button"
-                  onClick={() => setShowProductSelector(true)}
-                  className="text-sm text-[var(--primary)] hover:underline"
-                >
-                  Add expected products
-                </button>
-              </div>
-            ) : (
-              <div className="border border-[var(--border)] rounded-lg overflow-hidden">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-[var(--border)] bg-[var(--muted)]/30">
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase">Product</th>
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase">Expected Qty</th>
-                      <th className="px-4 py-2 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--border)]">
-                    {lineItems.map((item) => (
-                      <tr key={item.id}>
-                        <td className="px-4 py-3">
-                          <div className="font-medium text-sm text-[var(--foreground)]">{item.productName}</div>
-                          <div className="text-xs text-[var(--muted-foreground)]">{item.partNumber}</div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <input
-                            type="number"
-                            min="1"
-                            value={item.expectedQuantity}
-                            onChange={(e) => handleQuantityChange(item.id, parseInt(e.target.value) || 1)}
-                            className="w-24 px-2 py-1 border border-[var(--border)] rounded bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-                          />
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveProduct(item.id)}
-                            className="text-red-500 hover:text-red-700 p-1"
-                          >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
-                            </svg>
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Notes */}
           <div>
@@ -345,6 +383,9 @@ export default function CreateShipmentRecordModal({ onClose, onSubmit }: CreateS
             {lineItems.length > 0 && (
               <span>{lineItems.length} product{lineItems.length !== 1 ? 's' : ''}, {totalItems} total units expected</span>
             )}
+            {isArrivingNow && lineItems.length === 0 && (
+              <span>No expected items - will be added during receiving</span>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -356,10 +397,14 @@ export default function CreateShipmentRecordModal({ onClose, onSubmit }: CreateS
             </button>
             <button
               onClick={handleSubmit}
-              disabled={!selectedVendorId || !selectedWarehouseId || lineItems.length === 0 || !poNumber}
+              disabled={
+                !selectedWarehouseId ||
+                !poNumber ||
+                (!isArrivingNow && (lineItems.length === 0 || !selectedVendorId))
+              }
               className="px-4 py-2 text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Create Record
+              {isArrivingNow ? 'Create & Start Receiving' : 'Create Record'}
             </button>
           </div>
         </div>

@@ -12,6 +12,8 @@ import {
 import {
   CycleCount,
   CycleCountStatus,
+  CycleCountType,
+  CycleCountPriority,
   cycleCountStatusColors,
   cycleCountStatusLabels,
   cycleCountTypeLabels,
@@ -20,23 +22,195 @@ import {
 } from '@/lib/types/warehouse';
 import WarehouseSelector from './WarehouseSelector';
 import { useWarehouse } from './WarehouseContext';
+import RecurringCycleCountJobsContent from './RecurringCycleCountJobsContent';
+
+type TabType = 'counts' | 'recurring';
 
 type StatFilter = 'all' | 'active' | 'scheduled' | 'completed' | 'variance';
 
+// Statuses that workers can see (released = SCHEDULED and beyond, not DRAFT or CANCELLED)
+const WORKER_VISIBLE_STATUSES: CycleCountStatus[] = [
+  'SCHEDULED',
+  'IN_PROGRESS',
+  'PENDING_REVIEW',
+  'COMPLETED',
+];
+
+// Sort types
+type CycleCountSortField = 'cycleCountNumber' | 'name' | 'type' | 'assignedToName' | 'scheduledDate' | 'progress' | 'priority' | 'status';
+type SortDirection = 'asc' | 'desc';
+
+// Column filter types
+interface CycleCountColumnFilters {
+  cycleCountNumber: string;
+  name: string;
+  type: string[];
+  assignedTo: string[];
+  priority: string[];
+  status: string[];
+  dateRange: { start: string; end: string };
+}
+
+// Sort Icon Component
+function SortIcon({ field, currentSortField, currentSortDirection }: { field: CycleCountSortField; currentSortField: CycleCountSortField; currentSortDirection: SortDirection }) {
+  const isActive = currentSortField === field;
+  return (
+    <span className="ml-1 inline-flex flex-col">
+      <svg className={`w-2 h-2 ${isActive && currentSortDirection === 'asc' ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)]/50'}`} viewBox="0 0 8 4" fill="currentColor">
+        <path d="M4 0L8 4H0L4 0Z" />
+      </svg>
+      <svg className={`w-2 h-2 -mt-0.5 ${isActive && currentSortDirection === 'desc' ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)]/50'}`} viewBox="0 0 8 4" fill="currentColor">
+        <path d="M4 4L0 0H8L4 4Z" />
+      </svg>
+    </span>
+  );
+}
+
+// Text Filter Dropdown
+function TextFilterDropdown({ value, onChange, placeholder, isOpen, onToggle }: { value: string; onChange: (value: string) => void; placeholder?: string; isOpen: boolean; onToggle: () => void }) {
+  const hasValue = value !== '';
+  return (
+    <div className="relative">
+      <button onClick={(e) => { e.stopPropagation(); onToggle(); }} className={`ml-1.5 p-1 rounded hover:bg-[var(--muted)] transition-colors ${hasValue ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)]/50'}`} title="Filter">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
+      </button>
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={onToggle} />
+          <div className="absolute top-full left-0 mt-1 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20 min-w-[180px] p-2">
+            <input type="text" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]/50" autoFocus onClick={(e) => e.stopPropagation()} />
+            {hasValue && <button onClick={() => onChange('')} className="w-full mt-1 px-2 py-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)] rounded transition-colors">Clear</button>}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// MultiSelect Filter Dropdown
+function MultiSelectFilterDropdown({ options, value, onChange, isOpen, onToggle, renderLabel }: { options: string[]; value: string[]; onChange: (value: string[]) => void; isOpen: boolean; onToggle: () => void; renderLabel?: (opt: string) => string }) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const hasValue = value.length > 0;
+  const filteredOptions = options.filter((opt) => (renderLabel ? renderLabel(opt) : opt).toLowerCase().includes(searchTerm.toLowerCase()));
+  const toggleOption = (optValue: string) => { if (value.includes(optValue)) { onChange(value.filter((v) => v !== optValue)); } else { onChange([...value, optValue]); } };
+  return (
+    <div className="relative">
+      <button onClick={(e) => { e.stopPropagation(); onToggle(); }} className={`ml-1.5 p-1 rounded hover:bg-[var(--muted)] transition-colors ${hasValue ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)]/50'}`} title="Filter">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
+        {hasValue && <span className="absolute -top-1 -right-1 w-4 h-4 bg-[var(--primary)] text-white text-[10px] rounded-full flex items-center justify-center">{value.length}</span>}
+      </button>
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={onToggle} />
+          <div className="absolute top-full left-0 mt-1 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20 min-w-[200px] max-h-[300px] flex flex-col">
+            <div className="p-2 border-b border-[var(--border)]">
+              <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Search..." className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]/50" autoFocus onClick={(e) => e.stopPropagation()} />
+            </div>
+            <div className="overflow-y-auto flex-1 py-1">
+              {filteredOptions.length === 0 ? <div className="px-3 py-2 text-xs text-[var(--muted-foreground)]">No results</div> : filteredOptions.map((opt) => (
+                <label key={opt} className="flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-[var(--muted)] transition-colors cursor-pointer" onClick={(e) => e.stopPropagation()}>
+                  <input type="checkbox" checked={value.includes(opt)} onChange={() => toggleOption(opt)} className="rounded border-[var(--border)] text-[var(--primary)] focus:ring-[var(--primary)]/50" />
+                  <span className={value.includes(opt) ? 'text-[var(--primary)] font-medium' : 'text-[var(--foreground)]'}>{renderLabel ? renderLabel(opt) : opt}</span>
+                </label>
+              ))}
+            </div>
+            {hasValue && <div className="p-2 border-t border-[var(--border)]"><button onClick={(e) => { e.stopPropagation(); onChange([]); }} className="w-full px-2 py-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)] rounded transition-colors">Clear all</button></div>}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// Date Range Filter Dropdown
+function DateRangeFilterDropdown({ value, onChange, isOpen, onToggle }: { value: { start: string; end: string }; onChange: (value: { start: string; end: string }) => void; isOpen: boolean; onToggle: () => void }) {
+  const hasValue = value.start !== '' || value.end !== '';
+  return (
+    <div className="relative">
+      <button onClick={(e) => { e.stopPropagation(); onToggle(); }} className={`ml-1.5 p-1 rounded hover:bg-[var(--muted)] transition-colors ${hasValue ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)]/50'}`} title="Filter">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
+      </button>
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={onToggle} />
+          <div className="absolute top-full left-0 mt-1 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20 p-3 min-w-[200px]">
+            <div className="space-y-3">
+              <div><label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">From</label><input type="date" value={value.start} onChange={(e) => onChange({ ...value, start: e.target.value })} className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]/50" onClick={(e) => e.stopPropagation()} /></div>
+              <div><label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">To</label><input type="date" value={value.end} onChange={(e) => onChange({ ...value, end: e.target.value })} className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded bg-[var(--background)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]/50" onClick={(e) => e.stopPropagation()} /></div>
+              {hasValue && <button onClick={(e) => { e.stopPropagation(); onChange({ start: '', end: '' }); }} className="w-full px-2 py-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)] rounded transition-colors">Clear</button>}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function CycleCountsContent() {
   const router = useRouter();
-  const { selectedWarehouse } = useWarehouse();
+  const { selectedWarehouse, isWorkerView, isManagerView } = useWarehouse();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<CycleCountStatus | 'all'>('all');
   const [activeStatFilter, setActiveStatFilter] = useState<StatFilter>('all');
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // Tab state
+  const [activeTab, setActiveTab] = useState<TabType>('counts');
+
+  // Sorting state
+  const [sortField, setSortField] = useState<CycleCountSortField>('scheduledDate');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
+  // Column filters state
+  const [columnFilters, setColumnFilters] = useState<CycleCountColumnFilters>({
+    cycleCountNumber: '',
+    name: '',
+    type: [],
+    assignedTo: [],
+    priority: [],
+    status: [],
+    dateRange: { start: '', end: '' },
+  });
+  const [openFilter, setOpenFilter] = useState<string | null>(null);
+
   const cycleCounts = useMemo(() => getAllCycleCounts(), [refreshKey]);
   const stats = useMemo(() => getCycleCountStats(), [refreshKey]);
+
+  // Get unique values for filters
+  const uniqueTypes = useMemo(() => {
+    return [...new Set(cycleCounts.map(cc => cc.type))];
+  }, [cycleCounts]);
+
+  const uniqueAssignees = useMemo(() => {
+    return [...new Set(cycleCounts.map(cc => cc.assignedToName).filter(Boolean))] as string[];
+  }, [cycleCounts]);
+
+  const uniquePriorities = useMemo(() => {
+    return [...new Set(cycleCounts.map(cc => cc.priority))];
+  }, [cycleCounts]);
+
+  const uniqueStatuses = useMemo(() => {
+    return [...new Set(cycleCounts.map(cc => cc.status))];
+  }, [cycleCounts]);
+
+  // Handle sorting
+  const handleSort = (field: CycleCountSortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
 
   // Filtered cycle counts
   const filteredCycleCounts = useMemo(() => {
     let result = cycleCounts;
+
+    // For workers, only show released cycle counts (SCHEDULED and beyond)
+    if (isWorkerView) {
+      result = result.filter(cc => WORKER_VISIBLE_STATUSES.includes(cc.status));
+    }
 
     // Apply stat card filter
     if (activeStatFilter === 'active') {
@@ -64,8 +238,85 @@ export default function CycleCountsContent() {
       );
     }
 
+    // Apply column filters
+    if (columnFilters.cycleCountNumber) {
+      const query = columnFilters.cycleCountNumber.toLowerCase();
+      result = result.filter(cc => cc.cycleCountNumber.toLowerCase().includes(query));
+    }
+
+    if (columnFilters.name) {
+      const query = columnFilters.name.toLowerCase();
+      result = result.filter(cc => cc.name.toLowerCase().includes(query));
+    }
+
+    if (columnFilters.type.length > 0) {
+      result = result.filter(cc => columnFilters.type.includes(cc.type));
+    }
+
+    if (columnFilters.assignedTo.length > 0) {
+      result = result.filter(cc => cc.assignedToName && columnFilters.assignedTo.includes(cc.assignedToName));
+    }
+
+    if (columnFilters.priority.length > 0) {
+      result = result.filter(cc => columnFilters.priority.includes(cc.priority));
+    }
+
+    if (columnFilters.status.length > 0) {
+      result = result.filter(cc => columnFilters.status.includes(cc.status));
+    }
+
+    if (columnFilters.dateRange.start || columnFilters.dateRange.end) {
+      result = result.filter(cc => {
+        const date = new Date(cc.scheduledDate);
+        if (columnFilters.dateRange.start && date < new Date(columnFilters.dateRange.start)) {
+          return false;
+        }
+        if (columnFilters.dateRange.end && date > new Date(columnFilters.dateRange.end)) {
+          return false;
+        }
+        return true;
+      });
+    }
+
+    // Apply sorting
+    result = [...result].sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortField) {
+        case 'cycleCountNumber':
+          comparison = a.cycleCountNumber.localeCompare(b.cycleCountNumber);
+          break;
+        case 'name':
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case 'type':
+          comparison = a.type.localeCompare(b.type);
+          break;
+        case 'assignedToName':
+          comparison = (a.assignedToName || '').localeCompare(b.assignedToName || '');
+          break;
+        case 'scheduledDate':
+          comparison = new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime();
+          break;
+        case 'progress':
+          const aProgress = a.totalItems > 0 ? a.countedItems / a.totalItems : 0;
+          const bProgress = b.totalItems > 0 ? b.countedItems / b.totalItems : 0;
+          comparison = aProgress - bProgress;
+          break;
+        case 'priority':
+          const priorityOrder = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+          comparison = (priorityOrder[a.priority as keyof typeof priorityOrder] || 0) - (priorityOrder[b.priority as keyof typeof priorityOrder] || 0);
+          break;
+        case 'status':
+          comparison = a.status.localeCompare(b.status);
+          break;
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+
     return result;
-  }, [cycleCounts, activeStatFilter, statusFilter, searchQuery]);
+  }, [cycleCounts, activeStatFilter, statusFilter, searchQuery, columnFilters, sortField, sortDirection, isWorkerView]);
 
   const handleStatCardClick = (filter: StatFilter) => {
     setActiveStatFilter(prev => prev === filter ? 'all' : filter);
@@ -115,18 +366,49 @@ export default function CycleCountsContent() {
           </div>
           <div className="flex items-center gap-3">
             <WarehouseSelector />
-            <Link
-              href="/warehouse/cycle-counts/new"
-              className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors text-sm font-medium"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 5v14M5 12h14"/>
-              </svg>
-              New Cycle Count
-            </Link>
+            {/* New Cycle Count button only visible to managers */}
+            {isManagerView && (
+              <Link
+                href="/warehouse/cycle-counts/new"
+                className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors text-sm font-medium"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 5v14M5 12h14"/>
+                </svg>
+                New Cycle Count
+              </Link>
+            )}
           </div>
         </div>
 
+        {/* Tabs - only show if manager (workers only see cycle counts) */}
+        {isManagerView && (
+          <div className="flex gap-1 mb-6 bg-[var(--muted)]/50 rounded-lg p-1 w-fit">
+            <button
+              onClick={() => setActiveTab('counts')}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                activeTab === 'counts'
+                  ? 'bg-[var(--card)] text-[var(--foreground)] shadow-sm'
+                  : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+              }`}
+            >
+              Cycle Counts
+            </button>
+            <button
+              onClick={() => setActiveTab('recurring')}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                activeTab === 'recurring'
+                  ? 'bg-[var(--card)] text-[var(--foreground)] shadow-sm'
+                  : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+              }`}
+            >
+              Recurring Jobs
+            </button>
+          </div>
+        )}
+
+        {activeTab === 'counts' && (
+          <>
         {/* Stat Cards */}
         <div className="grid grid-cols-5 gap-4 mb-6">
           <div
@@ -217,23 +499,85 @@ export default function CycleCountsContent() {
         <div className="text-sm text-[var(--muted-foreground)] mb-4">
           Showing {filteredCycleCounts.length} cycle count{filteredCycleCounts.length !== 1 ? 's' : ''}
         </div>
+          </>
+        )}
+
+        {activeTab === 'recurring' && isManagerView && (
+          <RecurringCycleCountJobsContent />
+        )}
       </div>
 
-      {/* Cycle Counts List */}
+      {/* Cycle Counts List - only show when counts tab is active */}
+      {activeTab === 'counts' && (
       <div className="flex-1 overflow-auto p-6 pt-0">
         <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-[var(--border)] bg-[var(--muted)]/30">
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Count #</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Type</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Assigned To</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Scheduled</th>
-                  <th className="px-6 py-3 text-center text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Progress</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Priority</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left">
+                    <div className="flex items-center">
+                      <button onClick={() => handleSort('cycleCountNumber')} className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors">
+                        Count #<SortIcon field="cycleCountNumber" currentSortField={sortField} currentSortDirection={sortDirection} />
+                      </button>
+                      <TextFilterDropdown value={columnFilters.cycleCountNumber} onChange={(value) => setColumnFilters(prev => ({ ...prev, cycleCountNumber: value }))} placeholder="Search..." isOpen={openFilter === 'cycleCountNumber'} onToggle={() => setOpenFilter(openFilter === 'cycleCountNumber' ? null : 'cycleCountNumber')} />
+                    </div>
+                  </th>
+                  <th className="px-6 py-3 text-left">
+                    <div className="flex items-center">
+                      <button onClick={() => handleSort('name')} className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors">
+                        Name<SortIcon field="name" currentSortField={sortField} currentSortDirection={sortDirection} />
+                      </button>
+                      <TextFilterDropdown value={columnFilters.name} onChange={(value) => setColumnFilters(prev => ({ ...prev, name: value }))} placeholder="Search..." isOpen={openFilter === 'name'} onToggle={() => setOpenFilter(openFilter === 'name' ? null : 'name')} />
+                    </div>
+                  </th>
+                  <th className="px-6 py-3 text-left">
+                    <div className="flex items-center">
+                      <button onClick={() => handleSort('type')} className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors">
+                        Type<SortIcon field="type" currentSortField={sortField} currentSortDirection={sortDirection} />
+                      </button>
+                      <MultiSelectFilterDropdown options={uniqueTypes} value={columnFilters.type} onChange={(value) => setColumnFilters(prev => ({ ...prev, type: value }))} isOpen={openFilter === 'type'} onToggle={() => setOpenFilter(openFilter === 'type' ? null : 'type')} renderLabel={(opt) => cycleCountTypeLabels[opt as CycleCountType]} />
+                    </div>
+                  </th>
+                  <th className="px-6 py-3 text-left">
+                    <div className="flex items-center">
+                      <button onClick={() => handleSort('assignedToName')} className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors">
+                        Assigned To<SortIcon field="assignedToName" currentSortField={sortField} currentSortDirection={sortDirection} />
+                      </button>
+                      <MultiSelectFilterDropdown options={uniqueAssignees} value={columnFilters.assignedTo} onChange={(value) => setColumnFilters(prev => ({ ...prev, assignedTo: value }))} isOpen={openFilter === 'assignedTo'} onToggle={() => setOpenFilter(openFilter === 'assignedTo' ? null : 'assignedTo')} />
+                    </div>
+                  </th>
+                  <th className="px-6 py-3 text-left">
+                    <div className="flex items-center">
+                      <button onClick={() => handleSort('scheduledDate')} className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors">
+                        Scheduled<SortIcon field="scheduledDate" currentSortField={sortField} currentSortDirection={sortDirection} />
+                      </button>
+                      <DateRangeFilterDropdown value={columnFilters.dateRange} onChange={(value) => setColumnFilters(prev => ({ ...prev, dateRange: value }))} isOpen={openFilter === 'dateRange'} onToggle={() => setOpenFilter(openFilter === 'dateRange' ? null : 'dateRange')} />
+                    </div>
+                  </th>
+                  <th className="px-6 py-3 text-center">
+                    <div className="flex items-center justify-center">
+                      <button onClick={() => handleSort('progress')} className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors">
+                        Progress<SortIcon field="progress" currentSortField={sortField} currentSortDirection={sortDirection} />
+                      </button>
+                    </div>
+                  </th>
+                  <th className="px-6 py-3 text-left">
+                    <div className="flex items-center">
+                      <button onClick={() => handleSort('priority')} className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors">
+                        Priority<SortIcon field="priority" currentSortField={sortField} currentSortDirection={sortDirection} />
+                      </button>
+                      <MultiSelectFilterDropdown options={uniquePriorities} value={columnFilters.priority} onChange={(value) => setColumnFilters(prev => ({ ...prev, priority: value }))} isOpen={openFilter === 'priority'} onToggle={() => setOpenFilter(openFilter === 'priority' ? null : 'priority')} renderLabel={(opt) => cycleCountPriorityLabels[opt as CycleCountPriority]} />
+                    </div>
+                  </th>
+                  <th className="px-6 py-3 text-left">
+                    <div className="flex items-center">
+                      <button onClick={() => handleSort('status')} className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors">
+                        Status<SortIcon field="status" currentSortField={sortField} currentSortDirection={sortDirection} />
+                      </button>
+                      <MultiSelectFilterDropdown options={uniqueStatuses} value={columnFilters.status} onChange={(value) => setColumnFilters(prev => ({ ...prev, status: value }))} isOpen={openFilter === 'status'} onToggle={() => setOpenFilter(openFilter === 'status' ? null : 'status')} renderLabel={(opt) => cycleCountStatusLabels[opt as CycleCountStatus]} />
+                    </div>
+                  </th>
                   <th className="px-6 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
@@ -390,6 +734,7 @@ export default function CycleCountsContent() {
           </div>
         </div>
       </div>
+      )}
     </main>
   );
 }

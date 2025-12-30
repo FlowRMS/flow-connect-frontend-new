@@ -153,7 +153,7 @@ export default function ReceiveShipmentModal({ shipment, onClose, onComplete }: 
         {/* Header */}
         <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-[var(--foreground)]">Receive Shipment</h2>
+            <h2 className="text-lg font-semibold text-[var(--foreground)]">Receive Delivery</h2>
             <p className="text-sm text-[var(--muted-foreground)]">
               PO: <span className="font-medium">{shipment.poNumber}</span> from {shipment.vendorName}
             </p>

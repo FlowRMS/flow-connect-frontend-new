@@ -1,14 +1,25 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { getFulfillmentOrderById, updateFulfillmentOrder } from '@/lib/data/warehouse-mock';
-import { FulfillmentOrderStatus, FulfillmentMethod } from '@/lib/types/warehouse';
+import {
+  getFulfillmentOrderById,
+  updateFulfillmentOrder,
+  getBackorderItems,
+  getPendingShipmentRequestsForManufacturer,
+  markAsManufacturerFulfilled,
+  splitLineItemForManufacturer,
+  addShipmentRequest,
+  addFulfillmentOrderAssignment,
+  removeFulfillmentOrderAssignment,
+  BackorderItem,
+} from '@/lib/data/warehouse-mock';
+import { FulfillmentOrderStatus, FulfillmentMethod, FulfillmentOrderLineItem, BackorderReviewData, AssignedUserRole, AttachedDocument, FulfillmentActivity, FulfillmentActivityType } from '@/lib/types/warehouse';
 
 // Import new sub-components
 import FulfillmentHeader from './fulfillment-detail/FulfillmentHeader';
 import StatusProgress from './fulfillment-detail/StatusProgress';
-import PickingInterface from './fulfillment-detail/PickingInterface';
+import PickingInterface, { InventoryDiscrepancy } from './fulfillment-detail/PickingInterface';
 import PackingInterface from './fulfillment-detail/PackingInterface';
 import ShippingInterface from './fulfillment-detail/ShippingInterface';
 import ShippedInterface from './fulfillment-detail/ShippedInterface';
@@ -22,6 +33,19 @@ import PackingSlipModal from './fulfillment-detail/modals/PackingSlipModal';
 import ShippingLabelsModal from './fulfillment-detail/modals/ShippingLabelsModal';
 import BillOfLadingModal from './fulfillment-detail/modals/BillOfLadingModal';
 import SignatureCaptureModal from './fulfillment-detail/modals/SignatureCaptureModal';
+import ShipmentConfirmationModal from './fulfillment-detail/modals/ShipmentConfirmationModal';
+
+// Import backorder components
+import BackorderNotice from './fulfillment-detail/BackorderNotice';
+import ManufacturerDirectModal from './fulfillment-detail/modals/ManufacturerDirectModal';
+import RequestInventoryModal from './fulfillment-detail/modals/RequestInventoryModal';
+import SplitOrderModal from './fulfillment-detail/modals/SplitOrderModal';
+import CancelBackorderModal from './fulfillment-detail/modals/CancelBackorderModal';
+
+// Import assignment panel and activity feed
+import AssignmentPanel from './AssignmentPanel';
+import DocumentsSection from './DocumentsSection';
+import ActivityFeed, { GenericActivity } from './ActivityFeed';
 
 interface FulfillmentOrderDetailContentProps {
   fulfillmentOrderId: string;
@@ -47,7 +71,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   const [shipToPhone, setShipToPhone] = useState(fulfillmentOrder?.shipTo.contactPhone || '');
   const [needByDate, setNeedByDate] = useState(fulfillmentOrder?.needByDate || '');
   const [shipToDifferentFromPO, setShipToDifferentFromPO] = useState(false);
-  const [carrier, setCarrier] = useState(fulfillmentOrder?.carrier || '');
+  // Note: carrier is now managed via selectedCarrier state below
   const [trackingNumbers, setTrackingNumbers] = useState(fulfillmentOrder?.trackingNumbers?.join(', ') || '');
 
   // Picking state
@@ -78,6 +102,11 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   const [expandedPackingNoteId, setExpandedPackingNoteId] = useState<string | null>(null);
   const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
 
+  // Activity feed state - initialize from fulfillmentOrder.activities if available
+  const [activities, setActivities] = useState<FulfillmentActivity[]>(() => {
+    return fulfillmentOrder?.activities || [];
+  });
+
   // Modal state
   const [showPackingSlipModal, setShowPackingSlipModal] = useState(false);
   const [showShippingLabelsModal, setShowShippingLabelsModal] = useState(false);
@@ -103,6 +132,31 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   const [pickupSignature, setPickupSignature] = useState<string | null>((fulfillmentOrder as any)?.pickupSignature || null);
   const [pickupTimestamp, setPickupTimestamp] = useState<Date | null>((fulfillmentOrder as any)?.pickupTimestamp ? new Date((fulfillmentOrder as any).pickupTimestamp) : null);
   const [pickupNotes, setPickupNotes] = useState((fulfillmentOrder as any)?.pickupNotes || '');
+
+  // Backorder modal state
+  const [showManufacturerDirectModal, setShowManufacturerDirectModal] = useState(false);
+  const [showRequestInventoryModal, setShowRequestInventoryModal] = useState(false);
+  const [showSplitOrderModal, setShowSplitOrderModal] = useState(false);
+  const [showCancelBackorderModal, setShowCancelBackorderModal] = useState(false);
+
+  // Shipment confirmation modal state
+  const [showShipmentConfirmationModal, setShowShipmentConfirmationModal] = useState(false);
+
+  // Attached documents state
+  const [attachedDocuments, setAttachedDocuments] = useState<AttachedDocument[]>(fulfillmentOrder?.documents || []);
+
+  // Get backorder items for this order
+  const backorderItems = useMemo(() => {
+    if (!fulfillmentOrder) return [];
+    return getBackorderItems(fulfillmentOrderId);
+  }, [fulfillmentOrderId, fulfillmentOrder]);
+
+  // Get pending shipment requests for manufacturers with backorder items
+  const pendingShipmentRequests = useMemo(() => {
+    if (backorderItems.length === 0) return [];
+    const manufacturerIds = [...new Set(backorderItems.map(item => item.manufacturerId))];
+    return manufacturerIds.flatMap(id => getPendingShipmentRequestsForManufacturer(id));
+  }, [backorderItems]);
 
   if (!fulfillmentOrder) {
     return (
@@ -144,6 +198,188 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
 
   const handleUpdateNote = (lineItemId: string, note: string) => {
     setPickingNotes(prev => ({ ...prev, [lineItemId]: note }));
+  };
+
+  // Activity feed handlers
+  const handleAddActivityNote = (content: string) => {
+    const newActivity: FulfillmentActivity = {
+      id: `act-${Date.now()}`,
+      type: 'NOTE_ADDED',
+      timestamp: new Date().toISOString(),
+      createdBy: 'Current User',
+      content,
+    };
+    setActivities(prev => [...prev, newActivity]);
+    // Also update the fulfillment order
+    updateFulfillmentOrder(fulfillmentOrderId, {
+      activities: [...activities, newActivity],
+    });
+  };
+
+  const getActivityIcon = (type: string): React.ReactNode => {
+    switch (type) {
+      case 'CREATED':
+        return (
+          <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-600">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M12 6v6l4 2"/>
+            </svg>
+          </div>
+        );
+      case 'RELEASED':
+        return (
+          <div className="w-8 h-8 rounded-full bg-cyan-100 flex items-center justify-center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-cyan-600">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+              <polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+          </div>
+        );
+      case 'PICK_STARTED':
+      case 'PICK_COMPLETED':
+        return (
+          <div className="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-yellow-600">
+              <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+              <line x1="12" y1="22.08" x2="12" y2="12"/>
+            </svg>
+          </div>
+        );
+      case 'PACK_STARTED':
+      case 'PACK_COMPLETED':
+        return (
+          <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-orange-600">
+              <path d="M12.89 1.45l8 4A2 2 0 0122 7.24v9.53a2 2 0 01-1.11 1.79l-8 4a2 2 0 01-1.79 0l-8-4a2 2 0 01-1.1-1.8V7.24a2 2 0 011.11-1.79l8-4a2 2 0 011.78 0z"/>
+              <polyline points="2.32 6.16 12 11 21.68 6.16"/>
+              <line x1="12" y1="22.76" x2="12" y2="11"/>
+            </svg>
+          </div>
+        );
+      case 'SHIPPED':
+        return (
+          <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-600">
+              <rect x="1" y="3" width="15" height="13"/>
+              <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
+              <circle cx="5.5" cy="18.5" r="2.5"/>
+              <circle cx="18.5" cy="18.5" r="2.5"/>
+            </svg>
+          </div>
+        );
+      case 'DELIVERED':
+        return (
+          <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-emerald-600">
+              <path d="M20 6L9 17l-5-5"/>
+            </svg>
+          </div>
+        );
+      case 'CANCELLED':
+        return (
+          <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-600">
+              <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
+              <path d="M15 9l-6 6M9 9l6 6"/>
+            </svg>
+          </div>
+        );
+      case 'NOTE_ADDED':
+      case 'ITEM_NOTE_ADDED':
+        return (
+          <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-600">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+          </div>
+        );
+      case 'BACKORDER_REPORTED':
+        return (
+          <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-amber-600">
+              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </div>
+        );
+      case 'ASSIGNMENT_ADDED':
+      case 'ASSIGNMENT_REMOVED':
+        return (
+          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+          </div>
+        );
+      default:
+        return (
+          <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-600">
+              <circle cx="12" cy="12" r="10"/>
+            </svg>
+          </div>
+        );
+    }
+  };
+
+  const getActivityTitle = (activity: GenericActivity): string => {
+    switch (activity.type) {
+      case 'CREATED':
+        return 'Order Created';
+      case 'RELEASED':
+        return 'Released to Warehouse';
+      case 'PICK_STARTED':
+        return 'Picking Started';
+      case 'PICK_COMPLETED':
+        return 'Picking Completed';
+      case 'PACK_STARTED':
+        return 'Packing Started';
+      case 'PACK_COMPLETED':
+        return 'Packing Completed';
+      case 'SHIPPED':
+        const carrier = activity.metadata?.carrier as string | undefined;
+        const tracking = activity.metadata?.trackingNumber as string | undefined;
+        if (carrier && tracking) {
+          return `Shipped via ${carrier} (${tracking})`;
+        }
+        return 'Order Shipped';
+      case 'DELIVERED':
+        return 'Order Delivered';
+      case 'CANCELLED':
+        return 'Order Cancelled';
+      case 'NOTE_ADDED':
+        return 'Note Added';
+      case 'ITEM_NOTE_ADDED':
+        const partNumber = activity.metadata?.partNumber as string | undefined;
+        return partNumber ? `Note Added to Item: ${partNumber}` : 'Item Note Added';
+      case 'BACKORDER_REPORTED':
+        return 'Backorder Reported';
+      case 'ASSIGNMENT_ADDED':
+        const addedName = activity.metadata?.assigneeName as string | undefined;
+        const addedRole = activity.metadata?.assignmentType as string | undefined;
+        return addedName ? `${addedName} assigned as ${addedRole}` : 'Assignment Added';
+      case 'ASSIGNMENT_REMOVED':
+        const removedName = activity.metadata?.assigneeName as string | undefined;
+        return removedName ? `${removedName} unassigned` : 'Assignment Removed';
+      default:
+        return 'Activity';
+    }
+  };
+
+  const formatActivityDate = (dateString: string): string => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
   };
 
   // Packing handlers
@@ -308,7 +544,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
     updateFulfillmentOrder(fulfillmentOrder.id, {
       status: 'SHIPPED',
       shipStatus: 'SHIPPED',
-      carrier: carrier,
+      carrier: selectedCarrier,
       trackingNumbers: trackingNumbers.split(',').map(t => t.trim()).filter(t => t),
       shipConfirmedAt: now,
       updatedAt: now,
@@ -323,12 +559,71 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
     setForceUpdate(prev => prev + 1);
   };
 
+  const handleReportBackorder = (lineItemId: string, expectedQty: number, actualQty: number, notes: string) => {
+    if (fulfillmentOrder.status !== 'PICKING') return;
+
+    const lineItem = fulfillmentOrder.lineItems.find(li => li.id === lineItemId);
+    if (!lineItem) return;
+
+    const now = new Date().toISOString();
+
+    // Create backorder review data
+    const backorderReviewData: BackorderReviewData = {
+      lineItemId,
+      expectedTotal: expectedQty,
+      actualTotal: actualQty,
+      shortageQty: expectedQty - actualQty,
+      workerNotes: notes,
+      reportedBy: 'Current User',
+      reportedAt: now,
+      locationRecords: [], // Would be populated with actual location data
+    };
+
+    // Update the fulfillment order to BACKORDER_REVIEW status
+    updateFulfillmentOrder(fulfillmentOrder.id, {
+      status: 'BACKORDER_REVIEW',
+      holdReason: `Worker reported shortage: ${expectedQty - actualQty} units short on ${lineItem.partNumber}`,
+      backorderReviewData,
+      updatedAt: now,
+    });
+
+    setForceUpdate(prev => prev + 1);
+  };
+
+  // Handle inventory discrepancy - automatically notifies inside salesperson
+  const handleInventoryDiscrepancy = (discrepancy: InventoryDiscrepancy) => {
+    // This would typically:
+    // 1. Log the discrepancy to the system (like a cycle count discrepancy)
+    // 2. Notify the inside salesperson assigned to this order
+    // 3. Create a task or alert for inventory review
+
+    console.log('Inventory discrepancy reported:', {
+      orderNumber: fulfillmentOrder.orderNumber,
+      product: discrepancy.partNumber,
+      location: discrepancy.locationName,
+      locationType: discrepancy.locationType,
+      expected: discrepancy.expectedQty,
+      actual: discrepancy.actualQty,
+      shortage: discrepancy.shortage,
+    });
+
+    // TODO: Implement actual notification to inside salesperson
+    // This would create a notification/task similar to cycle count discrepancies
+    // For now, we just log it - the actual implementation would:
+    // - Create a notification for the inside salesperson on this order
+    // - Log to inventory discrepancy history
+    // - Potentially trigger a cycle count for this location
+  };
+
   const handleContinue = () => {
     if (fulfillmentOrder.status === 'PENDING') handleReleaseToWarehouse();
     else if (fulfillmentOrder.status === 'RELEASED') handleStartPicking();
     else if (fulfillmentOrder.status === 'PICKING') handleCompletePicking();
     else if (fulfillmentOrder.status === 'PACKING') handleCompletePacking();
     else if (fulfillmentOrder.status === 'SHIPPING') handleCompleteShipping();
+    else if (fulfillmentOrder.status === 'SHIPPED' || fulfillmentOrder.status === 'PARTIAL_SHIPPED') {
+      setShowShipmentConfirmationModal(true);
+    }
   };
 
   const handleSave = () => {
@@ -348,27 +643,218 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
     setPickupNotes('');
   };
 
+  // Backorder handling functions
+  const handleManufacturerDirect = (selectedItems: BackorderItem[]) => {
+    const lineItemIds = selectedItems.map(item => item.lineItem.id);
+    markAsManufacturerFulfilled(fulfillmentOrderId, lineItemIds);
+    setShowManufacturerDirectModal(false);
+    setForceUpdate(prev => prev + 1);
+  };
+
+  const handleCreateInventoryRequest = (items: { lineItem: FulfillmentOrderLineItem; requestedQty: number }[]) => {
+    // Group items by manufacturer
+    const byManufacturer = items.reduce((acc, item) => {
+      const inv = backorderItems.find(bi => bi.lineItem.id === item.lineItem.id);
+      if (inv) {
+        const mfrId = inv.manufacturerId;
+        if (!acc[mfrId]) {
+          acc[mfrId] = { name: inv.manufacturerName, items: [] };
+        }
+        acc[mfrId].items.push({
+          id: `REQLI-${Date.now()}-${item.lineItem.id}`,
+          productId: item.lineItem.productId,
+          productName: item.lineItem.productName,
+          partNumber: item.lineItem.partNumber,
+          requestedQuantity: item.requestedQty,
+          currentStock: inv.inventoryOnHand,
+        });
+      }
+      return acc;
+    }, {} as Record<string, { name: string; items: any[] }>);
+
+    // Create shipment requests for each manufacturer
+    Object.entries(byManufacturer).forEach(([mfrId, { name, items: reqItems }]) => {
+      addShipmentRequest({
+        vendorId: mfrId,
+        vendorName: name,
+        warehouseId: fulfillmentOrder.warehouseId,
+        warehouseName: fulfillmentOrder.warehouseName,
+        requestMethod: 'EMAIL',
+        status: 'DRAFT',
+        priority: 'standard',
+        requestedDeliveryDate: fulfillmentOrder.needByDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        items: reqItems,
+        totalQuantity: reqItems.reduce((sum, item) => sum + item.requestedQuantity, 0),
+        notes: `Created from fulfillment order ${fulfillmentOrder.fulfillmentOrderNumber}`,
+        createdBy: 'Current User',
+      });
+    });
+
+    // Update the fulfillment order to show it's pending delivery
+    updateFulfillmentOrder(fulfillmentOrderId, {
+      holdReason: 'Pending inventory delivery request',
+    });
+
+    setShowRequestInventoryModal(false);
+    setForceUpdate(prev => prev + 1);
+  };
+
+  const handleAddToExistingRequest = (requestId: string, items: { lineItem: FulfillmentOrderLineItem; requestedQty: number }[]) => {
+    // In a real app, this would add items to the existing request
+    console.log('Adding items to existing request:', requestId, items);
+    setShowRequestInventoryModal(false);
+    setForceUpdate(prev => prev + 1);
+  };
+
+  const handleSplitOrder = (allocations: { lineItemId: string; warehouseQty: number; manufacturerQty: number }[]) => {
+    allocations.forEach(alloc => {
+      if (alloc.manufacturerQty > 0) {
+        splitLineItemForManufacturer(fulfillmentOrderId, alloc.lineItemId, alloc.warehouseQty, alloc.manufacturerQty);
+      }
+    });
+    setShowSplitOrderModal(false);
+    setForceUpdate(prev => prev + 1);
+  };
+
+  const handleCancelBackorder = (allocations: { lineItemId: string; originalQty: number; newQty: number; cancelledQty: number }[], cancellationReason: string) => {
+    const now = new Date().toISOString();
+
+    // Update each line item with the new quantity
+    allocations.forEach(alloc => {
+      if (alloc.cancelledQty > 0) {
+        // Find the line item and update its quantities
+        const lineItem = fulfillmentOrder?.lineItems.find(li => li.id === alloc.lineItemId);
+        if (lineItem) {
+          // Update the line item quantities - reduce ordered and allocated to the new qty
+          // In a real app, this would also update the source order
+          updateFulfillmentOrder(fulfillmentOrderId, {
+            lineItems: fulfillmentOrder?.lineItems.map(li =>
+              li.id === alloc.lineItemId
+                ? {
+                    ...li,
+                    orderedQty: alloc.newQty,
+                    allocatedQty: alloc.newQty,
+                    backorderQty: 0,
+                    notes: li.notes
+                      ? `${li.notes}\n[${now}] Cancelled ${alloc.cancelledQty} units: ${cancellationReason}`
+                      : `[${now}] Cancelled ${alloc.cancelledQty} units: ${cancellationReason}`
+                  }
+                : li
+            ),
+            notes: fulfillmentOrder?.notes
+              ? `${fulfillmentOrder.notes}\n[${now}] Backorder cancelled - ${cancellationReason}`
+              : `[${now}] Backorder cancelled - ${cancellationReason}`,
+            updatedAt: now,
+          });
+        }
+      }
+    });
+
+    // Log the cancellation (in a real app, this would also update the source order)
+    console.log('Backorder cancelled:', {
+      fulfillmentOrderId,
+      sourceOrderId: fulfillmentOrder?.orderId,
+      sourceOrderNumber: fulfillmentOrder?.orderNumber,
+      allocations,
+      reason: cancellationReason,
+    });
+
+    setShowCancelBackorderModal(false);
+    setForceUpdate(prev => prev + 1);
+  };
+
+  // Handle sending shipment confirmation email
+  const handleSendShipmentConfirmation = (emailData: {
+    to: string;
+    subject: string;
+    body: string;
+    attachedDocIds: string[];
+  }) => {
+    const now = new Date().toISOString();
+
+    // Log the email (in a real app, this would send via email service)
+    console.log('Sending shipment confirmation email:', emailData);
+
+    // Update the fulfillment order to COMMUNICATED status
+    updateFulfillmentOrder(fulfillmentOrder.id, {
+      status: 'COMMUNICATED',
+      updatedAt: now,
+    });
+
+    // Add activity for email sent
+    const newActivity: FulfillmentActivity = {
+      id: `act-${Date.now()}`,
+      type: 'NOTE_ADDED',
+      timestamp: now,
+      createdBy: 'Current User',
+      content: `Shipment confirmation email sent to ${emailData.to}`,
+      metadata: {
+        emailTo: emailData.to,
+        emailSubject: emailData.subject,
+        attachedDocIds: emailData.attachedDocIds,
+      },
+    };
+    setActivities(prev => [...prev, newActivity]);
+    updateFulfillmentOrder(fulfillmentOrder.id, {
+      activities: [...activities, newActivity],
+    });
+
+    setShowShipmentConfirmationModal(false);
+    setForceUpdate(prev => prev + 1);
+  };
+
+  // Document handlers
+  const handleAddDocument = (document: Omit<AttachedDocument, 'id'>) => {
+    const newDocument: AttachedDocument = {
+      ...document,
+      id: `DOC-${Date.now()}`,
+    };
+    setAttachedDocuments(prev => [...prev, newDocument]);
+    // In a real app, also persist to backend
+    updateFulfillmentOrder(fulfillmentOrder.id, {
+      documents: [...attachedDocuments, newDocument],
+    });
+    setForceUpdate(prev => prev + 1);
+  };
+
+  const handleRemoveDocument = (documentId: string) => {
+    const updatedDocs = attachedDocuments.filter(d => d.id !== documentId);
+    setAttachedDocuments(updatedDocs);
+    // In a real app, also persist to backend
+    updateFulfillmentOrder(fulfillmentOrder.id, {
+      documents: updatedDocs,
+    });
+    setForceUpdate(prev => prev + 1);
+  };
+
   // Get continue button props
   const getContinueButtonProps = () => {
-    const statusMap: Record<FulfillmentOrderStatus, { text: string; color: string; canContinue: boolean }> = {
-      'PENDING': { text: 'Continue', color: 'bg-cyan-600 hover:bg-cyan-700', canContinue: true },
-      'RELEASED': { text: 'Continue', color: 'bg-yellow-600 hover:bg-yellow-700', canContinue: true },
-      'PICKING': { text: 'Continue', color: 'bg-amber-600 hover:bg-amber-700', canContinue: true },
-      'PACKING': { text: 'Continue', color: 'bg-orange-600 hover:bg-orange-700', canContinue: true },
+    // Block release if there are unresolved backorder items
+    const hasUnresolvedBackorders = backorderItems.length > 0;
+
+    const statusMap: Record<FulfillmentOrderStatus, { text: string; color: string; canContinue: boolean; blockedReason?: string }> = {
+      'PENDING': hasUnresolvedBackorders
+        ? { text: 'Resolve Backorders', color: 'bg-amber-500 hover:bg-amber-600', canContinue: false, blockedReason: 'Resolve backorder items before releasing' }
+        : { text: 'Release to Warehouse', color: 'bg-cyan-600 hover:bg-cyan-700', canContinue: true },
+      'RELEASED': { text: 'Start Picking', color: 'bg-yellow-600 hover:bg-yellow-700', canContinue: true },
+      'PICKING': { text: 'Complete Picking', color: 'bg-amber-600 hover:bg-amber-700', canContinue: true },
+      'BACKORDER_REVIEW': { text: 'Under Review', color: 'bg-red-500', canContinue: false, blockedReason: 'Awaiting manager review for reported shortage' },
+      'PACKING': { text: 'Complete Packing', color: 'bg-orange-600 hover:bg-orange-700', canContinue: true },
       'SHIPPING': {
-        text: (shippingMethod === 'SHIP' && carrierType === 'freight') || shippingMethod === 'WILL_CALL' && !pickupSignature ? 'Capture Signature' : 'Continue',
+        text: (shippingMethod === 'SHIP' && carrierType === 'freight') || shippingMethod === 'WILL_CALL' && !pickupSignature ? 'Capture Signature' : 'Complete Shipping',
         color: (shippingMethod === 'SHIP' && carrierType === 'freight') || shippingMethod === 'WILL_CALL' && !pickupSignature ? 'bg-purple-600 hover:bg-purple-700' : 'bg-green-600 hover:bg-green-700',
         canContinue: true
       },
-      'SHIPPED': { text: 'Completed', color: 'bg-gray-400', canContinue: false },
-      'PARTIAL_SHIPPED': { text: 'Completed', color: 'bg-gray-400', canContinue: false },
+      'SHIPPED': { text: 'Send Confirmation', color: 'bg-teal-600 hover:bg-teal-700', canContinue: true },
+      'PARTIAL_SHIPPED': { text: 'Send Confirmation', color: 'bg-teal-600 hover:bg-teal-700', canContinue: true },
+      'COMMUNICATED': { text: 'Completed', color: 'bg-gray-400', canContinue: false },
       'DELIVERED': { text: 'Completed', color: 'bg-gray-400', canContinue: false },
       'CANCELLED': { text: 'Cancelled', color: 'bg-gray-400', canContinue: false },
     };
     return statusMap[fulfillmentOrder.status] || { text: 'Continue', color: 'bg-[var(--primary)]', canContinue: false };
   };
 
-  const { text: continueButtonText, color: continueButtonColor, canContinue } = getContinueButtonProps();
+  const { text: continueButtonText, color: continueButtonColor, canContinue, blockedReason } = getContinueButtonProps();
 
   // Shipped data for ShippedInterface
   const shippedData = {
@@ -397,6 +883,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
           canContinue={canContinue}
           continueButtonText={continueButtonText}
           continueButtonColor={continueButtonColor}
+          blockedReason={blockedReason}
         />
 
         {/* Status Progress */}
@@ -406,6 +893,83 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
           onStatusClick={handleStatusClick}
           onBackToCurrent={() => setViewingStatus(null)}
         />
+
+        {/* Backorder Notice - Show on PENDING status with backorder items */}
+        {(fulfillmentOrder.status === 'PENDING' || fulfillmentOrder.status === 'RELEASED') && backorderItems.length > 0 && (
+          <BackorderNotice
+            fulfillmentOrder={fulfillmentOrder}
+            backorderItems={backorderItems}
+            onManufacturerDirect={() => setShowManufacturerDirectModal(true)}
+            onRequestInventory={() => setShowRequestInventoryModal(true)}
+            onSplitOrder={() => setShowSplitOrderModal(true)}
+            onCancelBackorder={() => setShowCancelBackorderModal(true)}
+          />
+        )}
+
+        {/* Manufacturer Order Notice - Show when items are being fulfilled by manufacturer */}
+        {fulfillmentOrder.manufacturerOrderStatus && fulfillmentOrder.manufacturerOrderStatus !== 'NONE' && (
+          <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                <svg
+                  className="w-5 h-5 text-indigo-600"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                  />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-indigo-900">
+                  {fulfillmentOrder.manufacturerOrderStatus === 'FULL'
+                    ? 'Manufacturer Direct Fulfillment'
+                    : 'Split Fulfillment - Warehouse & Manufacturer'}
+                </h3>
+                <p className="text-xs text-indigo-700 mt-0.5">
+                  {fulfillmentOrder.manufacturerOrderStatus === 'FULL'
+                    ? 'This entire order is being fulfilled directly by the manufacturer.'
+                    : 'Some items on this order are being fulfilled directly by the manufacturer.'}
+                </p>
+              </div>
+              <a
+                href={`/orders/${fulfillmentOrder.orderId}`}
+                className="text-xs text-indigo-600 hover:text-indigo-800 underline"
+              >
+                View Original Order
+              </a>
+            </div>
+          </div>
+        )}
+
+        {/* Hold Notice - Show when order is on hold */}
+        {fulfillmentOrder.holdReason && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+                <svg
+                  className="w-5 h-5 text-amber-600"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4M12 16h.01" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-amber-900">Order On Hold</h3>
+                <p className="text-xs text-amber-700 mt-0.5">{fulfillmentOrder.holdReason}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Picking Interface */}
         {isPicking && (
@@ -417,10 +981,10 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
               expandedNoteId={expandedNoteId}
               onMarkAsPicked={handleMarkAsPicked}
               onPickAll={handlePickAll}
-              onSimulateQRScan={handleSimulateQRScan}
               onUpdateNote={handleUpdateNote}
               onExpandNote={setExpandedNoteId}
               onCompletePicking={handleCompletePicking}
+              onReportInventoryDiscrepancy={handleInventoryDiscrepancy}
             />
           </div>
         )}
@@ -506,49 +1070,90 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
         )}
 
         {/* Main Content - Two Column Layout */}
-        <div className="grid grid-cols-3 gap-4 mb-4">
-          {/* Left Column - Fulfillment Details */}
-          <FulfillmentDetailsForm
-            fulfillmentOrder={fulfillmentOrder}
-            warehouseId={warehouseId}
-            fulfillmentMethod={fulfillmentMethod}
-            needByDate={needByDate}
-            shipToName={shipToName}
-            shipToAddressLine1={shipToAddressLine1}
-            shipToAddressLine2={shipToAddressLine2}
-            shipToCity={shipToCity}
-            shipToState={shipToState}
-            shipToPostalCode={shipToPostalCode}
-            shipToPhone={shipToPhone}
-            carrier={carrier}
-            trackingNumbers={trackingNumbers}
-            shipToDifferentFromPO={shipToDifferentFromPO}
-            isReleased={isReleased}
-            onWarehouseIdChange={setWarehouseId}
-            onFulfillmentMethodChange={setFulfillmentMethod}
-            onNeedByDateChange={setNeedByDate}
-            onShipToNameChange={setShipToName}
-            onShipToAddressLine1Change={setShipToAddressLine1}
-            onShipToAddressLine2Change={setShipToAddressLine2}
-            onShipToCityChange={setShipToCity}
-            onShipToStateChange={setShipToState}
-            onShipToPostalCodeChange={setShipToPostalCode}
-            onShipToPhoneChange={setShipToPhone}
-            onCarrierChange={setCarrier}
-            onTrackingNumbersChange={setTrackingNumbers}
-            onShipToDifferentFromPOChange={setShipToDifferentFromPO}
-          />
+        <div className="grid grid-cols-3 gap-4">
+          {/* Left Column - Fulfillment Details & Line Items */}
+          <div className="col-span-2 space-y-4">
+            <FulfillmentDetailsForm
+              fulfillmentOrder={fulfillmentOrder}
+              warehouseId={warehouseId}
+              needByDate={needByDate}
+              shipToName={shipToName}
+              shipToAddressLine1={shipToAddressLine1}
+              shipToAddressLine2={shipToAddressLine2}
+              shipToCity={shipToCity}
+              shipToState={shipToState}
+              shipToPostalCode={shipToPostalCode}
+              shipToPhone={shipToPhone}
+              carrier={selectedCarrier}
+              carrierType={carrierType}
+              trackingNumbers={trackingNumbers}
+              freightClass={freightClass}
+              shipToDifferentFromPO={shipToDifferentFromPO}
+              isReleased={isReleased}
+              deliveryMethod={shippingMethod}
+              onDeliveryMethodChange={setShippingMethod}
+              onWarehouseIdChange={setWarehouseId}
+              onNeedByDateChange={setNeedByDate}
+              onShipToNameChange={setShipToName}
+              onShipToAddressLine1Change={setShipToAddressLine1}
+              onShipToAddressLine2Change={setShipToAddressLine2}
+              onShipToCityChange={setShipToCity}
+              onShipToStateChange={setShipToState}
+              onShipToPostalCodeChange={setShipToPostalCode}
+              onShipToPhoneChange={setShipToPhone}
+              onCarrierChange={setSelectedCarrier}
+              onCarrierTypeChange={setCarrierType}
+              onTrackingNumbersChange={setTrackingNumbers}
+              onFreightClassChange={setFreightClass}
+              onShipToDifferentFromPOChange={setShipToDifferentFromPO}
+            />
 
-          {/* Right Column - Audit Timestamps */}
-          <AuditTimestamps
-            fulfillmentOrder={fulfillmentOrder}
-            isReleased={isReleased}
-            onReleaseToWarehouse={handleReleaseToWarehouse}
-          />
+            {/* Line Items Table - Now in left column */}
+            <LineItemsTable fulfillmentOrder={fulfillmentOrder} />
+          </div>
+
+          {/* Right Column - Audit Timestamps, Assignment, Documents & Activity */}
+          <div className="space-y-4">
+            <AuditTimestamps
+              fulfillmentOrder={fulfillmentOrder}
+              isReleased={isReleased}
+              onReleaseToWarehouse={handleReleaseToWarehouse}
+            />
+            <AssignmentPanel
+              assignedManagers={fulfillmentOrder.assignedManagers || []}
+              assignedWorkers={fulfillmentOrder.assignedWorkers || []}
+              warehouseId={fulfillmentOrder.warehouseId}
+              onAddAssignment={(userId, role) => {
+                addFulfillmentOrderAssignment(fulfillmentOrderId, userId, role, 'Current User');
+                setForceUpdate(prev => prev + 1);
+              }}
+              onRemoveAssignment={(assignmentId, role) => {
+                removeFulfillmentOrderAssignment(fulfillmentOrderId, assignmentId, role);
+                setForceUpdate(prev => prev + 1);
+              }}
+              isEditable={!isShipped}
+              showRequiredWarnings={!isReleased}
+            />
+
+            {/* Documents Section */}
+            <DocumentsSection
+              documents={attachedDocuments}
+              onAddDocument={handleAddDocument}
+              onRemoveDocument={handleRemoveDocument}
+              isEditable={!isShipped}
+            />
+
+            {/* Activity Feed */}
+            <ActivityFeed
+              activities={activities as GenericActivity[]}
+              onAddNote={handleAddActivityNote}
+              getActivityIcon={getActivityIcon}
+              getActivityTitle={getActivityTitle}
+              formatDate={formatActivityDate}
+              placeholder="Add a note about this order..."
+            />
+          </div>
         </div>
-
-        {/* Line Items Table */}
-        <LineItemsTable fulfillmentOrder={fulfillmentOrder} />
       </div>
 
       {/* Modals */}
@@ -589,6 +1194,52 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
           setPickupTimestamp(timestamp);
           setShowSignatureModal(false);
         }}
+      />
+
+      {/* Backorder Modals */}
+      <ManufacturerDirectModal
+        isOpen={showManufacturerDirectModal}
+        fulfillmentOrder={fulfillmentOrder}
+        backorderItems={backorderItems}
+        onClose={() => setShowManufacturerDirectModal(false)}
+        onConfirm={handleManufacturerDirect}
+      />
+
+      <RequestInventoryModal
+        isOpen={showRequestInventoryModal}
+        fulfillmentOrder={fulfillmentOrder}
+        backorderItems={backorderItems}
+        existingShipmentRequests={pendingShipmentRequests}
+        onClose={() => setShowRequestInventoryModal(false)}
+        onCreateNew={handleCreateInventoryRequest}
+        onAddToExisting={handleAddToExistingRequest}
+      />
+
+      <SplitOrderModal
+        isOpen={showSplitOrderModal}
+        fulfillmentOrder={fulfillmentOrder}
+        backorderItems={backorderItems}
+        onClose={() => setShowSplitOrderModal(false)}
+        onConfirm={handleSplitOrder}
+      />
+
+      <CancelBackorderModal
+        isOpen={showCancelBackorderModal}
+        fulfillmentOrder={fulfillmentOrder}
+        backorderItems={backorderItems}
+        onClose={() => setShowCancelBackorderModal(false)}
+        onConfirm={handleCancelBackorder}
+      />
+
+      <ShipmentConfirmationModal
+        isOpen={showShipmentConfirmationModal}
+        fulfillmentOrder={fulfillmentOrder}
+        attachedDocuments={attachedDocuments}
+        carrierType={carrierType}
+        carrier={selectedCarrier}
+        trackingNumbers={trackingNumbers}
+        onClose={() => setShowShipmentConfirmationModal(false)}
+        onSend={handleSendShipmentConfirmation}
       />
     </main>
   );

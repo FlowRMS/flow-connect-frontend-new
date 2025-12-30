@@ -3,42 +3,52 @@
 import React from 'react';
 
 interface FulfillmentTabsProps {
-  activeTab: 'orders' | 'waves';
-  onTabChange: (tab: 'orders' | 'waves') => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  selectedCount: number;
+  onAssignClick: () => void;
+  onClearSelection: () => void;
 }
 
 export default function FulfillmentTabs({
-  activeTab,
-  onTabChange,
   searchQuery,
   onSearchChange,
+  selectedCount,
+  onAssignClick,
+  onClearSelection,
 }: FulfillmentTabsProps) {
   return (
     <div className="flex items-center gap-4 mb-4">
-      <div className="flex items-center gap-1 p-1 bg-[var(--muted)] rounded-lg">
-        <button
-          onClick={() => onTabChange('orders')}
-          className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-            activeTab === 'orders'
-              ? 'bg-white text-[var(--foreground)] shadow-sm'
-              : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
-          }`}
-        >
-          Orders Awaiting Fulfillment
-        </button>
-        <button
-          onClick={() => onTabChange('waves')}
-          className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-            activeTab === 'waves'
-              ? 'bg-white text-[var(--foreground)] shadow-sm'
-              : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
-          }`}
-        >
-          Picking Waves
-        </button>
-      </div>
+      {/* Selection actions */}
+      {selectedCount > 0 ? (
+        <div className="flex items-center gap-3 bg-[var(--primary)]/10 px-4 py-2 rounded-lg">
+          <span className="text-sm font-medium text-[var(--primary)]">
+            {selectedCount} order{selectedCount !== 1 ? 's' : ''} selected
+          </span>
+          <div className="h-4 w-px bg-[var(--primary)]/30" />
+          <button
+            onClick={onAssignClick}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-md hover:bg-[var(--primary-hover)] transition-colors"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+            Assign
+          </button>
+          <button
+            onClick={onClearSelection}
+            className="px-2 py-1 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+          >
+            Clear
+          </button>
+        </div>
+      ) : (
+        <div className="text-sm text-[var(--muted-foreground)]">
+          Select orders to assign to a picker
+        </div>
+      )}
 
       <div className="flex-1" />
 

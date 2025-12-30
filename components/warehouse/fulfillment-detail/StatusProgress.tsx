@@ -3,7 +3,7 @@
 import React from 'react';
 import { FulfillmentOrderStatus, fulfillmentOrderStatusLabels } from '@/lib/types/warehouse';
 
-const statusSteps: FulfillmentOrderStatus[] = ['PENDING', 'RELEASED', 'PICKING', 'PACKING', 'SHIPPING', 'SHIPPED'];
+const statusSteps: FulfillmentOrderStatus[] = ['PENDING', 'RELEASED', 'PICKING', 'PACKING', 'SHIPPING', 'SHIPPED', 'COMMUNICATED'];
 
 interface StatusProgressProps {
   currentStatus: FulfillmentOrderStatus;

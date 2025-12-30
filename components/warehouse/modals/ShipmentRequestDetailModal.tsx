@@ -283,7 +283,7 @@ export default function ShipmentRequestDetailModal({
             </div>
           )}
 
-          {/* Linked Shipment */}
+          {/* Linked Delivery */}
           {request.linkedShipmentId && (
             <div className="bg-indigo-50 rounded-lg p-4">
               <h3 className="text-sm font-medium text-indigo-900 mb-2 flex items-center gap-2">
@@ -291,10 +291,10 @@ export default function ShipmentRequestDetailModal({
                   <path d="M16 16v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h1"/>
                   <rect x="9" y="3" width="12" height="14" rx="2" ry="2"/>
                 </svg>
-                Linked Shipment
+                Linked Delivery
               </h3>
               <p className="text-sm text-indigo-700">
-                This request is linked to incoming shipment <span className="font-mono font-medium">{request.linkedShipmentId}</span>
+                This request is linked to incoming delivery <span className="font-mono font-medium">{request.linkedShipmentId}</span>
               </p>
             </div>
           )}

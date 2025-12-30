@@ -1,16 +1,15 @@
 import React from 'react';
+import Link from 'next/link';
 import { BackorderItem } from './types';
 
 interface BackorderAlertProps {
     backorderItems: BackorderItem[];
     totalBackorderQty: number;
-    onRequestInventory: () => void;
 }
 
 export default function BackorderAlert({
     backorderItems,
     totalBackorderQty,
-    onRequestInventory,
 }: BackorderAlertProps) {
     if (backorderItems.length === 0) return null;
 
@@ -40,12 +39,12 @@ export default function BackorderAlert({
                         )}
                     </div>
                 </div>
-                <button
-                    onClick={onRequestInventory}
+                <Link
+                    href="/warehouse/inventory/request/new"
                     className="flex-shrink-0 px-3 py-1.5 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700 transition-colors"
                 >
                     Request Inventory
-                </button>
+                </Link>
             </div>
         </div>
     );
