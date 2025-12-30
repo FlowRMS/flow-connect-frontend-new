@@ -1,18 +1,40 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import WarehouseLayoutModal from '../layout/WarehouseLayoutModal';
 import WarehouseQRCodesModal from '../qr-codes/WarehouseQRCodesModal';
 import { useWarehouseSettings, useShippingCarriers, useContainerTypes } from './hooks';
-import { WarehouseSettingsHeader, WarehousesList, ShippingCarriersList, ContainerTypesList } from './components';
+import { WarehouseSettingsHeader, WarehousesList, ShippingCarriersList, ContainerTypesList, ManufacturerProfilesTab } from './components';
 import { NewWarehouseModal, AddWorkerModal } from './modals';
 import { mockAvailableWorkers } from './mockData';
 import type { SettingsTab } from './types';
 
+const ALL_TAB_IDS: SettingsTab[] = ['warehouses', 'shipping-carriers', 'containers', 'manufacturer-profiles'];
+
 export default function WarehouseSettingsContent() {
-  // Tab state
-  const [activeTab, setActiveTab] = useState<SettingsTab>('warehouses');
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab') as SettingsTab | null;
+  
+  // Tab state - initialize from URL parameter if valid
+  const [activeTab, setActiveTab] = useState<SettingsTab>(
+    tabParam && ALL_TAB_IDS.includes(tabParam) ? tabParam : 'warehouses'
+  );
   const [isSaving, setIsSaving] = useState(false);
+
+  // Update active tab when URL parameter changes
+  useEffect(() => {
+    if (tabParam && ALL_TAB_IDS.includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
+
+  // Handle tab change - update both state and URL
+  const handleTabChange = (tab: SettingsTab) => {
+    setActiveTab(tab);
+    router.replace(`/warehouse/settings?tab=${tab}`, { scroll: false });
+  };
 
   // Hooks
   const warehouseSettings = useWarehouseSettings();
@@ -42,7 +64,8 @@ export default function WarehouseSettingsContent() {
         isSaving={isSaving}
         onSave={handleSave}
         onAddWarehouse={() => warehouseSettings.setShowNewWarehouseModal(true)}
-        onTabChange={setActiveTab}
+        onAddManufacturer={() => router.push('/warehouse/manufacturer-profiles/new')}
+        onTabChange={handleTabChange}
       />
 
       {/* Warehouses Tab Content */}
@@ -94,6 +117,11 @@ export default function WarehouseSettingsContent() {
           onDragOver={containerSettings.handleDragOver}
           onDragEnd={containerSettings.endDrag}
         />
+      )}
+
+      {/* Manufacturer Profiles Tab Content */}
+      {activeTab === 'manufacturer-profiles' && (
+        <ManufacturerProfilesTab />
       )}
 
       {/* Modals */}

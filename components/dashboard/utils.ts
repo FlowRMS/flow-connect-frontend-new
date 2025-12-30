@@ -431,7 +431,7 @@ function transformFactory(factory: FactoryLandingPage): Activity {
     mentions: [],
     status: statusLabel,
     activityStatus: factory.published ? 'completed' : 'upcoming',
-    link: `/warehouse/manufacturer-profiles?id=${factory.id}`,
+    link: `/warehouse/manufacturer-profiles/${factory.id}/edit`,
     metadata: {
       title: factory.title,
       email: factory.email,

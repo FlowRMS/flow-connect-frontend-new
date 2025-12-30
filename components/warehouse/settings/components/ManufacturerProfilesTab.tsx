@@ -1,6 +1,6 @@
 /**
- * Manufacturer Profiles Content Component
- * Clean, modular implementation for the manufacturer profiles page
+ * Manufacturer Profiles Tab Component
+ * Tab content for manufacturer profiles within warehouse settings
  * Integrated with Factory GraphQL endpoints
  */
 
@@ -8,13 +8,13 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useFactories, useDeleteFactory, type FactoryLandingPage } from './api/useFactoriesApi';
-import DeleteFactoryModal from './modals/DeleteFactoryModal';
+import { useFactories, useDeleteFactory, type FactoryLandingPage } from '../../api/useFactoriesApi';
+import DeleteFactoryModal from '../../modals/DeleteFactoryModal';
 
 type SortField = 'title' | 'accountNumber' | 'createdAt';
 type SortDirection = 'asc' | 'desc';
 
-export default function ManufacturerProfilesContent() {
+export default function ManufacturerProfilesTab() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -119,45 +119,25 @@ export default function ManufacturerProfilesContent() {
   };
 
   return (
-    <main className="flex-1 overflow-y-auto bg-[var(--background)] p-3 sm:p-6">
-      {/* Header */}
+    <div>
+      {/* Filters and Search */}
       <div className="mb-4 sm:mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2 mb-4">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]">Manufacturer Profiles</h1>
-            <p className="text-sm text-[var(--muted-foreground)]">
-              Configure manufacturer settings, commission rates, and payment terms
-            </p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-            {/* Status Filter */}
-            <div className="flex items-center gap-1 p-1 bg-[var(--muted)] rounded-md">
-              {(['all', 'published', 'unpublished'] as const).map((status) => (
-                <button
-                  key={status}
-                  onClick={() => setFilterPublished(status)}
-                  className={`px-3 py-1.5 rounded text-xs sm:text-sm font-medium transition-colors capitalize ${
-                    filterPublished === status
-                      ? 'bg-white dark:bg-[var(--card)] shadow-sm text-[var(--foreground)]'
-                      : 'text-[var(--muted-foreground)] hover:bg-[var(--card)]'
-                  }`}
-                >
-                  {status === 'all' ? 'All' : status}
-                </button>
-              ))}
-            </div>
-
-            <button
-              onClick={() => router.push('/warehouse/manufacturer-profiles/new')}
-              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-xs sm:text-sm hover:bg-[var(--primary-hover)] transition-colors"
-            >
-              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-4 sm:h-4">
-                <circle cx="10" cy="10" r="7"/>
-                <path d="M10 7v6M7 10h6" strokeLinecap="round"/>
-              </svg>
-              <span className="hidden sm:inline">New Manufacturer</span>
-              <span className="sm:hidden">New</span>
-            </button>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3 sm:gap-2 mb-4">
+          {/* Status Filter */}
+          <div className="flex items-center gap-1 p-1 bg-[var(--muted)] rounded-md">
+            {(['all', 'published', 'unpublished'] as const).map((status) => (
+              <button
+                key={status}
+                onClick={() => setFilterPublished(status)}
+                className={`px-3 py-1.5 rounded text-xs sm:text-sm font-medium transition-colors capitalize ${
+                  filterPublished === status
+                    ? 'bg-white dark:bg-[var(--card)] shadow-sm text-[var(--foreground)]'
+                    : 'text-[var(--muted-foreground)] hover:bg-[var(--card)]'
+                }`}
+              >
+                {status === 'all' ? 'All' : status}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -240,7 +220,9 @@ export default function ManufacturerProfilesContent() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
           <h3 className="text-lg font-medium text-red-800 dark:text-red-200 mb-2">Failed to load manufacturers</h3>
-          <p className="text-sm text-red-600 dark:text-red-400 mb-4">{error instanceof Error ? error.message : 'An unexpected error occurred'}</p>
+          <p className="text-sm text-red-600 dark:text-red-400 mb-4">
+            {error instanceof Error ? error.message : 'An unexpected error occurred'}
+          </p>
           <button
             onClick={() => refetch()}
             className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
@@ -487,6 +469,7 @@ export default function ManufacturerProfilesContent() {
           isDeleting={deleteFactoryMutation.isPending}
         />
       )}
-    </main>
+    </div>
   );
 }
+
