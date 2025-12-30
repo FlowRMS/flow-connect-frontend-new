@@ -328,14 +328,17 @@ export function AdditionalDetailsModal({
 
             {/* Inside Rep - only show when per-line-item is enabled */}
             {showInsideRepPerLine && (
-              <div>
-                <label className="block text-sm text-gray-700 mb-1">Inside Rep(s)</label>
+              <div className="border border-blue-200 rounded-lg p-4 bg-blue-50/30">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                  <label className="text-sm font-medium text-gray-800">Inside Rep Commission Split</label>
+                </div>
 
                 {/* Rep list */}
-                {insideSplitReps.length > 0 && (
-                  <div className="space-y-2 mb-2">
+                {insideSplitReps.length > 0 ? (
+                  <div className="space-y-2 mb-3">
                     {insideSplitReps.map((rep) => (
-                      <div key={rep.id} className="flex items-center gap-2 p-2 bg-gray-50 rounded-md">
+                      <div key={rep.id} className="flex items-center gap-2 p-2 bg-white rounded-md border border-gray-200">
                         <div className="flex-1">
                           <span className="text-sm font-medium text-gray-900">{rep.userName || 'Unknown'}</span>
                         </div>
@@ -353,6 +356,7 @@ export function AdditionalDetailsModal({
                         <button
                           onClick={() => removeRepFromSplit(rep.id, true)}
                           className="p-1 text-gray-400 hover:text-red-500"
+                          title="Remove rep"
                         >
                           <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                             <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round" />
@@ -360,13 +364,15 @@ export function AdditionalDetailsModal({
                         </button>
                       </div>
                     ))}
-                    <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center justify-between text-xs px-1">
                       <span className="text-gray-500">Total:</span>
                       <span className={`font-medium ${insideSplitTotal === 100 ? 'text-green-600' : 'text-red-600'}`}>
                         {insideSplitTotal}%
                       </span>
                     </div>
                   </div>
+                ) : (
+                  <p className="text-xs text-gray-500 mb-3">No inside reps assigned. Search below to add.</p>
                 )}
 
                 {/* Add rep search */}
@@ -385,21 +391,24 @@ export function AdditionalDetailsModal({
                     setInsideRepSearchEnabled(true);
                   }}
                   isLoading={isInsideRepLoading}
-                  placeholder="Add inside rep..."
+                  placeholder="Search to add inside rep..."
                 />
               </div>
             )}
 
             {/* Outside Rep - only show when per-line-item is enabled */}
             {showOutsideRepPerLine && (
-              <div>
-                <label className="block text-sm text-gray-700 mb-1">Outside Rep(s)</label>
+              <div className="border border-green-200 rounded-lg p-4 bg-green-50/30">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                  <label className="text-sm font-medium text-gray-800">Outside Rep Commission Split</label>
+                </div>
 
                 {/* Rep list */}
-                {outsideSplitReps.length > 0 && (
-                  <div className="space-y-2 mb-2">
+                {outsideSplitReps.length > 0 ? (
+                  <div className="space-y-2 mb-3">
                     {outsideSplitReps.map((rep) => (
-                      <div key={rep.id} className="flex items-center gap-2 p-2 bg-gray-50 rounded-md">
+                      <div key={rep.id} className="flex items-center gap-2 p-2 bg-white rounded-md border border-gray-200">
                         <div className="flex-1">
                           <span className="text-sm font-medium text-gray-900">{rep.userName || 'Unknown'}</span>
                         </div>
@@ -417,6 +426,7 @@ export function AdditionalDetailsModal({
                         <button
                           onClick={() => removeRepFromSplit(rep.id, false)}
                           className="p-1 text-gray-400 hover:text-red-500"
+                          title="Remove rep"
                         >
                           <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                             <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round" />
@@ -424,13 +434,15 @@ export function AdditionalDetailsModal({
                         </button>
                       </div>
                     ))}
-                    <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center justify-between text-xs px-1">
                       <span className="text-gray-500">Total:</span>
                       <span className={`font-medium ${outsideSplitTotal === 100 ? 'text-green-600' : 'text-red-600'}`}>
                         {outsideSplitTotal}%
                       </span>
                     </div>
                   </div>
+                ) : (
+                  <p className="text-xs text-gray-500 mb-3">No outside reps assigned. Search below to add.</p>
                 )}
 
                 {/* Add rep search */}
@@ -449,7 +461,7 @@ export function AdditionalDetailsModal({
                     setOutsideRepSearchEnabled(true);
                   }}
                   isLoading={isOutsideRepLoading}
-                  placeholder="Add outside rep..."
+                  placeholder="Search to add outside rep..."
                 />
               </div>
             )}
@@ -461,23 +473,33 @@ export function AdditionalDetailsModal({
                 <input
                   type="number"
                   value={formData.commissionDiscountPercent}
-                  onChange={(e) => setFormData({ ...formData, commissionDiscountPercent: parseFloat(e.target.value) || 0 })}
+                  onChange={(e) => {
+                    const percent = parseFloat(e.target.value) || 0;
+                    // Calculate commission discount amount based on line item's commission amount
+                    const commissionAmount = lineItem?.commissionAmount || 0;
+                    const discountAmount = (commissionAmount * percent) / 100;
+                    setFormData({
+                      ...formData,
+                      commissionDiscountPercent: percent,
+                      commissionDiscountAmount: discountAmount,
+                    });
+                  }}
                   className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 />
                 <span className="text-sm text-gray-500">%</span>
               </div>
             </div>
 
-            {/* Commission Discount $ */}
+            {/* Commission Discount $ (Read-only, calculated from %) */}
             <div>
               <label className="block text-sm text-gray-700 mb-1">Commission Discount $</label>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-500">$</span>
                 <input
-                  type="number"
-                  value={formData.commissionDiscountAmount}
-                  onChange={(e) => setFormData({ ...formData, commissionDiscountAmount: parseFloat(e.target.value) || 0 })}
-                  className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  type="text"
+                  value={(Number(formData.commissionDiscountAmount) || 0).toFixed(2)}
+                  readOnly
+                  className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-md bg-gray-50 text-gray-600 cursor-not-allowed"
                 />
               </div>
             </div>
@@ -489,23 +511,33 @@ export function AdditionalDetailsModal({
                 <input
                   type="number"
                   value={formData.lineDiscountPercent}
-                  onChange={(e) => setFormData({ ...formData, lineDiscountPercent: parseFloat(e.target.value) || 0 })}
+                  onChange={(e) => {
+                    const percent = parseFloat(e.target.value) || 0;
+                    // Calculate line discount amount based on line item's extended price
+                    const extendedPrice = lineItem?.extendedPrice || 0;
+                    const discountAmount = (extendedPrice * percent) / 100;
+                    setFormData({
+                      ...formData,
+                      lineDiscountPercent: percent,
+                      lineDiscountAmount: discountAmount,
+                    });
+                  }}
                   className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 />
                 <span className="text-sm text-gray-500">%</span>
               </div>
             </div>
 
-            {/* Line Discount $ */}
+            {/* Line Discount $ (Read-only, calculated from %) */}
             <div>
               <label className="block text-sm text-gray-700 mb-1">Line Discount $</label>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-500">$</span>
                 <input
-                  type="number"
-                  value={formData.lineDiscountAmount}
-                  onChange={(e) => setFormData({ ...formData, lineDiscountAmount: parseFloat(e.target.value) || 0 })}
-                  className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  type="text"
+                  value={(Number(formData.lineDiscountAmount) || 0).toFixed(2)}
+                  readOnly
+                  className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-md bg-gray-50 text-gray-600 cursor-not-allowed"
                 />
               </div>
             </div>

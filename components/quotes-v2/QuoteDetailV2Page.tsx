@@ -36,8 +36,43 @@ import {
   useDeleteQuoteV2,
   useDuplicateQuoteV2,
 } from './api/quotesV2Api';
-import { searchUsers, searchFactories, searchCustomers } from '../quotes/api/quotesApi';
+import { searchUsers, searchFactories, searchCustomers, getProductCpnByCustomer } from '../quotes/api/quotesApi';
 import { quoteToasts } from '../lib/toast';
+
+// Helper function to fetch CPNs for line items with products
+async function fetchCpnsForLineItems(
+  items: LineItemV2[],
+  customerId: string,
+  setLineItems: React.Dispatch<React.SetStateAction<LineItemV2[]>>
+) {
+  if (!customerId || items.length === 0) return;
+
+  // Get line items that have a productId
+  const itemsWithProducts = items.filter(li => li.productId);
+  if (itemsWithProducts.length === 0) return;
+
+  // Fetch CPNs for each product in parallel
+  const cpnPromises = itemsWithProducts.map(async (li) => {
+    try {
+      const cpnResult = await getProductCpnByCustomer(li.productId!, customerId);
+      return { itemId: li.id, cpn: cpnResult?.customerPartNumber || '' };
+    } catch (err) {
+      console.log('No CPN found for product:', li.productId);
+      return { itemId: li.id, cpn: '' };
+    }
+  });
+
+  const cpnResults = await Promise.all(cpnPromises);
+
+  // Update line items with fetched CPNs
+  const cpnMap = new Map(cpnResults.map(r => [r.itemId, r.cpn]));
+  setLineItems((prev) =>
+    prev.map((li) => ({
+      ...li,
+      customerPartNumber: cpnMap.has(li.id) ? cpnMap.get(li.id)! : li.customerPartNumber,
+    }))
+  );
+}
 
 type TabType = 'lineItems' | 'notes' | 'tasks' | 'activity' | 'linkedObjects' | 'versions' | 'settings' | 'files';
 
@@ -132,43 +167,21 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
             })
             .catch((err) => console.error('Failed to fetch end user names:', err));
         }
+
+        // Fetch CPNs for line items that have products
+        if (apiQuote.soldToCustomerId && transformedLineItems.some(li => li.productId)) {
+          fetchCpnsForLineItems(transformedLineItems, apiQuote.soldToCustomerId, setLineItems);
+        }
       }
       setHasChanges(false);
 
-      // Auto-detect per-line-item settings by checking if line items have different values
-      if (apiQuote.details && apiQuote.details.length > 1) {
-        // Helper to serialize split rates for comparison (ignoring IDs)
-        const serializeSplitRates = (rates?: { userId?: string; splitRate?: string }[]) => {
-          if (!rates || rates.length === 0) return '';
-          return rates
-            .map(r => `${r.userId || ''}:${r.splitRate || ''}`)
-            .sort()
-            .join('|');
-        };
-
-        // Check if inside reps differ across line items
-        const insideRateSignatures = apiQuote.details.map(d => serializeSplitRates(d.insideSplitRates));
-        const hasDistinctInsideReps = new Set(insideRateSignatures).size > 1;
-
-        // Check if outside reps differ across line items
-        const outsideRateSignatures = apiQuote.details.map(d => serializeSplitRates(d.outsideSplitRates));
-        const hasDistinctOutsideReps = new Set(outsideRateSignatures).size > 1;
-
-        // Check if end users differ across line items
-        // Include empty strings in comparison - empty vs non-empty IS different
-        const endUserIds = apiQuote.details.map(d => d.endUserId || '');
-        const hasDistinctEndUsers = new Set(endUserIds).size > 1;
-
-        // ALWAYS set settings based on current data state - derive purely from data
-        // If all line items have SAME values → toggle OFF (header mode)
-        // If line items have DIFFERENT values → toggle ON (per-line mode)
-        setSettings(prev => ({
-          ...prev,
-          insideRepAtLineLevel: hasDistinctInsideReps,
-          outsideRepAtLineLevel: hasDistinctOutsideReps,
-          specifyEndUserPerLine: hasDistinctEndUsers,
-        }));
-      }
+      // Use settings from API response
+      setSettings(prev => ({
+        ...prev,
+        specifyEndUserPerLine: apiQuote.endUserPerLineItem ?? false,
+        insideRepAtLineLevel: apiQuote.insidePerLineItem ?? false,
+        outsideRepAtLineLevel: apiQuote.outsidePerLineItem ?? false,
+      }));
 
       // Extract inside and outside reps from line item split rates
       // The backend now stores both insideSplitRates and outsideSplitRates at detail level
@@ -252,6 +265,23 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
     }
   }, [apiQuote, isNew]);
 
+  // Track previous soldToCustomerId to detect changes
+  const prevSoldToCustomerIdRef = React.useRef<string | undefined>(undefined);
+
+  // Re-fetch CPNs when sold-to customer changes
+  useEffect(() => {
+    // Only re-fetch if customer actually changed (not on initial load)
+    if (
+      prevSoldToCustomerIdRef.current !== undefined &&
+      quote.soldToCustomerId !== prevSoldToCustomerIdRef.current &&
+      quote.soldToCustomerId &&
+      lineItems.some(li => li.productId)
+    ) {
+      fetchCpnsForLineItems(lineItems, quote.soldToCustomerId, setLineItems);
+    }
+    prevSoldToCustomerIdRef.current = quote.soldToCustomerId;
+  }, [quote.soldToCustomerId, lineItems]);
+
   const handleQuoteChange = useCallback((updates: Partial<QuoteV2>) => {
     setQuote((prev) => ({ ...prev, ...updates }));
     setHasChanges(true);
@@ -309,6 +339,10 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       jobId: quote.jobId || undefined,
       paymentTerms: quote.paymentTerms || undefined,
       reviseDate: quote.revisedDate || undefined,
+      // Settings for per-line-item configuration
+      endUserPerLineItem: settings.specifyEndUserPerLine,
+      insidePerLineItem: settings.insideRepAtLineLevel,
+      outsidePerLineItem: settings.outsideRepAtLineLevel,
       // Split rates are now at detail level (insideSplitRates and outsideSplitRates per line item)
       // Pass settings so each line item uses its own split rates when per-line-item is enabled
       details: lineItems.map((li, index) => ({
@@ -505,6 +539,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
             columnConfig={columnConfig}
             quoteId={quote.id}
             settings={settings}
+            soldToCustomerId={quote.soldToCustomerId}
           />
         )}
 

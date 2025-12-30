@@ -12,7 +12,7 @@ import type { Order, OrderLineItem } from '@/lib/types/rms';
 import type { ColumnKey, ViewMode } from '../../types';
 import { BulkActionsBar } from './BulkActionsBar';
 import { LineItemsTableHeader } from './LineItemsTableHeader';
-import { useProductSearch, useFactorySearch, useCustomerSearch, useProductCpns } from '../../../api';
+import { useProductSearch, useFactorySearch, useCustomerSearch, useProductCpns, getProductCpnByCustomer } from '../../../api';
 import { formatCurrency } from '../../utils';
 
 type EditableColumnKey = 'partNumber' | 'custPartNumber' | 'description' | 'uom' | 'divisor' | 'quantity' | 'unitPrice' | 'commissionPercent' | 'manufacturer' | 'endUser';
@@ -173,9 +173,16 @@ export function LineItemsTable({
 
   // Handle cell click - open dropdown or start inline edit
   const handleCellClick = (itemId: string, column: EditableColumnKey, e: React.MouseEvent) => {
-    const dropdownColumns: EditableColumnKey[] = ['partNumber', 'custPartNumber', 'description', 'manufacturer'];
+    // custPartNumber and description are read-only (populated when product is selected)
+    // Only partNumber and manufacturer are dropdown columns
+    const dropdownColumns: EditableColumnKey[] = ['partNumber', 'manufacturer'];
     if (showEndUserPerLine) {
       dropdownColumns.push('endUser');
+    }
+    // Read-only columns - no interaction
+    const readOnlyColumns: EditableColumnKey[] = ['custPartNumber', 'description'];
+    if (readOnlyColumns.includes(column)) {
+      return; // Do nothing for read-only columns
     }
     if (dropdownColumns.includes(column)) {
       const rect = e.currentTarget.getBoundingClientRect();
@@ -192,8 +199,8 @@ export function LineItemsTable({
 
   // Handle dropdown selection for products
   // When selecting a product, auto-fill Part#, Description, unitPrice, commissionRate
-  // and clear CPN since product changed (CPN is specific to product)
-  const handleProductSelect = (itemId: string, product: any) => {
+  // and auto-fetch CPN for the sold-to customer
+  const handleProductSelect = async (itemId: string, product: any) => {
     const item = (order.lineItems || []).find(li => li.id === itemId);
     if (!item) return;
 
@@ -203,19 +210,42 @@ export function LineItemsTable({
     const commissionRate = product.defaultCommissionRate || 0.08;
     const extendedPrice = quantity * unitPrice / divisor;
 
-    updateLineItem(itemId, {
-      productId: product.id,
-      partNumber: product.factoryPartNumber || '',
-      description: product.description || '',
-      custPartNumber: '', // Clear CPN when product changes (like quotes-v2)
-      unitPrice: unitPrice,
-      divisor: divisor,
-      commissionRate: commissionRate,
-      extendedPrice: extendedPrice,
-      commissionAmount: extendedPrice * commissionRate,
-    });
+    // Close dropdown first
     setDropdownOpen(null);
     setSearchQuery('');
+
+    // Fetch CPN first, then do a single atomic update with all data
+    let custPartNumber = '';
+    const soldToCustomerId = order.customerId;
+    if (soldToCustomerId && product.id) {
+      try {
+        const cpnResult = await getProductCpnByCustomer(product.id, soldToCustomerId);
+        if (cpnResult?.customerPartNumber) {
+          custPartNumber = cpnResult.customerPartNumber;
+        }
+      } catch (err) {
+        // CPN not found is not an error - just leave it empty
+      }
+    }
+
+    // Single atomic update with all product data including CPN
+    if (onUpdateLineItems) {
+      const updatedItems = (order.lineItems || []).map((li) =>
+        li.id === itemId ? {
+          ...li,
+          productId: product.id,
+          partNumber: product.factoryPartNumber || '',
+          description: product.description || '',
+          custPartNumber: custPartNumber,
+          unitPrice: unitPrice,
+          divisor: divisor,
+          commissionRate: commissionRate,
+          extendedPrice: extendedPrice,
+          commissionAmount: extendedPrice * commissionRate,
+        } : li
+      );
+      onUpdateLineItems(updatedItems);
+    }
   };
 
   // Handle dropdown selection for CPN
@@ -295,11 +325,15 @@ export function LineItemsTable({
   // Render editable cell
   const renderEditableCell = (item: OrderLineItem, column: EditableColumnKey, align: 'left' | 'center' | 'right' = 'left') => {
     const isEditing = editingCell?.itemId === item.id && editingCell?.column === column;
-    const dropdownColumns: EditableColumnKey[] = ['partNumber', 'custPartNumber', 'description', 'manufacturer'];
+    // Only partNumber and manufacturer are dropdown columns
+    // custPartNumber and description are read-only (populated when product is selected)
+    const dropdownColumns: EditableColumnKey[] = ['partNumber', 'manufacturer'];
     if (showEndUserPerLine) {
       dropdownColumns.push('endUser');
     }
     const isDropdownColumn = dropdownColumns.includes(column);
+    // custPartNumber and description are read-only display columns
+    const isReadOnlyDisplayColumn = ['custPartNumber', 'description'].includes(column);
 
     let displayValue = '';
     let editValue = '';
@@ -309,10 +343,12 @@ export function LineItemsTable({
         displayValue = item.partNumber || 'Select...';
         break;
       case 'custPartNumber':
-        displayValue = item.custPartNumber || 'Select...';
+        // Read-only - populated when product is selected
+        displayValue = item.custPartNumber || '—';
         break;
       case 'description':
-        displayValue = item.description || 'Select...';
+        // Read-only - populated when product is selected
+        displayValue = item.description || '—';
         break;
       case 'manufacturer':
         displayValue = (item as any).manufacturerName || 'Select...';
@@ -343,6 +379,16 @@ export function LineItemsTable({
     }
 
     const alignClass = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left';
+
+    // Read-only display columns (custPartNumber and description)
+    // These show the value but can't be edited - they're populated when product is selected
+    if (isReadOnlyDisplayColumn) {
+      return (
+        <span className={`px-2 py-1 ${alignClass} ${!displayValue || displayValue === '—' ? 'text-gray-400' : ''}`}>
+          {displayValue || '—'}
+        </span>
+      );
+    }
 
     // Dropdown cells
     if (isDropdownColumn) {
@@ -771,7 +817,7 @@ export function LineItemsTable({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder={
-                    isProductDropdown ? "Search products..." :
+                    isProductDropdown ? "Type to search..." :
                     isFactoryDropdown ? "Search manufacturers..." :
                     isCpnDropdown ? "Customer part numbers..." :
                     isEndUserDropdown ? "Search customers..." : "Search..."
@@ -779,6 +825,11 @@ export function LineItemsTable({
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   autoFocus
                 />
+                {isProductDropdown && (
+                  <div className="mt-1 text-xs text-gray-400">
+                    Searches: Part #, Customer Part #, Description
+                  </div>
+                )}
               </div>
               <div className="max-h-48 overflow-y-auto">
                 {/* Product results */}

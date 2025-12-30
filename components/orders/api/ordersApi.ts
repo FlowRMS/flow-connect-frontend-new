@@ -181,6 +181,10 @@ export interface Order {
   soldToCustomerId?: string;
   status?: string;
   url?: string;
+  // Settings for per-line-item configuration
+  endUserPerLineItem?: boolean;
+  insidePerLineItem?: boolean;
+  outsidePerLineItem?: boolean;
 }
 
 export interface OrderLandingPage {
@@ -246,6 +250,10 @@ export interface CreateOrderInput {
   quoteId?: string;
   shipDate?: string;
   shippingTerms?: string;
+  // Settings for per-line-item configuration
+  endUserPerLineItem?: boolean;
+  insidePerLineItem?: boolean;
+  outsidePerLineItem?: boolean;
 }
 
 export interface UpdateOrderInput extends CreateOrderInput {}
@@ -451,6 +459,9 @@ const FIND_ORDER_BY_ID = `
       soldToCustomerId
       status
       url
+      endUserPerLineItem
+      insidePerLineItem
+      outsidePerLineItem
     }
   }
 `;
@@ -603,6 +614,9 @@ const CREATE_ORDER = `
       soldToCustomerId
       status
       url
+      endUserPerLineItem
+      insidePerLineItem
+      outsidePerLineItem
     }
   }
 `;
@@ -751,6 +765,9 @@ const UPDATE_ORDER = `
       soldToCustomerId
       status
       url
+      endUserPerLineItem
+      insidePerLineItem
+      outsidePerLineItem
     }
   }
 `;

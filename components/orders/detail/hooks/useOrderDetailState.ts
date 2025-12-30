@@ -10,7 +10,7 @@ import type { Order, OrderLineItem } from '@/lib/types/rms';
 import type { FulfillmentOrder } from '@/lib/types/warehouse';
 import type { TabType, LineItemAcknowledgement, LineItemCredit, ColumnKey } from '../types';
 import { mockFulfillmentOrders } from '@/lib/data/warehouse-mock';
-import { useOrder, useUpdateOrder, useCreateOrder, searchUsers, searchFactories, searchCustomers, type Order as ApiOrder, type OrderDetail } from '../../api';
+import { useOrder, useUpdateOrder, useCreateOrder, searchUsers, searchFactories, searchCustomers, getProductCpnByCustomer, type Order as ApiOrder, type OrderDetail } from '../../api';
 import { DEFAULT_ACTIVE_TAB } from '../config/tabsConfig';
 import { useOrderHeader } from './useOrderHeader';
 import { useLineItemsTable } from './useLineItemsTable';
@@ -90,6 +90,13 @@ function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
     endUserName: '', // Will be fetched separately
     insideSplitRates: detail.insideSplitRates, // Store inside rep split rates from line item
     outsideSplitRates: detail.outsideSplitRates, // Store outside rep split rates from line item
+    // Additional details fields (from AdditionalDetailsModal)
+    commissionDiscountPercent: parseFloat(detail.commissionDiscountRate || '0'),
+    commissionDiscountAmount: detail.commissionDiscount || 0,
+    lineDiscountPercent: parseFloat(detail.discountRate || '0'),
+    lineDiscountAmount: detail.discount || 0,
+    leadTime: detail.leadTime || '',
+    note: detail.note || '',
   }));
 
   // Extract inside rep from the first line item's insideSplitRates
@@ -336,37 +343,40 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
         fetchPromises.push(endUserPromise);
       }
 
-      // Auto-detect per-line-item settings by checking if line items have different values
-      if (apiOrder.details && apiOrder.details.length > 1) {
-        // Helper to serialize split rates for comparison (ignoring IDs)
-        const serializeSplitRates = (rates?: { userId?: string; splitRate?: string }[]) => {
-          if (!rates || rates.length === 0) return '';
-          return rates
-            .map(r => `${r.userId || ''}:${r.splitRate || ''}`)
-            .sort()
-            .join('|');
-        };
+      // Fetch CPNs for line items that have products
+      const soldToCustomerId = apiOrder.soldToCustomerId;
+      const lineItemsWithProducts = transformedOrder.lineItems.filter(li => li.productId);
+      if (soldToCustomerId && lineItemsWithProducts.length > 0) {
+        const cpnPromise = (async () => {
+          // Fetch CPNs for each product in parallel
+          const cpnPromises = lineItemsWithProducts.map(async (li) => {
+            try {
+              const cpnResult = await getProductCpnByCustomer(li.productId!, soldToCustomerId);
+              return { itemId: li.id, cpn: cpnResult?.customerPartNumber || '' };
+            } catch (err) {
+              console.log('No CPN found for product:', li.productId);
+              return { itemId: li.id, cpn: '' };
+            }
+          });
 
-        // Check if inside reps differ across line items
-        const insideRateSignatures = apiOrder.details.map(d => serializeSplitRates(d.insideSplitRates));
-        const hasDistinctInsideReps = new Set(insideRateSignatures).size > 1;
+          const cpnResults = await Promise.all(cpnPromises);
+          const cpnMap = new Map(cpnResults.map(r => [r.itemId, r.cpn]));
 
-        // Check if outside reps differ across line items
-        const outsideRateSignatures = apiOrder.details.map(d => serializeSplitRates(d.outsideSplitRates));
-        const hasDistinctOutsideReps = new Set(outsideRateSignatures).size > 1;
-
-        // Check if end users differ across line items
-        // Include empty strings in comparison - empty vs non-empty IS different
-        const endUserIdList = apiOrder.details.map(d => d.endUserId || '');
-        const hasDistinctEndUsers = new Set(endUserIdList).size > 1;
-
-        // ALWAYS set settings based on current data state - derive purely from data
-        // If all line items have SAME values → toggle OFF (header mode)
-        // If line items have DIFFERENT values → toggle ON (per-line mode)
-        setShowInsideRepPerLine(hasDistinctInsideReps);
-        setShowOutsideRepPerLine(hasDistinctOutsideReps);
-        setShowEndUserPerLine(hasDistinctEndUsers);
+          setLocalOrder(prev => ({
+            ...prev,
+            lineItems: (prev.lineItems || []).map(li => ({
+              ...li,
+              custPartNumber: cpnMap.has(li.id) ? cpnMap.get(li.id)! : li.custPartNumber,
+            })),
+          }));
+        })();
+        fetchPromises.push(cpnPromise);
       }
+
+      // Use settings from API response
+      setShowEndUserPerLine(apiOrder.endUserPerLineItem ?? false);
+      setShowInsideRepPerLine(apiOrder.insidePerLineItem ?? false);
+      setShowOutsideRepPerLine(apiOrder.outsidePerLineItem ?? false);
 
       // After all fetches complete (or if no fetches needed), mark as initialized so useMemo uses localOrder
       if (fetchPromises.length > 0) {
@@ -379,6 +389,47 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
       }
     }
   }, [isCreateMode, apiOrder, hasLocalEdits, hasInitialized]);
+
+  // Track previous customerId to detect changes
+  const prevCustomerIdRef = React.useRef<string | undefined>(undefined);
+
+  // Re-fetch CPNs when sold-to customer changes
+  useEffect(() => {
+    // Only re-fetch if customer actually changed (not on initial load) and we have an order with line items
+    if (
+      prevCustomerIdRef.current !== undefined &&
+      localOrder.customerId !== prevCustomerIdRef.current &&
+      localOrder.customerId &&
+      localOrder.lineItems?.some(li => li.productId)
+    ) {
+      const lineItemsWithProducts = localOrder.lineItems.filter(li => li.productId);
+
+      // Fetch CPNs for each product in parallel
+      (async () => {
+        const cpnPromises = lineItemsWithProducts.map(async (li) => {
+          try {
+            const cpnResult = await getProductCpnByCustomer(li.productId!, localOrder.customerId);
+            return { itemId: li.id, cpn: cpnResult?.customerPartNumber || '' };
+          } catch (err) {
+            // CPN not found is not an error
+            return { itemId: li.id, cpn: '' };
+          }
+        });
+
+        const cpnResults = await Promise.all(cpnPromises);
+        const cpnMap = new Map(cpnResults.map(r => [r.itemId, r.cpn]));
+
+        setLocalOrder(prev => ({
+          ...prev,
+          lineItems: (prev.lineItems || []).map(li => ({
+            ...li,
+            custPartNumber: cpnMap.has(li.id) ? cpnMap.get(li.id)! : li.custPartNumber,
+          })),
+        }));
+      })();
+    }
+    prevCustomerIdRef.current = localOrder.customerId;
+  }, [localOrder.customerId, localOrder.lineItems]);
 
   // Keep orders array for compatibility with existing code
   const orders = useMemo(() => order ? [order] : [], [order]);

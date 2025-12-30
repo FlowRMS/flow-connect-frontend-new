@@ -201,6 +201,11 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           // Include inside and outside rep splitRates on each line item
           insideSplitRates: lineInsideSplitRates,
           outsideSplitRates: lineOutsideSplitRates,
+          // Additional details fields
+          commissionDiscountRate: (item as any).commissionDiscountPercent ? String((item as any).commissionDiscountPercent) : undefined,
+          discountRate: (item as any).lineDiscountPercent ? String((item as any).lineDiscountPercent) : undefined,
+          leadTime: (item as any).leadTime || undefined,
+          note: (item as any).note || undefined,
         };
         // Get endUserId: use line-item level if set, otherwise fall back to order-level
         const lineEndUserId = (item as any).endUserId;
@@ -238,6 +243,10 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           creationType: 'MANUAL' as const,
           published: (order as any).published !== false,
           details: buildDetails(false),
+          // Settings for per-line-item configuration
+          endUserPerLineItem: state.showEndUserPerLine,
+          insidePerLineItem: state.showInsideRepPerLine,
+          outsidePerLineItem: state.showOutsideRepPerLine,
         };
 
         console.log('Creating order with input:', createInput);
@@ -267,6 +276,10 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
             creationType: 'MANUAL' as const,
             published: (order as any).published !== false,
             details: buildDetails(true),
+            // Settings for per-line-item configuration
+            endUserPerLineItem: state.showEndUserPerLine,
+            insidePerLineItem: state.showInsideRepPerLine,
+            outsidePerLineItem: state.showOutsideRepPerLine,
           };
 
           await state.updateOrderMutation.mutateAsync(updateInput);

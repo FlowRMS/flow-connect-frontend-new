@@ -181,6 +181,10 @@ export interface Quote {
   status?: QuoteStatus;
   url?: string;
   versionOf?: string;
+  // Settings for per-line-item configuration
+  endUserPerLineItem?: boolean;
+  insidePerLineItem?: boolean;
+  outsidePerLineItem?: boolean;
 }
 
 export interface QuoteLandingPage {
@@ -246,6 +250,10 @@ export interface CreateQuoteInput {
   jobId?: string;
   paymentTerms?: string;
   reviseDate?: string;
+  // Settings for per-line-item configuration
+  endUserPerLineItem?: boolean;
+  insidePerLineItem?: boolean;
+  outsidePerLineItem?: boolean;
 }
 
 export interface UpdateQuoteInput extends CreateQuoteInput {}
@@ -446,6 +454,9 @@ const FIND_QUOTE_BY_ID = `
       status
       url
       versionOf
+      endUserPerLineItem
+      insidePerLineItem
+      outsidePerLineItem
     }
   }
 `;
@@ -570,6 +581,9 @@ const CREATE_QUOTE = `
       status
       url
       versionOf
+      endUserPerLineItem
+      insidePerLineItem
+      outsidePerLineItem
     }
   }
 `;
@@ -690,6 +704,9 @@ const UPDATE_QUOTE = `
       status
       url
       versionOf
+      endUserPerLineItem
+      insidePerLineItem
+      outsidePerLineItem
     }
   }
 `;
@@ -917,6 +934,23 @@ const USER_SEARCH = `
 const LIST_PRODUCT_CPNS = `
   query ListProductCpnsByProductId($productId: UUID!) {
     listProductCpnsByProductId(productId: $productId) {
+      id
+      customerPartNumber
+      customerId
+      productId
+      commissionRate
+      unitPrice
+    }
+  }
+`;
+
+// ============================================================================
+// Product CPN by Product ID and Customer ID Query
+// ============================================================================
+
+const GET_PRODUCT_CPN_BY_PRODUCT_AND_CUSTOMER = `
+  query ProductCpnByProductIdAndCustomerId($productId: UUID!, $customerId: UUID!) {
+    productCpnByProductIdAndCustomerId(productId: $productId, customerId: $customerId) {
       id
       customerPartNumber
       customerId
@@ -1274,6 +1308,27 @@ export async function listProductCpns(productId: string): Promise<ProductCpnResu
   }
 
   return response.data?.listProductCpnsByProductId || [];
+}
+
+/**
+ * Get customer part number (CPN) for a specific product and customer
+ * Used to auto-populate CPN when selecting a product in quotes/orders
+ */
+export async function getProductCpnByCustomer(productId: string, customerId: string): Promise<ProductCpnResult | null> {
+  if (!productId || !customerId) return null;
+
+  const response = await crmGraphQLRequest<{ productCpnByProductIdAndCustomerId: ProductCpnResult | null }>({
+    query: GET_PRODUCT_CPN_BY_PRODUCT_AND_CUSTOMER,
+    variables: { productId, customerId },
+  });
+
+  if (response.errors) {
+    // If no CPN found, this is not an error - just return null
+    console.log('No CPN found for product and customer:', response.errors[0]?.message);
+    return null;
+  }
+
+  return response.data?.productCpnByProductIdAndCustomerId || null;
 }
 
 /**

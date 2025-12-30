@@ -33,6 +33,7 @@ import {
   searchFactories,
   searchUsers,
   listProductCpns,
+  getProductCpnByCustomer,
   listProductUoms,
   searchJobs,
 } from './quotesApi';
@@ -341,4 +342,4 @@ export type {
 } from './quotesApi';
 
 // Re-export API functions for convenience
-export { searchUsers, searchProducts, searchCustomers, searchFactories, listProductCpns, listProductUoms, searchJobs } from './quotesApi';
+export { searchUsers, searchProducts, searchCustomers, searchFactories, listProductCpns, getProductCpnByCustomer, listProductUoms, searchJobs } from './quotesApi';

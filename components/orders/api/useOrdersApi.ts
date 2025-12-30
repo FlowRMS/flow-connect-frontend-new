@@ -25,6 +25,7 @@ import {
   searchUsers,
   searchProducts,
   listProductCpns,
+  getProductCpnByCustomer,
   listProductUoms,
   type CustomerSearchResult,
   type FactorySearchResult,
@@ -319,7 +320,7 @@ export type {
 export type { JobSearchResult } from '@/components/lib/api/search';
 
 // Re-export search functions from quotes API
-export { searchCustomers, searchFactories, searchUsers, searchProducts, listProductCpns, listProductUoms } from '@/components/quotes/api/quotesApi';
+export { searchCustomers, searchFactories, searchUsers, searchProducts, listProductCpns, getProductCpnByCustomer, listProductUoms } from '@/components/quotes/api/quotesApi';
 
 // Re-export job search from central API
 export { searchJobs } from '@/components/lib/api/search';

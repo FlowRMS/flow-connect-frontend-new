@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type { LineItemV2, ColumnConfig, LineItemColumnKey, QuoteSettingsV2 } from '../types';
-import { useProductSearch, useFactorySearch, useProductCpns, useCustomerSearch } from '../../quotes/api/useQuotesApi';
+import { useProductSearch, useFactorySearch, useProductCpns, useCustomerSearch, getProductCpnByCustomer } from '../../quotes/api/useQuotesApi';
 
 interface LineItemsTabV2Props {
   lineItems: LineItemV2[];
@@ -13,6 +13,7 @@ interface LineItemsTabV2Props {
   columnConfig: ColumnConfig[];
   quoteId?: string;
   settings?: QuoteSettingsV2;
+  soldToCustomerId?: string;
 }
 
 export function LineItemsTabV2({
@@ -23,6 +24,7 @@ export function LineItemsTabV2({
   columnConfig,
   quoteId,
   settings,
+  soldToCustomerId,
 }: LineItemsTabV2Props) {
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [showSectionsMenu, setShowSectionsMenu] = useState(false);
@@ -112,10 +114,16 @@ export function LineItemsTabV2({
   };
 
   const handleCellClick = (itemId: string, column: LineItemColumnKey, e: React.MouseEvent) => {
-    // Add endUser to dropdown columns when specifying per line
-    const dropdownColumns: LineItemColumnKey[] = ['partNumber', 'customerPartNumber', 'description', 'manufacturer'];
+    // customerPartNumber and description are read-only (populated when product is selected)
+    // Only partNumber and manufacturer are dropdown columns
+    const dropdownColumns: LineItemColumnKey[] = ['partNumber', 'manufacturer'];
     if (settings?.specifyEndUserPerLine) {
       dropdownColumns.push('endUser');
+    }
+    // Read-only columns - no interaction
+    const readOnlyColumns: LineItemColumnKey[] = ['customerPartNumber', 'description'];
+    if (readOnlyColumns.includes(column)) {
+      return; // Do nothing for read-only columns
     }
     if (dropdownColumns.includes(column)) {
       const rect = e.currentTarget.getBoundingClientRect();
@@ -226,12 +234,15 @@ export function LineItemsTabV2({
   const renderCell = (item: LineItemV2, column: ColumnConfig) => {
     const isEditing = editingCell?.itemId === item.id && editingCell?.column === column.key;
     const isDropdown = dropdownOpen?.itemId === item.id && dropdownOpen?.column === column.key;
-    // Add endUser to dropdown columns when specifying per line
-    const dropdownColumns: LineItemColumnKey[] = ['partNumber', 'customerPartNumber', 'description', 'manufacturer'];
+    // Only partNumber and manufacturer are dropdown columns
+    // customerPartNumber and description are read-only (populated when product is selected)
+    const dropdownColumns: LineItemColumnKey[] = ['partNumber', 'manufacturer'];
     if (settings?.specifyEndUserPerLine) {
       dropdownColumns.push('endUser');
     }
     const isDropdownColumn = dropdownColumns.includes(column.key);
+    // customerPartNumber and description are read-only columns that show values but can't be edited
+    const isReadOnlyDisplayColumn = ['customerPartNumber', 'description'].includes(column.key);
 
     let displayValue = '';
     let editValue = '';
@@ -241,10 +252,12 @@ export function LineItemsTabV2({
         displayValue = item.partNumber || 'Select...';
         break;
       case 'customerPartNumber':
-        displayValue = item.customerPartNumber || 'Select...';
+        // Read-only - populated when product is selected
+        displayValue = item.customerPartNumber || '—';
         break;
       case 'description':
-        displayValue = item.description || 'Select...';
+        // Read-only - populated when product is selected
+        displayValue = item.description || '—';
         break;
       case 'manufacturer':
         displayValue = item.manufacturerName || 'Select...';
@@ -298,6 +311,18 @@ export function LineItemsTabV2({
         <td key={column.key} className="px-3 py-2 text-sm text-center">
           <span className={column.key === 'commissionTotal' ? 'font-medium text-purple-600' : ''}>
             {displayValue}
+          </span>
+        </td>
+      );
+    }
+
+    // Read-only display columns (customerPartNumber and description)
+    // These show the value but can't be edited - they're populated when product is selected
+    if (isReadOnlyDisplayColumn) {
+      return (
+        <td key={column.key} className="px-3 py-2 text-sm">
+          <span className={`truncate ${!displayValue || displayValue === '—' ? 'text-gray-400' : ''}`}>
+            {displayValue || '—'}
           </span>
         </td>
       );
@@ -415,9 +440,9 @@ export function LineItemsTabV2({
       </div>
 
       {/* Table */}
-      <div className="flex-1 overflow-auto px-6 py-4">
+      <div className="flex-1 overflow-x-auto overflow-y-auto px-6 py-4">
         <div className="border border-gray-200 rounded-lg overflow-hidden">
-          <table className="w-full">
+          <table className="w-full min-w-[1200px]">
             <thead className="bg-gray-50">
               <tr>
                 <th className="w-10 px-3 py-2">
@@ -503,10 +528,15 @@ export function LineItemsTabV2({
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={dropdownOpen.column === 'manufacturer' ? 'Search manufacturers...' : 'Search products...'}
+                  placeholder={dropdownOpen.column === 'manufacturer' ? 'Search manufacturers...' : 'Type to search...'}
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   autoFocus
                 />
+                {isProductDropdown && (
+                  <div className="mt-1 text-xs text-gray-400">
+                    Searches: Part #, Customer Part #, Description
+                  </div>
+                )}
               </div>
               <div className="max-h-48 overflow-y-auto">
                 {/* Loading state */}
@@ -551,6 +581,7 @@ export function LineItemsTabV2({
                         onClick={async () => {
                           // Get current line item to calculate derived values
                           const item = lineItems.find(li => li.id === dropdownOpen.itemId);
+                          const itemId = dropdownOpen.itemId;
                           const quantity = item?.quantity || 1;
                           const divisor = product.defaultDivisor || item?.divisor || 1;
                           const unitPrice = product.unitPrice || 0;
@@ -561,23 +592,40 @@ export function LineItemsTabV2({
                           const commission = sellTotal * commissionRate / quantity;
                           const commissionTotal = sellTotal * commissionRate;
 
-                          // Update with basic product info, calculations, and clear CPN since product changed
-                          // Note: Factory info not available in ProductLiteResponse - manufacturer will be set separately
-                          updateLineItem(dropdownOpen.itemId, {
-                            productId: product.id,
-                            partNumber: product.factoryPartNumber || '',
-                            description: product.description || '',
-                            unitPrice: unitPrice,
-                            commissionPercent: commissionRate,
-                            divisor: divisor,
-                            customerPartNumber: '', // Clear CPN when product changes
-                            sellTotal: sellTotal,
-                            commission: commission,
-                            commissionTotal: commissionTotal,
-                          });
+                          // Close dropdown first
                           setDropdownOpen(null);
                           setSearchQuery('');
                           setDebouncedSearch('');
+
+                          // Fetch CPN first, then do a single atomic update with all data
+                          let customerPartNumber = '';
+                          if (soldToCustomerId && product.id) {
+                            try {
+                              const cpnResult = await getProductCpnByCustomer(product.id, soldToCustomerId);
+                              if (cpnResult?.customerPartNumber) {
+                                customerPartNumber = cpnResult.customerPartNumber;
+                              }
+                            } catch (err) {
+                              // CPN not found is not an error - just leave it empty
+                            }
+                          }
+
+                          // Single atomic update with all product data including CPN
+                          onLineItemsChange(
+                            lineItems.map((li) => li.id === itemId ? {
+                              ...li,
+                              productId: product.id,
+                              partNumber: product.factoryPartNumber || '',
+                              description: product.description || '',
+                              unitPrice: unitPrice,
+                              commissionPercent: commissionRate,
+                              divisor: divisor,
+                              customerPartNumber: customerPartNumber,
+                              sellTotal: sellTotal,
+                              commission: commission,
+                              commissionTotal: commissionTotal,
+                            } : li)
+                          );
                         }}
                         className="w-full text-left px-3 py-2 hover:bg-gray-50 transition-colors"
                       >
