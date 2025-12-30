@@ -379,6 +379,7 @@ export default function ManufacturerProfilesContent() {
           onSave={handleSaveProfile}
         />
       )}
-    </main>
+    </div>
   );
 }
+

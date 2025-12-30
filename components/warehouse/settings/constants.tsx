@@ -49,6 +49,7 @@ export const settingsTabs: { id: SettingsTab; label: string }[] = [
   { id: 'warehouses', label: 'Warehouses' },
   { id: 'shipping-carriers', label: 'Shipping Carriers' },
   { id: 'containers', label: 'Containers' },
+  { id: 'manufacturer-profiles', label: 'Manufacturer Profiles' },
 ];
 
 export const PAYMENT_TERMS_OPTIONS = [
