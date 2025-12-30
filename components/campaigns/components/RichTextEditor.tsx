@@ -7,6 +7,9 @@
 
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
+import BulletList from '@tiptap/extension-bullet-list';
+import OrderedList from '@tiptap/extension-ordered-list';
+import ListItem from '@tiptap/extension-list-item';
 import Underline from '@tiptap/extension-underline';
 import TextAlign from '@tiptap/extension-text-align';
 import Link from '@tiptap/extension-link';
@@ -14,6 +17,7 @@ import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
 import Highlight from '@tiptap/extension-highlight';
 import { useCallback, useEffect } from 'react';
+import './RichTextEditor.css';
 
 interface RichTextEditorProps {
   content: string;
@@ -52,7 +56,19 @@ export default function RichTextEditor({ content, onChange, placeholder }: RichT
         heading: {
           levels: [1, 2, 3],
         },
+        bulletList: false, // disable bullet list from starter kit to add it explicitly
+        orderedList: false, // disable ordered list from starter kit to add it explicitly
+        listItem: false, // disable list item from starter kit to add it explicitly
       }),
+      BulletList.configure({
+        keepMarks: true,
+        keepAttributes: false,
+      }),
+      OrderedList.configure({
+        keepMarks: true,
+        keepAttributes: false,
+      }),
+      ListItem,
       Underline,
       TextAlign.configure({
         types: ['heading', 'paragraph'],
@@ -157,8 +173,11 @@ export default function RichTextEditor({ content, onChange, placeholder }: RichT
 
         {/* Lists */}
         <ToolbarButton
-          onClick={() => editor.chain().focus().toggleBulletList().run()}
+          onClick={() => {
+            editor.chain().focus().toggleBulletList().run();
+          }}
           active={editor.isActive('bulletList')}
+          disabled={!editor.can().toggleBulletList()}
           title="Bullet List"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -166,8 +185,11 @@ export default function RichTextEditor({ content, onChange, placeholder }: RichT
           </svg>
         </ToolbarButton>
         <ToolbarButton
-          onClick={() => editor.chain().focus().toggleOrderedList().run()}
+          onClick={() => {
+            editor.chain().focus().toggleOrderedList().run();
+          }}
           active={editor.isActive('orderedList')}
+          disabled={!editor.can().toggleOrderedList()}
           title="Numbered List"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -321,10 +343,12 @@ export default function RichTextEditor({ content, onChange, placeholder }: RichT
       </div>
 
       {/* Editor Content */}
-      <EditorContent
-        editor={editor}
-        className="min-h-[250px] max-h-[400px] overflow-auto"
-      />
+      <div className="rich-text-editor">
+        <EditorContent
+          editor={editor}
+          className="min-h-[250px] max-h-[400px] overflow-auto"
+        />
+      </div>
 
       {/* Placeholder when empty */}
       {editor.isEmpty && placeholder && (
