@@ -20,6 +20,7 @@ import { useUser } from '../../providers/user-provider';
 import { takeoffToasts, showInfoToast, showErrorToast, showSuccessToast, showWarningToast } from '../../lib/toast';
 import {
   fetchUserTakeoffs,
+  fetchTakeoff,
   deleteTakeoff as apiDeleteTakeoff,
   createTakeoffWithFiles,
   classifyDocument as classifyDocumentAPI,
@@ -1158,16 +1159,61 @@ export function useTakeoffsState() {
     setCurrentStep(getInitialStep(takeoff.status));
 
     // Load documents for the selected takeoff
-    if (takeoff.documents) {
-      setDocuments(takeoff.documents);
+    // First try from the takeoff object, then fetch from backend if needed
+    let docs = takeoff.documents || [];
+
+    if (docs.length === 0) {
+      // Fetch full takeoff data from backend to get documents
+      console.log('[handleSelectTakeoff] No documents in takeoff, fetching from backend...');
+      try {
+        const fullTakeoff = await fetchTakeoff(takeoff.id);
+        if (fullTakeoff?.documents && fullTakeoff.documents.length > 0) {
+          console.log('[handleSelectTakeoff] Got documents from backend:', fullTakeoff.documents.length);
+          docs = fullTakeoff.documents.map(doc => ({
+            id: doc.id,
+            name: doc.name,
+            type: 'PDF' as const,
+            size: doc.fileSize,
+            uploadDate: doc.createdAt,
+            classification: doc.classification ? (doc.classification as DocumentClassification) : ('' as DocumentClassification),
+            confidence: doc.confidence || 0,
+            pages: doc.pages,
+            abridged: doc.abridged,
+            abridgedPages: doc.abridgedPages || undefined,
+            reductionPercentage: doc.reductionPercentage || undefined,
+            documentUrl: doc.documentUrl || undefined,
+            pageAnalyses: doc.pageAnalyses || undefined,
+            products: doc.products,
+            parsedItems: doc.parsedItems?.map(item => ({
+              id: item.id || crypto.randomUUID(),
+              manufacturer: item.manufacturer,
+              partNumber: item.partNumber,
+              description: item.description,
+              quantity: item.quantity,
+              isOurManufacturer: item.isOurManufacturer || false,
+              isCrossed: item.isCrossed || false,
+            })),
+          }));
+        }
+      } catch (error) {
+        console.error('[handleSelectTakeoff] Failed to fetch takeoff:', error);
+      }
+    }
+
+    if (docs.length > 0) {
+      setDocuments(docs);
       // Extract parsed items from documents
       const allParsedItems: ParsedItem[] = [];
-      takeoff.documents.forEach(doc => {
+      docs.forEach(doc => {
         if (doc.parsedItems) {
           allParsedItems.push(...doc.parsedItems);
         }
       });
       setParsedItems(allParsedItems);
+    } else {
+      console.warn('[handleSelectTakeoff] No documents found for takeoff');
+      setDocuments([]);
+      setParsedItems([]);
     }
 
     // Load saved product crosses from backend

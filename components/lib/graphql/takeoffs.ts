@@ -908,9 +908,39 @@ export async function createTakeoffWithFiles(
   };
   console.log('[createTakeoffWithFiles] Takeoff input:', takeoffInput);
 
-  const result = await createTakeoff(takeoffInput);
+  let result = await createTakeoff(takeoffInput);
   console.log('[createTakeoffWithFiles] Created takeoff result:', result);
   console.log('[createTakeoffWithFiles] Result documents:', result.documents);
+
+  // Temporary: If documents weren't returned, fetch the takeoff again to get documents
+  if (!result.documents || result.documents.length === 0) {
+    console.log('[createTakeoffWithFiles] No documents in response, fetching takeoff again...');
+    const refetchedTakeoff = await fetchTakeoff(result.id);
+    if (refetchedTakeoff?.documents && refetchedTakeoff.documents.length > 0) {
+      console.log('[createTakeoffWithFiles] Got documents from refetch:', refetchedTakeoff.documents.length);
+      result = refetchedTakeoff;
+    } else {
+      console.warn('[createTakeoffWithFiles] Still no documents after refetch, constructing from input');
+      // Construct documents from our input as a last resort
+      result.documents = documents.map((doc, index) => ({
+        id: `temp-${index}-${Date.now()}`,
+        name: doc.name,
+        fileType: doc.fileType,
+        fileSize: doc.fileSize,
+        documentUrl: doc.documentUrl,
+        pages: doc.pages,
+        abridged: doc.abridged || false,
+        abridgedPages: null,
+        reductionPercentage: null,
+        classification: null,
+        confidence: null,
+        createdAt: new Date().toISOString(),
+        pageAnalyses: null,
+        products: null,
+        parsedItems: null,
+      }));
+    }
+  }
 
   return result;
 }
