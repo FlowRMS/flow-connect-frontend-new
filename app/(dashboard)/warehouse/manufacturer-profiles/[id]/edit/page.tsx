@@ -20,6 +20,15 @@ import {
 
 type TabId = 'overview' | 'split-rates' | 'customer-xref' | 'shipto-xref' | 'freight';
 
+// Helper to format decimal strings (removes trailing zeros)
+function formatDecimal(value: string | undefined | null): string {
+  if (!value) return '';
+  const num = parseFloat(value);
+  if (isNaN(num)) return value;
+  // Remove trailing zeros but keep up to 2 decimal places if needed
+  return num.toString();
+}
+
 // ============================================================================
 // Component
 // ============================================================================
@@ -61,7 +70,13 @@ export default function ManufacturerEditPage() {
   // Initialize form data when factory loads
   useEffect(() => {
     if (factory) {
-      setFormData({ ...factory });
+      // Format decimal values to remove trailing zeros
+      setFormData({
+        ...factory,
+        baseCommissionRate: formatDecimal(factory.baseCommissionRate),
+        commissionDiscountRate: formatDecimal(factory.commissionDiscountRate),
+        overallDiscountRate: formatDecimal(factory.overallDiscountRate),
+      });
 
       // Convert factory splitRates to editable entries
       if (factory.splitRates && factory.splitRates.length > 0) {
@@ -174,7 +189,19 @@ export default function ManufacturerEditPage() {
       toast.success('Manufacturer updated successfully');
       setHasChanges(false);
     } catch (err) {
-      toast.error('Failed to update manufacturer');
+      // Parse error message to show user-friendly messages
+      const errorMessage = err instanceof Error ? err.message : String(err);
+
+      if (errorMessage.includes('inside flag is not set')) {
+        // Extract user name from error message if possible
+        const userMatch = errorMessage.match(/User '([^']+)'/);
+        const userName = userMatch ? userMatch[1] : 'Selected user';
+        toast.error(`${userName} cannot be a factory rep. Only inside sales reps can be assigned to commission splits.`);
+      } else if (errorMessage.includes('cannot be a factory rep')) {
+        toast.error(errorMessage);
+      } else {
+        toast.error('Failed to update manufacturer. Please try again.');
+      }
       console.error('Update error:', err);
     }
   };
