@@ -104,7 +104,7 @@ export function UploadModal({
   }, [onFileSelect]);
 
   const handleSubmit = () => {
-    if (!formData.projectName.trim() || files.length === 0 || isUploading) return;
+    if (!formData.projectName.trim() || !formData.clientName.trim() || files.length === 0 || isUploading) return;
     onUploadStart(formData);
   };
 
@@ -167,7 +167,7 @@ export function UploadModal({
             </div>
             <div className="relative">
               <label className="block text-sm font-medium text-[var(--foreground)] mb-1.5">
-                Client Name
+                Client Name <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <input
@@ -375,7 +375,7 @@ export function UploadModal({
                     />
                   </div>
                   <p className="text-xs text-[var(--muted-foreground)] mt-1">
-                    Uploading to storage... {overallProgress}%
+                    Creating project... {overallProgress}%
                   </p>
                 </div>
               )}
@@ -472,7 +472,7 @@ export function UploadModal({
           </button>
           <button
             onClick={handleSubmit}
-            disabled={!formData.projectName.trim() || files.length === 0 || isUploading}
+            disabled={!formData.projectName.trim() || !formData.clientName.trim() || files.length === 0 || isUploading}
             className="px-6 py-2.5 bg-[var(--primary)] text-white rounded-lg text-sm font-medium hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
           >
             {isUploading ? (
@@ -481,7 +481,7 @@ export function UploadModal({
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
                 </svg>
-                Uploading... {overallProgress}%
+                Creating Project...
               </>
             ) : (
               'Create Project'

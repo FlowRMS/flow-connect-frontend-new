@@ -498,6 +498,79 @@ export const orderToasts = {
     }),
 };
 
+// Takeoff Toasts
+export const takeoffToasts = {
+  uploadSuccess: (projectName: string, docCount: number) =>
+    showSuccessToast('Project Uploaded Successfully', {
+      description: `${projectName} with ${docCount} document${docCount !== 1 ? 's' : ''} is ready for classification`,
+    }),
+
+  uploadError: (error?: string) =>
+    showErrorToast('Failed to Upload Project', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  classificationStarted: (docCount: number) =>
+    showInfoToast('Classification Started', {
+      description: `Analyzing ${docCount} document${docCount !== 1 ? 's' : ''}...`,
+    }),
+
+  classificationComplete: (results: { total: number; fixtures: number; specs: number; blueprints: number; other: number; irrelevant: number }) =>
+    showSuccessToast('Documents Classified', {
+      description: `Successfully classified ${results.total} documents: ${results.fixtures} fixture schedules, ${results.specs} specifications, ${results.blueprints} blueprints, ${results.other} other`,
+    }),
+
+  classificationError: (error?: string) =>
+    showErrorToast('Classification Failed', {
+      description: error || 'Some documents could not be classified',
+    }),
+
+  abridgementStarted: (docCount: number) =>
+    showInfoToast('Abridgement Started', {
+      description: `Processing ${docCount} document${docCount !== 1 ? 's' : ''}...`,
+    }),
+
+  abridgementComplete: (originalPages: number, abridgedPages: number) =>
+    showSuccessToast('Documents Abridged', {
+      description: `Reduced from ${originalPages} to ${abridgedPages} pages (${Math.round((1 - abridgedPages / originalPages) * 100)}% reduction)`,
+    }),
+
+  abridgementError: (error?: string) =>
+    showErrorToast('Abridgement Failed', {
+      description: error || 'Some documents could not be abridged',
+    }),
+
+  parsingStarted: () =>
+    showInfoToast('Schedule Parsing Started', {
+      description: 'Extracting fixture data from documents...',
+    }),
+
+  parsingComplete: (itemCount: number) =>
+    showSuccessToast('Schedules Parsed', {
+      description: `Extracted ${itemCount} fixture item${itemCount !== 1 ? 's' : ''} from documents`,
+    }),
+
+  parsingError: (error?: string) =>
+    showErrorToast('Parsing Failed', {
+      description: error || 'Could not extract fixture schedules',
+    }),
+
+  productCrossStarted: () =>
+    showInfoToast('Product Cross Started', {
+      description: 'Finding matching products...',
+    }),
+
+  productCrossComplete: (matchCount: number) =>
+    showSuccessToast('Product Cross Complete', {
+      description: `Found ${matchCount} product match${matchCount !== 1 ? 'es' : ''}`,
+    }),
+
+  productCrossError: (error?: string) =>
+    showErrorToast('Product Cross Failed', {
+      description: error || 'Could not find product matches',
+    }),
+};
+
 // Quote Toasts
 export const quoteToasts = {
   createSuccess: (quoteNumber: string) =>

@@ -144,6 +144,34 @@ export interface ParsedItem {
 // ============================================================================
 
 /**
+ * Transform API metadata response to UI metadata format
+ * Handles different possible metadata formats from the backend
+ */
+function transformMetadata(metadata: Record<string, unknown> | null | undefined): TakeoffMetadata | undefined {
+  if (!metadata || Object.keys(metadata).length === 0) {
+    return undefined;
+  }
+
+  // Explicitly extract known fields, handling various possible key formats
+  const clientName = (metadata.clientName ?? metadata.client_name ?? metadata.ClientName) as string | undefined;
+  const bidDate = (metadata.bidDate ?? metadata.bid_date ?? metadata.BidDate) as string | undefined;
+  const estimatedValue = (metadata.estimatedValue ?? metadata.estimated_value ?? metadata.EstimatedValue) as string | undefined;
+  const city = (metadata.city ?? metadata.City) as string | undefined;
+  const state = (metadata.state ?? metadata.State) as string | undefined;
+
+  // Return metadata with properly typed fields
+  return {
+    clientName: clientName || undefined,
+    bidDate: bidDate || undefined,
+    estimatedValue: estimatedValue || undefined,
+    city: city || undefined,
+    state: state || undefined,
+    // Preserve any additional fields from the backend
+    ...metadata,
+  };
+}
+
+/**
  * Transform API response to UI display format
  */
 export function transformTakeoffResponse(response: TakeoffResponse): Takeoff {
@@ -156,7 +184,7 @@ export function transformTakeoffResponse(response: TakeoffResponse): Takeoff {
     status: statusDisplayMap[response.status],
     quoteId: response.quoteId || undefined,
     userId: response.userId,
-    metadata: response.metadata || undefined,
+    metadata: transformMetadata(response.metadata),
     documents: response.documents?.map(transformDocumentResponse),
   };
 }

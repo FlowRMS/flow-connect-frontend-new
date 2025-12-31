@@ -24,6 +24,63 @@ interface ClassificationTabProps {
 // Category tabs configuration
 type CategoryTab = 'all' | 'Fixture Schedules' | 'Specifications' | 'Blueprints' | 'Other Docs' | 'Irrelevant';
 
+// Category tab icon component
+function CategoryIcon({ category, className = '' }: { category: CategoryTab; className?: string }) {
+  switch (category) {
+    case 'all':
+      return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}>
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+        </svg>
+      );
+    case 'Fixture Schedules':
+      return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}>
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+          <line x1="3" y1="9" x2="21" y2="9"/>
+          <line x1="9" y1="21" x2="9" y2="9"/>
+        </svg>
+      );
+    case 'Specifications':
+      return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}>
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+          <line x1="10" y1="9" x2="8" y2="9"/>
+        </svg>
+      );
+    case 'Blueprints':
+      return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}>
+          <rect x="3" y="3" width="7" height="7"/>
+          <rect x="14" y="3" width="7" height="7"/>
+          <rect x="14" y="14" width="7" height="7"/>
+          <rect x="3" y="14" width="7" height="7"/>
+        </svg>
+      );
+    case 'Other Docs':
+      return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}>
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+        </svg>
+      );
+    case 'Irrelevant':
+      return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}>
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+        </svg>
+      );
+    default:
+      return null;
+  }
+}
+
 const CATEGORY_TABS: { key: CategoryTab; label: string }[] = [
   { key: 'all', label: 'All Documents' },
   { key: 'Fixture Schedules', label: 'Fixture Schedules' },
@@ -91,6 +148,15 @@ export function ClassificationTab({
   const [activeTab, setActiveTab] = useState<CategoryTab>('all');
   const [disciplineFilter, setDisciplineFilter] = useState<DocumentDiscipline | ''>('');
 
+  // Reset discipline filter when documents change significantly (new upload)
+  React.useEffect(() => {
+    // If all documents have no discipline assigned, reset the filter
+    const docsWithDisciplines = documents.filter(d => d.discipline);
+    if (docsWithDisciplines.length === 0 && disciplineFilter) {
+      setDisciplineFilter('');
+    }
+  }, [documents, disciplineFilter]);
+
   // Detect duplicates
   const duplicateIds = useMemo(() => findDuplicates(documents), [documents]);
   const duplicateCount = duplicateIds.size;
@@ -125,9 +191,14 @@ export function ClassificationTab({
       filtered = filtered.filter(doc => doc.classification === activeTab);
     }
 
-    // Filter by discipline
+    // Filter by discipline - only if documents actually have disciplines assigned
+    // Don't filter out documents that haven't been assigned a discipline yet
     if (disciplineFilter) {
-      filtered = filtered.filter(doc => doc.discipline === disciplineFilter);
+      const docsWithDisciplines = documents.filter(d => d.discipline);
+      // Only apply filter if some documents have disciplines
+      if (docsWithDisciplines.length > 0) {
+        filtered = filtered.filter(doc => doc.discipline === disciplineFilter || !doc.discipline);
+      }
     }
 
     return filtered;
@@ -147,6 +218,9 @@ export function ClassificationTab({
     }
   };
 
+  // Log documents for debugging
+  console.log('[ClassificationTab] Received documents:', documents.length);
+
   if (documents.length === 0) {
     return (
       <div className="text-center py-12">
@@ -156,9 +230,12 @@ export function ClassificationTab({
             <polyline points="14 2 14 8 20 8"/>
           </svg>
         </div>
-        <h3 className="text-lg font-medium text-[var(--foreground)] mb-2">No Documents in This Category</h3>
+        <h3 className="text-lg font-medium text-[var(--foreground)] mb-2">No Documents Available</h3>
         <p className="text-sm text-[var(--muted-foreground)]">
-          Documents will appear here once they are classified into this category.
+          No documents have been uploaded for this project yet.
+        </p>
+        <p className="text-xs text-[var(--muted-foreground)] mt-2">
+          If you just uploaded files, they may still be processing.
         </p>
       </div>
     );
@@ -184,6 +261,7 @@ export function ClassificationTab({
                   }
                 `}
               >
+                <CategoryIcon category={tab.key} className={isActive ? 'text-blue-600' : ''} />
                 {tab.label}
                 <span className={`
                   inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-medium

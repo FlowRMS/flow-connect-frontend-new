@@ -596,18 +596,28 @@ export async function fetchTakeoff(takeoffId: string): Promise<TakeoffResponse |
  * Create a new takeoff
  */
 export async function createTakeoff(input: CreateTakeoffInput): Promise<TakeoffResponse> {
+  console.log('[createTakeoff] Sending mutation with input:', input);
+  console.log('[createTakeoff] Documents count:', input.documents?.length || 0);
+
   const response = await flowAIGraphQLRequest<{ createTakeoff: TakeoffResponse }>({
     query: CREATE_TAKEOFF,
     variables: { input },
   });
 
+  console.log('[createTakeoff] GraphQL response:', JSON.stringify(response, null, 2));
+
   if (response.errors) {
+    console.error('[createTakeoff] GraphQL errors:', response.errors);
     throw new Error(response.errors[0]?.message || 'Failed to create takeoff');
   }
 
   if (!response.data?.createTakeoff) {
+    console.error('[createTakeoff] No takeoff in response');
     throw new Error('No takeoff returned from create mutation');
   }
+
+  console.log('[createTakeoff] Created takeoff:', response.data.createTakeoff);
+  console.log('[createTakeoff] Documents in response:', response.data.createTakeoff.documents);
 
   return response.data.createTakeoff;
 }
@@ -847,22 +857,37 @@ export async function createTakeoffWithFiles(
   input: CreateTakeoffWithFilesInput,
   onProgress?: UploadProgressCallback
 ): Promise<TakeoffResponse> {
+  console.log('[createTakeoffWithFiles] Starting with', input.files.length, 'files');
+  console.log('[createTakeoffWithFiles] Input:', { title: input.title, metadata: input.metadata });
+
   // Step 1: Get page counts from PDFs (in parallel for performance)
+  console.log('[createTakeoffWithFiles] Step 1: Getting page counts...');
   const pageCountPromises = input.files.map(async (file) => {
     const pages = await getPdfPageCount(file);
     return { name: file.name, pages };
   });
   const pageCounts = await Promise.all(pageCountPromises);
   const pageCountMap = new Map(pageCounts.map(({ name, pages }) => [name, pages]));
+  console.log('[createTakeoffWithFiles] Page counts:', pageCounts);
 
   // Step 2: Upload files and get presigned URLs
-  const uploadedFiles = await uploadFilesToStorage(
-    input.files,
-    `takeoffs/${input.title.replace(/[^a-zA-Z0-9]/g, '_')}`,
-    onProgress
-  );
+  console.log('[createTakeoffWithFiles] Step 2: Uploading files to S3...');
+  let uploadedFiles;
+  try {
+    uploadedFiles = await uploadFilesToStorage(
+      input.files,
+      `takeoffs/${input.title.replace(/[^a-zA-Z0-9]/g, '_')}`,
+      onProgress
+    );
+    console.log('[createTakeoffWithFiles] Uploaded files:', uploadedFiles.length);
+  } catch (uploadError) {
+    console.error('[createTakeoffWithFiles] S3 Upload failed:', uploadError);
+    throw new Error(`S3 Upload failed: ${uploadError instanceof Error ? uploadError.message : 'Unknown error'}`);
+  }
+  console.log('[createTakeoffWithFiles] Presigned URLs:', uploadedFiles.map(f => ({ name: f.file.name, url: f.presignedUrl?.substring(0, 50) + '...' })));
 
   // Step 3: Create takeoff with document URLs and page counts
+  console.log('[createTakeoffWithFiles] Step 3: Creating takeoff with documents...');
   const documents: TakeoffDocumentInput[] = uploadedFiles.map(({ file, crmFile, presignedUrl }) => ({
     name: file.name,
     fileType: file.type || 'application/pdf',
@@ -871,6 +896,7 @@ export async function createTakeoffWithFiles(
     pages: pageCountMap.get(file.name) || 0,
     abridged: false,
   }));
+  console.log('[createTakeoffWithFiles] Documents to create:', documents);
 
   const takeoffInput: CreateTakeoffInput = {
     title: input.title,
@@ -880,8 +906,13 @@ export async function createTakeoffWithFiles(
     metadata: input.metadata || null,
     documents,
   };
+  console.log('[createTakeoffWithFiles] Takeoff input:', takeoffInput);
 
-  return createTakeoff(takeoffInput);
+  const result = await createTakeoff(takeoffInput);
+  console.log('[createTakeoffWithFiles] Created takeoff result:', result);
+  console.log('[createTakeoffWithFiles] Result documents:', result.documents);
+
+  return result;
 }
 
 /**

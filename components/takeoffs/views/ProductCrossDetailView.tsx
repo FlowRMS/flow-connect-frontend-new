@@ -9,6 +9,7 @@ import {
   createPromptTemplate,
   type PromptTemplateResponse,
 } from '../../lib/graphql/takeoffs';
+import { showSuccessToast } from '../../lib/toast';
 
 // Copy to clipboard helper
 async function copyToClipboard(text: string): Promise<boolean> {
@@ -186,7 +187,9 @@ export function ProductCrossDetailView({
 
   const handleSaveAsPrompt = useCallback(() => {
     if (customPrompt.trim()) {
-      alert(`Prompt saved: "${customPrompt}"\n\nNote: Custom prompts are saved locally for this session.`);
+      showSuccessToast('Prompt Saved', {
+        description: 'Custom prompt saved for this session',
+      });
     }
   }, [customPrompt]);
 

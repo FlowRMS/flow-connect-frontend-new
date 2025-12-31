@@ -68,6 +68,9 @@ export function TakeoffsContent() {
     // Upload state
     uploadProgress,
     isUploading,
+    // Auto-classification trigger
+    shouldAutoClassify,
+    setShouldAutoClassify,
     // Download handlers
     handleDownloadDocument,
     handleDownloadAllDocuments,
@@ -86,9 +89,16 @@ export function TakeoffsContent() {
 
   // Extract unique client names from existing takeoffs for autocomplete
   const existingClients = useMemo(() => {
+    console.log('[Takeoffs] Extracting clients from takeoffs:', takeoffs.length);
+    console.log('[Takeoffs] Takeoffs with metadata:', takeoffs.filter(t => t.metadata).length);
+    console.log('[Takeoffs] Sample metadata:', takeoffs[0]?.metadata);
+
     const clientNames = takeoffs
       .map(t => t.metadata?.clientName)
       .filter((name): name is string => Boolean(name && typeof name === 'string'));
+
+    console.log('[Takeoffs] Found client names:', clientNames);
+
     return [...new Set(clientNames)].sort();
   }, [takeoffs]);
 
@@ -195,12 +205,10 @@ export function TakeoffsContent() {
             )}
           </div>
 
-          {/* Results Count - Shows "Showing X of Y" format */}
+          {/* Results Count - Always shows "Showing X of Y projects" format */}
           {!isLoading && takeoffs.length > 0 && (
             <p className="text-sm text-[var(--muted-foreground)] mb-4">
-              {totalCount > 0 && takeoffs.length !== totalCount
-                ? `Showing ${takeoffs.length} of ${totalCount} projects`
-                : `Showing ${takeoffs.length} project${takeoffs.length !== 1 ? 's' : ''}`}
+              {`Showing ${takeoffs.length} of ${totalCount > 0 ? totalCount : takeoffs.length} projects`}
             </p>
           )}
 
@@ -318,6 +326,8 @@ export function TakeoffsContent() {
           onSelectAlternative={handleSelectAlternative}
           onDeleteCrossAlternative={handleDeleteCrossAlternative}
           onRerunCross={handleRerunCross}
+          shouldAutoClassify={shouldAutoClassify}
+          onAutoClassifyComplete={() => setShouldAutoClassify(false)}
         />
       )}
 

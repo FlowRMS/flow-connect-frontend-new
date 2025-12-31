@@ -368,8 +368,8 @@ export function TakeoffListView({
                     </span>
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center justify-end gap-1">
+                  {/* Actions - Stacked vertically */}
+                  <div className="flex flex-col items-end gap-1">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

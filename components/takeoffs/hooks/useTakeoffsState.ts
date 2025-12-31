@@ -17,6 +17,7 @@ import type {
 import { transformTakeoffResponse } from '../types';
 import type { ActiveFilter } from '../../AdvancedFilters';
 import { useUser } from '../../providers/user-provider';
+import { takeoffToasts, showInfoToast, showErrorToast, showSuccessToast, showWarningToast } from '../../lib/toast';
 import {
   fetchUserTakeoffs,
   deleteTakeoff as apiDeleteTakeoff,
@@ -85,6 +86,7 @@ export function useTakeoffsState() {
   const [parsedItems, setParsedItems] = useState<ParsedItem[]>([]);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [shouldAutoClassify, setShouldAutoClassify] = useState(false);
 
   // Upload progress state
   const [uploadProgress, setUploadProgress] = useState<Record<number, FileUploadProgress>>({});
@@ -158,12 +160,17 @@ export function useTakeoffsState() {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetchUserTakeoffs({
+      const searchParams = {
         limit: 100,
         search: options?.search || undefined,
         status: options?.status || undefined,
         source: options?.source || undefined,
-      });
+      };
+      console.log('[Takeoffs] Fetching with params:', searchParams);
+
+      const response = await fetchUserTakeoffs(searchParams);
+      console.log('[Takeoffs] Received', response.length, 'results');
+
       const transformedTakeoffs = response.map(transformTakeoffResponse);
       setTakeoffsData(transformedTakeoffs);
 
@@ -469,13 +476,37 @@ export function useTakeoffsState() {
 
   // Parse schedule documents to extract product items
   const handleParseSchedules = useCallback(async () => {
+    console.log('[Parsing] Starting schedule parsing...');
+    console.log('[Parsing] Total documents:', documents.length);
+
+    // First check if we have any documents at all
+    if (documents.length === 0) {
+      console.log('[Parsing] No documents available');
+      takeoffToasts.parsingError('No documents available. Please upload documents first.');
+      return;
+    }
+
+    // Check how many are classified as Fixture Schedules
+    const allFixtureSchedules = documents.filter(d => d.classification === 'Fixture Schedules');
+    console.log('[Parsing] Fixture Schedule documents:', allFixtureSchedules.length);
+
+    if (allFixtureSchedules.length === 0) {
+      console.log('[Parsing] No documents classified as Fixture Schedules');
+      showWarningToast('No Fixture Schedules', {
+        description: 'Please classify your documents first in the Classification step.'
+      });
+      return;
+    }
+
     // Find fixture schedule documents with URLs
-    const fixtureScheduleDocs = documents.filter(
-      d => d.classification === 'Fixture Schedules' && (d.abridgedUrl || d.documentUrl)
+    const fixtureScheduleDocs = allFixtureSchedules.filter(
+      d => d.abridgedUrl || d.documentUrl
     );
+    console.log('[Parsing] Fixture Schedules with URLs:', fixtureScheduleDocs.length);
 
     if (fixtureScheduleDocs.length === 0) {
-      console.log('No fixture schedule documents to parse');
+      console.log('[Parsing] No Fixture Schedule documents have URLs');
+      takeoffToasts.parsingError('Fixture Schedule documents do not have URLs. Try refreshing the page.');
       return;
     }
 
@@ -1022,7 +1053,10 @@ export function useTakeoffsState() {
     city: string;
     state: string;
   }) => {
-    if (uploadedFiles.length === 0) return;
+    if (uploadedFiles.length === 0) {
+      takeoffToasts.uploadError('No files selected. Please select files to upload.');
+      return;
+    }
 
     setIsUploading(true);
     setError(null);
@@ -1054,6 +1088,8 @@ export function useTakeoffsState() {
       );
 
       const transformed = transformTakeoffResponse(newTakeoff);
+      console.log('[Upload] Created takeoff:', transformed);
+      console.log('[Upload] Takeoff documents:', transformed.documents);
 
       // Add to list and select it
       setTakeoffsData(prev => [transformed, ...prev]);
@@ -1062,15 +1098,51 @@ export function useTakeoffsState() {
       setCurrentStep('classification');
 
       // Set documents for the detail view
-      if (transformed.documents) {
+      const docCount = transformed.documents?.length || newTakeoff.documents?.length || 0;
+      if (transformed.documents && transformed.documents.length > 0) {
+        console.log('[Upload] Setting documents:', transformed.documents.length);
         setDocuments(transformed.documents);
+      } else {
+        console.warn('[Upload] No documents found in transformed takeoff');
+        // Try to use documents from the raw response
+        if (newTakeoff.documents && newTakeoff.documents.length > 0) {
+          console.log('[Upload] Using raw documents:', newTakeoff.documents.length);
+          const docs = newTakeoff.documents.map(doc => ({
+            id: doc.id,
+            name: doc.name,
+            type: 'PDF' as const,
+            size: doc.fileSize,
+            uploadDate: doc.createdAt,
+            classification: '' as const,
+            confidence: doc.confidence || 0,
+            pages: doc.pages,
+            abridged: doc.abridged,
+            abridgedPages: doc.abridgedPages || undefined,
+            reductionPercentage: doc.reductionPercentage || undefined,
+            documentUrl: doc.documentUrl || undefined,
+          }));
+          setDocuments(docs);
+        } else {
+          console.warn('[Upload] No documents in response');
+        }
       }
+
+      // Show success toast
+      takeoffToasts.uploadSuccess(
+        projectData?.projectName || 'Project',
+        docCount
+      );
+
+      // Trigger auto-classification after upload
+      setShouldAutoClassify(true);
 
       // Close modal after success
       setShowUploadModal(false);
     } catch (err) {
       console.error('Failed to create takeoff:', err);
-      setError(err instanceof Error ? err.message : 'Failed to create takeoff');
+      const errorMsg = err instanceof Error ? err.message : 'Failed to create takeoff';
+      takeoffToasts.uploadError(errorMsg);
+      setError(errorMsg);
       // Don't close modal on error so user can retry
     } finally {
       setIsUploading(false);
@@ -1146,7 +1218,9 @@ export function useTakeoffsState() {
     const crossedItems = parsedItems.filter(item => item.isCrossed);
 
     if (crossedItems.length === 0) {
-      alert('No crossed items to create a quote. Please cross some products first.');
+      showWarningToast('No Items Selected', {
+        description: 'Please cross some products first to create a quote.'
+      });
       return;
     }
 
@@ -1210,7 +1284,9 @@ export function useTakeoffsState() {
       console.error('Failed to update takeoff status:', error);
     }
 
-    alert(`Quote exported with ${crossedItems.length} items! A CSV file has been downloaded.\n\nYou can import this into the Quotes page or share it directly.`);
+    showSuccessToast('Quote Exported', {
+      description: `${crossedItems.length} items exported to CSV. You can import this into the Quotes page.`
+    });
     setViewMode('list');
     setSelectedTakeoff(null);
   }, [selectedTakeoff, parsedItems]);
@@ -1257,7 +1333,7 @@ export function useTakeoffsState() {
   // Download a single document
   const handleDownloadDocument = useCallback((doc: TakeoffDocument) => {
     if (!doc.documentUrl) {
-      alert('Document URL not available');
+      showErrorToast('Download Failed', { description: 'Document URL not available' });
       return;
     }
 
@@ -1270,7 +1346,7 @@ export function useTakeoffsState() {
     const docsWithUrls = documents.filter(d => d.documentUrl);
 
     if (docsWithUrls.length === 0) {
-      alert('No documents available for download');
+      showWarningToast('No Documents', { description: 'No documents available for download' });
       return;
     }
 
@@ -1287,7 +1363,7 @@ export function useTakeoffsState() {
       }, index * 500); // 500ms delay between downloads
     });
 
-    alert(`Downloading ${docsWithUrls.length} documents...`);
+    showInfoToast('Downloading Documents', { description: `Downloading ${docsWithUrls.length} documents...` });
   }, [documents]);
 
   // Update takeoff status when workflow step changes
@@ -1355,6 +1431,10 @@ export function useTakeoffsState() {
     // Upload state
     uploadProgress,
     isUploading,
+
+    // Auto-classification trigger
+    shouldAutoClassify,
+    setShouldAutoClassify,
 
     // AI Processing states
     classificationState,

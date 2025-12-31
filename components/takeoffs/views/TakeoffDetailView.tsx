@@ -13,6 +13,7 @@ import {
   classifyDocument as classifyDocumentAPI,
   abridgeDocument as abridgeDocumentAPI,
 } from '../../lib/graphql/takeoffs';
+import { takeoffToasts } from '../../lib/toast';
 
 interface TakeoffDetailViewProps {
   takeoff: Takeoff;
@@ -48,6 +49,8 @@ interface TakeoffDetailViewProps {
   onSelectAlternative?: (originalIndex: number, altIndex: number) => void;
   onDeleteCrossAlternative?: (originalIndex: number, altIndex: number) => void;
   onRerunCross?: (prompt: string, crossTypes: CrossType[]) => void;
+  shouldAutoClassify?: boolean;
+  onAutoClassifyComplete?: () => void;
 }
 
 // 6-step workflow configuration
@@ -60,15 +63,6 @@ const WORKFLOW_STEPS: { id: TakeoffStep; label: string; shortLabel: string }[] =
   { id: 'approvals', label: 'Approvals', shortLabel: 'Approvals' },
 ];
 
-// Document classification categories
-const CLASSIFICATION_CATEGORIES: { id: DocumentClassification | 'all'; label: string }[] = [
-  { id: 'all', label: 'All Documents' },
-  { id: 'Fixture Schedules', label: 'Fixture Schedules' },
-  { id: 'Specifications', label: 'Specifications' },
-  { id: 'Blueprints', label: 'Blueprints' },
-  { id: 'Other Docs', label: 'Other Docs' },
-  { id: 'Irrelevant', label: 'Irrelevant' },
-];
 
 export function TakeoffDetailView({
   takeoff,
@@ -104,65 +98,119 @@ export function TakeoffDetailView({
   onSelectAlternative,
   onDeleteCrossAlternative,
   onRerunCross,
+  shouldAutoClassify = false,
+  onAutoClassifyComplete,
 }: TakeoffDetailViewProps) {
   const currentStepIndex = WORKFLOW_STEPS.findIndex(s => s.id === currentStep);
 
   // AI Classification state
   const [isClassifying, setIsClassifying] = useState(false);
   const [classificationProgress, setClassificationProgress] = useState(0);
-  const [selectedCategory, setSelectedCategory] = useState<DocumentClassification | 'all'>('all');
-
-  // Calculate category counts
-  const categoryCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: documents.length };
-    CLASSIFICATION_CATEGORIES.forEach(cat => {
-      if (cat.id !== 'all') {
-        counts[cat.id] = documents.filter(d => d.classification === cat.id).length;
-      }
-    });
-    return counts;
-  }, [documents]);
-
-  // Filter documents by selected category
-  const filteredDocuments = useMemo(() => {
-    if (selectedCategory === 'all') return documents;
-    return documents.filter(d => d.classification === selectedCategory);
-  }, [documents, selectedCategory]);
 
   // Run AI classification on all documents
-  const runAutoClassification = useCallback(async () => {
+  const runAutoClassification = useCallback(async (isAutoTriggered = false) => {
+    console.log('[Classification] Starting AI classification...', isAutoTriggered ? '(auto-triggered)' : '(manual)');
+    console.log('[Classification] Total documents:', documents.length);
+
+    if (documents.length === 0) {
+      console.log('[Classification] No documents to classify');
+      if (!isAutoTriggered) takeoffToasts.classificationError('No documents to classify. Please upload documents first.');
+      onAutoClassifyComplete?.();
+      return;
+    }
+
     const unclassifiedDocs = documents.filter(d => !d.classification);
-    if (unclassifiedDocs.length === 0) return;
+    console.log('[Classification] Unclassified documents:', unclassifiedDocs.length);
+
+    if (unclassifiedDocs.length === 0) {
+      console.log('[Classification] All documents are already classified');
+      if (!isAutoTriggered) {
+        // Show summary of already classified documents
+        const fixtures = documents.filter(d => d.classification === 'Fixture Schedules').length;
+        const specs = documents.filter(d => d.classification === 'Specifications').length;
+        const blueprints = documents.filter(d => d.classification === 'Blueprints').length;
+        const other = documents.filter(d => d.classification === 'Other Docs').length;
+        const irrelevant = documents.filter(d => d.classification === 'Irrelevant').length;
+        takeoffToasts.classificationComplete({ total: documents.length, fixtures, specs, blueprints, other, irrelevant });
+      }
+      onAutoClassifyComplete?.();
+      return;
+    }
+
+    const docsWithUrls = unclassifiedDocs.filter(d => d.documentUrl);
+    console.log('[Classification] Documents with URLs:', docsWithUrls.length);
+
+    if (docsWithUrls.length === 0) {
+      console.log('[Classification] No documents have URLs for classification');
+      if (!isAutoTriggered) takeoffToasts.classificationError('No documents have URLs for classification. This may be a loading issue.');
+      onAutoClassifyComplete?.();
+      return;
+    }
 
     setIsClassifying(true);
     setClassificationProgress(0);
 
-    for (let i = 0; i < unclassifiedDocs.length; i++) {
-      const doc = unclassifiedDocs[i];
+    // Show toast when classification starts
+    takeoffToasts.classificationStarted(docsWithUrls.length);
+
+    // Track classification results
+    const results = { fixtures: 0, specs: 0, blueprints: 0, other: 0, irrelevant: 0 };
+
+    for (let i = 0; i < docsWithUrls.length; i++) {
+      const doc = docsWithUrls[i];
       try {
-        if (doc.documentUrl) {
-          const result = await classifyDocumentAPI(doc.documentUrl, doc.name);
-          if (result.success && result.category) {
-            // Map API category to our classification type
-            const categoryMap: Record<string, DocumentClassification> = {
-              fixture_schedules: 'Fixture Schedules',
-              specifications: 'Specifications',
-              blueprints: 'Blueprints',
-              other: 'Other Docs',
-              irrelevant: 'Irrelevant',
-            };
-            const classification = categoryMap[result.category] || 'Other Docs';
-            onClassify(doc.id, classification);
-          }
+        console.log(`[Classification] Classifying ${doc.name}...`);
+        const result = await classifyDocumentAPI(doc.documentUrl!, doc.name);
+        console.log(`[Classification] Result for ${doc.name}:`, result);
+
+        if (result.success && result.category) {
+          // Map API category to our classification type
+          const categoryMap: Record<string, DocumentClassification> = {
+            fixture_schedules: 'Fixture Schedules',
+            specifications: 'Specifications',
+            blueprints: 'Blueprints',
+            other: 'Other Docs',
+            irrelevant: 'Irrelevant',
+          };
+          const classification = categoryMap[result.category] || 'Other Docs';
+          onClassify(doc.id, classification);
+
+          // Track results
+          if (classification === 'Fixture Schedules') results.fixtures++;
+          else if (classification === 'Specifications') results.specs++;
+          else if (classification === 'Blueprints') results.blueprints++;
+          else if (classification === 'Other Docs') results.other++;
+          else if (classification === 'Irrelevant') results.irrelevant++;
+        } else {
+          console.error(`[Classification] Failed to classify ${doc.name}:`, result.error);
+          results.other++; // Count failed as other
         }
       } catch (error) {
-        console.error(`Failed to classify ${doc.name}:`, error);
+        console.error(`[Classification] Error classifying ${doc.name}:`, error);
+        results.other++; // Count errors as other
       }
-      setClassificationProgress(Math.round(((i + 1) / unclassifiedDocs.length) * 100));
+      setClassificationProgress(Math.round(((i + 1) / docsWithUrls.length) * 100));
     }
 
     setIsClassifying(false);
-  }, [documents, onClassify]);
+    console.log('[Classification] Classification complete');
+
+    // Show completion toast with results
+    takeoffToasts.classificationComplete({
+      total: docsWithUrls.length,
+      ...results,
+    });
+
+    onAutoClassifyComplete?.();
+  }, [documents, onClassify, onAutoClassifyComplete]);
+
+  // Auto-run classification when shouldAutoClassify is true
+  useEffect(() => {
+    if (shouldAutoClassify && documents.length > 0 && !isClassifying && currentStep === 'classification') {
+      console.log('[Classification] Auto-starting classification...');
+      runAutoClassification(true); // true = auto-triggered, don't show alerts
+    }
+  }, [shouldAutoClassify, documents.length, isClassifying, currentStep, runAutoClassification]);
 
   // Navigation helpers
   const canGoBack = currentStepIndex > 0;
@@ -212,7 +260,7 @@ export function TakeoffDetailView({
             {takeoff.title}
           </h1>
           <p className="text-sm text-[var(--muted-foreground)] mt-1">
-            Created by {takeoff.createdBy} on {formatDate(takeoff.createdDate)}
+            {takeoff.metadata?.clientName || 'No Client'} • {formatDate(takeoff.createdDate)}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -392,11 +440,7 @@ export function TakeoffDetailView({
             <div className="p-6 border-b border-[var(--border)]">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-semibold text-[var(--foreground)] flex items-center gap-2">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-600">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                      <polyline points="14 2 14 8 20 8"/>
-                    </svg>
+                  <h2 className="text-lg font-semibold text-[var(--foreground)]">
                     Classification & Duplicate Detection
                   </h2>
                   <p className="text-sm text-[var(--muted-foreground)] mt-1">
@@ -405,7 +449,7 @@ export function TakeoffDetailView({
                 </div>
                 {!isClassifying && (
                   <button
-                    onClick={runAutoClassification}
+                    onClick={() => runAutoClassification(false)}
                     className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors"
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -435,43 +479,10 @@ export function TakeoffDetailView({
               )}
             </div>
 
-            {/* Category Tabs */}
-            <div className="border-b border-[var(--border)] bg-gray-50/50">
-              <div className="flex overflow-x-auto">
-                {CLASSIFICATION_CATEGORIES.map((category) => {
-                  const isActive = selectedCategory === category.id;
-                  const count = categoryCounts[category.id] || 0;
-
-                  return (
-                    <button
-                      key={category.id}
-                      onClick={() => setSelectedCategory(category.id)}
-                      className={`flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                        isActive
-                          ? 'border-purple-600 text-purple-600 bg-white'
-                          : 'border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-white/50'
-                      }`}
-                    >
-                      {category.label}
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-xs ${
-                          isActive
-                            ? 'bg-purple-100 text-purple-600'
-                            : 'bg-gray-200 text-gray-600'
-                        }`}
-                      >
-                        {count}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
             {/* Document List */}
             <div className="p-6">
               <ClassificationTab
-                documents={filteredDocuments}
+                documents={documents}
                 onClassify={onClassify}
                 onChangeDiscipline={onChangeDiscipline}
                 onAbridge={onAbridge}
@@ -541,53 +552,100 @@ export function TakeoffDetailView({
         {currentStep === 'abridgment' && (
           <div className="p-6">
             {/* Abridgment Header */}
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-lg font-semibold text-[var(--foreground)] flex items-center gap-2">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-600">
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                    <line x1="8" y1="12" x2="16" y2="12"/>
-                  </svg>
-                  Create Abridged Documents
-                </h2>
-                <p className="text-sm text-[var(--muted-foreground)] mt-1">
-                  AI will analyze and extract only relevant pages for faster processing
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={onAbridgeAll}
-                  disabled={isAbridgementProcessing}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors disabled:opacity-50"
-                >
-                  {isAbridgementProcessing ? (
-                    <>
-                      <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/>
-                      </svg>
-                      Processing... {abridgementProgress}%
-                    </>
-                  ) : (
-                    <>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/>
-                      </svg>
-                      Start Processing
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={goToNextStep}
-                  disabled={isAbridgementProcessing}
-                  className="inline-flex items-center gap-2 px-4 py-2 border border-[var(--border)] text-[var(--foreground)] rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
-                >
-                  Skip
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M5 10h10M11 6l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </button>
-              </div>
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-[var(--foreground)] flex items-center gap-2">
+                {/* Scissors icon */}
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-600">
+                  <circle cx="6" cy="6" r="3"/>
+                  <circle cx="6" cy="18" r="3"/>
+                  <line x1="20" y1="4" x2="8.12" y2="15.88"/>
+                  <line x1="14.47" y1="14.48" x2="20" y2="20"/>
+                  <line x1="8.12" y1="8.12" x2="12" y2="12"/>
+                </svg>
+                Create Abridged Documents
+              </h2>
+              <p className="text-sm text-[var(--muted-foreground)] mt-1">
+                Generate condensed versions of fixture schedules and specifications by extracting only relevant pages.
+              </p>
             </div>
+
+            {/* Documents Ready Summary */}
+            {(() => {
+              const fixtureCount = documents.filter(d => d.classification === 'Fixture Schedules' && !d.abridged).length;
+              const specCount = documents.filter(d => d.classification === 'Specifications' && !d.abridged).length;
+              const totalReady = fixtureCount + specCount;
+              const parts = [];
+              if (fixtureCount > 0) parts.push(`${fixtureCount} Fixture${fixtureCount !== 1 ? 's' : ''}`);
+              if (specCount > 0) parts.push(`${specCount} Spec${specCount !== 1 ? 's' : ''}`);
+
+              return totalReady > 0 ? (
+                <div className="mb-6">
+                  <div className="flex items-center gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600 flex-shrink-0">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                      <polyline points="14 2 14 8 20 8"/>
+                    </svg>
+                    <div>
+                      <p className="text-sm font-medium text-blue-900">
+                        {totalReady} document{totalReady !== 1 ? 's' : ''} ready for abridgment
+                      </p>
+                      <p className="text-xs text-blue-700">{parts.join(' + ')}</p>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-3 mt-4">
+                    <button
+                      onClick={onAbridgeAll}
+                      disabled={isAbridgementProcessing}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors disabled:opacity-50"
+                    >
+                      {isAbridgementProcessing ? (
+                        <>
+                          <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/>
+                          </svg>
+                          Processing... {abridgementProgress}%
+                        </>
+                      ) : (
+                        <>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <circle cx="6" cy="6" r="3"/>
+                            <circle cx="6" cy="18" r="3"/>
+                            <line x1="20" y1="4" x2="8.12" y2="15.88"/>
+                            <line x1="14.47" y1="14.48" x2="20" y2="20"/>
+                            <line x1="8.12" y1="8.12" x2="12" y2="12"/>
+                          </svg>
+                          Start Abridgment
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={goToNextStep}
+                      disabled={isAbridgementProcessing}
+                      className="inline-flex items-center gap-2 px-4 py-2 border border-[var(--border)] text-[var(--foreground)] rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
+                    >
+                      Skip
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M5 10h10M11 6l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 mb-6">
+                  <button
+                    onClick={goToNextStep}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors"
+                  >
+                    Continue to Schedule Parsing
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M5 10h10M11 6l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
+                </div>
+              );
+            })()}
 
             {/* Progress Bar */}
             {isAbridgementProcessing && (
@@ -768,12 +826,10 @@ export function TakeoffDetailView({
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-lg font-semibold text-[var(--foreground)] flex items-center gap-2">
+                  {/* Gear icon - Blue */}
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                    <polyline points="14 2 14 8 20 8"/>
-                    <line x1="16" y1="13" x2="8" y2="13"/>
-                    <line x1="16" y1="17" x2="8" y2="17"/>
-                    <line x1="10" y1="9" x2="8" y2="9"/>
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
                   </svg>
                   Schedule Parsing
                 </h2>
@@ -876,8 +932,10 @@ export function TakeoffDetailView({
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-lg font-semibold text-[var(--foreground)] flex items-center gap-2">
+                  {/* Gear icon - Orange */}
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-orange-600">
-                    <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/>
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
                   </svg>
                   Product Cross Results
                 </h2>
