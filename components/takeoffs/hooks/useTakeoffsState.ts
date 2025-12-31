@@ -68,52 +68,62 @@ export function useTakeoffsState() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch takeoffs from API
-  const loadTakeoffs = useCallback(async () => {
+  // Fetch takeoffs from API with filters
+  const loadTakeoffs = useCallback(async (options?: {
+    search?: string;
+    status?: string;
+    source?: string;
+  }) => {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetchUserTakeoffs({ limit: 100 });
+      const response = await fetchUserTakeoffs({
+        limit: 100,
+        search: options?.search || undefined,
+        status: options?.status || undefined,
+        source: options?.source || undefined,
+      });
       const transformedTakeoffs = response.map(transformTakeoffResponse);
       setTakeoffsData(transformedTakeoffs);
     } catch (err) {
       console.error('Failed to fetch takeoffs:', err);
       setError(err instanceof Error ? err.message : 'Failed to load takeoffs');
-      // Keep empty array on error
       setTakeoffsData([]);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  // Load takeoffs on mount
-  useEffect(() => {
-    loadTakeoffs();
-  }, [loadTakeoffs]);
-
-  // Filtered takeoffs
-  const takeoffs = useMemo(() => {
-    let result = takeoffsData;
-
-    // Apply search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(t =>
-        t.title.toLowerCase().includes(query) ||
-        t.source.toLowerCase().includes(query) ||
-        t.createdBy.toLowerCase().includes(query)
-      );
+  // Extract status filter from active filters
+  const statusFilter = useMemo(() => {
+    const statusFilterItem = activeFilters.find(f => f.columnName === 'status');
+    if (statusFilterItem?.values && statusFilterItem.values.length > 0) {
+      // For now, use the first status value (backend only supports single status)
+      return statusFilterItem.values[0];
     }
+    return undefined;
+  }, [activeFilters]);
 
-    // Apply advanced filters
-    activeFilters.forEach(filter => {
-      if (filter.columnName === 'status' && filter.values && filter.values.length > 0) {
-        result = result.filter(t => filter.values!.includes(t.status));
-      }
+  // Debounced search to avoid too many API calls
+  const [debouncedSearch, setDebouncedSearch] = useState(searchQuery);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Load takeoffs when filters change
+  useEffect(() => {
+    loadTakeoffs({
+      search: debouncedSearch || undefined,
+      status: statusFilter,
     });
+  }, [loadTakeoffs, debouncedSearch, statusFilter]);
 
-    return result;
-  }, [takeoffsData, searchQuery, activeFilters]);
+  // Takeoffs from data (backend already filters)
+  const takeoffs = takeoffsData;
 
   // Document handlers
   const handleClassifyDocument = useCallback((docId: string, classification: DocumentClassification) => {
@@ -310,10 +320,13 @@ export function useTakeoffsState() {
     }
   }, []);
 
-  // Refresh data
+  // Refresh data with current filters
   const handleRefresh = useCallback(() => {
-    loadTakeoffs();
-  }, [loadTakeoffs]);
+    loadTakeoffs({
+      search: debouncedSearch || undefined,
+      status: statusFilter,
+    });
+  }, [loadTakeoffs, debouncedSearch, statusFilter]);
 
   // Modal handlers
   const handleOpenUploadModal = useCallback(() => {

@@ -2,11 +2,11 @@
  * Takeoffs GraphQL Module
  * GraphQL queries and API functions for Takeoffs
  * Uses flow-ai backend for AI-powered document processing
- * Integrates with CRM file storage for document uploads
+ * File uploads are handled directly by flow-ai
  */
 
-import { flowAIGraphQLRequest } from './flow-ai-client';
-import { uploadFiles, getFilePresignedUrl, type FileResponse } from './files';
+import { flowAIGraphQLRequest, flowAIGraphQLMultipartRequest } from './flow-ai-client';
+import { type FileResponse } from './files';
 
 // ============================================================================
 // Types
@@ -119,8 +119,8 @@ export interface UpdateTakeoffDocumentInput {
 // ============================================================================
 
 const GET_USER_TAKEOFFS = `
-  query GetUserTakeoffs($limit: Int, $offset: Int) {
-    getUserTakeoffs(limit: $limit, offset: $offset) {
+  query GetUserTakeoffs($limit: Int, $offset: Int, $search: String, $status: String, $source: String) {
+    getUserTakeoffs(limit: $limit, offset: $offset, search: $search, status: $status, source: $source) {
       id
       title
       source
@@ -514,17 +514,28 @@ export async function productCrossFromParsedDocument(
 }
 
 /**
- * Fetch all takeoffs for the current user
+ * Parameters for fetching takeoffs with filters
  */
-export async function fetchUserTakeoffs(params?: {
+export interface FetchTakeoffsParams {
   limit?: number;
   offset?: number;
-}): Promise<TakeoffResponse[]> {
+  search?: string;
+  status?: string;
+  source?: string;
+}
+
+/**
+ * Fetch takeoffs for the current user with optional filtering
+ */
+export async function fetchUserTakeoffs(params?: FetchTakeoffsParams): Promise<TakeoffResponse[]> {
   const response = await flowAIGraphQLRequest<{ getUserTakeoffs: TakeoffResponse[] }>({
     query: GET_USER_TAKEOFFS,
     variables: {
       limit: params?.limit ?? 50,
       offset: params?.offset ?? 0,
+      search: params?.search || null,
+      status: params?.status || null,
+      source: params?.source || null,
     },
   });
 
@@ -661,8 +672,59 @@ export interface UploadedFileInfo {
   presignedUrl: string;
 }
 
+// GraphQL mutation for uploading takeoff documents to flow-ai
+const UPLOAD_TAKEOFF_DOCUMENT = `
+  mutation UploadTakeoffDocument($file: Upload!, $fileName: String!, $folder: String) {
+    uploadTakeoffDocument(file: $file, fileName: $fileName, folder: $folder) {
+      s3Key
+      presignedUrl
+      fileName
+      fileSize
+      contentType
+    }
+  }
+`;
+
+interface TakeoffUploadResponse {
+  s3Key: string;
+  presignedUrl: string;
+  fileName: string;
+  fileSize: number;
+  contentType: string;
+}
+
 /**
- * Upload files to CRM storage and get presigned URLs
+ * Upload a single file to flow-ai S3 storage
+ * Returns the presigned URL for the uploaded file
+ */
+async function uploadFileToFlowAI(
+  file: File,
+  folder: string = 'takeoffs'
+): Promise<TakeoffUploadResponse> {
+  const response = await flowAIGraphQLMultipartRequest<{
+    uploadTakeoffDocument: TakeoffUploadResponse;
+  }>({
+    query: UPLOAD_TAKEOFF_DOCUMENT,
+    variables: {
+      file,
+      fileName: file.name,
+      folder,
+    },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to upload file');
+  }
+
+  if (!response.data?.uploadTakeoffDocument) {
+    throw new Error('Upload failed: No response data');
+  }
+
+  return response.data.uploadTakeoffDocument;
+}
+
+/**
+ * Upload files to flow-ai S3 and get presigned URLs
  * Returns array of uploaded file info with presigned URLs
  */
 export async function uploadFilesToStorage(
@@ -672,53 +734,41 @@ export async function uploadFilesToStorage(
 ): Promise<UploadedFileInfo[]> {
   const results: UploadedFileInfo[] = [];
 
-  // Upload files in batches of 3 for better performance
-  const batchSize = 3;
-  for (let i = 0; i < files.length; i += batchSize) {
-    const batch = files.slice(i, i + batchSize);
-    const batchIndices = batch.map((_, idx) => i + idx);
+  // Upload files one by one for better progress tracking
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
 
-    // Mark files as uploading
-    batchIndices.forEach(idx => {
-      onProgress?.(idx, 0, 'uploading');
-    });
+    onProgress?.(i, 0, 'uploading');
 
     try {
-      // Upload batch to CRM
-      const uploadedFiles = await uploadFiles({
-        files: batch,
-        fileNames: batch.map(f => f.name),
-        folderPath,
+      // Upload to flow-ai S3
+      const uploadResult = await uploadFileToFlowAI(file, folderPath);
+
+      onProgress?.(i, 50, 'uploading');
+
+      // Create a compatible file response
+      const crmFile: FileResponse = {
+        id: uploadResult.s3Key,
+        fileName: uploadResult.fileName,
+        filePath: uploadResult.s3Key,
+        fileSha: '',
+        fileSize: uploadResult.fileSize,
+        fileType: uploadResult.contentType || file.type || 'application/pdf',
+        folderId: null,
+        archived: false,
+        createdAt: new Date().toISOString(),
+        createdBy: null,
+      };
+
+      results.push({
+        file,
+        crmFile,
+        presignedUrl: uploadResult.presignedUrl,
       });
 
-      // Get presigned URLs for each file
-      for (let j = 0; j < uploadedFiles.length; j++) {
-        const crmFile = uploadedFiles[j];
-        const fileIndex = i + j;
-        const file = files[fileIndex];
-
-        onProgress?.(fileIndex, 50, 'uploading');
-
-        // Get presigned URL
-        const presignedUrl = await getFilePresignedUrl(crmFile.id);
-
-        if (!presignedUrl) {
-          throw new Error(`Failed to get presigned URL for ${crmFile.fileName}`);
-        }
-
-        results.push({
-          file,
-          crmFile,
-          presignedUrl,
-        });
-
-        onProgress?.(fileIndex, 100, 'complete');
-      }
+      onProgress?.(i, 100, 'complete');
     } catch (error) {
-      // Mark batch files as error
-      batchIndices.forEach(idx => {
-        onProgress?.(idx, 0, 'error', error instanceof Error ? error.message : 'Upload failed');
-      });
+      onProgress?.(i, 0, 'error', error instanceof Error ? error.message : 'Upload failed');
       throw error;
     }
   }
@@ -728,9 +778,8 @@ export async function uploadFilesToStorage(
 
 /**
  * Create a takeoff with files - handles complete flow:
- * 1. Upload files to CRM storage
- * 2. Get presigned URLs
- * 3. Create takeoff in flow-ai with document URLs
+ * 1. Upload files directly to S3 and get presigned URLs
+ * 2. Create takeoff in flow-ai with document URLs
  */
 export async function createTakeoffWithFiles(
   input: CreateTakeoffWithFilesInput,

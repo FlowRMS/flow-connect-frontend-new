@@ -15,14 +15,28 @@ export const STATUS_COLORS: Record<TakeoffStatus, string> = {
 // Default status color
 export const DEFAULT_STATUS_COLOR = 'bg-gray-500 text-white';
 
+// Status options for filtering
+export const TAKEOFF_STATUS_OPTIONS = [
+  'Classification',
+  'Abridgment',
+  'Parsing',
+  'Complete',
+] as const;
+
 // Filter options for take-offs list
 export const TAKEOFF_FILTER_OPTIONS: TakeoffFilterOption[] = [
-  { id: 'takeoff-id', label: 'Takeoff ID', type: 'text' },
-  { id: 'title', label: 'Title', type: 'text' },
-  { id: 'status', label: 'Status', type: 'dropdown' },
-  { id: 'created-by', label: 'Created By', type: 'dropdown' },
-  { id: 'date', label: 'Date', type: 'date' },
-] as const;
+  { id: 'title', label: 'Title', type: 'text', columnName: 'title' },
+  {
+    id: 'status',
+    label: 'Status',
+    type: 'dropdown',
+    columnName: 'status',
+    options: [...TAKEOFF_STATUS_OPTIONS],
+  },
+  { id: 'source', label: 'Source', type: 'text', columnName: 'source' },
+  { id: 'createdBy', label: 'Created By', type: 'text', columnName: 'createdBy' },
+  { id: 'createdDate', label: 'Created Date', type: 'date', columnName: 'createdDate' },
+];
 
 // Step configuration for detail view
 export const TAKEOFF_STEPS: StepConfig[] = [

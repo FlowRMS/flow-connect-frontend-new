@@ -214,6 +214,8 @@ export interface TakeoffFilterOption {
   id: string;
   label: string;
   type: 'text' | 'dropdown' | 'date';
+  columnName?: string;
+  options?: string[];
 }
 
 // Document category tab
