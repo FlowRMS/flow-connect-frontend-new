@@ -286,8 +286,10 @@ export function PostedStatementModal({
                         <td className="px-4 py-3 text-sm text-[var(--foreground)]">
                           {item.number}
                         </td>
-                        <td className="px-4 py-3 text-sm text-[var(--foreground)]">
-                          {item.orderNumber}
+                        <td className="px-4 py-3 text-sm text-[var(--muted-foreground)]">
+                          {item.orderId ? (
+                            <span className="font-mono text-xs">{item.orderId.substring(0, 8)}...</span>
+                          ) : '-'}
                         </td>
                         <td className="px-4 py-3 text-sm text-[var(--foreground)] text-right">
                           ${item.expectedCommission.toFixed(5)}

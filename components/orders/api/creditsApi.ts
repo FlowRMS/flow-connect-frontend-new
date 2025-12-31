@@ -268,7 +268,7 @@ const GET_CREDIT = `
 `;
 
 const SEARCH_CREDITS = `
-  query SearchCredits($searchTerm: String, $limit: Int) {
+  query SearchCredits($searchTerm: String!, $limit: Int) {
     creditSearch(searchTerm: $searchTerm, limit: $limit) {
       id
       balanceId

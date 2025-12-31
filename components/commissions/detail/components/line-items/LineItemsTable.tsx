@@ -17,6 +17,7 @@ interface LineItemsTableProps {
   status: CheckStatus;
   onTogglePaid: (id: string) => void;
   onAddNewLine: () => void;
+  onRowClick: (item: LineItem) => void;
 }
 
 export function LineItemsTable({
@@ -26,6 +27,7 @@ export function LineItemsTable({
   status,
   onTogglePaid,
   onAddNewLine,
+  onRowClick,
 }: LineItemsTableProps) {
   return (
     <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-x-auto">
@@ -41,7 +43,7 @@ export function LineItemsTable({
                 colSpan={visibleColumns.size}
                 className="px-4 py-8 text-center text-sm text-[var(--muted-foreground)]"
               >
-                No line items
+                No line items. Click "Add Line" to add an invoice or credit.
               </td>
             </tr>
           ) : (
@@ -52,6 +54,7 @@ export function LineItemsTable({
                 visibleColumns={visibleColumns}
                 status={status}
                 onTogglePaid={onTogglePaid}
+                onRowClick={onRowClick}
               />
             ))
           )}

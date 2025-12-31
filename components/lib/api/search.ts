@@ -175,17 +175,15 @@ export interface InvoiceSearchResult {
   id: string;
   invoiceNumber: string;
   entityDate: string;
-  entryDate: string;
   dueDate: string;
   status: string;
-  factoryId: string;
   orderId: string;
   balanceId: string;
   locked: boolean;
   published: boolean;
   creationType: string;
-  createdBy: string;
-  userOwnerIds: string[];
+  createdAt: string;
+  createdById: string;
 }
 
 export interface CheckSearchResult {
@@ -457,17 +455,15 @@ const INVOICE_SEARCH = `
       id
       invoiceNumber
       entityDate
-      entryDate
       dueDate
       status
-      factoryId
       orderId
       balanceId
       locked
       published
       creationType
-      createdBy
-      userOwnerIds
+      createdAt
+      createdById
     }
   }
 `;

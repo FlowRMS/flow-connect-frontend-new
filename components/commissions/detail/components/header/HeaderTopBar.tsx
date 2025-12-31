@@ -36,6 +36,9 @@ interface HeaderTopBarProps {
   onSave?: () => void;
   onSaveAndClose?: () => void;
   onSaveAsNewVersion?: () => void;
+  // Create mode
+  isCreateMode?: boolean;
+  isSaving?: boolean;
 }
 
 const getStatusColor = (status: CheckStatus) => {
@@ -66,6 +69,8 @@ export function HeaderTopBar({
   onSave,
   onSaveAndClose,
   onSaveAsNewVersion,
+  isCreateMode = false,
+  isSaving = false,
 }: HeaderTopBarProps) {
   const router = useRouter();
 

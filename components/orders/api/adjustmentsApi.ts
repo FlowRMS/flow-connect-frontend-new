@@ -232,7 +232,7 @@ const GET_ADJUSTMENT = `
 `;
 
 const SEARCH_ADJUSTMENTS = `
-  query SearchAdjustments($searchTerm: String, $limit: Int) {
+  query SearchAdjustments($searchTerm: String!, $limit: Int) {
     adjustmentSearch(searchTerm: $searchTerm, limit: $limit) {
       id
       adjustmentNumber

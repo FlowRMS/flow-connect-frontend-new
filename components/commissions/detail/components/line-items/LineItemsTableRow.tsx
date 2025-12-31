@@ -13,6 +13,7 @@ interface LineItemsTableRowProps {
   visibleColumns: Set<ColumnKey>;
   status: CheckStatus;
   onTogglePaid: (id: string) => void;
+  onRowClick: (item: LineItem) => void;
 }
 
 export function LineItemsTableRow({
@@ -20,22 +21,38 @@ export function LineItemsTableRow({
   visibleColumns,
   status,
   onTogglePaid,
+  onRowClick,
 }: LineItemsTableRowProps) {
   return (
-    <tr className="border-b border-[var(--border)] hover:bg-[var(--muted)]/30 transition-colors">
+    <tr
+      className="border-b border-[var(--border)] hover:bg-[var(--muted)]/30 transition-colors cursor-pointer"
+      onClick={() => onRowClick(item)}
+    >
       {visibleColumns.has('number') && (
         <td className="px-4 py-3">
           <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-700 border border-blue-200">
-              {item.type === 'invoice' ? 'Invoice' : 'Credit'}
+            <span className={`px-2 py-0.5 text-xs font-medium rounded border ${
+              item.type === 'invoice'
+                ? 'bg-blue-100 text-blue-700 border-blue-200'
+                : item.type === 'credit'
+                ? 'bg-orange-100 text-orange-700 border-orange-200'
+                : 'bg-purple-100 text-purple-700 border-purple-200'
+            }`}>
+              {item.type === 'invoice' ? 'Invoice' : item.type === 'credit' ? 'Credit' : 'Adjustment'}
             </span>
-            <span className="text-sm text-[var(--foreground)]">{item.number}</span>
+            <span className="text-sm text-[var(--foreground)] font-medium">{item.number || '-'}</span>
           </div>
         </td>
       )}
       {visibleColumns.has('orderNumber') && (
-        <td className="px-4 py-3 text-sm text-[var(--foreground)]">
-          {item.orderNumber}
+        <td className="px-4 py-3 text-sm text-[var(--muted-foreground)]">
+          {item.type === 'adjustment' ? (
+            <span className="text-xs italic">N/A</span>
+          ) : item.orderNumber ? (
+            <span className="font-medium">{item.orderNumber}</span>
+          ) : item.orderId ? (
+            <span className="font-mono text-xs">{item.orderId.substring(0, 8)}...</span>
+          ) : '-'}
         </td>
       )}
       {visibleColumns.has('customer') && (

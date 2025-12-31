@@ -22,6 +22,8 @@ import {
   PostedStatementModal,
   RepSplitsModal,
   ColumnsModal,
+  LineItemDetailModal,
+  AddLineItemModal,
 } from './components/modals';
 import { getTabsConfig } from './config/tabsConfig';
 import { SAVED_VIEWS, getDefaultView } from './config/viewsConfig';
@@ -35,6 +37,18 @@ export default function CheckDetailContent({
 }: CheckDetailContentProps) {
   const router = useRouter();
   const state = useCheckDetailState({ checkId });
+
+  // Loading state
+  if (state?.isLoading) {
+    return (
+      <main className="flex-1 overflow-auto bg-[var(--background)] p-6">
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--primary)] mx-auto mb-4" />
+          <p className="text-[var(--muted-foreground)]">Loading check...</p>
+        </div>
+      </main>
+    );
+  }
 
   if (!state || !state.check) {
     return (
@@ -74,15 +88,6 @@ export default function CheckDetailContent({
     alert('Downloading Excel...');
   };
 
-  const handleSave = () => {
-    alert('Saved!');
-  };
-
-  const handleSaveAndClose = () => {
-    handleSave();
-    router.push('/commissions');
-  };
-
   const handleSaveAsNewVersion = () => {
     alert('Save as New Version');
   };
@@ -111,9 +116,11 @@ export default function CheckDetailContent({
         onReconcileCheck={handleReconcileCheck}
         onSeePostedStatement={handleSeePostedStatement}
         onDownloadExcel={handleDownloadExcel}
-        onSave={handleSave}
-        onSaveAndClose={handleSaveAndClose}
+        onSave={state.handleSave}
+        onSaveAndClose={state.handleSaveAndClose}
         onSaveAsNewVersion={handleSaveAsNewVersion}
+        isCreateMode={state.isCreateMode}
+        isSaving={state.isSaving}
       />
 
       {/* Pricing Summary Bar */}
@@ -133,7 +140,11 @@ export default function CheckDetailContent({
           state.setShowHeaderFields(!state.showHeaderFields)
         }
         status={state.status}
+        isCreateMode={state.isCreateMode}
         factory={state.factory}
+        factoryId={state.factoryId}
+        setFactoryId={state.setFactoryId}
+        setFactory={state.setFactory}
         checkNumber={state.checkNumber}
         setCheckNumber={state.setCheckNumber}
         checkDate={state.checkDate}
@@ -340,7 +351,7 @@ export default function CheckDetailContent({
 
           {/* Tab Content */}
           {state.activeTab === 'line-items' && (
-            <div className="space-y-4">
+            <div className="flex-1 overflow-auto min-h-0">
               <LineItemsTable
                 lineItems={state.lineItems}
                 visibleColumns={state.visibleColumns}
@@ -348,6 +359,7 @@ export default function CheckDetailContent({
                 status={state.status}
                 onTogglePaid={state.togglePaid}
                 onAddNewLine={state.addNewLine}
+                onRowClick={state.openLineItemDetail}
               />
             </div>
           )}
@@ -428,6 +440,27 @@ export default function CheckDetailContent({
             });
           }}
           onClose={() => state.setShowColumnsModal(false)}
+        />
+      )}
+
+      {/* Line Item Detail Modal */}
+      {state.showLineItemDetailModal && state.selectedLineItem && (
+        <LineItemDetailModal
+          item={state.selectedLineItem}
+          status={state.status}
+          onClose={state.closeLineItemDetail}
+          onTogglePaid={state.togglePaid}
+          onDelete={state.deleteLineItem}
+          onUpdateAmount={state.updateLineItemAmount}
+        />
+      )}
+
+      {/* Add Line Item Modal */}
+      {state.showAddLineItemModal && (
+        <AddLineItemModal
+          onClose={() => state.setShowAddLineItemModal(false)}
+          onAdd={state.handleAddLineItem}
+          factoryId={state.factoryId}
         />
       )}
     </main>

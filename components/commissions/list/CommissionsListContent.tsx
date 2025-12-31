@@ -6,12 +6,14 @@
 'use client';
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { useCommissionsListState } from './hooks/useCommissionsListState';
 import { CommissionsTable } from './components/table/CommissionsTable';
 import { QuickDateFilter } from './components/QuickDateFilter';
 import { CheckDetailPanel } from './components/sidebar/CheckDetailPanel';
 
 export default function CommissionsListContent() {
+  const router = useRouter();
   const state = useCommissionsListState();
 
   return (
@@ -62,7 +64,10 @@ export default function CommissionsListContent() {
                 </svg>
                 Upload
               </button>
-              <button className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors">
+              <button
+                onClick={() => router.push('/commissions/new')}
+                className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"
+              >
                 <svg
                   width="16"
                   height="16"

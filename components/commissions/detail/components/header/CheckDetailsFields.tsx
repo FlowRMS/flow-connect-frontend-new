@@ -3,17 +3,22 @@
  * Collapsible section with check detail form fields and reconciliation section
  */
 
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { CommissionCheck } from '@/lib/types/rms';
 import type { CheckStatus, CheckWithUnpostedLines } from '../../types';
+import { searchFactories, type FactorySearchResult } from '@/components/lib/api/search';
 
 interface CheckDetailsFieldsProps {
   check: CommissionCheck;
   showHeaderFields: boolean;
   toggleHeaderFields: () => void;
   status: CheckStatus;
+  isCreateMode?: boolean;
   // Form fields
-  factory: string; // Read-only
+  factory: string; // Display name
+  factoryId: string;
+  setFactoryId: (value: string) => void;
+  setFactory: (value: string) => void;
   checkNumber: string;
   setCheckNumber: (value: string) => void;
   checkDate: string;
@@ -59,7 +64,11 @@ export function CheckDetailsFields({
   showHeaderFields,
   toggleHeaderFields,
   status,
+  isCreateMode = false,
   factory,
+  factoryId,
+  setFactoryId,
+  setFactory,
   checkNumber,
   setCheckNumber,
   checkDate,
@@ -71,6 +80,8 @@ export function CheckDetailsFields({
   isTotalStatedCommission,
   setIsTotalStatedCommission,
   isTiedToCommissionUpload,
+  commissionMonth,
+  setCommissionMonth,
   summary,
   totalAdjustments,
   selectedCheckNumbers,
@@ -90,6 +101,62 @@ export function CheckDetailsFields({
   filteredChecks,
   currentCheckId,
 }: CheckDetailsFieldsProps) {
+  // Factory search state
+  const [factorySearch, setFactorySearch] = useState(factory || '');
+  const [factories, setFactories] = useState<FactorySearchResult[]>([]);
+  const [showFactoryDropdown, setShowFactoryDropdown] = useState(false);
+  const [isSearchingFactories, setIsSearchingFactories] = useState(false);
+  const [selectedFactory, setSelectedFactory] = useState<FactorySearchResult | null>(null);
+  const factoryDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Update factorySearch when factory prop changes
+  useEffect(() => {
+    setFactorySearch(factory || '');
+  }, [factory]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (factoryDropdownRef.current && !factoryDropdownRef.current.contains(event.target as Node)) {
+        setShowFactoryDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Search factories
+  const handleFactorySearch = async (term: string) => {
+    setFactorySearch(term);
+    setIsSearchingFactories(true);
+    try {
+      const results = await searchFactories(term, true, 20);
+      setFactories(results);
+    } catch (error) {
+      console.error('Error searching factories:', error);
+      setFactories([]);
+    } finally {
+      setIsSearchingFactories(false);
+    }
+  };
+
+  // Handle factory selection
+  const handleSelectFactory = (factoryResult: FactorySearchResult) => {
+    setSelectedFactory(factoryResult);
+    setFactorySearch(factoryResult.title);
+    setFactory(factoryResult.title);
+    setFactoryId(factoryResult.id);
+    setShowFactoryDropdown(false);
+  };
+
+  // Clear factory selection
+  const handleClearFactory = () => {
+    setSelectedFactory(null);
+    setFactorySearch('');
+    setFactory('');
+    setFactoryId('');
+  };
+
   const checkAmt = isTotalStatedCommission ? summary.paidTotal : commissionAmount;
   const balance = checkAmt - summary.paidTotal + totalAdjustments;
   const reconciledPercentage =
@@ -134,18 +201,88 @@ export function CheckDetailsFields({
           <div className="flex gap-6">
             {/* Left side - Form fields */}
             <div className="flex-1">
-              <div className="grid grid-cols-4 gap-4">
-                {/* Factory */}
-                <div>
+              <div className="grid grid-cols-5 gap-4">
+                {/* Factory - Searchable when in create mode, read-only otherwise */}
+                <div ref={factoryDropdownRef} className="relative">
                   <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                    Factory
+                    Factory <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    value={factory || '-'}
-                    readOnly
-                    className="w-full px-3 py-2 bg-gray-50 border border-[var(--border)] rounded-md text-sm text-[var(--muted-foreground)] cursor-not-allowed"
-                  />
+                  {isCreateMode || !factoryId ? (
+                    <>
+                      <div className="flex gap-1">
+                        <div className="relative flex-1">
+                          <input
+                            type="text"
+                            value={factorySearch}
+                            onChange={(e) => {
+                              handleFactorySearch(e.target.value);
+                              setShowFactoryDropdown(true);
+                              if (selectedFactory && e.target.value !== selectedFactory.title) {
+                                setSelectedFactory(null);
+                              }
+                            }}
+                            onFocus={() => {
+                              setShowFactoryDropdown(true);
+                              if (!factories.length) handleFactorySearch('');
+                            }}
+                            placeholder="Search factories..."
+                            className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                          />
+                          {isSearchingFactories && (
+                            <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[var(--primary)]" />
+                            </div>
+                          )}
+                        </div>
+                        {(selectedFactory || factoryId) && (
+                          <button
+                            onClick={handleClearFactory}
+                            type="button"
+                            className="px-2 py-2 text-gray-500 hover:text-gray-700 border border-[var(--border)] rounded-md hover:bg-[var(--muted)] text-xs"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                      {(selectedFactory || factoryId) && (
+                        <p className="mt-1 text-xs text-green-600 truncate">
+                          ✓ {factory || selectedFactory?.title}
+                        </p>
+                      )}
+
+                      {/* Factory Dropdown */}
+                      {showFactoryDropdown && !(selectedFactory || factoryId) && (
+                        <div className="absolute z-30 w-full mt-1 bg-white border border-[var(--border)] rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                          {factories.length > 0 ? (
+                            factories.map((f) => (
+                              <button
+                                key={f.id}
+                                type="button"
+                                onClick={() => handleSelectFactory(f)}
+                                className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0"
+                              >
+                                <div className="font-medium text-gray-900 text-sm">{f.title}</div>
+                                {f.accountNumber && (
+                                  <div className="text-xs text-gray-500">Acct: {f.accountNumber}</div>
+                                )}
+                              </button>
+                            ))
+                          ) : !isSearchingFactories ? (
+                            <div className="p-3 text-center text-gray-500 text-sm">
+                              {factorySearch ? `No factories found` : 'No factories available'}
+                            </div>
+                          ) : null}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <input
+                      type="text"
+                      value={factory || '-'}
+                      readOnly
+                      className="w-full px-3 py-2 bg-gray-50 border border-[var(--border)] rounded-md text-sm text-[var(--muted-foreground)] cursor-not-allowed"
+                    />
+                  )}
                 </div>
 
                 {/* Check Number */}
@@ -244,6 +381,19 @@ export function CheckDetailsFields({
                       Is Total Stated Commission
                     </span>
                   </label>
+                </div>
+
+                {/* Commission Month */}
+                <div>
+                  <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
+                    Commission Month
+                  </label>
+                  <input
+                    type="month"
+                    value={commissionMonth}
+                    onChange={(e) => setCommissionMonth(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm"
+                  />
                 </div>
               </div>
 
