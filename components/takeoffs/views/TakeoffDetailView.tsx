@@ -224,39 +224,6 @@ export function TakeoffDetailView({
 
       {/* 6-Step Workflow Stepper */}
       <div className="bg-[var(--card)] rounded-xl border border-[var(--border)] p-4 mb-6 shadow-sm">
-        {/* Navigation Buttons - Above Stepper */}
-        <div className="flex items-center justify-between mb-4 pb-4 border-b border-[var(--border)]">
-          <button
-            onClick={goToPreviousStep}
-            disabled={!canGoBack}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              canGoBack
-                ? 'text-[var(--foreground)] hover:bg-gray-100 border border-[var(--border)]'
-                : 'text-gray-400 cursor-not-allowed'
-            }`}
-          >
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M15 10H5M9 14l-4-4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            Previous Step
-          </button>
-
-          <button
-            onClick={goToNextStep}
-            disabled={!canGoForward}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              canGoForward
-                ? 'bg-purple-600 text-white hover:bg-purple-700'
-                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-            }`}
-          >
-            Next Step
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M5 10h10M11 6l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
-        </div>
-
         {/* Stepper Icons */}
         <div className="flex items-center justify-between overflow-x-auto">
           {WORKFLOW_STEPS.map((step, index) => {
@@ -383,6 +350,39 @@ export function TakeoffDetailView({
               </div>
             );
           })}
+        </div>
+
+        {/* Navigation Buttons - Below Stepper */}
+        <div className="flex items-center justify-between mt-4 pt-4 border-t border-[var(--border)]">
+          <button
+            onClick={goToPreviousStep}
+            disabled={!canGoBack}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              canGoBack
+                ? 'text-[var(--foreground)] hover:bg-gray-100 border border-[var(--border)]'
+                : 'text-gray-400 cursor-not-allowed'
+            }`}
+          >
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M15 10H5M9 14l-4-4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Previous Step
+          </button>
+
+          <button
+            onClick={goToNextStep}
+            disabled={!canGoForward}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              canGoForward
+                ? 'bg-purple-600 text-white hover:bg-purple-700'
+                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+            }`}
+          >
+            Next Step
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M5 10h10M11 6l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
         </div>
       </div>
 
