@@ -1135,20 +1135,28 @@ export async function clearTakeoffCrosses(takeoffId: string): Promise<number> {
 
 /**
  * Get all saved product crosses for a takeoff
+ * Note: This query may not be implemented in the backend yet
  */
 export async function getTakeoffProductCrosses(
   takeoffId: string
 ): Promise<TakeoffProductCrossResponse[]> {
-  const response = await flowAIGraphQLRequest<{ getTakeoffProductCrosses: TakeoffProductCrossResponse[] }>({
-    query: GET_TAKEOFF_PRODUCT_CROSSES,
-    variables: { takeoffId },
-  });
+  try {
+    const response = await flowAIGraphQLRequest<{ getTakeoffProductCrosses: TakeoffProductCrossResponse[] }>({
+      query: GET_TAKEOFF_PRODUCT_CROSSES,
+      variables: { takeoffId },
+    });
 
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to get product crosses');
+    if (response.errors) {
+      // Log error but don't throw - this query may not be implemented yet
+      console.warn('getTakeoffProductCrosses query not available:', response.errors[0]?.message);
+      return [];
+    }
+
+    return response.data?.getTakeoffProductCrosses || [];
+  } catch (error) {
+    console.warn('Failed to fetch product crosses (query may not exist):', error);
+    return [];
   }
-
-  return response.data?.getTakeoffProductCrosses || [];
 }
 
 // ==================== Prompt Templates ====================
