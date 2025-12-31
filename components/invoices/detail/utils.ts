@@ -3,7 +3,8 @@
  * Helper functions for invoice detail operations
  */
 
-import type { Invoice, InvoiceLineItem, Order, CommissionCheck } from '@/lib/types/rms';
+import type { Invoice, InvoiceLineItem as RmsInvoiceLineItem, Order, CommissionCheck } from '@/lib/types/rms';
+import type { EditableInvoice, InvoiceLineItem } from './types';
 
 /**
  * Format number as currency
@@ -28,30 +29,22 @@ export const formatDate = (dateString: string): string => {
 
 /**
  * Check if invoice is overdue
+ * Accepts EditableInvoice (local type) or Invoice (RMS type)
  */
-export const isOverdue = (invoice: Invoice): boolean => {
+export const isOverdue = (invoice: EditableInvoice | Invoice): boolean => {
   if (invoice.status !== 'open' && invoice.status !== 'partial_paid') return false;
   return new Date(invoice.dueDate) < new Date();
 };
 
 /**
  * Get linked orders for an invoice line item
+ * Accepts local InvoiceLineItem type and EditableInvoice
  */
 export const getLinkedOrdersForInvoiceLine = (
   invoiceLineItem: InvoiceLineItem,
-  invoice: Invoice,
+  invoice: EditableInvoice | Invoice,
   allOrders: Order[]
 ): Order[] => {
-  // Check if there are explicit linkedOrderLineItemIds
-  if (invoiceLineItem.linkedOrderLineItemIds && invoiceLineItem.linkedOrderLineItemIds.length > 0) {
-    // Find orders that contain any of these line items
-    return allOrders.filter(order =>
-      order.lineItems.some(oli =>
-        invoiceLineItem.linkedOrderLineItemIds!.includes(oli.id)
-      )
-    );
-  }
-
   // Fallback: find order via orderLineItemId
   if (invoiceLineItem.orderLineItemId) {
     const linkedOrder = allOrders.find(order =>
@@ -79,8 +72,9 @@ export const getLinkedChecksForInvoice = (
 
 /**
  * Calculate totals for an invoice
+ * Accepts EditableInvoice (local type) or Invoice (RMS type)
  */
-export const calculateInvoiceTotals = (invoice: Invoice): {
+export const calculateInvoiceTotals = (invoice: EditableInvoice | Invoice): {
   subtotal: number;
   freight: number;
   total: number;
@@ -92,7 +86,7 @@ export const calculateInvoiceTotals = (invoice: Invoice): {
 } => {
   // Calculate overage totals from line items
   const totalCommission = invoice.lineItems.reduce(
-    (sum, item) => sum + (item.amount * (item.commissionRate || 0.08)),
+    (sum, item) => sum + ((item as InvoiceLineItem).amount || 0) * ((item as InvoiceLineItem).commissionRate || 0.08),
     0
   );
   const totalOvg = invoice.lineItems.reduce(

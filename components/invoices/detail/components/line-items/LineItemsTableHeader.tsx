@@ -6,8 +6,7 @@
 'use client';
 
 import React from 'react';
-import type { InvoiceLineItem } from '@/lib/types/rms';
-import type { ColumnKey, ViewMode } from '../../types';
+import type { ColumnKey, ViewMode, InvoiceLineItem } from '../../types';
 
 interface LineItemsTableHeaderProps {
   lineItems: InvoiceLineItem[];

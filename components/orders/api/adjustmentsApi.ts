@@ -232,8 +232,8 @@ const GET_ADJUSTMENT = `
 `;
 
 const SEARCH_ADJUSTMENTS = `
-  query SearchAdjustments($searchTerm: String!, $limit: Int) {
-    adjustmentSearch(searchTerm: $searchTerm, limit: $limit) {
+  query SearchAdjustments($searchTerm: String!, $limit: Int, $openOnly: Boolean, $unlockedOnly: Boolean) {
+    adjustmentSearch(searchTerm: $searchTerm, limit: $limit, openOnly: $openOnly, unlockedOnly: $unlockedOnly) {
       id
       adjustmentNumber
       amount
@@ -324,15 +324,29 @@ export async function fetchAdjustmentById(id: string): Promise<Adjustment | null
 }
 
 /**
+ * Options for adjustment search
+ */
+export interface AdjustmentSearchOptions {
+  openOnly?: boolean;
+  unlockedOnly?: boolean;
+}
+
+/**
  * Search adjustments by term
  */
 export async function searchAdjustments(
   searchTerm: string = '',
-  limit: number = 50
+  limit: number = 50,
+  options?: AdjustmentSearchOptions
 ): Promise<AdjustmentSearchResult[]> {
   const response = await crmGraphQLRequest<{ adjustmentSearch: AdjustmentSearchResult[] }>({
     query: SEARCH_ADJUSTMENTS,
-    variables: { searchTerm, limit },
+    variables: {
+      searchTerm,
+      limit,
+      openOnly: options?.openOnly,
+      unlockedOnly: options?.unlockedOnly,
+    },
   });
 
   if (response.errors) {
@@ -525,11 +539,22 @@ export function useAdjustmentsInfinite(
 /**
  * Hook to search adjustments
  */
-export function useAdjustmentSearch(searchTerm: string, limit: number = 50) {
+export function useAdjustmentSearch(
+  searchTerm: string,
+  limit: number = 50,
+  options?: AdjustmentSearchOptions
+) {
   return useQuery({
-    queryKey: ['adjustmentSearch', searchTerm, limit],
-    queryFn: () => searchAdjustments(searchTerm, limit),
+    queryKey: ['adjustmentSearch', searchTerm, limit, options],
+    queryFn: () => searchAdjustments(searchTerm, limit, options),
   });
+}
+
+/**
+ * Hook to search adjustments for checks page (openOnly and unlockedOnly = true)
+ */
+export function useAdjustmentSearchForChecks(searchTerm: string, limit: number = 50) {
+  return useAdjustmentSearch(searchTerm, limit, { openOnly: true, unlockedOnly: true });
 }
 
 /**

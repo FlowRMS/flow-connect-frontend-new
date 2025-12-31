@@ -200,6 +200,10 @@ export interface OrderLandingPage {
   status?: string;
   total?: number;
   userIds?: string[];
+  // New fields from API
+  factoryName?: string;
+  soldToCustomerName?: string;
+  jobName?: string;
 }
 
 // Input Types
@@ -308,6 +312,9 @@ const ORDER_LANDING_PAGES = `
           entityDate
           createdBy
           createdAt
+          factoryName
+          soldToCustomerName
+          jobName
         }
       }
       total

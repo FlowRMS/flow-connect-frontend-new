@@ -193,6 +193,8 @@ export interface InvoiceLandingPage {
   status?: string;
   total?: number;
   userIds?: string[];
+  // New field from API
+  factoryName?: string;
 }
 
 // Input Types
@@ -287,6 +289,7 @@ const INVOICE_LANDING_PAGES = `
           dueDate
           createdBy
           createdAt
+          factoryName
         }
       }
       total
@@ -458,8 +461,8 @@ const FIND_INVOICE_BY_ID = `
 `;
 
 const INVOICE_SEARCH = `
-  query InvoiceSearch($searchTerm: String!, $limit: Int) {
-    invoiceSearch(searchTerm: $searchTerm, limit: $limit) {
+  query InvoiceSearch($searchTerm: String!, $limit: Int, $openOnly: Boolean, $unlockedOnly: Boolean) {
+    invoiceSearch(searchTerm: $searchTerm, limit: $limit, openOnly: $openOnly, unlockedOnly: $unlockedOnly) {
       url
       status
       published
@@ -872,12 +875,29 @@ export async function fetchInvoiceById(id: string): Promise<Invoice | null> {
 }
 
 /**
+ * Options for invoice search
+ */
+export interface InvoiceSearchOptions {
+  openOnly?: boolean;
+  unlockedOnly?: boolean;
+}
+
+/**
  * Search invoices by term
  */
-export async function searchInvoices(searchTerm: string, limit: number = 10): Promise<Invoice[]> {
+export async function searchInvoices(
+  searchTerm: string,
+  limit: number = 10,
+  options?: InvoiceSearchOptions
+): Promise<Invoice[]> {
   const response = await crmGraphQLRequest<{ invoiceSearch: Invoice[] }>({
     query: INVOICE_SEARCH,
-    variables: { searchTerm, limit },
+    variables: {
+      searchTerm,
+      limit,
+      openOnly: options?.openOnly,
+      unlockedOnly: options?.unlockedOnly,
+    },
   });
 
   if (response.errors) {

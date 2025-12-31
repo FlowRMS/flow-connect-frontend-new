@@ -4,13 +4,13 @@
  */
 
 import { useRouter } from 'next/navigation';
-import type { Invoice } from '@/lib/types/rms';
-import type { ViewMode, VersionInfo, ColumnKey } from '../../types';
+import type { InvoiceStatus } from '@/lib/types/rms';
+import type { ViewMode, VersionInfo, ColumnKey, EditableInvoice } from '../../types';
 import { invoiceStatusLabels } from '../../constants';
 import { isOverdue } from '../../utils';
 
 interface HeaderTopBarProps {
-  invoice: Invoice;
+  invoice: EditableInvoice;
   // Dropdowns state
   showActionsDropdown: boolean;
   setShowActionsDropdown: (show: boolean) => void;
@@ -31,15 +31,15 @@ interface HeaderTopBarProps {
   setViewMode: (mode: ViewMode) => void;
   setVisibleColumns: (columns: Set<ColumnKey>) => void;
   // Actions
-  updateInvoiceStatus: (status: Invoice['status']) => void;
+  updateInvoiceStatus: (status: InvoiceStatus) => void;
   handleMakeWarehouseOrder: () => void;
   handleGeneratePDF?: () => void;
   handleSave?: () => void;
   handleSaveAsNew?: () => void;
 }
 
-const getStatusColor = (status: Invoice['status']) => {
-  const colors: Record<Invoice['status'], string> = {
+const getStatusColor = (status: InvoiceStatus) => {
+  const colors: Record<InvoiceStatus, string> = {
     open: 'bg-blue-100 text-blue-700',
     paid: 'bg-green-100 text-green-700',
     partial_paid: 'bg-yellow-100 text-yellow-700',
@@ -339,78 +339,13 @@ export function HeaderTopBar({
             )}
           </div>
 
-          {/* Status Dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => {
-                setShowStatusDropdown(!showStatusDropdown);
-                setShowActionsDropdown(false);
-                setShowSaveDropdown(false);
-              }}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${getStatusColor(
-                invoice.status
-              )}`}
-            >
-              {invoiceStatusLabels[invoice.status]}
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path
-                  d="M6 8l4 4 4-4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-            {showStatusDropdown && (
-              <>
-                <div
-                  className="fixed inset-0 z-10"
-                  onClick={() => setShowStatusDropdown(false)}
-                />
-                <div className="absolute top-full left-0 mt-1 w-40 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
-                  {(['open', 'paid', 'partial_paid', 'void', 'dormant'] as Invoice['status'][]).map(
-                    (status) => (
-                      <button
-                        key={status}
-                        onClick={() => {
-                          updateInvoiceStatus(status);
-                          setShowStatusDropdown(false);
-                        }}
-                        className={`w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors first:rounded-t-lg last:rounded-b-lg flex items-center justify-between ${
-                          invoice.status === status
-                            ? 'bg-[var(--primary)]/10 text-[var(--primary)]'
-                            : ''
-                        }`}
-                      >
-                        {invoiceStatusLabels[status]}
-                        {invoice.status === status && (
-                          <svg
-                            width="14"
-                            height="14"
-                            viewBox="0 0 20 20"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                          >
-                            <path
-                              d="M4 10l4 4 8-8"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                        )}
-                      </button>
-                    )
-                  )}
-                </div>
-              </>
-            )}
+          {/* Status Display (read-only) */}
+          <div
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${getStatusColor(
+              invoice.status
+            )}`}
+          >
+            {invoiceStatusLabels[invoice.status]}
           </div>
 
           {/* Version Dropdown */}

@@ -6,12 +6,11 @@
 'use client';
 
 import React from 'react';
-import type { Invoice } from '@/lib/types/rms';
-import type { LineItemCredit } from '../../types';
+import type { LineItemCredit, EditableInvoice } from '../../types';
 import { formatCurrency } from '../../utils';
 
 interface CreditsTabProps {
-  invoice: Invoice;
+  invoice: EditableInvoice;
   lineItemCredits: Record<string, LineItemCredit>;
 }
 

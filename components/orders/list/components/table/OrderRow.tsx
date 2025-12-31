@@ -6,7 +6,7 @@
 import { useRouter } from 'next/navigation';
 import type { Order } from '@/lib/types/rms';
 import { orderStatusColors, orderStatusLabels } from '../../constants';
-import { formatCurrency, formatDate, getOutsideRepsDisplay } from '../../utils';
+import { formatCurrency, formatDate } from '../../utils';
 
 interface OrderRowProps {
   order: Order;
@@ -147,34 +147,17 @@ export function OrderRow({
         </span>
       </div>
 
-      {/* Manufacturer */}
+      {/* Manufacturer/Factory - uses factoryName from API if available */}
       <div className="flex items-center">
         <span className="text-sm text-[var(--foreground)] truncate">
-          {order.manufacturerName}
+          {(order as any).factoryName || order.manufacturerName || '-'}
         </span>
       </div>
 
-      {/* Customer */}
+      {/* Customer - uses soldToCustomerName from API if available */}
       <div className="flex items-center">
         <span className="text-sm text-[var(--foreground)] truncate">
-          {order.customerName}
-        </span>
-      </div>
-
-      {/* Inside Rep */}
-      <div className="flex items-center">
-        <span className="text-sm text-[var(--muted-foreground)] truncate">
-          {order.insideRepName || '-'}
-        </span>
-      </div>
-
-      {/* Outside Reps */}
-      <div className="flex items-center">
-        <span
-          className="text-xs text-[var(--muted-foreground)] truncate"
-          title={getOutsideRepsDisplay(order)}
-        >
-          {getOutsideRepsDisplay(order)}
+          {(order as any).soldToCustomerName || order.customerName || '-'}
         </span>
       </div>
 
@@ -185,10 +168,10 @@ export function OrderRow({
         </span>
       </div>
 
-      {/* Job Name */}
+      {/* Job Name - uses jobName from API if available */}
       <div className="flex items-center">
         <span className="text-sm text-[var(--foreground)] truncate">
-          {order.jobName || '-'}
+          {(order as any).jobName || order.jobName || '-'}
         </span>
       </div>
 

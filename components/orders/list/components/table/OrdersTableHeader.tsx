@@ -275,20 +275,6 @@ export function OrdersTableHeader({
         />
       </div>
 
-      {/* Inside Rep */}
-      <div className="flex items-center">
-        <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-          Inside Rep
-        </span>
-      </div>
-
-      {/* Outside Reps */}
-      <div className="flex items-center">
-        <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-          Outside Reps
-        </span>
-      </div>
-
       {/* Commission */}
       <div className="flex items-center justify-end">
         <button

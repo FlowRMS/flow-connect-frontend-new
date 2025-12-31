@@ -2,6 +2,12 @@
  * InvoiceDetailsFields Component
  * Collapsible section with invoice detail form fields
  * Uses SearchableDropdownV2 for all searchable fields including Order and Invoice search
+ *
+ * Layout:
+ * - Row 0: Pre-populate options (Order/Invoice search)
+ * - Row 1: Editable fields (Invoice #, Due Date, Entry Date, Paid Date, Check #, Published)
+ * - Row 2: Order-populated fields (read-only when connected) - Factory, Sold To, Bill To, End User, Invoice Date
+ * - Row 3: Order-populated fields cont. - PO#, Job, Payment Terms, Freight Terms, Shipping Terms, Reps
  */
 
 'use client';
@@ -48,7 +54,12 @@ interface InvoiceDetailsFieldsProps {
   onInvoiceSelect?: (invoiceId: string, invoiceNumber: string) => void;
   onUpdateInvoice?: (updates: Partial<EditableInvoice>) => void;
   isCreateMode?: boolean;
+  isPaid?: boolean; // When true, all fields are read-only (PAID status)
 }
+
+// Read-only field styling
+const readOnlyInputClass = 'w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm bg-gray-100 text-gray-500 cursor-not-allowed';
+const editableInputClass = 'w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent bg-white';
 
 export function InvoiceDetailsFields({
   invoice,
@@ -75,8 +86,17 @@ export function InvoiceDetailsFields({
   onInvoiceSelect,
   onUpdateInvoice,
   isCreateMode = false,
+  isPaid = false,
 }: InvoiceDetailsFieldsProps) {
   const overdue = isOverdue(invoice);
+
+  // When invoice is paid, all fields should be read-only
+  const isReadOnly = isPaid || invoice.status === 'paid';
+
+  // Per-line-item flags
+  const outsidePerLineItem = (invoice as any).outsidePerLineItem || false;
+  const insidePerLineItem = (invoice as any).insidePerLineItem || false;
+  const endUserPerLineItem = (invoice as any).endUserPerLineItem || false;
 
   // Search states
   const [orderSearchTerm, setOrderSearchTerm] = useState('');
@@ -284,7 +304,15 @@ export function InvoiceDetailsFields({
             </div>
           </div>
 
-          {/* Row 1: Invoice Number, Factory, Sold To, Bill To, End User, Invoice Date */}
+          {/* Row 1: Editable Invoice Fields */}
+          {isReadOnly && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-2 mb-4 flex items-center gap-2">
+              <svg className="w-5 h-5 text-yellow-600" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+              </svg>
+              <span className="text-sm text-yellow-800">This invoice is <strong>PAID</strong> and cannot be edited.</span>
+            </div>
+          )}
           <div className="grid grid-cols-6 gap-4 mb-4">
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
@@ -293,14 +321,93 @@ export function InvoiceDetailsFields({
               <input
                 type="text"
                 value={invoice.invoiceNumber}
-                onChange={(e) => handleFieldUpdate('invoiceNumber', e.target.value)}
-                className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent ${
-                  isConnectedToOrder && !isCreateMode ? 'bg-gray-100 text-gray-500' : 'bg-white'
-                }`}
-                readOnly={!isCreateMode}
+                onChange={(e) => !isReadOnly && handleFieldUpdate('invoiceNumber', e.target.value)}
+                className={isReadOnly ? readOnlyInputClass : editableInputClass}
+                disabled={isReadOnly}
               />
             </div>
 
+            <div>
+              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
+                Due Date<span className="text-red-500">*</span>
+              </label>
+              <StyledDatePicker
+                selected={parseDateString(invoice.dueDate)}
+                onChange={(date) => !isReadOnly && handleFieldUpdate('dueDate', formatDateToString(date))}
+                placeholder="Select date..."
+                className={`!py-2 !px-3 !rounded-md !text-sm ${overdue ? '!text-red-600' : ''} ${isReadOnly ? '!bg-gray-100 !text-gray-500' : ''}`}
+                disabled={isReadOnly}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
+                Entry Date
+              </label>
+              <StyledDatePicker
+                selected={parseDateString(invoice.entryDate)}
+                onChange={(date) => !isReadOnly && handleFieldUpdate('entryDate', formatDateToString(date))}
+                placeholder="Select date..."
+                className={`!py-2 !px-3 !rounded-md !text-sm ${isReadOnly ? '!bg-gray-100 !text-gray-500' : ''}`}
+                disabled={isReadOnly}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
+                Paid Date
+              </label>
+              <StyledDatePicker
+                selected={parseDateString(invoice.paidDate)}
+                onChange={(date) => !isReadOnly && handleFieldUpdate('paidDate', formatDateToString(date))}
+                placeholder="Select date..."
+                className={`!py-2 !px-3 !rounded-md !text-sm ${invoice.paidDate ? '!text-green-600' : ''} ${isReadOnly ? '!bg-gray-100 !text-gray-500' : ''}`}
+                disabled={isReadOnly}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
+                Check #
+              </label>
+              <input
+                type="text"
+                value={(invoice as any).checkNumber || ''}
+                onChange={(e) => !isReadOnly && handleFieldUpdate('checkNumber' as any, e.target.value)}
+                placeholder="Check number"
+                className={isReadOnly ? readOnlyInputClass : editableInputClass}
+                disabled={isReadOnly}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
+                Published
+              </label>
+              <label className={`flex items-center gap-2 mt-2 ${isReadOnly ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                <input
+                  type="checkbox"
+                  checked={invoice.published !== false}
+                  onChange={(e) => !isReadOnly && handleFieldUpdate('published', e.target.checked)}
+                  className={`w-4 h-4 accent-[var(--primary)] ${isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  disabled={isReadOnly}
+                />
+                <span className="text-sm text-[var(--foreground)]">Active</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Separator for Order-Populated Fields */}
+          {(isConnectedToOrder || isReadOnly) && (
+            <div className="flex items-center gap-2 mb-3 mt-2">
+              <div className="h-px flex-1 bg-gray-200" />
+              <span className="text-xs font-medium text-gray-400 uppercase">{isReadOnly ? 'Read-Only Fields' : 'Order-Populated Fields (Read-Only)'}</span>
+              <div className="h-px flex-1 bg-gray-200" />
+            </div>
+          )}
+
+          {/* Row 2: Order-Populated Fields - Factory, Customers, Invoice Date */}
+          <div className="grid grid-cols-6 gap-4 mb-4">
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Factory<span className="text-red-500">*</span>
@@ -309,8 +416,10 @@ export function InvoiceDetailsFields({
                 value={invoice.manufacturerId || ''}
                 displayValue={invoice.manufacturerName || ''}
                 onChange={(id, label) => {
-                  handleFieldUpdate('manufacturerId', id);
-                  handleFieldUpdate('manufacturerName', label);
+                  if (!isConnectedToOrder && !isReadOnly) {
+                    handleFieldUpdate('manufacturerId', id);
+                    handleFieldUpdate('manufacturerName', label);
+                  }
                   setFactorySearchEnabled(false);
                 }}
                 options={factoryOptions}
@@ -320,7 +429,8 @@ export function InvoiceDetailsFields({
                   setFactorySearchTerm(query);
                   setFactorySearchEnabled(true);
                 }}
-                disabled={isConnectedToOrder}
+                disabled={isConnectedToOrder || isReadOnly}
+                className={(isConnectedToOrder || isReadOnly) ? 'opacity-60' : ''}
               />
             </div>
 
@@ -332,8 +442,10 @@ export function InvoiceDetailsFields({
                 value={invoice.customerId || ''}
                 displayValue={invoice.customerName || ''}
                 onChange={(id, label) => {
-                  handleFieldUpdate('customerId', id);
-                  handleFieldUpdate('customerName', label);
+                  if (!isConnectedToOrder && !isReadOnly) {
+                    handleFieldUpdate('customerId', id);
+                    handleFieldUpdate('customerName', label);
+                  }
                   setSoldToSearchEnabled(false);
                 }}
                 options={soldToOptions}
@@ -343,7 +455,8 @@ export function InvoiceDetailsFields({
                   setSoldToSearchTerm(query);
                   setSoldToSearchEnabled(true);
                 }}
-                disabled={isConnectedToOrder}
+                disabled={isConnectedToOrder || isReadOnly}
+                className={(isConnectedToOrder || isReadOnly) ? 'opacity-60' : ''}
               />
             </div>
 
@@ -355,8 +468,10 @@ export function InvoiceDetailsFields({
                 value={(invoice as any).billToCustomerId || ''}
                 displayValue={(invoice as any).billToCustomerName || ''}
                 onChange={(id, label) => {
-                  handleFieldUpdate('billToCustomerId' as any, id);
-                  handleFieldUpdate('billToCustomerName' as any, label);
+                  if (!isConnectedToOrder && !isReadOnly) {
+                    handleFieldUpdate('billToCustomerId' as any, id);
+                    handleFieldUpdate('billToCustomerName' as any, label);
+                  }
                   setBillToSearchEnabled(false);
                 }}
                 options={billToOptions}
@@ -366,31 +481,47 @@ export function InvoiceDetailsFields({
                   setBillToSearchTerm(query);
                   setBillToSearchEnabled(true);
                 }}
-                disabled={isConnectedToOrder}
+                disabled={isConnectedToOrder || isReadOnly}
+                className={(isConnectedToOrder || isReadOnly) ? 'opacity-60' : ''}
               />
             </div>
 
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 End User
+                {isConnectedToOrder && endUserPerLineItem && (
+                  <span className="ml-2 text-xs text-blue-600 font-normal">(Per Line Item)</span>
+                )}
               </label>
-              <SearchableDropdownV2
-                value={(invoice as any).endUserId || ''}
-                displayValue={(invoice as any).endUserName || ''}
-                onChange={(id, label) => {
-                  handleFieldUpdate('endUserId' as any, id);
-                  handleFieldUpdate('endUserName' as any, label);
-                  setEndUserSearchEnabled(false);
-                }}
-                options={endUserOptions}
-                placeholder="Select End User..."
-                isLoading={isEndUserLoading}
-                onSearch={(query) => {
-                  setEndUserSearchTerm(query);
-                  setEndUserSearchEnabled(true);
-                }}
-                disabled={isConnectedToOrder}
-              />
+              {isConnectedToOrder && endUserPerLineItem ? (
+                <input
+                  type="text"
+                  value="Per Line Item"
+                  readOnly
+                  className={readOnlyInputClass}
+                />
+              ) : (
+                <SearchableDropdownV2
+                  value={(invoice as any).endUserId || ''}
+                  displayValue={(invoice as any).endUserName || ''}
+                  onChange={(id, label) => {
+                    if (!isConnectedToOrder && !isReadOnly) {
+                      handleFieldUpdate('endUserId' as any, id);
+                      handleFieldUpdate('endUserName' as any, label);
+                    }
+                    setEndUserSearchEnabled(false);
+                  }}
+                  options={endUserOptions}
+                  placeholder="Select End User..."
+                  isLoading={isEndUserLoading}
+                  onSearch={(query) => {
+                    setEndUserSearchTerm(query);
+                    setEndUserSearchEnabled(true);
+                  }}
+                  disabled={isConnectedToOrder || isReadOnly}
+                  className={(isConnectedToOrder || isReadOnly) ? 'opacity-60' : ''}
+                />
+              )}
             </div>
 
             <div>
@@ -399,49 +530,14 @@ export function InvoiceDetailsFields({
               </label>
               <StyledDatePicker
                 selected={parseDateString(invoice.invoiceDate)}
-                onChange={(date) => handleFieldUpdate('invoiceDate', formatDateToString(date))}
+                onChange={(date) => {
+                  if (!isConnectedToOrder && !isReadOnly) {
+                    handleFieldUpdate('invoiceDate', formatDateToString(date));
+                  }
+                }}
                 placeholder="Select date..."
-                className="!py-2 !px-3 !rounded-md !text-sm"
-                disabled={isConnectedToOrder}
-              />
-            </div>
-          </div>
-
-          {/* Row 2: Due Date, Entry Date, Paid Date, PO Number, Job, Payment Terms */}
-          <div className="grid grid-cols-6 gap-4 mb-4">
-            <div>
-              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Due Date<span className="text-red-500">*</span>
-              </label>
-              <StyledDatePicker
-                selected={parseDateString(invoice.dueDate)}
-                onChange={(date) => handleFieldUpdate('dueDate', formatDateToString(date))}
-                placeholder="Select date..."
-                className={`!py-2 !px-3 !rounded-md !text-sm ${overdue ? '!text-red-600' : ''}`}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Entry Date
-              </label>
-              <StyledDatePicker
-                selected={parseDateString(invoice.entryDate)}
-                onChange={(date) => handleFieldUpdate('entryDate', formatDateToString(date))}
-                placeholder="Select date..."
-                className="!py-2 !px-3 !rounded-md !text-sm"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Paid Date
-              </label>
-              <StyledDatePicker
-                selected={parseDateString(invoice.paidDate)}
-                onChange={(date) => handleFieldUpdate('paidDate', formatDateToString(date))}
-                placeholder="Select date..."
-                className={`!py-2 !px-3 !rounded-md !text-sm ${invoice.paidDate ? '!text-green-600' : ''}`}
+                className={`!py-2 !px-3 !rounded-md !text-sm ${(isConnectedToOrder || isReadOnly) ? '!bg-gray-100 !text-gray-500' : ''}`}
+                disabled={isConnectedToOrder || isReadOnly}
               />
             </div>
 
@@ -451,18 +547,22 @@ export function InvoiceDetailsFields({
               </label>
               <input
                 type="text"
-                value={poNumber}
-                onChange={(e) => setPoNumber(e.target.value)}
+                value={(isConnectedToOrder || isReadOnly) ? ((invoice as any).poNumber || '') : poNumber}
+                onChange={(e) => {
+                  if (!isConnectedToOrder && !isReadOnly) {
+                    setPoNumber(e.target.value);
+                    handleFieldUpdate('poNumber' as any, e.target.value);
+                  }
+                }}
                 placeholder="Enter PO #"
-                className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent ${
-                  isConnectedToOrder
-                    ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-                    : 'bg-white'
-                }`}
-                disabled={isConnectedToOrder}
+                className={(isConnectedToOrder || isReadOnly) ? readOnlyInputClass : editableInputClass}
+                disabled={isConnectedToOrder || isReadOnly}
               />
             </div>
+          </div>
 
+          {/* Row 3: Order-Populated Fields - Job, Terms, Reps */}
+          <div className="grid grid-cols-6 gap-4">
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Job
@@ -471,8 +571,10 @@ export function InvoiceDetailsFields({
                 value={(invoice as any).jobId || ''}
                 displayValue={(invoice as any).jobName || ''}
                 onChange={(id, label) => {
-                  handleFieldUpdate('jobId' as any, id);
-                  handleFieldUpdate('jobName' as any, label);
+                  if (!isConnectedToOrder && !isReadOnly) {
+                    handleFieldUpdate('jobId' as any, id);
+                    handleFieldUpdate('jobName' as any, label);
+                  }
                   setJobSearchEnabled(false);
                 }}
                 options={jobOptions}
@@ -482,7 +584,8 @@ export function InvoiceDetailsFields({
                   setJobSearchTerm(query);
                   setJobSearchEnabled(true);
                 }}
-                disabled={isConnectedToOrder}
+                disabled={isConnectedToOrder || isReadOnly}
+                className={(isConnectedToOrder || isReadOnly) ? 'opacity-60' : ''}
               />
             </div>
 
@@ -492,57 +595,108 @@ export function InvoiceDetailsFields({
               </label>
               <input
                 type="text"
-                value={(invoice as any).paymentTerms || 'Net 60'}
-                onChange={(e) => handleFieldUpdate('paymentTerms' as any, e.target.value)}
-                className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent ${
-                  isConnectedToOrder ? 'bg-gray-100 text-gray-500' : 'bg-white'
-                }`}
-                disabled={isConnectedToOrder}
+                value={(invoice as any).paymentTerms || ''}
+                onChange={(e) => {
+                  if (!isConnectedToOrder && !isReadOnly) {
+                    handleFieldUpdate('paymentTerms' as any, e.target.value);
+                  }
+                }}
+                placeholder="Net 60"
+                className={(isConnectedToOrder || isReadOnly) ? readOnlyInputClass : editableInputClass}
+                disabled={isConnectedToOrder || isReadOnly}
               />
             </div>
-          </div>
 
-          {/* Row 3: Outside Rep, Inside Rep, Freight Terms, Shipping Terms, Check Number, Notes */}
-          <div className="grid grid-cols-6 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
+                Freight Terms
+              </label>
+              <input
+                type="text"
+                value={(invoice as any).freightTerms || ''}
+                onChange={(e) => {
+                  if (!isConnectedToOrder && !isReadOnly) {
+                    handleFieldUpdate('freightTerms' as any, e.target.value);
+                  }
+                }}
+                placeholder="Prepaid & Add"
+                className={(isConnectedToOrder || isReadOnly) ? readOnlyInputClass : editableInputClass}
+                disabled={isConnectedToOrder || isReadOnly}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
+                Shipping Terms
+              </label>
+              <input
+                type="text"
+                value={(invoice as any).shippingTerms || ''}
+                onChange={(e) => {
+                  if (!isConnectedToOrder && !isReadOnly) {
+                    handleFieldUpdate('shippingTerms' as any, e.target.value);
+                  }
+                }}
+                placeholder="FOB Destination"
+                className={(isConnectedToOrder || isReadOnly) ? readOnlyInputClass : editableInputClass}
+                disabled={isConnectedToOrder || isReadOnly}
+              />
+            </div>
+
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Outside Rep
-              </label>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <SearchableDropdownV2
-                    value={invoiceOutsideRep}
-                    displayValue={outsideRepOptions.find(r => r.id === invoiceOutsideRep)?.label || ''}
-                    onChange={(id, label) => {
-                      setInvoiceOutsideRep(id);
-                      handleFieldUpdate('outsideRepId' as any, id);
-                      handleFieldUpdate('outsideRepName' as any, label);
-                      if (!id) {
-                        setSplitOutsideCommission(false);
-                        setOutsideRepSplits([]);
-                      }
-                      setOutsideRepSearchEnabled(false);
-                    }}
-                    options={outsideRepOptions}
-                    placeholder="Select Rep..."
-                    isLoading={isOutsideRepLoading}
-                    onSearch={(query) => {
-                      setOutsideRepSearchTerm(query);
-                      setOutsideRepSearchEnabled(true);
-                    }}
-                    disabled={isConnectedToOrder}
-                  />
-                </div>
-                {splitOutsideCommission && !isConnectedToOrder && (
-                  <button
-                    onClick={openOutsideRepModal}
-                    className="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors whitespace-nowrap"
-                  >
-                    Split
-                  </button>
+                {isConnectedToOrder && outsidePerLineItem && (
+                  <span className="ml-2 text-xs text-blue-600 font-normal">(Per Line Item)</span>
                 )}
-              </div>
-              {invoiceOutsideRep && !isConnectedToOrder && (
+              </label>
+              {(isConnectedToOrder && outsidePerLineItem) || isReadOnly ? (
+                <input
+                  type="text"
+                  value={isReadOnly ? ((invoice as any).outsideRepName || '-') : "Per Line Item"}
+                  readOnly
+                  className={readOnlyInputClass}
+                />
+              ) : (
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <SearchableDropdownV2
+                      value={isConnectedToOrder ? ((invoice as any).outsideRepId || '') : invoiceOutsideRep}
+                      displayValue={isConnectedToOrder ? ((invoice as any).outsideRepName || '') : (outsideRepOptions.find(r => r.id === invoiceOutsideRep)?.label || '')}
+                      onChange={(id, label) => {
+                        if (!isConnectedToOrder && !isReadOnly) {
+                          setInvoiceOutsideRep(id);
+                          handleFieldUpdate('outsideRepId' as any, id);
+                          handleFieldUpdate('outsideRepName' as any, label);
+                          if (!id) {
+                            setSplitOutsideCommission(false);
+                            setOutsideRepSplits([]);
+                          }
+                        }
+                        setOutsideRepSearchEnabled(false);
+                      }}
+                      options={outsideRepOptions}
+                      placeholder="Select Rep..."
+                      isLoading={isOutsideRepLoading}
+                      onSearch={(query) => {
+                        setOutsideRepSearchTerm(query);
+                        setOutsideRepSearchEnabled(true);
+                      }}
+                      disabled={isConnectedToOrder || isReadOnly}
+                      className={(isConnectedToOrder || isReadOnly) ? 'opacity-60' : ''}
+                    />
+                  </div>
+                  {splitOutsideCommission && !isConnectedToOrder && !isReadOnly && (
+                    <button
+                      onClick={openOutsideRepModal}
+                      className="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors whitespace-nowrap"
+                    >
+                      Split
+                    </button>
+                  )}
+                </div>
+              )}
+              {invoiceOutsideRep && !isConnectedToOrder && !outsidePerLineItem && !isReadOnly && (
                 <div className="mt-1.5 flex items-center gap-2">
                   <input
                     type="checkbox"
@@ -572,42 +726,57 @@ export function InvoiceDetailsFields({
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Inside Rep
-              </label>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <SearchableDropdownV2
-                    value={invoiceInsideRep}
-                    displayValue={insideRepOptions.find(r => r.id === invoiceInsideRep)?.label || ''}
-                    onChange={(id, label) => {
-                      setInvoiceInsideRep(id);
-                      handleFieldUpdate('insideRepId' as any, id);
-                      handleFieldUpdate('insideRepName' as any, label);
-                      if (!id) {
-                        setSplitInsideCommission(false);
-                        setInsideRepSplits([]);
-                      }
-                      setInsideRepSearchEnabled(false);
-                    }}
-                    options={insideRepOptions}
-                    placeholder="Select Rep..."
-                    isLoading={isInsideRepLoading}
-                    onSearch={(query) => {
-                      setInsideRepSearchTerm(query);
-                      setInsideRepSearchEnabled(true);
-                    }}
-                    disabled={isConnectedToOrder}
-                  />
-                </div>
-                {splitInsideCommission && !isConnectedToOrder && (
-                  <button
-                    onClick={openInsideRepModal}
-                    className="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors whitespace-nowrap"
-                  >
-                    Split
-                  </button>
+                {isConnectedToOrder && insidePerLineItem && (
+                  <span className="ml-2 text-xs text-blue-600 font-normal">(Per Line Item)</span>
                 )}
-              </div>
-              {invoiceInsideRep && !isConnectedToOrder && (
+              </label>
+              {(isConnectedToOrder && insidePerLineItem) || isReadOnly ? (
+                <input
+                  type="text"
+                  value={isReadOnly ? ((invoice as any).insideRepName || '-') : "Per Line Item"}
+                  readOnly
+                  className={readOnlyInputClass}
+                />
+              ) : (
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <SearchableDropdownV2
+                      value={isConnectedToOrder ? ((invoice as any).insideRepId || '') : invoiceInsideRep}
+                      displayValue={isConnectedToOrder ? ((invoice as any).insideRepName || '') : (insideRepOptions.find(r => r.id === invoiceInsideRep)?.label || '')}
+                      onChange={(id, label) => {
+                        if (!isConnectedToOrder && !isReadOnly) {
+                          setInvoiceInsideRep(id);
+                          handleFieldUpdate('insideRepId' as any, id);
+                          handleFieldUpdate('insideRepName' as any, label);
+                          if (!id) {
+                            setSplitInsideCommission(false);
+                            setInsideRepSplits([]);
+                          }
+                        }
+                        setInsideRepSearchEnabled(false);
+                      }}
+                      options={insideRepOptions}
+                      placeholder="Select Rep..."
+                      isLoading={isInsideRepLoading}
+                      onSearch={(query) => {
+                        setInsideRepSearchTerm(query);
+                        setInsideRepSearchEnabled(true);
+                      }}
+                      disabled={isConnectedToOrder || isReadOnly}
+                      className={(isConnectedToOrder || isReadOnly) ? 'opacity-60' : ''}
+                    />
+                  </div>
+                  {splitInsideCommission && !isConnectedToOrder && !isReadOnly && (
+                    <button
+                      onClick={openInsideRepModal}
+                      className="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors whitespace-nowrap"
+                    >
+                      Split
+                    </button>
+                  )}
+                </div>
+              )}
+              {invoiceInsideRep && !isConnectedToOrder && !insidePerLineItem && !isReadOnly && (
                 <div className="mt-1.5 flex items-center gap-2">
                   <input
                     type="checkbox"
@@ -632,66 +801,6 @@ export function InvoiceDetailsFields({
                   </label>
                 </div>
               )}
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Freight Terms
-              </label>
-              <input
-                type="text"
-                value={(invoice as any).freightTerms || ''}
-                onChange={(e) => handleFieldUpdate('freightTerms' as any, e.target.value)}
-                placeholder="Prepaid & Add"
-                className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent ${
-                  isConnectedToOrder ? 'bg-gray-100 text-gray-500' : 'bg-white'
-                }`}
-                disabled={isConnectedToOrder}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Shipping Terms
-              </label>
-              <input
-                type="text"
-                value={(invoice as any).shippingTerms || ''}
-                onChange={(e) => handleFieldUpdate('shippingTerms' as any, e.target.value)}
-                placeholder="FOB Destination"
-                className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent ${
-                  isConnectedToOrder ? 'bg-gray-100 text-gray-500' : 'bg-white'
-                }`}
-                disabled={isConnectedToOrder}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Check #
-              </label>
-              <input
-                type="text"
-                value={(invoice as any).checkNumber || ''}
-                onChange={(e) => handleFieldUpdate('checkNumber' as any, e.target.value)}
-                placeholder="Check number"
-                className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Published
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer mt-2">
-                <input
-                  type="checkbox"
-                  checked={invoice.published !== false}
-                  onChange={(e) => handleFieldUpdate('published', e.target.checked)}
-                  className="w-4 h-4 accent-[var(--primary)]"
-                />
-                <span className="text-sm text-[var(--foreground)]">Active</span>
-              </label>
             </div>
           </div>
         </div>

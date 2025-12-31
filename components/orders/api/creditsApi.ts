@@ -268,8 +268,8 @@ const GET_CREDIT = `
 `;
 
 const SEARCH_CREDITS = `
-  query SearchCredits($searchTerm: String!, $limit: Int) {
-    creditSearch(searchTerm: $searchTerm, limit: $limit) {
+  query SearchCredits($searchTerm: String!, $limit: Int, $openOnly: Boolean, $unlockedOnly: Boolean) {
+    creditSearch(searchTerm: $searchTerm, limit: $limit, openOnly: $openOnly, unlockedOnly: $unlockedOnly) {
       id
       balanceId
       createdAt
@@ -365,15 +365,29 @@ export async function fetchCreditById(id: string): Promise<Credit | null> {
 }
 
 /**
+ * Options for credit search
+ */
+export interface CreditSearchOptions {
+  openOnly?: boolean;
+  unlockedOnly?: boolean;
+}
+
+/**
  * Search credits by term
  */
 export async function searchCredits(
   searchTerm: string = '',
-  limit: number = 50
+  limit: number = 50,
+  options?: CreditSearchOptions
 ): Promise<CreditSearchResult[]> {
   const response = await crmGraphQLRequest<{ creditSearch: CreditSearchResult[] }>({
     query: SEARCH_CREDITS,
-    variables: { searchTerm, limit },
+    variables: {
+      searchTerm,
+      limit,
+      openOnly: options?.openOnly,
+      unlockedOnly: options?.unlockedOnly,
+    },
   });
 
   if (response.errors) {
@@ -523,11 +537,22 @@ export function useOrderCredits(orderId: string | null) {
 /**
  * Hook to search credits
  */
-export function useCreditSearch(searchTerm: string, limit: number = 50) {
+export function useCreditSearch(
+  searchTerm: string,
+  limit: number = 50,
+  options?: CreditSearchOptions
+) {
   return useQuery({
-    queryKey: ['creditSearch', searchTerm, limit],
-    queryFn: () => searchCredits(searchTerm, limit),
+    queryKey: ['creditSearch', searchTerm, limit, options],
+    queryFn: () => searchCredits(searchTerm, limit, options),
   });
+}
+
+/**
+ * Hook to search credits for checks page (openOnly and unlockedOnly = true)
+ */
+export function useCreditSearchForChecks(searchTerm: string, limit: number = 50) {
+  return useCreditSearch(searchTerm, limit, { openOnly: true, unlockedOnly: true });
 }
 
 /**

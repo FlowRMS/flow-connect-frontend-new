@@ -22,8 +22,6 @@ export const ORDER_TABLE_COLUMNS: ColumnConfig[] = [
   { id: 'dueDate', width: '90px', label: 'Due Date', sortable: false, filterable: false },
   { id: 'manufacturerName', width: '140px', label: 'Factory', sortable: true, filterable: true },
   { id: 'customerName', width: '140px', label: 'Customer', sortable: true, filterable: true },
-  { id: 'insideRep', width: '100px', label: 'Inside Rep', sortable: false, filterable: false },
-  { id: 'outsideReps', width: '120px', label: 'Outside Reps', sortable: false, filterable: false },
   { id: 'totalCommission', width: '120px', label: 'Commission', sortable: true, filterable: true, align: 'right' },
   { id: 'jobName', width: '1fr', label: 'Job Name', sortable: false, filterable: false },
   { id: 'visible', width: '60px', label: 'Visible', sortable: false, filterable: false, align: 'center' },

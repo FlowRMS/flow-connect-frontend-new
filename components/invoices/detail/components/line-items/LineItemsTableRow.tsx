@@ -7,14 +7,14 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import type { Invoice, Order } from '@/lib/types/rms';
-import type { ColumnKey, ViewMode, LineItemCredit, InvoiceLineItem } from '../../types';
+import type { Order } from '@/lib/types/rms';
+import type { ColumnKey, ViewMode, LineItemCredit, InvoiceLineItem, EditableInvoice } from '../../types';
 import { formatCurrency } from '../../utils';
 import { getLinkedOrdersForInvoiceLine, getLinkedChecksForInvoice } from '../../utils';
 
 export interface LineItemsTableRowProps {
   item: InvoiceLineItem;
-  invoice: Invoice;
+  invoice: EditableInvoice;
   isSelected: boolean;
   onToggleSelection: (id: string) => void;
   visibleColumns: Set<ColumnKey>;

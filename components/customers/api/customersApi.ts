@@ -164,7 +164,7 @@ const FIND_CUSTOMERS_LANDING_PAGES = `
 
 const FIND_CUSTOMER_BY_ID = `
   query FindCustomerById($id: UUID!) {
-    findCustomerById(id: $id) {
+    customer(id: $id) {
       companyName
       createdBy {
         authProviderId
@@ -439,7 +439,7 @@ export async function fetchCustomers(): Promise<CustomerLandingPage[]> {
  * Fetch a single customer by ID
  */
 export async function fetchCustomerById(id: string): Promise<Customer | null> {
-  const response = await crmGraphQLRequest<{ findCustomerById: Customer }>({
+  const response = await crmGraphQLRequest<{ customer: Customer }>({
     query: FIND_CUSTOMER_BY_ID,
     variables: { id },
   });
@@ -448,7 +448,7 @@ export async function fetchCustomerById(id: string): Promise<Customer | null> {
     throw new Error(response.errors[0]?.message || 'Failed to fetch customer');
   }
 
-  return response.data?.findCustomerById || null;
+  return response.data?.customer || null;
 }
 
 /**

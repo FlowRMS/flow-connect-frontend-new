@@ -41,6 +41,16 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
   const router = useRouter();
   const state = useInvoiceDetailState({ invoiceId });
 
+  // Line items table hook - must be called before any early returns to respect Rules of Hooks
+  const tableHook = useInvoiceLineItemsTable({
+    visibleColumns: state?.visibleColumns ?? new Set(DEFAULT_VISIBLE_COLUMNS),
+    setVisibleColumns: state?.setVisibleColumns ?? (() => {}),
+    selectedLineItems: state?.selectedLineItems ?? new Set(),
+    lineItemsCount: state?.invoice?.lineItems?.length ?? 0,
+    onSelectAll: state?.selectAllLineItems,
+    onClearSelection: state?.clearLineItemSelection,
+  });
+
   // Loading state
   if (state?.isLoading) {
     return (
@@ -103,16 +113,6 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
       </div>
     );
   }
-
-  // Line items table hook
-  const tableHook = useInvoiceLineItemsTable({
-    visibleColumns: state.visibleColumns,
-    setVisibleColumns: state.setVisibleColumns,
-    selectedLineItems: state.selectedLineItems,
-    lineItemsCount: state.invoice.lineItems.length,
-    onSelectAll: state.selectAllLineItems,
-    onClearSelection: state.clearLineItemSelection,
-  });
 
   // Handler functions
   const handleMakeWarehouseOrder = () => {
@@ -291,6 +291,7 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
         onInvoiceSelect={state.handleInvoiceSelect}
         onUpdateInvoice={state.updateInvoice}
         isCreateMode={state.isCreateMode}
+        isPaid={state.invoice.status === 'paid'}
       />
 
       {/* Main Content Area with Tabs */}
@@ -454,7 +455,7 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
                 onUpdateLineItem={state.updateLineItem}
                 onDeleteLineItem={state.deleteLineItem}
                 onOpenAdditionalDetails={state.openAdditionalDetails}
-                isEditable={!state.isConnectedToOrder || state.isCreateMode}
+                isEditable={state.invoice.status !== 'paid'}
                 factoryId={state.invoice.manufacturerId}
               />
             </div>

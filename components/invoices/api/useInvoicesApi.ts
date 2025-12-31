@@ -18,6 +18,7 @@ import {
   type CreateInvoiceInput,
   type UpdateInvoiceInput,
   type PaginatedInvoicesResult,
+  type InvoiceSearchOptions,
 } from './invoicesApi';
 
 // Re-export types for convenience
@@ -72,12 +73,23 @@ export function useInvoice(id: string | null) {
 /**
  * Hook to search invoices
  */
-export function useInvoiceSearch(searchTerm: string, enabled: boolean = true) {
+export function useInvoiceSearch(
+  searchTerm: string,
+  enabled: boolean = true,
+  options?: InvoiceSearchOptions
+) {
   return useQuery({
-    queryKey: invoiceQueryKeys.invoiceSearch(searchTerm),
-    queryFn: () => searchInvoices(searchTerm, 20),
+    queryKey: [...invoiceQueryKeys.invoiceSearch(searchTerm), options],
+    queryFn: () => searchInvoices(searchTerm, 20, options),
     enabled: enabled && searchTerm.length >= 2,
   });
+}
+
+/**
+ * Hook to search invoices for checks page (openOnly and unlockedOnly = true)
+ */
+export function useInvoiceSearchForChecks(searchTerm: string, enabled: boolean = true) {
+  return useInvoiceSearch(searchTerm, enabled, { openOnly: true, unlockedOnly: true });
 }
 
 /**
