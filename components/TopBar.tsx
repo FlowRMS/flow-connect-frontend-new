@@ -188,8 +188,8 @@ export default function TopBar() {
           <span className="sm:hidden">AI</span>
         </button>
 
-        {/* DISC Analytics Button */}
-        <Link
+        {/* DISC Analytics Button - HIDDEN */}
+        {/* <Link
           href="/disc-analytics"
           className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
         >
@@ -200,7 +200,7 @@ export default function TopBar() {
           </svg>
           <span className="hidden sm:inline">DISC Analytics</span>
           <span className="sm:hidden">DISC</span>
-        </Link>
+        </Link> */}
         
         {/* User info and Sign Out */}
         {user && (

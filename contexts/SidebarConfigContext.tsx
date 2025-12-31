@@ -49,11 +49,11 @@ const defaultConfig: SidebarConfig = {
       label: 'Email',
       collapsed: false,
       items: [
-        { id: 'flowmail', name: 'FlowMail', href: '/flowmail', enabled: true },
-        { id: 'calendar', name: 'Calendar', href: '/flow-calendar', enabled: true },
+        // { id: 'flowmail', name: 'FlowMail', href: '/flowmail', enabled: true },
+        // { id: 'calendar', name: 'Calendar', href: '/flow-calendar', enabled: true },
         { id: 'campaigns-rules', name: 'Campaigns & Rules', href: '/email-helper', enabled: true },
         { id: 'email-ingestion', name: 'Email Ingestion', href: '/email-ingestion', enabled: true },
-        { id: 'email-templates', name: 'Templates', href: '/email-templates', enabled: true },
+        // { id: 'email-templates', name: 'Templates', href: '/email-templates', enabled: true },
       ]
     },
     {
@@ -61,8 +61,8 @@ const defaultConfig: SidebarConfig = {
       label: 'Quotes',
       collapsed: false,
       items: [
-        { id: 'take-offs', name: 'Take-Offs', href: '/take-offs', enabled: true },
-        { id: 'product-crosses', name: 'Product Crosses', href: '/product-crosses', enabled: true },
+        // { id: 'take-offs', name: 'Take-Offs', href: '/take-offs', enabled: true },
+        // { id: 'product-crosses', name: 'Product Crosses', href: '/product-crosses', enabled: true },
         { id: 'quotes', name: 'Quotes', href: '/quotes-v2', enabled: true },
         // { id: 'quotes-v2', name: 'Quotes V2', href: '/quotes-v2', enabled: true },
       ]
@@ -76,7 +76,7 @@ const defaultConfig: SidebarConfig = {
         { id: 'adjustments', name: 'Adjustments', href: '/adjustments', enabled: true },
         { id: 'invoices', name: 'Invoices', href: '/invoices', enabled: true },
         { id: 'commissions', name: 'Commissions', href: '/commissions', enabled: true },
-        { id: 'buysell', name: 'Buy/Sell', href: '/buysell', enabled: true },
+        // { id: 'buysell', name: 'Buy/Sell', href: '/buysell', enabled: true },
       ]
     },
     {
@@ -84,12 +84,12 @@ const defaultConfig: SidebarConfig = {
       label: 'Warehouse',
       collapsed: false,
       items: [
-        { id: 'warehouse-overview', name: 'Overview', href: '/warehouse', enabled: true },
-        { id: 'warehouse-fulfillment', name: 'Fulfillment', href: '/warehouse/fulfillment', enabled: true },
-        { id: 'warehouse-deliveries', name: 'Deliveries', href: '/warehouse/deliveries', enabled: true },
-        { id: 'warehouse-inventory', name: 'Inventory', href: '/warehouse/inventory', enabled: true },
-        { id: 'warehouse-cycle-counts', name: 'Cycle Counts', href: '/warehouse/cycle-counts', enabled: true },
-        { id: 'warehouse-reports', name: 'Reports', href: '/warehouse/reports', enabled: true },
+        // { id: 'warehouse-overview', name: 'Overview', href: '/warehouse', enabled: true },
+        // { id: 'warehouse-fulfillment', name: 'Fulfillment', href: '/warehouse/fulfillment', enabled: true },
+        // { id: 'warehouse-deliveries', name: 'Deliveries', href: '/warehouse/deliveries', enabled: true },
+        // { id: 'warehouse-inventory', name: 'Inventory', href: '/warehouse/inventory', enabled: true },
+        // { id: 'warehouse-cycle-counts', name: 'Cycle Counts', href: '/warehouse/cycle-counts', enabled: true },
+        // { id: 'warehouse-reports', name: 'Reports', href: '/warehouse/reports', enabled: true },
         { id: 'warehouse-settings', name: 'Settings', href: '/warehouse/settings', enabled: true },
       ]
     },
@@ -120,7 +120,7 @@ const defaultConfig: SidebarConfig = {
         { id: 'companies', name: 'Companies', href: '/companies', enabled: true },
         { id: 'customers', name: 'Customers', href: '/customers', enabled: true },
         { id: 'products', name: 'Products', href: '/products', enabled: true },
-        { id: 'spec-sheets', name: 'Spec Sheets', href: '/spec-sheets', enabled: true },
+        // { id: 'spec-sheets', name: 'Spec Sheets', href: '/spec-sheets', enabled: true },
       ]
     },
     {
@@ -130,9 +130,9 @@ const defaultConfig: SidebarConfig = {
       items: [
         { id: 'settings', name: 'Settings', href: '/settings', enabled: true },
         { id: 'email-integrations', name: 'Email Integrations', href: '/integrations', enabled: true },
-        { id: 'data-integrations', name: 'Data Integrations', href: '/data-integrations', enabled: true },
-        { id: 'pdf-templates', name: 'PDF Templates', href: '/pdf-templates', enabled: true },
-        { id: 'report-scheduler', name: 'Report Scheduler', href: '/report-scheduler', enabled: true },
+        // { id: 'data-integrations', name: 'Data Integrations', href: '/data-integrations', enabled: true },
+        // { id: 'pdf-templates', name: 'PDF Templates', href: '/pdf-templates', enabled: true },
+        // { id: 'report-scheduler', name: 'Report Scheduler', href: '/report-scheduler', enabled: true },
       ]
     },
   ]
