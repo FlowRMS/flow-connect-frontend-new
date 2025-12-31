@@ -8,7 +8,6 @@ import SidebarSettings from './SidebarSettings';
 import {
   mockCompanySettings,
   mockTeamMembers,
-  mockPermissions,
   mockFlowBotSettings,
   mockLostReasons,
   mockExpenseCategories,
@@ -27,9 +26,7 @@ import {
   usStates,
   stateCounties,
   territoryColors,
-  permissionEntities,
   permissionRoles,
-  getPermissionStatus,
   getTeamCounts,
   type TeamMember,
   type Permission,
@@ -40,6 +37,20 @@ import {
   type RepSplit,
   type RepTerritory,
 } from './admin/data/admin-mock-data';
+import {
+  fetchRbacGrid,
+  fetchRoleSettings,
+  updateRbacGrid,
+  updateCommissionVisibility,
+  mapRoleToEnum,
+  mapEnumToRole,
+  getPrivilegeValue,
+  buildPrivilegesArray,
+  type RbacGridResource,
+  type RbacRoleEnum,
+  type RoleCommissionSetting,
+} from './lib/graphql/rbac';
+import { showSuccessToast, showErrorToast } from './lib/toast';
 
 type RepType = {
   id: string;
@@ -1456,50 +1467,246 @@ function TeamMembersTab() {
 
 // Permissions Tab
 function PermissionsTab() {
-  const [permissions, setPermissions] = useState<Permission[]>(mockPermissions);
-  const [commissionsVisible, setCommissionsVisible] = useState(true);
+  const [rbacGrid, setRbacGrid] = useState<RbacGridResource[]>([]);
+  const [roleSettings, setRoleSettings] = useState<RoleCommissionSetting[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [editingPermission, setEditingPermission] = useState<{ entity: string; role: string } | null>(null);
 
-  const getPermissionForCell = (entity: string, roleId: string) => {
-    return permissions.find(p => p.entity === entity && p.role === roleId);
+  // Fetch RBAC data on mount
+  useEffect(() => {
+    async function loadData() {
+      setLoading(true);
+      setError(null);
+      try {
+        const [gridData, settingsData] = await Promise.all([
+          fetchRbacGrid(),
+          fetchRoleSettings(),
+        ]);
+        setRbacGrid(gridData);
+        setRoleSettings(settingsData);
+      } catch (err) {
+        console.error('Failed to load RBAC data:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load permissions data');
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
+  // Get permission values for a specific entity and role
+  const getPermissionForCell = (entity: string, roleId: string): Permission | null => {
+    if (!entity) return null;
+    const resource = rbacGrid.find(r => r.resource?.toLowerCase() === entity.toLowerCase());
+    if (!resource) return null;
+
+    const roleEnum = mapRoleToEnum(roleId);
+    const role = resource.roles?.find(r => r.roleName === roleEnum);
+    if (!role) return null;
+
+    return {
+      entity,
+      role: roleId,
+      view: getPrivilegeValue(role.privileges || [], 'VIEW'),
+      write: getPrivilegeValue(role.privileges || [], 'WRITE'),
+      delete: getPrivilegeValue(role.privileges || [], 'DELETE'),
+    };
+  };
+
+  // Get permission status for display
+  const getPermissionStatus = (permission: Permission | null): 'all' | 'own' | 'customized' | 'none' => {
+    if (!permission) return 'none';
+    if (permission.view === 'all' && permission.write === 'all' && permission.delete === 'all') {
+      return 'all';
+    }
+    if (permission.view === 'own' && permission.write === 'own' && permission.delete === 'own') {
+      return 'own';
+    }
+    if (permission.view === 'none' && permission.write === 'none' && permission.delete === 'none') {
+      return 'none';
+    }
+    return 'customized';
+  };
+
+  // Get entities from the RBAC grid
+  const permissionEntities = useMemo(() => {
+    return rbacGrid
+      .filter(r => r.resource) // Filter out any entries without a resource
+      .map(r => {
+        // Convert resource name to title case for display
+        const name = r.resource.toLowerCase();
+        return name.charAt(0).toUpperCase() + name.slice(1);
+      });
+  }, [rbacGrid]);
+
+  // Check if a role has commission visibility
+  const getRoleCommissionVisibility = (roleId: string): boolean => {
+    const roleEnum = mapRoleToEnum(roleId);
+    const setting = roleSettings.find(s => s.role === roleEnum);
+    return setting?.commission ?? false;
+  };
+
+  // Handle commission visibility toggle for a role
+  const handleCommissionToggle = async (roleId: string, newValue: boolean) => {
+    const roleEnum = mapRoleToEnum(roleId);
+    setSaving(true);
+    setError(null);
+    try {
+      const result = await updateCommissionVisibility(roleEnum, newValue);
+      setRoleSettings(prev =>
+        prev.map(s => (s.role === roleEnum ? { ...s, commission: result.commission } : s))
+      );
+      const roleName = permissionRoles.find(r => r.id === roleId)?.label || roleId;
+      showSuccessToast('Commission Visibility Updated', {
+        description: `${roleName} can ${newValue ? 'now' : 'no longer'} view commissions`,
+      });
+    } catch (err) {
+      console.error('Failed to update commission visibility:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update commission visibility';
+      // Handle specific backend error
+      if (errorMessage.includes('No row was found')) {
+        setError(`Commission setting for this role doesn't exist in the database. Please contact your administrator.`);
+        showErrorToast('Failed to Update Commission Visibility', {
+          description: `Commission setting for this role doesn't exist`,
+        });
+      } else {
+        setError(errorMessage);
+        showErrorToast('Failed to Update Commission Visibility', {
+          description: errorMessage,
+        });
+      }
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handlePermissionClick = (entity: string, roleId: string) => {
     setEditingPermission({ entity, role: roleId });
   };
 
-  const handlePermissionUpdate = (entity: string, roleId: string, view: Permission['view'], write: Permission['write'], del: Permission['delete']) => {
-    setPermissions(prev => prev.map(p =>
-      p.entity === entity && p.role === roleId
-        ? { ...p, view, write, delete: del }
-        : p
-    ));
+  const handlePermissionUpdate = async (entity: string, roleId: string, view: Permission['view'], write: Permission['write'], del: Permission['delete']) => {
+    setSaving(true);
+    setError(null);
+    try {
+      const roleEnum = mapRoleToEnum(roleId);
+      const privileges = buildPrivilegesArray(view, write, del);
+
+      console.log('SettingsContent: Updating permissions for', entity, roleId);
+      console.log('SettingsContent: Frontend values - view:', view, 'write:', write, 'delete:', del);
+      console.log('SettingsContent: Mapped role enum:', roleEnum);
+      console.log('SettingsContent: Built privileges array:', JSON.stringify(privileges));
+
+      // The mutation returns the full updated grid (array of all resources)
+      const updatedGrid = await updateRbacGrid(entity, roleEnum, privileges);
+
+      console.log('SettingsContent: Received updated grid:', JSON.stringify(updatedGrid, null, 2));
+      console.log('SettingsContent: Setting rbacGrid state with', updatedGrid?.length, 'resources');
+
+      // Replace the entire grid with the updated response
+      setRbacGrid(updatedGrid);
+
+      // Show success toast
+      const roleName = permissionRoles.find(r => r.id === roleId)?.label || roleId;
+      showSuccessToast('Permissions Updated', {
+        description: `${entity} permissions for ${roleName} saved`,
+      });
+    } catch (err) {
+      console.error('Failed to update permissions:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update permissions';
+      setError(errorMessage);
+      showErrorToast('Failed to Update Permissions', {
+        description: errorMessage,
+      });
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="max-w-6xl">
+        <h2 className="text-xl font-semibold text-[var(--foreground)] mb-6">Permissions</h2>
+        <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-12 flex flex-col items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary)] mb-4"></div>
+          <p className="text-[var(--muted-foreground)]">Loading permissions...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error && rbacGrid.length === 0) {
+    return (
+      <div className="max-w-6xl">
+        <h2 className="text-xl font-semibold text-[var(--foreground)] mb-6">Permissions</h2>
+        <div className="bg-[var(--card)] rounded-lg border border-[var(--destructive)] p-6">
+          <div className="flex items-center gap-3 text-[var(--destructive)]">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <span className="font-medium">Error loading permissions</span>
+          </div>
+          <p className="mt-2 text-sm text-[var(--muted-foreground)]">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-medium hover:bg-[var(--primary-hover)]"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl">
       <h2 className="text-xl font-semibold text-[var(--foreground)] mb-6">Permissions</h2>
 
-      {/* Commissions Visibility */}
+      {/* Error banner for save errors */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-3 text-red-700">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <span className="text-sm">{error}</span>
+          </div>
+          <button onClick={() => setError(null)} className="text-red-700 hover:text-red-900">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+      )}
+
+      {/* Commissions Visibility by Role */}
       <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6 mb-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="font-semibold text-[var(--foreground)]">Commissions Visibility</h3>
-            <p className="text-sm text-[var(--muted-foreground)]">Allow team members to view commission data</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className={`text-sm font-medium ${!commissionsVisible ? 'text-[var(--foreground)]' : 'text-[var(--muted-foreground)]'}`}>No</span>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={commissionsVisible}
-                onChange={(e) => setCommissionsVisible(e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[var(--primary)]/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary)]"></div>
-            </label>
-            <span className={`text-sm font-medium ${commissionsVisible ? 'text-[var(--foreground)]' : 'text-[var(--muted-foreground)]'}`}>Yes</span>
-          </div>
+        <h3 className="font-semibold text-[var(--foreground)] mb-2">Commissions Visibility</h3>
+        <p className="text-sm text-[var(--muted-foreground)] mb-4">Control which roles can view commission data</p>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {permissionRoles.map((role) => {
+            const isVisible = getRoleCommissionVisibility(role.id);
+            return (
+              <div key={role.id} className="flex items-center justify-between p-3 bg-[var(--muted)]/30 rounded-lg">
+                <span className="text-sm font-medium text-[var(--foreground)]">{role.label}</span>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isVisible}
+                    onChange={(e) => handleCommissionToggle(role.id, e.target.checked)}
+                    disabled={saving}
+                    className="sr-only peer"
+                  />
+                  <div className={`w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[var(--primary)]/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--primary)] ${saving ? 'opacity-50' : ''}`}></div>
+                </label>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -1509,7 +1716,7 @@ function PermissionsTab() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-[var(--border)]">
-                <th className="px-4 py-3 text-left text-sm font-medium text-[var(--muted-foreground)]"></th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-[var(--muted-foreground)]">Resource</th>
                 {permissionRoles.map((role) => (
                   <th key={role.id} className="px-4 py-3 text-center text-sm font-medium text-[var(--foreground)]">
                     {role.label}
@@ -1523,21 +1730,24 @@ function PermissionsTab() {
                   <td className="px-4 py-3 text-sm font-medium text-[var(--foreground)]">{entity}</td>
                   {permissionRoles.map((role) => {
                     const permission = getPermissionForCell(entity, role.id);
-                    const status = permission ? getPermissionStatus(permission) : 'none';
+                    const status = getPermissionStatus(permission);
 
                     return (
                       <td key={role.id} className="px-4 py-3 text-center">
                         <button
                           onClick={() => handlePermissionClick(entity, role.id)}
+                          disabled={saving}
                           className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
                             status === 'all'
                               ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                              : status === 'own'
+                              ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
                               : status === 'customized'
                               ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
                               : 'bg-red-100 text-red-700 hover:bg-red-200'
-                          }`}
+                          } ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
-                          {status === 'all' ? 'All Permissions' : status === 'customized' ? 'Customized' : 'No Permissions'}
+                          {status === 'all' ? 'All Permissions' : status === 'own' ? 'OWN' : status === 'customized' ? 'Customized' : 'No Permissions'}
                         </button>
                       </td>
                     );
@@ -1549,17 +1759,32 @@ function PermissionsTab() {
         </div>
       </div>
 
+      {/* Saving indicator */}
+      {saving && (
+        <div className="fixed bottom-4 right-4 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg px-4 py-3 flex items-center gap-3">
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[var(--primary)]"></div>
+          <span className="text-sm text-[var(--muted-foreground)]">Saving...</span>
+        </div>
+      )}
+
       {/* Permission Edit Modal */}
       {editingPermission && (
         <PermissionModal
           entity={editingPermission.entity}
           roleId={editingPermission.role}
-          permission={getPermissionForCell(editingPermission.entity, editingPermission.role)!}
+          permission={getPermissionForCell(editingPermission.entity, editingPermission.role) || {
+            entity: editingPermission.entity,
+            role: editingPermission.role,
+            view: 'none',
+            write: 'none',
+            delete: 'none',
+          }}
           onClose={() => setEditingPermission(null)}
-          onSave={(view, write, del) => {
-            handlePermissionUpdate(editingPermission.entity, editingPermission.role, view, write, del);
+          onSave={async (view, write, del) => {
+            await handlePermissionUpdate(editingPermission.entity, editingPermission.role, view, write, del);
             setEditingPermission(null);
           }}
+          saving={saving}
         />
       )}
     </div>
@@ -5737,25 +5962,28 @@ function PermissionModal({
   permission,
   onClose,
   onSave,
+  saving = false,
 }: {
   entity: string;
   roleId: string;
   permission: Permission;
   onClose: () => void;
-  onSave: (view: Permission['view'], write: Permission['write'], del: Permission['delete']) => void;
+  onSave: (view: Permission['view'], write: Permission['write'], del: Permission['delete']) => void | Promise<void>;
+  saving?: boolean;
 }) {
-  const [view, setView] = useState<Permission['view']>(permission.view);
-  const [write, setWrite] = useState<Permission['write']>(permission.write);
-  const [del, setDel] = useState<Permission['delete']>(permission.delete);
+  const [view, setView] = useState<'all' | 'own'>(permission.view === 'none' ? 'own' : permission.view);
+  const [write, setWrite] = useState<'all' | 'own'>(permission.write === 'none' ? 'own' : permission.write);
+  const [del, setDel] = useState<'all' | 'own'>(permission.delete === 'none' ? 'own' : permission.delete);
 
   const roleName = permissionRoles.find(r => r.id === roleId)?.label || roleId;
 
-  const ToggleGroup = ({ label, value, onChange, description }: { label: string; value: 'all' | 'own' | 'none'; onChange: (v: 'all' | 'own' | 'none') => void; description: string }) => (
+  const ToggleGroup = ({ label, value, onChange, description }: { label: string; value: 'all' | 'own'; onChange: (v: 'all' | 'own') => void; description: string }) => (
     <div className="mb-4">
       <h4 className="font-medium text-[var(--foreground)] mb-2">{label}</h4>
-      <div className="flex gap-0 rounded-lg overflow-hidden border border-[var(--border)]">
+      <div className={`flex gap-0 rounded-lg overflow-hidden border border-[var(--border)] ${saving ? 'opacity-50 pointer-events-none' : ''}`}>
         <button
           onClick={() => onChange('all')}
+          disabled={saving}
           className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
             value === 'all' ? 'bg-[var(--primary)] text-white' : 'bg-[var(--muted)] text-[var(--foreground)]'
           }`}
@@ -5764,19 +5992,12 @@ function PermissionModal({
         </button>
         <button
           onClick={() => onChange('own')}
-          className={`flex-1 px-4 py-2 text-sm font-medium transition-colors border-x border-[var(--border)] ${
+          disabled={saving}
+          className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
             value === 'own' ? 'bg-[var(--primary)] text-white' : 'bg-[var(--muted)] text-[var(--foreground)]'
           }`}
         >
           Only Their Own
-        </button>
-        <button
-          onClick={() => onChange('none')}
-          className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
-            value === 'none' ? 'bg-[var(--primary)] text-white' : 'bg-[var(--muted)] text-[var(--foreground)]'
-          }`}
-        >
-          None
         </button>
       </div>
       <p className="text-sm text-[var(--muted-foreground)] mt-2">{description}</p>
@@ -5797,7 +6018,7 @@ function PermissionModal({
             </div>
             <h2 className="text-lg font-semibold text-[var(--foreground)]">Modify Role Permissions</h2>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-[var(--muted)] rounded-lg">
+          <button onClick={onClose} disabled={saving} className={`p-2 hover:bg-[var(--muted)] rounded-lg ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}>
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
             </svg>
@@ -5813,31 +6034,39 @@ function PermissionModal({
             label="View"
             value={view}
             onChange={setView}
-            description={`The User will be able to VIEW ${view === 'all' ? 'all' : view === 'own' ? 'only their own' : 'no'} ${entity.toUpperCase()}`}
+            description={`The User will be able to VIEW ${view === 'all' ? 'all' : 'only their own'} ${entity.toUpperCase()}`}
           />
           <ToggleGroup
             label="Write"
             value={write}
             onChange={setWrite}
-            description={`The User will be able to WRITE ${write === 'all' ? 'all' : write === 'own' ? 'only their own' : 'no'} ${entity.toUpperCase()}`}
+            description={`The User will be able to WRITE ${write === 'all' ? 'all' : 'only their own'} ${entity.toUpperCase()}`}
           />
           <ToggleGroup
             label="Delete"
             value={del}
             onChange={setDel}
-            description={`The User will be able to DELETE ${del === 'all' ? 'all' : del === 'own' ? 'only their own' : 'no'} ${entity.toUpperCase()}`}
+            description={`The User will be able to DELETE ${del === 'all' ? 'all' : 'only their own'} ${entity.toUpperCase()}`}
           />
         </div>
 
         <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+          <button
+            onClick={onClose}
+            disabled={saving}
+            className={`px-4 py-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
             Cancel
           </button>
           <button
             onClick={() => onSave(view, write, del)}
-            className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-medium"
+            disabled={saving}
+            className={`px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-medium flex items-center gap-2 ${saving ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[var(--primary-hover)]'}`}
           >
-            Update Role
+            {saving && (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            )}
+            {saving ? 'Updating...' : 'Update Role'}
           </button>
         </div>
       </div>
