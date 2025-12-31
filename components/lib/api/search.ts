@@ -450,8 +450,8 @@ const ORDER_SEARCH = `
 `;
 
 const INVOICE_SEARCH = `
-  query InvoiceSearch($searchTerm: String!, $limit: Int) {
-    invoiceSearch(searchTerm: $searchTerm, limit: $limit) {
+  query InvoiceSearch($searchTerm: String!, $limit: Int, $openOnly: Boolean, $unlockedOnly: Boolean) {
+    invoiceSearch(searchTerm: $searchTerm, limit: $limit, openOnly: $openOnly, unlockedOnly: $unlockedOnly) {
       id
       invoiceNumber
       entityDate
@@ -703,10 +703,24 @@ export async function searchOrders(searchTerm: string, limit?: number): Promise<
 /**
  * Search for invoices
  */
-export async function searchInvoices(searchTerm: string, limit?: number): Promise<InvoiceSearchResult[]> {
+export interface InvoiceSearchOptions {
+  openOnly?: boolean;
+  unlockedOnly?: boolean;
+}
+
+export async function searchInvoices(
+  searchTerm: string,
+  limit?: number,
+  options?: InvoiceSearchOptions
+): Promise<InvoiceSearchResult[]> {
   const response = await crmGraphQLRequest<{ invoiceSearch: InvoiceSearchResult[] }>({
     query: INVOICE_SEARCH,
-    variables: { searchTerm, limit: limit ?? 50 },
+    variables: {
+      searchTerm,
+      limit: limit ?? 50,
+      openOnly: options?.openOnly,
+      unlockedOnly: options?.unlockedOnly,
+    },
   });
 
   if (response.errors) {

@@ -151,6 +151,13 @@ export interface OrderJob {
   tags?: string;
 }
 
+export interface OrderFactory {
+  id: string;
+  title?: string;
+  accountNumber?: string;
+  published?: boolean;
+}
+
 export interface Order {
   id: string;
   balance?: OrderBalance;
@@ -165,6 +172,7 @@ export interface Order {
   dueDate?: string;
   entityDate?: string;
   factSoNumber?: string;
+  factory?: OrderFactory;
   factoryId?: string;
   freightTerms?: string;
   headerStatus?: OrderHeaderStatus;
@@ -897,5 +905,117 @@ export async function deleteOrder(id: string): Promise<boolean> {
   }
 
   return true;
+}
+
+// ============================================================================
+// Create Order from Quote
+// ============================================================================
+
+const CREATE_ORDER_FROM_QUOTE = `
+  mutation CreateOrderFromQuote(
+    $factoryId: UUID!
+    $orderNumber: String!
+    $quoteId: UUID!
+    $dueDate: Date!
+    $quoteDetailIds: [UUID!]
+  ) {
+    createOrderFromQuote(
+      factoryId: $factoryId
+      orderNumber: $orderNumber
+      quoteId: $quoteId
+      dueDate: $dueDate
+      quoteDetailIds: $quoteDetailIds
+    ) {
+      id
+      orderNumber
+      entityDate
+      dueDate
+      status
+      headerStatus
+      factoryId
+      quoteId
+      soldToCustomerId
+      soldToCustomer {
+        companyName
+        id
+        isParent
+        parentId
+        published
+      }
+      billToCustomerId
+      billToCustomer {
+        companyName
+        id
+        isParent
+        parentId
+        published
+      }
+      balance {
+        commission
+        commissionRate
+        discount
+        discountRate
+        id
+        quantity
+        subtotal
+        total
+      }
+      details {
+        id
+        itemNumber
+        productId
+        product {
+          factoryPartNumber
+          description
+          id
+        }
+        quantity
+        unitPrice
+        total
+        commission
+        commissionRate
+        status
+      }
+      createdAt
+      createdById
+      creationType
+      published
+      url
+    }
+  }
+`;
+
+export interface CreateOrderFromQuoteInput {
+  factoryId: string;
+  orderNumber: string;
+  quoteId: string;
+  dueDate: string;
+  quoteDetailIds?: string[];
+}
+
+/**
+ * Create an order from a quote
+ */
+export async function createOrderFromQuote(input: CreateOrderFromQuoteInput): Promise<Order> {
+  const response = await crmGraphQLRequest<{ createOrderFromQuote: Order }>({
+    query: CREATE_ORDER_FROM_QUOTE,
+    variables: {
+      factoryId: input.factoryId,
+      orderNumber: input.orderNumber,
+      quoteId: input.quoteId,
+      dueDate: input.dueDate,
+      quoteDetailIds: input.quoteDetailIds,
+    },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to create order from quote');
+  }
+
+  if (!response.data?.createOrderFromQuote) {
+    throw new Error('No order returned from createOrderFromQuote mutation');
+  }
+
+  return response.data.createOrderFromQuote;
 }
 

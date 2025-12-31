@@ -23,6 +23,7 @@ import {
   type UpdateInvoiceInput,
 } from '../../api';
 import { useOrder } from '@/components/orders/api';
+import { useFactory } from '@/components/warehouse/api/useFactoriesApi';
 import { fetchInvoiceById } from '../../api/invoicesApi';
 
 /**
@@ -50,6 +51,7 @@ function mapApiStatusToInvoiceStatus(status?: string): InvoiceStatus {
 
 interface UseInvoiceDetailStateProps {
   invoiceId: string;
+  initialOrderId?: string;
 }
 
 /**
@@ -209,7 +211,7 @@ function createEmptyInvoice(): EditableInvoice {
   };
 }
 
-export function useInvoiceDetailState({ invoiceId }: UseInvoiceDetailStateProps) {
+export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceDetailStateProps) {
   const isCreateMode = invoiceId === 'new';
 
   // Fetch invoice from API
@@ -230,11 +232,16 @@ export function useInvoiceDetailState({ invoiceId }: UseInvoiceDetailStateProps)
   const [localInvoice, setLocalInvoice] = useState<EditableInvoice | null>(null);
 
   // Order population state - for manual order selection in create mode
-  const [selectedOrderId, setSelectedOrderId] = useState<string>('');
+  // Initialize with initialOrderId from query params if provided
+  const [selectedOrderId, setSelectedOrderId] = useState<string>(initialOrderId || '');
 
   // Get the order ID to fetch - either from invoice (existing) or from selection (new)
   const orderIdToFetch = apiInvoice?.orderId || selectedOrderId || null;
   const { data: linkedOrder, isLoading: isOrderLoading } = useOrder(orderIdToFetch);
+
+  // Fetch factory details when order has a factoryId
+  const factoryIdToFetch = linkedOrder?.factoryId || null;
+  const { data: linkedFactory } = useFactory(factoryIdToFetch || '');
 
   // Initialize local invoice from API data or empty for create mode
   useEffect(() => {
@@ -324,8 +331,9 @@ export function useInvoiceDetailState({ invoiceId }: UseInvoiceDetailStateProps)
           orderNumber: linkedOrder.orderNumber || '',
 
           // Factory (Manufacturer) - only override if not already set from invoice
+          // Factory name will be populated by separate effect when linkedFactory loads
           manufacturerId: prev.manufacturerId || order.factoryId || order.manufacturerId || '',
-          manufacturerName: prev.manufacturerName || order.factory?.title || order.manufacturerName || '',
+          manufacturerName: prev.manufacturerName || '',
 
           // Customers
           customerId: order.soldToCustomerId || order.customerId || prev.customerId || '',
@@ -380,6 +388,19 @@ export function useInvoiceDetailState({ invoiceId }: UseInvoiceDetailStateProps)
       });
     }
   }, [linkedOrder, isCreateMode, selectedOrderId]);
+
+  // When factory data is loaded, populate the factory name
+  useEffect(() => {
+    if (linkedFactory && localInvoice && !localInvoice.manufacturerName) {
+      setLocalInvoice(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          manufacturerName: linkedFactory.title || '',
+        };
+      });
+    }
+  }, [linkedFactory, localInvoice?.manufacturerName]);
 
   // Handle invoice selection - copy from existing invoice
   const handleInvoiceSelect = useCallback(async (invoiceId: string, invoiceNumber: string) => {

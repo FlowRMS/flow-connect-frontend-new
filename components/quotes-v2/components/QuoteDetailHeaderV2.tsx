@@ -5,6 +5,7 @@ import type { QuoteV2, QuotePipelineStage, LineItemV2, QuoteSettingsV2 } from '.
 import { SearchableDropdownV2 } from './SearchableDropdownV2';
 import { useCustomerSearch, useUserSearch, useJobSearch } from '../../quotes/api/useQuotesApi';
 import { searchUsers } from '../../quotes/api/quotesApi';
+import { CreateOrderFromQuoteModal } from '../modals/CreateOrderFromQuoteModal';
 
 interface QuoteDetailHeaderV2Props {
   quote: QuoteV2;
@@ -97,6 +98,7 @@ export function QuoteDetailHeaderV2({
   const [showViewModeMenu, setShowViewModeMenu] = useState(false);
   const [showSaveMenu, setShowSaveMenu] = useState(false);
   const [viewMode, setViewMode] = useState<'simple' | 'overage'>('simple');
+  const [showCreateOrderModal, setShowCreateOrderModal] = useState(false);
 
   // Customer search state
   const [soldToSearchTerm, setSoldToSearchTerm] = useState('');
@@ -487,16 +489,21 @@ export function QuoteDetailHeaderV2({
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setShowActionsMenu(false)} />
                 <div className="absolute top-full right-0 mt-1 w-52 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1">
-                  {/* Create Order - Coming Soon */}
+                  {/* Create Order */}
                   <button
-                    disabled
-                    className="w-full text-left px-4 py-2 text-sm text-gray-400 cursor-not-allowed flex items-center gap-2"
+                    onClick={() => {
+                      setShowActionsMenu(false);
+                      setShowCreateOrderModal(true);
+                    }}
+                    disabled={isNew || !quote.id}
+                    className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${
+                      isNew || !quote.id ? 'text-gray-400 cursor-not-allowed' : 'hover:bg-gray-50'
+                    }`}
                   >
                     <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M3 5h14M3 10h14M3 15h7" strokeLinecap="round" />
                     </svg>
                     Create Order
-                    <ComingSoonBadge inline />
                   </button>
 
                   {/* Duplicate Quote */}
@@ -1297,6 +1304,17 @@ export function QuoteDetailHeaderV2({
           </div>
         </>
       )}
+
+      {/* Create Order from Quote Modal */}
+      <CreateOrderFromQuoteModal
+        isOpen={showCreateOrderModal}
+        quoteId={quote.id}
+        quoteNumber={quote.quoteNumber}
+        factoryId={lineItems[0]?.manufacturerId}
+        factoryName={lineItems[0]?.manufacturerName}
+        lineItems={lineItems}
+        onClose={() => setShowCreateOrderModal(false)}
+      />
     </div>
   );
 }

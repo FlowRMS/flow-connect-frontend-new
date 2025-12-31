@@ -79,12 +79,12 @@ export function AddLineItemModal({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Search invoices
+  // Search invoices - with openOnly and unlockedOnly for checks
   const handleInvoiceSearch = async (term: string) => {
     setInvoiceSearch(term);
     setIsSearchingInvoices(true);
     try {
-      const results = await searchInvoices(term, 20);
+      const results = await searchInvoices(term, 20, { openOnly: true, unlockedOnly: true });
       setInvoices(results);
     } catch (error) {
       console.error('Error searching invoices:', error);
@@ -94,12 +94,12 @@ export function AddLineItemModal({
     }
   };
 
-  // Search credits
+  // Search credits - with openOnly and unlockedOnly for checks
   const handleCreditSearch = async (term: string) => {
     setCreditSearch(term);
     setIsSearchingCredits(true);
     try {
-      const results = await searchCredits(term, 20);
+      const results = await searchCredits(term, 20, { openOnly: true, unlockedOnly: true });
       setCredits(results);
     } catch (error) {
       console.error('Error searching credits:', error);
@@ -109,12 +109,12 @@ export function AddLineItemModal({
     }
   };
 
-  // Search adjustments
+  // Search adjustments - with openOnly and unlockedOnly for checks
   const handleAdjustmentSearch = async (term: string) => {
     setAdjustmentSearch(term);
     setIsSearchingAdjustments(true);
     try {
-      const results = await searchAdjustments(term, 20);
+      const results = await searchAdjustments(term, 20, { openOnly: true, unlockedOnly: true });
       setAdjustments(results);
     } catch (error) {
       console.error('Error searching adjustments:', error);

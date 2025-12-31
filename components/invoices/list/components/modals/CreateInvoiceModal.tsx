@@ -1,187 +1,64 @@
 /**
  * CreateInvoiceModal Component
  * Modal for creating new invoices from orders
+ * Uses real API search for orders and navigates to invoice detail page for creation
  */
 
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
-import {
-  mockOrders,
-  generateInvoiceNumber,
-} from '@/lib/data/rms-mock';
-import type { Invoice, InvoiceLineItem, OrderLineItem } from '@/lib/types/rms';
-import { formatCurrency } from '../../utils';
+import React, { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import { useOrderSearch } from '@/components/orders/api';
+import { SearchableDropdownV2 } from '@/components/quotes-v2/components/SearchableDropdownV2';
 
 interface CreateInvoiceModalProps {
   onClose: () => void;
-  onSave: (invoice: Invoice) => void;
+  onSave: (invoice: any) => void;
   preselectedOrderId?: string;
 }
 
 export function CreateInvoiceModal({
   onClose,
-  onSave,
   preselectedOrderId,
 }: CreateInvoiceModalProps) {
-  const [selectedOrderId, setSelectedOrderId] = useState(
-    preselectedOrderId || ''
-  );
-  const [invoiceDate, setInvoiceDate] = useState(
-    new Date().toISOString().split('T')[0]
-  );
-  const [dueDate, setDueDate] = useState(() => {
-    const date = new Date();
-    date.setDate(date.getDate() + 30);
-    return date.toISOString().split('T')[0];
-  });
-  const [selectedLineItems, setSelectedLineItems] = useState<Set<string>>(
-    new Set()
-  );
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const router = useRouter();
+  const [selectedOrderId, setSelectedOrderId] = useState(preselectedOrderId || '');
+  const [selectedOrderNumber, setSelectedOrderNumber] = useState('');
+  const [orderSearchTerm, setOrderSearchTerm] = useState('');
 
-  // Get orders that can be invoiced (shipped or partial shipped, not fully invoiced)
-  const invoiceableOrders = useMemo(() => {
-    return mockOrders.filter(
-      (o) =>
-        (o.status === 'shipped' || o.status === 'partial_shipped') &&
-        o.billingStatus !== 'invoiced'
-    );
-  }, []);
+  // Use the order search API with empty search enabled to pre-populate dropdown
+  const { data: orderResults, isLoading: isOrderSearchLoading } = useOrderSearch(orderSearchTerm, 20, true);
 
-  const selectedOrder = mockOrders.find((o) => o.id === selectedOrderId);
+  // Transform search results to dropdown options
+  const orderOptions = useMemo(() => {
+    return (orderResults || []).map(o => ({
+      id: o.id,
+      label: o.orderNumber,
+      sublabel: [
+        o.jobName,
+        o.status,
+        o.entityDate ? new Date(o.entityDate).toLocaleDateString() : null,
+      ].filter(Boolean).join(' - '),
+    }));
+  }, [orderResults]);
 
-  // Get line items that can still be invoiced
-  const invoiceableLineItems = useMemo(() => {
-    if (!selectedOrder) return [];
-    return selectedOrder.lineItems.filter(
-      (item) =>
-        !item.isCancelled &&
-        item.quantityShipped > item.quantityInvoiced
-    );
-  }, [selectedOrder]);
-
-  // Initialize quantities when order changes
-  useEffect(() => {
-    if (selectedOrder) {
-      const newQuantities: Record<string, number> = {};
-      const newSelected = new Set<string>();
-      invoiceableLineItems.forEach((item) => {
-        const availableQty = item.quantityShipped - item.quantityInvoiced;
-        newQuantities[item.id] = availableQty;
-        newSelected.add(item.id);
-      });
-      setQuantities(newQuantities);
-      setSelectedLineItems(newSelected);
-    }
-  }, [selectedOrderId, invoiceableLineItems, selectedOrder]);
-
-  const toggleLineItem = (itemId: string) => {
-    const newSelected = new Set(selectedLineItems);
-    if (newSelected.has(itemId)) {
-      newSelected.delete(itemId);
-    } else {
-      newSelected.add(itemId);
-    }
-    setSelectedLineItems(newSelected);
+  const handleOrderSelect = (id: string, label: string) => {
+    setSelectedOrderId(id);
+    setSelectedOrderNumber(label);
   };
 
-  const updateQuantity = (itemId: string, qty: number) => {
-    const item = invoiceableLineItems.find((i) => i.id === itemId);
-    if (!item) return;
-    const maxQty = item.quantityShipped - item.quantityInvoiced;
-    setQuantities({
-      ...quantities,
-      [itemId]: Math.min(Math.max(0, qty), maxQty),
-    });
-  };
+  const handleContinue = () => {
+    if (!selectedOrderId) return;
 
-  const calculateTotals = () => {
-    let subtotal = 0;
-    let totalCommission = 0;
-
-    invoiceableLineItems.forEach((item) => {
-      if (selectedLineItems.has(item.id)) {
-        const qty = quantities[item.id] || 0;
-        const amount = qty * item.unitPrice;
-        subtotal += amount;
-        totalCommission += amount * item.commissionRate;
-      }
-    });
-
-    return {
-      subtotal,
-      freight: 0, // Could be prorated from order
-      total: subtotal,
-      totalCommission,
-    };
-  };
-
-  const totals = calculateTotals();
-
-  const canSave =
-    selectedOrderId && selectedLineItems.size > 0 && totals.subtotal > 0;
-
-  const handleSave = () => {
-    if (!selectedOrder || !canSave) return;
-
-    const lineItems: InvoiceLineItem[] = invoiceableLineItems
-      .filter((item) => selectedLineItems.has(item.id))
-      .map((item, idx) => ({
-        id: `ILI-NEW-${idx + 1}`,
-        orderLineItemId: item.id,
-        lineNumber: idx + 1,
-        partNumber: item.partNumber || '',
-        description: item.description,
-        quantity: quantities[item.id] || 0,
-        unitPrice: item.unitPrice,
-        amount: (quantities[item.id] || 0) * item.unitPrice,
-        commissionRate: item.commissionRate,
-        commissionAmount:
-          (quantities[item.id] || 0) *
-          item.unitPrice *
-          item.commissionRate,
-      }));
-
-    const newInvoice: Invoice = {
-      id: `INV-NEW-${Date.now()}`,
-      invoiceNumber: generateInvoiceNumber(),
-      orderId: selectedOrder.id,
-      orderNumber: selectedOrder.orderNumber,
-      manufacturerId: selectedOrder.manufacturerId,
-      manufacturerName: selectedOrder.manufacturerName,
-      customerId: selectedOrder.customerId,
-      customerName: selectedOrder.customerName,
-      status: 'open',
-      isLocked: false,
-      invoiceDate,
-      dueDate,
-      lineItems,
-      subtotal: totals.subtotal,
-      freight: totals.freight,
-      total: totals.total,
-      totalCommission: totals.totalCommission,
-      amountPaid: 0,
-      amountCredited: 0,
-      balance: totals.total,
-      splitRates: selectedOrder.splitRates.map((sr) => ({
-        ...sr,
-        commissionAmount:
-          totals.totalCommission * (sr.splitPercentage / 100),
-      })),
-      createdAt: new Date().toISOString(),
-      createdBy: 'Current User',
-      insideRepId: selectedOrder.insideRepId,
-      insideRepName: selectedOrder.insideRepName,
-      entryDate: new Date().toISOString().split('T')[0],
-    };
-
-    onSave(newInvoice);
+    // Navigate to the new invoice page with the orderId query parameter
+    // The invoice detail page will handle loading the order and populating line items
+    router.push(`/invoices/new?orderId=${selectedOrderId}`);
+    onClose();
   };
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-[var(--card)] rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-[var(--card)] rounded-xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
         {/* Header */}
         <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
           <div>
@@ -189,7 +66,7 @@ export function CreateInvoiceModal({
               Create Invoice
             </h2>
             <p className="text-sm text-[var(--muted-foreground)]">
-              Invoice shipped order items
+              Select an order to create an invoice
             </p>
           </div>
           <button
@@ -210,173 +87,46 @@ export function CreateInvoiceModal({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="p-6 space-y-4">
           {/* Order Selection */}
           <div>
             <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-              Select Order *
+              Select Order <span className="text-red-500">*</span>
             </label>
-            <select
+            <SearchableDropdownV2
               value={selectedOrderId}
-              onChange={(e) => setSelectedOrderId(e.target.value)}
-              className="w-full px-4 py-2.5 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-            >
-              <option value="">Select an order to invoice...</option>
-              {invoiceableOrders.map((order) => (
-                <option key={order.id} value={order.id}>
-                  {order.orderNumber} - {order.customerName} (
-                  {formatCurrency(order.total)})
-                </option>
-              ))}
-            </select>
+              displayValue={selectedOrderNumber}
+              onChange={handleOrderSelect}
+              options={orderOptions}
+              placeholder="Search order by number..."
+              isLoading={isOrderSearchLoading}
+              onSearch={(query) => setOrderSearchTerm(query)}
+            />
+            <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+              Search for an order by number, customer name, or factory
+            </p>
           </div>
 
-          {/* Invoice Dates */}
-          {selectedOrder && (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-                  Invoice Date
-                </label>
-                <input
-                  type="date"
-                  value={invoiceDate}
-                  onChange={(e) => setInvoiceDate(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-                  Due Date
-                </label>
-                <input
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Line Items */}
-          {selectedOrder && (
-            <div>
-              <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-                Select Line Items to Invoice
-              </label>
-              {invoiceableLineItems.length === 0 ? (
-                <div className="text-center py-8 text-[var(--muted-foreground)] bg-[var(--muted)]/30 rounded-lg">
-                  No items available for invoicing on this order.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {invoiceableLineItems.map((item) => {
-                    const availableQty =
-                      item.quantityShipped - item.quantityInvoiced;
-                    const isSelected = selectedLineItems.has(item.id);
-                    const qty = quantities[item.id] || 0;
-
-                    return (
-                      <div
-                        key={item.id}
-                        className={`border rounded-lg p-3 transition-colors ${
-                          isSelected
-                            ? 'border-[var(--primary)] bg-[var(--primary)]/5'
-                            : 'border-[var(--border)] bg-[var(--muted)]/30'
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => toggleLineItem(item.id)}
-                            className="mt-1"
-                          />
-                          <div className="flex-1">
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <span className="text-sm font-medium text-[var(--foreground)]">
-                                  {item.partNumber}
-                                </span>
-                                <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
-                                  {item.description}
-                                </p>
-                              </div>
-                              <span className="text-sm font-medium text-[var(--foreground)]">
-                                {formatCurrency(qty * item.unitPrice)}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-4 mt-2">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-[var(--muted-foreground)]">
-                                  Qty:
-                                </span>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max={availableQty}
-                                  value={qty}
-                                  onChange={(e) =>
-                                    updateQuantity(
-                                      item.id,
-                                      parseInt(e.target.value) || 0
-                                    )
-                                  }
-                                  disabled={!isSelected}
-                                  className="w-20 px-2 py-1 border border-[var(--border)] rounded text-sm disabled:opacity-50"
-                                />
-                                <span className="text-xs text-[var(--muted-foreground)]">
-                                  of {availableQty} available
-                                </span>
-                              </div>
-                              <span className="text-xs text-[var(--muted-foreground)]">
-                                @ {formatCurrency(item.unitPrice)}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Totals */}
-          {selectedOrder && selectedLineItems.size > 0 && (
-            <div className="bg-[var(--muted)]/30 rounded-lg p-4">
-              <div className="flex justify-between mb-2">
-                <span className="text-sm text-[var(--muted-foreground)]">
-                  Subtotal
-                </span>
-                <span className="text-sm text-[var(--foreground)]">
-                  {formatCurrency(totals.subtotal)}
+          {/* Selected Order Info */}
+          {selectedOrderId && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" className="text-green-600">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span className="text-sm font-medium text-green-800">
+                  Order Selected: {selectedOrderNumber}
                 </span>
               </div>
-              <div className="flex justify-between border-t border-[var(--border)] pt-2 mt-2">
-                <span className="text-sm font-semibold text-[var(--foreground)]">
-                  Total
-                </span>
-                <span className="text-sm font-semibold text-[var(--foreground)]">
-                  {formatCurrency(totals.total)}
-                </span>
-              </div>
-              <div className="flex justify-between mt-2">
-                <span className="text-sm text-green-600">
-                  Total Commission
-                </span>
-                <span className="text-sm font-semibold text-green-600">
-                  {formatCurrency(totals.totalCommission)}
-                </span>
-              </div>
+              <p className="text-xs text-green-700">
+                Line items from this order will be imported into the new invoice.
+              </p>
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-[var(--border)] flex items-center justify-end gap-3">
+        <div className="px-6 py-4 border-t border-[var(--border)] flex items-center justify-end gap-3 bg-[var(--muted)]/30">
           <button
             onClick={onClose}
             className="px-4 py-2 text-sm font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
@@ -384,15 +134,14 @@ export function CreateInvoiceModal({
             Cancel
           </button>
           <button
-            onClick={handleSave}
-            disabled={!canSave}
+            onClick={handleContinue}
+            disabled={!selectedOrderId}
             className="px-6 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-medium hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Create Invoice
+            Continue
           </button>
         </div>
       </div>
     </div>
   );
 }
-

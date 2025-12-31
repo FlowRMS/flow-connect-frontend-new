@@ -35,11 +35,12 @@ import type { OrderLineItem } from '@/lib/types/rms';
 
 interface InvoiceDetailContentProps {
   invoiceId: string;
+  initialOrderId?: string;
 }
 
-export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContentProps) {
+export default function InvoiceDetailContent({ invoiceId, initialOrderId }: InvoiceDetailContentProps) {
   const router = useRouter();
-  const state = useInvoiceDetailState({ invoiceId });
+  const state = useInvoiceDetailState({ invoiceId, initialOrderId });
 
   // Line items table hook - must be called before any early returns to respect Rules of Hooks
   const tableHook = useInvoiceLineItemsTable({

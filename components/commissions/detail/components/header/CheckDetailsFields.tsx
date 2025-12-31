@@ -415,103 +415,7 @@ export function CheckDetailsFields({
                       Coming Soon
                     </span>
                   </div>
-                  <div className="grid grid-cols-4 gap-4 mt-2">
-                    {/* Check Number Multi-Select */}
-                    <div>
-                      <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                        Check Number
-                      </label>
-                      <div className="relative">
-                        <button
-                          disabled
-                          className="w-full px-3 py-2 bg-gray-50 border border-[var(--border)] rounded-md text-sm text-left flex items-center justify-between cursor-not-allowed"
-                        >
-                          <span
-                            className={
-                              selectedCheckNumbers.length > 0
-                                ? 'text-[var(--foreground)]'
-                                : 'text-[var(--muted-foreground)]'
-                            }
-                          >
-                            {selectedCheckNumbers.length > 0
-                              ? `${selectedCheckNumbers.length} check${selectedCheckNumbers.length > 1 ? 's' : ''} selected`
-                              : 'Select checks...'}
-                          </span>
-                          <svg
-                            width="14"
-                            height="14"
-                            viewBox="0 0 20 20"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                          >
-                            <path
-                              d="M6 8l4 4 4-4"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                        </button>
-                        {showCheckNumbersDropdown && (
-                          <>
-                            <div
-                              className="fixed inset-0 z-40"
-                              onClick={() => setShowCheckNumbersDropdown(false)}
-                            />
-                            <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50 max-h-64 overflow-hidden">
-                              <div className="p-2 border-b border-[var(--border)]">
-                                <input
-                                  type="text"
-                                  placeholder="Search checks..."
-                                  value={checkNumberSearch}
-                                  onChange={(e) =>
-                                    setCheckNumberSearch(e.target.value)
-                                  }
-                                  className="w-full px-2 py-1.5 bg-[var(--muted)] border-0 rounded text-sm focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
-                                  onClick={(e) => e.stopPropagation()}
-                                />
-                              </div>
-                              <div className="max-h-48 overflow-y-auto">
-                                {filteredChecks.map((chk) => {
-                                  const isCurrentCheck =
-                                    chk.id === currentCheckId;
-                                  return (
-                                    <label
-                                      key={chk.id}
-                                      className={`flex items-center gap-2 px-3 py-2 hover:bg-[var(--muted)] ${
-                                        isCurrentCheck
-                                          ? 'cursor-not-allowed bg-[var(--muted)]/50'
-                                          : 'cursor-pointer'
-                                      }`}
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      <input
-                                        type="checkbox"
-                                        checked={selectedCheckNumbers.includes(
-                                          chk.id
-                                        )}
-                                        disabled={isCurrentCheck}
-                                        onChange={() => toggleCheckNumber(chk.id)}
-                                        className="accent-[var(--primary)]"
-                                      />
-                                      <span className="text-sm">
-                                        {chk.checkNumber}
-                                      </span>
-                                      {isCurrentCheck && (
-                                        <span className="text-xs text-[var(--muted-foreground)]">
-                                          (current)
-                                        </span>
-                                      )}
-                                    </label>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
+                  <div className="grid grid-cols-2 gap-4 mt-2">
                     {/* Unpaid Invoices After */}
                     <div>
                       <div className="relative inline-block group">
@@ -534,37 +438,6 @@ export function CheckDetailsFields({
                         <input
                           type="checkbox"
                           checked={includeAllUnpaid}
-                          disabled
-                          className="w-3.5 h-3.5 accent-[var(--primary)] cursor-not-allowed"
-                        />
-                        <span className="text-xs text-[var(--muted-foreground)]">
-                          All
-                        </span>
-                      </label>
-                    </div>
-
-                    {/* Orders Without Invoices After */}
-                    <div>
-                      <div className="relative inline-block group">
-                        <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1 cursor-help border-b border-dashed border-[var(--muted-foreground)] inline-block">
-                          Orders without invoices after:
-                        </label>
-                        <div className="absolute bottom-full left-0 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-                          Does not include orders marked "dormant" or on other
-                          checks
-                          <div className="absolute top-full left-4 border-4 border-transparent border-t-gray-900"></div>
-                        </div>
-                      </div>
-                      <input
-                        type="date"
-                        value={ordersWithoutInvoicesAfterDate}
-                        disabled
-                        className="w-full px-3 py-2 bg-gray-50 border border-[var(--border)] rounded-md text-sm cursor-not-allowed"
-                      />
-                      <label className="flex items-center gap-1.5 mt-1.5 cursor-not-allowed">
-                        <input
-                          type="checkbox"
-                          checked={includeAllOrdersWithoutInvoices}
                           disabled
                           className="w-3.5 h-3.5 accent-[var(--primary)] cursor-not-allowed"
                         />
