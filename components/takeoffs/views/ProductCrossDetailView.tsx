@@ -3,7 +3,36 @@
  * Side-by-side comparison of product crosses with attributes
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
+import {
+  getPromptTemplates,
+  createPromptTemplate,
+  type PromptTemplateResponse,
+} from '../../lib/graphql/takeoffs';
+
+// Copy to clipboard helper
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // Fallback for older browsers
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-999999px';
+    document.body.appendChild(textArea);
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      return true;
+    } catch {
+      return false;
+    } finally {
+      document.body.removeChild(textArea);
+    }
+  }
+}
 
 // Product cross types
 export type CrossType = 'SIMPLE' | 'UPGRADE' | 'VALUE';
@@ -20,6 +49,7 @@ export interface ProductAlternative {
 }
 
 export interface ProductCrossResult {
+  id?: string; // Database ID when persisted
   original: {
     manufacturer: string;
     partNumber: string;
@@ -29,13 +59,13 @@ export interface ProductCrossResult {
   alternatives: ProductAlternative[];
 }
 
-// Prompt templates
-const PROMPT_TEMPLATES = [
-  { id: 'default', label: 'Default', prompt: 'Find alternative products with similar specifications' },
-  { id: 'cost-saving', label: 'Cost Saving', prompt: 'Find lower-cost alternatives that meet minimum requirements' },
-  { id: 'premium', label: 'Premium Upgrade', prompt: 'Find premium alternatives with enhanced features' },
-  { id: 'energy-efficient', label: 'Energy Efficient', prompt: 'Find energy-efficient alternatives with lower power consumption' },
-  { id: 'compatible', label: 'Compatible', prompt: 'Find alternatives that are directly compatible without modifications' },
+// Default prompt templates (fallback if DB is empty)
+const DEFAULT_PROMPT_TEMPLATES = [
+  { id: 'default', name: 'Default', prompt: 'Find alternative products with similar specifications' },
+  { id: 'cost-saving', name: 'Cost Saving', prompt: 'Find lower-cost alternatives that meet minimum requirements' },
+  { id: 'premium', name: 'Premium Upgrade', prompt: 'Find premium alternatives with enhanced features' },
+  { id: 'energy-efficient', name: 'Energy Efficient', prompt: 'Find energy-efficient alternatives with lower power consumption' },
+  { id: 'compatible', name: 'Compatible', prompt: 'Find alternatives that are directly compatible without modifications' },
 ];
 
 // Common product attributes to display
@@ -73,14 +103,72 @@ export function ProductCrossDetailView({
   const [customPrompt, setCustomPrompt] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [isEnhancedView, setIsEnhancedView] = useState(false);
+  const [copiedProduct, setCopiedProduct] = useState<string | null>(null);
+  const [promptTemplates, setPromptTemplates] = useState<Array<{ id: string; name: string; prompt: string }>>(DEFAULT_PROMPT_TEMPLATES);
+  const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+
+  // Load prompt templates from DB on mount
+  useEffect(() => {
+    async function loadTemplates() {
+      try {
+        const dbTemplates = await getPromptTemplates();
+        if (dbTemplates.length > 0) {
+          setPromptTemplates(dbTemplates.map(t => ({
+            id: t.id,
+            name: t.name,
+            prompt: t.prompt,
+          })));
+        }
+      } catch (error) {
+        console.error('Failed to load prompt templates:', error);
+        // Keep using default templates
+      }
+    }
+    loadTemplates();
+  }, []);
+
+  // Handle copy product info
+  const handleCopyProduct = useCallback(async (productName: string, description?: string) => {
+    const textToCopy = description ? `${productName} - ${description}` : productName;
+    const success = await copyToClipboard(textToCopy);
+    if (success) {
+      setCopiedProduct(productName);
+      setTimeout(() => setCopiedProduct(null), 2000);
+    }
+  }, []);
 
   const handleTemplateSelect = useCallback((templateId: string) => {
-    const template = PROMPT_TEMPLATES.find(t => t.id === templateId);
+    const template = promptTemplates.find(t => t.id === templateId);
     if (template) {
       setCustomPrompt(template.prompt);
       setSelectedTemplate(templateId);
     }
-  }, []);
+  }, [promptTemplates]);
+
+  // Save current prompt as a new template
+  const handleSaveAsTemplate = useCallback(async () => {
+    if (!customPrompt.trim()) return;
+
+    setIsSavingTemplate(true);
+    try {
+      const templateName = `Custom ${new Date().toLocaleDateString()}`;
+      const newTemplate = await createPromptTemplate({
+        name: templateName,
+        prompt: customPrompt.trim(),
+        description: 'User-created prompt template',
+      });
+
+      setPromptTemplates(prev => [
+        { id: newTemplate.id, name: newTemplate.name, prompt: newTemplate.prompt },
+        ...prev,
+      ]);
+      setSelectedTemplate(newTemplate.id);
+    } catch (error) {
+      console.error('Failed to save prompt template:', error);
+    } finally {
+      setIsSavingTemplate(false);
+    }
+  }, [customPrompt]);
 
   const handleCrossTypeToggle = useCallback((type: CrossType) => {
     if (selectedCrossTypes.includes(type)) {
@@ -205,13 +293,49 @@ export function ProductCrossDetailView({
                 <tr className="hover:bg-gray-50/50">
                   <td className="px-4 py-3 text-sm font-medium text-[var(--foreground)]">Product</td>
                   <td className="px-4 py-3 text-sm text-[var(--foreground)] bg-gray-50/50">
-                    {cross.original.partNumber}
+                    <div className="flex items-center gap-2">
+                      <span>{cross.original.partNumber}</span>
+                      <button
+                        onClick={() => handleCopyProduct(cross.original.partNumber, cross.original.description)}
+                        className="p-1 hover:bg-gray-200 rounded transition-colors"
+                        title="Copy product info"
+                      >
+                        {copiedProduct === cross.original.partNumber ? (
+                          <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" className="text-green-600">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                          </svg>
+                        ) : (
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-400 hover:text-gray-600">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                            <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                          </svg>
+                        )}
+                      </button>
+                    </div>
                   </td>
                   {cross.alternatives.map((alt, altIndex) => (
                     <td key={altIndex} className="px-4 py-3 text-sm text-[var(--foreground)]">
-                      <span className={alt.crossType === 'SIMPLE' ? 'text-blue-600' : alt.crossType === 'UPGRADE' ? 'text-purple-600' : 'text-green-600'}>
-                        {alt.name}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={alt.crossType === 'SIMPLE' ? 'text-blue-600' : alt.crossType === 'UPGRADE' ? 'text-purple-600' : 'text-green-600'}>
+                          {alt.name}
+                        </span>
+                        <button
+                          onClick={() => handleCopyProduct(alt.name, alt.description)}
+                          className="p-1 hover:bg-gray-200 rounded transition-colors"
+                          title="Copy product info"
+                        >
+                          {copiedProduct === alt.name ? (
+                            <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" className="text-green-600">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                            </svg>
+                          ) : (
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-400 hover:text-gray-600">
+                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                              <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                            </svg>
+                          )}
+                        </button>
+                      </div>
                     </td>
                   ))}
                 </tr>
@@ -373,11 +497,11 @@ export function ProductCrossDetailView({
               {isProcessing ? 'Processing...' : 'Rerun'}
             </button>
             <button
-              onClick={handleSaveAsPrompt}
-              disabled={!customPrompt.trim()}
+              onClick={handleSaveAsTemplate}
+              disabled={!customPrompt.trim() || isSavingTemplate}
               className="px-4 py-2 border border-[var(--border)] text-[var(--foreground)] rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
             >
-              Save as Prompt
+              {isSavingTemplate ? 'Saving...' : 'Save as Prompt'}
             </button>
             <div className="relative">
               <select
@@ -386,9 +510,9 @@ export function ProductCrossDetailView({
                 className="px-4 py-2 border border-[var(--border)] text-[var(--foreground)] rounded-lg text-sm font-medium bg-white hover:bg-gray-50 transition-colors appearance-none pr-8 cursor-pointer"
               >
                 <option value="">Prompt Templates</option>
-                {PROMPT_TEMPLATES.map((template) => (
+                {promptTemplates.map((template) => (
                   <option key={template.id} value={template.id}>
-                    {template.label}
+                    {template.name}
                   </option>
                 ))}
               </select>

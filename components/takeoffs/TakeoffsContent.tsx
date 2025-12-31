@@ -81,6 +81,7 @@ export function TakeoffsContent() {
     handleSelectAlternative,
     handleDeleteCrossAlternative,
     handleRerunCross,
+    totalCount,
   } = state;
 
   // Extract unique client names from existing takeoffs for autocomplete
@@ -194,10 +195,12 @@ export function TakeoffsContent() {
             )}
           </div>
 
-          {/* Results Count */}
+          {/* Results Count - Shows "Showing X of Y" format */}
           {!isLoading && takeoffs.length > 0 && (
             <p className="text-sm text-[var(--muted-foreground)] mb-4">
-              Showing {takeoffs.length} project{takeoffs.length !== 1 ? 's' : ''}
+              {totalCount > 0 && takeoffs.length !== totalCount
+                ? `Showing ${takeoffs.length} of ${totalCount} projects`
+                : `Showing ${takeoffs.length} project${takeoffs.length !== 1 ? 's' : ''}`}
             </p>
           )}
 

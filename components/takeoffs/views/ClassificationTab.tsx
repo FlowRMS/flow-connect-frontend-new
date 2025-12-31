@@ -1,6 +1,6 @@
 /**
  * Classification Tab Component
- * Displays document table with classification dropdown and actions
+ * Displays document table with category tabs, classification dropdown and actions
  * Includes discipline filtering and duplicate detection
  */
 
@@ -20,6 +20,18 @@ interface ClassificationTabProps {
   onViewReport: (doc: TakeoffDocument) => void;
   onProceedToParsing: () => void;
 }
+
+// Category tabs configuration
+type CategoryTab = 'all' | 'Fixture Schedules' | 'Specifications' | 'Blueprints' | 'Other Docs' | 'Irrelevant';
+
+const CATEGORY_TABS: { key: CategoryTab; label: string }[] = [
+  { key: 'all', label: 'All Documents' },
+  { key: 'Fixture Schedules', label: 'Fixture Schedules' },
+  { key: 'Specifications', label: 'Specifications' },
+  { key: 'Blueprints', label: 'Blueprints' },
+  { key: 'Other Docs', label: 'Other Docs' },
+  { key: 'Irrelevant', label: 'Irrelevant' },
+];
 
 // Helper to detect potential duplicates by name similarity
 function findDuplicates(documents: TakeoffDocument[]): Set<string> {
@@ -76,17 +88,50 @@ export function ClassificationTab({
   onViewReport,
   onProceedToParsing,
 }: ClassificationTabProps) {
+  const [activeTab, setActiveTab] = useState<CategoryTab>('all');
   const [disciplineFilter, setDisciplineFilter] = useState<DocumentDiscipline | ''>('');
 
   // Detect duplicates
   const duplicateIds = useMemo(() => findDuplicates(documents), [documents]);
   const duplicateCount = duplicateIds.size;
 
-  // Filter documents by discipline
+  // Count documents by category
+  const categoryCounts = useMemo(() => {
+    const counts: Record<CategoryTab, number> = {
+      'all': documents.length,
+      'Fixture Schedules': 0,
+      'Specifications': 0,
+      'Blueprints': 0,
+      'Other Docs': 0,
+      'Irrelevant': 0,
+    };
+
+    documents.forEach(doc => {
+      const classification = doc.classification as CategoryTab;
+      if (classification && classification in counts) {
+        counts[classification]++;
+      }
+    });
+
+    return counts;
+  }, [documents]);
+
+  // Filter documents by active tab and discipline
   const filteredDocuments = useMemo(() => {
-    if (!disciplineFilter) return documents;
-    return documents.filter(doc => doc.discipline === disciplineFilter);
-  }, [documents, disciplineFilter]);
+    let filtered = documents;
+
+    // Filter by category tab
+    if (activeTab !== 'all') {
+      filtered = filtered.filter(doc => doc.classification === activeTab);
+    }
+
+    // Filter by discipline
+    if (disciplineFilter) {
+      filtered = filtered.filter(doc => doc.discipline === disciplineFilter);
+    }
+
+    return filtered;
+  }, [documents, activeTab, disciplineFilter]);
 
   const formatDate = (dateString: string) => {
     if (!dateString) return '-';
@@ -121,12 +166,73 @@ export function ClassificationTab({
 
   return (
     <div>
+      {/* Category Tabs */}
+      <div className="border-b border-[var(--border)] mb-4">
+        <nav className="flex gap-1 -mb-px overflow-x-auto" aria-label="Document Categories">
+          {CATEGORY_TABS.map(tab => {
+            const count = categoryCounts[tab.key];
+            const isActive = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`
+                  flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap
+                  ${isActive
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:border-gray-300'
+                  }
+                `}
+              >
+                {tab.label}
+                <span className={`
+                  inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-medium
+                  ${isActive
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'bg-gray-100 text-gray-600'
+                  }
+                `}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+
       {/* Action Buttons */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-4">
           <div className="text-sm text-[var(--muted-foreground)]">
             Showing {filteredDocuments.length} of {documents.length} document{documents.length !== 1 ? 's' : ''}
           </div>
+
+          {/* Active Filter Badge */}
+          {disciplineFilter && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-purple-50 border border-purple-200 rounded-lg">
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-600">
+                <path d="M3 4h14M3 10h14M3 16h14" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <span className="text-xs font-medium text-purple-700">
+                Filtering: {disciplineFilter.toLowerCase()}
+              </span>
+              <button
+                onClick={() => setDisciplineFilter('')}
+                className="ml-1 text-purple-500 hover:text-purple-700"
+              >
+                <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/>
+                </svg>
+              </button>
+            </div>
+          )}
+
+          {/* Rep Types Filter Active Indicator */}
+          {disciplineFilter && (
+            <span className="text-xs text-green-600 font-medium">
+              Rep types filter active
+            </span>
+          )}
 
           {/* Duplicate Warning */}
           {duplicateCount > 0 && (
@@ -183,10 +289,10 @@ export function ClassificationTab({
                 Pages
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-                Confidence
+                Status
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-                Reclassify
+                Reclassify As
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
                 Actions
@@ -194,140 +300,151 @@ export function ClassificationTab({
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--border)] bg-white">
-            {filteredDocuments.map((doc) => {
-              const isDuplicate = duplicateIds.has(doc.id);
-              return (
-              <tr key={doc.id} className={`hover:bg-gray-50 transition-colors ${isDuplicate ? 'bg-yellow-50/50' : ''}`}>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    {/* PDF Icon */}
-                    <div className="w-8 h-8 bg-red-100 rounded flex items-center justify-center flex-shrink-0">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-600">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                        <polyline points="14 2 14 8 20 8"/>
-                      </svg>
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-[var(--foreground)] truncate">{doc.name}</p>
-                        {isDuplicate && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-100 text-yellow-700">
-                            Duplicate?
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-[var(--muted-foreground)]">{doc.size} • {formatDate(doc.uploadDate)}</p>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-4 py-3">
-                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
-                    {doc.type}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <select
-                    value={doc.discipline || ''}
-                    onChange={(e) => onChangeDiscipline?.(doc.id, e.target.value as DocumentDiscipline)}
-                    className="w-full px-2 py-1 border border-[var(--border)] rounded text-xs text-[var(--foreground)] bg-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-                  >
-                    <option value="">Select...</option>
-                    {DOCUMENT_DISCIPLINE_OPTIONS.map(discipline => (
-                      <option key={discipline} value={discipline}>{discipline}</option>
-                    ))}
-                  </select>
-                </td>
-                <td className="px-4 py-3 text-sm text-[var(--foreground)]">
-                  {doc.abridged ? (
-                    <span className="text-green-600">
-                      {doc.abridgedPages}/{doc.pages}
-                    </span>
-                  ) : (
-                    doc.pages
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  {doc.confidence > 0 ? (
-                    <div className="flex items-center gap-2">
-                      <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${
-                            doc.confidence >= 0.8 ? 'bg-green-500' :
-                            doc.confidence >= 0.5 ? 'bg-yellow-500' : 'bg-red-500'
-                          }`}
-                          style={{ width: `${doc.confidence * 100}%` }}
-                        />
-                      </div>
-                      <span className="text-xs text-[var(--muted-foreground)]">
-                        {Math.round(doc.confidence * 100)}%
-                      </span>
-                    </div>
-                  ) : (
-                    <span className="text-xs text-[var(--muted-foreground)]">-</span>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  <select
-                    value={doc.classification || ''}
-                    onChange={(e) => onClassify(doc.id, e.target.value as DocumentClassification)}
-                    className="w-full px-2 py-1.5 border border-[var(--border)] rounded-md text-sm text-[var(--foreground)] bg-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  >
-                    <option value="">Select...</option>
-                    {CLASSIFICATION_OPTIONS.map(opt => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-1">
-                    {/* Download Button */}
-                    <button
-                      onClick={() => onDownload?.(doc)}
-                      className="p-1.5 hover:bg-gray-100 rounded transition-colors"
-                      title="Download"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-500">
-                        <path d="M10 3v10m0 0l-3-3m3 3l3-3M3 17h14" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </button>
-
-                    {/* View Button */}
-                    <button
-                      onClick={() => onViewReport(doc)}
-                      className="p-1.5 hover:bg-gray-100 rounded transition-colors"
-                      title="View Details"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-500">
-                        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
-                        <path d="M2 10c2-4 5-6 8-6s6 2 8 6c-2 4-5 6-8 6s-6-2-8-6z"/>
-                      </svg>
-                    </button>
-
-                    {/* Abridge Button */}
-                    {canAbridgeDocument(doc) && (
-                      <button
-                        onClick={() => onAbridge(doc.id)}
-                        className="p-1.5 hover:bg-purple-100 rounded transition-colors"
-                        title="Abridge Document"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-600">
-                          <rect x="3" y="3" width="14" height="14" rx="2"/>
-                          <line x1="7" y1="10" x2="13" y2="10"/>
-                        </svg>
-                      </button>
-                    )}
-
-                    {/* Abridged Badge */}
-                    {doc.abridged && (
-                      <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">
-                        Abridged
-                      </span>
-                    )}
-                  </div>
+            {filteredDocuments.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-4 py-8 text-center text-sm text-[var(--muted-foreground)]">
+                  No documents in this category
                 </td>
               </tr>
-              );
-            })}
+            ) : (
+              filteredDocuments.map((doc) => {
+                const isDuplicate = duplicateIds.has(doc.id);
+                const isClassified = !!doc.classification;
+                return (
+                <tr key={doc.id} className={`hover:bg-gray-50 transition-colors ${isDuplicate ? 'bg-yellow-50/50' : ''}`}>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      {/* PDF Icon */}
+                      <div className="w-8 h-8 bg-red-100 rounded flex items-center justify-center flex-shrink-0">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-600">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                          <polyline points="14 2 14 8 20 8"/>
+                        </svg>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-[var(--foreground)] truncate">{doc.name}</p>
+                          {isDuplicate && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-100 text-yellow-700">
+                              Duplicate?
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-[var(--muted-foreground)]">{doc.size} • {formatDate(doc.uploadDate)}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                      {doc.type}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <select
+                      value={doc.discipline || ''}
+                      onChange={(e) => onChangeDiscipline?.(doc.id, e.target.value as DocumentDiscipline)}
+                      className="w-full px-2 py-1 border border-[var(--border)] rounded text-xs text-[var(--foreground)] bg-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    >
+                      <option value="">Select...</option>
+                      {DOCUMENT_DISCIPLINE_OPTIONS.map(discipline => (
+                        <option key={discipline} value={discipline}>{discipline}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-[var(--foreground)]">
+                    {doc.abridged ? (
+                      <span className="text-green-600">
+                        {doc.abridgedPages}/{doc.pages}
+                      </span>
+                    ) : (
+                      doc.pages
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {/* Status Badge with confidence */}
+                    <div className="flex items-center gap-2">
+                      {isClassified ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                          <svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                          </svg>
+                          Classified
+                          {doc.confidence > 0 && (
+                            <span className="text-blue-500 text-[10px]">
+                              {Math.round(doc.confidence * 100)}%
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                          Pending
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <select
+                      value={doc.classification || ''}
+                      onChange={(e) => onClassify(doc.id, e.target.value as DocumentClassification)}
+                      className="w-full px-2 py-1.5 border border-[var(--border)] rounded-md text-sm text-[var(--foreground)] bg-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    >
+                      <option value="">Select...</option>
+                      {CLASSIFICATION_OPTIONS.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1">
+                      {/* Download Button */}
+                      <button
+                        onClick={() => onDownload?.(doc)}
+                        className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+                        title="Download"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-500">
+                          <path d="M10 3v10m0 0l-3-3m3 3l3-3M3 17h14" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </button>
+
+                      {/* View Button */}
+                      <button
+                        onClick={() => onViewReport(doc)}
+                        className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+                        title="View Details"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-500">
+                          <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
+                          <path d="M2 10c2-4 5-6 8-6s6 2 8 6c-2 4-5 6-8 6s-6-2-8-6z"/>
+                        </svg>
+                      </button>
+
+                      {/* Abridge Button */}
+                      {canAbridgeDocument(doc) && (
+                        <button
+                          onClick={() => onAbridge(doc.id)}
+                          className="p-1.5 hover:bg-purple-100 rounded transition-colors"
+                          title="Abridge Document"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-600">
+                            <rect x="3" y="3" width="14" height="14" rx="2"/>
+                            <line x1="7" y1="10" x2="13" y2="10"/>
+                          </svg>
+                        </button>
+                      )}
+
+                      {/* Abridged Badge */}
+                      {doc.abridged && (
+                        <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">
+                          Abridged
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>

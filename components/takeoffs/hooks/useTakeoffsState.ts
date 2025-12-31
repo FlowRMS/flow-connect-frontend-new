@@ -28,9 +28,16 @@ import {
   crossProducts,
   updateTakeoff as apiUpdateTakeoff,
   updateTakeoffDocument,
+  saveProductCross,
+  selectCrossAlternative as apiSelectCrossAlternative,
+  deleteCrossAlternative as apiDeleteCrossAlternative,
+  clearTakeoffCrosses,
+  getTakeoffProductCrosses,
   type UploadProgressCallback,
   type UpdateTakeoffDocumentInput,
   type TakeoffStatusEnum,
+  type SaveProductCrossInput,
+  type ProductCrossAlternative,
 } from '../../lib/graphql/takeoffs';
 import { statusApiMap } from '../types';
 import {
@@ -123,6 +130,7 @@ export function useTakeoffsState() {
     selected?: boolean;
   }
   interface ProductCrossResult {
+    id?: string; // Database ID when persisted
     original: {
       manufacturer: string;
       partNumber: string;
@@ -137,6 +145,9 @@ export function useTakeoffsState() {
   // Loading and error states
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Total count of takeoffs (without filters) for "Showing X of Y" display
+  const [totalCount, setTotalCount] = useState<number>(0);
 
   // Fetch takeoffs from API with filters
   const loadTakeoffs = useCallback(async (options?: {
@@ -155,6 +166,12 @@ export function useTakeoffsState() {
       });
       const transformedTakeoffs = response.map(transformTakeoffResponse);
       setTakeoffsData(transformedTakeoffs);
+
+      // Update totalCount when no filters are applied (for "Showing X of Y" display)
+      const hasFilters = options?.search || options?.status || options?.source;
+      if (!hasFilters) {
+        setTotalCount(transformedTakeoffs.length);
+      }
     } catch (err) {
       console.error('Failed to fetch takeoffs:', err);
       setError(err instanceof Error ? err.message : 'Failed to load takeoffs');
@@ -586,39 +603,112 @@ export function useTakeoffsState() {
     }
 
     setParsedItems(prev => [...prev, ...allCrosses]);
-    setProductCrossResults(allCrossResults);
+
+    // Persist crosses to database if we have a selected takeoff
+    if (selectedTakeoff && allCrossResults.length > 0) {
+      try {
+        // First clear any existing crosses for this takeoff
+        await clearTakeoffCrosses(selectedTakeoff.id);
+
+        // Save each cross result to the database
+        const savedResults: ProductCrossResult[] = [];
+        for (const crossResult of allCrossResults) {
+          const savedCross = await saveProductCross({
+            takeoffId: selectedTakeoff.id,
+            originalManufacturer: crossResult.original.manufacturer,
+            originalPartNumber: crossResult.original.partNumber,
+            originalDescription: crossResult.original.description,
+            originalAttributes: crossResult.original.attributes || null,
+            alternatives: crossResult.alternatives.map(alt => ({
+              name: alt.name,
+              description: alt.description,
+              price: alt.price || null,
+              source: alt.source || null,
+              crossType: alt.crossType,
+              attributes: alt.attributes || null,
+              reasoning: alt.reasoning || null,
+              selected: alt.selected || false,
+            })),
+            crossTypesUsed: selectedCrossTypes,
+            promptUsed: null,
+          });
+
+          // Add the database ID to the result
+          savedResults.push({
+            ...crossResult,
+            id: savedCross.id,
+          });
+        }
+        setProductCrossResults(savedResults);
+      } catch (error) {
+        console.error('Failed to persist cross results:', error);
+        // Fall back to local-only results
+        setProductCrossResults(allCrossResults);
+      }
+    } else {
+      setProductCrossResults(allCrossResults);
+    }
+
     setProductCrossState({ isProcessing: false, progress: 100 });
-  }, [documents, selectedCrossTypes]);
+  }, [documents, selectedCrossTypes, selectedTakeoff]);
 
   // Handle cross types change
   const handleCrossTypesChange = useCallback((types: CrossType[]) => {
     setSelectedCrossTypes(types);
   }, []);
 
-  // Handle selecting an alternative in the detail view
-  const handleSelectAlternative = useCallback((originalIndex: number, altIndex: number) => {
-    setProductCrossResults(prev => prev.map((result, i) => {
-      if (i !== originalIndex) return result;
+  // Handle selecting a cross alternative
+  // Persists selection to backend when cross has an ID
+  const handleSelectAlternative = useCallback(async (originalIndex: number, altIndex: number) => {
+    const result = productCrossResults[originalIndex];
+
+    // Update local state immediately for responsive UI
+    setProductCrossResults(prev => prev.map((r, i) => {
+      if (i !== originalIndex) return r;
       return {
-        ...result,
-        alternatives: result.alternatives.map((alt, j) => ({
+        ...r,
+        alternatives: r.alternatives.map((alt, j) => ({
           ...alt,
           selected: j === altIndex,
         })),
       };
     }));
-  }, []);
+
+    // Persist to backend if cross has been saved (has an ID)
+    if (result?.id) {
+      try {
+        await apiSelectCrossAlternative(result.id, altIndex);
+      } catch (error) {
+        console.error('Failed to persist selection:', error);
+        // Optionally revert local state on error
+      }
+    }
+  }, [productCrossResults]);
 
   // Handle deleting a cross alternative
-  const handleDeleteCrossAlternative = useCallback((originalIndex: number, altIndex: number) => {
-    setProductCrossResults(prev => prev.map((result, i) => {
-      if (i !== originalIndex) return result;
+  // Persists deletion to backend when cross has an ID
+  const handleDeleteCrossAlternative = useCallback(async (originalIndex: number, altIndex: number) => {
+    const result = productCrossResults[originalIndex];
+
+    // Update local state immediately for responsive UI
+    setProductCrossResults(prev => prev.map((r, i) => {
+      if (i !== originalIndex) return r;
       return {
-        ...result,
-        alternatives: result.alternatives.filter((_, j) => j !== altIndex),
+        ...r,
+        alternatives: r.alternatives.filter((_, j) => j !== altIndex),
       };
-    }).filter(result => result.alternatives.length > 0));
-  }, []);
+    }).filter(r => r.alternatives.length > 0));
+
+    // Persist to backend if cross has been saved (has an ID)
+    if (result?.id) {
+      try {
+        await apiDeleteCrossAlternative(result.id, altIndex);
+      } catch (error) {
+        console.error('Failed to persist deletion:', error);
+        // Optionally revert local state on error
+      }
+    }
+  }, [productCrossResults]);
 
   // Handle rerun cross with custom prompt
   const handleRerunCross = useCallback(async (prompt: string, crossTypes: CrossType[]) => {
@@ -679,9 +769,53 @@ export function useTakeoffsState() {
       }
     }
 
-    setProductCrossResults(allCrossResults);
+    // Persist crosses to database if we have a selected takeoff
+    if (selectedTakeoff && allCrossResults.length > 0) {
+      try {
+        // First clear any existing crosses for this takeoff
+        await clearTakeoffCrosses(selectedTakeoff.id);
+
+        // Save each cross result to the database
+        const savedResults: ProductCrossResult[] = [];
+        for (const crossResult of allCrossResults) {
+          const savedCross = await saveProductCross({
+            takeoffId: selectedTakeoff.id,
+            originalManufacturer: crossResult.original.manufacturer,
+            originalPartNumber: crossResult.original.partNumber,
+            originalDescription: crossResult.original.description,
+            originalAttributes: crossResult.original.attributes || null,
+            alternatives: crossResult.alternatives.map(alt => ({
+              name: alt.name,
+              description: alt.description,
+              price: alt.price || null,
+              source: alt.source || null,
+              crossType: alt.crossType,
+              attributes: alt.attributes || null,
+              reasoning: alt.reasoning || null,
+              selected: alt.selected || false,
+            })),
+            crossTypesUsed: crossTypes,
+            promptUsed: prompt || null,
+          });
+
+          // Add the database ID to the result
+          savedResults.push({
+            ...crossResult,
+            id: savedCross.id,
+          });
+        }
+        setProductCrossResults(savedResults);
+      } catch (error) {
+        console.error('Failed to persist cross results:', error);
+        // Fall back to local-only results
+        setProductCrossResults(allCrossResults);
+      }
+    } else {
+      setProductCrossResults(allCrossResults);
+    }
+
     setProductCrossState({ isProcessing: false, progress: 100 });
-  }, [documents]);
+  }, [documents, selectedTakeoff]);
 
   // Cross a single item using AI backend
   const handleCrossItem = useCallback(async (itemId: string) => {
@@ -946,7 +1080,7 @@ export function useTakeoffsState() {
   }, [uploadedFiles, handleUploadProgress, currentUserName]);
 
   // Navigation handlers
-  const handleSelectTakeoff = useCallback((takeoff: Takeoff) => {
+  const handleSelectTakeoff = useCallback(async (takeoff: Takeoff) => {
     setSelectedTakeoff(takeoff);
     setViewMode('detail');
     setCurrentStep(getInitialStep(takeoff.status));
@@ -962,6 +1096,38 @@ export function useTakeoffsState() {
         }
       });
       setParsedItems(allParsedItems);
+    }
+
+    // Load saved product crosses from backend
+    try {
+      const savedCrosses = await getTakeoffProductCrosses(takeoff.id);
+      if (savedCrosses.length > 0) {
+        const transformedCrosses: ProductCrossResult[] = savedCrosses.map(c => ({
+          id: c.id,
+          original: {
+            manufacturer: c.originalManufacturer,
+            partNumber: c.originalPartNumber,
+            description: c.originalDescription || '',
+            attributes: c.originalAttributes as Record<string, string> | undefined,
+          },
+          alternatives: (c.alternatives || []).map(alt => ({
+            name: alt.name,
+            description: alt.description,
+            price: alt.price,
+            source: alt.source,
+            crossType: alt.crossType as CrossType,
+            attributes: alt.attributes as Record<string, string> | undefined,
+            reasoning: alt.reasoning || undefined,
+            selected: alt.selected || false,
+          })),
+        }));
+        setProductCrossResults(transformedCrosses);
+      } else {
+        setProductCrossResults([]);
+      }
+    } catch (error) {
+      console.error('Failed to load product crosses:', error);
+      setProductCrossResults([]);
     }
   }, []);
 
@@ -1203,6 +1369,7 @@ export function useTakeoffsState() {
     // Loading/Error states
     isLoading,
     error,
+    totalCount,
 
     // Modal state
     showUploadModal,

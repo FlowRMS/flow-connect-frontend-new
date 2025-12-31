@@ -224,21 +224,119 @@ export function TakeoffDetailView({
 
       {/* 6-Step Workflow Stepper */}
       <div className="bg-[var(--card)] rounded-xl border border-[var(--border)] p-4 mb-6 shadow-sm">
+        {/* Navigation Buttons - Above Stepper */}
+        <div className="flex items-center justify-between mb-4 pb-4 border-b border-[var(--border)]">
+          <button
+            onClick={goToPreviousStep}
+            disabled={!canGoBack}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              canGoBack
+                ? 'text-[var(--foreground)] hover:bg-gray-100 border border-[var(--border)]'
+                : 'text-gray-400 cursor-not-allowed'
+            }`}
+          >
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M15 10H5M9 14l-4-4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Previous Step
+          </button>
+
+          <button
+            onClick={goToNextStep}
+            disabled={!canGoForward}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              canGoForward
+                ? 'bg-purple-600 text-white hover:bg-purple-700'
+                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+            }`}
+          >
+            Next Step
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M5 10h10M11 6l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Stepper Icons */}
         <div className="flex items-center justify-between overflow-x-auto">
           {WORKFLOW_STEPS.map((step, index) => {
             const isActive = currentStep === step.id;
             const isPast = index < currentStepIndex;
             const isLast = index === WORKFLOW_STEPS.length - 1;
 
+            // Step-specific icons
+            const getStepIcon = () => {
+              if (isPast) {
+                return (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                );
+              }
+              switch (step.id) {
+                case 'review':
+                  return (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                      <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                  );
+                case 'classification':
+                  return (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                    </svg>
+                  );
+                case 'abridgment':
+                  return (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="6" cy="6" r="3"/>
+                      <circle cx="6" cy="18" r="3"/>
+                      <line x1="20" y1="4" x2="8.12" y2="15.88"/>
+                      <line x1="14.47" y1="14.48" x2="20" y2="20"/>
+                      <line x1="8.12" y1="8.12" x2="12" y2="12"/>
+                    </svg>
+                  );
+                case 'parsing':
+                  return (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10"/>
+                      <line x1="22" y1="12" x2="18" y2="12"/>
+                      <line x1="6" y1="12" x2="2" y2="12"/>
+                      <line x1="12" y1="6" x2="12" y2="2"/>
+                      <line x1="12" y1="22" x2="12" y2="18"/>
+                    </svg>
+                  );
+                case 'productCross':
+                  return (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="3" width="7" height="7"/>
+                      <rect x="14" y="3" width="7" height="7"/>
+                      <rect x="14" y="14" width="7" height="7"/>
+                      <rect x="3" y="14" width="7" height="7"/>
+                    </svg>
+                  );
+                case 'approvals':
+                  return (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                      <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                  );
+                default:
+                  return <span>{index + 1}</span>;
+              }
+            };
+
             return (
               <div key={step.id} className="flex items-center flex-1 min-w-0">
                 {/* Step Circle and Label */}
                 <button
                   onClick={() => onStepChange(step.id)}
-                  className="flex flex-col items-center gap-1 min-w-[80px] group"
+                  className="flex flex-col items-center gap-2 min-w-[80px] group"
                 >
                   <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-all ${
+                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
                       isActive
                         ? 'bg-purple-600 text-white ring-4 ring-purple-100'
                         : isPast
@@ -246,26 +344,30 @@ export function TakeoffDetailView({
                         : 'bg-gray-200 text-gray-500 group-hover:bg-gray-300'
                     }`}
                   >
-                    {isPast ? (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                        <polyline points="20 6 9 17 4 12"/>
-                      </svg>
-                    ) : (
-                      index + 1
-                    )}
+                    {getStepIcon()}
                   </div>
-                  <span
-                    className={`text-xs font-medium text-center whitespace-nowrap ${
-                      isActive
-                        ? 'text-purple-600'
-                        : isPast
-                        ? 'text-green-600'
-                        : 'text-gray-500'
-                    }`}
-                  >
-                    <span className="hidden sm:inline">{step.label}</span>
-                    <span className="sm:hidden">{step.shortLabel}</span>
-                  </span>
+                  <div className="text-center">
+                    <span
+                      className={`text-xs font-medium whitespace-nowrap block ${
+                        isActive
+                          ? 'text-purple-600'
+                          : isPast
+                          ? 'text-green-600'
+                          : 'text-gray-500'
+                      }`}
+                    >
+                      <span className="hidden sm:inline">{step.label}</span>
+                      <span className="sm:hidden">{step.shortLabel}</span>
+                    </span>
+                    <span className="text-[10px] text-[var(--muted-foreground)] hidden sm:block">
+                      {step.id === 'review' && 'View uploaded files'}
+                      {step.id === 'classification' && 'Categorize documents'}
+                      {step.id === 'abridgment' && 'Generate summaries'}
+                      {step.id === 'parsing' && 'Extract fixture data'}
+                      {step.id === 'productCross' && 'Cross to own lines'}
+                      {step.id === 'approvals' && 'Request approvals'}
+                    </span>
+                  </div>
                 </button>
 
                 {/* Connector Line */}
@@ -864,6 +966,47 @@ export function TakeoffDetailView({
                 </div>
               </div>
 
+              {/* Selected Product Crosses */}
+              {productCrossResults.length > 0 && (
+                <div className="max-w-3xl mx-auto mb-8 text-left">
+                  <h4 className="text-sm font-semibold text-[var(--foreground)] mb-3 flex items-center gap-2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-600">
+                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                      <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                    Selected Product Alternatives ({productCrossResults.filter(c => c.alternatives.some(a => a.selected)).length} items)
+                  </h4>
+                  <div className="bg-white rounded-lg border border-[var(--border)] divide-y divide-[var(--border)]">
+                    {productCrossResults.map((cross, index) => {
+                      const selectedAlt = cross.alternatives.find(a => a.selected);
+                      if (!selectedAlt) return null;
+                      return (
+                        <div key={index} className="p-3 flex items-center justify-between text-sm">
+                          <div>
+                            <span className="text-[var(--muted-foreground)]">{cross.original.manufacturer} {cross.original.partNumber}</span>
+                            <span className="mx-2 text-gray-400">→</span>
+                            <span className="font-medium text-[var(--foreground)]">{selectedAlt.name}</span>
+                          </div>
+                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                            selectedAlt.crossType === 'UPGRADE' ? 'bg-purple-100 text-purple-700' :
+                            selectedAlt.crossType === 'SIMPLE' ? 'bg-blue-100 text-blue-700' :
+                            'bg-green-100 text-green-700'
+                          }`}>
+                            {selectedAlt.crossType === 'SIMPLE' ? 'Direct' :
+                             selectedAlt.crossType === 'UPGRADE' ? 'Upgrade' : 'Value'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                    {productCrossResults.filter(c => c.alternatives.some(a => a.selected)).length === 0 && (
+                      <div className="p-4 text-center text-sm text-[var(--muted-foreground)]">
+                        No alternatives selected yet. Go back to Product Cross step to select alternatives.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <button
                 onClick={onCreateQuote}
                 className="inline-flex items-center gap-2 px-6 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
@@ -880,42 +1023,6 @@ export function TakeoffDetailView({
           </div>
         )}
 
-        {/* Navigation Footer */}
-        <div className="p-4 border-t border-[var(--border)] bg-gray-50/50 flex items-center justify-between">
-          <button
-            onClick={goToPreviousStep}
-            disabled={!canGoBack}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              canGoBack
-                ? 'text-[var(--foreground)] hover:bg-gray-100'
-                : 'text-gray-400 cursor-not-allowed'
-            }`}
-          >
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M15 10H5M9 14l-4-4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            Previous Step
-          </button>
-
-          <div className="text-sm text-[var(--muted-foreground)]">
-            Step {currentStepIndex + 1} of {WORKFLOW_STEPS.length}
-          </div>
-
-          <button
-            onClick={goToNextStep}
-            disabled={!canGoForward}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              canGoForward
-                ? 'bg-purple-600 text-white hover:bg-purple-700'
-                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-            }`}
-          >
-            Next Step
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M5 10h10M11 6l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
-        </div>
       </div>
     </main>
   );
