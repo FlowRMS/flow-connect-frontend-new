@@ -49,6 +49,16 @@ export type DocumentClassification =
   | 'Irrelevant'
   | '';
 
+// Document discipline types
+export type DocumentDiscipline =
+  | 'Plumbing'
+  | 'Electrical'
+  | 'HVAC'
+  | 'Fire Protection'
+  | 'Lighting'
+  | 'General'
+  | '';
+
 // View mode types
 export type TakeoffViewMode = 'list' | 'detail';
 
@@ -65,6 +75,19 @@ export type TakeoffStep =
 // Main Types (for UI display)
 // ============================================================================
 
+// Priority type for takeoffs
+export type TakeoffPriority = 'Low' | 'Medium' | 'High';
+
+// Takeoff metadata type
+export interface TakeoffMetadata {
+  clientName?: string;
+  bidDate?: string;
+  estimatedValue?: string;
+  city?: string;
+  state?: string;
+  [key: string]: unknown;
+}
+
 // Main Take-off type (UI display format)
 export interface Takeoff {
   id: string;
@@ -73,9 +96,10 @@ export interface Takeoff {
   createdBy: string;
   createdDate: string;
   status: TakeoffStatus;
+  priority?: TakeoffPriority;
   quoteId?: string;
   userId?: string;
-  metadata?: Record<string, unknown>;
+  metadata?: TakeoffMetadata;
   documents?: TakeoffDocument[];
 }
 
@@ -87,15 +111,18 @@ export interface TakeoffDocument {
   size: string;
   uploadDate: string;
   classification: DocumentClassification;
+  discipline?: DocumentDiscipline;
   confidence: number;
   pages: number;
   abridged: boolean;
   abridgedPages?: number;
   reductionPercentage?: number;
   documentUrl?: string;
+  abridgedUrl?: string;
   pageAnalyses?: PageAnalysis[];
   products?: unknown;
   parsedItems?: ParsedItem[];
+  fileHash?: string; // For duplicate detection
 }
 
 // Parsed item from schedule

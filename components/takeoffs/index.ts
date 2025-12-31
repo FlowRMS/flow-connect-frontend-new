@@ -24,6 +24,8 @@ export { TakeoffListView } from './views/TakeoffListView';
 export { TakeoffDetailView } from './views/TakeoffDetailView';
 export { ClassificationTab } from './views/ClassificationTab';
 export { ParsingTab } from './views/ParsingTab';
+export { ProductCrossDetailView } from './views/ProductCrossDetailView';
+export type { CrossType, ProductAlternative, ProductCrossResult } from './views/ProductCrossDetailView';
 
 // Modals
 export { UploadModal } from './modals/UploadModal';

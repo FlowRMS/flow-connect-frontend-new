@@ -7,7 +7,7 @@
 
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useTakeoffsState } from './hooks/useTakeoffsState';
 import { TakeoffListView } from './views/TakeoffListView';
 import { TakeoffDetailView } from './views/TakeoffDetailView';
@@ -50,8 +50,15 @@ export function TakeoffsContent() {
     selectedItems,
     parsedItems,
     handleClassifyDocument,
+    handleChangeDiscipline,
     handleAbridgeDocument,
     handleAbridgeAll,
+    // Parsing handlers
+    handleParseSchedules,
+    parsingState,
+    // Abridgement state
+    abridgementState,
+    documentAbridgementProgress,
     handleCrossItem,
     handleCrossSelected,
     handleCrossAll,
@@ -61,7 +68,28 @@ export function TakeoffsContent() {
     // Upload state
     uploadProgress,
     isUploading,
+    // Download handlers
+    handleDownloadDocument,
+    handleDownloadAllDocuments,
+    // Step change handler (with status update)
+    handleStepChange,
+    // Product cross detail data and handlers
+    productCrossResults,
+    selectedCrossTypes,
+    productCrossState,
+    handleCrossTypesChange,
+    handleSelectAlternative,
+    handleDeleteCrossAlternative,
+    handleRerunCross,
   } = state;
+
+  // Extract unique client names from existing takeoffs for autocomplete
+  const existingClients = useMemo(() => {
+    const clientNames = takeoffs
+      .map(t => t.metadata?.clientName)
+      .filter((name): name is string => Boolean(name && typeof name === 'string'));
+    return [...new Set(clientNames)].sort();
+  }, [takeoffs]);
 
   return (
     <main className="flex-1 overflow-y-auto bg-[var(--background)] p-3 sm:p-6">
@@ -259,11 +287,21 @@ export function TakeoffsContent() {
           documents={documents}
           parsedItems={parsedItems}
           selectedItems={selectedItems}
+          productCrossResults={productCrossResults}
+          selectedCrossTypes={selectedCrossTypes}
+          isProductCrossProcessing={productCrossState.isProcessing}
+          isParsingProcessing={parsingState.isProcessing}
+          parsingProgress={parsingState.progress}
+          isAbridgementProcessing={abridgementState.isProcessing}
+          abridgementProgress={abridgementState.progress}
+          documentAbridgementProgress={documentAbridgementProgress}
           onBack={handleBackToList}
-          onStepChange={setCurrentStep}
+          onStepChange={handleStepChange}
           onClassify={handleClassifyDocument}
+          onChangeDiscipline={handleChangeDiscipline}
           onAbridge={handleAbridgeDocument}
           onAbridgeAll={handleAbridgeAll}
+          onParseSchedules={handleParseSchedules}
           onViewReport={handleOpenAbridgmentReport}
           onCrossItem={handleCrossItem}
           onCrossSelected={handleCrossSelected}
@@ -271,6 +309,12 @@ export function TakeoffsContent() {
           onToggleSelect={handleToggleSelectItem}
           onSelectAll={handleSelectAllItems}
           onCreateQuote={handleCreateQuote}
+          onDownloadDocument={handleDownloadDocument}
+          onDownloadAllDocuments={handleDownloadAllDocuments}
+          onCrossTypesChange={handleCrossTypesChange}
+          onSelectAlternative={handleSelectAlternative}
+          onDeleteCrossAlternative={handleDeleteCrossAlternative}
+          onRerunCross={handleRerunCross}
         />
       )}
 
@@ -280,6 +324,7 @@ export function TakeoffsContent() {
         files={uploadedFiles}
         uploadProgress={uploadProgress}
         isUploading={isUploading}
+        existingClients={existingClients}
         onClose={handleCloseUploadModal}
         onFileSelect={handleFileSelect}
         onRemoveFile={handleRemoveFile}

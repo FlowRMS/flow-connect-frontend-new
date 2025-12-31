@@ -23,6 +23,30 @@ export const TAKEOFF_STATUS_OPTIONS = [
   'Complete',
 ] as const;
 
+// Priority options for filtering
+export const TAKEOFF_PRIORITY_OPTIONS = [
+  'Low',
+  'Medium',
+  'High',
+] as const;
+
+// Source options for filtering
+export const TAKEOFF_SOURCE_OPTIONS = [
+  'Upload',
+  'Email',
+  'API',
+] as const;
+
+// Discipline options for document filtering
+export const DOCUMENT_DISCIPLINE_OPTIONS = [
+  'Plumbing',
+  'Electrical',
+  'HVAC',
+  'Fire Protection',
+  'Lighting',
+  'General',
+] as const;
+
 // Filter options for take-offs list
 export const TAKEOFF_FILTER_OPTIONS: TakeoffFilterOption[] = [
   { id: 'title', label: 'Title', type: 'text', columnName: 'title' },
@@ -33,7 +57,20 @@ export const TAKEOFF_FILTER_OPTIONS: TakeoffFilterOption[] = [
     columnName: 'status',
     options: [...TAKEOFF_STATUS_OPTIONS],
   },
-  { id: 'source', label: 'Source', type: 'text', columnName: 'source' },
+  {
+    id: 'priority',
+    label: 'Priority',
+    type: 'dropdown',
+    columnName: 'priority',
+    options: [...TAKEOFF_PRIORITY_OPTIONS],
+  },
+  {
+    id: 'source',
+    label: 'Source',
+    type: 'dropdown',
+    columnName: 'source',
+    options: [...TAKEOFF_SOURCE_OPTIONS],
+  },
   { id: 'createdBy', label: 'Created By', type: 'text', columnName: 'createdBy' },
   { id: 'createdDate', label: 'Created Date', type: 'date', columnName: 'createdDate' },
 ];

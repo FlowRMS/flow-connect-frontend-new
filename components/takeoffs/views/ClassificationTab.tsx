@@ -1,16 +1,18 @@
 /**
  * Classification Tab Component
  * Displays document table with classification dropdown and actions
+ * Includes discipline filtering and duplicate detection
  */
 
-import React from 'react';
-import type { TakeoffDocument, DocumentClassification } from '../types';
-import { CLASSIFICATION_OPTIONS } from '../constants';
+import React, { useState, useMemo } from 'react';
+import type { TakeoffDocument, DocumentClassification, DocumentDiscipline } from '../types';
+import { CLASSIFICATION_OPTIONS, DOCUMENT_DISCIPLINE_OPTIONS } from '../constants';
 import { canAbridgeDocument } from '../utils';
 
 interface ClassificationTabProps {
   documents: TakeoffDocument[];
   onClassify: (docId: string, classification: DocumentClassification) => void;
+  onChangeDiscipline?: (docId: string, discipline: DocumentDiscipline) => void;
   onAbridge: (docId: string) => void;
   onAbridgeAll: () => void;
   onDownload?: (doc: TakeoffDocument) => void;
@@ -19,9 +21,54 @@ interface ClassificationTabProps {
   onProceedToParsing: () => void;
 }
 
+// Helper to detect potential duplicates by name similarity
+function findDuplicates(documents: TakeoffDocument[]): Set<string> {
+  const duplicateIds = new Set<string>();
+  const nameMap = new Map<string, string[]>();
+
+  // Group by normalized name (lowercase, no extension, no numbers)
+  documents.forEach(doc => {
+    const normalized = doc.name
+      .toLowerCase()
+      .replace(/\.[^/.]+$/, '') // Remove extension
+      .replace(/[0-9]+/g, '')   // Remove numbers
+      .replace(/[_-]+/g, ' ')   // Normalize separators
+      .trim();
+
+    const existing = nameMap.get(normalized) || [];
+    existing.push(doc.id);
+    nameMap.set(normalized, existing);
+  });
+
+  // Also check by file size + page count (same size and pages = likely duplicate)
+  const sizePageMap = new Map<string, string[]>();
+  documents.forEach(doc => {
+    const key = `${doc.size}-${doc.pages}`;
+    const existing = sizePageMap.get(key) || [];
+    existing.push(doc.id);
+    sizePageMap.set(key, existing);
+  });
+
+  // Mark duplicates
+  nameMap.forEach(ids => {
+    if (ids.length > 1) {
+      ids.forEach(id => duplicateIds.add(id));
+    }
+  });
+
+  sizePageMap.forEach(ids => {
+    if (ids.length > 1) {
+      ids.forEach(id => duplicateIds.add(id));
+    }
+  });
+
+  return duplicateIds;
+}
+
 export function ClassificationTab({
   documents,
   onClassify,
+  onChangeDiscipline,
   onAbridge,
   onAbridgeAll,
   onDownload,
@@ -29,6 +76,18 @@ export function ClassificationTab({
   onViewReport,
   onProceedToParsing,
 }: ClassificationTabProps) {
+  const [disciplineFilter, setDisciplineFilter] = useState<DocumentDiscipline | ''>('');
+
+  // Detect duplicates
+  const duplicateIds = useMemo(() => findDuplicates(documents), [documents]);
+  const duplicateCount = duplicateIds.size;
+
+  // Filter documents by discipline
+  const filteredDocuments = useMemo(() => {
+    if (!disciplineFilter) return documents;
+    return documents.filter(doc => doc.discipline === disciplineFilter);
+  }, [documents, disciplineFilter]);
+
   const formatDate = (dateString: string) => {
     if (!dateString) return '-';
     try {
@@ -64,10 +123,36 @@ export function ClassificationTab({
     <div>
       {/* Action Buttons */}
       <div className="flex items-center justify-between mb-4">
-        <div className="text-sm text-[var(--muted-foreground)]">
-          Showing {documents.length} document{documents.length !== 1 ? 's' : ''}
+        <div className="flex items-center gap-4">
+          <div className="text-sm text-[var(--muted-foreground)]">
+            Showing {filteredDocuments.length} of {documents.length} document{documents.length !== 1 ? 's' : ''}
+          </div>
+
+          {/* Duplicate Warning */}
+          {duplicateCount > 0 && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-yellow-600">
+                <path d="M10 6v4M10 14h.01M3.172 15.172L10 2l6.828 13.172H3.172z" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <span className="text-xs font-medium text-yellow-700">
+                {duplicateCount} potential duplicate{duplicateCount !== 1 ? 's' : ''} detected
+              </span>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
+          {/* Discipline Filter */}
+          <select
+            value={disciplineFilter}
+            onChange={(e) => setDisciplineFilter(e.target.value as DocumentDiscipline | '')}
+            className="px-3 py-1.5 border border-[var(--border)] rounded-lg text-sm text-[var(--foreground)] bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+          >
+            <option value="">All Disciplines</option>
+            {DOCUMENT_DISCIPLINE_OPTIONS.map(discipline => (
+              <option key={discipline} value={discipline}>{discipline}</option>
+            ))}
+          </select>
+
           <button
             onClick={() => onDownloadAll?.()}
             className="inline-flex items-center gap-2 px-3 py-1.5 border border-[var(--border)] text-[var(--foreground)] rounded-lg text-sm hover:bg-gray-50 transition-colors"
@@ -92,6 +177,9 @@ export function ClassificationTab({
                 Type
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
+                Discipline
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
                 Pages
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
@@ -106,8 +194,10 @@ export function ClassificationTab({
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--border)] bg-white">
-            {documents.map((doc) => (
-              <tr key={doc.id} className="hover:bg-gray-50 transition-colors">
+            {filteredDocuments.map((doc) => {
+              const isDuplicate = duplicateIds.has(doc.id);
+              return (
+              <tr key={doc.id} className={`hover:bg-gray-50 transition-colors ${isDuplicate ? 'bg-yellow-50/50' : ''}`}>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
                     {/* PDF Icon */}
@@ -118,7 +208,14 @@ export function ClassificationTab({
                       </svg>
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-[var(--foreground)] truncate">{doc.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-[var(--foreground)] truncate">{doc.name}</p>
+                        {isDuplicate && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-100 text-yellow-700">
+                            Duplicate?
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-[var(--muted-foreground)]">{doc.size} • {formatDate(doc.uploadDate)}</p>
                     </div>
                   </div>
@@ -127,6 +224,18 @@ export function ClassificationTab({
                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
                     {doc.type}
                   </span>
+                </td>
+                <td className="px-4 py-3">
+                  <select
+                    value={doc.discipline || ''}
+                    onChange={(e) => onChangeDiscipline?.(doc.id, e.target.value as DocumentDiscipline)}
+                    className="w-full px-2 py-1 border border-[var(--border)] rounded text-xs text-[var(--foreground)] bg-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  >
+                    <option value="">Select...</option>
+                    {DOCUMENT_DISCIPLINE_OPTIONS.map(discipline => (
+                      <option key={discipline} value={discipline}>{discipline}</option>
+                    ))}
+                  </select>
                 </td>
                 <td className="px-4 py-3 text-sm text-[var(--foreground)]">
                   {doc.abridged ? (
@@ -217,7 +326,8 @@ export function ClassificationTab({
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

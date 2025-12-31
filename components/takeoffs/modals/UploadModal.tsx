@@ -4,7 +4,7 @@
  * With real file upload progress indicators from hook
  */
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { ACCEPTED_FILE_TYPES } from '../constants';
 import type { FileUploadProgress } from '../hooks/useTakeoffsState';
 
@@ -13,6 +13,7 @@ interface UploadModalProps {
   files: File[];
   uploadProgress: Record<number, FileUploadProgress>;
   isUploading: boolean;
+  existingClients?: string[]; // List of existing client names for autocomplete
   onClose: () => void;
   onFileSelect: (files: FileList | null) => void;
   onRemoveFile: (index: number) => void;
@@ -33,6 +34,7 @@ export function UploadModal({
   files,
   uploadProgress,
   isUploading,
+  existingClients = [],
   onClose,
   onFileSelect,
   onRemoveFile,
@@ -47,7 +49,24 @@ export function UploadModal({
     state: '',
   });
   const [isDragging, setIsDragging] = useState(false);
+  const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const clientInputRef = useRef<HTMLInputElement>(null);
+
+  // Filter existing clients based on input
+  const filteredClients = useMemo(() => {
+    if (!formData.clientName.trim()) return existingClients;
+    const search = formData.clientName.toLowerCase();
+    return existingClients.filter(client =>
+      client.toLowerCase().includes(search)
+    );
+  }, [existingClients, formData.clientName]);
+
+  // Handle client selection from dropdown
+  const handleSelectClient = useCallback((client: string) => {
+    setFormData(prev => ({ ...prev, clientName: client }));
+    setIsClientDropdownOpen(false);
+  }, []);
 
   // Calculate overall progress
   const overallProgress = files.length > 0
@@ -146,18 +165,65 @@ export function UploadModal({
                 className="w-full px-3 py-2.5 border border-[var(--border)] rounded-lg text-sm bg-[var(--card)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] disabled:opacity-50"
               />
             </div>
-            <div>
+            <div className="relative">
               <label className="block text-sm font-medium text-[var(--foreground)] mb-1.5">
                 Client Name
               </label>
-              <input
-                type="text"
-                value={formData.clientName}
-                onChange={handleInputChange('clientName')}
-                placeholder="Select or enter client name"
-                disabled={isUploading}
-                className="w-full px-3 py-2.5 border border-[var(--border)] rounded-lg text-sm bg-[var(--card)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] disabled:opacity-50"
-              />
+              <div className="relative">
+                <input
+                  ref={clientInputRef}
+                  type="text"
+                  value={formData.clientName}
+                  onChange={(e) => {
+                    handleInputChange('clientName')(e);
+                    setIsClientDropdownOpen(true);
+                  }}
+                  onFocus={() => setIsClientDropdownOpen(true)}
+                  onBlur={() => {
+                    // Delay closing to allow click on dropdown item
+                    setTimeout(() => setIsClientDropdownOpen(false), 200);
+                  }}
+                  placeholder="Select or enter client name"
+                  disabled={isUploading}
+                  className="w-full px-3 py-2.5 pr-10 border border-[var(--border)] rounded-lg text-sm bg-[var(--card)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] disabled:opacity-50"
+                />
+                {/* Dropdown arrow */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsClientDropdownOpen(!isClientDropdownOpen);
+                    clientInputRef.current?.focus();
+                  }}
+                  disabled={isUploading}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-[var(--muted-foreground)] hover:text-[var(--foreground)] disabled:opacity-50"
+                >
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d={isClientDropdownOpen ? "M15 12l-5-5-5 5" : "M5 8l5 5 5-5"} strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+              </div>
+
+              {/* Dropdown menu */}
+              {isClientDropdownOpen && existingClients.length > 0 && (
+                <div className="absolute z-20 w-full mt-1 bg-white border border-[var(--border)] rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  {filteredClients.length > 0 ? (
+                    filteredClients.map((client, index) => (
+                      <button
+                        key={index}
+                        type="button"
+                        onClick={() => handleSelectClient(client)}
+                        className="w-full px-3 py-2 text-left text-sm text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors first:rounded-t-lg last:rounded-b-lg"
+                      >
+                        {client}
+                      </button>
+                    ))
+                  ) : (
+                    <div className="px-3 py-2 text-sm text-[var(--muted-foreground)]">
+                      No matches found. Press Enter to use &quot;{formData.clientName}&quot;
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

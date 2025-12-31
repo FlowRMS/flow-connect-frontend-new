@@ -104,6 +104,7 @@ export interface UpdateTakeoffInput {
 export interface UpdateTakeoffDocumentInput {
   name?: string | null;
   classification?: string | null;
+  discipline?: string | null; // Added for discipline persistence
   confidence?: number | null;
   pages?: number | null;
   abridged?: boolean | null;
@@ -514,6 +515,35 @@ export async function productCrossFromParsedDocument(
 }
 
 /**
+ * Parse schedule document to extract product items
+ * Uses productCrossFromParsedDocument API and extracts only the parsed items
+ */
+export async function parseScheduleDocument(
+  documentUrl: string,
+  filename: string
+): Promise<ParsedItem[]> {
+  // Use the product cross API to parse the document
+  // We pass minimal cross types since we only want the parsed items
+  const results = await productCrossFromParsedDocument(documentUrl, filename, ['SIMPLE']);
+
+  // Extract parsed items from the results
+  const parsedItems: ParsedItem[] = results.map((result, index) => {
+    const original = result.original as Record<string, unknown>;
+    return {
+      id: `parsed-${index}-${Date.now()}`,
+      manufacturer: (original.manufacturer as string) || (original.Manufacturer as string) || 'Unknown',
+      partNumber: (original.partNumber as string) || (original.PartNumber as string) || (original.model as string) || '',
+      description: (original.description as string) || (original.Description as string) || '',
+      quantity: (original.quantity as number) || (original.Quantity as number) || 1,
+      isOurManufacturer: false,
+      isCrossed: false,
+    };
+  });
+
+  return parsedItems;
+}
+
+/**
  * Parameters for fetching takeoffs with filters
  */
 export interface FetchTakeoffsParams {
@@ -754,10 +784,10 @@ export async function uploadFilesToStorage(
         fileSha: '',
         fileSize: uploadResult.fileSize,
         fileType: uploadResult.contentType || file.type || 'application/pdf',
-        folderId: null,
+        folderId: undefined,
         archived: false,
         createdAt: new Date().toISOString(),
-        createdBy: null,
+        createdBy: undefined,
       };
 
       results.push({
@@ -777,28 +807,68 @@ export async function uploadFilesToStorage(
 }
 
 /**
+ * Get page count from a PDF file using pdf.js
+ * Returns 0 if unable to determine page count
+ */
+async function getPdfPageCount(file: File): Promise<number> {
+  try {
+    // Only process PDF files
+    if (!file.type.includes('pdf') && !file.name.toLowerCase().endsWith('.pdf')) {
+      return 0;
+    }
+
+    // Dynamically import pdf.js to avoid SSR issues
+    const pdfjsLib = await import('pdfjs-dist');
+
+    // Set worker source - using CDN for broader compatibility
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+
+    // Read file as ArrayBuffer
+    const arrayBuffer = await file.arrayBuffer();
+
+    // Load the PDF document
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    const pdf = await loadingTask.promise;
+
+    return pdf.numPages;
+  } catch (error) {
+    console.error('Failed to get PDF page count:', error);
+    return 0;
+  }
+}
+
+/**
  * Create a takeoff with files - handles complete flow:
- * 1. Upload files directly to S3 and get presigned URLs
- * 2. Create takeoff in flow-ai with document URLs
+ * 1. Get page counts from PDF files
+ * 2. Upload files directly to S3 and get presigned URLs
+ * 3. Create takeoff in flow-ai with document URLs and page counts
  */
 export async function createTakeoffWithFiles(
   input: CreateTakeoffWithFilesInput,
   onProgress?: UploadProgressCallback
 ): Promise<TakeoffResponse> {
-  // Step 1 & 2: Upload files and get presigned URLs
+  // Step 1: Get page counts from PDFs (in parallel for performance)
+  const pageCountPromises = input.files.map(async (file) => {
+    const pages = await getPdfPageCount(file);
+    return { name: file.name, pages };
+  });
+  const pageCounts = await Promise.all(pageCountPromises);
+  const pageCountMap = new Map(pageCounts.map(({ name, pages }) => [name, pages]));
+
+  // Step 2: Upload files and get presigned URLs
   const uploadedFiles = await uploadFilesToStorage(
     input.files,
     `takeoffs/${input.title.replace(/[^a-zA-Z0-9]/g, '_')}`,
     onProgress
   );
 
-  // Step 3: Create takeoff with document URLs
+  // Step 3: Create takeoff with document URLs and page counts
   const documents: TakeoffDocumentInput[] = uploadedFiles.map(({ file, crmFile, presignedUrl }) => ({
     name: file.name,
     fileType: file.type || 'application/pdf',
     fileSize: crmFile.fileSize ? `${(crmFile.fileSize / 1024).toFixed(1)} KB` : `${(file.size / 1024).toFixed(1)} KB`,
     documentUrl: presignedUrl,
-    pages: 0,
+    pages: pageCountMap.get(file.name) || 0,
     abridged: false,
   }));
 
