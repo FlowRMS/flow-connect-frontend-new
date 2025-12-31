@@ -347,8 +347,21 @@ export function useTakeoffsState() {
 
   // Abridge all documents using AI - with per-document progress tracking and logs
   const handleAbridgeAll = useCallback(async () => {
-    const docsToAbridge = documents.filter(d => !d.abridged && d.documentUrl && d.classification === 'Fixture Schedules');
-    if (docsToAbridge.length === 0) return;
+    console.log('[Abridgement] Starting handleAbridgeAll...');
+    console.log('[Abridgement] Total documents:', documents.length);
+    console.log('[Abridgement] Documents by classification:', documents.map(d => ({ name: d.name, classification: d.classification, abridged: d.abridged, hasUrl: !!d.documentUrl })));
+
+    const docsToAbridge = documents.filter(d =>
+      !d.abridged &&
+      d.documentUrl &&
+      (d.classification === 'Fixture Schedules' || d.classification === 'Specifications')
+    );
+    console.log('[Abridgement] Documents to abridge:', docsToAbridge.length);
+
+    if (docsToAbridge.length === 0) {
+      console.log('[Abridgement] No documents to abridge');
+      return;
+    }
 
     setAbridgementState({ isProcessing: true, progress: 0 });
 

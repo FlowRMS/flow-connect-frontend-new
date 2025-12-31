@@ -53,14 +53,14 @@ interface TakeoffDetailViewProps {
   onAutoClassifyComplete?: () => void;
 }
 
-// 6-step workflow configuration
-const WORKFLOW_STEPS: { id: TakeoffStep; label: string; shortLabel: string }[] = [
-  { id: 'review', label: 'Review Documents', shortLabel: 'Review' },
-  { id: 'classification', label: 'Classification', shortLabel: 'Classification' },
-  { id: 'abridgment', label: 'Create Abridged', shortLabel: 'Abridged' },
-  { id: 'parsing', label: 'Schedule Parsing', shortLabel: 'Parsing' },
-  { id: 'productCross', label: 'Product Cross', shortLabel: 'Cross' },
-  { id: 'approvals', label: 'Approvals', shortLabel: 'Approvals' },
+// 6-step workflow configuration with colors
+const WORKFLOW_STEPS: { id: TakeoffStep; label: string; shortLabel: string; colors: { bg: string; ring: string; text: string; bgLight: string } }[] = [
+  { id: 'review', label: 'Review Documents', shortLabel: 'Review', colors: { bg: 'bg-teal-500', ring: 'ring-teal-100', text: 'text-teal-600', bgLight: 'bg-teal-100' } },
+  { id: 'classification', label: 'Classification', shortLabel: 'Classification', colors: { bg: 'bg-purple-600', ring: 'ring-purple-100', text: 'text-purple-600', bgLight: 'bg-purple-100' } },
+  { id: 'abridgment', label: 'Create Abridged', shortLabel: 'Abridged', colors: { bg: 'bg-amber-500', ring: 'ring-amber-100', text: 'text-amber-600', bgLight: 'bg-amber-100' } },
+  { id: 'parsing', label: 'Schedule Parsing', shortLabel: 'Parsing', colors: { bg: 'bg-blue-500', ring: 'ring-blue-100', text: 'text-blue-600', bgLight: 'bg-blue-100' } },
+  { id: 'productCross', label: 'Product Cross', shortLabel: 'Cross', colors: { bg: 'bg-orange-500', ring: 'ring-orange-100', text: 'text-orange-600', bgLight: 'bg-orange-100' } },
+  { id: 'approvals', label: 'Approvals', shortLabel: 'Approvals', colors: { bg: 'bg-green-500', ring: 'ring-green-100', text: 'text-green-600', bgLight: 'bg-green-100' } },
 ];
 
 
@@ -350,10 +350,10 @@ export function TakeoffDetailView({
                   <div
                     className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
                       isActive
-                        ? 'bg-purple-600 text-white ring-4 ring-purple-100'
+                        ? `${step.colors.bg} text-white ring-4 ${step.colors.ring}`
                         : isPast
                         ? 'bg-green-500 text-white'
-                        : 'bg-gray-200 text-gray-500 group-hover:bg-gray-300'
+                        : 'bg-white border-2 border-gray-300 text-gray-500 group-hover:border-gray-400'
                     }`}
                   >
                     {getStepIcon()}
@@ -362,7 +362,7 @@ export function TakeoffDetailView({
                     <span
                       className={`text-xs font-medium whitespace-nowrap block ${
                         isActive
-                          ? 'text-purple-600'
+                          ? step.colors.text
                           : isPast
                           ? 'text-green-600'
                           : 'text-gray-500'
@@ -414,20 +414,27 @@ export function TakeoffDetailView({
             Previous Step
           </button>
 
-          <button
-            onClick={goToNextStep}
-            disabled={!canGoForward}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              canGoForward
-                ? 'bg-purple-600 text-white hover:bg-purple-700'
-                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-            }`}
-          >
-            Next Step
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M5 10h10M11 6l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
+          {(() => {
+            const nextStep = canGoForward ? WORKFLOW_STEPS[currentStepIndex + 1] : null;
+            const buttonBg = nextStep ? nextStep.colors.bg : 'bg-gray-200';
+            const hoverBg = nextStep ? nextStep.colors.bg.replace('500', '600').replace('600', '700') : '';
+            return (
+              <button
+                onClick={goToNextStep}
+                disabled={!canGoForward}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  canGoForward
+                    ? `${buttonBg} text-white hover:opacity-90`
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                Next Step
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M5 10h10M11 6l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            );
+          })()}
         </div>
       </div>
 
@@ -440,7 +447,11 @@ export function TakeoffDetailView({
             <div className="p-6 border-b border-[var(--border)]">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-semibold text-[var(--foreground)]">
+                  <h2 className="text-lg font-semibold text-[var(--foreground)] flex items-center gap-2">
+                    {/* Folder icon - Purple */}
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-600">
+                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                    </svg>
                     Classification & Duplicate Detection
                   </h2>
                   <p className="text-sm text-[var(--muted-foreground)] mt-1">
@@ -453,24 +464,22 @@ export function TakeoffDetailView({
                     className="inline-flex items-center gap-2 px-4 py-2 bg-purple-400 text-white rounded-lg text-sm font-medium cursor-not-allowed"
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin">
-                      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                      <circle cx="12" cy="12" r="10"/>
+                      <path d="M12 6v6l4 2"/>
                     </svg>
-                    Classifying...
+                    Processing...
                   </button>
                 ) : (
                   <button
                     onClick={() => runAutoClassification(false)}
                     disabled={documents.length === 0}
-                    className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    className={`inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                       documents.length === 0
                         ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                         : 'bg-purple-600 text-white hover:bg-purple-700'
                     }`}
                   >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-                    </svg>
-                    Run AI Classification
+                    Proceed to Parsing
                   </button>
                 )}
               </div>
@@ -515,12 +524,10 @@ export function TakeoffDetailView({
         {currentStep === 'review' && (
           <div className="p-6">
             <div className="text-center py-8">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                  <polyline points="14 2 14 8 20 8"/>
-                  <line x1="16" y1="13" x2="8" y2="13"/>
-                  <line x1="16" y1="17" x2="8" y2="17"/>
+              <div className="w-16 h-16 bg-teal-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-teal-600">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                  <polyline points="22 4 12 14.01 9 11.01"/>
                 </svg>
               </div>
               <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">Review Documents</h3>
@@ -549,16 +556,6 @@ export function TakeoffDetailView({
                   <p className="text-xs text-[var(--muted-foreground)]">Status</p>
                 </div>
               </div>
-
-              <button
-                onClick={goToNextStep}
-                className="inline-flex items-center gap-2 px-6 py-2.5 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors"
-              >
-                Proceed to Classification
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M5 10h10M11 6l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </button>
             </div>
           </div>
         )}
@@ -570,7 +567,7 @@ export function TakeoffDetailView({
             <div className="mb-6">
               <h2 className="text-lg font-semibold text-[var(--foreground)] flex items-center gap-2">
                 {/* Scissors icon */}
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-600">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-amber-500">
                   <circle cx="6" cy="6" r="3"/>
                   <circle cx="6" cy="18" r="3"/>
                   <line x1="20" y1="4" x2="8.12" y2="15.88"/>
@@ -588,127 +585,207 @@ export function TakeoffDetailView({
             {(() => {
               const fixtureCount = documents.filter(d => d.classification === 'Fixture Schedules' && !d.abridged).length;
               const specCount = documents.filter(d => d.classification === 'Specifications' && !d.abridged).length;
+              const blueprintCount = documents.filter(d => d.classification === 'Blueprints').length;
+              const otherCount = documents.filter(d =>
+                d.classification !== 'Fixture Schedules' &&
+                d.classification !== 'Specifications' &&
+                d.classification !== 'Blueprints'
+              ).length;
               const totalReady = fixtureCount + specCount;
-              const parts = [];
-              if (fixtureCount > 0) parts.push(`${fixtureCount} Fixture${fixtureCount !== 1 ? 's' : ''}`);
-              if (specCount > 0) parts.push(`${specCount} Spec${specCount !== 1 ? 's' : ''}`);
+              const summaryText = `${fixtureCount} Fixtures + ${specCount} Specs + ${blueprintCount} blueprints + ${otherCount} other documents`;
 
-              return totalReady > 0 ? (
+              if (totalReady > 0) {
+                return (
+                  <div className="mb-6">
+                    <div className="flex items-center gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600 flex-shrink-0">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                      </svg>
+                      <div>
+                        <p className="text-sm font-medium text-blue-900">
+                          {totalReady} document{totalReady !== 1 ? 's' : ''} ready for abridgment
+                        </p>
+                        <p className="text-xs text-blue-700">{summaryText}</p>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-between mt-4">
+                      <button
+                        onClick={goToPreviousStep}
+                        className="inline-flex items-center gap-2 px-4 py-2 border border-[var(--border)] text-[var(--foreground)] rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M15 10H5M9 14l-4-4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                        Back
+                      </button>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={goToNextStep}
+                          disabled={isAbridgementProcessing}
+                          className="inline-flex items-center gap-2 px-4 py-2 border border-[var(--border)] text-[var(--foreground)] rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
+                        >
+                          Skip This Step
+                          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M5 10h10M11 6l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </button>
+                        <button
+                          onClick={onAbridgeAll}
+                          disabled={isAbridgementProcessing}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors disabled:opacity-50"
+                        >
+                          {isAbridgementProcessing ? (
+                            <>
+                              <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/>
+                              </svg>
+                              Processing...
+                            </>
+                          ) : (
+                            <>
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <polygon points="5 3 19 12 5 21 5 3"/>
+                              </svg>
+                              Start Processing
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
+              // No documents ready - show info message with count (reuse summaryText)
+              return (
                 <div className="mb-6">
-                  <div className="flex items-center gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600 flex-shrink-0">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                      <polyline points="14 2 14 8 20 8"/>
-                    </svg>
-                    <div>
-                      <p className="text-sm font-medium text-blue-900">
-                        {totalReady} document{totalReady !== 1 ? 's' : ''} ready for abridgment
-                      </p>
-                      <p className="text-xs text-blue-700">{parts.join(' + ')}</p>
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600 flex-shrink-0">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                      </svg>
+                      <div>
+                        <p className="text-sm font-medium text-blue-900">
+                          No documents ready for abridgment
+                        </p>
+                        <p className="text-xs text-blue-700">{summaryText}</p>
+                      </div>
                     </div>
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex items-center gap-3 mt-4">
+                  <div className="flex items-center justify-between mt-4">
                     <button
-                      onClick={onAbridgeAll}
-                      disabled={isAbridgementProcessing}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors disabled:opacity-50"
+                      onClick={goToPreviousStep}
+                      className="inline-flex items-center gap-2 px-4 py-2 border border-[var(--border)] text-[var(--foreground)] rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
                     >
-                      {isAbridgementProcessing ? (
-                        <>
-                          <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/>
-                          </svg>
-                          Processing... {abridgementProgress}%
-                        </>
-                      ) : (
-                        <>
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <circle cx="6" cy="6" r="3"/>
-                            <circle cx="6" cy="18" r="3"/>
-                            <line x1="20" y1="4" x2="8.12" y2="15.88"/>
-                            <line x1="14.47" y1="14.48" x2="20" y2="20"/>
-                            <line x1="8.12" y1="8.12" x2="12" y2="12"/>
-                          </svg>
-                          Start Abridgment
-                        </>
-                      )}
-                    </button>
-                    <button
-                      onClick={goToNextStep}
-                      disabled={isAbridgementProcessing}
-                      className="inline-flex items-center gap-2 px-4 py-2 border border-[var(--border)] text-[var(--foreground)] rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
-                    >
-                      Skip
                       <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M5 10h10M11 6l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M15 10H5M9 14l-4-4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
+                      Back
                     </button>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={goToNextStep}
+                        className="inline-flex items-center gap-2 px-4 py-2 border border-[var(--border)] text-[var(--foreground)] rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+                      >
+                        Skip This Step
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M5 10h10M11 6l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </button>
+                      <button
+                        onClick={onAbridgeAll}
+                        disabled={isAbridgementProcessing}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors disabled:opacity-50"
+                      >
+                        {isAbridgementProcessing ? (
+                          <>
+                            <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/>
+                            </svg>
+                            Processing...
+                          </>
+                        ) : (
+                          <>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <polygon points="5 3 19 12 5 21 5 3"/>
+                            </svg>
+                            Start Processing
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <div className="flex items-center gap-3 mb-6">
-                  <button
-                    onClick={goToNextStep}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors"
-                  >
-                    Continue to Schedule Parsing
-                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M5 10h10M11 6l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  </button>
                 </div>
               );
             })()}
 
-            {/* Progress Bar */}
-            {isAbridgementProcessing && (
-              <div className="mb-6">
-                <div className="flex items-center justify-between text-sm mb-2">
-                  <span className="text-[var(--muted-foreground)]">
-                    Processing documents...
-                  </span>
-                  <span className="font-medium text-purple-600">{abridgementProgress}%</span>
-                </div>
-                <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-purple-600 rounded-full transition-all duration-300"
-                    style={{ width: `${abridgementProgress}%` }}
-                  />
-                </div>
-              </div>
-            )}
+            {/* Progress Bar - Show when processing or has any document progress */}
+            {(() => {
+              const abridgableDocs = documents.filter(d =>
+                d.classification === 'Fixture Schedules' || d.classification === 'Specifications'
+              );
+              const totalDocs = abridgableDocs.length;
+              const completedDocs = abridgableDocs.filter(d =>
+                d.abridged || documentAbridgementProgress[d.id]?.status === 'complete'
+              ).length;
+              const successfulDocs = abridgableDocs.filter(d =>
+                d.abridged || documentAbridgementProgress[d.id]?.status === 'complete'
+              ).length;
+              const remainingDocs = totalDocs - completedDocs;
+              const hasAnyProgress = Object.keys(documentAbridgementProgress).length > 0;
 
-            {/* Summary Stats */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-              <div className="bg-gray-50 rounded-lg p-4 text-center">
-                <p className="text-2xl font-bold text-[var(--foreground)]">{documents.length}</p>
-                <p className="text-xs text-[var(--muted-foreground)]">Total Documents</p>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-4 text-center">
-                <p className="text-2xl font-bold text-purple-600">
-                  {documents.filter(d => d.classification === 'Fixture Schedules').length}
-                </p>
-                <p className="text-xs text-[var(--muted-foreground)]">Fixture Schedules</p>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-4 text-center">
-                <p className="text-2xl font-bold text-green-600">
-                  {documents.filter(d => d.abridged).length}
-                </p>
-                <p className="text-xs text-[var(--muted-foreground)]">Abridged</p>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-4 text-center">
-                <p className="text-2xl font-bold text-[var(--foreground)]">
-                  {documents.reduce((sum, d) => sum + d.pages, 0)}
-                </p>
-                <p className="text-xs text-[var(--muted-foreground)]">Total Pages</p>
-              </div>
-            </div>
+              if (!isAbridgementProcessing && !hasAnyProgress) return null;
 
-            {/* Document Cards with Processing Logs */}
+              return (
+                <div className="mb-6 p-4 bg-white border border-[var(--border)] rounded-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      {isAbridgementProcessing && (
+                        <div className="w-5 h-5 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+                      )}
+                      <span className="text-sm font-medium text-[var(--foreground)]">
+                        {isAbridgementProcessing ? 'Processing Documents...' : 'Processing Complete'}
+                      </span>
+                    </div>
+                    <span className="text-sm text-[var(--muted-foreground)]">
+                      {completedDocs} / {totalDocs} completed
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden mb-3">
+                    <div
+                      className="h-full bg-indigo-500 rounded-full transition-all duration-300"
+                      style={{ width: `${totalDocs > 0 ? (completedDocs / totalDocs) * 100 : 0}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center gap-4 text-xs">
+                    <span className="flex items-center gap-1 text-green-600">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                      {successfulDocs} successful
+                    </span>
+                    <span className="flex items-center gap-1 text-[var(--muted-foreground)]">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12 6 12 12 16 14"/>
+                      </svg>
+                      {remainingDocs} remaining
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Document Cards with Processing Logs - Only show when processing or has progress */}
+            {(isAbridgementProcessing || Object.keys(documentAbridgementProgress).length > 0) && (
             <div className="space-y-4">
-              {documents.filter(d => d.classification === 'Fixture Schedules').map((doc) => {
+              {documents.filter(d => d.classification === 'Fixture Schedules' || d.classification === 'Specifications').map((doc) => {
                 const docProgress = documentAbridgementProgress[doc.id];
                 const isProcessing = docProgress?.status === 'processing';
                 const isComplete = doc.abridged || docProgress?.status === 'complete';
@@ -756,7 +833,9 @@ export function TakeoffDetailView({
                           <p className="font-medium text-[var(--foreground)]">{doc.name}</p>
                           <div className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
                             <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                              doc.classification === 'Fixture Schedules' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'
+                              doc.classification === 'Fixture Schedules' ? 'bg-purple-100 text-purple-700' :
+                              doc.classification === 'Specifications' ? 'bg-blue-100 text-blue-700' :
+                              'bg-gray-100 text-gray-700'
                             }`}>
                               {doc.classification}
                             </span>
@@ -795,42 +874,22 @@ export function TakeoffDetailView({
 
                     {/* Processing Logs */}
                     {(isProcessing || logs.length > 0) && (
-                      <div className="px-4 py-3 bg-gray-900 font-mono text-xs max-h-40 overflow-y-auto">
+                      <div className="px-4 py-3 bg-gray-50 border-l-4 border-indigo-400 font-mono text-xs max-h-40 overflow-y-auto">
                         {logs.map((log, index) => (
-                          <div key={index} className="text-gray-300 py-0.5">
+                          <div key={index} className="text-gray-700 py-0.5">
                             {log}
                           </div>
                         ))}
                         {isProcessing && logs.length === 0 && (
-                          <div className="text-gray-400 animate-pulse">Initializing...</div>
+                          <div className="text-gray-500 animate-pulse">Initializing...</div>
                         )}
                       </div>
                     )}
                   </div>
                 );
               })}
-
-              {/* Other Documents (non-Fixture Schedules) - Show as simple list */}
-              {documents.filter(d => d.classification !== 'Fixture Schedules').length > 0 && (
-                <div className="mt-6">
-                  <h4 className="text-sm font-medium text-[var(--muted-foreground)] mb-3">Other Documents (not processed)</h4>
-                  <div className="space-y-2">
-                    {documents.filter(d => d.classification !== 'Fixture Schedules').map((doc) => (
-                      <div key={doc.id} className="flex items-center justify-between px-4 py-2 bg-gray-50 rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-400">
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                            <polyline points="14 2 14 8 20 8"/>
-                          </svg>
-                          <span className="text-sm text-[var(--foreground)]">{doc.name}</span>
-                        </div>
-                        <span className="text-xs text-[var(--muted-foreground)]">{doc.classification || 'Unclassified'}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
+            )}
           </div>
         )}
 
@@ -947,10 +1006,12 @@ export function TakeoffDetailView({
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-lg font-semibold text-[var(--foreground)] flex items-center gap-2">
-                  {/* Gear icon - Orange */}
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-orange-600">
-                    <circle cx="12" cy="12" r="3"/>
-                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                  {/* 4 squares icon - Orange */}
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-orange-500">
+                    <rect x="3" y="3" width="7" height="7" rx="1"/>
+                    <rect x="14" y="3" width="7" height="7" rx="1"/>
+                    <rect x="14" y="14" width="7" height="7" rx="1"/>
+                    <rect x="3" y="14" width="7" height="7" rx="1"/>
                   </svg>
                   Product Cross Results
                 </h2>
