@@ -186,6 +186,22 @@ export interface InvoiceSearchResult {
   createdById: string;
 }
 
+export interface OpenInvoiceSearchResult {
+  id: string;
+  invoiceNumber: string;
+  entityDate?: string;
+  dueDate?: string;
+  status?: string;
+  orderId?: string;
+  balanceId?: string;
+  locked?: boolean;
+  published?: boolean;
+  creationType?: string;
+  createdAt?: string;
+  createdById?: string;
+  url?: string;
+}
+
 export interface CheckSearchResult {
   id: string;
   checkNumber: string;
@@ -464,6 +480,26 @@ const INVOICE_SEARCH = `
       creationType
       createdAt
       createdById
+    }
+  }
+`;
+
+const SEARCH_OPEN_INVOICES = `
+  query SearchOpenInvoices($factoryId: UUID!, $startFrom: Date!) {
+    searchOpenInvoices(factoryId: $factoryId, startFrom: $startFrom) {
+      id
+      invoiceNumber
+      entityDate
+      dueDate
+      status
+      orderId
+      balanceId
+      locked
+      published
+      creationType
+      createdAt
+      createdById
+      url
     }
   }
 `;
@@ -839,4 +875,24 @@ export async function fetchProductUoms(): Promise<ProductUomResult[]> {
   }
 
   return response.data?.productUoms || [];
+}
+
+/**
+ * Search for open invoices by factory and start date
+ * Used for Lines to Reconcile in check/commission creation
+ */
+export async function searchOpenInvoices(
+  factoryId: string,
+  startFrom: string
+): Promise<OpenInvoiceSearchResult[]> {
+  const response = await crmGraphQLRequest<{ searchOpenInvoices: OpenInvoiceSearchResult[] }>({
+    query: SEARCH_OPEN_INVOICES,
+    variables: { factoryId, startFrom },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search open invoices');
+  }
+
+  return response.data?.searchOpenInvoices || [];
 }

@@ -554,6 +554,48 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     );
   };
 
+  // Handler for open invoices loaded from Lines to Reconcile search
+  const handleOpenInvoicesLoaded = useCallback((invoices: Array<{
+    id: string;
+    invoiceNumber: string;
+    entityDate?: string;
+    dueDate?: string;
+    status?: string;
+    orderId?: string;
+    balanceId?: string;
+    locked?: boolean;
+    published?: boolean;
+    creationType?: string;
+    createdAt?: string;
+    createdById?: string;
+    url?: string;
+  }>) => {
+    // Convert open invoices to line items format
+    const newLineItems: LineItem[] = invoices.map((invoice) => ({
+      id: `temp-${invoice.id}`,
+      type: 'invoice' as const,
+      number: invoice.invoiceNumber || '',
+      orderId: invoice.orderId || '',
+      orderNumber: '', // Will be populated if needed
+      customer: '-',
+      salesRep: '-',
+      commissionRateExpected: 0,
+      commissionRateActual: 0,
+      expectedCommission: 0,
+      paidCommission: 0,
+      balance: 0,
+      paid: false,
+      invoiceId: invoice.id,
+      entityDate: invoice.entityDate,
+      dueDate: invoice.dueDate,
+      status: invoice.status,
+      createdAt: invoice.createdAt,
+      url: invoice.url,
+    }));
+
+    setLineItems(newLineItems);
+  }, []);
+
   // Summary calculations
   const summary = useMemo(() => {
     return calculateLineItemsSummary(lineItems);
@@ -885,6 +927,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     addNewLine,
     deleteLineItem,
     togglePaid,
+    handleOpenInvoicesLoaded,
 
     // Line item modals
     showAddLineItemModal,

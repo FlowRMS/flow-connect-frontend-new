@@ -3,10 +3,10 @@
  * Collapsible section with check detail form fields and reconciliation section
  */
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import type { CommissionCheck } from '@/lib/types/rms';
 import type { CheckStatus, CheckWithUnpostedLines } from '../../types';
-import { searchFactories, type FactorySearchResult } from '@/components/lib/api/search';
+import { searchFactories, searchOpenInvoices, type FactorySearchResult, type OpenInvoiceSearchResult } from '@/components/lib/api/search';
 import { StyledDatePicker, parseDateString, formatDateToString } from '@/components/shared/StyledDatePicker';
 import { StyledMonthPicker, parseMonthString, formatMonthToString } from '@/components/shared/StyledMonthPicker';
 
@@ -59,6 +59,8 @@ interface CheckDetailsFieldsProps {
   setIncludeAllOrdersWithoutInvoices: (value: boolean) => void;
   filteredChecks: CheckWithUnpostedLines[];
   currentCheckId: string;
+  // Callback for open invoices search results
+  onOpenInvoicesLoaded?: (invoices: OpenInvoiceSearchResult[]) => void;
 }
 
 export function CheckDetailsFields({
@@ -102,6 +104,7 @@ export function CheckDetailsFields({
   setIncludeAllOrdersWithoutInvoices,
   filteredChecks,
   currentCheckId,
+  onOpenInvoicesLoaded,
 }: CheckDetailsFieldsProps) {
   // Factory search state
   const [factorySearch, setFactorySearch] = useState(factory || '');
@@ -110,6 +113,11 @@ export function CheckDetailsFields({
   const [isSearchingFactories, setIsSearchingFactories] = useState(false);
   const [selectedFactory, setSelectedFactory] = useState<FactorySearchResult | null>(null);
   const factoryDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Open invoices search state
+  const [isSearchingOpenInvoices, setIsSearchingOpenInvoices] = useState(false);
+  const [openInvoicesError, setOpenInvoicesError] = useState<string | null>(null);
+  const [openInvoicesCount, setOpenInvoicesCount] = useState<number | null>(null);
 
   // Update factorySearch when factory prop changes
   useEffect(() => {
@@ -157,7 +165,41 @@ export function CheckDetailsFields({
     setFactorySearch('');
     setFactory('');
     setFactoryId('');
+    // Clear open invoices count when factory is cleared
+    setOpenInvoicesCount(null);
   };
+
+  // Search for open invoices when both factory and date are selected
+  useEffect(() => {
+    const fetchOpenInvoices = async () => {
+      // Only search if we have both factoryId and date
+      if (!factoryId || !unpaidInvoicesAfterDate) {
+        setOpenInvoicesCount(null);
+        return;
+      }
+
+      setIsSearchingOpenInvoices(true);
+      setOpenInvoicesError(null);
+
+      try {
+        const results = await searchOpenInvoices(factoryId, unpaidInvoicesAfterDate);
+        setOpenInvoicesCount(results.length);
+
+        // Notify parent with the results
+        if (onOpenInvoicesLoaded) {
+          onOpenInvoicesLoaded(results);
+        }
+      } catch (error) {
+        console.error('Error searching open invoices:', error);
+        setOpenInvoicesError(error instanceof Error ? error.message : 'Failed to search invoices');
+        setOpenInvoicesCount(null);
+      } finally {
+        setIsSearchingOpenInvoices(false);
+      }
+    };
+
+    fetchOpenInvoices();
+  }, [factoryId, unpaidInvoicesAfterDate, onOpenInvoicesLoaded]);
 
   const checkAmt = isTotalStatedCommission ? summary.paidTotal : commissionAmount;
   const balance = checkAmt - summary.paidTotal + totalAdjustments;
@@ -406,14 +448,27 @@ export function CheckDetailsFields({
 
               {/* Lines to Reconcile Section - Only show when unposted */}
               {status === 'unposted' && (
-                <div className="mt-4 opacity-50">
+                <div className="mt-4">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-[var(--muted-foreground)]">
                       Lines to Reconcile
                     </span>
-                    <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded font-medium">
-                      Coming Soon
-                    </span>
+                    {isSearchingOpenInvoices && (
+                      <div className="flex items-center gap-1.5 text-xs text-blue-600">
+                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600" />
+                        <span>Searching invoices...</span>
+                      </div>
+                    )}
+                    {!isSearchingOpenInvoices && openInvoicesCount !== null && (
+                      <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+                        {openInvoicesCount} invoice{openInvoicesCount !== 1 ? 's' : ''} found
+                      </span>
+                    )}
+                    {openInvoicesError && (
+                      <span className="text-xs text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
+                        Error: {openInvoicesError}
+                      </span>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-4 mt-2">
                     {/* Unpaid Invoices After */}
@@ -428,18 +483,37 @@ export function CheckDetailsFields({
                           <div className="absolute top-full left-4 border-4 border-transparent border-t-gray-900"></div>
                         </div>
                       </div>
-                      <input
-                        type="date"
-                        value={unpaidInvoicesAfterDate}
-                        disabled
-                        className="w-full px-3 py-2 bg-gray-50 border border-[var(--border)] rounded-md text-sm cursor-not-allowed"
-                      />
-                      <label className="flex items-center gap-1.5 mt-1.5 cursor-not-allowed">
+                      <div className="relative">
+                        <input
+                          type="date"
+                          value={unpaidInvoicesAfterDate}
+                          onChange={(e) => setUnpaidInvoicesAfterDate(e.target.value)}
+                          disabled={!factoryId}
+                          className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm ${
+                            !factoryId
+                              ? 'bg-gray-50 cursor-not-allowed text-[var(--muted-foreground)]'
+                              : 'bg-white cursor-pointer'
+                          }`}
+                          title={!factoryId ? 'Select a factory first' : 'Select invoice date'}
+                        />
+                        {isSearchingOpenInvoices && (
+                          <div className="absolute right-8 top-1/2 -translate-y-1/2">
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600" />
+                          </div>
+                        )}
+                      </div>
+                      {!factoryId && (
+                        <p className="text-xs text-[var(--muted-foreground)] mt-1 italic">
+                          Select a factory first
+                        </p>
+                      )}
+                      <label className={`flex items-center gap-1.5 mt-1.5 ${!factoryId ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
                         <input
                           type="checkbox"
                           checked={includeAllUnpaid}
-                          disabled
-                          className="w-3.5 h-3.5 accent-[var(--primary)] cursor-not-allowed"
+                          onChange={(e) => setIncludeAllUnpaid(e.target.checked)}
+                          disabled={!factoryId}
+                          className={`w-3.5 h-3.5 accent-[var(--primary)] ${!factoryId ? 'cursor-not-allowed' : ''}`}
                         />
                         <span className="text-xs text-[var(--muted-foreground)]">
                           All

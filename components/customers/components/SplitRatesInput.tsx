@@ -13,6 +13,7 @@ import { searchUsers, type UserSearchResult, type SplitRateInput, type RepType }
 
 interface SplitRateEntry {
   tempId: string; // For tracking in UI before save
+  id?: string; // For existing entries from the API
   userId: string;
   user?: UserSearchResult;
   splitRate: string;

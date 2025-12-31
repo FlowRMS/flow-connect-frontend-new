@@ -191,6 +191,7 @@ export default function CheckDetailContent({
         }
         filteredChecks={state.filteredChecks}
         currentCheckId={checkId}
+        onOpenInvoicesLoaded={state.handleOpenInvoicesLoaded}
       />
 
       {/* Main Content Area with Tabs */}
