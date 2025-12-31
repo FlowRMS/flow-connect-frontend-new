@@ -43,6 +43,14 @@ export interface SplitRateInput {
   position: number;
 }
 
+// Input type for split rates in customer mutation (without repType)
+export interface CustomerSplitRateInput {
+  id?: string;
+  userId: string;
+  splitRate: string;
+  position: number;
+}
+
 export interface Customer {
   id: string;
   companyName: string;
@@ -71,7 +79,8 @@ export interface CreateCustomerInput {
   isParent: boolean;
   parentId?: string;
   published: boolean;
-  splitRates?: SplitRateInput[];
+  insideSplitRates?: CustomerSplitRateInput;
+  outsideSplitRates?: CustomerSplitRateInput;
 }
 
 export interface UpdateCustomerInput {
@@ -79,7 +88,8 @@ export interface UpdateCustomerInput {
   isParent?: boolean;
   parentId?: string;
   published?: boolean;
-  splitRates?: SplitRateInput[];
+  insideSplitRates?: CustomerSplitRateInput;
+  outsideSplitRates?: CustomerSplitRateInput;
 }
 
 // User Search Types
