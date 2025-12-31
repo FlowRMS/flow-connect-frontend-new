@@ -9,6 +9,7 @@ import type { Order, OrderLineItem, OrderSplitRate } from '@/lib/types/rms';
 export type TabType =
   | 'line-items'
   | 'credits'
+  | 'adjustments'
   | 'acknowledgements'
   | 'notes'
   | 'tasks'
@@ -81,18 +82,6 @@ export interface LineItemCredit {
   creditQty: number;
   originalQty: number;
   originalTotal: number;
-}
-
-// Credit line item for modal
-export interface CreditLineItem {
-  partNumber: string;
-  linkedLineItemId: string | null;
-  creditType: '' | 'return' | 'short_ship' | 'cancel' | 'damage';
-  quantity: number;
-  unitPrice: number;
-  creditAmount: number;
-  commissionPercent: number;
-  commissionAmount: number;
 }
 
 // Acknowledgement line item for modal

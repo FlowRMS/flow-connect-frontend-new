@@ -34,9 +34,10 @@ export function SearchableDropdownV2({
 }: SearchableDropdownV2Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -53,17 +54,54 @@ export function SearchableDropdownV2({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Recalculate position when dropdown content changes or window scrolls/resizes
+  useEffect(() => {
+    if (!isOpen || !containerRef.current) return;
+
+    const updatePosition = () => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const dropdownHeight = 250; // Approximate max height (search input + options list)
+      const spaceBelow = viewportHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      const width = Math.max(rect.width, 200);
+
+      // Position above if not enough space below
+      if (spaceBelow < dropdownHeight && spaceAbove > spaceBelow) {
+        // Position above
+        const availableHeight = Math.min(spaceAbove - 8, dropdownHeight);
+        setDropdownPosition({
+          top: rect.top - availableHeight - 4,
+          left: rect.left,
+          width,
+          maxHeight: availableHeight,
+        });
+      } else {
+        // Position below
+        const availableHeight = Math.min(spaceBelow - 8, dropdownHeight);
+        setDropdownPosition({
+          top: rect.bottom + 4,
+          left: rect.left,
+          width,
+          maxHeight: availableHeight,
+        });
+      }
+    };
+
+    updatePosition();
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [isOpen]);
+
   const handleOpen = () => {
     if (disabled) return;
 
-    if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      setDropdownPosition({
-        top: rect.bottom + 4,
-        left: rect.left,
-        width: Math.max(rect.width, 200),
-      });
-    }
     setIsOpen(true);
     setSearchQuery('');
     if (onSearch) {
@@ -122,14 +160,16 @@ export function SearchableDropdownV2({
         dropdownPosition &&
         createPortal(
           <div
-            className="searchable-dropdown-portal fixed bg-white border border-gray-200 rounded-lg shadow-lg z-[9999]"
+            ref={dropdownRef}
+            className="searchable-dropdown-portal fixed bg-white border border-gray-200 rounded-lg shadow-lg z-[9999] flex flex-col"
             style={{
               top: dropdownPosition.top,
               left: dropdownPosition.left,
               width: dropdownPosition.width,
+              maxHeight: dropdownPosition.maxHeight,
             }}
           >
-            <div className="p-2 border-b border-gray-100">
+            <div className="p-2 border-b border-gray-100 flex-shrink-0">
               <input
                 ref={inputRef}
                 type="text"
@@ -139,7 +179,7 @@ export function SearchableDropdownV2({
                 className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               />
             </div>
-            <div className="max-h-48 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto min-h-0">
               {isLoading && (
                 <div className="px-3 py-2 text-sm text-gray-500">Loading...</div>
               )}

@@ -11,12 +11,11 @@ import { useRouter } from 'next/navigation';
 import { useOrderDetailState } from './hooks/useOrderDetailState';
 import { OrderDetailHeader } from './components/header';
 import { LineItemsTable } from './components/line-items';
-import { NotesTab, TasksTab, ActivityTab, CreditsTab, AcknowledgementsTab, LinkedObjectsTab, SettingsTab } from './components/tabs';
+import { NotesTab, TasksTab, ActivityTab, CreditsTab, AdjustmentsTab, AcknowledgementsTab, LinkedObjectsTab, SettingsTab } from './components/tabs';
 import {
   SetOverageModal,
   SetEndUserModal,
   SetOutsideRepSplitsModal,
-  LineCreditModal,
   LineAcknowledgementModal,
   SectionsModal,
   ColumnsModal,
@@ -26,7 +25,14 @@ import {
   WarehouseConversionModal,
   FulfillmentRequestModal,
   AdditionalDetailsModal,
+  CreditModal,
+  CreditDetailModal,
+  AdjustmentModal,
+  AdjustmentDetailModal,
+  DeleteConfirmModal,
 } from './components/modals';
+import { useCreditsState } from './hooks/useCreditsState';
+import { useAdjustmentsState } from './hooks/useAdjustmentsState';
 import { getLinkedInvoicesForLineItem, getLinkedChecksForInvoice, getLineShipStatus } from './utils';
 import { mockInvoices, mockChecks } from '@/lib/data/rms-mock';
 import { orderToasts } from '@/components/lib/toast';
@@ -38,6 +44,12 @@ interface OrderDetailContentProps {
 export default function OrderDetailContent({ orderId }: OrderDetailContentProps) {
   const router = useRouter();
   const state = useOrderDetailState({ orderId });
+
+  // Credits state management
+  const creditsState = useCreditsState({ orderId: orderId !== 'new' ? orderId : null });
+
+  // Adjustments state management
+  const adjustmentsState = useAdjustmentsState();
 
   // Loading state
   if (state?.isLoading) {
@@ -336,7 +348,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   };
 
   const handleAddCredit = () => {
-    state.openCreditModal();
+    creditsState.openCreateCreditModal();
   };
 
   const handleAddAcknowledgement = () => {
@@ -414,6 +426,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
             {[
               { id: 'line-items', label: 'Line Items', count: (order.lineItems || []).length },
               { id: 'credits', label: 'Credits' },
+              { id: 'adjustments', label: 'Adjustments' },
               { id: 'acknowledgements', label: 'Acknowledgements' },
               { id: 'notes', label: 'Notes' },
               { id: 'tasks', label: 'Tasks' },
@@ -560,7 +573,28 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           {state.activeTab === 'notes' && <NotesTab />}
           {state.activeTab === 'tasks' && <TasksTab />}
           {state.activeTab === 'activity' && <ActivityTab />}
-          {state.activeTab === 'credits' && <CreditsTab onAddCredit={state.openCreditModal} />}
+          {state.activeTab === 'credits' && (
+            <CreditsTab
+              credits={creditsState.credits}
+              isLoading={creditsState.isLoadingCredits}
+              error={creditsState.creditsError}
+              onAddCredit={creditsState.openCreateCreditModal}
+              onViewCredit={creditsState.viewCredit}
+              onEditCredit={creditsState.openEditCreditModal}
+              onDeleteCredit={creditsState.handleDeleteCredit}
+            />
+          )}
+          {state.activeTab === 'adjustments' && (
+            <AdjustmentsTab
+              adjustments={adjustmentsState.adjustments}
+              isLoading={adjustmentsState.isLoadingAdjustments}
+              error={adjustmentsState.adjustmentsError}
+              onAddAdjustment={adjustmentsState.openCreateAdjustmentModal}
+              onViewAdjustment={adjustmentsState.viewAdjustment}
+              onEditAdjustment={adjustmentsState.openEditAdjustmentModal}
+              onDeleteAdjustment={adjustmentsState.handleDeleteAdjustment}
+            />
+          )}
           {state.activeTab === 'acknowledgements' && <AcknowledgementsTab onAddAcknowledgement={state.openAcknowledgementModal} />}
           {state.activeTab === 'linked-objects' && <LinkedObjectsTab />}
           {state.activeTab === 'settings' && (
@@ -620,17 +654,6 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         onApply={() => {
           alert('Outside rep splits configured for selected items');
           state.closeOutsideRepSplitsModal();
-          clearSelection();
-        }}
-      />
-
-      <LineCreditModal
-        isOpen={state.showLineCreditModal}
-        onClose={state.closeCreditModal}
-        order={order}
-        onSubmit={() => {
-          alert('Credit added successfully');
-          state.closeCreditModal();
           clearSelection();
         }}
       />
@@ -735,6 +758,68 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         showEndUserPerLine={state.showEndUserPerLine}
         showOutsideRepPerLine={state.showOutsideRepPerLine}
         showInsideRepPerLine={state.showInsideRepPerLine}
+      />
+
+      {/* Credits Modals */}
+      <CreditModal
+        isOpen={creditsState.showCreditModal}
+        onClose={creditsState.closeCreditModal}
+        order={order}
+        credit={creditsState.creditToEdit}
+        onSubmit={creditsState.handleSaveCredit}
+        isLoading={creditsState.isSavingCredit}
+        isLoadingCreditDetails={creditsState.isLoadingCreditDetails}
+      />
+
+      <CreditDetailModal
+        isOpen={creditsState.showCreditDetailModal}
+        onClose={creditsState.closeCreditDetailModal}
+        credit={creditsState.selectedCredit}
+        onEdit={creditsState.editCreditFromDetail}
+        onDelete={creditsState.deleteCreditFromDetail}
+        isDeleting={creditsState.isDeletingCredit}
+      />
+
+      {/* Adjustments Modals */}
+      <AdjustmentModal
+        isOpen={adjustmentsState.showAdjustmentModal}
+        onClose={adjustmentsState.closeAdjustmentModal}
+        order={order}
+        adjustment={adjustmentsState.adjustmentToEdit}
+        onSubmit={adjustmentsState.handleSaveAdjustment}
+        isLoading={adjustmentsState.isSavingAdjustment}
+        isLoadingAdjustmentDetails={adjustmentsState.isLoadingAdjustmentDetails}
+      />
+
+      <AdjustmentDetailModal
+        isOpen={adjustmentsState.showAdjustmentDetailModal}
+        onClose={adjustmentsState.closeAdjustmentDetailModal}
+        adjustment={adjustmentsState.selectedAdjustment}
+        onEdit={adjustmentsState.editAdjustmentFromDetail}
+        onDelete={adjustmentsState.deleteAdjustmentFromDetail}
+        isDeleting={adjustmentsState.isDeletingAdjustment}
+      />
+
+      {/* Delete Confirmation Modal for Credits */}
+      <DeleteConfirmModal
+        isOpen={creditsState.showDeleteConfirmModal}
+        title="Delete Credit?"
+        message="Are you sure you want to delete credit"
+        itemName={creditsState.creditToDelete?.creditNumber || creditsState.creditToDelete?.id?.substring(0, 8)}
+        isPending={creditsState.isDeletingCredit}
+        onConfirm={creditsState.handleConfirmDelete}
+        onCancel={creditsState.closeDeleteConfirmModal}
+      />
+
+      {/* Delete Confirmation Modal for Adjustments */}
+      <DeleteConfirmModal
+        isOpen={adjustmentsState.showDeleteConfirmModal}
+        title="Delete Adjustment?"
+        message="Are you sure you want to delete adjustment"
+        itemName={adjustmentsState.adjustmentToDelete?.adjustmentNumber || adjustmentsState.adjustmentToDelete?.id?.substring(0, 8)}
+        isPending={adjustmentsState.isDeletingAdjustment}
+        onConfirm={adjustmentsState.handleConfirmDelete}
+        onCancel={adjustmentsState.closeDeleteConfirmModal}
       />
     </main>
   );

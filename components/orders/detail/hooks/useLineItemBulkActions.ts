@@ -6,7 +6,6 @@
 import { useState, useCallback } from 'react';
 import type { OrderLineItem } from '@/lib/types/rms';
 import type {
-  CreditLineItem,
   AcknowledgementLineItem,
   ProductToConvert,
   LineItemForFulfillment,
@@ -24,15 +23,6 @@ export function useLineItemBulkActions({
   // Bulk actions menu
   const [showLineItemsBulkActionsMenu, setShowLineItemsBulkActionsMenu] =
     useState(false);
-
-  // Credit modal state
-  const [showLineCreditModal, setShowLineCreditModal] = useState(false);
-  const [creditName, setCreditName] = useState('');
-  const [creditDate, setCreditDate] = useState(
-    new Date().toLocaleDateString('en-US')
-  );
-  const [creditNote, setCreditNote] = useState('');
-  const [creditLineItems, setCreditLineItems] = useState<CreditLineItem[]>([]);
 
   // Acknowledgement modal state
   const [showLineAcknowledgementModal, setShowLineAcknowledgementModal] =
@@ -74,29 +64,6 @@ export function useLineItemBulkActions({
   const [lineItemsForFulfillment, setLineItemsForFulfillment] = useState<
     LineItemForFulfillment[]
   >([]);
-
-  // Open credit modal
-  const openCreditModal = useCallback(() => {
-    setShowLineCreditModal(true);
-    setShowLineItemsBulkActionsMenu(false);
-  }, []);
-
-  // Close credit modal
-  const closeCreditModal = useCallback(() => {
-    setShowLineCreditModal(false);
-    setCreditName('');
-    setCreditDate(new Date().toLocaleDateString('en-US'));
-    setCreditNote('');
-    setCreditLineItems([]);
-  }, []);
-
-  // Save credit
-  const saveCredit = useCallback(() => {
-    // TODO: Implement credit save logic
-    alert('Credit created successfully');
-    closeCreditModal();
-    clearSelection();
-  }, [closeCreditModal, clearSelection]);
 
   // Open acknowledgement modal
   const openAcknowledgementModal = useCallback(() => {
@@ -231,20 +198,6 @@ export function useLineItemBulkActions({
     // Bulk actions menu
     showLineItemsBulkActionsMenu,
     setShowLineItemsBulkActionsMenu,
-
-    // Credit modal
-    showLineCreditModal,
-    openCreditModal,
-    closeCreditModal,
-    saveCredit,
-    creditName,
-    setCreditName,
-    creditDate,
-    setCreditDate,
-    creditNote,
-    setCreditNote,
-    creditLineItems,
-    setCreditLineItems,
 
     // Acknowledgement modal
     showLineAcknowledgementModal,
