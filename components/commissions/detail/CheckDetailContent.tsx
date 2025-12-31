@@ -25,6 +25,12 @@ import {
   LineItemDetailModal,
   AddLineItemModal,
 } from './components/modals';
+import {
+  AdjustmentModal,
+  AdjustmentDetailModal,
+  DeleteConfirmModal,
+} from '@/components/orders/detail/components/modals';
+import { useAdjustmentsState } from '@/components/orders/detail/hooks/useAdjustmentsState';
 import { getTabsConfig } from './config/tabsConfig';
 import { SAVED_VIEWS, getDefaultView } from './config/viewsConfig';
 
@@ -37,6 +43,9 @@ export default function CheckDetailContent({
 }: CheckDetailContentProps) {
   const router = useRouter();
   const state = useCheckDetailState({ checkId });
+
+  // Adjustments state management - reuse from orders
+  const adjustmentsState = useAdjustmentsState();
 
   // Loading state
   if (state?.isLoading) {
@@ -367,13 +376,13 @@ export default function CheckDetailContent({
           {/* Other Tabs */}
           {state.activeTab === 'deductions' && (
             <DeductionsTab
-              check={state.check}
-              adjustments={state.adjustments}
-              totalAdjustments={state.totalAdjustments}
-              onAddAdjustment={state.addAdjustment}
-              onDeleteAdjustment={state.deleteAdjustment}
-              onUpdateAdjustment={state.updateAdjustment}
-              onOpenRepSplitsModal={state.openRepSplitsModal}
+              adjustments={adjustmentsState.adjustments}
+              isLoading={adjustmentsState.isLoadingAdjustments}
+              error={adjustmentsState.adjustmentsError}
+              onAddAdjustment={adjustmentsState.openCreateAdjustmentModal}
+              onViewAdjustment={adjustmentsState.viewAdjustment}
+              onEditAdjustment={adjustmentsState.openEditAdjustmentModal}
+              onDeleteAdjustment={adjustmentsState.handleDeleteAdjustment}
             />
           )}
 
@@ -463,6 +472,37 @@ export default function CheckDetailContent({
           factoryId={state.factoryId}
         />
       )}
+
+      {/* Adjustments Modals - reused from orders */}
+      <AdjustmentModal
+        isOpen={adjustmentsState.showAdjustmentModal}
+        onClose={adjustmentsState.closeAdjustmentModal}
+        order={null}
+        adjustment={adjustmentsState.adjustmentToEdit}
+        onSubmit={adjustmentsState.handleSaveAdjustment}
+        isLoading={adjustmentsState.isSavingAdjustment}
+        isLoadingAdjustmentDetails={adjustmentsState.isLoadingAdjustmentDetails}
+      />
+
+      <AdjustmentDetailModal
+        isOpen={adjustmentsState.showAdjustmentDetailModal}
+        onClose={adjustmentsState.closeAdjustmentDetailModal}
+        adjustment={adjustmentsState.selectedAdjustment}
+        onEdit={adjustmentsState.editAdjustmentFromDetail}
+        onDelete={adjustmentsState.deleteAdjustmentFromDetail}
+        isDeleting={adjustmentsState.isDeletingAdjustment}
+      />
+
+      {/* Delete Confirmation Modal for Adjustments */}
+      <DeleteConfirmModal
+        isOpen={adjustmentsState.showDeleteConfirmModal}
+        title="Delete Adjustment?"
+        message="Are you sure you want to delete adjustment"
+        itemName={adjustmentsState.adjustmentToDelete?.adjustmentNumber || adjustmentsState.adjustmentToDelete?.id?.substring(0, 8)}
+        isPending={adjustmentsState.isDeletingAdjustment}
+        onConfirm={adjustmentsState.handleConfirmDelete}
+        onCancel={adjustmentsState.closeDeleteConfirmModal}
+      />
     </main>
   );
 }

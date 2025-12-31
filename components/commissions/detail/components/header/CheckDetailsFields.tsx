@@ -3,10 +3,12 @@
  * Collapsible section with check detail form fields and reconciliation section
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { CommissionCheck } from '@/lib/types/rms';
 import type { CheckStatus, CheckWithUnpostedLines } from '../../types';
 import { searchFactories, type FactorySearchResult } from '@/components/lib/api/search';
+import { StyledDatePicker, parseDateString, formatDateToString } from '@/components/shared/StyledDatePicker';
+import { StyledMonthPicker, parseMonthString, formatMonthToString } from '@/components/shared/StyledMonthPicker';
 
 interface CheckDetailsFieldsProps {
   check: CommissionCheck;
@@ -297,15 +299,19 @@ export function CheckDetailsFields({
                     className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm"
                   />
                   <div className="relative inline-block group">
-                    <div className="flex items-center gap-1.5 mt-1.5">
+                    <div className="flex items-center gap-1.5 mt-1.5 opacity-50">
                       <input
                         type="checkbox"
                         checked={isTiedToCommissionUpload}
                         readOnly
-                        className="w-3.5 h-3.5 accent-[var(--primary)] pointer-events-none"
+                        disabled
+                        className="w-3.5 h-3.5 accent-[var(--primary)] pointer-events-none cursor-not-allowed"
                       />
                       <span className="text-xs text-[var(--muted-foreground)] border-b border-dashed border-[var(--muted-foreground)] cursor-help">
                         Tied to commission upload
+                      </span>
+                      <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded font-medium">
+                        Coming Soon
                       </span>
                     </div>
                     <div className="absolute bottom-full left-0 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
@@ -321,11 +327,11 @@ export function CheckDetailsFields({
                   <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                     Check Date
                   </label>
-                  <input
-                    type="date"
-                    value={checkDate}
-                    onChange={(e) => setCheckDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm"
+                  <StyledDatePicker
+                    selected={parseDateString(checkDate)}
+                    onChange={(date) => setCheckDate(formatDateToString(date))}
+                    placeholder="Select date..."
+                    className="!py-2 !px-3 !rounded-md !text-sm"
                   />
                 </div>
 
@@ -335,11 +341,11 @@ export function CheckDetailsFields({
                     <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                       Posted Date
                     </label>
-                    <input
-                      type="date"
-                      value={postedDate}
-                      onChange={(e) => setPostedDate(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm"
+                    <StyledDatePicker
+                      selected={parseDateString(postedDate)}
+                      onChange={(date) => setPostedDate(formatDateToString(date))}
+                      placeholder="Select date..."
+                      className="!py-2 !px-3 !rounded-md !text-sm"
                     />
                   </div>
                 )}
@@ -368,17 +374,18 @@ export function CheckDetailsFields({
                       }`}
                     />
                   </div>
-                  <label className="flex items-center gap-1.5 mt-1.5 cursor-pointer">
+                  <label className="flex items-center gap-1.5 mt-1.5 cursor-not-allowed opacity-50">
                     <input
                       type="checkbox"
                       checked={isTotalStatedCommission}
-                      onChange={(e) =>
-                        setIsTotalStatedCommission(e.target.checked)
-                      }
-                      className="w-3.5 h-3.5 accent-[var(--primary)]"
+                      disabled
+                      className="w-3.5 h-3.5 accent-[var(--primary)] cursor-not-allowed"
                     />
                     <span className="text-xs text-[var(--muted-foreground)]">
                       Is Total Stated Commission
+                    </span>
+                    <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded font-medium">
+                      Coming Soon
                     </span>
                   </label>
                 </div>
@@ -388,21 +395,26 @@ export function CheckDetailsFields({
                   <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                     Commission Month
                   </label>
-                  <input
-                    type="month"
-                    value={commissionMonth}
-                    onChange={(e) => setCommissionMonth(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm"
+                  <StyledMonthPicker
+                    selected={parseMonthString(commissionMonth)}
+                    onChange={(date) => setCommissionMonth(formatMonthToString(date))}
+                    placeholder="Select month..."
+                    className="!py-2 !px-3 !rounded-md !text-sm"
                   />
                 </div>
               </div>
 
               {/* Lines to Reconcile Section - Only show when unposted */}
               {status === 'unposted' && (
-                <div className="mt-4">
-                  <span className="text-sm font-medium text-[var(--muted-foreground)]">
-                    Lines to Reconcile
-                  </span>
+                <div className="mt-4 opacity-50">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-[var(--muted-foreground)]">
+                      Lines to Reconcile
+                    </span>
+                    <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded font-medium">
+                      Coming Soon
+                    </span>
+                  </div>
                   <div className="grid grid-cols-4 gap-4 mt-2">
                     {/* Check Number Multi-Select */}
                     <div>
@@ -411,10 +423,8 @@ export function CheckDetailsFields({
                       </label>
                       <div className="relative">
                         <button
-                          onClick={() =>
-                            setShowCheckNumbersDropdown(!showCheckNumbersDropdown)
-                          }
-                          className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm text-left flex items-center justify-between"
+                          disabled
+                          className="w-full px-3 py-2 bg-gray-50 border border-[var(--border)] rounded-md text-sm text-left flex items-center justify-between cursor-not-allowed"
                         >
                           <span
                             className={
@@ -517,19 +527,15 @@ export function CheckDetailsFields({
                       <input
                         type="date"
                         value={unpaidInvoicesAfterDate}
-                        onChange={(e) =>
-                          setUnpaidInvoicesAfterDate(e.target.value)
-                        }
-                        className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm"
+                        disabled
+                        className="w-full px-3 py-2 bg-gray-50 border border-[var(--border)] rounded-md text-sm cursor-not-allowed"
                       />
-                      <label className="flex items-center gap-1.5 mt-1.5 cursor-pointer">
+                      <label className="flex items-center gap-1.5 mt-1.5 cursor-not-allowed">
                         <input
                           type="checkbox"
                           checked={includeAllUnpaid}
-                          onChange={(e) =>
-                            setIncludeAllUnpaid(e.target.checked)
-                          }
-                          className="w-3.5 h-3.5 accent-[var(--primary)]"
+                          disabled
+                          className="w-3.5 h-3.5 accent-[var(--primary)] cursor-not-allowed"
                         />
                         <span className="text-xs text-[var(--muted-foreground)]">
                           All
@@ -552,19 +558,15 @@ export function CheckDetailsFields({
                       <input
                         type="date"
                         value={ordersWithoutInvoicesAfterDate}
-                        onChange={(e) =>
-                          setOrdersWithoutInvoicesAfterDate(e.target.value)
-                        }
-                        className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm"
+                        disabled
+                        className="w-full px-3 py-2 bg-gray-50 border border-[var(--border)] rounded-md text-sm cursor-not-allowed"
                       />
-                      <label className="flex items-center gap-1.5 mt-1.5 cursor-pointer">
+                      <label className="flex items-center gap-1.5 mt-1.5 cursor-not-allowed">
                         <input
                           type="checkbox"
                           checked={includeAllOrdersWithoutInvoices}
-                          onChange={(e) =>
-                            setIncludeAllOrdersWithoutInvoices(e.target.checked)
-                          }
-                          className="w-3.5 h-3.5 accent-[var(--primary)]"
+                          disabled
+                          className="w-3.5 h-3.5 accent-[var(--primary)] cursor-not-allowed"
                         />
                         <span className="text-xs text-[var(--muted-foreground)]">
                           All

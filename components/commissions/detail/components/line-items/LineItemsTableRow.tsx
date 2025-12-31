@@ -56,28 +56,28 @@ export function LineItemsTableRow({
         </td>
       )}
       {visibleColumns.has('customer') && (
-        <td className="px-4 py-3 text-sm text-[var(--foreground)]">
+        <td className="px-4 py-3 text-sm text-[var(--muted-foreground)] opacity-50">
           {item.customer}
         </td>
       )}
       {visibleColumns.has('salesRep') && (
-        <td className="px-4 py-3 text-sm text-[var(--foreground)]">
+        <td className="px-4 py-3 text-sm text-[var(--muted-foreground)] opacity-50">
           {item.salesRep}
         </td>
       )}
       {visibleColumns.has('commissionRate') && (
-        <td className="px-4 py-3 text-sm">
-          <span className="text-[var(--foreground)]">
+        <td className="px-4 py-3 text-sm opacity-50">
+          <span className="text-[var(--muted-foreground)]">
             {item.commissionRateExpected.toFixed(3)}%
           </span>
           <span className="mx-1 text-[var(--muted-foreground)]">|</span>
-          <span className="text-[var(--primary)]">
+          <span className="text-[var(--muted-foreground)]">
             {item.commissionRateActual.toFixed(3)}%
           </span>
         </td>
       )}
       {visibleColumns.has('expectedCommission') && (
-        <td className="px-4 py-3 text-sm text-[var(--foreground)]">
+        <td className="px-4 py-3 text-sm text-[var(--muted-foreground)] opacity-50">
           ${item.expectedCommission.toFixed(4)}
         </td>
       )}
@@ -87,7 +87,7 @@ export function LineItemsTableRow({
         </td>
       )}
       {visibleColumns.has('balance') && (
-        <td className="px-4 py-3 text-sm">
+        <td className="px-4 py-3 text-sm opacity-50">
           <div className="flex items-center gap-2">
             {item.balance === 0 && (
               <svg
@@ -95,7 +95,7 @@ export function LineItemsTableRow({
                 height="16"
                 viewBox="0 0 20 20"
                 fill="none"
-                className="text-green-500"
+                className="text-gray-400"
               >
                 <path
                   d="M5 10l3 3 7-7"
@@ -106,12 +106,12 @@ export function LineItemsTableRow({
                 />
               </svg>
             )}
-            <span className="text-green-600">${item.balance.toFixed(4)}</span>
+            <span className="text-[var(--muted-foreground)]">${item.balance.toFixed(4)}</span>
           </div>
         </td>
       )}
       {visibleColumns.has('paid') && (
-        <td className="px-4 py-3 text-center">
+        <td className="px-4 py-3 text-center opacity-50">
           {status === 'posted' ? (
             item.paid ? (
               <svg
@@ -121,7 +121,7 @@ export function LineItemsTableRow({
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
-                className="mx-auto text-green-600"
+                className="mx-auto text-gray-400"
               >
                 <path
                   d="M5 10l3 3 7-7"
@@ -134,8 +134,8 @@ export function LineItemsTableRow({
             <input
               type="checkbox"
               checked={item.paid}
-              onChange={() => onTogglePaid(item.id)}
-              className="w-4 h-4 accent-[var(--primary)] cursor-pointer"
+              disabled
+              className="w-4 h-4 accent-[var(--primary)] cursor-not-allowed"
             />
           )}
         </td>

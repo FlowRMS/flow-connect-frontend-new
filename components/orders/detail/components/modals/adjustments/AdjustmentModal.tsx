@@ -71,7 +71,7 @@ interface SplitRateState {
 interface AdjustmentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  order: Order;
+  order?: Order | null;
   adjustment?: Adjustment | null;
   onSubmit: (input: CreateAdjustmentInput) => Promise<void>;
   isLoading?: boolean;
@@ -474,7 +474,7 @@ export function AdjustmentModal({
               )}
             </h2>
             <p className="text-sm text-[var(--muted-foreground)] mt-0.5">
-              Order #{order.orderNumber} - Commission adjustments
+              {order ? `Order #${order.orderNumber} - ` : ''}Commission adjustments
             </p>
           </div>
           <button

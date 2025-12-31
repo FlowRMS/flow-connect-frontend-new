@@ -331,18 +331,17 @@ export function HeaderTopBar({
             </div>
           )}
 
-          {/* Version Dropdown */}
-          <div className="relative">
+          {/* Version Dropdown - Coming Soon */}
+          <div className="relative opacity-50">
             <button
-              onClick={() => {
-                setShowVersionDropdown(!showVersionDropdown);
-                setShowActionsDropdown(false);
-                setShowStatusDropdown(false);
-                setShowSaveDropdown(false);
-              }}
-              className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
+              disabled
+              className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm font-medium cursor-not-allowed bg-gray-50"
+              title="Coming Soon"
             >
               v{currentVersion}
+              <span className="text-[9px] bg-gray-200 text-gray-500 px-1 py-0.5 rounded font-medium">
+                Soon
+              </span>
               <svg
                 width="14"
                 height="14"
@@ -358,42 +357,6 @@ export function HeaderTopBar({
                 />
               </svg>
             </button>
-            {showVersionDropdown && (
-              <>
-                <div
-                  className="fixed inset-0 z-10"
-                  onClick={() => setShowVersionDropdown(false)}
-                />
-                <div className="absolute top-full right-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20">
-                  {availableVersions.map((v) => (
-                    <button
-                      key={v.version}
-                      onClick={() => {
-                        setCurrentVersion(v.version);
-                        setShowVersionDropdown(false);
-                      }}
-                      className={`w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors first:rounded-t-lg last:rounded-b-lg flex items-center justify-between ${
-                        currentVersion === v.version
-                          ? 'bg-[var(--primary)]/10 text-[var(--primary)]'
-                          : ''
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span>v{v.version}</span>
-                        {v.isLatest && (
-                          <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-xs">
-                            Latest
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-xs text-[var(--muted-foreground)]">
-                        {v.date}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
           </div>
 
           {/* Status Dropdown */}
@@ -505,10 +468,14 @@ export function HeaderTopBar({
                     Save & Close
                   </button>
                   <button
-                    onClick={handleSaveAsNewVersion}
-                    className="w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors rounded-b-lg border-t border-[var(--border)]"
+                    disabled
+                    className="w-full text-left px-4 py-2 text-sm transition-colors rounded-b-lg border-t border-[var(--border)] opacity-50 cursor-not-allowed flex items-center justify-between"
+                    title="Coming Soon"
                   >
-                    Save as New Version
+                    <span>Save as New Version</span>
+                    <span className="text-[9px] bg-gray-200 text-gray-500 px-1 py-0.5 rounded font-medium">
+                      Soon
+                    </span>
                   </button>
                 </div>
               </>

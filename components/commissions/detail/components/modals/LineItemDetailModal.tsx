@@ -227,18 +227,30 @@ export function LineItemDetailModal({
                 </span>
               </div>
 
-              <div>
+              <div className={item.type !== 'adjustment' ? 'opacity-50' : ''}>
                 <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                  Customer
+                  <span className="flex items-center gap-1.5">
+                    Customer
+                    {item.type !== 'adjustment' && (
+                      <span className="text-[9px] bg-gray-200 text-gray-500 px-1 py-0.5 rounded font-medium">
+                        Soon
+                      </span>
+                    )}
+                  </span>
                 </label>
                 <p className="text-sm text-[var(--foreground)]">
                   {item.customerName || item.customer || '-'}
                 </p>
               </div>
 
-              <div>
+              <div className="opacity-50">
                 <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                  Sales Rep
+                  <span className="flex items-center gap-1.5">
+                    Sales Rep
+                    <span className="text-[9px] bg-gray-200 text-gray-500 px-1 py-0.5 rounded font-medium">
+                      Soon
+                    </span>
+                  </span>
                 </label>
                 <p className="text-sm text-[var(--foreground)]">
                   {item.salesRep || '-'}
@@ -278,11 +290,16 @@ export function LineItemDetailModal({
               Commission Details
             </h3>
             <div className="grid grid-cols-3 gap-4">
-              <div className="p-4 bg-[var(--muted)] rounded-lg">
+              <div className="p-4 bg-[var(--muted)] rounded-lg opacity-50">
                 <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                  Expected Commission
+                  <span className="flex items-center gap-1.5">
+                    Expected Commission
+                    <span className="text-[9px] bg-gray-200 text-gray-500 px-1 py-0.5 rounded font-medium">
+                      Soon
+                    </span>
+                  </span>
                 </label>
-                <p className="text-lg font-semibold text-[var(--foreground)]">
+                <p className="text-lg font-semibold text-[var(--muted-foreground)]">
                   ${item.expectedCommission.toFixed(2)}
                 </p>
               </div>
@@ -307,13 +324,16 @@ export function LineItemDetailModal({
                 )}
               </div>
 
-              <div className="p-4 bg-[var(--muted)] rounded-lg">
+              <div className="p-4 bg-[var(--muted)] rounded-lg opacity-50">
                 <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                  Balance
+                  <span className="flex items-center gap-1.5">
+                    Balance
+                    <span className="text-[9px] bg-gray-200 text-gray-500 px-1 py-0.5 rounded font-medium">
+                      Soon
+                    </span>
+                  </span>
                 </label>
-                <p className={`text-lg font-semibold ${
-                  item.balance === 0 ? 'text-green-600' : 'text-red-600'
-                }`}>
+                <p className="text-lg font-semibold text-[var(--muted-foreground)]">
                   ${item.balance.toFixed(2)}
                 </p>
               </div>
@@ -321,20 +341,23 @@ export function LineItemDetailModal({
 
             {/* Paid Checkbox */}
             {status !== 'posted' && (
-              <div className="mt-4 flex items-center gap-2">
+              <div className="mt-4 flex items-center gap-2 opacity-50">
                 <input
                   type="checkbox"
                   id="paid-checkbox"
                   checked={item.paid}
-                  onChange={() => onTogglePaid(item.id)}
-                  className="w-4 h-4 accent-[var(--primary)] cursor-pointer"
+                  disabled
+                  className="w-4 h-4 accent-[var(--primary)] cursor-not-allowed"
                 />
                 <label
                   htmlFor="paid-checkbox"
-                  className="text-sm text-[var(--foreground)] cursor-pointer"
+                  className="text-sm text-[var(--foreground)] cursor-not-allowed"
                 >
                   Mark as Paid
                 </label>
+                <span className="text-[9px] bg-gray-200 text-gray-500 px-1 py-0.5 rounded font-medium">
+                  Coming Soon
+                </span>
               </div>
             )}
           </div>

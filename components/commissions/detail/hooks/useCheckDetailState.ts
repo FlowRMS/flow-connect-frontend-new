@@ -28,6 +28,7 @@ import {
   useUpdateCheck,
   useDeleteCheck,
 } from '@/components/orders/api/checksApi';
+import type { AdjustmentLandingPage } from '@/components/orders/api/adjustmentsApi';
 import { DEFAULT_ACTIVE_TAB } from '../config/tabsConfig';
 import { DEFAULT_VISIBLE_COLUMNS } from '../constants';
 import {
@@ -191,11 +192,21 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
   const [isTotalStatedCommission, setIsTotalStatedCommission] = useState(false);
   const [isTiedToCommissionUpload, setIsTiedToCommissionUpload] = useState(true);
 
+  // Helper to convert YYYY-MM-DD to YYYY-MM format
+  const parseCommissionMonth = (dateStr: string | undefined): string => {
+    if (!dateStr) return '';
+    // If already YYYY-MM format, return as is
+    if (/^\d{4}-\d{2}$/.test(dateStr)) return dateStr;
+    // If YYYY-MM-DD format, extract YYYY-MM
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr.substring(0, 7);
+    return dateStr;
+  };
+
   // Update form fields when check changes
   useEffect(() => {
     if (check) {
       setFactory(check.manufacturerName || '');
-      setCommissionMonth(check.commissionMonth || '');
+      setCommissionMonth(parseCommissionMonth(check.commissionMonth));
       setCheckNumber(check.checkNumber || '');
       setCommissionAmount(check.netAmount || 0);
       setCheckDate(check.checkDate || '');
@@ -203,8 +214,10 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     }
   }, [check]);
 
-  // Adjustments state
+  // Adjustments state (legacy format for backward compatibility)
   const [adjustments, setAdjustments] = useState<Adjustment[]>([]);
+  // Adjustments in AdjustmentLandingPage format for the new DeductionsTab (AdjustmentsTab from orders)
+  const [deductionAdjustments, setDeductionAdjustments] = useState<AdjustmentLandingPage[]>([]);
 
   // Rep splits modal state
   const [showRepSplitsModal, setShowRepSplitsModal] = useState(false);
@@ -255,6 +268,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     if (apiCheck?.details && apiCheck.details.length > 0) {
       const convertedLineItems: LineItem[] = [];
       const convertedAdjustments: Adjustment[] = [];
+      const convertedDeductionAdjustments: AdjustmentLandingPage[] = [];
 
       apiCheck.details.forEach((detail) => {
         const isInvoice = !!detail.invoiceId;
@@ -354,6 +368,18 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
             repSplits: [],
             adjustmentId: detail.adjustmentId,
           });
+
+          // Add to deductionAdjustments in AdjustmentLandingPage format for new UI
+          convertedDeductionAdjustments.push({
+            id: detail.adjustment.id || detail.id,
+            adjustmentNumber: detail.adjustment.adjustmentNumber,
+            amount: detail.adjustment.amount,
+            createdAt: detail.adjustment.createdAt,
+            entityDate: detail.adjustment.entityDate,
+            locked: detail.adjustment.locked,
+            reason: detail.adjustment.reason,
+            status: detail.adjustment.status as 'PENDING' | 'POSTED' | 'VOID' | undefined,
+          });
         }
       });
 
@@ -361,10 +387,12 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
       if (convertedAdjustments.length > 0) {
         setAdjustments(convertedAdjustments);
       }
+      setDeductionAdjustments(convertedDeductionAdjustments);
     } else if (isCreateMode) {
       // Start with empty line items for new checks
       setLineItems([]);
       setAdjustments([]);
+      setDeductionAdjustments([]);
     }
   }, [apiCheck?.details, apiCheck?.factory?.title, isCreateMode]);
 
@@ -631,11 +659,14 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
       }
     });
 
+    // Convert commissionMonth from YYYY-MM to YYYY-MM-01 (full date format required by API)
+    const formattedCommissionMonth = commissionMonth ? `${commissionMonth}-01` : undefined;
+
     const input: CreateCheckInput = {
       checkNumber: checkNumber || undefined,
       entityDate: checkDate || new Date().toISOString().split('T')[0],
       postDate: postedDate || undefined,
-      commissionMonth: commissionMonth || undefined,
+      commissionMonth: formattedCommissionMonth,
       enteredCommissionAmount: String(commissionAmount),
       factoryId,
       status: status === 'posted' ? 'POSTED' : 'OPEN',
@@ -823,12 +854,15 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     isTiedToCommissionUpload,
     setIsTiedToCommissionUpload,
 
-    // Adjustments
+    // Adjustments (legacy)
     adjustments,
     setAdjustments,
     addAdjustment,
     deleteAdjustment,
     updateAdjustment,
+    // Deduction adjustments (AdjustmentLandingPage format for new DeductionsTab)
+    deductionAdjustments,
+    setDeductionAdjustments,
 
     // Rep splits modal
     showRepSplitsModal,
