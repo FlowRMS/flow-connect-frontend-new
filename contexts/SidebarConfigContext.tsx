@@ -73,6 +73,7 @@ const defaultConfig: SidebarConfig = {
       collapsed: false,
       items: [
         { id: 'orders', name: 'Orders', href: '/orders', enabled: true },
+        { id: 'adjustments', name: 'Adjustments', href: '/adjustments', enabled: true },
         { id: 'invoices', name: 'Invoices', href: '/invoices', enabled: true },
         { id: 'commissions', name: 'Commissions', href: '/commissions', enabled: true },
         { id: 'buysell', name: 'Buy/Sell', href: '/buysell', enabled: true },
@@ -138,7 +139,7 @@ const defaultConfig: SidebarConfig = {
 };
 
 const STORAGE_KEY = 'sidebar-config';
-const CONFIG_VERSION = 19; // Increment this to force a reset of cached sidebar config (removed manufacturer profiles - now in warehouse settings)
+const CONFIG_VERSION = 20; // Increment this to force a reset of cached sidebar config (added adjustments page)
 
 const SidebarConfigContext = createContext<SidebarConfigContextType | undefined>(undefined);
 

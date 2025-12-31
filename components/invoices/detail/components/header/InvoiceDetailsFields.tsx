@@ -1,17 +1,29 @@
 /**
  * InvoiceDetailsFields Component
  * Collapsible section with invoice detail form fields
+ * Uses SearchableDropdownV2 for all searchable fields including Order and Invoice search
  */
 
-import React from 'react';
+'use client';
+
+import React, { useState, useMemo, useEffect } from 'react';
 import type { Invoice } from '@/lib/types/rms';
-import type { RepSplit } from '../../types';
+import type { RepSplit, EditableInvoice } from '../../types';
 import { formatDate } from '../../utils';
-import { AVAILABLE_OUTSIDE_REPS, AVAILABLE_INSIDE_REPS } from '../../constants';
 import { isOverdue } from '../../utils';
+import { SearchableDropdownV2 } from '@/components/quotes-v2/components/SearchableDropdownV2';
+import { StyledDatePicker, parseDateString, formatDateToString } from '@/components/shared/StyledDatePicker';
+import {
+  useCustomerSearch,
+  useFactorySearch,
+  useUserSearch,
+  useJobSearch,
+} from '@/components/orders/api';
+import { useOrderSearch } from '@/components/orders/api';
+import { useInvoiceSearch } from '../../../api';
 
 interface InvoiceDetailsFieldsProps {
-  invoice: Invoice;
+  invoice: EditableInvoice;
   showHeaderFields: boolean;
   toggleHeaderFields: () => void;
   isConnectedToOrder: boolean;
@@ -31,6 +43,11 @@ interface InvoiceDetailsFieldsProps {
   insideRepSplits: RepSplit[];
   setInsideRepSplits: (splits: RepSplit[]) => void;
   openInsideRepModal: () => void;
+  // New props for order/invoice selection
+  onOrderSelect?: (orderId: string, orderNumber: string) => void;
+  onInvoiceSelect?: (invoiceId: string, invoiceNumber: string) => void;
+  onUpdateInvoice?: (updates: Partial<EditableInvoice>) => void;
+  isCreateMode?: boolean;
 }
 
 export function InvoiceDetailsFields({
@@ -54,8 +71,123 @@ export function InvoiceDetailsFields({
   insideRepSplits,
   setInsideRepSplits,
   openInsideRepModal,
+  onOrderSelect,
+  onInvoiceSelect,
+  onUpdateInvoice,
+  isCreateMode = false,
 }: InvoiceDetailsFieldsProps) {
   const overdue = isOverdue(invoice);
+
+  // Search states
+  const [orderSearchTerm, setOrderSearchTerm] = useState('');
+  const [orderSearchEnabled, setOrderSearchEnabled] = useState(false);
+  const [invoiceSearchTerm, setInvoiceSearchTerm] = useState('');
+  const [invoiceSearchEnabled, setInvoiceSearchEnabled] = useState(false);
+  const [soldToSearchTerm, setSoldToSearchTerm] = useState('');
+  const [soldToSearchEnabled, setSoldToSearchEnabled] = useState(false);
+  const [billToSearchTerm, setBillToSearchTerm] = useState('');
+  const [billToSearchEnabled, setBillToSearchEnabled] = useState(false);
+  const [factorySearchTerm, setFactorySearchTerm] = useState('');
+  const [factorySearchEnabled, setFactorySearchEnabled] = useState(false);
+  const [outsideRepSearchTerm, setOutsideRepSearchTerm] = useState('');
+  const [outsideRepSearchEnabled, setOutsideRepSearchEnabled] = useState(false);
+  const [insideRepSearchTerm, setInsideRepSearchTerm] = useState('');
+  const [insideRepSearchEnabled, setInsideRepSearchEnabled] = useState(false);
+  const [endUserSearchTerm, setEndUserSearchTerm] = useState('');
+  const [endUserSearchEnabled, setEndUserSearchEnabled] = useState(false);
+  const [jobSearchTerm, setJobSearchTerm] = useState('');
+  const [jobSearchEnabled, setJobSearchEnabled] = useState(false);
+
+  // Search hooks
+  const { data: orderResults, isLoading: isOrderSearchLoading } = useOrderSearch(orderSearchTerm, 20);
+  const { data: invoiceResults, isLoading: isInvoiceSearchLoading } = useInvoiceSearch(invoiceSearchTerm, invoiceSearchEnabled);
+  const { data: soldToCustomers, isLoading: isSoldToLoading } = useCustomerSearch(soldToSearchTerm, soldToSearchEnabled);
+  const { data: billToCustomers, isLoading: isBillToLoading } = useCustomerSearch(billToSearchTerm, billToSearchEnabled);
+  const { data: endUserCustomers, isLoading: isEndUserLoading } = useCustomerSearch(endUserSearchTerm, endUserSearchEnabled);
+  const { data: factories, isLoading: isFactoryLoading } = useFactorySearch(factorySearchTerm, factorySearchEnabled);
+  const { data: outsideReps, isLoading: isOutsideRepLoading } = useUserSearch(outsideRepSearchTerm, { isOutside: true }, outsideRepSearchEnabled);
+  const { data: insideReps, isLoading: isInsideRepLoading } = useUserSearch(insideRepSearchTerm, { isInside: true }, insideRepSearchEnabled);
+  const { data: jobs, isLoading: isJobsLoading } = useJobSearch(jobSearchTerm, jobSearchEnabled);
+
+  // Transform search results to dropdown options
+  const orderOptions = useMemo(() => {
+    return (orderResults || []).map(o => ({
+      id: o.id,
+      label: o.orderNumber,
+      sublabel: o.entityDate ? `Date: ${formatDate(o.entityDate)}` : undefined,
+    }));
+  }, [orderResults]);
+
+  const invoiceOptions = useMemo(() => {
+    return (invoiceResults || []).map((inv: any) => ({
+      id: inv.id,
+      label: inv.invoiceNumber,
+      sublabel: inv.entityDate ? `Date: ${formatDate(inv.entityDate)}` : undefined,
+    }));
+  }, [invoiceResults]);
+
+  const soldToOptions = useMemo(() => {
+    return (soldToCustomers || []).map(c => ({
+      id: c.id,
+      label: c.companyName,
+      sublabel: c.isParent ? 'Parent Company' : undefined,
+    }));
+  }, [soldToCustomers]);
+
+  const billToOptions = useMemo(() => {
+    return (billToCustomers || []).map(c => ({
+      id: c.id,
+      label: c.companyName,
+      sublabel: c.isParent ? 'Parent Company' : undefined,
+    }));
+  }, [billToCustomers]);
+
+  const endUserOptions = useMemo(() => {
+    return (endUserCustomers || []).map(c => ({
+      id: c.id,
+      label: c.companyName,
+      sublabel: c.isParent ? 'Parent Company' : undefined,
+    }));
+  }, [endUserCustomers]);
+
+  const factoryOptions = useMemo(() => {
+    return (factories || []).map(f => ({
+      id: f.id,
+      label: f.title,
+      sublabel: f.accountNumber,
+    }));
+  }, [factories]);
+
+  const outsideRepOptions = useMemo(() => {
+    return (outsideReps || []).map(u => ({
+      id: u.id,
+      label: u.fullName || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || '',
+      sublabel: u.email,
+    }));
+  }, [outsideReps]);
+
+  const insideRepOptions = useMemo(() => {
+    return (insideReps || []).map(u => ({
+      id: u.id,
+      label: u.fullName || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || '',
+      sublabel: u.email,
+    }));
+  }, [insideReps]);
+
+  const jobOptions = useMemo(() => {
+    return (jobs || []).map(j => ({
+      id: j.id,
+      label: j.jobName,
+      sublabel: j.description,
+    }));
+  }, [jobs]);
+
+  // Field update handler
+  const handleFieldUpdate = (field: keyof EditableInvoice, value: unknown) => {
+    if (onUpdateInvoice) {
+      onUpdateInvoice({ [field]: value });
+    }
+  };
 
   return (
     <div className="border-b border-[var(--border)] bg-blue-50/30 flex-shrink-0">
@@ -86,8 +218,74 @@ export function InvoiceDetailsFields({
       </button>
       {showHeaderFields && (
         <div className="px-6 pb-4">
-          {/* Row 1: Invoice Number, Sold To, Bill To, End User, Job, Payment Terms, Freight Terms */}
-          <div className="grid grid-cols-7 gap-4 mb-4">
+          {/* Row 0: Order and Invoice Pre-populate Dropdowns */}
+          <div className="grid grid-cols-6 gap-4 mb-4 p-4 bg-indigo-50/50 rounded-lg border border-indigo-100">
+            <div className="col-span-2">
+              <label className="block text-xs font-medium text-indigo-700 mb-1">
+                Pre-populate from Order
+              </label>
+              <SearchableDropdownV2
+                value={invoice.orderId || ''}
+                displayValue={invoice.orderNumber || ''}
+                onChange={(id, label) => {
+                  if (onOrderSelect) {
+                    onOrderSelect(id, label);
+                  }
+                  setOrderSearchEnabled(false);
+                }}
+                options={orderOptions}
+                placeholder="Search order by number..."
+                isLoading={isOrderSearchLoading}
+                onSearch={(query) => {
+                  setOrderSearchTerm(query);
+                  setOrderSearchEnabled(true);
+                }}
+              />
+              <p className="text-xs text-indigo-600 mt-1">
+                Select an order to pre-populate invoice details
+              </p>
+            </div>
+
+            <div className="col-span-2">
+              <label className="block text-xs font-medium text-indigo-700 mb-1">
+                Pre-populate from Invoice
+              </label>
+              <SearchableDropdownV2
+                value=""
+                displayValue=""
+                onChange={(id, label) => {
+                  if (onInvoiceSelect) {
+                    onInvoiceSelect(id, label);
+                  }
+                  setInvoiceSearchEnabled(false);
+                }}
+                options={invoiceOptions}
+                placeholder="Search existing invoice..."
+                isLoading={isInvoiceSearchLoading}
+                onSearch={(query) => {
+                  setInvoiceSearchTerm(query);
+                  setInvoiceSearchEnabled(true);
+                }}
+              />
+              <p className="text-xs text-indigo-600 mt-1">
+                Copy details from existing invoice
+              </p>
+            </div>
+
+            <div className="col-span-2 flex items-end">
+              {isConnectedToOrder && (
+                <div className="bg-green-100 text-green-800 text-xs px-3 py-2 rounded-lg flex items-center gap-2">
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  Connected to Order: {invoice.orderNumber}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Row 1: Invoice Number, Factory, Sold To, Bill To, End User, Invoice Date */}
+          <div className="grid grid-cols-6 gap-4 mb-4">
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Invoice Number<span className="text-red-500">*</span>
@@ -95,8 +293,34 @@ export function InvoiceDetailsFields({
               <input
                 type="text"
                 value={invoice.invoiceNumber}
-                className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
-                readOnly
+                onChange={(e) => handleFieldUpdate('invoiceNumber', e.target.value)}
+                className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent ${
+                  isConnectedToOrder && !isCreateMode ? 'bg-gray-100 text-gray-500' : 'bg-white'
+                }`}
+                readOnly={!isCreateMode}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
+                Factory<span className="text-red-500">*</span>
+              </label>
+              <SearchableDropdownV2
+                value={invoice.manufacturerId || ''}
+                displayValue={invoice.manufacturerName || ''}
+                onChange={(id, label) => {
+                  handleFieldUpdate('manufacturerId', id);
+                  handleFieldUpdate('manufacturerName', label);
+                  setFactorySearchEnabled(false);
+                }}
+                options={factoryOptions}
+                placeholder="Select Factory..."
+                isLoading={isFactoryLoading}
+                onSearch={(query) => {
+                  setFactorySearchTerm(query);
+                  setFactorySearchEnabled(true);
+                }}
+                disabled={isConnectedToOrder}
               />
             </div>
 
@@ -104,325 +328,121 @@ export function InvoiceDetailsFields({
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Sold To Customer<span className="text-red-500">*</span>
               </label>
-              <div className="relative">
-                <select
-                  value={invoice.customerName}
-                  disabled={isConnectedToOrder}
-                  className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none pr-8 ${
-                    isConnectedToOrder
-                      ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-                      : 'bg-white cursor-pointer'
-                  }`}
-                  onChange={() => {}}
-                >
-                  <option value={invoice.customerName}>
-                    {invoice.customerName}
-                  </option>
-                  <option value="Turner Construction">Turner Construction</option>
-                  <option value="Hensel Phelps">Hensel Phelps</option>
-                  <option value="Skanska USA">Skanska USA</option>
-                  <option value="DPR Construction">DPR Construction</option>
-                  <option value="Clark Construction">Clark Construction</option>
-                </select>
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 20 20"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className={`absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none ${
-                    isConnectedToOrder
-                      ? 'text-gray-400'
-                      : 'text-[var(--muted-foreground)]'
-                  }`}
-                >
-                  <path
-                    d="M6 8l4 4 4-4"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </div>
+              <SearchableDropdownV2
+                value={invoice.customerId || ''}
+                displayValue={invoice.customerName || ''}
+                onChange={(id, label) => {
+                  handleFieldUpdate('customerId', id);
+                  handleFieldUpdate('customerName', label);
+                  setSoldToSearchEnabled(false);
+                }}
+                options={soldToOptions}
+                placeholder="Select Customer..."
+                isLoading={isSoldToLoading}
+                onSearch={(query) => {
+                  setSoldToSearchTerm(query);
+                  setSoldToSearchEnabled(true);
+                }}
+                disabled={isConnectedToOrder}
+              />
             </div>
 
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Bill To Customer<span className="text-red-500">*</span>
               </label>
-              <div className="relative">
-                <select
-                  value={invoice.manufacturerName}
-                  disabled={isConnectedToOrder}
-                  className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none pr-8 ${
-                    isConnectedToOrder
-                      ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-                      : 'bg-white cursor-pointer'
-                  }`}
-                  onChange={() => {}}
-                >
-                  <option value={invoice.manufacturerName}>
-                    {invoice.manufacturerName}
-                  </option>
-                  <option value="Graybar Electric">Graybar Electric</option>
-                  <option value="HD Supply">HD Supply</option>
-                  <option value="Ferguson Enterprises">Ferguson Enterprises</option>
-                  <option value="Rexel USA">Rexel USA</option>
-                </select>
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 20 20"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className={`absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none ${
-                    isConnectedToOrder
-                      ? 'text-gray-400'
-                      : 'text-[var(--muted-foreground)]'
-                  }`}
-                >
-                  <path
-                    d="M6 8l4 4 4-4"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </div>
+              <SearchableDropdownV2
+                value={(invoice as any).billToCustomerId || ''}
+                displayValue={(invoice as any).billToCustomerName || ''}
+                onChange={(id, label) => {
+                  handleFieldUpdate('billToCustomerId' as any, id);
+                  handleFieldUpdate('billToCustomerName' as any, label);
+                  setBillToSearchEnabled(false);
+                }}
+                options={billToOptions}
+                placeholder="Select Bill To..."
+                isLoading={isBillToLoading}
+                onSearch={(query) => {
+                  setBillToSearchTerm(query);
+                  setBillToSearchEnabled(true);
+                }}
+                disabled={isConnectedToOrder}
+              />
             </div>
 
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 End User
               </label>
-              <div className="relative">
-                <select
-                  value=""
-                  disabled={isConnectedToOrder}
-                  className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none pr-8 ${
-                    isConnectedToOrder
-                      ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-                      : 'bg-white cursor-pointer'
-                  }`}
-                  onChange={() => {}}
-                >
-                  <option value={invoice.customerName}>
-                    {invoice.customerName}
-                  </option>
-                  <option value="Turner Construction">Turner Construction</option>
-                  <option value="Hensel Phelps">Hensel Phelps</option>
-                  <option value="Skanska USA">Skanska USA</option>
-                </select>
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 20 20"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className={`absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none ${
-                    isConnectedToOrder
-                      ? 'text-gray-400'
-                      : 'text-[var(--muted-foreground)]'
-                  }`}
-                >
-                  <path
-                    d="M6 8l4 4 4-4"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </div>
-              <div className="mt-1 flex items-center gap-1">
-                <input
-                  type="checkbox"
-                  id="sameAsSoldTo"
-                  defaultChecked
-                  disabled={isConnectedToOrder}
-                  className={`accent-[var(--primary)] ${
-                    isConnectedToOrder ? 'opacity-50' : ''
-                  }`}
-                />
-                <label
-                  htmlFor="sameAsSoldTo"
-                  className={`text-xs ${
-                    isConnectedToOrder
-                      ? 'text-gray-400'
-                      : 'text-[var(--muted-foreground)]'
-                  }`}
-                >
-                  Same as Sold To
-                </label>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Job
-              </label>
-              <input
-                type="text"
-                value=""
-                placeholder="Job name"
+              <SearchableDropdownV2
+                value={(invoice as any).endUserId || ''}
+                displayValue={(invoice as any).endUserName || ''}
+                onChange={(id, label) => {
+                  handleFieldUpdate('endUserId' as any, id);
+                  handleFieldUpdate('endUserName' as any, label);
+                  setEndUserSearchEnabled(false);
+                }}
+                options={endUserOptions}
+                placeholder="Select End User..."
+                isLoading={isEndUserLoading}
+                onSearch={(query) => {
+                  setEndUserSearchTerm(query);
+                  setEndUserSearchEnabled(true);
+                }}
                 disabled={isConnectedToOrder}
-                className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent ${
-                  isConnectedToOrder
-                    ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-                    : 'bg-white'
-                }`}
-                readOnly
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Payment Terms
-              </label>
-              <input
-                type="text"
-                value="Net 60"
-                disabled={isConnectedToOrder}
-                className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent ${
-                  isConnectedToOrder
-                    ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-                    : 'bg-white'
-                }`}
-                readOnly
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Freight Terms
-              </label>
-              <input
-                type="text"
-                value="Prepaid & Add"
-                disabled={isConnectedToOrder}
-                className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent ${
-                  isConnectedToOrder
-                    ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-                    : 'bg-white'
-                }`}
-                readOnly
-              />
-            </div>
-          </div>
-
-          {/* Row 2: Dates and Reps */}
-          <div className="grid grid-cols-7 gap-4">
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Invoice Date<span className="text-red-500">*</span>
               </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={formatDate(invoice.invoiceDate)}
-                  className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
-                  readOnly
-                />
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 20 20"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]"
-                >
-                  <rect x="3" y="4" width="14" height="14" rx="2" />
-                  <path d="M16 2v4M8 2v4M3 10h14" />
-                </svg>
-              </div>
+              <StyledDatePicker
+                selected={parseDateString(invoice.invoiceDate)}
+                onChange={(date) => handleFieldUpdate('invoiceDate', formatDateToString(date))}
+                placeholder="Select date..."
+                className="!py-2 !px-3 !rounded-md !text-sm"
+                disabled={isConnectedToOrder}
+              />
             </div>
+          </div>
 
+          {/* Row 2: Due Date, Entry Date, Paid Date, PO Number, Job, Payment Terms */}
+          <div className="grid grid-cols-6 gap-4 mb-4">
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Due Date<span className="text-red-500">*</span>
               </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={formatDate(invoice.dueDate)}
-                  className={`w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent ${
-                    overdue ? 'text-red-600' : ''
-                  }`}
-                  readOnly
-                />
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 20 20"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]"
-                >
-                  <rect x="3" y="4" width="14" height="14" rx="2" />
-                  <path d="M16 2v4M8 2v4M3 10h14" />
-                </svg>
-              </div>
+              <StyledDatePicker
+                selected={parseDateString(invoice.dueDate)}
+                onChange={(date) => handleFieldUpdate('dueDate', formatDateToString(date))}
+                placeholder="Select date..."
+                className={`!py-2 !px-3 !rounded-md !text-sm ${overdue ? '!text-red-600' : ''}`}
+              />
             </div>
 
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Entry Date
               </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={
-                    invoice.entryDate
-                      ? formatDate(invoice.entryDate)
-                      : 'mm/dd/yyyy'
-                  }
-                  className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
-                  readOnly
-                />
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 20 20"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]"
-                >
-                  <rect x="3" y="4" width="14" height="14" rx="2" />
-                  <path d="M16 2v4M8 2v4M3 10h14" />
-                </svg>
-              </div>
+              <StyledDatePicker
+                selected={parseDateString(invoice.entryDate)}
+                onChange={(date) => handleFieldUpdate('entryDate', formatDateToString(date))}
+                placeholder="Select date..."
+                className="!py-2 !px-3 !rounded-md !text-sm"
+              />
             </div>
 
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Paid Date
               </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={
-                    invoice.paidDate ? formatDate(invoice.paidDate) : 'mm/dd/yyyy'
-                  }
-                  className={`w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent ${
-                    invoice.paidDate ? 'text-green-600' : ''
-                  }`}
-                  readOnly
-                />
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 20 20"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]"
-                >
-                  <rect x="3" y="4" width="14" height="14" rx="2" />
-                  <path d="M16 2v4M8 2v4M3 10h14" />
-                </svg>
-              </div>
+              <StyledDatePicker
+                selected={parseDateString(invoice.paidDate)}
+                onChange={(date) => handleFieldUpdate('paidDate', formatDateToString(date))}
+                placeholder="Select date..."
+                className={`!py-2 !px-3 !rounded-md !text-sm ${invoice.paidDate ? '!text-green-600' : ''}`}
+              />
             </div>
 
             <div>
@@ -434,83 +454,106 @@ export function InvoiceDetailsFields({
                 value={poNumber}
                 onChange={(e) => setPoNumber(e.target.value)}
                 placeholder="Enter PO #"
-                disabled={isConnectedToOrder}
                 className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent ${
                   isConnectedToOrder
                     ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
                     : 'bg-white'
                 }`}
+                disabled={isConnectedToOrder}
               />
             </div>
 
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
+                Job
+              </label>
+              <SearchableDropdownV2
+                value={(invoice as any).jobId || ''}
+                displayValue={(invoice as any).jobName || ''}
+                onChange={(id, label) => {
+                  handleFieldUpdate('jobId' as any, id);
+                  handleFieldUpdate('jobName' as any, label);
+                  setJobSearchEnabled(false);
+                }}
+                options={jobOptions}
+                placeholder="Select Job..."
+                isLoading={isJobsLoading}
+                onSearch={(query) => {
+                  setJobSearchTerm(query);
+                  setJobSearchEnabled(true);
+                }}
+                disabled={isConnectedToOrder}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
+                Payment Terms
+              </label>
+              <input
+                type="text"
+                value={(invoice as any).paymentTerms || 'Net 60'}
+                onChange={(e) => handleFieldUpdate('paymentTerms' as any, e.target.value)}
+                className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent ${
+                  isConnectedToOrder ? 'bg-gray-100 text-gray-500' : 'bg-white'
+                }`}
+                disabled={isConnectedToOrder}
+              />
+            </div>
+          </div>
+
+          {/* Row 3: Outside Rep, Inside Rep, Freight Terms, Shipping Terms, Check Number, Notes */}
+          <div className="grid grid-cols-6 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Outside Rep
               </label>
-              <div className="relative">
-                <select
-                  value={invoiceOutsideRep}
-                  disabled={isConnectedToOrder}
-                  onChange={(e) => {
-                    setInvoiceOutsideRep(e.target.value);
-                    if (!e.target.value) {
-                      setSplitOutsideCommission(false);
-                      setOutsideRepSplits([]);
-                    }
-                  }}
-                  className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none pr-8 ${
-                    isConnectedToOrder
-                      ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-                      : 'bg-white cursor-pointer'
-                  }`}
-                >
-                  <option value="">Select Rep...</option>
-                  {AVAILABLE_OUTSIDE_REPS.map((rep) => (
-                    <option key={rep.id} value={rep.id}>
-                      {rep.name}
-                    </option>
-                  ))}
-                </select>
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 20 20"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className={`absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none ${
-                    isConnectedToOrder
-                      ? 'text-gray-400'
-                      : 'text-[var(--muted-foreground)]'
-                  }`}
-                >
-                  <path
-                    d="M6 8l4 4 4-4"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <SearchableDropdownV2
+                    value={invoiceOutsideRep}
+                    displayValue={outsideRepOptions.find(r => r.id === invoiceOutsideRep)?.label || ''}
+                    onChange={(id, label) => {
+                      setInvoiceOutsideRep(id);
+                      handleFieldUpdate('outsideRepId' as any, id);
+                      handleFieldUpdate('outsideRepName' as any, label);
+                      if (!id) {
+                        setSplitOutsideCommission(false);
+                        setOutsideRepSplits([]);
+                      }
+                      setOutsideRepSearchEnabled(false);
+                    }}
+                    options={outsideRepOptions}
+                    placeholder="Select Rep..."
+                    isLoading={isOutsideRepLoading}
+                    onSearch={(query) => {
+                      setOutsideRepSearchTerm(query);
+                      setOutsideRepSearchEnabled(true);
+                    }}
+                    disabled={isConnectedToOrder}
                   />
-                </svg>
+                </div>
+                {splitOutsideCommission && !isConnectedToOrder && (
+                  <button
+                    onClick={openOutsideRepModal}
+                    className="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors whitespace-nowrap"
+                  >
+                    Split
+                  </button>
+                )}
               </div>
               {invoiceOutsideRep && !isConnectedToOrder && (
-                <div className="mt-2 flex items-center gap-2">
+                <div className="mt-1.5 flex items-center gap-2">
                   <input
                     type="checkbox"
-                    id="splitOutsideCommissionInvoice"
+                    id="splitOutsideCommission"
                     checked={splitOutsideCommission}
                     onChange={(e) => {
                       setSplitOutsideCommission(e.target.checked);
                       if (e.target.checked) {
-                        const rep = AVAILABLE_OUTSIDE_REPS.find(
-                          (r) => r.id === invoiceOutsideRep
-                        );
+                        const rep = outsideRepOptions.find(r => r.id === invoiceOutsideRep);
                         if (rep) {
-                          setOutsideRepSplits([
-                            {
-                              repId: rep.id,
-                              repName: rep.name,
-                              percentage: 100,
-                            },
-                          ]);
+                          setOutsideRepSplits([{ repId: rep.id, repName: rep.label, percentage: 100 }]);
                         }
                         openOutsideRepModal();
                       } else {
@@ -519,20 +562,9 @@ export function InvoiceDetailsFields({
                     }}
                     className="accent-[var(--primary)]"
                   />
-                  <label
-                    htmlFor="splitOutsideCommissionInvoice"
-                    className="text-xs text-[var(--muted-foreground)] cursor-pointer"
-                  >
-                    Split
+                  <label htmlFor="splitOutsideCommission" className="text-xs text-[var(--muted-foreground)] cursor-pointer">
+                    Split commission
                   </label>
-                  {splitOutsideCommission && outsideRepSplits.length > 0 && (
-                    <button
-                      onClick={openOutsideRepModal}
-                      className="text-xs text-[var(--primary)] hover:underline ml-1"
-                    >
-                      ({outsideRepSplits.length})
-                    </button>
-                  )}
                 </div>
               )}
             </div>
@@ -541,70 +573,52 @@ export function InvoiceDetailsFields({
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Inside Rep
               </label>
-              <div className="relative">
-                <select
-                  value={invoiceInsideRep}
-                  disabled={isConnectedToOrder}
-                  onChange={(e) => {
-                    setInvoiceInsideRep(e.target.value);
-                    if (!e.target.value) {
-                      setSplitInsideCommission(false);
-                      setInsideRepSplits([]);
-                    }
-                  }}
-                  className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent appearance-none pr-8 ${
-                    isConnectedToOrder
-                      ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-                      : 'bg-white cursor-pointer'
-                  }`}
-                >
-                  <option value="">Select Rep...</option>
-                  {AVAILABLE_INSIDE_REPS.map((rep) => (
-                    <option key={rep.id} value={rep.id}>
-                      {rep.name}
-                    </option>
-                  ))}
-                </select>
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 20 20"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className={`absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none ${
-                    isConnectedToOrder
-                      ? 'text-gray-400'
-                      : 'text-[var(--muted-foreground)]'
-                  }`}
-                >
-                  <path
-                    d="M6 8l4 4 4-4"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <SearchableDropdownV2
+                    value={invoiceInsideRep}
+                    displayValue={insideRepOptions.find(r => r.id === invoiceInsideRep)?.label || ''}
+                    onChange={(id, label) => {
+                      setInvoiceInsideRep(id);
+                      handleFieldUpdate('insideRepId' as any, id);
+                      handleFieldUpdate('insideRepName' as any, label);
+                      if (!id) {
+                        setSplitInsideCommission(false);
+                        setInsideRepSplits([]);
+                      }
+                      setInsideRepSearchEnabled(false);
+                    }}
+                    options={insideRepOptions}
+                    placeholder="Select Rep..."
+                    isLoading={isInsideRepLoading}
+                    onSearch={(query) => {
+                      setInsideRepSearchTerm(query);
+                      setInsideRepSearchEnabled(true);
+                    }}
+                    disabled={isConnectedToOrder}
                   />
-                </svg>
+                </div>
+                {splitInsideCommission && !isConnectedToOrder && (
+                  <button
+                    onClick={openInsideRepModal}
+                    className="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors whitespace-nowrap"
+                  >
+                    Split
+                  </button>
+                )}
               </div>
               {invoiceInsideRep && !isConnectedToOrder && (
-                <div className="mt-2 flex items-center gap-2">
+                <div className="mt-1.5 flex items-center gap-2">
                   <input
                     type="checkbox"
-                    id="splitInsideCommissionInvoice"
+                    id="splitInsideCommission"
                     checked={splitInsideCommission}
                     onChange={(e) => {
                       setSplitInsideCommission(e.target.checked);
                       if (e.target.checked) {
-                        const rep = AVAILABLE_INSIDE_REPS.find(
-                          (r) => r.id === invoiceInsideRep
-                        );
+                        const rep = insideRepOptions.find(r => r.id === invoiceInsideRep);
                         if (rep) {
-                          setInsideRepSplits([
-                            {
-                              repId: rep.id,
-                              repName: rep.name,
-                              percentage: 100,
-                            },
-                          ]);
+                          setInsideRepSplits([{ repId: rep.id, repName: rep.label, percentage: 100 }]);
                         }
                         openInsideRepModal();
                       } else {
@@ -613,22 +627,71 @@ export function InvoiceDetailsFields({
                     }}
                     className="accent-[var(--primary)]"
                   />
-                  <label
-                    htmlFor="splitInsideCommissionInvoice"
-                    className="text-xs text-[var(--muted-foreground)] cursor-pointer"
-                  >
-                    Split
+                  <label htmlFor="splitInsideCommission" className="text-xs text-[var(--muted-foreground)] cursor-pointer">
+                    Split commission
                   </label>
-                  {splitInsideCommission && insideRepSplits.length > 0 && (
-                    <button
-                      onClick={openInsideRepModal}
-                      className="text-xs text-[var(--primary)] hover:underline ml-1"
-                    >
-                      ({insideRepSplits.length})
-                    </button>
-                  )}
                 </div>
               )}
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
+                Freight Terms
+              </label>
+              <input
+                type="text"
+                value={(invoice as any).freightTerms || ''}
+                onChange={(e) => handleFieldUpdate('freightTerms' as any, e.target.value)}
+                placeholder="Prepaid & Add"
+                className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent ${
+                  isConnectedToOrder ? 'bg-gray-100 text-gray-500' : 'bg-white'
+                }`}
+                disabled={isConnectedToOrder}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
+                Shipping Terms
+              </label>
+              <input
+                type="text"
+                value={(invoice as any).shippingTerms || ''}
+                onChange={(e) => handleFieldUpdate('shippingTerms' as any, e.target.value)}
+                placeholder="FOB Destination"
+                className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent ${
+                  isConnectedToOrder ? 'bg-gray-100 text-gray-500' : 'bg-white'
+                }`}
+                disabled={isConnectedToOrder}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
+                Check #
+              </label>
+              <input
+                type="text"
+                value={(invoice as any).checkNumber || ''}
+                onChange={(e) => handleFieldUpdate('checkNumber' as any, e.target.value)}
+                placeholder="Check number"
+                className="w-full px-3 py-2 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
+                Published
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer mt-2">
+                <input
+                  type="checkbox"
+                  checked={invoice.published !== false}
+                  onChange={(e) => handleFieldUpdate('published', e.target.checked)}
+                  className="w-4 h-4 accent-[var(--primary)]"
+                />
+                <span className="text-sm text-[var(--foreground)]">Active</span>
+              </label>
             </div>
           </div>
         </div>
@@ -636,4 +699,3 @@ export function InvoiceDetailsFields({
     </div>
   );
 }
-

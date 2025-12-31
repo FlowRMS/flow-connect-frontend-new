@@ -343,13 +343,22 @@ export async function searchAdjustments(
 }
 
 /**
- * Fetch all adjustments using findLandingPages (general fetch, not order-specific)
+ * Paginated result type for adjustments
  */
-export async function fetchAdjustmentsLandingPage(
+export interface PaginatedAdjustmentsResult {
+  total: number;
+  records: AdjustmentLandingPage[];
+}
+
+/**
+ * Fetch adjustments with pagination using findLandingPages
+ */
+export async function fetchAdjustmentsWithPagination(
   filters?: Array<{ columnName: string; operator: string; value: string }>,
-  limit: number = 100,
-  offset: number = 0
-): Promise<AdjustmentLandingPage[]> {
+  options?: { limit?: number; offset?: number }
+): Promise<PaginatedAdjustmentsResult> {
+  const { limit = 50, offset = 0 } = options || {};
+
   try {
     const response = await crmGraphQLRequest<{ findLandingPages: FindAdjustmentsLandingPagesResponse }>({
       query: FIND_ADJUSTMENTS_LANDING_PAGE,
@@ -368,38 +377,44 @@ export async function fetchAdjustmentsLandingPage(
 
     if (response.errors) {
       console.warn('findLandingPages query error:', response.errors[0]?.message);
-      return [];
+      return { total: 0, records: [] };
     }
 
-    return response.data?.findLandingPages?.records || [];
+    return {
+      total: response.data?.findLandingPages?.total || 0,
+      records: response.data?.findLandingPages?.records || [],
+    };
   } catch (error) {
     console.warn('Error fetching adjustments:', error);
-    return [];
+    return { total: 0, records: [] };
   }
 }
 
 /**
- * Generate an adjustment number if not provided
+ * Fetch all adjustments using findLandingPages (general fetch, not order-specific)
+ * @deprecated Use fetchAdjustmentsWithPagination for paginated results
  */
-function generateAdjustmentNumber(): string {
-  const timestamp = Date.now().toString(36).toUpperCase();
-  const random = Math.random().toString(36).substring(2, 6).toUpperCase();
-  return `ADJ-${timestamp}-${random}`;
+export async function fetchAdjustmentsLandingPage(
+  filters?: Array<{ columnName: string; operator: string; value: string }>,
+  limit: number = 100,
+  offset: number = 0
+): Promise<AdjustmentLandingPage[]> {
+  const result = await fetchAdjustmentsWithPagination(filters, { limit, offset });
+  return result.records;
 }
 
 /**
  * Create a new adjustment
+ * Note: adjustmentNumber is required and must be provided by the user
  */
 export async function createAdjustment(input: CreateAdjustmentInput): Promise<Adjustment> {
-  // Ensure adjustmentNumber is provided (required by schema)
-  const adjustmentInput = {
-    ...input,
-    adjustmentNumber: input.adjustmentNumber || generateAdjustmentNumber(),
-  };
+  if (!input.adjustmentNumber) {
+    throw new Error('Adjustment number is required');
+  }
 
   const response = await crmGraphQLRequest<{ createAdjustment: Adjustment }>({
     query: CREATE_ADJUSTMENT,
-    variables: { input: adjustmentInput },
+    variables: { input },
   });
 
   if (response.errors) {
@@ -453,7 +468,9 @@ export async function deleteAdjustment(id: string): Promise<boolean> {
 // React Query Hooks
 // ============================================================================
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
+
+const DEFAULT_PAGE_SIZE = 50;
 
 /**
  * Hook to fetch a single adjustment
@@ -476,6 +493,32 @@ export function useAdjustmentsLandingPage(
   return useQuery({
     queryKey: ['adjustmentsLandingPage', filters, limit],
     queryFn: () => fetchAdjustmentsLandingPage(filters, limit),
+  });
+}
+
+/**
+ * Hook to fetch adjustments with infinite scroll pagination
+ */
+export function useAdjustmentsInfinite(
+  filters?: Array<{ columnName: string; operator: string; value: string }>,
+  pageSize: number = DEFAULT_PAGE_SIZE
+) {
+  return useInfiniteQuery<PaginatedAdjustmentsResult, Error>({
+    queryKey: ['adjustmentsLandingPage', filters, 'infinite'],
+    queryFn: async ({ pageParam = 0 }) => {
+      return fetchAdjustmentsWithPagination(filters, {
+        limit: pageSize,
+        offset: pageParam as number,
+      });
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const totalFetched = allPages.reduce((acc, page) => acc + page.records.length, 0);
+      if (totalFetched >= lastPage.total) return undefined;
+      return totalFetched;
+    },
+    enabled: true,
+    staleTime: 30 * 1000,
   });
 }
 

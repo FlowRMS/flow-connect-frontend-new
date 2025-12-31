@@ -11,6 +11,7 @@ import type { Credit, CreditType, CreditDetailInput, CreateCreditInput } from '.
 import { formatCurrency } from '../../../utils';
 import { SearchableDropdownV2 } from '@/components/quotes-v2/components/SearchableDropdownV2';
 import { useUserSearch } from '../../../../api';
+import { searchUsers } from '@/components/quotes/api/quotesApi';
 import { StyledDatePicker, parseDateString, formatDateToString } from '@/components/shared/StyledDatePicker';
 
 // Credit Type Configuration with colors and labels
@@ -71,6 +72,7 @@ interface CreditLineItemState {
   showOriginalDetails: boolean;
   showImpactPreview: boolean;
   showOutsideSplits: boolean;
+  outsideSplitsFromLineItem: boolean; // Whether the splits are inherited from the line item
 }
 
 interface CreditModalProps {
@@ -276,6 +278,7 @@ export function CreditModal({
               showOriginalDetails: true,
               showImpactPreview: true,
               showOutsideSplits: (detail.outsideSplitRates || []).length > 0,
+              outsideSplitsFromLineItem: false, // In edit mode, the splits were already saved, so they're editable
             };
           });
           setLineItems(populatedLineItems);
@@ -314,6 +317,7 @@ export function CreditModal({
       showOriginalDetails: true,
       showImpactPreview: true,
       showOutsideSplits: false,
+      outsideSplitsFromLineItem: false,
     };
   }
 
@@ -363,8 +367,9 @@ export function CreditModal({
   };
 
   // Select order line item
-  const selectOrderLineItem = (index: number, lineItemId: string, label: string) => {
+  const selectOrderLineItem = async (index: number, lineItemId: string, label: string) => {
     if (lineItemId === 'order-level') {
+      // Order-Level Credit - clear everything including outside splits
       updateLineItem(index, {
         linkedLineItemId: null,
         linkedLineItemLabel: 'Order-Level Credit',
@@ -372,16 +377,63 @@ export function CreditModal({
         quantity: 0,
         creditAmount: 0,
         commissionAmount: 0,
+        outsideSplitRates: [],
+        showOutsideSplits: false,
+        outsideSplitsFromLineItem: false,
       });
     } else {
       const orderLineItem = (order.lineItems || []).find(li => li.id === lineItemId);
       if (orderLineItem) {
+        // Check if line item has outside rep splits
+        const lineItemOutsideSplits = (orderLineItem as any).outsideSplitRates || [];
+        const hasOutsideSplits = lineItemOutsideSplits.length > 0;
+
+        // First update with basic info immediately
         updateLineItem(index, {
           linkedLineItemId: lineItemId,
           linkedLineItemLabel: label,
           unitPrice: orderLineItem.unitPrice,
           commissionRate: (orderLineItem.commissionRate || 0.08) * 100,
+          outsideSplitRates: [],
+          showOutsideSplits: true,
+          outsideSplitsFromLineItem: hasOutsideSplits,
         });
+
+        // If there are outside splits, fetch user names
+        if (hasOutsideSplits) {
+          try {
+            // Fetch all outside reps to match userIds to names
+            const users = await searchUsers({ searchTerm: '', isOutside: true, enabled: true, limit: 100 });
+
+            const outsideSplitRates: OutsideSplitRate[] = lineItemOutsideSplits.map((split: any, idx: number) => {
+              const matchingUser = users.find(u => u.id === split.userId);
+              return {
+                id: `inherited-${Date.now()}-${idx}`,
+                userId: split.userId || '',
+                userName: matchingUser?.fullName || matchingUser?.firstName || 'Unknown Rep',
+                splitRate: parseFloat(split.splitRate || '0'),
+                position: split.position || idx,
+              };
+            });
+
+            updateLineItem(index, {
+              outsideSplitRates,
+            });
+          } catch (error) {
+            console.error('Error fetching outside rep names:', error);
+            // Fallback: use Unknown Rep if fetch fails
+            const outsideSplitRates: OutsideSplitRate[] = lineItemOutsideSplits.map((split: any, idx: number) => ({
+              id: `inherited-${Date.now()}-${idx}`,
+              userId: split.userId || '',
+              userName: 'Unknown Rep',
+              splitRate: parseFloat(split.splitRate || '0'),
+              position: split.position || idx,
+            }));
+            updateLineItem(index, {
+              outsideSplitRates,
+            });
+          }
+        }
       }
     }
   };
@@ -472,6 +524,10 @@ export function CreditModal({
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
 
+    if (!creditNumber || creditNumber.trim() === '') {
+      newErrors.creditNumber = 'Credit number is required';
+    }
+
     if (!creditDate) {
       newErrors.creditDate = 'Credit date is required';
     }
@@ -497,6 +553,7 @@ export function CreditModal({
   // Handle submit
   const handleSubmit = async () => {
     setTouched({
+      creditNumber: true,
       creditDate: true,
       creditType: true,
       ...lineItems.reduce((acc, _, idx) => ({ ...acc, [`lineItem-${idx}-quantity`]: true }), {}),
@@ -521,7 +578,7 @@ export function CreditModal({
 
     const input: CreateCreditInput = {
       ...(credit?.id ? { id: credit.id } : {}),
-      creditNumber: creditNumber || undefined,
+      creditNumber: creditNumber.trim(),
       entityDate: formatDateToString(creditDate) || new Date().toISOString().split('T')[0],
       orderId: order.id,
       creditType: creditType as CreditType,
@@ -598,19 +655,29 @@ export function CreditModal({
             </h3>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {/* Credit Number (Optional) */}
+              {/* Credit Number (Required) */}
               <div>
                 <label className="block text-sm font-medium text-[var(--foreground)] mb-1.5">
-                  Credit Number
-                  <span className="text-[var(--muted-foreground)] font-normal ml-1">(Optional)</span>
+                  Credit Number <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={creditNumber}
-                  onChange={(e) => setCreditNumber(e.target.value)}
-                  placeholder="Auto-generated"
-                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                  onChange={(e) => {
+                    setCreditNumber(e.target.value);
+                    setTouched(prev => ({ ...prev, creditNumber: true }));
+                  }}
+                  onBlur={() => setTouched(prev => ({ ...prev, creditNumber: true }))}
+                  placeholder="Enter credit number"
+                  className={`w-full px-3 py-2 border rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 ${
+                    touched.creditNumber && errors.creditNumber
+                      ? 'border-red-500'
+                      : 'border-[var(--border)]'
+                  }`}
                 />
+                {touched.creditNumber && errors.creditNumber && (
+                  <p className="text-xs text-red-500 mt-1">{errors.creditNumber}</p>
+                )}
               </div>
 
               {/* Credit Date - Styled Date Picker */}
@@ -941,9 +1008,9 @@ export function CreditModal({
 
                           {/* Outside Split Rates Section - Collapsible */}
                           <CollapsibleSection
-                            title="Outside Rep Split Rates"
+                            title={item.outsideSplitsFromLineItem ? "Outside Rep Split Rates (from Line Item)" : "Outside Rep Split Rates"}
                             icon={
-                              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-600">
+                              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className={item.outsideSplitsFromLineItem ? "text-gray-400" : "text-purple-600"}>
                                 <circle cx="7" cy="7" r="3"/>
                                 <circle cx="13" cy="13" r="3"/>
                                 <path d="M10 7a3 3 0 00-3 3"/>
@@ -951,77 +1018,128 @@ export function CreditModal({
                             }
                             isOpen={item.showOutsideSplits}
                             onToggle={() => toggleSection(index, 'showOutsideSplits')}
-                            colorScheme="purple"
+                            colorScheme={item.outsideSplitsFromLineItem ? "blue" : "purple"}
                             badge={
                               item.outsideSplitRates.length > 0 ? (
                                 <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-                                  splitValid
-                                    ? 'bg-emerald-100 text-emerald-700'
-                                    : 'bg-red-100 text-red-700'
+                                  item.outsideSplitsFromLineItem
+                                    ? 'bg-gray-100 text-gray-600'
+                                    : splitValid
+                                      ? 'bg-emerald-100 text-emerald-700'
+                                      : 'bg-red-100 text-red-700'
                                 }`}>
                                   {item.outsideSplitRates.length} rep{item.outsideSplitRates.length > 1 ? 's' : ''} • {splitTotal}%
+                                  {item.outsideSplitsFromLineItem && ' (inherited)'}
                                 </span>
-                              ) : null
+                              ) : (
+                                item.linkedLineItemId && !item.outsideSplitsFromLineItem ? (
+                                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">
+                                    No outside rep on line item
+                                  </span>
+                                ) : null
+                              )
                             }
                           >
-                            <div className="space-y-4">
+                            <div className={`space-y-4 ${item.outsideSplitsFromLineItem ? 'opacity-75' : ''}`}>
+                              {/* Inherited from line item notice */}
+                              {item.outsideSplitsFromLineItem && item.outsideSplitRates.length > 0 && (
+                                <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm text-gray-600">
+                                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <circle cx="10" cy="10" r="8"/>
+                                    <path d="M10 6v4M10 14v.01"/>
+                                  </svg>
+                                  <span>Outside rep split rates inherited from the selected line item</span>
+                                </div>
+                              )}
+
+                              {/* No outside rep on line item notice */}
+                              {item.linkedLineItemId && !item.outsideSplitsFromLineItem && item.outsideSplitRates.length === 0 && (
+                                <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-500">
+                                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <circle cx="10" cy="10" r="8"/>
+                                    <path d="M10 6v4M10 14v.01"/>
+                                  </svg>
+                                  <span>The selected line item has no outside rep assigned. You can add reps below.</span>
+                                </div>
+                              )}
+
                               {/* Reps List */}
                               {item.outsideSplitRates.length > 0 && (
                                 <div className="space-y-2">
                                   {item.outsideSplitRates.map((split, splitIdx) => (
                                     <div
                                       key={split.id}
-                                      className="flex items-center gap-3 p-3 bg-white rounded-xl border border-purple-100 shadow-sm hover:shadow-md transition-shadow"
+                                      className={`flex items-center gap-3 p-3 rounded-xl border shadow-sm transition-shadow ${
+                                        item.outsideSplitsFromLineItem
+                                          ? 'bg-gray-50 border-gray-200'
+                                          : 'bg-white border-purple-100 hover:shadow-md'
+                                      }`}
                                     >
                                       {/* Avatar */}
-                                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0 ${
+                                        item.outsideSplitsFromLineItem
+                                          ? 'bg-gradient-to-br from-gray-400 to-gray-500'
+                                          : 'bg-gradient-to-br from-purple-400 to-purple-600'
+                                      }`}>
                                         {split.userName.charAt(0).toUpperCase()}
                                       </div>
 
                                       {/* Name */}
                                       <div className="flex-1 min-w-0">
-                                        <div className="text-sm font-semibold text-gray-900 truncate">{split.userName}</div>
+                                        <div className={`text-sm font-semibold truncate ${item.outsideSplitsFromLineItem ? 'text-gray-600' : 'text-gray-900'}`}>
+                                          {split.userName}
+                                        </div>
                                         <div className="text-xs text-gray-500">Position {splitIdx + 1}</div>
                                       </div>
 
-                                      {/* Split Rate Input */}
+                                      {/* Split Rate Display/Input */}
                                       <div className="flex items-center gap-2">
                                         <div className="relative">
-                                          <input
-                                            type="number"
-                                            min="0"
-                                            max="100"
-                                            value={split.splitRate}
-                                            onChange={(e) => updateSplitRate(index, split.id, parseInt(e.target.value) || 0)}
-                                            className="w-20 px-3 py-2 text-sm border border-purple-200 rounded-lg text-right font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500"
-                                          />
-                                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium">%</span>
+                                          {item.outsideSplitsFromLineItem ? (
+                                            <div className="w-20 px-3 py-2 text-sm border border-gray-200 rounded-lg text-right font-semibold bg-gray-100 text-gray-600">
+                                              {split.splitRate}%
+                                            </div>
+                                          ) : (
+                                            <>
+                                              <input
+                                                type="number"
+                                                min="0"
+                                                max="100"
+                                                value={split.splitRate}
+                                                onChange={(e) => updateSplitRate(index, split.id, parseInt(e.target.value) || 0)}
+                                                className="w-20 px-3 py-2 text-sm border border-purple-200 rounded-lg text-right font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500"
+                                              />
+                                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium">%</span>
+                                            </>
+                                          )}
                                         </div>
                                       </div>
 
                                       {/* Commission Preview */}
                                       <div className="hidden sm:block text-right px-3">
                                         <div className="text-xs text-gray-500">Commission</div>
-                                        <div className="text-sm font-semibold text-purple-700">
+                                        <div className={`text-sm font-semibold ${item.outsideSplitsFromLineItem ? 'text-gray-600' : 'text-purple-700'}`}>
                                           {formatCurrency(item.commissionAmount * (split.splitRate / 100))}
                                         </div>
                                       </div>
 
-                                      {/* Remove Button */}
-                                      <button
-                                        type="button"
-                                        onClick={() => removeRepFromLineItem(index, split.id)}
-                                        className="p-2 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
-                                      >
-                                        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                                          <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
-                                        </svg>
-                                      </button>
+                                      {/* Remove Button - hidden when inherited */}
+                                      {!item.outsideSplitsFromLineItem && (
+                                        <button
+                                          type="button"
+                                          onClick={() => removeRepFromLineItem(index, split.id)}
+                                          className="p-2 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                                        >
+                                          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                                          </svg>
+                                        </button>
+                                      )}
                                     </div>
                                   ))}
 
-                                  {/* Auto Distribute Button */}
-                                  {item.outsideSplitRates.length > 1 && (
+                                  {/* Auto Distribute Button - hidden when inherited */}
+                                  {!item.outsideSplitsFromLineItem && item.outsideSplitRates.length > 1 && (
                                     <button
                                       type="button"
                                       onClick={() => autoDistributeSplits(index)}
@@ -1034,8 +1152,8 @@ export function CreditModal({
                                     </button>
                                   )}
 
-                                  {/* Validation Message */}
-                                  {!splitValid && (
+                                  {/* Validation Message - hidden when inherited */}
+                                  {!item.outsideSplitsFromLineItem && !splitValid && (
                                     <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
                                       <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                                         <circle cx="10" cy="10" r="8"/>
@@ -1047,25 +1165,27 @@ export function CreditModal({
                                 </div>
                               )}
 
-                              {/* Add Rep */}
-                              <div className="pt-2">
-                                <label className="block text-xs font-medium text-purple-700 mb-2">
-                                  Add Outside Rep
-                                </label>
-                                <SearchableDropdownV2
-                                  value=""
-                                  displayValue=""
-                                  onChange={(id, label) => {
-                                    if (id && !item.outsideSplitRates.some(r => r.userId === id)) {
-                                      addRepToLineItem(index, id, label);
-                                    }
-                                  }}
-                                  options={repOptions.filter(opt => !item.outsideSplitRates.some(r => r.userId === opt.id))}
-                                  onSearch={handleRepSearch}
-                                  isLoading={isRepLoading}
-                                  placeholder="Search for outside rep..."
-                                />
-                              </div>
+                              {/* Add Rep - hidden when inherited from line item */}
+                              {!item.outsideSplitsFromLineItem && (
+                                <div className="pt-2">
+                                  <label className="block text-xs font-medium text-purple-700 mb-2">
+                                    Add Outside Rep
+                                  </label>
+                                  <SearchableDropdownV2
+                                    value=""
+                                    displayValue=""
+                                    onChange={(id, label) => {
+                                      if (id && !item.outsideSplitRates.some(r => r.userId === id)) {
+                                        addRepToLineItem(index, id, label);
+                                      }
+                                    }}
+                                    options={repOptions.filter(opt => !item.outsideSplitRates.some(r => r.userId === opt.id))}
+                                    onSearch={handleRepSearch}
+                                    isLoading={isRepLoading}
+                                    placeholder="Search for outside rep..."
+                                  />
+                                </div>
+                              )}
                             </div>
                           </CollapsibleSection>
 

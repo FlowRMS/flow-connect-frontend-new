@@ -426,14 +426,14 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
             {[
               { id: 'line-items', label: 'Line Items', count: (order.lineItems || []).length },
               { id: 'credits', label: 'Credits' },
-              { id: 'adjustments', label: 'Adjustments' },
+              { id: 'adjustments', label: 'Adjustments', hidden: true }, // Hidden - adjustments now has its own page in sidebar
               { id: 'acknowledgements', label: 'Acknowledgements' },
               { id: 'notes', label: 'Notes' },
               { id: 'tasks', label: 'Tasks' },
               { id: 'activity', label: 'Activity' },
               { id: 'linked-objects', label: 'Linked Objects' },
               { id: 'settings', label: 'Settings' },
-            ].map(tab => (
+            ].filter(tab => !tab.hidden).map(tab => (
               <button
                 key={tab.id}
                 onClick={() => state.setActiveTab(tab.id as any)}

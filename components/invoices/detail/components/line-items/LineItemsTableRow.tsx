@@ -7,12 +7,12 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import type { InvoiceLineItem, Invoice, Order } from '@/lib/types/rms';
-import type { ColumnKey, ViewMode, LineItemCredit } from '../../types';
+import type { Invoice, Order } from '@/lib/types/rms';
+import type { ColumnKey, ViewMode, LineItemCredit, InvoiceLineItem } from '../../types';
 import { formatCurrency } from '../../utils';
 import { getLinkedOrdersForInvoiceLine, getLinkedChecksForInvoice } from '../../utils';
 
-interface LineItemsTableRowProps {
+export interface LineItemsTableRowProps {
   item: InvoiceLineItem;
   invoice: Invoice;
   isSelected: boolean;
@@ -23,6 +23,24 @@ interface LineItemsTableRowProps {
   onShowOrderTooltip: (x: number, y: number, orders: Order[]) => void;
   mockOrders: Order[];
   mockChecks: any[];
+  // Editing props
+  editingCell?: { rowId: string; column: ColumnKey } | null;
+  editValue?: string;
+  onStartEdit?: (rowId: string, column: ColumnKey, currentValue: string) => void;
+  onEditValueChange?: (value: string) => void;
+  onFinishEdit?: (save?: boolean) => void;
+  onKeyDown?: (e: React.KeyboardEvent) => void;
+  isEditable?: boolean;
+  // Product search props
+  productSearchTerm?: string;
+  setProductSearchTerm?: (term: string) => void;
+  setProductSearchEnabled?: (enabled: boolean) => void;
+  productOptions?: { id: string; label: string; sublabel?: string; data: any }[];
+  isProductSearchLoading?: boolean;
+  onProductSelect?: (lineItemId: string, productId: string, product: any) => void;
+  // Actions
+  onOpenAdditionalDetails?: (lineItem: InvoiceLineItem) => void;
+  onDeleteLineItem?: (lineItemId: string) => void;
 }
 
 export function LineItemsTableRow({
@@ -36,6 +54,24 @@ export function LineItemsTableRow({
   onShowOrderTooltip,
   mockOrders,
   mockChecks,
+  // Editing props (optional)
+  editingCell,
+  editValue,
+  onStartEdit,
+  onEditValueChange,
+  onFinishEdit,
+  onKeyDown,
+  isEditable,
+  // Product search props (optional)
+  productSearchTerm,
+  setProductSearchTerm,
+  setProductSearchEnabled,
+  productOptions,
+  isProductSearchLoading,
+  onProductSelect,
+  // Actions (optional)
+  onOpenAdditionalDetails,
+  onDeleteLineItem,
 }: LineItemsTableRowProps) {
   const router = useRouter();
 

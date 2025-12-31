@@ -383,6 +383,10 @@ export function AdjustmentModal({
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
 
+    if (!adjustmentNumber || adjustmentNumber.trim() === '') {
+      newErrors.adjustmentNumber = 'Adjustment number is required';
+    }
+
     if (!adjustmentDate) {
       newErrors.adjustmentDate = 'Adjustment date is required';
     }
@@ -414,6 +418,7 @@ export function AdjustmentModal({
   // Handle submit
   const handleSubmit = async () => {
     setTouched({
+      adjustmentNumber: true,
       adjustmentDate: true,
       amount: true,
       allocationMethod: true,
@@ -427,7 +432,7 @@ export function AdjustmentModal({
 
     // splitRates is required by the schema - send empty array for non-REP_SPLIT
     const input: CreateAdjustmentInput = {
-      adjustmentNumber: adjustmentNumber || undefined,
+      adjustmentNumber: adjustmentNumber.trim(),
       entityDate: formatDateToString(adjustmentDate!) || new Date().toISOString().split('T')[0],
       amount,
       allocationMethod: allocationMethod as AllocationMethod,
@@ -521,16 +526,26 @@ export function AdjustmentModal({
                   {/* Adjustment Number */}
                   <div>
                     <label className="block text-sm font-medium text-[var(--foreground)] mb-1.5">
-                      Adjustment #
-                      <span className="text-[var(--muted-foreground)] font-normal ml-1">(Optional)</span>
+                      Adjustment # <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
                       value={adjustmentNumber}
-                      onChange={(e) => setAdjustmentNumber(e.target.value)}
-                      placeholder="Auto-generated"
-                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                      onChange={(e) => {
+                        setAdjustmentNumber(e.target.value);
+                        setTouched(prev => ({ ...prev, adjustmentNumber: true }));
+                      }}
+                      onBlur={() => setTouched(prev => ({ ...prev, adjustmentNumber: true }))}
+                      placeholder="Enter adjustment number"
+                      className={`w-full px-3 py-2 border rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 ${
+                        touched.adjustmentNumber && errors.adjustmentNumber
+                          ? 'border-red-500'
+                          : 'border-[var(--border)]'
+                      }`}
                     />
+                    {touched.adjustmentNumber && errors.adjustmentNumber && (
+                      <p className="text-xs text-red-500 mt-1">{errors.adjustmentNumber}</p>
+                    )}
                   </div>
 
                   {/* Date */}

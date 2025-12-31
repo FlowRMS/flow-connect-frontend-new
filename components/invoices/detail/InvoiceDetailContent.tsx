@@ -1,6 +1,7 @@
 /**
  * InvoiceDetailContent Component
  * Main container for invoice detail
+ * Uses real API data and supports order selection for pre-population
  */
 
 'use client';
@@ -24,11 +25,12 @@ import {
   InsideRepSplitsModal,
 } from './components/modals/header';
 import { WarehouseConversionModal } from './components/modals/utility';
+import { AdditionalDetailsModal } from './components/modals/line-items';
 import { DEFAULT_VISIBLE_COLUMNS, COLUMN_LABELS } from './constants';
 import { getTabsConfig } from './config/tabsConfig';
 import { isOverdue } from './utils';
 import { mockOrders, mockChecks } from '@/lib/data/rms-mock';
-import type { ColumnKey, RepSplit } from './types';
+import type { ColumnKey, RepSplit, InvoiceLineItem } from './types';
 import type { OrderLineItem } from '@/lib/types/rms';
 
 interface InvoiceDetailContentProps {
@@ -38,6 +40,48 @@ interface InvoiceDetailContentProps {
 export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContentProps) {
   const router = useRouter();
   const state = useInvoiceDetailState({ invoiceId });
+
+  // Loading state
+  if (state?.isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary)] mx-auto mb-4" />
+          <p className="text-sm text-[var(--muted-foreground)]">Loading invoice...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (state?.error) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-red-600 mb-2">
+            Error Loading Invoice
+          </h2>
+          <p className="text-sm text-[var(--muted-foreground)] mb-4">
+            {state.error instanceof Error ? state.error.message : 'An error occurred'}
+          </p>
+          <div className="flex gap-2 justify-center">
+            <button
+              onClick={() => state.refetch?.()}
+              className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-sm hover:bg-[var(--primary-hover)] transition-colors"
+            >
+              Try Again
+            </button>
+            <button
+              onClick={() => router.push('/invoices')}
+              className="px-4 py-2 border border-[var(--border)] text-[var(--foreground)] rounded-lg text-sm hover:bg-[var(--muted)] transition-colors"
+            >
+              Back to Invoices
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!state || !state.invoice) {
     return (
@@ -96,8 +140,16 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
     alert('Generate PDF');
   };
 
-  const handleSave = () => {
-    alert('Invoice saved successfully');
+  const handleSave = async () => {
+    const success = await state.saveInvoice();
+    if (success) {
+      alert('Invoice saved successfully');
+      if (state.isCreateMode) {
+        router.push('/invoices');
+      }
+    } else {
+      alert('Failed to save invoice');
+    }
   };
 
   const handleSaveAsNew = () => {
@@ -146,25 +198,13 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
       .filter((p) => !p.isAlreadyWarehouse)
       .map((p) => p.id);
 
-    // Update the invoice line items
-    state.setInvoices((prev) =>
-      prev.map((inv) => {
-        if (inv.id !== state.invoice!.id) return inv;
-        return {
-          ...inv,
-          lineItems: inv.lineItems.map((item) => {
-            if (idsToConvert.includes(item.id)) {
-              return {
-                ...item,
-                isWarehouseConsignment: true,
-                inventoryOnHand: 0, // Default to 0, would be fetched from actual inventory
-              };
-            }
-            return item;
-          }),
-        };
-      })
-    );
+    // Update each line item that needs conversion
+    idsToConvert.forEach(id => {
+      state.updateLineItem(id, {
+        isWarehouseConsignment: true,
+        inventoryOnHand: 0, // Default to 0, would be fetched from actual inventory
+      });
+    });
 
     state.setShowWarehouseConversionModal(false);
     state.setProductsToConvert([]);
@@ -247,6 +287,10 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
         insideRepSplits={state.insideRepSplits}
         setInsideRepSplits={state.setInsideRepSplits}
         openInsideRepModal={() => state.setShowInsideRepSplitsModal(true)}
+        onOrderSelect={state.handleOrderSelect}
+        onInvoiceSelect={state.handleInvoiceSelect}
+        onUpdateInvoice={state.updateInvoice}
+        isCreateMode={state.isCreateMode}
       />
 
       {/* Main Content Area with Tabs */}
@@ -406,6 +450,12 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
                 onShowOrderTooltip={tableHook.showOrderTooltip}
                 mockOrders={mockOrders}
                 mockChecks={mockChecks}
+                onAddLine={state.addLineItem}
+                onUpdateLineItem={state.updateLineItem}
+                onDeleteLineItem={state.deleteLineItem}
+                onOpenAdditionalDetails={state.openAdditionalDetails}
+                isEditable={!state.isConnectedToOrder || state.isCreateMode}
+                factoryId={state.invoice.manufacturerId}
               />
             </div>
           )}
@@ -572,6 +622,14 @@ export default function InvoiceDetailContent({ invoiceId }: InvoiceDetailContent
         mode={state.warehouseConversionMode}
         productsToConvert={state.productsToConvert}
         onConfirm={handleConfirmWarehouseConversion}
+      />
+
+      {/* Additional Details Modal for line items */}
+      <AdditionalDetailsModal
+        isOpen={state.showAdditionalDetailsModal}
+        onClose={() => state.setShowAdditionalDetailsModal(false)}
+        lineItem={state.selectedLineItemForDetails}
+        onSave={state.saveAdditionalDetails}
       />
     </main>
   );

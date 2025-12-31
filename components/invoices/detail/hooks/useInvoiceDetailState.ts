@@ -2,29 +2,478 @@
  * useInvoiceDetailState Hook
  * Main state management hook for invoice detail
  * Manages overall state and integrates sub-hooks
+ * Uses real API data and supports order population
  */
 
-import { useState, useMemo, useEffect } from 'react';
-import type { Invoice, OrderSplitRate } from '@/lib/types/rms';
-import type { TabType, ViewMode, LineItemCredit, OrderTooltipState, VersionInfo, RepSplit, ProductToConvert, ColumnKey } from '../types';
-import { mockInvoices, mockOrders, mockSalesReps } from '@/lib/data/rms-mock';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import type { Invoice, OrderSplitRate, InvoiceStatus, InvoiceLineItem as RmsInvoiceLineItem } from '@/lib/types/rms';
+import type { TabType, ViewMode, LineItemCredit, OrderTooltipState, VersionInfo, RepSplit, ProductToConvert, ColumnKey, InvoiceLineItem, EditableInvoice } from '../types';
+import { mockSalesReps } from '@/lib/data/rms-mock';
 import { DEFAULT_ACTIVE_TAB } from '../config/tabsConfig';
 import { DEFAULT_VISIBLE_COLUMNS } from '../constants';
 import { calculateInvoiceTotals } from '../utils';
+import {
+  useInvoice,
+  useCreateInvoice,
+  useUpdateInvoice,
+  useDeleteInvoice,
+  type Invoice as ApiInvoice,
+  type InvoiceDetail,
+  type CreateInvoiceInput,
+  type UpdateInvoiceInput,
+} from '../../api';
+import { useOrder } from '@/components/orders/api';
+import { fetchInvoiceById } from '../../api/invoicesApi';
+
+/**
+ * Map API status to RMS InvoiceStatus type
+ * RMS uses: 'open' | 'paid' | 'partial_paid' | 'void' | 'dormant'
+ */
+function mapApiStatusToInvoiceStatus(status?: string): InvoiceStatus {
+  const s = status?.toLowerCase();
+  switch (s) {
+    case 'open':
+      return 'open';
+    case 'paid':
+      return 'paid';
+    case 'partial_paid':
+    case 'partial':
+      return 'partial_paid';
+    case 'void':
+      return 'void';
+    case 'dormant':
+      return 'dormant';
+    default:
+      return 'open';
+  }
+}
 
 interface UseInvoiceDetailStateProps {
   invoiceId: string;
 }
 
-export function useInvoiceDetailState({ invoiceId }: UseInvoiceDetailStateProps) {
-  // Invoices data
-  const [invoices, setInvoices] = useState<Invoice[]>(mockInvoices);
+/**
+ * Transform API invoice to EditableInvoice format for local editing
+ */
+function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
+  // Transform details to extended line items for editing
+  const extendedLineItems: InvoiceLineItem[] = (apiInvoice.details || []).map((detail, index) => ({
+    id: detail.id,
+    orderLineItemId: detail.orderDetailId || '',
+    lineNumber: detail.itemNumber || index + 1,
+    productId: detail.productId || '',
+    partNumber: detail.product?.factoryPartNumber || detail.productNameAdhoc || '',
+    custPartNumber: '',
+    description: detail.product?.description || detail.productDescriptionAdhoc || '',
+    quantity: parseFloat(detail.quantity || '0'),
+    unitPrice: parseFloat(detail.unitPrice || '0'),
+    uom: detail.uom?.title || 'EA',
+    uomId: detail.uomId || '',
+    divisor: parseFloat(detail.divisionFactor || '1'),
+    total: detail.total || 0,
+    amount: detail.total || 0,
+    commissionPercent: parseFloat(detail.commissionRate || '0'),
+    commissionRate: parseFloat(detail.commissionRate || '0'),
+    commission: detail.commission || 0,
+    commissionAmount: detail.commission || 0,
+    discountPercent: parseFloat(detail.discountRate || '0'),
+    discount: detail.discount || 0,
+    commissionDiscountPercent: parseFloat(detail.commissionDiscountRate || '0'),
+    commissionDiscount: detail.commissionDiscount || 0,
+    status: detail.status || 'open',
+    leadTime: detail.leadTime || '',
+    note: detail.note || '',
+    endUserId: detail.endUserId || '',
+    orderDetailId: detail.orderDetailId || '',
+    invoicedBalance: detail.invoicedBalance || 0,
+    outsideSplitRates: (detail.outsideSplitRates || []).map(s => ({
+      userId: s.userId || '',
+      userName: s.user?.fullName || '',
+      splitRate: parseFloat(s.splitRate || '0'),
+      position: s.position || 0,
+    })),
+  }));
 
-  // Get current invoice
-  const invoice = useMemo(
-    () => invoices.find((i) => i.id === invoiceId),
-    [invoices, invoiceId]
-  );
+  return {
+    id: apiInvoice.id,
+    invoiceNumber: apiInvoice.invoiceNumber || '',
+    orderId: apiInvoice.orderId || '',
+    orderNumber: apiInvoice.order?.orderNumber || '',
+    customerId: apiInvoice.order?.soldToCustomerId || '',
+    customerName: '', // Will be populated from order if connected
+    manufacturerId: apiInvoice.factory?.id || apiInvoice.factoryId || '',
+    manufacturerName: apiInvoice.factory?.title || '',
+    status: mapApiStatusToInvoiceStatus(apiInvoice.status),
+    isLocked: apiInvoice.locked || false,
+    invoiceDate: apiInvoice.entityDate || '',
+    entryDate: apiInvoice.createdAt || '',
+    dueDate: apiInvoice.dueDate || '',
+    createdAt: apiInvoice.createdAt || '',
+    createdBy: apiInvoice.createdBy?.fullName || '',
+    updatedAt: apiInvoice.createdAt || '',
+    lineItems: extendedLineItems,
+    subtotal: apiInvoice.balance?.subtotal || 0,
+    freight: 0, // Not in API
+    total: apiInvoice.balance?.total || 0,
+    amountPaid: apiInvoice.balance?.paidBalance || 0,
+    amountCredited: 0, // Not in API
+    balance: (apiInvoice.balance?.total || 0) - (apiInvoice.balance?.paidBalance || 0),
+    totalCommission: apiInvoice.balance?.commission || 0,
+    splitRates: [], // Will be populated from details
+  };
+}
+
+/**
+ * Transform API invoice detail to extended UI line item
+ * This returns the extended InvoiceLineItem type from local types
+ */
+function transformDetailToExtendedLineItem(detail: InvoiceDetail): InvoiceLineItem {
+  const quantity = parseFloat(detail.quantity || '0');
+  const unitPrice = parseFloat(detail.unitPrice || '0');
+  const divisor = parseFloat(detail.divisionFactor || '1');
+  const total = detail.total || (quantity * unitPrice / divisor);
+  const commissionRate = parseFloat(detail.commissionRate || '0');
+  const commissionAmount = detail.commission || 0;
+
+  return {
+    id: detail.id,
+    // Required from base type
+    orderLineItemId: detail.orderDetailId || '',
+    lineNumber: detail.itemNumber || 1,
+    partNumber: detail.product?.factoryPartNumber || detail.productNameAdhoc || '',
+    description: detail.product?.description || detail.productDescriptionAdhoc || '',
+    quantity,
+    unitPrice,
+    amount: total,
+    commissionRate,
+    commissionAmount,
+    // Extended fields
+    productId: detail.productId || '',
+    custPartNumber: '', // Not directly in API
+    uom: detail.uom?.title || 'EA',
+    uomId: detail.uomId || '',
+    divisor,
+    total,
+    commissionPercent: commissionRate,
+    commission: commissionAmount,
+    discountPercent: parseFloat(detail.discountRate || '0'),
+    discount: detail.discount || 0,
+    commissionDiscountPercent: parseFloat(detail.commissionDiscountRate || '0'),
+    commissionDiscount: detail.commissionDiscount || 0,
+    status: detail.status || 'open',
+    leadTime: detail.leadTime || '',
+    note: detail.note || '',
+    endUserId: detail.endUserId || '',
+    orderDetailId: detail.orderDetailId || '',
+    invoicedBalance: detail.invoicedBalance || 0,
+    outsideSplitRates: (detail.outsideSplitRates || []).map(s => ({
+      userId: s.userId || '',
+      userName: s.user?.fullName || '',
+      splitRate: parseFloat(s.splitRate || '0'),
+      position: s.position || 0,
+    })),
+  };
+}
+
+/**
+ * Create empty editable invoice for new invoice creation
+ */
+function createEmptyInvoice(): EditableInvoice {
+  const today = new Date().toISOString().split('T')[0];
+  return {
+    id: '',
+    invoiceNumber: '',
+    orderId: '',
+    orderNumber: '',
+    customerId: '',
+    customerName: '',
+    manufacturerId: '',
+    manufacturerName: '',
+    status: 'open',
+    isLocked: false,
+    invoiceDate: today,
+    entryDate: today,
+    dueDate: '',
+    createdAt: today,
+    createdBy: '',
+    updatedAt: today,
+    lineItems: [],
+    subtotal: 0,
+    freight: 0,
+    total: 0,
+    amountPaid: 0,
+    amountCredited: 0,
+    balance: 0,
+    totalCommission: 0,
+    splitRates: [],
+  };
+}
+
+export function useInvoiceDetailState({ invoiceId }: UseInvoiceDetailStateProps) {
+  const isCreateMode = invoiceId === 'new';
+
+  // Fetch invoice from API
+  const {
+    data: apiInvoice,
+    isLoading,
+    error,
+    refetch
+  } = useInvoice(isCreateMode ? null : invoiceId);
+
+  // Mutations
+  const createInvoiceMutation = useCreateInvoice();
+  const updateInvoiceMutation = useUpdateInvoice();
+  const deleteInvoiceMutation = useDeleteInvoice();
+
+  // Local invoice state (for edits before saving)
+  // Uses EditableInvoice which has extended InvoiceLineItem type
+  const [localInvoice, setLocalInvoice] = useState<EditableInvoice | null>(null);
+
+  // Order population state
+  const [selectedOrderId, setSelectedOrderId] = useState<string>('');
+  const { data: selectedOrder, isLoading: isOrderLoading } = useOrder(selectedOrderId || null);
+
+  // Initialize local invoice from API data or empty for create mode
+  useEffect(() => {
+    if (isCreateMode) {
+      setLocalInvoice(createEmptyInvoice());
+    } else if (apiInvoice) {
+      setLocalInvoice(transformApiInvoiceToUi(apiInvoice));
+    }
+  }, [apiInvoice, isCreateMode]);
+
+  // Handle order selection - populate invoice from order
+  const handleOrderSelect = useCallback(async (orderId: string, orderNumber: string) => {
+    if (!orderId) return;
+
+    setSelectedOrderId(orderId);
+
+    // Update local invoice with order data
+    setLocalInvoice(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        orderId,
+        orderNumber,
+      };
+    });
+  }, []);
+
+  // When order data is loaded, populate the invoice details
+  useEffect(() => {
+    if (selectedOrder && localInvoice) {
+      setLocalInvoice(prev => {
+        if (!prev) return prev;
+
+        // Cast selectedOrder to any to access API-specific fields
+        const order = selectedOrder as any;
+
+        // Transform order line items to extended InvoiceLineItem format for editing
+        const extendedLineItems: InvoiceLineItem[] = (order.lineItems || order.details || []).map((item: any, index: number) => ({
+          id: `new-${index}`,
+          orderLineItemId: item.id || '',
+          lineNumber: item.lineNumber || item.itemNumber || index + 1,
+          productId: item.productId || '',
+          partNumber: item.partNumber || item.product?.factoryPartNumber || item.productNameAdhoc || '',
+          custPartNumber: '',
+          description: item.description || item.product?.description || item.productDescriptionAdhoc || '',
+          quantity: typeof item.quantity === 'string' ? parseFloat(item.quantity) : (item.quantity || 0),
+          unitPrice: typeof item.unitPrice === 'string' ? parseFloat(item.unitPrice) : (item.unitPrice || 0),
+          uom: item.uom?.title || item.uom || 'EA',
+          uomId: item.uomId || '',
+          divisor: typeof item.divisionFactor === 'string' ? parseFloat(item.divisionFactor) : (item.divisor || 1),
+          total: item.total || item.amount || 0,
+          amount: item.total || item.amount || 0,
+          commissionPercent: typeof item.commissionRate === 'string' ? parseFloat(item.commissionRate) : (item.commissionPercent || item.commissionRate || 0),
+          commissionRate: typeof item.commissionRate === 'string' ? parseFloat(item.commissionRate) : (item.commissionPercent || item.commissionRate || 0),
+          commission: item.commission || item.commissionAmount || 0,
+          commissionAmount: item.commission || item.commissionAmount || 0,
+          discountPercent: parseFloat(item.discountRate || '0'),
+          discount: item.discount || 0,
+          commissionDiscountPercent: parseFloat(item.commissionDiscountRate || '0'),
+          commissionDiscount: item.commissionDiscount || 0,
+          status: item.status || 'open',
+          leadTime: item.leadTime || '',
+          note: item.note || '',
+          endUserId: item.endUserId || '',
+          orderDetailId: item.id || '',
+          invoicedBalance: 0,
+          outsideSplitRates: [],
+        }));
+
+        return {
+          ...prev,
+          orderId: selectedOrder.id,
+          orderNumber: selectedOrder.orderNumber || '',
+          customerId: order.soldToCustomerId || order.customerId || '',
+          customerName: order.soldToCustomer?.companyName || order.customerName || '',
+          manufacturerId: order.factoryId || order.manufacturerId || '',
+          manufacturerName: order.factory?.title || order.manufacturerName || '',
+          invoiceDate: order.entityDate || order.orderDate || prev.invoiceDate,
+          dueDate: order.dueDate || '',
+          lineItems: extendedLineItems,
+          subtotal: order.balance?.subtotal || order.subtotal || 0,
+          total: order.balance?.total || order.total || 0,
+        };
+      });
+    }
+  }, [selectedOrder]);
+
+  // Handle invoice selection - copy from existing invoice
+  const handleInvoiceSelect = useCallback(async (invoiceId: string, invoiceNumber: string) => {
+    if (!invoiceId) return;
+
+    try {
+      const existingInvoice = await fetchInvoiceById(invoiceId);
+      if (existingInvoice) {
+        const transformed = transformApiInvoiceToUi(existingInvoice);
+        setLocalInvoice(prev => ({
+          ...transformed,
+          id: prev?.id || '',
+          invoiceNumber: '', // Clear invoice number for new invoice
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to fetch invoice for copy:', error);
+    }
+  }, []);
+
+  // Update local invoice field
+  const updateInvoice = useCallback((updates: Partial<EditableInvoice>) => {
+    setLocalInvoice(prev => {
+      if (!prev) return prev;
+      return { ...prev, ...updates };
+    });
+  }, []);
+
+  // Update line items
+  const updateLineItems = useCallback((lineItems: InvoiceLineItem[]) => {
+    setLocalInvoice(prev => {
+      if (!prev) return prev;
+      return { ...prev, lineItems };
+    });
+  }, []);
+
+  // Add new line item
+  const addLineItem = useCallback(() => {
+    setLocalInvoice(prev => {
+      if (!prev) return prev;
+      const newLineNumber = prev.lineItems.length > 0
+        ? Math.max(...prev.lineItems.map(l => l.lineNumber)) + 1
+        : 1;
+      const newItem: InvoiceLineItem = {
+        id: `new-${Date.now()}`,
+        // Required from base type
+        orderLineItemId: '',
+        lineNumber: newLineNumber,
+        partNumber: '',
+        description: '',
+        quantity: 0,
+        unitPrice: 0,
+        amount: 0,
+        commissionRate: 0,
+        commissionAmount: 0,
+        // Extended fields
+        productId: '',
+        custPartNumber: '',
+        uom: 'EA',
+        uomId: '',
+        divisor: 1,
+        total: 0,
+        commissionPercent: 0,
+        commission: 0,
+        discountPercent: 0,
+        discount: 0,
+        commissionDiscountPercent: 0,
+        commissionDiscount: 0,
+        status: 'open',
+        leadTime: '',
+        note: '',
+        endUserId: '',
+        orderDetailId: '',
+        invoicedBalance: 0,
+        outsideSplitRates: [],
+      };
+      return { ...prev, lineItems: [...prev.lineItems, newItem] };
+    });
+  }, []);
+
+  // Delete line item
+  const deleteLineItem = useCallback((lineItemId: string) => {
+    setLocalInvoice(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        lineItems: prev.lineItems.filter(l => l.id !== lineItemId)
+      };
+    });
+  }, []);
+
+  // Update single line item
+  const updateLineItem = useCallback((lineItemId: string, updates: Partial<InvoiceLineItem>) => {
+    setLocalInvoice(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        lineItems: prev.lineItems.map(l =>
+          l.id === lineItemId ? { ...l, ...updates } : l
+        ),
+      };
+    });
+  }, []);
+
+  // Save invoice to API
+  const saveInvoice = useCallback(async () => {
+    if (!localInvoice) return;
+
+    const input: CreateInvoiceInput | UpdateInvoiceInput = {
+      id: isCreateMode ? undefined : localInvoice.id,
+      invoiceNumber: localInvoice.invoiceNumber,
+      entityDate: localInvoice.invoiceDate,
+      dueDate: localInvoice.dueDate || undefined,
+      orderId: localInvoice.orderId || undefined,
+      factoryId: localInvoice.manufacturerId || undefined,
+      creationType: 'MANUAL',
+      details: localInvoice.lineItems.map((item, index) => ({
+        id: item.id.startsWith('new-') ? undefined : item.id,
+        itemNumber: index + 1,
+        quantity: item.quantity.toString(),
+        unitPrice: item.unitPrice.toString(),
+        productId: item.productId || undefined,
+        productNameAdhoc: item.partNumber || undefined,
+        productDescriptionAdhoc: item.description || undefined,
+        commissionRate: item.commissionPercent?.toString(),
+        commissionDiscountRate: item.commissionDiscountPercent?.toString(),
+        discountRate: item.discountPercent?.toString(),
+        divisionFactor: item.divisor?.toString(),
+        endUserId: item.endUserId || undefined,
+        leadTime: item.leadTime || undefined,
+        note: item.note || undefined,
+        orderDetailId: item.orderDetailId || undefined,
+        uomId: item.uomId || undefined,
+        outsideSplitRates: item.outsideSplitRates?.map(s => ({
+          userId: s.userId,
+          splitRate: s.splitRate.toString(),
+          position: s.position,
+        })),
+      })),
+    };
+
+    try {
+      if (isCreateMode) {
+        await createInvoiceMutation.mutateAsync(input as CreateInvoiceInput);
+      } else {
+        await updateInvoiceMutation.mutateAsync(input as UpdateInvoiceInput);
+      }
+      return true;
+    } catch (error) {
+      console.error('Failed to save invoice:', error);
+      return false;
+    }
+  }, [localInvoice, isCreateMode, createInvoiceMutation, updateInvoiceMutation]);
+
+  // Use local invoice for display
+  const invoice = localInvoice;
 
   // Tab state
   const [activeTab, setActiveTab] = useState<TabType>(DEFAULT_ACTIVE_TAB);
@@ -97,52 +546,17 @@ export function useInvoiceDetailState({ invoiceId }: UseInvoiceDetailStateProps)
   const [editingSplits, setEditingSplits] = useState(false);
   const [editedSplits, setEditedSplits] = useState<OrderSplitRate[]>([]);
 
+  // Additional details modal state
+  const [showAdditionalDetailsModal, setShowAdditionalDetailsModal] = useState(false);
+  const [selectedLineItemForDetails, setSelectedLineItemForDetails] = useState<InvoiceLineItem | null>(null);
+
   // Check if invoice is connected to an order
   const isConnectedToOrder = useMemo(() => !!invoice?.orderId, [invoice]);
 
   // Line item credits - maps invoice line item ID to credit info inherited from linked order
   const lineItemCredits = useMemo<Record<string, LineItemCredit>>(() => {
     const credits: Record<string, LineItemCredit> = {};
-
-    if (!invoice) return credits;
-
-    // Find the linked order
-    const order = mockOrders.find((o) => o.id === invoice.orderId);
-    if (!order) return credits;
-
-    // For each invoice line item, check if there's a credit on the linked order line
-    invoice.lineItems.forEach((invLine) => {
-      // Find credit line items that reference this order line item
-      const creditLines = order.lineItems.filter(
-        (ol) => ol.isCredit && ol.linkedLineItemId === invLine.orderLineItemId
-      );
-
-      creditLines.forEach((creditLine) => {
-        // Get the original order line to find original values
-        const originalOrderLine = order.lineItems.find(
-          (ol) => ol.id === creditLine.linkedLineItemId
-        );
-        if (originalOrderLine) {
-          credits[invLine.id] = {
-            creditName: `CR-${creditLine.id}`,
-            creditType:
-              creditLine.creditType === 'return'
-                ? 'Return'
-                : creditLine.creditType === 'short_ship'
-                ? 'Short Ship'
-                : creditLine.creditType === 'cancel'
-                ? 'Cancel'
-                : creditLine.creditType === 'damage'
-                ? 'Damage'
-                : 'Credit',
-            creditQty: Math.abs(creditLine.quantity),
-            originalQty: originalOrderLine.quantity,
-            originalTotal: originalOrderLine.quantity * originalOrderLine.unitPrice,
-          };
-        }
-      });
-    });
-
+    // TODO: Implement credits from API data when available
     return credits;
   }, [invoice]);
 
@@ -258,34 +672,59 @@ export function useInvoiceDetailState({ invoiceId }: UseInvoiceDetailStateProps)
         return;
       }
 
-      const updatedInvoice = {
-        ...invoice,
-        splitRates: editedSplits,
-      };
-      setInvoices(
-        invoices.map((i) => (i.id === invoice.id ? updatedInvoice : i))
-      );
+      updateInvoice({ splitRates: editedSplits });
       setEditingSplits(false);
       setEditedSplits([]);
     }
   };
 
   // Update invoice status
-  const updateInvoiceStatus = (status: Invoice['status']) => {
-    if (!invoice) return;
-    const updatedInvoice = { ...invoice, status };
-    setInvoices(invoices.map((i) => (i.id === invoice.id ? updatedInvoice : i)));
+  const updateInvoiceStatus = (status: InvoiceStatus) => {
+    updateInvoice({ status });
   };
 
-  if (!invoice) {
+  // Open additional details modal for a line item
+  const openAdditionalDetails = (lineItem: InvoiceLineItem) => {
+    setSelectedLineItemForDetails(lineItem);
+    setShowAdditionalDetailsModal(true);
+  };
+
+  // Save additional details for a line item
+  const saveAdditionalDetails = (updates: Partial<InvoiceLineItem>) => {
+    if (selectedLineItemForDetails) {
+      updateLineItem(selectedLineItemForDetails.id, updates);
+    }
+    setShowAdditionalDetailsModal(false);
+    setSelectedLineItemForDetails(null);
+  };
+
+  if (!invoice && !isLoading) {
     return null;
   }
 
   return {
     // Invoice data
     invoice,
-    invoices,
-    setInvoices,
+    isLoading,
+    error,
+    refetch,
+    isCreateMode,
+
+    // Invoice mutations
+    updateInvoice,
+    saveInvoice,
+    isSaving: createInvoiceMutation.isPending || updateInvoiceMutation.isPending,
+
+    // Order/Invoice selection
+    handleOrderSelect,
+    handleInvoiceSelect,
+    isOrderLoading,
+
+    // Line items
+    updateLineItems,
+    addLineItem,
+    deleteLineItem,
+    updateLineItem,
 
     // Tab state
     activeTab,
@@ -294,6 +733,7 @@ export function useInvoiceDetailState({ invoiceId }: UseInvoiceDetailStateProps)
     // Header fields
     showHeaderFields,
     setShowHeaderFields,
+    toggleHeaderFields: () => setShowHeaderFields(!showHeaderFields),
 
     // Line items selection
     selectedLineItems,
@@ -380,6 +820,14 @@ export function useInvoiceDetailState({ invoiceId }: UseInvoiceDetailStateProps)
     saveSplits,
     splitPercentageTotal,
 
+    // Additional details modal
+    showAdditionalDetailsModal,
+    setShowAdditionalDetailsModal,
+    selectedLineItemForDetails,
+    setSelectedLineItemForDetails,
+    openAdditionalDetails,
+    saveAdditionalDetails,
+
     // Computed values
     isConnectedToOrder,
     lineItemCredits,
@@ -389,4 +837,3 @@ export function useInvoiceDetailState({ invoiceId }: UseInvoiceDetailStateProps)
     updateInvoiceStatus,
   };
 }
-

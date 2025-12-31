@@ -3,7 +3,51 @@
  * Local types for the invoice detail component
  */
 
-import type { Invoice, InvoiceLineItem, OrderSplitRate } from '@/lib/types/rms';
+import type { Invoice as BaseInvoice, InvoiceLineItem as BaseInvoiceLineItem, OrderSplitRate, InvoiceStatus } from '@/lib/types/rms';
+
+// Extended InvoiceLineItem with additional fields for editing
+export interface InvoiceLineItem extends Omit<BaseInvoiceLineItem, 'lineNumber'> {
+  lineNumber: number;
+  productId?: string;
+  partNumber: string;
+  custPartNumber?: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  uom: string;
+  uomId?: string;
+  divisor: number;
+  total: number;
+  commissionPercent: number;
+  commission: number;
+  discountPercent?: number;
+  discount?: number;
+  commissionDiscountPercent?: number;
+  commissionDiscount?: number;
+  status?: string;
+  leadTime?: string;
+  note?: string;
+  endUserId?: string;
+  orderDetailId?: string;
+  invoicedBalance?: number;
+  outsideSplitRates?: {
+    userId: string;
+    userName: string;
+    splitRate: number;
+    position: number;
+  }[];
+  // Optional fields for warehouse/consignment tracking
+  isWarehouseConsignment?: boolean;
+  inventoryOnHand?: number;
+}
+
+// Extended Invoice type for local editing state
+// Uses the extended InvoiceLineItem type instead of the base one
+export interface EditableInvoice extends Omit<BaseInvoice, 'lineItems'> {
+  lineItems: InvoiceLineItem[];
+  // API fields not in base type
+  published?: boolean;
+}
 
 // Tab types
 export type TabType =

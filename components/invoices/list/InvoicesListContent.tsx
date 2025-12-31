@@ -1,6 +1,7 @@
 /**
  * InvoicesListContent Component
  * Main container for the invoices list
+ * Uses real API data with search and infinite scroll pagination
  */
 
 'use client';
@@ -35,9 +36,41 @@ export default function InvoicesListContent() {
               </h1>
               <p className="text-sm text-[var(--muted-foreground)] mt-1">
                 Manage invoices and track payments
+                {state.totalCount > 0 && (
+                  <span className="ml-2 text-[var(--muted-foreground)]">
+                    ({state.totalCount} total)
+                  </span>
+                )}
               </p>
             </div>
             <div className="flex items-center gap-3">
+              {/* Search Input */}
+              <div className="relative">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
+                >
+                  <circle cx="9" cy="9" r="6" />
+                  <path d="M13 13l4 4" strokeLinecap="round" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search invoices..."
+                  value={state.searchQuery}
+                  onChange={(e) => state.setSearchQuery(e.target.value)}
+                  className="pl-9 pr-4 py-2 w-64 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent bg-[var(--background)]"
+                />
+                {state.isSearching && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[var(--primary)]" />
+                  </div>
+                )}
+              </div>
               <AdvancedFilters filterOptions={filterOptions} />
               <button
                 onClick={() => state.setShowCreateModal(true)}
@@ -70,9 +103,38 @@ export default function InvoicesListContent() {
           />
         </div>
 
-        {/* Invoices Table */}
-        <div className="flex-1 overflow-auto p-6 pt-4">
-          <InvoicesTable
+        {/* Loading State */}
+        {state.isLoading && (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary)] mx-auto mb-2" />
+              <p className="text-sm text-[var(--muted-foreground)]">Loading invoices...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Error State */}
+        {state.error && (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <p className="text-red-500 mb-2">Error loading invoices</p>
+              <button
+                onClick={() => state.refetch()}
+                className="text-sm text-[var(--primary)] hover:underline"
+              >
+                Try again
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Invoices Table with infinite scroll */}
+        {!state.isLoading && !state.error && (
+          <div
+            className="flex-1 overflow-auto p-6 pt-4"
+            onScroll={state.handleScroll}
+          >
+            <InvoicesTable
             filteredInvoices={state.filteredInvoices}
             selectedInvoiceIds={state.selectedInvoiceIds}
             toggleInvoiceSelection={state.toggleInvoiceSelection}
@@ -97,7 +159,17 @@ export default function InvoicesListContent() {
             bulkDelete={state.bulkDelete}
             setSelectedInvoice={state.setSelectedInvoice}
           />
-        </div>
+            {/* Loading more indicator */}
+            {state.isFetchingNextPage && (
+              <div className="flex items-center justify-center py-4">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[var(--primary)]" />
+                <span className="ml-2 text-sm text-[var(--muted-foreground)]">
+                  Loading more...
+                </span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Sidebar */}
