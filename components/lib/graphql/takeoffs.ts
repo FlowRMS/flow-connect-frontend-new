@@ -820,8 +820,8 @@ async function getPdfPageCount(file: File): Promise<number> {
     // Dynamically import pdf.js to avoid SSR issues
     const pdfjsLib = await import('pdfjs-dist');
 
-    // Set worker source - using CDN for broader compatibility
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+    // Set worker source - using unpkg CDN for better compatibility
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
     // Read file as ArrayBuffer
     const arrayBuffer = await file.arrayBuffer();
@@ -896,4 +896,390 @@ export async function uploadFileToTakeoff(
 ): Promise<UploadedFileInfo> {
   const [uploadedFile] = await uploadFilesToStorage([file], `takeoffs/${takeoffId}`, onProgress);
   return uploadedFile;
+}
+
+// ============================================================================
+// Product Cross Persistence Functions
+// ============================================================================
+
+export interface ProductCrossAlternative {
+  name: string;
+  description: string;
+  price?: number | null;
+  source?: string | null;
+  crossType: 'SIMPLE' | 'UPGRADE' | 'VALUE';
+  attributes?: Record<string, string> | null;
+  reasoning?: string | null;
+  selected?: boolean;
+}
+
+export interface SaveProductCrossInput {
+  takeoffId: string;
+  originalManufacturer: string;
+  originalPartNumber: string;
+  originalDescription?: string | null;
+  originalAttributes?: Record<string, string> | null;
+  alternatives: ProductCrossAlternative[];
+  crossTypesUsed?: ('SIMPLE' | 'UPGRADE' | 'VALUE')[] | null;
+  promptUsed?: string | null;
+}
+
+export interface TakeoffProductCrossResponse {
+  id: string;
+  takeoffId: string;
+  originalManufacturer: string;
+  originalPartNumber: string;
+  originalDescription?: string | null;
+  originalAttributes?: Record<string, string> | null;
+  alternatives: ProductCrossAlternative[];
+  crossTypesUsed?: string[] | null;
+  promptUsed?: string | null;
+  createdAt: string;
+}
+
+const SAVE_PRODUCT_CROSS = `
+  mutation SaveProductCross($input: SaveProductCrossInput!) {
+    saveProductCross(input: $input) {
+      id
+      takeoffId
+      originalManufacturer
+      originalPartNumber
+      originalDescription
+      originalAttributes
+      alternatives
+      crossTypesUsed
+      promptUsed
+      createdAt
+    }
+  }
+`;
+
+const SELECT_CROSS_ALTERNATIVE = `
+  mutation SelectCrossAlternative($crossId: UUID!, $alternativeIndex: Int!) {
+    selectCrossAlternative(crossId: $crossId, alternativeIndex: $alternativeIndex) {
+      id
+      takeoffId
+      originalManufacturer
+      originalPartNumber
+      originalDescription
+      originalAttributes
+      alternatives
+      crossTypesUsed
+      promptUsed
+      createdAt
+    }
+  }
+`;
+
+const DELETE_CROSS_ALTERNATIVE = `
+  mutation DeleteCrossAlternative($crossId: UUID!, $alternativeIndex: Int!) {
+    deleteCrossAlternative(crossId: $crossId, alternativeIndex: $alternativeIndex) {
+      id
+      takeoffId
+      originalManufacturer
+      originalPartNumber
+      originalDescription
+      originalAttributes
+      alternatives
+      crossTypesUsed
+      promptUsed
+      createdAt
+    }
+  }
+`;
+
+const DELETE_PRODUCT_CROSS = `
+  mutation DeleteProductCross($crossId: UUID!) {
+    deleteProductCross(crossId: $crossId)
+  }
+`;
+
+const CLEAR_TAKEOFF_CROSSES = `
+  mutation ClearTakeoffCrosses($takeoffId: UUID!) {
+    clearTakeoffCrosses(takeoffId: $takeoffId)
+  }
+`;
+
+const GET_TAKEOFF_PRODUCT_CROSSES = `
+  query GetTakeoffProductCrosses($takeoffId: UUID!) {
+    getTakeoffProductCrosses(takeoffId: $takeoffId) {
+      id
+      takeoffId
+      originalManufacturer
+      originalPartNumber
+      originalDescription
+      originalAttributes
+      alternatives
+      crossTypesUsed
+      promptUsed
+      createdAt
+    }
+  }
+`;
+
+/**
+ * Save a product cross result to persist it to the database
+ */
+export async function saveProductCross(
+  input: SaveProductCrossInput
+): Promise<TakeoffProductCrossResponse> {
+  const response = await flowAIGraphQLRequest<{ saveProductCross: TakeoffProductCrossResponse }>({
+    query: SAVE_PRODUCT_CROSS,
+    variables: {
+      input: {
+        takeoffId: input.takeoffId,
+        originalManufacturer: input.originalManufacturer,
+        originalPartNumber: input.originalPartNumber,
+        originalDescription: input.originalDescription,
+        originalAttributes: input.originalAttributes,
+        alternatives: input.alternatives.map(alt => ({
+          name: alt.name,
+          description: alt.description,
+          price: alt.price,
+          source: alt.source,
+          crossType: alt.crossType,
+          attributes: alt.attributes,
+          reasoning: alt.reasoning,
+          selected: alt.selected || false,
+        })),
+        crossTypesUsed: input.crossTypesUsed,
+        promptUsed: input.promptUsed,
+      },
+    },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to save product cross');
+  }
+
+  if (!response.data?.saveProductCross) {
+    throw new Error('No product cross returned from save mutation');
+  }
+
+  return response.data.saveProductCross;
+}
+
+/**
+ * Select an alternative in a product cross (persists to database)
+ */
+export async function selectCrossAlternative(
+  crossId: string,
+  alternativeIndex: number
+): Promise<TakeoffProductCrossResponse> {
+  const response = await flowAIGraphQLRequest<{ selectCrossAlternative: TakeoffProductCrossResponse }>({
+    query: SELECT_CROSS_ALTERNATIVE,
+    variables: { crossId, alternativeIndex },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to select cross alternative');
+  }
+
+  if (!response.data?.selectCrossAlternative) {
+    throw new Error('No product cross returned from select mutation');
+  }
+
+  return response.data.selectCrossAlternative;
+}
+
+/**
+ * Delete an alternative from a product cross (persists to database)
+ */
+export async function deleteCrossAlternative(
+  crossId: string,
+  alternativeIndex: number
+): Promise<TakeoffProductCrossResponse | null> {
+  const response = await flowAIGraphQLRequest<{ deleteCrossAlternative: TakeoffProductCrossResponse | null }>({
+    query: DELETE_CROSS_ALTERNATIVE,
+    variables: { crossId, alternativeIndex },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to delete cross alternative');
+  }
+
+  return response.data?.deleteCrossAlternative || null;
+}
+
+/**
+ * Delete an entire product cross
+ */
+export async function deleteProductCross(crossId: string): Promise<boolean> {
+  const response = await flowAIGraphQLRequest<{ deleteProductCross: boolean }>({
+    query: DELETE_PRODUCT_CROSS,
+    variables: { crossId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to delete product cross');
+  }
+
+  return response.data?.deleteProductCross || false;
+}
+
+/**
+ * Clear all product crosses for a takeoff
+ */
+export async function clearTakeoffCrosses(takeoffId: string): Promise<number> {
+  const response = await flowAIGraphQLRequest<{ clearTakeoffCrosses: number }>({
+    query: CLEAR_TAKEOFF_CROSSES,
+    variables: { takeoffId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to clear takeoff crosses');
+  }
+
+  return response.data?.clearTakeoffCrosses || 0;
+}
+
+/**
+ * Get all saved product crosses for a takeoff
+ */
+export async function getTakeoffProductCrosses(
+  takeoffId: string
+): Promise<TakeoffProductCrossResponse[]> {
+  const response = await flowAIGraphQLRequest<{ getTakeoffProductCrosses: TakeoffProductCrossResponse[] }>({
+    query: GET_TAKEOFF_PRODUCT_CROSSES,
+    variables: { takeoffId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to get product crosses');
+  }
+
+  return response.data?.getTakeoffProductCrosses || [];
+}
+
+// ==================== Prompt Templates ====================
+
+export interface PromptTemplateResponse {
+  id: string;
+  userId: string;
+  name: string;
+  prompt: string;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+const GET_PROMPT_TEMPLATES = `
+  query GetPromptTemplates {
+    getPromptTemplates {
+      id
+      userId
+      name
+      prompt
+      description
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
+const CREATE_PROMPT_TEMPLATE = `
+  mutation CreatePromptTemplate($input: CreatePromptTemplateInput!) {
+    createPromptTemplate(input: $input) {
+      id
+      userId
+      name
+      prompt
+      description
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
+const UPDATE_PROMPT_TEMPLATE = `
+  mutation UpdatePromptTemplate($input: UpdatePromptTemplateInput!) {
+    updatePromptTemplate(input: $input) {
+      id
+      userId
+      name
+      prompt
+      description
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
+const DELETE_PROMPT_TEMPLATE = `
+  mutation DeletePromptTemplate($templateId: UUID!) {
+    deletePromptTemplate(templateId: $templateId)
+  }
+`;
+
+/**
+ * Get all prompt templates for the current user
+ */
+export async function getPromptTemplates(): Promise<PromptTemplateResponse[]> {
+  const response = await flowAIGraphQLRequest<{ getPromptTemplates: PromptTemplateResponse[] }>({
+    query: GET_PROMPT_TEMPLATES,
+    variables: {},
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to get prompt templates');
+  }
+
+  return response.data?.getPromptTemplates || [];
+}
+
+/**
+ * Create a new prompt template
+ */
+export async function createPromptTemplate(input: {
+  name: string;
+  prompt: string;
+  description?: string;
+}): Promise<PromptTemplateResponse> {
+  const response = await flowAIGraphQLRequest<{ createPromptTemplate: PromptTemplateResponse }>({
+    query: CREATE_PROMPT_TEMPLATE,
+    variables: { input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to create prompt template');
+  }
+
+  return response.data!.createPromptTemplate;
+}
+
+/**
+ * Update a prompt template
+ */
+export async function updatePromptTemplate(input: {
+  id: string;
+  name?: string;
+  prompt?: string;
+  description?: string;
+}): Promise<PromptTemplateResponse> {
+  const response = await flowAIGraphQLRequest<{ updatePromptTemplate: PromptTemplateResponse }>({
+    query: UPDATE_PROMPT_TEMPLATE,
+    variables: { input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to update prompt template');
+  }
+
+  return response.data!.updatePromptTemplate;
+}
+
+/**
+ * Delete a prompt template
+ */
+export async function deletePromptTemplate(templateId: string): Promise<boolean> {
+  const response = await flowAIGraphQLRequest<{ deletePromptTemplate: boolean }>({
+    query: DELETE_PROMPT_TEMPLATE,
+    variables: { templateId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to delete prompt template');
+  }
+
+  return response.data?.deletePromptTemplate || false;
 }
