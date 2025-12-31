@@ -136,15 +136,61 @@ export function countDocumentsByClassification(docs: TakeoffDocument[]): Documen
 
 /**
  * Determine the initial step based on takeoff status
+ * Maps status to appropriate step in 6-step workflow
  */
-export function getInitialStep(status: TakeoffStatus): 'classification' | 'parsing' {
+export function getInitialStep(status: TakeoffStatus): import('./types').TakeoffStep {
   switch (status) {
     case 'Complete':
+      return 'approvals';
     case 'Parsing':
       return 'parsing';
+    case 'Abridgment':
+      return 'abridgment';
+    case 'Classification':
     default:
-      return 'classification';
+      return 'review';
   }
+}
+
+/**
+ * Get document counts by category (for list view badges)
+ */
+export function getDocumentCountsByCategory(docs: TakeoffDocument[]): {
+  fixtureSchedules: number;
+  specifications: number;
+  blueprints: number;
+  otherDocs: number;
+  irrelevant: number;
+} {
+  const counts = {
+    fixtureSchedules: 0,
+    specifications: 0,
+    blueprints: 0,
+    otherDocs: 0,
+    irrelevant: 0,
+  };
+
+  docs.forEach(doc => {
+    switch (doc.classification) {
+      case 'Fixture Schedules':
+        counts.fixtureSchedules++;
+        break;
+      case 'Specifications':
+        counts.specifications++;
+        break;
+      case 'Blueprints':
+        counts.blueprints++;
+        break;
+      case 'Other Docs':
+        counts.otherDocs++;
+        break;
+      case 'Irrelevant':
+        counts.irrelevant++;
+        break;
+    }
+  });
+
+  return counts;
 }
 
 /**

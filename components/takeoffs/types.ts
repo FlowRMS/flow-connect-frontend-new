@@ -52,8 +52,14 @@ export type DocumentClassification =
 // View mode types
 export type TakeoffViewMode = 'list' | 'detail';
 
-// Step types for the detail flow
-export type TakeoffStep = 'classification' | 'abridgment' | 'parsing';
+// Step types for the detail flow (6-step workflow)
+export type TakeoffStep =
+  | 'review'        // Review Documents
+  | 'classification' // Classification
+  | 'abridgment'    // Create Abridged
+  | 'parsing'       // Schedule Parsing
+  | 'productCross'  // Product Cross
+  | 'approvals';    // Approvals
 
 // ============================================================================
 // Main Types (for UI display)

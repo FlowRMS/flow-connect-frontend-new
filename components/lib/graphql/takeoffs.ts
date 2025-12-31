@@ -2,9 +2,11 @@
  * Takeoffs GraphQL Module
  * GraphQL queries and API functions for Takeoffs
  * Uses flow-ai backend for AI-powered document processing
+ * Integrates with CRM file storage for document uploads
  */
 
 import { flowAIGraphQLRequest } from './flow-ai-client';
+import { uploadFiles, getFilePresignedUrl, type FileResponse } from './files';
 
 // ============================================================================
 // Types
@@ -265,8 +267,251 @@ const UPDATE_TAKEOFF_DOCUMENT = `
 `;
 
 // ============================================================================
+// Document Processing Queries (Classification, Abridgement, Product Cross)
+// ============================================================================
+
+const CLASSIFY_DOCUMENT = `
+  query ClassifyDocument($documentUrl: String!, $filename: String!) {
+    classifyDocument(documentUrl: $documentUrl, filename: $filename) {
+      success
+      category
+      confidence
+      reasoning
+      documentType
+      error
+    }
+  }
+`;
+
+const ABRIDGE_DOCUMENT = `
+  query AbridgeDocument($documentUrl: String!, $filename: String!, $instructions: [String!]!) {
+    abridgeDocument(documentUrl: $documentUrl, filename: $filename, instructions: $instructions) {
+      success
+      abridgedUrl
+      originalPages
+      abridgedPages
+      reductionPercentage
+      pageAnalyses {
+        pageNumber
+        isRelevant
+        confidence
+        reasoning
+        mainTopic
+      }
+      error
+    }
+  }
+`;
+
+const CROSS_PRODUCTS = `
+  query CrossProducts($products: [JSON!]!, $crossTypes: [ProductCrossTypeEnum!]!, $samplePrompts: [String!]) {
+    crossProducts(products: $products, crossTypes: $crossTypes, samplePrompts: $samplePrompts) {
+      original
+      crosses {
+        crossType
+        originalProduct
+        alternatives {
+          name
+          description
+          price
+          source
+          crossType
+        }
+        promptUsed
+        notes
+      }
+    }
+  }
+`;
+
+const PRODUCT_CROSS_FROM_PARSED_DOCUMENT = `
+  query ProductCrossFromParsedDocument($documentUrl: String!, $filename: String!, $crossTypes: [ProductCrossTypeEnum!]!, $samplePrompts: [String!]) {
+    productCrossFromParsedDocument(documentUrl: $documentUrl, filename: $filename, crossTypes: $crossTypes, samplePrompts: $samplePrompts) {
+      original
+      crosses {
+        crossType
+        originalProduct
+        alternatives {
+          name
+          description
+          price
+          source
+          crossType
+        }
+        promptUsed
+        notes
+      }
+    }
+  }
+`;
+
+// ============================================================================
+// Document Processing Types
+// ============================================================================
+
+export interface ClassificationResult {
+  success: boolean;
+  category: string | null;
+  confidence: number | null;
+  reasoning: string | null;
+  documentType: string | null;
+  error: string | null;
+}
+
+export interface AbridgementPageAnalysis {
+  pageNumber: number;
+  isRelevant: boolean;
+  confidence: number;
+  reasoning: string;
+  mainTopic: string;
+}
+
+export interface AbridgementResult {
+  success: boolean;
+  abridgedUrl: string | null;
+  originalPages: number | null;
+  abridgedPages: number | null;
+  reductionPercentage: number | null;
+  pageAnalyses: AbridgementPageAnalysis[] | null;
+  error: string | null;
+}
+
+export type ProductCrossType = 'SIMPLE' | 'VALUE' | 'UPGRADE';
+
+export interface ProductAlternative {
+  name: string;
+  description: string | null;
+  price: number | null;
+  source: string | null;
+  crossType: ProductCrossType;
+}
+
+export interface ProductCrossResult {
+  crossType: ProductCrossType;
+  originalProduct: string;
+  alternatives: ProductAlternative[];
+  promptUsed: string;
+  notes: string | null;
+}
+
+export interface ParsedProductCross {
+  original: Record<string, unknown>;
+  crosses: ProductCrossResult[];
+}
+
+// ============================================================================
 // API Functions
 // ============================================================================
+
+/**
+ * Classify a document using AI
+ */
+export async function classifyDocument(
+  documentUrl: string,
+  filename: string
+): Promise<ClassificationResult> {
+  const response = await flowAIGraphQLRequest<{ classifyDocument: ClassificationResult }>({
+    query: CLASSIFY_DOCUMENT,
+    variables: { documentUrl, filename },
+  });
+
+  if (response.errors) {
+    return {
+      success: false,
+      category: null,
+      confidence: null,
+      reasoning: null,
+      documentType: null,
+      error: response.errors[0]?.message || 'Failed to classify document',
+    };
+  }
+
+  return response.data?.classifyDocument || {
+    success: false,
+    category: null,
+    confidence: null,
+    reasoning: null,
+    documentType: null,
+    error: 'No response from server',
+  };
+}
+
+/**
+ * Abridge a document using AI - extracts relevant pages
+ */
+export async function abridgeDocument(
+  documentUrl: string,
+  filename: string,
+  instructions: string[] = ['Extract relevant product and fixture information']
+): Promise<AbridgementResult> {
+  const response = await flowAIGraphQLRequest<{ abridgeDocument: AbridgementResult }>({
+    query: ABRIDGE_DOCUMENT,
+    variables: { documentUrl, filename, instructions },
+  });
+
+  if (response.errors) {
+    return {
+      success: false,
+      abridgedUrl: null,
+      originalPages: null,
+      abridgedPages: null,
+      reductionPercentage: null,
+      pageAnalyses: null,
+      error: response.errors[0]?.message || 'Failed to abridge document',
+    };
+  }
+
+  return response.data?.abridgeDocument || {
+    success: false,
+    abridgedUrl: null,
+    originalPages: null,
+    abridgedPages: null,
+    reductionPercentage: null,
+    pageAnalyses: null,
+    error: 'No response from server',
+  };
+}
+
+/**
+ * Cross products with alternatives
+ */
+export async function crossProducts(
+  products: Record<string, unknown>[],
+  crossTypes: ProductCrossType[] = ['SIMPLE'],
+  samplePrompts?: string[]
+): Promise<ParsedProductCross[]> {
+  const response = await flowAIGraphQLRequest<{ crossProducts: ParsedProductCross[] }>({
+    query: CROSS_PRODUCTS,
+    variables: { products, crossTypes, samplePrompts },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to cross products');
+  }
+
+  return response.data?.crossProducts || [];
+}
+
+/**
+ * Cross products from a parsed document
+ */
+export async function productCrossFromParsedDocument(
+  documentUrl: string,
+  filename: string,
+  crossTypes: ProductCrossType[] = ['SIMPLE'],
+  samplePrompts?: string[]
+): Promise<ParsedProductCross[]> {
+  const response = await flowAIGraphQLRequest<{ productCrossFromParsedDocument: ParsedProductCross[] }>({
+    query: PRODUCT_CROSS_FROM_PARSED_DOCUMENT,
+    variables: { documentUrl, filename, crossTypes, samplePrompts },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to cross products from document');
+  }
+
+  return response.data?.productCrossFromParsedDocument || [];
+}
 
 /**
  * Fetch all takeoffs for the current user
@@ -386,4 +631,150 @@ export async function updateTakeoffDocument(
   }
 
   return response.data.updateTakeoffDocument;
+}
+
+// ============================================================================
+// Integrated Upload Functions
+// ============================================================================
+
+export interface UploadProgressCallback {
+  (fileIndex: number, progress: number, status: 'uploading' | 'complete' | 'error', error?: string): void;
+}
+
+export interface CreateTakeoffWithFilesInput {
+  title: string;
+  source?: string;
+  createdBy: string;
+  metadata?: {
+    clientName?: string;
+    bidDate?: string;
+    estimatedValue?: string;
+    city?: string;
+    state?: string;
+  };
+  files: File[];
+}
+
+export interface UploadedFileInfo {
+  file: File;
+  crmFile: FileResponse;
+  presignedUrl: string;
+}
+
+/**
+ * Upload files to CRM storage and get presigned URLs
+ * Returns array of uploaded file info with presigned URLs
+ */
+export async function uploadFilesToStorage(
+  files: File[],
+  folderPath: string = 'takeoffs',
+  onProgress?: UploadProgressCallback
+): Promise<UploadedFileInfo[]> {
+  const results: UploadedFileInfo[] = [];
+
+  // Upload files in batches of 3 for better performance
+  const batchSize = 3;
+  for (let i = 0; i < files.length; i += batchSize) {
+    const batch = files.slice(i, i + batchSize);
+    const batchIndices = batch.map((_, idx) => i + idx);
+
+    // Mark files as uploading
+    batchIndices.forEach(idx => {
+      onProgress?.(idx, 0, 'uploading');
+    });
+
+    try {
+      // Upload batch to CRM
+      const uploadedFiles = await uploadFiles({
+        files: batch,
+        fileNames: batch.map(f => f.name),
+        folderPath,
+      });
+
+      // Get presigned URLs for each file
+      for (let j = 0; j < uploadedFiles.length; j++) {
+        const crmFile = uploadedFiles[j];
+        const fileIndex = i + j;
+        const file = files[fileIndex];
+
+        onProgress?.(fileIndex, 50, 'uploading');
+
+        // Get presigned URL
+        const presignedUrl = await getFilePresignedUrl(crmFile.id);
+
+        if (!presignedUrl) {
+          throw new Error(`Failed to get presigned URL for ${crmFile.fileName}`);
+        }
+
+        results.push({
+          file,
+          crmFile,
+          presignedUrl,
+        });
+
+        onProgress?.(fileIndex, 100, 'complete');
+      }
+    } catch (error) {
+      // Mark batch files as error
+      batchIndices.forEach(idx => {
+        onProgress?.(idx, 0, 'error', error instanceof Error ? error.message : 'Upload failed');
+      });
+      throw error;
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Create a takeoff with files - handles complete flow:
+ * 1. Upload files to CRM storage
+ * 2. Get presigned URLs
+ * 3. Create takeoff in flow-ai with document URLs
+ */
+export async function createTakeoffWithFiles(
+  input: CreateTakeoffWithFilesInput,
+  onProgress?: UploadProgressCallback
+): Promise<TakeoffResponse> {
+  // Step 1 & 2: Upload files and get presigned URLs
+  const uploadedFiles = await uploadFilesToStorage(
+    input.files,
+    `takeoffs/${input.title.replace(/[^a-zA-Z0-9]/g, '_')}`,
+    onProgress
+  );
+
+  // Step 3: Create takeoff with document URLs
+  const documents: TakeoffDocumentInput[] = uploadedFiles.map(({ file, crmFile, presignedUrl }) => ({
+    name: file.name,
+    fileType: file.type || 'application/pdf',
+    fileSize: crmFile.fileSize ? `${(crmFile.fileSize / 1024).toFixed(1)} KB` : `${(file.size / 1024).toFixed(1)} KB`,
+    documentUrl: presignedUrl,
+    pages: 0,
+    abridged: false,
+  }));
+
+  const takeoffInput: CreateTakeoffInput = {
+    title: input.title,
+    source: input.source || 'Upload',
+    createdBy: input.createdBy,
+    status: 'CLASSIFICATION',
+    metadata: input.metadata || null,
+    documents,
+  };
+
+  return createTakeoff(takeoffInput);
+}
+
+/**
+ * Upload a single file and add it to an existing takeoff
+ * Note: This requires adding a document to an existing takeoff
+ * Currently not directly supported - would need addDocumentToTakeoff mutation
+ */
+export async function uploadFileToTakeoff(
+  takeoffId: string,
+  file: File,
+  onProgress?: UploadProgressCallback
+): Promise<UploadedFileInfo> {
+  const [uploadedFile] = await uploadFilesToStorage([file], `takeoffs/${takeoffId}`, onProgress);
+  return uploadedFile;
 }

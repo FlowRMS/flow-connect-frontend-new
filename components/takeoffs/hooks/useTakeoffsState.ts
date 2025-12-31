@@ -1,6 +1,7 @@
 /**
  * Custom Hook for Take-Offs State Management
  * Connects to flow-ai backend for real data
+ * Integrates with CRM storage for file uploads
  */
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
@@ -16,9 +17,9 @@ import { transformTakeoffResponse } from '../types';
 import type { ActiveFilter } from '../../AdvancedFilters';
 import {
   fetchUserTakeoffs,
-  createTakeoff as apiCreateTakeoff,
   deleteTakeoff as apiDeleteTakeoff,
-  type CreateTakeoffInput,
+  createTakeoffWithFiles,
+  type UploadProgressCallback,
 } from '../../lib/graphql/takeoffs';
 import {
   abridgeDocument,
@@ -29,6 +30,13 @@ import {
   crossAllItems,
   getInitialStep,
 } from '../utils';
+
+// Upload progress state type
+export interface FileUploadProgress {
+  progress: number;
+  status: 'pending' | 'uploading' | 'complete' | 'error';
+  error?: string;
+}
 
 export function useTakeoffsState() {
   // View state
@@ -51,6 +59,10 @@ export function useTakeoffsState() {
   const [parsedItems, setParsedItems] = useState<ParsedItem[]>([]);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+
+  // Upload progress state
+  const [uploadProgress, setUploadProgress] = useState<Record<number, FileUploadProgress>>({});
+  const [isUploading, setIsUploading] = useState(false);
 
   // Loading and error states
   const [isLoading, setIsLoading] = useState(true);
@@ -160,8 +172,9 @@ export function useTakeoffsState() {
   // File upload handlers
   const handleFileSelect = useCallback((files: FileList | null) => {
     if (files) {
-      const fileArray = Array.from(files).slice(0, 20);
-      setUploadedFiles(fileArray);
+      const fileArray = Array.from(files);
+      // Append new files to existing, limit to 20 total
+      setUploadedFiles(prev => [...prev, ...fileArray].slice(0, 20));
     }
   }, []);
 
@@ -173,29 +186,59 @@ export function useTakeoffsState() {
     setUploadedFiles([]);
   }, []);
 
-  // Create new takeoff
-  const handleUploadStart = useCallback(async () => {
+  // Progress callback for upload
+  const handleUploadProgress: UploadProgressCallback = useCallback((
+    fileIndex: number,
+    progress: number,
+    status: 'uploading' | 'complete' | 'error',
+    error?: string
+  ) => {
+    setUploadProgress(prev => ({
+      ...prev,
+      [fileIndex]: { progress, status, error }
+    }));
+  }, []);
+
+  // Create new takeoff with project data and real file upload
+  const handleUploadStart = useCallback(async (projectData?: {
+    projectName: string;
+    clientName: string;
+    bidDate: string;
+    estimatedValue: string;
+    city: string;
+    state: string;
+  }) => {
     if (uploadedFiles.length === 0) return;
 
-    setShowUploadModal(false);
+    setIsUploading(true);
+    setError(null);
+
+    // Initialize progress for all files
+    const initialProgress: Record<number, FileUploadProgress> = {};
+    uploadedFiles.forEach((_, index) => {
+      initialProgress[index] = { progress: 0, status: 'pending' };
+    });
+    setUploadProgress(initialProgress);
 
     try {
-      // Create takeoff with document metadata
-      const input: CreateTakeoffInput = {
-        title: `New Takeoff - ${new Date().toLocaleDateString()}`,
-        source: 'Upload',
-        createdBy: 'Current User', // TODO: Get from auth context
-        status: 'CLASSIFICATION',
-        documents: uploadedFiles.map(file => ({
-          name: file.name,
-          fileType: file.type || 'application/pdf',
-          fileSize: `${(file.size / 1024).toFixed(1)} KB`,
-          pages: 0,
-          abridged: false,
-        })),
-      };
+      // Upload files to CRM storage and create takeoff in flow-ai
+      const newTakeoff = await createTakeoffWithFiles(
+        {
+          title: projectData?.projectName || `New Takeoff - ${new Date().toLocaleDateString()}`,
+          source: 'Upload',
+          createdBy: 'Current User', // TODO: Get from auth context
+          metadata: projectData ? {
+            clientName: projectData.clientName,
+            bidDate: projectData.bidDate,
+            estimatedValue: projectData.estimatedValue,
+            city: projectData.city,
+            state: projectData.state,
+          } : undefined,
+          files: uploadedFiles,
+        },
+        handleUploadProgress
+      );
 
-      const newTakeoff = await apiCreateTakeoff(input);
       const transformed = transformTakeoffResponse(newTakeoff);
 
       // Add to list and select it
@@ -208,13 +251,19 @@ export function useTakeoffsState() {
       if (transformed.documents) {
         setDocuments(transformed.documents);
       }
+
+      // Close modal after success
+      setShowUploadModal(false);
     } catch (err) {
       console.error('Failed to create takeoff:', err);
       setError(err instanceof Error ? err.message : 'Failed to create takeoff');
+      // Don't close modal on error so user can retry
+    } finally {
+      setIsUploading(false);
+      setUploadedFiles([]);
+      setUploadProgress({});
     }
-
-    setUploadedFiles([]);
-  }, [uploadedFiles]);
+  }, [uploadedFiles, handleUploadProgress]);
 
   // Navigation handlers
   const handleSelectTakeoff = useCallback((takeoff: Takeoff) => {
@@ -305,6 +354,10 @@ export function useTakeoffsState() {
     parsedItems,
     selectedItems,
     uploadedFiles,
+
+    // Upload state
+    uploadProgress,
+    isUploading,
 
     // Loading/Error states
     isLoading,
