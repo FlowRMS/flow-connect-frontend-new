@@ -7,12 +7,9 @@ import {
   useCreateShippingCarrier,
   useUpdateShippingCarrier,
   useDeleteShippingCarrier,
-  useSetShippingCarrierAddress,
-  useLinkContactToShippingCarrier,
-  useUnlinkContactFromShippingCarrier,
   type ShippingCarrier as ApiShippingCarrier,
 } from '../api';
-import { createContact } from '../../../lib/graphql/contacts';
+import { createCarrierAddress, updateCarrierAddress } from '../api/shippingCarriersApi';
 
 // Local shipping carrier type for backward compatibility with UI
 export interface ShippingCarrier {
@@ -36,20 +33,10 @@ export interface ShippingCarrier {
   apiKey?: string;
   apiEndpoint?: string;
   trackingUrlTemplate?: string;
-  // Contact info - stored as linked Contact entity
+  // Contact info - simple form fields for now
   contactName?: string;
   contactPhone?: string;
   contactEmail?: string;
-  contactId?: string; // ID of the linked contact
-  contactData?: {
-    firstName: string;
-    lastName: string;
-    email?: string;
-    phone?: string;
-    role?: string;
-    territory?: string;
-    notes?: string;
-  };
   serviceTypes?: string[];
   defaultServiceType?: string;
   maxWeight?: number;
@@ -127,20 +114,12 @@ const toLocalFormat = (carrier: ApiShippingCarrier): ShippingCarrier => ({
   apiKey: carrier.apiKey ?? undefined,
   apiEndpoint: carrier.apiEndpoint ?? undefined,
   trackingUrlTemplate: carrier.trackingUrlTemplate ?? undefined,
-  // Contact from linked entity
+  // Contact from linked entity (read-only for display)
   contactName: carrier.primaryContact
     ? `${carrier.primaryContact.firstName} ${carrier.primaryContact.lastName}`.trim()
     : undefined,
   contactPhone: carrier.primaryContact?.phone ?? undefined,
   contactEmail: carrier.primaryContact?.email ?? undefined,
-  contactId: carrier.primaryContact?.id,
-  contactData: carrier.primaryContact ? {
-    firstName: carrier.primaryContact.firstName,
-    lastName: carrier.primaryContact.lastName,
-    email: carrier.primaryContact.email ?? undefined,
-    phone: carrier.primaryContact.phone ?? undefined,
-    role: carrier.primaryContact.role ?? undefined,
-  } : undefined,
   serviceTypes: objectToArray(carrier.serviceTypes as Record<string, boolean> | string[] | null),
   defaultServiceType: carrier.defaultServiceType ?? undefined,
   maxWeight: carrier.maxWeight ?? undefined,
@@ -187,9 +166,6 @@ export function useShippingCarriers() {
   const createMutation = useCreateShippingCarrier();
   const updateMutation = useUpdateShippingCarrier();
   const deleteMutation = useDeleteShippingCarrier();
-  const setAddressMutation = useSetShippingCarrierAddress();
-  const linkContactMutation = useLinkContactToShippingCarrier();
-  const unlinkContactMutation = useUnlinkContactFromShippingCarrier();
 
   // Local modifications - map of carrier ID to partial updates
   const [localModifications, setLocalModifications] = useState<Map<string, Partial<ShippingCarrier>>>(new Map());
@@ -294,60 +270,36 @@ export function useShippingCarriers() {
           errors.push(`Failed to update ${merged.name}: ${err}`);
         }
 
-        // Save billing address if address data was modified
-        if (mods.billingAddressData) {
-          try {
-            await setAddressMutation.mutateAsync({
-              carrierId: id,
-              input: {
-                line1: mods.billingAddressData.line1,
-                line2: mods.billingAddressData.line2 ?? null,
-                city: mods.billingAddressData.city,
-                state: mods.billingAddressData.state ?? null,
-                zipCode: mods.billingAddressData.zipCode ?? null,
-                country: mods.billingAddressData.country,
-                addressType: 'BILLING',
-                isPrimary: true,
-              },
-            });
-          } catch (err) {
-            errors.push(`Failed to save billing address for ${merged.name}: ${err}`);
-          }
-        }
+        // Update billing address if any address fields changed
+        const addressFieldsChanged = mods.billingAddressData !== undefined;
 
-        // Save contact if contactData was modified and no contact is linked yet
-        if (mods.contactData && !merged.contactId && mods.contactData.firstName) {
-          console.log('Creating new contact for carrier:', merged.name, mods.contactData);
-          try {
-            // Create a new contact using the structured contactData
-            const newContact = await createContact({
-              firstName: mods.contactData.firstName,
-              lastName: mods.contactData.lastName || '',
-              email: mods.contactData.email || undefined,
-              phone: mods.contactData.phone || undefined,
-              role: mods.contactData.role || 'Carrier Contact',
-              territory: mods.contactData.territory || undefined,
-              notes: mods.contactData.notes || undefined,
-            });
-            console.log('Contact created:', newContact);
+        if (addressFieldsChanged && mods.billingAddressData) {
+          const addressData = {
+            line1: mods.billingAddressData.line1 || '',
+            line2: mods.billingAddressData.line2 || null,
+            city: mods.billingAddressData.city || '',
+            state: mods.billingAddressData.state || null,
+            zipCode: mods.billingAddressData.zipCode || null,
+            country: mods.billingAddressData.country || 'USA',
+            isPrimary: true,
+          };
 
-            // Link the contact to this shipping carrier
-            console.log('Linking contact to carrier:', id, newContact.id);
-            await linkContactMutation.mutateAsync({
-              carrierId: id,
-              contactId: newContact.id,
-            });
-            console.log('Contact linked successfully');
-          } catch (err) {
-            console.error('Failed to save contact:', err);
-            errors.push(`Failed to save contact for ${merged.name}: ${err}`);
+          // Only save if there's actual address data
+          const hasAddressData = addressData.line1 || addressData.city;
+
+          if (hasAddressData) {
+            try {
+              if (apiCarrier.billingAddress?.id) {
+                // Update existing address
+                await updateCarrierAddress(apiCarrier.billingAddress.id, id, addressData);
+              } else {
+                // Create new address
+                await createCarrierAddress(id, addressData);
+              }
+            } catch (err) {
+              errors.push(`Failed to update billing address for ${merged.name}: ${err}`);
+            }
           }
-        } else {
-          console.log('Skipping contact save:', {
-            hasContactData: !!mods.contactData,
-            hasExistingContactId: !!merged.contactId,
-            hasFirstName: !!mods.contactData?.firstName,
-          });
         }
       }
     }
@@ -359,7 +311,7 @@ export function useShippingCarriers() {
     // Clear modification tracking
     setLocalModifications(new Map());
     setDeletedIds(new Set());
-  }, [apiCarriers, localModifications, deletedIds, updateMutation, deleteMutation, setAddressMutation, linkContactMutation]);
+  }, [apiCarriers, localModifications, deletedIds, updateMutation, deleteMutation]);
 
   const markChanged = useCallback(() => {
     // No-op - changes are tracked automatically
@@ -369,33 +321,6 @@ export function useShippingCarriers() {
     setLocalModifications(new Map());
     setDeletedIds(new Set());
   }, []);
-
-  // Unlink contact from carrier (immediate API call)
-  const handleUnlinkContact = useCallback(async (carrierId: string) => {
-    const carrier = localCarriers.find(c => c.id === carrierId);
-    if (!carrier?.contactId) return;
-
-    try {
-      await unlinkContactMutation.mutateAsync({
-        carrierId,
-        contactId: carrier.contactId,
-      });
-    } catch (err) {
-      console.error('Failed to unlink contact:', err);
-    }
-  }, [localCarriers, unlinkContactMutation]);
-
-  // Link existing contact to carrier (immediate API call)
-  const handleLinkContact = useCallback(async (carrierId: string, contactId: string) => {
-    try {
-      await linkContactMutation.mutateAsync({
-        carrierId,
-        contactId,
-      });
-    } catch (err) {
-      console.error('Failed to link contact:', err);
-    }
-  }, [linkContactMutation]);
 
   return {
     // State
@@ -420,8 +345,6 @@ export function useShippingCarriers() {
     handleAddCarrier,
     handleUpdateCarrier,
     handleDeleteCarrier,
-    handleUnlinkContact,
-    handleLinkContact,
     saveChanges,
     markChanged,
     resetChanges,

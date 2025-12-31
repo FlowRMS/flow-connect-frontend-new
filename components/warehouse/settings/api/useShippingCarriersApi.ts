@@ -12,15 +12,9 @@ import {
   createShippingCarrier,
   updateShippingCarrier,
   deleteShippingCarrier,
-  setShippingCarrierAddress,
-  deleteShippingCarrierAddress,
-  linkContactToShippingCarrier,
-  unlinkContactFromShippingCarrier,
   type ShippingCarrier,
   type CreateShippingCarrierInput,
   type UpdateShippingCarrierInput,
-  type ShippingCarrierAddressInput,
-  type Address,
 } from './shippingCarriersApi';
 
 // ============================================================================
@@ -122,7 +116,9 @@ export function useUpdateShippingCarrier() {
                   apiKey: input.apiKey ?? carrier.apiKey,
                   apiEndpoint: input.apiEndpoint ?? carrier.apiEndpoint,
                   trackingUrlTemplate: input.trackingUrlTemplate ?? carrier.trackingUrlTemplate,
-                  serviceTypes: input.serviceTypes ?? carrier.serviceTypes,
+                  // serviceTypes: input uses Record<string, boolean>, API returns string[]
+                  // Keep existing value for optimistic update, server response will have correct format
+                  serviceTypes: carrier.serviceTypes,
                   defaultServiceType: input.defaultServiceType ?? carrier.defaultServiceType,
                   maxWeight: input.maxWeight ?? carrier.maxWeight,
                   maxDimensions: input.maxDimensions ?? carrier.maxDimensions,
@@ -167,104 +163,5 @@ export function useDeleteShippingCarrier() {
   });
 }
 
-// ============================================================================
-// Address Hooks
-// ============================================================================
-
-/**
- * Set or update a shipping carrier's address
- */
-export function useSetShippingCarrierAddress() {
-  const queryClient = useQueryClient();
-
-  return useMutation<
-    Address,
-    Error,
-    { carrierId: string; input: ShippingCarrierAddressInput }
-  >({
-    mutationFn: ({ carrierId, input }) => setShippingCarrierAddress(carrierId, input),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: shippingCarriersQueryKeys.all });
-      queryClient.invalidateQueries({ queryKey: shippingCarriersQueryKeys.detail(variables.carrierId) });
-    },
-  });
-}
-
-/**
- * Delete a shipping carrier's address
- */
-export function useDeleteShippingCarrierAddress() {
-  const queryClient = useQueryClient();
-
-  return useMutation<
-    boolean,
-    Error,
-    { carrierId: string; addressId: string }
-  >({
-    mutationFn: ({ carrierId, addressId }) => deleteShippingCarrierAddress(carrierId, addressId),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: shippingCarriersQueryKeys.all });
-      queryClient.invalidateQueries({ queryKey: shippingCarriersQueryKeys.detail(variables.carrierId) });
-    },
-  });
-}
-
-// ============================================================================
-// Contact Link Hooks
-// ============================================================================
-
-/**
- * Link a contact to a shipping carrier
- */
-export function useLinkContactToShippingCarrier() {
-  const queryClient = useQueryClient();
-
-  return useMutation<
-    boolean,
-    Error,
-    { carrierId: string; contactId: string }
-  >({
-    mutationFn: ({ carrierId, contactId }) => linkContactToShippingCarrier(carrierId, contactId),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: shippingCarriersQueryKeys.all });
-      queryClient.invalidateQueries({ queryKey: shippingCarriersQueryKeys.detail(variables.carrierId) });
-    },
-  });
-}
-
-/**
- * Unlink a contact from a shipping carrier
- */
-export function useUnlinkContactFromShippingCarrier() {
-  const queryClient = useQueryClient();
-
-  return useMutation<
-    boolean,
-    Error,
-    { carrierId: string; contactId: string }
-  >({
-    mutationFn: ({ carrierId, contactId }) => unlinkContactFromShippingCarrier(carrierId, contactId),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: shippingCarriersQueryKeys.all });
-      queryClient.invalidateQueries({ queryKey: shippingCarriersQueryKeys.detail(variables.carrierId) });
-    },
-  });
-}
-
-// ============================================================================
-// Contact Search Hook
-// ============================================================================
-
-import { searchContactsForCarrier, type ContactSearchResult } from './shippingCarriersApi';
-
-export function useContactSearchForCarrier(searchTerm: string, enabled: boolean = true) {
-  return useQuery<ContactSearchResult[], Error>({
-    queryKey: ['contacts', 'search', searchTerm],
-    queryFn: () => searchContactsForCarrier(searchTerm),
-    enabled: enabled && searchTerm.length >= 2,
-    staleTime: 60 * 1000,
-  });
-}
-
 // Re-export types
-export type { ShippingCarrier, CreateShippingCarrierInput, UpdateShippingCarrierInput, ShippingCarrierAddressInput, Address, ContactSearchResult };
+export type { ShippingCarrier, CreateShippingCarrierInput, UpdateShippingCarrierInput };

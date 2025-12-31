@@ -78,8 +78,16 @@ export interface WarehouseSettingsState {
   workers: WarehouseWorkerAssignment[];
 }
 
+// Partial settings for tracking modifications - fields are optional
+export interface PartialWarehouseSettingsState {
+  locationLevels?: WarehouseLocationLevelConfig[];
+  workers?: WarehouseWorkerAssignment[];
+}
+
 export interface WarehouseWithSettings extends Warehouse {
   settings: WarehouseSettingsState;
+  // Address tracking - addressId is set when address exists in backend
+  addressId?: string;
 }
 
 // Container type interface

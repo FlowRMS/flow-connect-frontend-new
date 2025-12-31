@@ -11,8 +11,6 @@ interface ShippingCarrierAccordionItemProps {
   onToggleExpansion: () => void;
   onUpdateCarrier: (updates: Partial<ShippingCarrier>) => void;
   onDeleteCarrier: () => void;
-  onUnlinkContact?: (carrierId: string) => void;
-  onLinkContact?: (carrierId: string, contactId: string) => void;
 }
 
 export default function ShippingCarrierAccordionItem({
@@ -21,8 +19,6 @@ export default function ShippingCarrierAccordionItem({
   onToggleExpansion,
   onUpdateCarrier,
   onDeleteCarrier,
-  onUnlinkContact,
-  onLinkContact,
 }: ShippingCarrierAccordionItemProps) {
   return (
     <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
@@ -93,12 +89,7 @@ export default function ShippingCarrierAccordionItem({
             <div className="space-y-4">
               <CarrierBasicInfo carrier={carrier} onUpdate={onUpdateCarrier} />
               <CarrierAccountBilling carrier={carrier} onUpdate={onUpdateCarrier} />
-              <CarrierContactInfo
-                carrier={carrier}
-                onUpdate={onUpdateCarrier}
-                onUnlinkContact={onUnlinkContact}
-                onLinkContact={onLinkContact}
-              />
+              <CarrierContactInfo carrier={carrier} onUpdate={onUpdateCarrier} />
             </div>
 
             {/* Right Column */}

@@ -1,4 +1,3 @@
-import React from 'react';
 import type { ShippingCarrier } from '../types';
 import ShippingCarrierAccordionItem from './ShippingCarrierAccordionItem';
 
@@ -15,8 +14,6 @@ interface ShippingCarriersListProps {
   setNewCarrierName: (name: string) => void;
   setNewCarrierAccount: (account: string) => void;
   setNewCarrierRemarks: (remarks: string) => void;
-  handleUnlinkContact?: (carrierId: string) => void;
-  handleLinkContact?: (carrierId: string, contactId: string) => void;
 }
 
 export default function ShippingCarriersList({
@@ -28,8 +25,6 @@ export default function ShippingCarriersList({
   handleDeleteCarrier,
   handleAddCarrier,
   setNewCarrierName,
-  handleUnlinkContact,
-  handleLinkContact,
 }: ShippingCarriersListProps) {
   return (
     <div className="space-y-4">
@@ -45,8 +40,6 @@ export default function ShippingCarriersList({
             onToggleExpansion={() => toggleCarrierExpansion(carrier.id)}
             onUpdateCarrier={(updates) => handleUpdateCarrier(carrier.id, updates)}
             onDeleteCarrier={() => handleDeleteCarrier(carrier.id)}
-            onUnlinkContact={handleUnlinkContact}
-            onLinkContact={handleLinkContact}
           />
         );
       })}

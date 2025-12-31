@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import WarehouseLayoutModal from '../layout/WarehouseLayoutModal';
 import WarehouseQRCodesModal from '../qr-codes/WarehouseQRCodesModal';
@@ -8,7 +8,6 @@ import { useWarehouseSettings, useShippingCarriers, useContainerTypes } from './
 import { WarehouseSettingsHeader, WarehousesList, ShippingCarriersList, ContainerTypesList } from './components';
 import ManufacturerProfilesContent from '../ManufacturerProfilesContent';
 import { NewWarehouseModal, AddWorkerModal } from './modals';
-import { mockAvailableWorkers } from './mockData';
 import type { SettingsTab } from './types';
 
 const ALL_TAB_IDS: SettingsTab[] = ['warehouses', 'shipping-carriers', 'containers', 'manufacturer-profiles'];
@@ -49,17 +48,31 @@ export default function WarehouseSettingsContent() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
+      // Save warehouse changes to backend
+      if (warehouseSettings.hasChanges) {
+        await warehouseSettings.saveChanges();
+      }
       // Save shipping carrier changes to backend
       if (carrierSettings.hasChanges) {
         await carrierSettings.saveChanges();
       }
-      // TODO: Add saveChanges for other settings when implemented
-      warehouseSettings.resetChanges();
-      containerSettings.resetChanges();
+      // Container types save changes immediately, no batch save needed
     } catch (err) {
       console.error('Failed to save changes:', err);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Track creating state for warehouse modal
+  const [isCreatingWarehouse, setIsCreatingWarehouse] = useState(false);
+
+  const handleCreateWarehouse = async (name: string, description?: string) => {
+    setIsCreatingWarehouse(true);
+    try {
+      await warehouseSettings.handleCreateWarehouse(name, description);
+    } finally {
+      setIsCreatingWarehouse(false);
     }
   };
 
@@ -107,8 +120,6 @@ export default function WarehouseSettingsContent() {
           setNewCarrierName={carrierSettings.setNewCarrierName}
           setNewCarrierAccount={carrierSettings.setNewCarrierAccount}
           setNewCarrierRemarks={carrierSettings.setNewCarrierRemarks}
-          handleUnlinkContact={carrierSettings.handleUnlinkContact}
-          handleLinkContact={carrierSettings.handleLinkContact}
         />
       )}
 
@@ -138,6 +149,8 @@ export default function WarehouseSettingsContent() {
         <NewWarehouseModal
           isOpen={warehouseSettings.showNewWarehouseModal}
           onClose={() => warehouseSettings.setShowNewWarehouseModal(false)}
+          onCreate={handleCreateWarehouse}
+          isCreating={isCreatingWarehouse}
         />
       )}
 
@@ -149,7 +162,7 @@ export default function WarehouseSettingsContent() {
               .find((w) => w.id === warehouseSettings.showAddWorkerModal)
               ?.settings.workers.map((w) => w.workerId) || []
           }
-          availableWorkers={mockAvailableWorkers}
+          availableWorkers={warehouseSettings.availableWorkers}
           onAdd={warehouseSettings.addWorker}
           onClose={() => warehouseSettings.setShowAddWorkerModal(null)}
         />

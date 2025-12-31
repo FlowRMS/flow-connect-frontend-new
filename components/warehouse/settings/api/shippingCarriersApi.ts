@@ -61,7 +61,7 @@ export interface ShippingCarrier {
   // Notes
   remarks?: string | null;
   internalNotes?: string | null;
-  // Linked entities
+  // Linked entities (read-only for now)
   primaryContact?: Contact | null;
   contacts?: Contact[];
   addresses?: Address[];
@@ -256,56 +256,6 @@ const DELETE_SHIPPING_CARRIER = `
   }
 `;
 
-const SET_SHIPPING_CARRIER_ADDRESS = `
-  mutation SetShippingCarrierAddress($carrierId: UUID!, $input: ShippingCarrierAddressInput!) {
-    setShippingCarrierAddress(carrierId: $carrierId, input: $input) {
-      id
-      line1
-      line2
-      city
-      state
-      zipCode
-      country
-      isPrimary
-      addressType
-    }
-  }
-`;
-
-const DELETE_SHIPPING_CARRIER_ADDRESS = `
-  mutation DeleteShippingCarrierAddress($carrierId: UUID!, $addressId: UUID!) {
-    deleteShippingCarrierAddress(carrierId: $carrierId, addressId: $addressId)
-  }
-`;
-
-const LINK_CONTACT_TO_SHIPPING_CARRIER = `
-  mutation LinkContactToShippingCarrier($carrierId: UUID!, $contactId: UUID!) {
-    linkContactToShippingCarrier(carrierId: $carrierId, contactId: $contactId)
-  }
-`;
-
-const UNLINK_CONTACT_FROM_SHIPPING_CARRIER = `
-  mutation UnlinkContactFromShippingCarrier($carrierId: UUID!, $contactId: UUID!) {
-    unlinkContactFromShippingCarrier(carrierId: $carrierId, contactId: $contactId)
-  }
-`;
-
-// ============================================================================
-// Input Types for Address/Contact Mutations
-// ============================================================================
-
-export interface ShippingCarrierAddressInput {
-  line1: string;
-  city: string;
-  country: string;
-  line2?: string | null;
-  state?: string | null;
-  zipCode?: string | null;
-  notes?: string | null;
-  isPrimary?: boolean;
-  addressType?: 'BILLING' | 'SHIPPING' | 'MAILING' | 'OTHER';
-}
-
 // ============================================================================
 // API Functions
 // ============================================================================
@@ -422,128 +372,146 @@ export async function deleteShippingCarrier(id: string): Promise<boolean> {
   return true;
 }
 
-/**
- * Set or update a shipping carrier's address
- */
-export async function setShippingCarrierAddress(
-  carrierId: string,
-  input: ShippingCarrierAddressInput
-): Promise<Address> {
-  const response = await crmGraphQLRequest<{ setShippingCarrierAddress: Address }>({
-    query: SET_SHIPPING_CARRIER_ADDRESS,
-    variables: { carrierId, input },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to set shipping carrier address');
-  }
-
-  if (!response.data?.setShippingCarrierAddress) {
-    throw new Error('No address returned from mutation');
-  }
-
-  return response.data.setShippingCarrierAddress;
-}
-
-/**
- * Delete a shipping carrier's address
- */
-export async function deleteShippingCarrierAddress(
-  carrierId: string,
-  addressId: string
-): Promise<boolean> {
-  const response = await crmGraphQLRequest<{ deleteShippingCarrierAddress: boolean }>({
-    query: DELETE_SHIPPING_CARRIER_ADDRESS,
-    variables: { carrierId, addressId },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to delete shipping carrier address');
-  }
-
-  return true;
-}
-
-/**
- * Link a contact to a shipping carrier
- */
-export async function linkContactToShippingCarrier(
-  carrierId: string,
-  contactId: string
-): Promise<boolean> {
-  const response = await crmGraphQLRequest<{ linkContactToShippingCarrier: boolean }>({
-    query: LINK_CONTACT_TO_SHIPPING_CARRIER,
-    variables: { carrierId, contactId },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to link contact to shipping carrier');
-  }
-
-  return true;
-}
-
-/**
- * Unlink a contact from a shipping carrier
- */
-export async function unlinkContactFromShippingCarrier(
-  carrierId: string,
-  contactId: string
-): Promise<boolean> {
-  const response = await crmGraphQLRequest<{ unlinkContactFromShippingCarrier: boolean }>({
-    query: UNLINK_CONTACT_FROM_SHIPPING_CARRIER,
-    variables: { carrierId, contactId },
-  });
-
-  if (response.errors) {
-    throw new Error(response.errors[0]?.message || 'Failed to unlink contact from shipping carrier');
-  }
-
-  return true;
-}
-
 // ============================================================================
-// Contact Search (for linking contacts to carriers)
+// Address API Functions for Shipping Carriers
 // ============================================================================
 
-const CONTACT_SEARCH = `
-  query ContactSearch($searchTerm: String!, $limit: Int) {
-    contactSearch(searchTerm: $searchTerm, limit: $limit) {
+// Import shared address types from warehousesApi
+import type { AddressSourceType, AddressType, AddressInput } from './warehousesApi';
+
+const GET_ADDRESSES_BY_SOURCE = `
+  query GetAddressesBySource($sourceType: AddressSourceTypeEnum!, $sourceId: UUID!) {
+    addressesBySource(sourceType: $sourceType, sourceId: $sourceId) {
       id
-      firstName
-      lastName
-      email
-      phone
-      role
+      sourceId
+      sourceType
+      addressType
+      line1
+      line2
+      city
+      state
+      zipCode
+      country
+      notes
+      isPrimary
+      createdAt
     }
   }
 `;
 
-export interface ContactSearchResult {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email?: string | null;
-  phone?: string | null;
-  role?: string | null;
-}
+const CREATE_ADDRESS = `
+  mutation CreateAddress($input: AddressInput!) {
+    createAddress(input: $input) {
+      id
+      sourceId
+      sourceType
+      addressType
+      line1
+      line2
+      city
+      state
+      zipCode
+      country
+      notes
+      isPrimary
+      createdAt
+    }
+  }
+`;
+
+const UPDATE_ADDRESS = `
+  mutation UpdateAddress($id: UUID!, $input: AddressInput!) {
+    updateAddress(id: $id, input: $input) {
+      id
+      sourceId
+      sourceType
+      addressType
+      line1
+      line2
+      city
+      state
+      zipCode
+      country
+      notes
+      isPrimary
+      createdAt
+    }
+  }
+`;
 
 /**
- * Search contacts by name
+ * Fetch addresses for a shipping carrier
  */
-export async function searchContactsForCarrier(
-  searchTerm: string,
-  limit: number = 20
-): Promise<ContactSearchResult[]> {
-  const response = await crmGraphQLRequest<{ contactSearch: ContactSearchResult[] }>({
-    query: CONTACT_SEARCH,
-    variables: { searchTerm, limit },
+export async function fetchCarrierAddresses(carrierId: string): Promise<Address[]> {
+  const response = await crmGraphQLRequest<{ addressesBySource: Address[] }>({
+    query: GET_ADDRESSES_BY_SOURCE,
+    variables: { sourceType: 'SHIPPING_CARRIER', sourceId: carrierId },
   });
 
   if (response.errors) {
-    console.error('Contact search error:', response.errors);
-    throw new Error(response.errors[0]?.message || 'Failed to search contacts');
+    throw new Error(response.errors[0]?.message || 'Failed to fetch carrier addresses');
   }
 
-  return response.data?.contactSearch || [];
+  return response.data?.addressesBySource || [];
+}
+
+/**
+ * Create a new address for a shipping carrier
+ */
+export async function createCarrierAddress(
+  carrierId: string,
+  address: Omit<AddressInput, 'sourceId' | 'sourceType'>
+): Promise<Address> {
+  const input: AddressInput = {
+    ...address,
+    sourceId: carrierId,
+    sourceType: 'SHIPPING_CARRIER',
+    addressType: address.addressType || 'BILLING',
+  };
+
+  const response = await crmGraphQLRequest<{ createAddress: Address }>({
+    query: CREATE_ADDRESS,
+    variables: { input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to create carrier address');
+  }
+
+  if (!response.data?.createAddress) {
+    throw new Error('No address returned from create mutation');
+  }
+
+  return response.data.createAddress;
+}
+
+/**
+ * Update an existing carrier address
+ */
+export async function updateCarrierAddress(
+  addressId: string,
+  carrierId: string,
+  address: Omit<AddressInput, 'sourceId' | 'sourceType'>
+): Promise<Address> {
+  const input: AddressInput = {
+    ...address,
+    sourceId: carrierId,
+    sourceType: 'SHIPPING_CARRIER',
+    addressType: address.addressType || 'BILLING',
+  };
+
+  const response = await crmGraphQLRequest<{ updateAddress: Address }>({
+    query: UPDATE_ADDRESS,
+    variables: { id: addressId, input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to update carrier address');
+  }
+
+  if (!response.data?.updateAddress) {
+    throw new Error('No address returned from update mutation');
+  }
+
+  return response.data.updateAddress;
 }
