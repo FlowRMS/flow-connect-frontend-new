@@ -122,11 +122,13 @@ export const permissionEntities = [
 ];
 
 export const permissionRoles = [
-  { id: 'inside_rep', label: 'Inside rep' },
-  { id: 'outside_rep', label: 'Outside rep' },
-  { id: 'warehouse_manager', label: 'Warehouse manager' },
-  { id: 'warehouse_employee', label: 'Warehouse employee' },
-  { id: 'driver', label: 'Driver' },
+  { id: 'OWNER', label: 'Owner' },
+  { id: 'ADMINISTRATOR', label: 'Administrator' },
+  { id: 'INSIDE_REP', label: 'Inside Rep' },
+  { id: 'OUTSIDE_REP', label: 'Outside Rep' },
+  { id: 'WAREHOUSE_MANAGER', label: 'Warehouse Manager' },
+  { id: 'WAREHOUSE_EMPLOYEE', label: 'Warehouse Employee' },
+  { id: 'DRIVER', label: 'Driver' },
 ];
 
 // Mock Permissions - based on the screenshot
