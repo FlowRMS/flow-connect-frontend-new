@@ -48,12 +48,19 @@ export default function WarehouseSettingsContent() {
   // Save handler
   const handleSave = async () => {
     setIsSaving(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    setIsSaving(false);
-    warehouseSettings.resetChanges();
-    carrierSettings.resetChanges();
-    containerSettings.resetChanges();
+    try {
+      // Save shipping carrier changes to backend
+      if (carrierSettings.hasChanges) {
+        await carrierSettings.saveChanges();
+      }
+      // TODO: Add saveChanges for other settings when implemented
+      warehouseSettings.resetChanges();
+      containerSettings.resetChanges();
+    } catch (err) {
+      console.error('Failed to save changes:', err);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -100,6 +107,8 @@ export default function WarehouseSettingsContent() {
           setNewCarrierName={carrierSettings.setNewCarrierName}
           setNewCarrierAccount={carrierSettings.setNewCarrierAccount}
           setNewCarrierRemarks={carrierSettings.setNewCarrierRemarks}
+          handleUnlinkContact={carrierSettings.handleUnlinkContact}
+          handleLinkContact={carrierSettings.handleLinkContact}
         />
       )}
 
