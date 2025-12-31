@@ -1,11 +1,15 @@
 /**
  * Take-Off List View Component
- * FlowCRM style with grid-based layout
+ * FlowCRM style with grid-based layout and sortable columns
  */
 
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import type { Takeoff } from '../types';
 import { getStatusColor, getDocumentCountsByCategory } from '../utils';
+
+// Sortable column keys
+type SortColumn = 'title' | 'source' | 'createdBy' | 'createdDate' | 'bidDate' | 'location' | 'status' | 'priority';
+type SortDirection = 'asc' | 'desc';
 
 interface TakeoffListViewProps {
   takeoffs: Takeoff[];
@@ -14,12 +18,70 @@ interface TakeoffListViewProps {
   onViewQuote?: (quoteId: string) => void;
 }
 
+// Sort icon component
+function SortIcon({ direction, active }: { direction: SortDirection | null; active: boolean }) {
+  return (
+    <span className={`ml-1 inline-flex flex-col ${active ? 'text-blue-600' : 'text-gray-400'}`}>
+      <svg
+        width="8"
+        height="8"
+        viewBox="0 0 8 8"
+        fill="currentColor"
+        className={`${active && direction === 'asc' ? 'opacity-100' : 'opacity-30'}`}
+      >
+        <path d="M4 0L7 4H1L4 0Z" />
+      </svg>
+      <svg
+        width="8"
+        height="8"
+        viewBox="0 0 8 8"
+        fill="currentColor"
+        className={`-mt-0.5 ${active && direction === 'desc' ? 'opacity-100' : 'opacity-30'}`}
+      >
+        <path d="M4 8L1 4H7L4 8Z" />
+      </svg>
+    </span>
+  );
+}
+
+// Sortable header component
+function SortableHeader({
+  label,
+  column,
+  currentSort,
+  currentDirection,
+  onSort,
+  className = '',
+}: {
+  label: string;
+  column: SortColumn;
+  currentSort: SortColumn | null;
+  currentDirection: SortDirection;
+  onSort: (column: SortColumn) => void;
+  className?: string;
+}) {
+  const isActive = currentSort === column;
+  return (
+    <button
+      onClick={() => onSort(column)}
+      className={`flex items-center text-[10px] md:text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider hover:text-[var(--foreground)] transition-colors ${className}`}
+    >
+      {label}
+      <SortIcon direction={isActive ? currentDirection : null} active={isActive} />
+    </button>
+  );
+}
+
 export function TakeoffListView({
   takeoffs,
   onTakeoffClick,
   onDeleteTakeoff,
   onViewQuote
 }: TakeoffListViewProps) {
+  // Sorting state
+  const [sortColumn, setSortColumn] = useState<SortColumn | null>('createdDate');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
   const formatDate = (dateString: string) => {
     if (!dateString) return '-';
     try {
@@ -34,45 +96,185 @@ export function TakeoffListView({
     }
   };
 
+  // Handle column sort click
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      // Toggle direction if same column
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      // New column, default to descending for dates, ascending for text
+      setSortColumn(column);
+      setSortDirection(['createdDate', 'bidDate'].includes(column) ? 'desc' : 'asc');
+    }
+  };
+
+  // Sort takeoffs
+  const sortedTakeoffs = useMemo(() => {
+    if (!sortColumn) return takeoffs;
+
+    return [...takeoffs].sort((a, b) => {
+      let aValue: string | number | null = null;
+      let bValue: string | number | null = null;
+
+      switch (sortColumn) {
+        case 'title':
+          aValue = a.title?.toLowerCase() || '';
+          bValue = b.title?.toLowerCase() || '';
+          break;
+        case 'source':
+          aValue = a.source?.toLowerCase() || '';
+          bValue = b.source?.toLowerCase() || '';
+          break;
+        case 'createdBy':
+          aValue = a.createdBy?.toLowerCase() || '';
+          bValue = b.createdBy?.toLowerCase() || '';
+          break;
+        case 'createdDate':
+          aValue = a.createdDate ? new Date(a.createdDate).getTime() : 0;
+          bValue = b.createdDate ? new Date(b.createdDate).getTime() : 0;
+          break;
+        case 'bidDate':
+          aValue = a.metadata?.bidDate ? new Date(a.metadata.bidDate).getTime() : 0;
+          bValue = b.metadata?.bidDate ? new Date(b.metadata.bidDate).getTime() : 0;
+          break;
+        case 'location':
+          const aLoc = a.metadata?.city && a.metadata?.state
+            ? `${a.metadata.city}, ${a.metadata.state}`
+            : a.metadata?.city || a.metadata?.state || '';
+          const bLoc = b.metadata?.city && b.metadata?.state
+            ? `${b.metadata.city}, ${b.metadata.state}`
+            : b.metadata?.city || b.metadata?.state || '';
+          aValue = aLoc.toLowerCase();
+          bValue = bLoc.toLowerCase();
+          break;
+        case 'status':
+          // Custom sort order for status
+          const statusOrder: Record<string, number> = {
+            'Classification': 1,
+            'Abridgment': 2,
+            'Parsing': 3,
+            'Complete': 4
+          };
+          aValue = statusOrder[a.status] || 0;
+          bValue = statusOrder[b.status] || 0;
+          break;
+        case 'priority':
+          // Custom sort order for priority
+          const priorityOrder: Record<string, number> = {
+            'High': 3,
+            'Medium': 2,
+            'Low': 1
+          };
+          aValue = priorityOrder[a.priority || 'Medium'] || 0;
+          bValue = priorityOrder[b.priority || 'Medium'] || 0;
+          break;
+      }
+
+      if (aValue === null || bValue === null) return 0;
+
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        const comparison = aValue.localeCompare(bValue);
+        return sortDirection === 'asc' ? comparison : -comparison;
+      }
+
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+      }
+
+      return 0;
+    });
+  }, [takeoffs, sortColumn, sortDirection]);
+
   return (
     <div className="bg-[var(--card)] rounded-xl border border-[var(--border)] overflow-hidden shadow-sm">
       {/* Scrollable Table Container */}
       <div className="overflow-x-auto">
         <div className="min-w-[1200px]">
           {/* Table Header */}
-          <div className="grid grid-cols-16 gap-2 md:gap-3 px-4 md:px-6 py-3 md:py-4 border-b border-[var(--border)] bg-gray-50/80">
-            <div className="col-span-3 text-[10px] md:text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-              Project Details
+          <div
+            className="grid gap-2 md:gap-3 px-4 md:px-6 py-3 md:py-4 border-b border-[var(--border)] bg-gray-50/80"
+            style={{ gridTemplateColumns: '2fr 0.8fr 1.5fr 1fr 1fr 1.2fr 0.8fr 0.8fr 1fr' }}
+          >
+            <div>
+              <SortableHeader
+                label="Project Details"
+                column="title"
+                currentSort={sortColumn}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+              />
             </div>
-            <div className="col-span-1 text-[10px] md:text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-              Source
+            <div>
+              <SortableHeader
+                label="Source"
+                column="source"
+                currentSort={sortColumn}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+              />
             </div>
-            <div className="col-span-2 text-[10px] md:text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-              Created By
+            <div>
+              <SortableHeader
+                label="Created By"
+                column="createdBy"
+                currentSort={sortColumn}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+              />
             </div>
-            <div className="col-span-1 text-[10px] md:text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-              Created
+            <div>
+              <SortableHeader
+                label="Created"
+                column="createdDate"
+                currentSort={sortColumn}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+              />
             </div>
-            <div className="col-span-1 text-[10px] md:text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-              Bid Date
+            <div>
+              <SortableHeader
+                label="Bid Date"
+                column="bidDate"
+                currentSort={sortColumn}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+              />
             </div>
-            <div className="col-span-2 text-[10px] md:text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-              Location
+            <div>
+              <SortableHeader
+                label="Location"
+                column="location"
+                currentSort={sortColumn}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+              />
             </div>
-            <div className="col-span-1 text-[10px] md:text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-              Status
+            <div>
+              <SortableHeader
+                label="Status"
+                column="status"
+                currentSort={sortColumn}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+              />
             </div>
-            <div className="col-span-1 text-[10px] md:text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-              Priority
+            <div>
+              <SortableHeader
+                label="Priority"
+                column="priority"
+                currentSort={sortColumn}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+              />
             </div>
-            <div className="col-span-4 text-[10px] md:text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider text-right">
+            <div className="text-[10px] md:text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider text-right">
               Actions
             </div>
           </div>
 
           {/* Table Body */}
           <div className="divide-y divide-[var(--border)]">
-            {takeoffs.map((takeoff) => {
+            {sortedTakeoffs.map((takeoff) => {
               const docCounts = getDocumentCountsByCategory(takeoff.documents || []);
               const totalDocs = takeoff.documents?.length || 0;
 
@@ -87,10 +289,11 @@ export function TakeoffListView({
                 <div
                   key={takeoff.id}
                   onClick={() => onTakeoffClick(takeoff)}
-                  className="grid grid-cols-16 gap-2 md:gap-3 px-4 md:px-6 py-3 md:py-4 hover:bg-blue-50/50 transition-colors cursor-pointer group"
+                  className="grid gap-2 md:gap-3 px-4 md:px-6 py-3 md:py-4 hover:bg-blue-50/50 transition-colors cursor-pointer group"
+                  style={{ gridTemplateColumns: '2fr 0.8fr 1.5fr 1fr 1fr 1.2fr 0.8fr 0.8fr 1fr' }}
                 >
                   {/* Project Details */}
-                  <div className="col-span-3 min-w-0">
+                  <div className="min-w-0">
                     <h3 className="font-semibold text-sm md:text-base text-[var(--foreground)] group-hover:text-blue-600 transition-colors truncate">
                       {takeoff.title}
                     </h3>
@@ -113,49 +316,49 @@ export function TakeoffListView({
                   </div>
 
                   {/* Source */}
-                  <div className="col-span-1 flex items-center">
+                  <div className="flex items-center">
                     <span className="text-[10px] md:text-xs text-[var(--foreground)] truncate">
                       {takeoff.source || 'Upload'}
                     </span>
                   </div>
 
                   {/* Created By */}
-                  <div className="col-span-2 flex items-center">
+                  <div className="flex items-center">
                     <span className="text-[10px] md:text-xs text-[var(--foreground)] truncate">
                       {takeoff.createdBy || '-'}
                     </span>
                   </div>
 
                   {/* Created Date */}
-                  <div className="col-span-1 flex items-center">
+                  <div className="flex items-center">
                     <span className="text-[10px] md:text-xs text-[var(--muted-foreground)]">
                       {formatDate(takeoff.createdDate)}
                     </span>
                   </div>
 
                   {/* Bid Date */}
-                  <div className="col-span-1 flex items-center">
+                  <div className="flex items-center">
                     <span className="text-[10px] md:text-xs text-[var(--muted-foreground)]">
                       {bidDate ? formatDate(bidDate) : '-'}
                     </span>
                   </div>
 
                   {/* Location */}
-                  <div className="col-span-2 flex items-center">
+                  <div className="flex items-center">
                     <span className="text-[10px] md:text-xs text-[var(--foreground)] truncate" title={location}>
                       {location}
                     </span>
                   </div>
 
                   {/* Status */}
-                  <div className="col-span-1 flex items-center">
+                  <div className="flex items-center">
                     <span className={`px-1.5 md:px-2 py-0.5 rounded-full text-[9px] md:text-[10px] font-medium whitespace-nowrap ${getStatusColor(takeoff.status)}`}>
                       {takeoff.status}
                     </span>
                   </div>
 
                   {/* Priority */}
-                  <div className="col-span-1 flex items-center">
+                  <div className="flex items-center">
                     <span className={`px-1.5 md:px-2 py-0.5 rounded text-[9px] md:text-[10px] font-medium ${
                       takeoff.priority === 'High' ? 'bg-red-100 text-red-700' :
                       takeoff.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' :
@@ -166,7 +369,7 @@ export function TakeoffListView({
                   </div>
 
                   {/* Actions */}
-                  <div className="col-span-4 flex items-center justify-end gap-1">
+                  <div className="flex items-center justify-end gap-1">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
