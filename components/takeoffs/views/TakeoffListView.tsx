@@ -3,12 +3,15 @@
  * Clean table layout matching FlowCRM design
  */
 
+'use client';
+
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import type { Takeoff } from '../types';
 
 interface TakeoffListViewProps {
   takeoffs: Takeoff[];
-  onTakeoffClick: (takeoff: Takeoff) => void;
+  onTakeoffClick?: (takeoff: Takeoff) => void;
   onDeleteTakeoff?: (takeoffId: string) => void;
   onViewQuote?: (quoteId: string) => void;
 }
@@ -47,6 +50,12 @@ export function TakeoffListView({
   takeoffs,
   onTakeoffClick,
 }: TakeoffListViewProps) {
+  const router = useRouter();
+
+  const handleViewClick = (takeoff: Takeoff) => {
+    router.push(`/take-offs/${takeoff.id}`);
+  };
+
   const formatDate = (dateString: string) => {
     if (!dateString) return '-';
     try {
@@ -139,7 +148,7 @@ export function TakeoffListView({
               {/* Actions */}
               <td className="px-6 py-4">
                 <button
-                  onClick={() => onTakeoffClick(takeoff)}
+                  onClick={() => handleViewClick(takeoff)}
                   className="px-4 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
                 >
                   View
