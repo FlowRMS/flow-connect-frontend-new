@@ -245,7 +245,7 @@ export function TakeoffDetailView({
       {/* Back Button */}
       <button
         onClick={onBack}
-        className="flex items-center gap-2 text-[var(--muted-foreground)] hover:text-[var(--foreground)] mb-4 transition-colors"
+        className="flex items-center gap-2 text-gray-500 hover:text-gray-700 mb-4 transition-colors text-sm"
       >
         <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M15 10H5M10 5l-5 5 5 5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -253,24 +253,42 @@ export function TakeoffDetailView({
         Back to Takeoffs
       </button>
 
-      {/* Header with title and status */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]">
-            {takeoff.title}
-          </h1>
-          <p className="text-sm text-[var(--muted-foreground)] mt-1">
-            {takeoff.metadata?.clientName || 'No Client'} • {formatDate(takeoff.createdDate)}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className={`px-3 py-1.5 rounded-full text-sm font-medium ${getStatusColor(takeoff.status)}`}>
-            {takeoff.status}
-          </span>
-        </div>
+      {/* Header with title and ID */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">
+          {takeoff.title || 'New Takeoff Project'}
+        </h1>
+        <p className="text-sm text-gray-500 mt-1">
+          TO-{takeoff.id?.slice(0, 3).toUpperCase() || 'NEW'}
+        </p>
       </div>
 
-      {/* 6-Step Workflow Stepper */}
+      {/* Simple Tabs: Classification | Schedule Parsing */}
+      <div className="flex items-center gap-8 border-b border-gray-200 mb-6">
+        <button
+          onClick={() => onStepChange('classification')}
+          className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
+            currentStep === 'classification' || currentStep === 'review'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Classification
+        </button>
+        <button
+          onClick={() => onStepChange('parsing')}
+          className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
+            currentStep === 'parsing'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Schedule Parsing
+        </button>
+      </div>
+
+      {/* 6-Step Workflow Stepper - Hidden for simplified view */}
+      {false && (
       <div className="bg-[var(--card)] rounded-xl border border-[var(--border)] p-4 mb-6 shadow-sm">
         {/* Stepper Icons */}
         <div className="flex items-center justify-between overflow-x-auto">
@@ -437,75 +455,13 @@ export function TakeoffDetailView({
           })()}
         </div>
       </div>
+      )}
 
-      {/* Step Content Card */}
-      <div className="bg-[var(--card)] rounded-xl border border-[var(--border)] shadow-sm overflow-hidden">
+      {/* Step Content */}
+      <div>
         {/* Classification Step Content */}
-        {currentStep === 'classification' && (
-          <>
-            {/* Classification Header with AI Progress */}
-            <div className="p-6 border-b border-[var(--border)]">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                  <h2 className="text-lg font-semibold text-[var(--foreground)] flex items-center gap-2">
-                    {/* Folder icon - Purple */}
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-600">
-                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-                    </svg>
-                    Classification & Duplicate Detection
-                  </h2>
-                  <p className="text-sm text-[var(--muted-foreground)] mt-1">
-                    AI will analyze and categorize your documents automatically
-                  </p>
-                </div>
-                {isClassifying ? (
-                  <button
-                    disabled
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-purple-400 text-white rounded-lg text-sm font-medium cursor-not-allowed"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin">
-                      <circle cx="12" cy="12" r="10"/>
-                      <path d="M12 6v6l4 2"/>
-                    </svg>
-                    Processing...
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => runAutoClassification(false)}
-                    disabled={documents.length === 0}
-                    className={`inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      documents.length === 0
-                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                        : 'bg-purple-600 text-white hover:bg-purple-700'
-                    }`}
-                  >
-                    Proceed to Parsing
-                  </button>
-                )}
-              </div>
-
-              {/* AI Progress Bar */}
-              {isClassifying && (
-                <div className="mt-4">
-                  <div className="flex items-center justify-between text-sm mb-2">
-                    <span className="text-[var(--muted-foreground)]">
-                      Classifying documents...
-                    </span>
-                    <span className="font-medium text-purple-600">{classificationProgress}%</span>
-                  </div>
-                  <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-purple-600 rounded-full transition-all duration-300"
-                      style={{ width: `${classificationProgress}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Document List */}
-            <div className="p-6">
-              <ClassificationTab
+        {(currentStep === 'classification' || currentStep === 'review') && (
+          <ClassificationTab
                 documents={documents}
                 onClassify={onClassify}
                 onChangeDiscipline={onChangeDiscipline}
@@ -514,14 +470,12 @@ export function TakeoffDetailView({
                 onDownload={onDownloadDocument}
                 onDownloadAll={onDownloadAllDocuments}
                 onViewReport={onViewReport}
-                onProceedToParsing={() => onStepChange('abridgment')}
+                onProceedToParsing={() => onStepChange('parsing')}
               />
-            </div>
-          </>
         )}
 
-        {/* Review Step */}
-        {currentStep === 'review' && (
+        {/* Review Step - Hidden, now handled by Classification */}
+        {false && currentStep === 'review' && (
           <div className="p-6">
             <div className="text-center py-8">
               <div className="w-16 h-16 bg-teal-100 rounded-full flex items-center justify-center mx-auto mb-4">

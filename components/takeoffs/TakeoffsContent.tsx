@@ -108,67 +108,22 @@ export function TakeoffsContent() {
       {viewMode === 'list' && (
         <>
           {/* Header Section */}
-          <div className="mb-4 sm:mb-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2 mb-2">
-              <div>
-                <h1 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]">Take-Offs</h1>
-                <p className="text-sm text-[var(--muted-foreground)] mt-1">
-                  Manage project opportunities through AI-powered takeoff workflow
-                </p>
-              </div>
-              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-                {/* Refresh Button */}
-                <button
-                  onClick={handleRefresh}
-                  disabled={isLoading}
-                  className="p-2 rounded-lg border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors disabled:opacity-50"
-                  title="Refresh"
-                >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    className={isLoading ? 'animate-spin' : ''}
-                  >
-                    <path d="M23 4v6h-6"/>
-                    <path d="M1 20v-6h6"/>
-                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-                  </svg>
-                </button>
-
-                {/* Filters */}
-                <AdvancedFilters
-                  filterOptions={TAKEOFF_FILTER_OPTIONS}
-                  activeFilters={activeFilters}
-                  onFiltersChange={setActiveFilters}
-                />
-
-                {/* Upload New Project Button */}
-                <button
-                  onClick={handleOpenUploadModal}
-                  className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-xs sm:text-sm hover:bg-[var(--primary-hover)] transition-colors"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-                    <polyline points="17 8 12 3 7 8"/>
-                    <line x1="12" y1="3" x2="12" y2="15"/>
-                  </svg>
-                  <span className="hidden sm:inline">Upload New Project</span>
-                  <span className="sm:hidden">Upload</span>
-                </button>
-              </div>
-            </div>
+          <div className="flex items-center justify-between mb-6">
+            <h1 className="text-2xl font-semibold text-[var(--foreground)]">Take-Offs</h1>
+            <button
+              onClick={handleOpenUploadModal}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg font-medium text-sm hover:bg-purple-700 transition-colors"
+            >
+              + New Take-Off
+            </button>
           </div>
 
           {/* Search and Filters Row */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6">
+          <div className="flex items-center gap-3 mb-6">
             {/* Search Bar */}
-            <div className="relative flex-1">
+            <div className="relative flex-1 max-w-md">
               <svg
-                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[var(--muted-foreground)]"
+                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
                 width="16"
                 height="16"
                 viewBox="0 0 20 20"
@@ -183,34 +138,40 @@ export function TakeoffsContent() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search projects, companies, or locations..."
-                className="w-full pl-10 pr-4 py-2.5 border border-[var(--border)] rounded-lg text-sm bg-[var(--card)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)]"
+                placeholder="Search take-offs..."
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
               />
             </div>
 
-            {/* Clear Filters Button (if filters active) */}
-            {(activeFilters.length > 0 || searchQuery) && (
-              <button
-                onClick={() => {
-                  setActiveFilters([]);
-                  setSearchQuery('');
-                }}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M18 6L6 18M6 6l12 12"/>
-                </svg>
-                Clear Filters
-              </button>
-            )}
-          </div>
+            {/* Advanced Filters Button */}
+            <AdvancedFilters
+              filterOptions={TAKEOFF_FILTER_OPTIONS}
+              activeFilters={activeFilters}
+              onFiltersChange={setActiveFilters}
+            />
 
-          {/* Results Count - Always shows "Showing X of Y projects" format */}
-          {!isLoading && takeoffs.length > 0 && (
-            <p className="text-sm text-[var(--muted-foreground)] mb-4">
-              {`Showing ${takeoffs.length} of ${totalCount > 0 ? totalCount : takeoffs.length} projects`}
-            </p>
-          )}
+            {/* Refresh Button */}
+            <button
+              onClick={handleRefresh}
+              disabled={isLoading}
+              className="p-2.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              title="Refresh"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className={isLoading ? 'animate-spin' : ''}
+              >
+                <path d="M23 4v6h-6"/>
+                <path d="M1 20v-6h6"/>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+              </svg>
+            </button>
+          </div>
 
           {/* Error Message */}
           {error && (

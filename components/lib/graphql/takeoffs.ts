@@ -120,8 +120,28 @@ export interface UpdateTakeoffDocumentInput {
 // ============================================================================
 
 const GET_USER_TAKEOFFS = `
-  query GetUserTakeoffs($limit: Int, $offset: Int, $search: String, $status: String, $source: String) {
-    getUserTakeoffs(limit: $limit, offset: $offset, search: $search, status: $status, source: $source) {
+  query GetUserTakeoffs(
+    $limit: Int,
+    $offset: Int,
+    $search: String,
+    $status: String,
+    $source: String,
+    $createdBy: String,
+    $dateFrom: DateTime,
+    $dateTo: DateTime,
+    $title: String
+  ) {
+    getUserTakeoffs(
+      limit: $limit,
+      offset: $offset,
+      search: $search,
+      status: $status,
+      source: $source,
+      createdBy: $createdBy,
+      dateFrom: $dateFrom,
+      dateTo: $dateTo,
+      title: $title
+    ) {
       id
       title
       source
@@ -148,6 +168,63 @@ const GET_USER_TAKEOFFS = `
         products
         parsedItems
         createdAt
+      }
+    }
+  }
+`;
+
+const GET_USER_TAKEOFFS_PAGINATED = `
+  query GetUserTakeoffsPaginated(
+    $limit: Int,
+    $offset: Int,
+    $search: String,
+    $status: String,
+    $source: String,
+    $createdBy: String,
+    $dateFrom: DateTime,
+    $dateTo: DateTime,
+    $title: String
+  ) {
+    getUserTakeoffsPaginated(
+      limit: $limit,
+      offset: $offset,
+      search: $search,
+      status: $status,
+      source: $source,
+      createdBy: $createdBy,
+      dateFrom: $dateFrom,
+      dateTo: $dateTo,
+      title: $title
+    ) {
+      totalCount
+      takeoffs {
+        id
+        title
+        source
+        createdBy
+        status
+        quoteId
+        userId
+        metadata
+        createdAt
+        documents {
+          id
+          takeoffId
+          name
+          fileType
+          fileSize
+          documentUrl
+          classification
+          confidence
+          pages
+          abridged
+          abridgedPages
+          reductionPercentage
+          pageAnalyses
+          products
+          parsedItems
+          createdAt
+        }
       }
     }
   }
@@ -552,6 +629,18 @@ export interface FetchTakeoffsParams {
   search?: string;
   status?: string;
   source?: string;
+  createdBy?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  title?: string;
+}
+
+/**
+ * Paginated result for takeoffs
+ */
+export interface TakeoffsPaginatedResult {
+  takeoffs: TakeoffResponse[];
+  totalCount: number;
 }
 
 /**
@@ -566,6 +655,10 @@ export async function fetchUserTakeoffs(params?: FetchTakeoffsParams): Promise<T
       search: params?.search || null,
       status: params?.status || null,
       source: params?.source || null,
+      createdBy: params?.createdBy || null,
+      dateFrom: params?.dateFrom || null,
+      dateTo: params?.dateTo || null,
+      title: params?.title || null,
     },
   });
 
@@ -574,6 +667,34 @@ export async function fetchUserTakeoffs(params?: FetchTakeoffsParams): Promise<T
   }
 
   return response.data?.getUserTakeoffs || [];
+}
+
+/**
+ * Fetch takeoffs with pagination info (total count)
+ */
+export async function fetchUserTakeoffsPaginated(params?: FetchTakeoffsParams): Promise<TakeoffsPaginatedResult> {
+  const response = await flowAIGraphQLRequest<{
+    getUserTakeoffsPaginated: { takeoffs: TakeoffResponse[]; totalCount: number };
+  }>({
+    query: GET_USER_TAKEOFFS_PAGINATED,
+    variables: {
+      limit: params?.limit ?? 50,
+      offset: params?.offset ?? 0,
+      search: params?.search || null,
+      status: params?.status || null,
+      source: params?.source || null,
+      createdBy: params?.createdBy || null,
+      dateFrom: params?.dateFrom || null,
+      dateTo: params?.dateTo || null,
+      title: params?.title || null,
+    },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch takeoffs');
+  }
+
+  return response.data?.getUserTakeoffsPaginated || { takeoffs: [], totalCount: 0 };
 }
 
 /**

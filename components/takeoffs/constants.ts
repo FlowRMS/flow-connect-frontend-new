@@ -49,6 +49,7 @@ export const DOCUMENT_DISCIPLINE_OPTIONS = [
 
 // Filter options for take-offs list
 export const TAKEOFF_FILTER_OPTIONS: TakeoffFilterOption[] = [
+  { id: 'takeoffId', label: 'Takeoff ID', type: 'text', columnName: 'id' },
   { id: 'title', label: 'Title', type: 'text', columnName: 'title' },
   {
     id: 'status',
@@ -57,22 +58,8 @@ export const TAKEOFF_FILTER_OPTIONS: TakeoffFilterOption[] = [
     columnName: 'status',
     options: [...TAKEOFF_STATUS_OPTIONS],
   },
-  {
-    id: 'priority',
-    label: 'Priority',
-    type: 'dropdown',
-    columnName: 'priority',
-    options: [...TAKEOFF_PRIORITY_OPTIONS],
-  },
-  {
-    id: 'source',
-    label: 'Source',
-    type: 'dropdown',
-    columnName: 'source',
-    options: [...TAKEOFF_SOURCE_OPTIONS],
-  },
   { id: 'createdBy', label: 'Created By', type: 'text', columnName: 'createdBy' },
-  { id: 'createdDate', label: 'Created Date', type: 'date', columnName: 'createdDate' },
+  { id: 'date', label: 'Date', type: 'date', columnName: 'createdDate' },
 ];
 
 // Step configuration for detail view
