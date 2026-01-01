@@ -193,8 +193,9 @@ export interface InvoiceLandingPage {
   status?: string;
   total?: number;
   userIds?: string[];
-  // New field from API
+  // New fields from API
   factoryName?: string;
+  commission?: number;
 }
 
 // Input Types
@@ -290,6 +291,7 @@ const INVOICE_LANDING_PAGES = `
           createdBy
           createdAt
           factoryName
+          commission
         }
       }
       total

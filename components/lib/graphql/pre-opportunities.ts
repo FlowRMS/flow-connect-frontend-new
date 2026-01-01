@@ -96,24 +96,7 @@ const GET_PRE_OPPORTUNITY = `
         startDate
         endDate
         requesterId
-        createdBy {
-          authProviderId
-          email
-          enabled
-          firstName
-          fullName
-          id
-          inside
-          lastName
-          outside
-          role
-          username
-        }
         createdAt
-        status {
-          id
-          name
-        }
         tags
       }
       expDate
@@ -186,6 +169,9 @@ const GET_PRE_OPPORTUNITY = `
           duplicatedFrom
           freightTerms
           paymentTerms
+          outsidePerLineItem
+          insidePerLineItem
+          endUserPerLineItem
         }
       }
       createdBy {
@@ -404,24 +390,7 @@ const CREATE_PRE_OPPORTUNITY = `
         startDate
         endDate
         requesterId
-        createdBy {
-          authProviderId
-          email
-          enabled
-          firstName
-          fullName
-          id
-          inside
-          lastName
-          outside
-          role
-          username
-        }
         createdAt
-        status {
-          id
-          name
-        }
         tags
       }
       expDate
@@ -494,6 +463,9 @@ const CREATE_PRE_OPPORTUNITY = `
           duplicatedFrom
           freightTerms
           paymentTerms
+          outsidePerLineItem
+          insidePerLineItem
+          endUserPerLineItem
         }
       }
       createdBy {
@@ -538,24 +510,7 @@ const UPDATE_PRE_OPPORTUNITY = `
         startDate
         endDate
         requesterId
-        createdBy {
-          authProviderId
-          email
-          enabled
-          firstName
-          fullName
-          id
-          inside
-          lastName
-          outside
-          role
-          username
-        }
         createdAt
-        status {
-          id
-          name
-        }
         tags
       }
       expDate
@@ -628,6 +583,9 @@ const UPDATE_PRE_OPPORTUNITY = `
           duplicatedFrom
           freightTerms
           paymentTerms
+          outsidePerLineItem
+          insidePerLineItem
+          endUserPerLineItem
         }
       }
       createdBy {
@@ -709,9 +667,6 @@ export async function fetchPreOpportunity(id: string): Promise<PreOpportunity | 
   return {
     ...normalized,
     createdBy: formatCreatedBy((normalized as any).createdBy),
-    job: normalized.job
-      ? { ...normalized.job, createdBy: formatCreatedBy((normalized.job as any).createdBy) }
-      : normalized.job,
   };
 }
 
@@ -819,7 +774,6 @@ export async function createPreOpportunity(input: CreatePreOpportunityInput): Pr
   return {
     ...preOpp,
     createdBy: formatCreatedBy((preOpp as any).createdBy),
-    job: preOpp.job ? { ...preOpp.job, createdBy: formatCreatedBy((preOpp.job as any).createdBy) } : preOpp.job,
   };
 }
 
@@ -841,7 +795,6 @@ export async function updatePreOpportunity(input: UpdatePreOpportunityInput): Pr
   return {
     ...preOpp,
     createdBy: formatCreatedBy((preOpp as any).createdBy),
-    job: preOpp.job ? { ...preOpp.job, createdBy: formatCreatedBy((preOpp.job as any).createdBy) } : preOpp.job,
   };
 }
 

@@ -86,7 +86,7 @@ export const calculateInvoiceTotals = (invoice: EditableInvoice | Invoice): {
 } => {
   // Calculate overage totals from line items
   const totalCommission = invoice.lineItems.reduce(
-    (sum, item) => sum + ((item as InvoiceLineItem).amount || 0) * ((item as InvoiceLineItem).commissionRate || 0.08),
+    (sum, item) => sum + ((item as InvoiceLineItem).amount || 0) * ((item as InvoiceLineItem).commissionRate ?? 0.08),
     0
   );
   const totalOvg = invoice.lineItems.reduce(
