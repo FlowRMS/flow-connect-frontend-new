@@ -126,9 +126,6 @@ const GET_USER_TAKEOFFS = `
     $search: String,
     $status: String,
     $source: String,
-    $createdBy: String,
-    $dateFrom: datetime,
-    $dateTo: datetime,
     $title: String
   ) {
     getUserTakeoffs(
@@ -137,9 +134,6 @@ const GET_USER_TAKEOFFS = `
       search: $search,
       status: $status,
       source: $source,
-      createdBy: $createdBy,
-      dateFrom: $dateFrom,
-      dateTo: $dateTo,
       title: $title
     ) {
       id
@@ -180,9 +174,6 @@ const GET_USER_TAKEOFFS_PAGINATED = `
     $search: String,
     $status: String,
     $source: String,
-    $createdBy: String,
-    $dateFrom: datetime,
-    $dateTo: datetime,
     $title: String
   ) {
     getUserTakeoffsPaginated(
@@ -191,9 +182,6 @@ const GET_USER_TAKEOFFS_PAGINATED = `
       search: $search,
       status: $status,
       source: $source,
-      createdBy: $createdBy,
-      dateFrom: $dateFrom,
-      dateTo: $dateTo,
       title: $title
     ) {
       totalCount
@@ -655,9 +643,6 @@ export async function fetchUserTakeoffs(params?: FetchTakeoffsParams): Promise<T
       search: params?.search || null,
       status: params?.status || null,
       source: params?.source || null,
-      createdBy: params?.createdBy || null,
-      dateFrom: params?.dateFrom || null,
-      dateTo: params?.dateTo || null,
       title: params?.title || null,
     },
   });
@@ -683,9 +668,6 @@ export async function fetchUserTakeoffsPaginated(params?: FetchTakeoffsParams): 
       search: params?.search || null,
       status: params?.status || null,
       source: params?.source || null,
-      createdBy: params?.createdBy || null,
-      dateFrom: params?.dateFrom || null,
-      dateTo: params?.dateTo || null,
       title: params?.title || null,
     },
   });
