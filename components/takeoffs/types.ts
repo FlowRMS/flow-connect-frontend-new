@@ -36,6 +36,16 @@ export const statusApiMap: Record<TakeoffStatus, TakeoffStatusEnum> = {
   Complete: 'COMPLETE',
 };
 
+// Map step to API status (for updating takeoff status when step changes)
+export const stepToApiStatus: Partial<Record<TakeoffStep, TakeoffStatusEnum>> = {
+  classification: 'CLASSIFICATION',
+  abridgment: 'ABRIDGMENT',
+  parsing: 'PARSING',
+  productCross: 'COMPLETE',
+  approvals: 'COMPLETE',
+  // 'review' has no corresponding status
+};
+
 // ============================================================================
 // Document Types
 // ============================================================================

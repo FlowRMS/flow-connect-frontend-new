@@ -32,7 +32,7 @@ export const TAKEOFF_PRIORITY_OPTIONS = [
 
 // Source options for filtering
 export const TAKEOFF_SOURCE_OPTIONS = [
-  'Upload',
+  'Manual Upload',
   'Email',
   'API',
 ] as const;

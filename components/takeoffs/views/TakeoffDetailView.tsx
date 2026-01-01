@@ -29,6 +29,7 @@ interface TakeoffDetailViewProps {
   isAbridgementProcessing?: boolean;
   abridgementProgress?: number;
   documentAbridgementProgress?: Record<string, { progress: number; status: 'pending' | 'processing' | 'complete' | 'error'; error?: string; logs: string[] }>;
+  documentAbridgeState?: Record<string, { isProcessing: boolean; error?: string }>;
   onBack: () => void;
   onStepChange: (step: TakeoffStep) => void;
   onClassify: (docId: string, classification: DocumentClassification) => void;
@@ -78,6 +79,7 @@ export function TakeoffDetailView({
   isAbridgementProcessing = false,
   abridgementProgress = 0,
   documentAbridgementProgress = {},
+  documentAbridgeState = {},
   onBack,
   onStepChange,
   onClassify,
@@ -471,6 +473,7 @@ export function TakeoffDetailView({
                 onDownloadAll={onDownloadAllDocuments}
                 onViewReport={onViewReport}
                 onProceedToParsing={() => onStepChange('parsing')}
+                documentAbridgeState={documentAbridgeState}
               />
         )}
 

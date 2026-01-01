@@ -1087,7 +1087,7 @@ export function useTakeoffsState() {
       const newTakeoff = await createTakeoffWithFiles(
         {
           title: projectData?.projectName || `New Takeoff - ${new Date().toLocaleDateString()}`,
-          source: 'Upload',
+          source: 'Manual Upload',
           createdBy: currentUserName,
           metadata: projectData ? {
             clientName: projectData.clientName,

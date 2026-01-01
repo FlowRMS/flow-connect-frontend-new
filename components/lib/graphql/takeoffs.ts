@@ -125,16 +125,14 @@ const GET_USER_TAKEOFFS = `
     $offset: Int,
     $search: String,
     $status: String,
-    $source: String,
-    $title: String
+    $source: String
   ) {
     getUserTakeoffs(
       limit: $limit,
       offset: $offset,
       search: $search,
       status: $status,
-      source: $source,
-      title: $title
+      source: $source
     ) {
       id
       title
@@ -173,16 +171,14 @@ const GET_USER_TAKEOFFS_PAGINATED = `
     $offset: Int,
     $search: String,
     $status: String,
-    $source: String,
-    $title: String
+    $source: String
   ) {
     getUserTakeoffsPaginated(
       limit: $limit,
       offset: $offset,
       search: $search,
       status: $status,
-      source: $source,
-      title: $title
+      source: $source
     ) {
       totalCount
       takeoffs {
@@ -643,7 +639,6 @@ export async function fetchUserTakeoffs(params?: FetchTakeoffsParams): Promise<T
       search: params?.search || null,
       status: params?.status || null,
       source: params?.source || null,
-      title: params?.title || null,
     },
   });
 
@@ -668,7 +663,6 @@ export async function fetchUserTakeoffsPaginated(params?: FetchTakeoffsParams): 
       search: params?.search || null,
       status: params?.status || null,
       source: params?.source || null,
-      title: params?.title || null,
     },
   });
 
@@ -1003,7 +997,7 @@ export async function createTakeoffWithFiles(
 
   const takeoffInput: CreateTakeoffInput = {
     title: input.title,
-    source: input.source || 'Upload',
+    source: input.source || 'Manual Upload',
     createdBy: input.createdBy,
     status: 'CLASSIFICATION',
     metadata: input.metadata || null,

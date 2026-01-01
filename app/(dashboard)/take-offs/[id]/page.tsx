@@ -3,10 +3,17 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
 import { TakeoffDetailView } from '@/components/takeoffs/views/TakeoffDetailView';
-import { fetchTakeoff, updateTakeoffDocument, updateTakeoff } from '@/components/lib/graphql/takeoffs';
-import type { Takeoff, TakeoffDocument, ParsedItem, TakeoffStep } from '@/components/takeoffs/types';
-import { transformTakeoffResponse, statusApiMap } from '@/components/takeoffs/types';
+import { fetchTakeoff, updateTakeoffDocument, updateTakeoff, abridgeDocument as abridgeDocumentAPI } from '@/components/lib/graphql/takeoffs';
+import type { Takeoff, TakeoffDocument, ParsedItem, TakeoffStep, PageAnalysis } from '@/components/takeoffs/types';
+import { transformTakeoffResponse, stepToApiStatus, transformDocumentResponse } from '@/components/takeoffs/types';
 import { getInitialStep } from '@/components/takeoffs/utils';
+import { AbridgmentReportModal } from '@/components/takeoffs/modals/AbridgmentReportModal';
+
+// Abridgement state per document
+interface DocumentAbridgeState {
+  isProcessing: boolean;
+  error?: string;
+}
 
 export default function TakeoffDetailPage() {
   const params = useParams();
@@ -20,6 +27,13 @@ export default function TakeoffDetailPage() {
   const [currentStep, setCurrentStep] = useState<TakeoffStep>('classification');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Abridgement state per document
+  const [documentAbridgeState, setDocumentAbridgeState] = useState<Record<string, DocumentAbridgeState>>({});
+
+  // Modal state for viewing abridgment report
+  const [showAbridgmentReport, setShowAbridgmentReport] = useState(false);
+  const [selectedDocumentForReport, setSelectedDocumentForReport] = useState<TakeoffDocument | null>(null);
 
   const loadTakeoff = useCallback(async () => {
     if (!takeoffId) return;
@@ -35,29 +49,7 @@ export default function TakeoffDetailPage() {
         setCurrentStep(getInitialStep(transformed.status));
 
         if (response.documents && response.documents.length > 0) {
-          const docs: TakeoffDocument[] = response.documents.map(doc => ({
-            id: doc.id,
-            name: doc.name,
-            type: 'PDF' as const,
-            size: doc.fileSize,
-            pages: doc.pages || 0,
-            classification: doc.classification || null,
-            confidence: doc.confidence || null,
-            status: doc.abridged ? 'abridged' : 'pending',
-            abridgedPages: doc.abridgedPages || null,
-            reductionPercentage: doc.reductionPercentage || null,
-            documentUrl: doc.documentUrl || undefined,
-            pageAnalyses: doc.pageAnalyses || undefined,
-            parsedItems: (doc.parsedItems || []).map(item => ({
-              id: item.id || crypto.randomUUID(),
-              manufacturer: item.manufacturer,
-              partNumber: item.partNumber,
-              description: item.description,
-              quantity: item.quantity,
-              isOurManufacturer: item.isOurManufacturer || false,
-              isCrossed: item.isCrossed || false,
-            })),
-          }));
+          const docs: TakeoffDocument[] = response.documents.map(transformDocumentResponse);
 
           setDocuments(docs);
 
@@ -89,7 +81,7 @@ export default function TakeoffDetailPage() {
   const handleStepChange = async (step: TakeoffStep) => {
     setCurrentStep(step);
     if (takeoff) {
-      const apiStatus = statusApiMap[step];
+      const apiStatus = stepToApiStatus[step];
       if (apiStatus) {
         try {
           await updateTakeoff(takeoff.id, { status: apiStatus });
@@ -102,7 +94,7 @@ export default function TakeoffDetailPage() {
 
   const handleClassify = async (docId: string, classification: string | null) => {
     setDocuments(docs =>
-      docs.map(d => d.id === docId ? { ...d, classification } : d)
+      docs.map(d => d.id === docId ? { ...d, classification: (classification || '') as TakeoffDocument['classification'] } : d)
     );
     try {
       await updateTakeoffDocument(docId, { classification });
@@ -113,7 +105,7 @@ export default function TakeoffDetailPage() {
 
   const handleChangeDiscipline = async (docId: string, discipline: string | null) => {
     setDocuments(docs =>
-      docs.map(d => d.id === docId ? { ...d, discipline } : d)
+      docs.map(d => d.id === docId ? { ...d, discipline: (discipline || '') as TakeoffDocument['discipline'] } : d)
     );
     try {
       await updateTakeoffDocument(docId, { discipline });
@@ -140,6 +132,113 @@ export default function TakeoffDetailPage() {
     } else {
       setSelectedItems(new Set());
     }
+  };
+
+  const handleDownloadDocument = (doc: TakeoffDocument) => {
+    if (!doc.documentUrl) {
+      console.error('Document URL not available');
+      return;
+    }
+    window.open(doc.documentUrl, '_blank');
+  };
+
+  const handleDownloadAllDocuments = () => {
+    const docsWithUrls = documents.filter(d => d.documentUrl);
+    if (docsWithUrls.length === 0) {
+      console.warn('No documents available for download');
+      return;
+    }
+    // Download each document with a small delay to avoid browser blocking
+    docsWithUrls.forEach((doc, index) => {
+      setTimeout(() => {
+        window.open(doc.documentUrl, '_blank');
+      }, index * 300);
+    });
+  };
+
+  // Abridge a single document using AI
+  const handleAbridgeDocument = async (docId: string) => {
+    const doc = documents.find(d => d.id === docId);
+    if (!doc || !doc.documentUrl) {
+      console.error('Document not found or has no URL');
+      return;
+    }
+
+    // Set processing state
+    setDocumentAbridgeState(prev => ({
+      ...prev,
+      [docId]: { isProcessing: true, error: undefined },
+    }));
+
+    try {
+      const result = await abridgeDocumentAPI(
+        doc.documentUrl,
+        doc.name,
+        ['Extract relevant product and fixture information', 'Keep pages with specifications and schedules']
+      );
+
+      if (result.success) {
+        const actualPages = result.originalPages || doc.pages;
+
+        // Update document with abridgement results
+        setDocuments(docs =>
+          docs.map(d =>
+            d.id === docId
+              ? {
+                  ...d,
+                  pages: actualPages,
+                  abridged: true,
+                  abridgedPages: result.abridgedPages || actualPages,
+                  reductionPercentage: result.reductionPercentage || 0,
+                  abridgedUrl: result.abridgedUrl || undefined,
+                  pageAnalyses: result.pageAnalyses as PageAnalysis[] || undefined,
+                }
+              : d
+          )
+        );
+
+        // Persist to backend
+        await updateTakeoffDocument(docId, {
+          pages: result.originalPages || undefined,
+          abridged: true,
+          abridgedPages: result.abridgedPages,
+          reductionPercentage: result.reductionPercentage,
+          pageAnalyses: result.pageAnalyses,
+        });
+
+        // Clear processing state on success
+        setDocumentAbridgeState(prev => ({
+          ...prev,
+          [docId]: { isProcessing: false },
+        }));
+      } else {
+        // Set error state
+        setDocumentAbridgeState(prev => ({
+          ...prev,
+          [docId]: { isProcessing: false, error: result.error || 'Abridgement failed' },
+        }));
+      }
+    } catch (err) {
+      console.error('Failed to abridge document:', err);
+      setDocumentAbridgeState(prev => ({
+        ...prev,
+        [docId]: { isProcessing: false, error: err instanceof Error ? err.message : 'Abridgement failed' },
+      }));
+    }
+  };
+
+  // Abridge all documents that haven't been abridged yet
+  const handleAbridgeAll = async () => {
+    const unabridgedDocs = documents.filter(d => !d.abridged && d.documentUrl && d.pages > 0);
+    for (const doc of unabridgedDocs) {
+      await handleAbridgeDocument(doc.id);
+    }
+  };
+
+  // View abridgment report for a document
+  const handleViewReport = (doc: TakeoffDocument) => {
+    setSelectedDocumentForReport(doc);
+    setShowAbridgmentReport(true);
   };
 
   if (isLoading) {
@@ -186,16 +285,17 @@ export default function TakeoffDetailPage() {
         onChangeDiscipline={handleChangeDiscipline}
         onToggleSelect={handleToggleSelect}
         onSelectAll={handleSelectAll}
-        onAbridge={() => {}}
-        onAbridgeAll={() => {}}
+        onAbridge={handleAbridgeDocument}
+        onAbridgeAll={handleAbridgeAll}
         onParseSchedules={() => {}}
-        onViewReport={() => {}}
+        onViewReport={handleViewReport}
+        documentAbridgeState={documentAbridgeState}
         onCrossItem={() => {}}
         onCrossSelected={() => {}}
         onCrossAll={() => {}}
         onCreateQuote={() => {}}
-        onDownloadDocument={() => {}}
-        onDownloadAllDocuments={() => {}}
+        onDownloadDocument={handleDownloadDocument}
+        onDownloadAllDocuments={handleDownloadAllDocuments}
         productCrossResults={[]}
         selectedCrossTypes={['SIMPLE', 'UPGRADE', 'VALUE']}
         isProductCrossProcessing={false}
@@ -208,6 +308,16 @@ export default function TakeoffDetailPage() {
         onSelectAlternative={() => {}}
         onDeleteCrossAlternative={() => {}}
         onRerunCross={() => {}}
+      />
+
+      {/* Abridgment Report Modal */}
+      <AbridgmentReportModal
+        isOpen={showAbridgmentReport}
+        document={selectedDocumentForReport}
+        onClose={() => {
+          setShowAbridgmentReport(false);
+          setSelectedDocumentForReport(null);
+        }}
       />
     </main>
   );
