@@ -66,7 +66,7 @@ function transformLandingPageToInvoice(landing: InvoiceLandingPage): Invoice {
     amountPaid: 0,
     amountCredited: 0,
     balance: landing.total || 0,
-    totalCommission: 0,
+    totalCommission: landing.commission || 0,
     splitRates: [],
     // Pass through new field directly
     factoryName: landing.factoryName,

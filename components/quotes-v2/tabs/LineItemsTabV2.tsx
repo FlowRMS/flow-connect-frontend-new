@@ -442,8 +442,8 @@ export function LineItemsTabV2({
       </div>
 
       {/* Table */}
-      <div className="flex-1 overflow-x-auto overflow-y-auto px-6 py-4">
-        <div className="border border-gray-200 rounded-lg overflow-hidden">
+      <div className="flex-1 overflow-auto px-6 py-4">
+        <div className="border border-gray-200 rounded-lg">
           <table className="w-full min-w-[1200px]">
             <thead className="bg-gray-50">
               <tr>

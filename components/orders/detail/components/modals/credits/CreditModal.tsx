@@ -393,7 +393,7 @@ export function CreditModal({
           linkedLineItemId: lineItemId,
           linkedLineItemLabel: label,
           unitPrice: orderLineItem.unitPrice,
-          commissionRate: (orderLineItem.commissionRate || 0.08) * 100,
+          commissionRate: (orderLineItem.commissionRate ?? 0.08) * 100,
           outsideSplitRates: [],
           showOutsideSplits: true,
           outsideSplitsFromLineItem: hasOutsideSplits,

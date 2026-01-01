@@ -293,7 +293,7 @@ export function LineItemsTable({
     const quantity = item.quantity || 1;
     const unitPrice = item.unitPrice || 0;
     const extendedPrice = quantity * unitPrice / divisor;
-    const commissionRate = item.commissionRate || 0.08;
+    const commissionRate = item.commissionRate ?? 0.08;
 
     updateLineItem(itemId, {
       uomId: uom.id,
@@ -319,7 +319,7 @@ export function LineItemsTable({
         const extendedPrice = qty * item.unitPrice;
         updates.quantity = qty;
         updates.extendedPrice = extendedPrice;
-        updates.commissionAmount = extendedPrice * (item.commissionRate || 0.08);
+        updates.commissionAmount = extendedPrice * (item.commissionRate ?? 0.08);
         break;
       }
       case 'unitPrice': {
@@ -327,7 +327,7 @@ export function LineItemsTable({
         const extendedPrice = item.quantity * price;
         updates.unitPrice = price;
         updates.extendedPrice = extendedPrice;
-        updates.commissionAmount = extendedPrice * (item.commissionRate || 0.08);
+        updates.commissionAmount = extendedPrice * (item.commissionRate ?? 0.08);
         break;
       }
       case 'commissionPercent': {
@@ -656,14 +656,14 @@ export function LineItemsTable({
                   {/* Commission */}
                   {visibleColumns.has('commission') && (
                     <td className="px-3 py-2 text-sm text-right font-medium text-purple-600">
-                      {formatCurrency(item.commissionAmount || item.extendedPrice * (item.commissionRate || 0.08))}
+                      {formatCurrency(item.commissionAmount || item.extendedPrice * (item.commissionRate ?? 0.08))}
                     </td>
                   )}
 
                   {/* Commission Total */}
                   {visibleColumns.has('commissionTotal') && (
                     <td className="px-3 py-2 text-sm text-right font-medium text-purple-600">
-                      {formatCurrency(item.commissionAmount || item.extendedPrice * (item.commissionRate || 0.08))}
+                      {formatCurrency(item.commissionAmount || item.extendedPrice * (item.commissionRate ?? 0.08))}
                     </td>
                   )}
 
@@ -753,7 +753,7 @@ export function LineItemsTable({
                   {/* Com $ */}
                   {visibleColumns.has('commissionAmount') && (
                     <td className="px-3 py-2 text-sm text-right text-purple-600">
-                      {formatCurrency(item.commissionAmount || item.extendedPrice * (item.commissionRate || 0.08))}
+                      {formatCurrency(item.commissionAmount || item.extendedPrice * (item.commissionRate ?? 0.08))}
                     </td>
                   )}
 
@@ -774,7 +774,7 @@ export function LineItemsTable({
                   {/* Earn % */}
                   {visibleColumns.has('earnPercent') && (
                     <td className="px-3 py-2 text-sm text-right">
-                      {(((item.commissionRate || 0.08) + 0.15 * 0.85) * 100).toFixed(1)}%
+                      {(((item.commissionRate ?? 0.08) + 0.15 * 0.85) * 100).toFixed(1)}%
                     </td>
                   )}
 
@@ -782,7 +782,7 @@ export function LineItemsTable({
                   {visibleColumns.has('earnAmount') && (
                     <td className="px-3 py-2 text-sm text-right font-medium text-green-600">
                       {formatCurrency(
-                        (item.commissionAmount || item.extendedPrice * (item.commissionRate || 0.08)) +
+                        (item.commissionAmount || item.extendedPrice * (item.commissionRate ?? 0.08)) +
                         (item.unitPrice * 0.15 * item.quantity * 0.85)
                       )}
                     </td>
