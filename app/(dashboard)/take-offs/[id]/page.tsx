@@ -2,6 +2,7 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
+import JSZip from 'jszip';
 import { TakeoffDetailView } from '@/components/takeoffs/views/TakeoffDetailView';
 import { fetchTakeoff, updateTakeoffDocument, updateTakeoff, abridgeDocument as abridgeDocumentAPI } from '@/components/lib/graphql/takeoffs';
 import type { Takeoff, TakeoffDocument, ParsedItem, TakeoffStep, PageAnalysis } from '@/components/takeoffs/types';
@@ -142,18 +143,42 @@ export default function TakeoffDetailPage() {
     window.open(doc.documentUrl, '_blank');
   };
 
-  const handleDownloadAllDocuments = () => {
+  const handleDownloadAllDocuments = async () => {
     const docsWithUrls = documents.filter(d => d.documentUrl);
     if (docsWithUrls.length === 0) {
       console.warn('No documents available for download');
       return;
     }
-    // Download each document with a small delay to avoid browser blocking
-    docsWithUrls.forEach((doc, index) => {
-      setTimeout(() => {
-        window.open(doc.documentUrl, '_blank');
-      }, index * 300);
-    });
+
+    try {
+      const zip = new JSZip();
+
+      // Fetch each document and add to ZIP
+      await Promise.all(
+        docsWithUrls.map(async (doc) => {
+          try {
+            const response = await fetch(doc.documentUrl!);
+            const blob = await response.blob();
+            zip.file(doc.name, blob);
+          } catch (err) {
+            console.error(`Failed to fetch ${doc.name}:`, err);
+          }
+        })
+      );
+
+      // Generate ZIP and trigger download
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(zipBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${takeoff?.title || 'takeoff'}-documents.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to create ZIP:', err);
+    }
   };
 
   // Abridge a single document using AI
