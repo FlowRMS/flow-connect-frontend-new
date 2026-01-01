@@ -55,13 +55,14 @@ export interface PageAnalysis {
 }
 
 export interface ParsedItem {
-  id?: string;
+  id: string;
+  documentId?: string; // Track which document this item came from for backend persistence
   manufacturer: string;
   partNumber: string;
   description: string;
   quantity: number;
-  isOurManufacturer?: boolean;
-  isCrossed?: boolean;
+  isOurManufacturer: boolean;
+  isCrossed: boolean;
   crossedManufacturer?: string;
   crossedPartNumber?: string;
   crossedDescription?: string;
@@ -578,10 +579,14 @@ export async function productCrossFromParsedDocument(
 /**
  * Parse schedule document to extract product items
  * Uses productCrossFromParsedDocument API and extracts only the parsed items
+ * @param documentUrl - URL of the document to parse
+ * @param filename - Original filename
+ * @param documentId - Optional ID of the source document for backend persistence
  */
 export async function parseScheduleDocument(
   documentUrl: string,
-  filename: string
+  filename: string,
+  documentId?: string
 ): Promise<ParsedItem[]> {
   // Use the product cross API to parse the document
   // We pass minimal cross types since we only want the parsed items
@@ -592,6 +597,7 @@ export async function parseScheduleDocument(
     const original = result.original as Record<string, unknown>;
     return {
       id: `parsed-${index}-${Date.now()}`,
+      documentId, // Track source document for backend persistence
       manufacturer: (original.manufacturer as string) || (original.Manufacturer as string) || 'Unknown',
       partNumber: (original.partNumber as string) || (original.PartNumber as string) || (original.model as string) || '',
       description: (original.description as string) || (original.Description as string) || '',

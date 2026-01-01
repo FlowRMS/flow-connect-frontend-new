@@ -26,10 +26,12 @@ interface TakeoffDetailViewProps {
   isProductCrossProcessing?: boolean;
   isParsingProcessing?: boolean;
   parsingProgress?: number;
+  parsingMessage?: string | null;
   isAbridgementProcessing?: boolean;
   abridgementProgress?: number;
   documentAbridgementProgress?: Record<string, { progress: number; status: 'pending' | 'processing' | 'complete' | 'error'; error?: string; logs: string[] }>;
   documentAbridgeState?: Record<string, { isProcessing: boolean; error?: string }>;
+  itemCrossingState?: Record<string, { isProcessing: boolean; error?: string }>;
   onBack: () => void;
   onStepChange: (step: TakeoffStep) => void;
   onClassify: (docId: string, classification: DocumentClassification) => void;
@@ -37,6 +39,7 @@ interface TakeoffDetailViewProps {
   onAbridge: (docId: string) => void;
   onAbridgeAll: () => void;
   onParseSchedules?: () => void;
+  onProceedToParsing?: () => void;
   onViewReport: (doc: TakeoffDocument) => void;
   onCrossItem: (itemId: string) => void;
   onCrossSelected: () => void;
@@ -52,6 +55,7 @@ interface TakeoffDetailViewProps {
   onRerunCross?: (prompt: string, crossTypes: CrossType[]) => void;
   shouldAutoClassify?: boolean;
   onAutoClassifyComplete?: () => void;
+  onUpdateTitle?: (title: string) => void;
 }
 
 // 6-step workflow configuration with colors
@@ -76,10 +80,12 @@ export function TakeoffDetailView({
   isProductCrossProcessing = false,
   isParsingProcessing = false,
   parsingProgress = 0,
+  parsingMessage = null,
   isAbridgementProcessing = false,
   abridgementProgress = 0,
   documentAbridgementProgress = {},
   documentAbridgeState = {},
+  itemCrossingState = {},
   onBack,
   onStepChange,
   onClassify,
@@ -87,6 +93,7 @@ export function TakeoffDetailView({
   onAbridge,
   onAbridgeAll,
   onParseSchedules,
+  onProceedToParsing,
   onViewReport,
   onCrossItem,
   onCrossSelected,
@@ -102,8 +109,30 @@ export function TakeoffDetailView({
   onRerunCross,
   shouldAutoClassify = false,
   onAutoClassifyComplete,
+  onUpdateTitle,
 }: TakeoffDetailViewProps) {
   const currentStepIndex = WORKFLOW_STEPS.findIndex(s => s.id === currentStep);
+
+  // Title editing state
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editedTitle, setEditedTitle] = useState(takeoff.title || '');
+
+  // Handle title save
+  const handleTitleSave = () => {
+    if (editedTitle.trim() && editedTitle !== takeoff.title) {
+      onUpdateTitle?.(editedTitle.trim());
+    }
+    setIsEditingTitle(false);
+  };
+
+  const handleTitleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleTitleSave();
+    } else if (e.key === 'Escape') {
+      setEditedTitle(takeoff.title || '');
+      setIsEditingTitle(false);
+    }
+  };
 
   // AI Classification state
   const [isClassifying, setIsClassifying] = useState(false);
@@ -255,11 +284,39 @@ export function TakeoffDetailView({
         Back to Takeoffs
       </button>
 
-      {/* Header with title and ID */}
+      {/* Header with editable title and ID */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">
-          {takeoff.title || 'New Takeoff Project'}
-        </h1>
+        {isEditingTitle ? (
+          <input
+            type="text"
+            value={editedTitle}
+            onChange={(e) => setEditedTitle(e.target.value)}
+            onBlur={handleTitleSave}
+            onKeyDown={handleTitleKeyDown}
+            autoFocus
+            className="text-2xl font-bold text-gray-900 bg-transparent border-b-2 border-purple-500 outline-none w-full max-w-md"
+            placeholder="Enter takeoff title..."
+          />
+        ) : (
+          <div className="flex items-center gap-2 group">
+            <h1 className="text-2xl font-bold text-gray-900">
+              {takeoff.title || 'New Takeoff Project'}
+            </h1>
+            <button
+              onClick={() => {
+                setEditedTitle(takeoff.title || '');
+                setIsEditingTitle(true);
+              }}
+              className="p-1 text-gray-400 hover:text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity"
+              title="Edit title"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+            </button>
+          </div>
+        )}
         <p className="text-sm text-gray-500 mt-1">
           TO-{takeoff.id?.slice(0, 3).toUpperCase() || 'NEW'}
         </p>
@@ -472,7 +529,7 @@ export function TakeoffDetailView({
                 onDownload={onDownloadDocument}
                 onDownloadAll={onDownloadAllDocuments}
                 onViewReport={onViewReport}
-                onProceedToParsing={() => onStepChange('parsing')}
+                onProceedToParsing={onProceedToParsing || (() => onStepChange('parsing'))}
                 documentAbridgeState={documentAbridgeState}
               />
         )}
@@ -853,98 +910,43 @@ export function TakeoffDetailView({
         {/* Parsing Step */}
         {currentStep === 'parsing' && (
           <div className="p-6">
-            {/* Parsing Header with Parse Button */}
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-lg font-semibold text-[var(--foreground)] flex items-center gap-2">
-                  {/* Gear icon - Blue */}
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
-                    <circle cx="12" cy="12" r="3"/>
-                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-                  </svg>
-                  Schedule Parsing
-                </h2>
-                <p className="text-sm text-[var(--muted-foreground)] mt-1">
-                  Extract product items from fixture schedule documents
-                </p>
-              </div>
-              {parsedItems.length === 0 && onParseSchedules && (
-                <button
-                  onClick={onParseSchedules}
-                  disabled={isParsingProcessing}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
-                >
-                  {isParsingProcessing ? (
-                    <>
-                      <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/>
-                      </svg>
-                      Parsing... {parsingProgress}%
-                    </>
-                  ) : (
-                    <>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/>
-                      </svg>
-                      Parse Schedules
-                    </>
-                  )}
-                </button>
-              )}
-            </div>
-
-            {/* Parsing Progress Bar */}
+            {/* Processing State */}
             {isParsingProcessing && (
-              <div className="mb-6">
-                <div className="flex items-center justify-between text-sm mb-2">
-                  <span className="text-[var(--muted-foreground)]">
-                    Parsing documents...
-                  </span>
-                  <span className="font-medium text-blue-600">{parsingProgress}%</span>
-                </div>
-                <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-blue-600 rounded-full transition-all duration-300"
-                    style={{ width: `${parsingProgress}%` }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Empty State */}
-            {parsedItems.length === 0 && !isParsingProcessing && (
-              <div className="text-center py-12">
-                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                    <polyline points="14 2 14 8 20 8"/>
-                    <line x1="16" y1="13" x2="8" y2="13"/>
-                    <line x1="16" y1="17" x2="8" y2="17"/>
-                  </svg>
-                </div>
-                <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">No Items Parsed Yet</h3>
-                <p className="text-[var(--muted-foreground)] mb-6 max-w-md mx-auto">
-                  Click &quot;Parse Schedules&quot; to extract product items from your fixture schedule documents.
-                </p>
-                {onParseSchedules && (
-                  <button
-                    onClick={onParseSchedules}
-                    className="inline-flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/>
+              <div className="bg-white rounded-lg border border-gray-200 p-12">
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg className="animate-spin h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                     </svg>
-                    Parse Schedules
-                  </button>
-                )}
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Parsing Documents...</h3>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Extracting product items from your fixture schedule documents.
+                  </p>
+                  <div className="max-w-xs mx-auto">
+                    <div className="flex items-center justify-between text-sm mb-2">
+                      <span className="text-gray-500">Progress</span>
+                      <span className="font-medium text-blue-600">{parsingProgress}%</span>
+                    </div>
+                    <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-blue-600 rounded-full transition-all duration-300"
+                        style={{ width: `${parsingProgress}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
-            {/* Parsed Items Table */}
-            {parsedItems.length > 0 && (
+            {/* ParsingTab - shows empty state or table */}
+            {!isParsingProcessing && (
               <ParsingTab
                 items={parsedItems}
                 selectedItems={selectedItems}
+                message={parsingMessage}
+                itemCrossingState={itemCrossingState}
                 onCrossItem={onCrossItem}
                 onCrossSelected={onCrossSelected}
                 onCrossAll={onCrossAll}

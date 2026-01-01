@@ -138,6 +138,7 @@ export interface TakeoffDocument {
 // Parsed item from schedule
 export interface ParsedItem {
   id: string;
+  documentId?: string; // Track which document this item came from for backend persistence
   manufacturer: string;
   partNumber: string;
   description: string;

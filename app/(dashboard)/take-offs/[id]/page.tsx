@@ -2,9 +2,9 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
-import JSZip from 'jszip';
 import { TakeoffDetailView } from '@/components/takeoffs/views/TakeoffDetailView';
-import { fetchTakeoff, updateTakeoffDocument, updateTakeoff, abridgeDocument as abridgeDocumentAPI } from '@/components/lib/graphql/takeoffs';
+import { fetchTakeoff, updateTakeoffDocument, updateTakeoff, abridgeDocument as abridgeDocumentAPI, parseScheduleDocument } from '@/components/lib/graphql/takeoffs';
+import { crossProducts } from '@/components/lib/graphql/product-crosses';
 import type { Takeoff, TakeoffDocument, ParsedItem, TakeoffStep, PageAnalysis } from '@/components/takeoffs/types';
 import { transformTakeoffResponse, stepToApiStatus, transformDocumentResponse } from '@/components/takeoffs/types';
 import { getInitialStep } from '@/components/takeoffs/utils';
@@ -35,6 +35,14 @@ export default function TakeoffDetailPage() {
   // Modal state for viewing abridgment report
   const [showAbridgmentReport, setShowAbridgmentReport] = useState(false);
   const [selectedDocumentForReport, setSelectedDocumentForReport] = useState<TakeoffDocument | null>(null);
+
+  // Parsing state
+  const [isParsingProcessing, setIsParsingProcessing] = useState(false);
+  const [parsingProgress, setParsingProgress] = useState(0);
+  const [parsingMessage, setParsingMessage] = useState<string | null>(null);
+
+  // Per-item crossing state (tracks which items are being crossed)
+  const [itemCrossingState, setItemCrossingState] = useState<Record<string, { isProcessing: boolean; error?: string }>>({});
 
   const loadTakeoff = useCallback(async () => {
     if (!takeoffId) return;
@@ -90,6 +98,24 @@ export default function TakeoffDetailPage() {
           console.error('Failed to update status:', err);
         }
       }
+    }
+  };
+
+  // Handler specifically for "Proceed to Parsing" button - changes step AND triggers parsing
+  const handleProceedToParsing = async () => {
+    setCurrentStep('parsing');
+    if (takeoff) {
+      try {
+        await updateTakeoff(takeoff.id, { status: 'PARSING' });
+      } catch (err) {
+        console.error('Failed to update status:', err);
+      }
+    }
+    // Auto-trigger parsing when proceeding from classification
+    if (parsedItems.length === 0 && !isParsingProcessing) {
+      setTimeout(() => {
+        handleParseSchedules();
+      }, 100);
     }
   };
 
@@ -150,35 +176,14 @@ export default function TakeoffDetailPage() {
       return;
     }
 
-    try {
-      const zip = new JSZip();
-
-      // Fetch each document and add to ZIP
-      await Promise.all(
-        docsWithUrls.map(async (doc) => {
-          try {
-            const response = await fetch(doc.documentUrl!);
-            const blob = await response.blob();
-            zip.file(doc.name, blob);
-          } catch (err) {
-            console.error(`Failed to fetch ${doc.name}:`, err);
-          }
-        })
-      );
-
-      // Generate ZIP and trigger download
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
-      const url = URL.createObjectURL(zipBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${takeoff?.title || 'takeoff'}-documents.zip`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error('Failed to create ZIP:', err);
-    }
+    // Due to CORS restrictions, we cannot fetch external URLs directly
+    // Open each document in a new tab instead
+    docsWithUrls.forEach((doc, index) => {
+      // Stagger the opening to avoid popup blockers
+      setTimeout(() => {
+        window.open(doc.documentUrl!, '_blank');
+      }, index * 200);
+    });
   };
 
   // Abridge a single document using AI
@@ -266,6 +271,179 @@ export default function TakeoffDetailPage() {
     setShowAbridgmentReport(true);
   };
 
+  // Parse schedule documents to extract product items
+  const handleParseSchedules = async () => {
+    // Get documents that should be parsed (Fixture Schedules with URLs)
+    const scheduleDocs = documents.filter(d =>
+      d.classification === 'Fixture Schedules' &&
+      (d.abridgedUrl || d.documentUrl)
+    );
+
+    if (scheduleDocs.length === 0) {
+      console.warn('No fixture schedule documents available for parsing');
+      setParsingMessage('No documents classified as "Fixture Schedules" found. Please classify your documents first.');
+      return;
+    }
+
+    setIsParsingProcessing(true);
+    setParsingProgress(0);
+    setParsingMessage(null);
+
+    const allParsedItems: ParsedItem[] = [];
+
+    for (let i = 0; i < scheduleDocs.length; i++) {
+      const doc = scheduleDocs[i];
+      try {
+        // Use abridged URL if available, otherwise use original
+        const urlToUse = doc.abridgedUrl || doc.documentUrl;
+        if (!urlToUse) continue;
+
+        console.log(`Parsing document: ${doc.name}`);
+        const items = await parseScheduleDocument(urlToUse, doc.name, doc.id);
+        allParsedItems.push(...items);
+
+        // Persist parsed items to the document in backend
+        if (items.length > 0) {
+          try {
+            await updateTakeoffDocument(doc.id, { parsedItems: items });
+          } catch (persistErr) {
+            console.error(`Failed to persist parsed items for ${doc.name}:`, persistErr);
+          }
+        }
+      } catch (err) {
+        console.error(`Failed to parse ${doc.name}:`, err);
+      }
+      setParsingProgress(Math.round(((i + 1) / scheduleDocs.length) * 100));
+    }
+
+    setParsedItems(allParsedItems);
+    setIsParsingProcessing(false);
+
+    // Set message if no items were found after parsing
+    if (allParsedItems.length === 0) {
+      setParsingMessage(`Parsed ${scheduleDocs.length} document(s) but no product items were found.`);
+    }
+  };
+
+  // Cross a single parsed item using AI
+  const handleCrossItem = async (itemId: string) => {
+    const item = parsedItems.find(i => i.id === itemId);
+    if (!item) {
+      console.error('Item not found:', itemId);
+      return;
+    }
+
+    // Set processing state for this item
+    setItemCrossingState(prev => ({
+      ...prev,
+      [itemId]: { isProcessing: true, error: undefined },
+    }));
+
+    try {
+      // Prepare product data for crossing
+      const productToMatch = {
+        manufacturer: item.manufacturer,
+        partNumber: item.partNumber,
+        description: item.description,
+        quantity: item.quantity,
+      };
+
+      // Call the cross products API
+      const results = await crossProducts(
+        [productToMatch],
+        ['SIMPLE', 'UPGRADE', 'VALUE']
+      );
+
+      if (results && results.length > 0 && results[0].crosses && results[0].crosses.length > 0) {
+        const cross = results[0].crosses[0];
+        const alternative = cross.alternatives?.[0];
+
+        if (alternative) {
+          // Update the parsed item with crossed information
+          // alternative has: name, description, price, source, crossType
+          const crossedItem = {
+            ...item,
+            isCrossed: true,
+            crossedManufacturer: 'Our Company',
+            crossedPartNumber: alternative.name || '',
+            crossedDescription: alternative.description || `${item.description} (Crossed)`,
+          };
+
+          // Update local state
+          setParsedItems(items =>
+            items.map(i => i.id === itemId ? crossedItem : i)
+          );
+
+          // Persist to backend if we have a documentId
+          if (item.documentId) {
+            try {
+              // Get all items for this document and update
+              const updatedItems = parsedItems.map(i =>
+                i.id === itemId ? crossedItem : i
+              ).filter(i => i.documentId === item.documentId);
+
+              await updateTakeoffDocument(item.documentId, {
+                parsedItems: updatedItems,
+              });
+            } catch (persistErr) {
+              console.error('Failed to persist crossed item:', persistErr);
+            }
+          }
+        } else {
+          // No alternatives found
+          setItemCrossingState(prev => ({
+            ...prev,
+            [itemId]: { isProcessing: false, error: 'No cross found' },
+          }));
+          return;
+        }
+      } else {
+        // No results found
+        setItemCrossingState(prev => ({
+          ...prev,
+          [itemId]: { isProcessing: false, error: 'No cross found' },
+        }));
+        return;
+      }
+
+      // Clear processing state on success
+      setItemCrossingState(prev => ({
+        ...prev,
+        [itemId]: { isProcessing: false },
+      }));
+    } catch (err) {
+      console.error('Failed to cross item:', err);
+      setItemCrossingState(prev => ({
+        ...prev,
+        [itemId]: { isProcessing: false, error: err instanceof Error ? err.message : 'Cross failed' },
+      }));
+    }
+  };
+
+  // Cross all uncrossed competitor items
+  const handleCrossAll = async () => {
+    const itemsToCross = parsedItems.filter(i => !i.isOurManufacturer && !i.isCrossed);
+    for (const item of itemsToCross) {
+      await handleCrossItem(item.id);
+    }
+  };
+
+  // Update takeoff title
+  const handleUpdateTitle = async (newTitle: string) => {
+    if (!takeoff) return;
+
+    // Update local state immediately for responsive UI
+    setTakeoff(prev => prev ? { ...prev, title: newTitle } : null);
+
+    try {
+      await updateTakeoff(takeoff.id, { title: newTitle });
+    } catch (err) {
+      console.error('Failed to update title:', err);
+      // Revert on error
+      setTakeoff(prev => prev ? { ...prev, title: takeoff.title } : null);
+    }
+  };
+
   if (isLoading) {
     return (
       <main className="flex-1 flex items-center justify-center bg-gray-50">
@@ -312,20 +490,23 @@ export default function TakeoffDetailPage() {
         onSelectAll={handleSelectAll}
         onAbridge={handleAbridgeDocument}
         onAbridgeAll={handleAbridgeAll}
-        onParseSchedules={() => {}}
+        onParseSchedules={handleParseSchedules}
+        onProceedToParsing={handleProceedToParsing}
         onViewReport={handleViewReport}
         documentAbridgeState={documentAbridgeState}
-        onCrossItem={() => {}}
+        onCrossItem={handleCrossItem}
         onCrossSelected={() => {}}
-        onCrossAll={() => {}}
+        onCrossAll={handleCrossAll}
+        itemCrossingState={itemCrossingState}
         onCreateQuote={() => {}}
         onDownloadDocument={handleDownloadDocument}
         onDownloadAllDocuments={handleDownloadAllDocuments}
         productCrossResults={[]}
         selectedCrossTypes={['SIMPLE', 'UPGRADE', 'VALUE']}
         isProductCrossProcessing={false}
-        isParsingProcessing={false}
-        parsingProgress={0}
+        isParsingProcessing={isParsingProcessing}
+        parsingProgress={parsingProgress}
+        parsingMessage={parsingMessage}
         isAbridgementProcessing={false}
         abridgementProgress={0}
         documentAbridgementProgress={{}}
@@ -333,6 +514,7 @@ export default function TakeoffDetailPage() {
         onSelectAlternative={() => {}}
         onDeleteCrossAlternative={() => {}}
         onRerunCross={() => {}}
+        onUpdateTitle={handleUpdateTitle}
       />
 
       {/* Abridgment Report Modal */}
