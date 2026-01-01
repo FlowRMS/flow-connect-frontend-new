@@ -127,8 +127,8 @@ const GET_USER_TAKEOFFS = `
     $status: String,
     $source: String,
     $createdBy: String,
-    $dateFrom: DateTime,
-    $dateTo: DateTime,
+    $dateFrom: datetime,
+    $dateTo: datetime,
     $title: String
   ) {
     getUserTakeoffs(
@@ -181,8 +181,8 @@ const GET_USER_TAKEOFFS_PAGINATED = `
     $status: String,
     $source: String,
     $createdBy: String,
-    $dateFrom: DateTime,
-    $dateTo: DateTime,
+    $dateFrom: datetime,
+    $dateTo: datetime,
     $title: String
   ) {
     getUserTakeoffsPaginated(

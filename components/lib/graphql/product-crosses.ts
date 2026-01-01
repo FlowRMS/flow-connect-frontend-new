@@ -336,8 +336,8 @@ const GET_KNOWN_PRODUCT_CROSSES = `
     $ourManufacturer: String,
     $ourPartNumber: String,
     $usageLevel: String,
-    $dateFrom: DateTime,
-    $dateTo: DateTime,
+    $dateFrom: datetime,
+    $dateTo: datetime,
     $sortBy: String,
     $sortOrder: String
   ) {
@@ -381,8 +381,8 @@ const GET_KNOWN_PRODUCT_CROSSES_PAGINATED = `
     $ourManufacturer: String,
     $ourPartNumber: String,
     $usageLevel: String,
-    $dateFrom: DateTime,
-    $dateTo: DateTime,
+    $dateFrom: datetime,
+    $dateTo: datetime,
     $sortBy: String,
     $sortOrder: String
   ) {
