@@ -201,6 +201,32 @@ export function transformTakeoffResponse(response: TakeoffResponse): Takeoff {
 }
 
 /**
+ * Safely parse parsedItems which may come as array, JSON string, or null
+ */
+function safeParseParsedItems(parsedItems: unknown): ParsedItem[] | undefined {
+  if (!parsedItems) return undefined;
+
+  // If it's already an array, transform it
+  if (Array.isArray(parsedItems)) {
+    return parsedItems.map(transformParsedItem);
+  }
+
+  // If it's a string, try to parse it as JSON
+  if (typeof parsedItems === 'string') {
+    try {
+      const parsed = JSON.parse(parsedItems);
+      if (Array.isArray(parsed)) {
+        return parsed.map(transformParsedItem);
+      }
+    } catch {
+      console.warn('Failed to parse parsedItems string:', parsedItems);
+    }
+  }
+
+  return undefined;
+}
+
+/**
  * Transform API document response to UI display format
  */
 export function transformDocumentResponse(doc: TakeoffDocumentResponse): TakeoffDocument {
@@ -219,7 +245,7 @@ export function transformDocumentResponse(doc: TakeoffDocumentResponse): Takeoff
     documentUrl: doc.documentUrl || undefined,
     pageAnalyses: doc.pageAnalyses || undefined,
     products: doc.products,
-    parsedItems: doc.parsedItems?.map(transformParsedItem),
+    parsedItems: safeParseParsedItems(doc.parsedItems),
   };
 }
 

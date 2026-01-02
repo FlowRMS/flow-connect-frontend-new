@@ -198,6 +198,7 @@ export interface QuoteLandingPage {
   quoteNumber: string;
   status?: QuoteStatus;
   total?: number;
+  commission?: number;
   userIds?: string[];
 }
 
@@ -205,7 +206,7 @@ export interface QuoteLandingPage {
 export interface QuoteSplitRateInput {
   id?: string;
   userId: string;
-  splitRate: string;
+  splitRate: number;
   position?: number;
 }
 
@@ -306,6 +307,7 @@ const QUOTE_LANDING_PAGES = `
           quoteNumber
           status
           total
+          # commission - TODO: uncomment when backend is ready
           userIds
         }
       }
@@ -546,6 +548,12 @@ const CREATE_QUOTE = `
         total
         totalLineCommission
         unitPrice
+        uom {
+          description
+          divisionFactor
+          id
+          title
+        }
       }
       duplicatedFrom
       entityDate
@@ -669,6 +677,12 @@ const UPDATE_QUOTE = `
         total
         totalLineCommission
         unitPrice
+        uom {
+          description
+          divisionFactor
+          id
+          title
+        }
       }
       duplicatedFrom
       entityDate

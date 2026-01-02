@@ -218,7 +218,7 @@ export function LineItemsTabV2({
       description: '',
       manufacturerName: '',
       quantity: 1,
-      uom: 'EA',
+      uom: null,
       divisor: 1,
       unitPrice: 0,
       sellTotal: 0,
@@ -442,8 +442,8 @@ export function LineItemsTabV2({
       </div>
 
       {/* Table */}
-      <div className="flex-1 overflow-x-auto overflow-y-auto px-6 py-4">
-        <div className="border border-gray-200 rounded-lg overflow-hidden">
+      <div className="flex-1 overflow-auto px-6 py-4 pb-32">
+        <div className="border border-gray-200 rounded-lg overflow-x-auto">
           <table className="w-full min-w-[1200px]">
             <thead className="bg-gray-50">
               <tr>
@@ -523,7 +523,13 @@ export function LineItemsTabV2({
             <div className="fixed inset-0 z-40" onClick={() => { setDropdownOpen(null); setSearchQuery(''); setDebouncedSearch(''); }} />
             <div
               className="fixed bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-72"
-              style={{ top: dropdownOpen.position.top, left: dropdownOpen.position.left }}
+              style={{
+                // Check if dropdown would overflow bottom of screen, if so flip it above
+                top: dropdownOpen.position.top + 250 > window.innerHeight
+                  ? dropdownOpen.position.top - 258
+                  : dropdownOpen.position.top,
+                left: Math.min(dropdownOpen.position.left, window.innerWidth - 300),
+              }}
             >
               <div className="p-2 border-b border-gray-100">
                 <input

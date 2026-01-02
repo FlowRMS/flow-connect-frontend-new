@@ -45,11 +45,11 @@ function transformApiResponse(cross: KnownProductCross): ProductCross {
   };
 }
 
-// Helper to get usage badge color
+// Helper to get usage badge color (matching staging-v6 style)
 function getUsageBadgeColor(timesUsed: number): string {
   if (timesUsed >= 30) return 'bg-green-100 text-green-700';
-  if (timesUsed >= 10) return 'bg-yellow-100 text-yellow-700';
-  if (timesUsed >= 5) return 'bg-orange-100 text-orange-700';
+  if (timesUsed >= 10) return 'bg-blue-100 text-blue-700';
+  if (timesUsed >= 5) return 'bg-yellow-100 text-yellow-700';
   return 'bg-red-100 text-red-700';
 }
 
@@ -84,8 +84,12 @@ export function ProductCrossesContent() {
     };
 
     for (const filter of activeFilters) {
-      if (filter.values && filter.values.length > 0) {
-        const value = filter.values[0];
+      // Get value from either values array (dropdowns) or value (text inputs)
+      const value = filter.values && filter.values.length > 0
+        ? filter.values[0]
+        : filter.value;
+
+      if (value) {
         switch (filter.columnName) {
           case 'competitorManufacturer':
             filters.competitorManufacturer = value;
@@ -101,6 +105,12 @@ export function ProductCrossesContent() {
             break;
           case 'usageLevel':
             filters.usageLevel = value;
+            break;
+          case 'createdAt':
+            filters.dateFrom = value;
+            break;
+          case 'lastUsed':
+            filters.dateTo = value;
             break;
         }
       }
@@ -480,11 +490,11 @@ export function ProductCrossesContent() {
           <span className="text-gray-600">High Confidence</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-700 rounded">10-29</span>
+          <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded">10-29</span>
           <span className="text-gray-600">Medium Confidence</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="px-2 py-0.5 text-xs font-medium bg-orange-100 text-orange-700 rounded">5-9</span>
+          <span className="px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-700 rounded">5-9</span>
           <span className="text-gray-600">Low Confidence</span>
         </div>
         <div className="flex items-center gap-2">

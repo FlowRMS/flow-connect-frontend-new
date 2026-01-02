@@ -393,6 +393,28 @@ export default function AdvancedFilters({
                               </button>
                             </div>
                           </div>
+                        ) : option.type === 'date' ? (
+                          /* Date picker for date-type filters */
+                          <div className="flex flex-col">
+                            <div className="p-3">
+                              <input
+                                type="date"
+                                value={filterValue}
+                                onChange={(e) => setFilterValue(e.target.value)}
+                                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                autoFocus
+                              />
+                            </div>
+                            <div className="p-3 border-t border-gray-100 bg-gray-50 flex justify-end">
+                              <button
+                                onClick={() => handleApplyFilter(option, filterValue, 'GTE')}
+                                disabled={!filterValue}
+                                className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                Apply
+                              </button>
+                            </div>
+                          </div>
                         ) : (
                           /* Multi-select Dropdown for dropdown-type filters */
                           <div className="flex flex-col">

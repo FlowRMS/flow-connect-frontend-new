@@ -137,8 +137,8 @@ export function useActivityFeed(
       return undefined;
     },
     enabled: true,
-    staleTime: 30 * 1000,
-    refetchOnWindowFocus: true,
+    staleTime: 60 * 1000, // 1 minute
+    refetchOnWindowFocus: false,
   });
 
   // Combine all pages into a single ActivityFeedData object with deduplication

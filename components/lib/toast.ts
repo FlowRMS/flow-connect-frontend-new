@@ -496,6 +496,16 @@ export const orderToasts = {
     showErrorToast('Failed to Delete Order', {
       description: error || 'Please try again or contact support',
     }),
+
+  invoiceCreatedFromOrder: (invoiceNumber: string) =>
+    showSuccessToast('Invoice Created', {
+      description: `Invoice ${invoiceNumber} has been created from order`,
+    }),
+
+  invoiceCreationError: (error?: string) =>
+    showErrorToast('Failed to Create Invoice', {
+      description: error || 'Please try again or contact support',
+    }),
 };
 
 // Takeoff Toasts

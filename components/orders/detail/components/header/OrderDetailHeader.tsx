@@ -65,6 +65,7 @@ interface OrderDetailHeaderProps {
   setShowQuoteLookupModal?: (show: boolean) => void;
   handleMakeWarehouseOrder?: () => void;
   handleGenerateFulfillmentRequest?: () => void;
+  onCreateInvoice?: () => void;
 }
 
 export function OrderDetailHeader(props: OrderDetailHeaderProps) {
@@ -118,6 +119,7 @@ export function OrderDetailHeader(props: OrderDetailHeaderProps) {
     setShowQuoteLookupModal = () => {},
     handleMakeWarehouseOrder = () => { alert('Warehouse conversion - coming soon'); },
     handleGenerateFulfillmentRequest = () => { alert('Fulfillment request - coming soon'); },
+    onCreateInvoice,
   } = props;
 
   // Calculate totals
@@ -168,6 +170,7 @@ export function OrderDetailHeader(props: OrderDetailHeaderProps) {
         setShowQuoteLookupModal={setShowQuoteLookupModal}
         handleMakeWarehouseOrder={handleMakeWarehouseOrder}
         handleGenerateFulfillmentRequest={handleGenerateFulfillmentRequest}
+        onCreateInvoice={onCreateInvoice}
       />
 
       <PricingSummaryBar

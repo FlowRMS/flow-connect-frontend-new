@@ -134,10 +134,21 @@ export function EditCustomerModal({ isOpen, customer, onClose, onSuccess }: Edit
     }
 
     try {
-      // Combine inside and outside rep entries into split rates
-      const insideSplitRates = entriesToSplitRateInputs(insideRepEntries, 'INSIDE');
-      const outsideSplitRates = entriesToSplitRateInputs(outsideRepEntries, 'OUTSIDE');
-      const allSplitRates = [...insideSplitRates, ...outsideSplitRates];
+      // Convert entries to the format expected by the API
+      // The API expects insideSplitRates and outsideSplitRates as separate fields
+      const insideSplitRate = insideRepEntries.length > 0 ? {
+        userId: insideRepEntries[0].userId,
+        splitRate: insideRepEntries[0].splitRate,
+        position: 1,
+        id: insideRepEntries[0].id,
+      } : undefined;
+
+      const outsideSplitRate = outsideRepEntries.length > 0 ? {
+        userId: outsideRepEntries[0].userId,
+        splitRate: outsideRepEntries[0].splitRate,
+        position: 1,
+        id: outsideRepEntries[0].id,
+      } : undefined;
 
       await updateMutation.mutateAsync({
         id: customer.id,
@@ -145,7 +156,8 @@ export function EditCustomerModal({ isOpen, customer, onClose, onSuccess }: Edit
           companyName: companyName.trim(),
           isParent,
           published,
-          splitRates: allSplitRates.length > 0 ? allSplitRates : undefined,
+          insideSplitRates: insideSplitRate,
+          outsideSplitRates: outsideSplitRate,
         },
       });
 

@@ -20,11 +20,12 @@ function transformLandingPageToOrder(landing: OrderLandingPage): Order {
   return {
     id: landing.id,
     orderNumber: landing.orderNumber,
-    // API doesn't have these fields - use defaults or empty
+    // Use new API fields: factoryName, soldToCustomerName, jobName
     manufacturerId: '',
-    manufacturerName: 'Coming Soon', // API doesn't provide this in landing page
+    manufacturerName: landing.factoryName || '-',
     customerId: '',
-    customerName: 'Coming Soon', // API doesn't provide this in landing page
+    customerName: landing.soldToCustomerName || '-',
+    jobName: landing.jobName || '',
     status: mapApiStatusToUiStatus(landing.headerStatus, landing.status),
     fulfillmentStatus: 'not_started',
     billingStatus: 'not_invoiced',
@@ -40,7 +41,10 @@ function transformLandingPageToOrder(landing: OrderLandingPage): Order {
     totalCommission: 0, // API landing page doesn't provide this
     splitRates: [],
     dueDate: landing.dueDate,
-  };
+    // Pass through new fields directly
+    factoryName: landing.factoryName,
+    soldToCustomerName: landing.soldToCustomerName,
+  } as Order;
 }
 
 /**

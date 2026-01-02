@@ -46,11 +46,11 @@ function transformLandingPageToInvoice(landing: InvoiceLandingPage): Invoice {
     invoiceNumber: landing.invoiceNumber || '',
     orderId: landing.orderId || '',
     orderNumber: landing.orderNumber || '',
-    // API landing page doesn't provide these - use defaults
+    // Use factoryName from API if available
     customerId: '',
-    customerName: 'Coming Soon',
+    customerName: '-',
     manufacturerId: '',
-    manufacturerName: 'Coming Soon',
+    manufacturerName: landing.factoryName || '-',
     status: mapApiStatusToInvoiceStatus(landing.status),
     isLocked: landing.locked || false,
     invoiceDate: landing.entityDate || '',
@@ -66,9 +66,11 @@ function transformLandingPageToInvoice(landing: InvoiceLandingPage): Invoice {
     amountPaid: 0,
     amountCredited: 0,
     balance: landing.total || 0,
-    totalCommission: 0,
+    totalCommission: landing.commission || 0,
     splitRates: [],
-  };
+    // Pass through new field directly
+    factoryName: landing.factoryName,
+  } as Invoice;
 }
 
 export function useInvoicesListState() {

@@ -74,7 +74,6 @@ export default function JobsContent() {
   }, []);
 
   // CRM API hooks with infinite scroll pagination - now with server-side filters
-  const isConnected = isMounted ? true : false;
   const {
     data: jobsData,
     isLoading: jobsLoading,
@@ -512,39 +511,6 @@ export default function JobsContent() {
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
             </svg>
             <span>Loading jobs...</span>
-          </div>
-        </div>
-      </main>
-    );
-  }
-
-  // Show connection required message if not connected
-  if (!isConnected) {
-    return (
-      <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-[var(--foreground)]">Jobs</h1>
-        </div>
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 max-w-2xl">
-          <div className="flex items-start gap-4">
-            <svg className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-            <div>
-              <h3 className="text-lg font-medium text-yellow-800">CRM Not Connected</h3>
-              <p className="text-sm text-yellow-700 mt-1">
-                Please configure your CRM API tokens to view and manage jobs.
-              </p>
-              <a
-                href="/dashboard/apps/flow-crm/auth"
-                className="inline-flex items-center gap-2 mt-3 px-4 py-2 bg-yellow-600 text-white text-sm font-medium rounded-lg hover:bg-yellow-700 transition-colors"
-              >
-                Go to Auth Settings
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M5 10h10M11 6l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </a>
-            </div>
           </div>
         </div>
       </main>

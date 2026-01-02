@@ -11,13 +11,16 @@ import {
   createInvoice,
   updateInvoice,
   deleteInvoice,
+  createInvoiceFromOrder,
   type Invoice,
   type InvoiceLandingPage,
   type InvoiceLandingPageFilter,
   type InvoiceLandingPageOrderBy,
   type CreateInvoiceInput,
   type UpdateInvoiceInput,
+  type CreateInvoiceFromOrderInput,
   type PaginatedInvoicesResult,
+  type InvoiceSearchOptions,
 } from './invoicesApi';
 
 // Re-export types for convenience
@@ -72,12 +75,23 @@ export function useInvoice(id: string | null) {
 /**
  * Hook to search invoices
  */
-export function useInvoiceSearch(searchTerm: string, enabled: boolean = true) {
+export function useInvoiceSearch(
+  searchTerm: string,
+  enabled: boolean = true,
+  options?: InvoiceSearchOptions
+) {
   return useQuery({
-    queryKey: invoiceQueryKeys.invoiceSearch(searchTerm),
-    queryFn: () => searchInvoices(searchTerm, 20),
+    queryKey: [...invoiceQueryKeys.invoiceSearch(searchTerm), options],
+    queryFn: () => searchInvoices(searchTerm, 20, options),
     enabled: enabled && searchTerm.length >= 2,
   });
+}
+
+/**
+ * Hook to search invoices for checks page (openOnly and unlockedOnly = true)
+ */
+export function useInvoiceSearchForChecks(searchTerm: string, enabled: boolean = true) {
+  return useInvoiceSearch(searchTerm, enabled, { openOnly: true, unlockedOnly: true });
 }
 
 /**
@@ -125,6 +139,24 @@ export function useDeleteInvoice() {
       queryClient.removeQueries({ queryKey: invoiceQueryKeys.invoice(id) });
       // Invalidate invoice lists to refetch
       queryClient.invalidateQueries({ queryKey: invoiceQueryKeys.invoices() });
+    },
+  });
+}
+
+/**
+ * Hook to create an invoice from an order
+ */
+export function useCreateInvoiceFromOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: CreateInvoiceFromOrderInput) => createInvoiceFromOrder(input),
+    onSuccess: () => {
+      // Invalidate invoice lists to refetch
+      queryClient.invalidateQueries({ queryKey: invoiceQueryKeys.invoices() });
+      queryClient.invalidateQueries({ queryKey: invoiceQueryKeys.all });
+      // Also invalidate orders since the order may have been updated
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
     },
   });
 }

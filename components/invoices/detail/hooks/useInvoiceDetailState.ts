@@ -23,6 +23,7 @@ import {
   type UpdateInvoiceInput,
 } from '../../api';
 import { useOrder } from '@/components/orders/api';
+import { useFactory } from '@/components/warehouse/api/useFactoriesApi';
 import { fetchInvoiceById } from '../../api/invoicesApi';
 
 /**
@@ -50,6 +51,7 @@ function mapApiStatusToInvoiceStatus(status?: string): InvoiceStatus {
 
 interface UseInvoiceDetailStateProps {
   invoiceId: string;
+  initialOrderId?: string;
 }
 
 /**
@@ -67,9 +69,9 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
     description: detail.product?.description || detail.productDescriptionAdhoc || '',
     quantity: parseFloat(detail.quantity || '0'),
     unitPrice: parseFloat(detail.unitPrice || '0'),
-    uom: detail.uom?.title || 'EA',
-    uomId: detail.uomId || '',
-    divisor: parseFloat(detail.divisionFactor || '1'),
+    uom: detail.uom?.title || null,
+    uomId: detail.uom?.id || detail.uomId || null,
+    divisor: detail.uom?.divisionFactor || parseFloat(detail.divisionFactor || '1'),
     total: detail.total || 0,
     amount: detail.total || 0,
     commissionPercent: parseFloat(detail.commissionRate || '0'),
@@ -150,9 +152,9 @@ function transformDetailToExtendedLineItem(detail: InvoiceDetail): InvoiceLineIt
     // Extended fields
     productId: detail.productId || '',
     custPartNumber: '', // Not directly in API
-    uom: detail.uom?.title || 'EA',
-    uomId: detail.uomId || '',
-    divisor,
+    uom: detail.uom?.title || null,
+    uomId: detail.uom?.id || detail.uomId || null,
+    divisor: detail.uom?.divisionFactor || divisor,
     total,
     commissionPercent: commissionRate,
     commission: commissionAmount,
@@ -209,7 +211,7 @@ function createEmptyInvoice(): EditableInvoice {
   };
 }
 
-export function useInvoiceDetailState({ invoiceId }: UseInvoiceDetailStateProps) {
+export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceDetailStateProps) {
   const isCreateMode = invoiceId === 'new';
 
   // Fetch invoice from API
@@ -229,9 +231,17 @@ export function useInvoiceDetailState({ invoiceId }: UseInvoiceDetailStateProps)
   // Uses EditableInvoice which has extended InvoiceLineItem type
   const [localInvoice, setLocalInvoice] = useState<EditableInvoice | null>(null);
 
-  // Order population state
-  const [selectedOrderId, setSelectedOrderId] = useState<string>('');
-  const { data: selectedOrder, isLoading: isOrderLoading } = useOrder(selectedOrderId || null);
+  // Order population state - for manual order selection in create mode
+  // Initialize with initialOrderId from query params if provided
+  const [selectedOrderId, setSelectedOrderId] = useState<string>(initialOrderId || '');
+
+  // Get the order ID to fetch - either from invoice (existing) or from selection (new)
+  const orderIdToFetch = apiInvoice?.orderId || selectedOrderId || null;
+  const { data: linkedOrder, isLoading: isOrderLoading } = useOrder(orderIdToFetch);
+
+  // Fetch factory details when order has a factoryId
+  const factoryIdToFetch = linkedOrder?.factoryId || null;
+  const { data: linkedFactory } = useFactory(factoryIdToFetch || '');
 
   // Initialize local invoice from API data or empty for create mode
   useEffect(() => {
@@ -259,65 +269,138 @@ export function useInvoiceDetailState({ invoiceId }: UseInvoiceDetailStateProps)
     });
   }, []);
 
-  // When order data is loaded, populate the invoice details
+  // When order data is loaded, populate the invoice with order fields
+  // This works for both:
+  // 1. Existing invoice with orderId - auto-populates order fields
+  // 2. New invoice with selected order - populates when user selects an order
   useEffect(() => {
-    if (selectedOrder && localInvoice) {
+    if (linkedOrder && localInvoice) {
       setLocalInvoice(prev => {
         if (!prev) return prev;
 
-        // Cast selectedOrder to any to access API-specific fields
-        const order = selectedOrder as any;
+        // Cast to any to access all API-specific fields
+        const order = linkedOrder as any;
+
+        // For existing invoices with orderId, don't overwrite line items
+        // Only overwrite line items if this is a new invoice being created from an order
+        const isNewInvoiceFromOrder = isCreateMode && selectedOrderId;
 
         // Transform order line items to extended InvoiceLineItem format for editing
-        const extendedLineItems: InvoiceLineItem[] = (order.lineItems || order.details || []).map((item: any, index: number) => ({
-          id: `new-${index}`,
-          orderLineItemId: item.id || '',
-          lineNumber: item.lineNumber || item.itemNumber || index + 1,
-          productId: item.productId || '',
-          partNumber: item.partNumber || item.product?.factoryPartNumber || item.productNameAdhoc || '',
-          custPartNumber: '',
-          description: item.description || item.product?.description || item.productDescriptionAdhoc || '',
-          quantity: typeof item.quantity === 'string' ? parseFloat(item.quantity) : (item.quantity || 0),
-          unitPrice: typeof item.unitPrice === 'string' ? parseFloat(item.unitPrice) : (item.unitPrice || 0),
-          uom: item.uom?.title || item.uom || 'EA',
-          uomId: item.uomId || '',
-          divisor: typeof item.divisionFactor === 'string' ? parseFloat(item.divisionFactor) : (item.divisor || 1),
-          total: item.total || item.amount || 0,
-          amount: item.total || item.amount || 0,
-          commissionPercent: typeof item.commissionRate === 'string' ? parseFloat(item.commissionRate) : (item.commissionPercent || item.commissionRate || 0),
-          commissionRate: typeof item.commissionRate === 'string' ? parseFloat(item.commissionRate) : (item.commissionPercent || item.commissionRate || 0),
-          commission: item.commission || item.commissionAmount || 0,
-          commissionAmount: item.commission || item.commissionAmount || 0,
-          discountPercent: parseFloat(item.discountRate || '0'),
-          discount: item.discount || 0,
-          commissionDiscountPercent: parseFloat(item.commissionDiscountRate || '0'),
-          commissionDiscount: item.commissionDiscount || 0,
-          status: item.status || 'open',
-          leadTime: item.leadTime || '',
-          note: item.note || '',
-          endUserId: item.endUserId || '',
-          orderDetailId: item.id || '',
-          invoicedBalance: 0,
-          outsideSplitRates: [],
-        }));
+        // Only do this for new invoices being created from an order
+        let extendedLineItems = prev.lineItems;
+        if (isNewInvoiceFromOrder) {
+          extendedLineItems = (order.lineItems || order.details || []).map((item: any, index: number) => ({
+            id: `new-${index}-${Date.now()}`,
+            orderLineItemId: item.id || '',
+            lineNumber: item.lineNumber || item.itemNumber || index + 1,
+            productId: item.productId || '',
+            partNumber: item.partNumber || item.product?.factoryPartNumber || item.productNameAdhoc || '',
+            custPartNumber: item.custPartNumber || '',
+            description: item.description || item.product?.description || item.productDescriptionAdhoc || '',
+            quantity: typeof item.quantity === 'string' ? parseFloat(item.quantity) : (item.quantity || 0),
+            unitPrice: typeof item.unitPrice === 'string' ? parseFloat(item.unitPrice) : (item.unitPrice || 0),
+            uom: item.uom?.title || item.uom || null,
+            uomId: item.uom?.id || item.uomId || null,
+            divisor: item.uom?.divisionFactor || (typeof item.divisionFactor === 'string' ? parseFloat(item.divisionFactor) : (item.divisor || 1)),
+            total: item.total || item.extendedPrice || item.amount || 0,
+            amount: item.total || item.extendedPrice || item.amount || 0,
+            commissionPercent: typeof item.commissionRate === 'string' ? parseFloat(item.commissionRate) * 100 : ((item.commissionRate ?? 0.08) * 100),
+            commissionRate: typeof item.commissionRate === 'string' ? parseFloat(item.commissionRate) : (item.commissionRate ?? 0.08),
+            commission: item.commission || item.commissionAmount || 0,
+            commissionAmount: item.commission || item.commissionAmount || 0,
+            discountPercent: parseFloat(item.discountRate || '0'),
+            discount: item.discount || 0,
+            commissionDiscountPercent: parseFloat(item.commissionDiscountRate || '0'),
+            commissionDiscount: item.commissionDiscount || 0,
+            status: item.status || 'open',
+            leadTime: item.leadTime || '',
+            note: item.note || '',
+            endUserId: item.endUserId || '',
+            orderDetailId: item.id || '',
+            invoicedBalance: 0,
+            outsideSplitRates: [],
+          }));
+        }
 
+        // Always populate order-related fields (Sold To, Bill To, PO#, Job, Terms, Reps)
+        // Factory: Only use from order if not already set from invoice (invoice.factory takes precedence)
         return {
           ...prev,
-          orderId: selectedOrder.id,
-          orderNumber: selectedOrder.orderNumber || '',
-          customerId: order.soldToCustomerId || order.customerId || '',
-          customerName: order.soldToCustomer?.companyName || order.customerName || '',
-          manufacturerId: order.factoryId || order.manufacturerId || '',
-          manufacturerName: order.factory?.title || order.manufacturerName || '',
-          invoiceDate: order.entityDate || order.orderDate || prev.invoiceDate,
-          dueDate: order.dueDate || '',
+          // Order reference
+          orderId: linkedOrder.id,
+          orderNumber: linkedOrder.orderNumber || '',
+
+          // Factory (Manufacturer) - only override if not already set from invoice
+          // Factory name will be populated by separate effect when linkedFactory loads
+          manufacturerId: prev.manufacturerId || order.factoryId || order.manufacturerId || '',
+          manufacturerName: prev.manufacturerName || '',
+
+          // Customers
+          customerId: order.soldToCustomerId || order.customerId || prev.customerId || '',
+          customerName: order.soldToCustomer?.companyName || order.customerName || prev.customerName || '',
+          soldToCustomerId: order.soldToCustomerId || '',
+          soldToCustomerName: order.soldToCustomer?.companyName || '',
+          billToCustomerId: order.billToCustomerId || order.soldToCustomerId || '',
+          billToCustomerName: order.billToCustomer?.companyName || order.soldToCustomer?.companyName || '',
+          endUserId: order.endUserPerLineItem ? '' : (order.endUserId || ''),
+          endUserName: order.endUserPerLineItem ? '' : (order.endUser?.companyName || ''),
+
+          // Order reference fields
+          poNumber: order.customerPo || order.poNumber || '',
+          jobId: order.jobId || '',
+          jobName: order.job?.title || order.jobName || '',
+
+          // Terms (from order)
+          paymentTerms: order.paymentTerm?.title || order.paymentTerms || '',
+          paymentTermsId: order.paymentTermId || '',
+          freightTerms: order.freightTerm?.title || order.freightTerms || '',
+          freightTermsId: order.freightTermId || '',
+          shippingTerms: order.shippingTerm?.title || order.shippingTerms || '',
+          shippingTermsId: order.shippingTermId || '',
+
+          // Reps - only populate header if NOT per line item
+          outsideRepId: order.outsidePerLineItem ? '' : (order.outsideRepId || order.outsideSalesRepId || ''),
+          outsideRepName: order.outsidePerLineItem ? '' : (order.outsideRep?.fullName || order.outsideSalesRep?.fullName || ''),
+          insideRepId: order.insidePerLineItem ? '' : (order.insideRepId || order.insideSalesRepId || ''),
+          insideRepName: order.insidePerLineItem ? '' : (order.insideRep?.fullName || order.insideSalesRep?.fullName || ''),
+
+          // Per-line-item flags from order
+          outsidePerLineItem: order.outsidePerLineItem || false,
+          insidePerLineItem: order.insidePerLineItem || false,
+          endUserPerLineItem: order.endUserPerLineItem || false,
+
+          // Dates
+          invoiceDate: prev.invoiceDate || order.entityDate || order.orderDate || '',
+          dueDate: prev.dueDate || order.dueDate || '',
+
+          // Line items (only for new invoice from order)
           lineItems: extendedLineItems,
-          subtotal: order.balance?.subtotal || order.subtotal || 0,
-          total: order.balance?.total || order.total || 0,
+
+          // Totals (only for new invoice from order)
+          ...(isNewInvoiceFromOrder ? {
+            subtotal: order.balance?.subtotal || order.subtotal || 0,
+            total: order.balance?.total || order.total || 0,
+          } : {}),
+
+          // Flag that these fields came from order (for UI to make them read-only)
+          isPopulatedFromOrder: true,
         };
       });
     }
-  }, [selectedOrder]);
+  }, [linkedOrder, isCreateMode, selectedOrderId]);
+
+  // When factory data is loaded, populate the factory name
+  useEffect(() => {
+    if (linkedFactory && localInvoice && !localInvoice.manufacturerName) {
+      setLocalInvoice(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          manufacturerName: linkedFactory.title || '',
+        };
+      });
+    }
+  }, [linkedFactory, localInvoice?.manufacturerName]);
 
   // Handle invoice selection - copy from existing invoice
   const handleInvoiceSelect = useCallback(async (invoiceId: string, invoiceNumber: string) => {
@@ -376,8 +459,8 @@ export function useInvoiceDetailState({ invoiceId }: UseInvoiceDetailStateProps)
         // Extended fields
         productId: '',
         custPartNumber: '',
-        uom: 'EA',
-        uomId: '',
+        uom: null,
+        uomId: null,
         divisor: 1,
         total: 0,
         commissionPercent: 0,
@@ -453,7 +536,7 @@ export function useInvoiceDetailState({ invoiceId }: UseInvoiceDetailStateProps)
         uomId: item.uomId || undefined,
         outsideSplitRates: item.outsideSplitRates?.map(s => ({
           userId: s.userId,
-          splitRate: s.splitRate.toString(),
+          splitRate: Number(s.splitRate),
           position: s.position,
         })),
       })),

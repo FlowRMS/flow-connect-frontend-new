@@ -4,7 +4,6 @@
  * Also includes CRUD operations for managing known product cross-references in the database
  */
 
-import { crmGraphQLRequest } from './client';
 import { flowAIGraphQLRequest } from './flow-ai-client';
 
 // ============================================================================
@@ -113,7 +112,7 @@ export async function crossProducts(
   crossTypes: ProductCrossTypeEnum[],
   samplePrompts?: string[]
 ): Promise<ParsedProductCross[]> {
-  const response = await crmGraphQLRequest<{ crossProducts: ParsedProductCross[] }>({
+  const response = await flowAIGraphQLRequest<{ crossProducts: ParsedProductCross[] }>({
     query: CROSS_PRODUCTS,
     variables: {
       products,
@@ -142,7 +141,7 @@ export async function crossProductsFromDocument(
   crossTypes: ProductCrossTypeEnum[],
   samplePrompts?: string[]
 ): Promise<ParsedProductCross[]> {
-  const response = await crmGraphQLRequest<{
+  const response = await flowAIGraphQLRequest<{
     productCrossFromParsedDocument: ParsedProductCross[];
   }>({
     query: CROSS_PRODUCTS_FROM_DOCUMENT,

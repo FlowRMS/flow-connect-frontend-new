@@ -115,7 +115,7 @@ export function InvoiceDetailPanel({
         <InvoiceTotalsSection invoice={invoice} />
 
         {/* Actions */}
-        <div className="flex gap-3 pt-4 border-t border-[var(--border)]">
+        {/* <div className="flex gap-3 pt-4 border-t border-[var(--border)]">
           {canRecordPayment && (
             <button
               onClick={() => onRecordPayment?.()}
@@ -138,7 +138,7 @@ export function InvoiceDetailPanel({
           >
             Print
           </button>
-        </div>
+        </div> */}
       </div>
     </div>
   );

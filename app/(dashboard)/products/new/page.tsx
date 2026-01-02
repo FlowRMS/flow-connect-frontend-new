@@ -88,7 +88,7 @@ export default function CreateProductPage() {
     factorySearchTerm,
     isFactoryDropdownOpen
   );
-  const { data: categories = [], isLoading: isLoadingCategories } = useProductCategories();
+  const { data: categories = [], isLoading: isLoadingCategories } = useProductCategories(selectedFactory?.id);
 
   // Get selected UOM
   const selectedUom = uoms.find(u => u.id === formData.productUomId);
@@ -649,17 +649,20 @@ export default function CreateProductPage() {
                       }
                     }}
                     onFocus={() => {
-                      setIsCategoryDropdownOpen(true);
-                      setCategorySearchTerm('');
+                      if (selectedFactory) {
+                        setIsCategoryDropdownOpen(true);
+                        setCategorySearchTerm('');
+                      }
                     }}
-                    placeholder="Search categories..."
-                    className={inputClass}
+                    placeholder={selectedFactory ? "Search categories..." : "Select factory first"}
+                    disabled={!selectedFactory}
+                    className={`${inputClass} ${!selectedFactory ? 'bg-gray-50 cursor-not-allowed opacity-60' : ''}`}
                   />
                   <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
                 </div>
-                {isCategoryDropdownOpen && isMounted && createPortal(
+                {isCategoryDropdownOpen && selectedFactory && isMounted && createPortal(
                   <div
                     ref={categoryDropdownRef}
                     style={{

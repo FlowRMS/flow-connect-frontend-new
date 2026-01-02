@@ -7,7 +7,7 @@ export default async function SignUpPage() {
   const { user } = await withAuth();
 
   if (user) {
-    redirect("/dashboard");
+    redirect("/");
   }
 
   const signUpUrl = await getSignUpUrl();

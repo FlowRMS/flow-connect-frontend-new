@@ -30,22 +30,56 @@ import {
   crossProducts,
   updateTakeoff as apiUpdateTakeoff,
   updateTakeoffDocument,
-  saveProductCross,
-  selectCrossAlternative as apiSelectCrossAlternative,
-  deleteCrossAlternative as apiDeleteCrossAlternative,
-  clearTakeoffCrosses,
-  getTakeoffProductCrosses,
   type UploadProgressCallback,
   type UpdateTakeoffDocumentInput,
   type TakeoffStatusEnum,
-  type SaveProductCrossInput,
-  type ProductCrossAlternative,
 } from '../../lib/graphql/takeoffs';
 import { statusApiMap } from '../types';
 import {
   classifyDocument as classifyDocumentLocal,
   getInitialStep,
 } from '../utils';
+import { createKnownProductCross } from '../../lib/graphql/product-crosses';
+
+// Helper to safely parse parsedItems which may come as array, JSON string, or null
+function safeParseParsedItems(parsedItems: unknown): ParsedItem[] | undefined {
+  if (!parsedItems) return undefined;
+
+  // If it's already an array, transform it
+  if (Array.isArray(parsedItems)) {
+    return parsedItems.map(item => ({
+      id: item.id || crypto.randomUUID(),
+      manufacturer: item.manufacturer,
+      partNumber: item.partNumber,
+      description: item.description,
+      quantity: item.quantity,
+      isOurManufacturer: item.isOurManufacturer || false,
+      isCrossed: item.isCrossed || false,
+    }));
+  }
+
+  // If it's a string, try to parse it as JSON
+  if (typeof parsedItems === 'string') {
+    try {
+      const parsed = JSON.parse(parsedItems);
+      if (Array.isArray(parsed)) {
+        return parsed.map(item => ({
+          id: item.id || crypto.randomUUID(),
+          manufacturer: item.manufacturer,
+          partNumber: item.partNumber,
+          description: item.description,
+          quantity: item.quantity,
+          isOurManufacturer: item.isOurManufacturer || false,
+          isCrossed: item.isCrossed || false,
+        }));
+      }
+    } catch {
+      console.warn('Failed to parse parsedItems string:', parsedItems);
+    }
+  }
+
+  return undefined;
+}
 
 // Processing state interfaces
 interface ProcessingState {
@@ -671,50 +705,8 @@ export function useTakeoffsState() {
 
     setParsedItems(prev => [...prev, ...allCrosses]);
 
-    // Persist crosses to database if we have a selected takeoff
-    if (selectedTakeoff && allCrossResults.length > 0) {
-      try {
-        // First clear any existing crosses for this takeoff
-        await clearTakeoffCrosses(selectedTakeoff.id);
-
-        // Save each cross result to the database
-        const savedResults: ProductCrossResult[] = [];
-        for (const crossResult of allCrossResults) {
-          const savedCross = await saveProductCross({
-            takeoffId: selectedTakeoff.id,
-            originalManufacturer: crossResult.original.manufacturer,
-            originalPartNumber: crossResult.original.partNumber,
-            originalDescription: crossResult.original.description,
-            originalAttributes: crossResult.original.attributes || null,
-            alternatives: crossResult.alternatives.map(alt => ({
-              name: alt.name,
-              description: alt.description,
-              price: alt.price || null,
-              source: alt.source || null,
-              crossType: alt.crossType,
-              attributes: alt.attributes || null,
-              reasoning: alt.reasoning || null,
-              selected: alt.selected || false,
-            })),
-            crossTypesUsed: selectedCrossTypes,
-            promptUsed: null,
-          });
-
-          // Add the database ID to the result
-          savedResults.push({
-            ...crossResult,
-            id: savedCross.id,
-          });
-        }
-        setProductCrossResults(savedResults);
-      } catch (error) {
-        console.error('Failed to persist cross results:', error);
-        // Fall back to local-only results
-        setProductCrossResults(allCrossResults);
-      }
-    } else {
-      setProductCrossResults(allCrossResults);
-    }
+    // Set local results (persistence happens when user selects an alternative)
+    setProductCrossResults(allCrossResults);
 
     setProductCrossState({ isProcessing: false, progress: 100 });
   }, [documents, selectedCrossTypes, selectedTakeoff]);
@@ -725,9 +717,10 @@ export function useTakeoffsState() {
   }, []);
 
   // Handle selecting a cross alternative
-  // Persists selection to backend when cross has an ID
+  // Saves to product_crosses table for future use
   const handleSelectAlternative = useCallback(async (originalIndex: number, altIndex: number) => {
     const result = productCrossResults[originalIndex];
+    const selectedAlt = result?.alternatives[altIndex];
 
     // Update local state immediately for responsive UI
     setProductCrossResults(prev => prev.map((r, i) => {
@@ -741,23 +734,28 @@ export function useTakeoffsState() {
       };
     }));
 
-    // Persist to backend if cross has been saved (has an ID)
-    if (result?.id) {
+    // Save to known product crosses for future use
+    if (result && selectedAlt) {
       try {
-        await apiSelectCrossAlternative(result.id, altIndex);
+        await createKnownProductCross({
+          competitorManufacturer: result.original.manufacturer,
+          competitorPartNumber: result.original.partNumber,
+          competitorDescription: result.original.description || '',
+          ourManufacturer: selectedAlt.name || 'Our Company',
+          ourPartNumber: selectedAlt.description?.split(' ')[0] || '',
+          ourDescription: selectedAlt.description || '',
+        });
+        showSuccessToast('Product cross saved');
       } catch (error) {
-        console.error('Failed to persist selection:', error);
-        // Optionally revert local state on error
+        console.error('Failed to save to known product crosses:', error);
+        showErrorToast('Failed to save product cross');
       }
     }
   }, [productCrossResults]);
 
-  // Handle deleting a cross alternative
-  // Persists deletion to backend when cross has an ID
-  const handleDeleteCrossAlternative = useCallback(async (originalIndex: number, altIndex: number) => {
-    const result = productCrossResults[originalIndex];
-
-    // Update local state immediately for responsive UI
+  // Handle deleting a cross alternative (local state only)
+  const handleDeleteCrossAlternative = useCallback((originalIndex: number, altIndex: number) => {
+    // Update local state
     setProductCrossResults(prev => prev.map((r, i) => {
       if (i !== originalIndex) return r;
       return {
@@ -765,17 +763,7 @@ export function useTakeoffsState() {
         alternatives: r.alternatives.filter((_, j) => j !== altIndex),
       };
     }).filter(r => r.alternatives.length > 0));
-
-    // Persist to backend if cross has been saved (has an ID)
-    if (result?.id) {
-      try {
-        await apiDeleteCrossAlternative(result.id, altIndex);
-      } catch (error) {
-        console.error('Failed to persist deletion:', error);
-        // Optionally revert local state on error
-      }
-    }
-  }, [productCrossResults]);
+  }, []);
 
   // Handle rerun cross with custom prompt
   const handleRerunCross = useCallback(async (prompt: string, crossTypes: CrossType[]) => {
@@ -836,50 +824,8 @@ export function useTakeoffsState() {
       }
     }
 
-    // Persist crosses to database if we have a selected takeoff
-    if (selectedTakeoff && allCrossResults.length > 0) {
-      try {
-        // First clear any existing crosses for this takeoff
-        await clearTakeoffCrosses(selectedTakeoff.id);
-
-        // Save each cross result to the database
-        const savedResults: ProductCrossResult[] = [];
-        for (const crossResult of allCrossResults) {
-          const savedCross = await saveProductCross({
-            takeoffId: selectedTakeoff.id,
-            originalManufacturer: crossResult.original.manufacturer,
-            originalPartNumber: crossResult.original.partNumber,
-            originalDescription: crossResult.original.description,
-            originalAttributes: crossResult.original.attributes || null,
-            alternatives: crossResult.alternatives.map(alt => ({
-              name: alt.name,
-              description: alt.description,
-              price: alt.price || null,
-              source: alt.source || null,
-              crossType: alt.crossType,
-              attributes: alt.attributes || null,
-              reasoning: alt.reasoning || null,
-              selected: alt.selected || false,
-            })),
-            crossTypesUsed: crossTypes,
-            promptUsed: prompt || null,
-          });
-
-          // Add the database ID to the result
-          savedResults.push({
-            ...crossResult,
-            id: savedCross.id,
-          });
-        }
-        setProductCrossResults(savedResults);
-      } catch (error) {
-        console.error('Failed to persist cross results:', error);
-        // Fall back to local-only results
-        setProductCrossResults(allCrossResults);
-      }
-    } else {
-      setProductCrossResults(allCrossResults);
-    }
+    // Set local results (persistence happens when user selects an alternative)
+    setProductCrossResults(allCrossResults);
 
     setProductCrossState({ isProcessing: false, progress: 100 });
   }, [documents, selectedTakeoff]);
@@ -1219,15 +1165,7 @@ export function useTakeoffsState() {
             documentUrl: doc.documentUrl || undefined,
             pageAnalyses: doc.pageAnalyses || undefined,
             products: doc.products,
-            parsedItems: doc.parsedItems?.map(item => ({
-              id: item.id || crypto.randomUUID(),
-              manufacturer: item.manufacturer,
-              partNumber: item.partNumber,
-              description: item.description,
-              quantity: item.quantity,
-              isOurManufacturer: item.isOurManufacturer || false,
-              isCrossed: item.isCrossed || false,
-            })),
+            parsedItems: safeParseParsedItems(doc.parsedItems),
           }));
         }
       } catch (error) {
@@ -1251,37 +1189,8 @@ export function useTakeoffsState() {
       setParsedItems([]);
     }
 
-    // Load saved product crosses from backend
-    try {
-      const savedCrosses = await getTakeoffProductCrosses(takeoff.id);
-      if (savedCrosses.length > 0) {
-        const transformedCrosses: ProductCrossResult[] = savedCrosses.map(c => ({
-          id: c.id,
-          original: {
-            manufacturer: c.originalManufacturer,
-            partNumber: c.originalPartNumber,
-            description: c.originalDescription || '',
-            attributes: c.originalAttributes as Record<string, string> | undefined,
-          },
-          alternatives: (c.alternatives || []).map(alt => ({
-            name: alt.name,
-            description: alt.description,
-            price: alt.price,
-            source: alt.source,
-            crossType: alt.crossType as CrossType,
-            attributes: alt.attributes as Record<string, string> | undefined,
-            reasoning: alt.reasoning || undefined,
-            selected: alt.selected || false,
-          })),
-        }));
-        setProductCrossResults(transformedCrosses);
-      } else {
-        setProductCrossResults([]);
-      }
-    } catch (error) {
-      console.error('Failed to load product crosses:', error);
-      setProductCrossResults([]);
-    }
+    // Initialize product cross results (crosses are saved to product_crosses when selected)
+    setProductCrossResults([]);
   }, []);
 
   const handleBackToList = useCallback(() => {

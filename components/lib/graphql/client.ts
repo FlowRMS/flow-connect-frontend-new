@@ -11,6 +11,8 @@
 
 let cachedToken: string | null = null;
 let tokenExpiry: number = 0;
+let authErrorCount = 0;
+const MAX_AUTH_ERRORS = 3;
 
 /**
  * Fetch access token from WorkOS via /api/auth/token endpoint
@@ -30,17 +32,34 @@ async function getAccessToken(): Promise<string | null> {
     const response = await fetch("/api/auth/token");
     if (!response.ok) {
       cachedToken = null;
+      authErrorCount++;
       return null;
     }
     const data = await response.json();
     cachedToken = data.accessToken;
     // Cache for 5 minutes
     tokenExpiry = Date.now() + 5 * 60 * 1000;
+    authErrorCount = 0; // Reset error count on success
     return cachedToken;
   } catch {
     cachedToken = null;
+    authErrorCount++;
     return null;
   }
+}
+
+/**
+ * Check if we've hit too many auth errors (prevents redirect loops)
+ */
+export function hasAuthErrorLoop(): boolean {
+  return authErrorCount >= MAX_AUTH_ERRORS;
+}
+
+/**
+ * Reset auth error count (call after successful sign-out)
+ */
+export function resetAuthErrors(): void {
+  authErrorCount = 0;
 }
 
 /**
@@ -170,6 +189,13 @@ export async function crmGraphQLMultipartRequest<T = unknown>(
   const accessToken = await getAccessToken();
 
   if (!accessToken) {
+    // Check if we're in a redirect loop
+    if (hasAuthErrorLoop()) {
+      if (typeof window !== 'undefined') {
+        window.location.href = '/auth-error';
+      }
+      throw new Error('Authentication failed. Please clear your cookies and try again.');
+    }
     if (typeof window !== 'undefined') {
       window.location.href = '/sign-in';
     }
@@ -273,6 +299,13 @@ export async function crmGraphQLRequest<T = unknown>(
   const accessToken = await getAccessToken();
 
   if (!accessToken) {
+    // Check if we're in a redirect loop
+    if (hasAuthErrorLoop()) {
+      if (typeof window !== 'undefined') {
+        window.location.href = '/auth-error';
+      }
+      throw new Error('Authentication failed. Please clear your cookies and try again.');
+    }
     // Redirect to sign-in if no token available
     if (typeof window !== 'undefined') {
       window.location.href = '/sign-in';

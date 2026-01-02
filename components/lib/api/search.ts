@@ -63,9 +63,7 @@ export interface ContactSearchResult {
   notes: string;
   territory: string;
   tags: string;
-  companyId?: string;
   createdAt: string;
-  createdBy?: string;
 }
 
 export interface TaskSearchResult {
@@ -186,19 +184,35 @@ export interface InvoiceSearchResult {
   createdById: string;
 }
 
+export interface OpenInvoiceSearchResult {
+  id: string;
+  invoiceNumber: string;
+  entityDate?: string;
+  dueDate?: string;
+  status?: string;
+  orderId?: string;
+  balanceId?: string;
+  locked?: boolean;
+  published?: boolean;
+  creationType?: string;
+  createdAt?: string;
+  createdById?: string;
+  url?: string;
+}
+
 export interface CheckSearchResult {
   id: string;
   checkNumber: string;
+  commissionMonth: string;
+  createdAt: string;
+  createdById: string;
+  creationType: string;
+  enteredCommissionAmount: number;
   entityDate: string;
-  entryDate: string;
+  factoryId: string;
   postDate: string;
   status: string;
-  factoryId: string;
-  commission: number;
-  commissionMonth: string;
-  creationType: string;
-  createdBy: string;
-  userOwnerIds: string[];
+  url: string;
 }
 
 export interface FactorySearchResult {
@@ -287,23 +301,15 @@ const CONTACT_SEARCH = `
   query ContactSearch($searchTerm: String!, $limit: Int) {
     contactSearch(searchTerm: $searchTerm, limit: $limit) {
       createdAt
-      createdBy {
-        email
-        firstName
-        fullName
-        id
-        lastName
-      }
       email
-      id
       firstName
+      id
       lastName
       notes
       phone
       role
-      territory
       tags
-      companyId
+      territory
     }
   }
 `;
@@ -450,8 +456,8 @@ const ORDER_SEARCH = `
 `;
 
 const INVOICE_SEARCH = `
-  query InvoiceSearch($searchTerm: String!, $limit: Int) {
-    invoiceSearch(searchTerm: $searchTerm, limit: $limit) {
+  query InvoiceSearch($searchTerm: String!, $limit: Int, $openOnly: Boolean, $unlockedOnly: Boolean) {
+    invoiceSearch(searchTerm: $searchTerm, limit: $limit, openOnly: $openOnly, unlockedOnly: $unlockedOnly) {
       id
       invoiceNumber
       entityDate
@@ -468,21 +474,41 @@ const INVOICE_SEARCH = `
   }
 `;
 
+const SEARCH_OPEN_INVOICES = `
+  query SearchOpenInvoices($factoryId: UUID!, $startFrom: Date!) {
+    searchOpenInvoices(factoryId: $factoryId, startFrom: $startFrom) {
+      id
+      invoiceNumber
+      entityDate
+      dueDate
+      status
+      orderId
+      balanceId
+      locked
+      published
+      creationType
+      createdAt
+      createdById
+      url
+    }
+  }
+`;
+
 const CHECK_SEARCH = `
   query CheckSearch($searchTerm: String!, $limit: Int) {
     checkSearch(searchTerm: $searchTerm, limit: $limit) {
-      id
       checkNumber
+      commissionMonth
+      createdAt
+      createdById
+      creationType
+      enteredCommissionAmount
       entityDate
-      entryDate
+      factoryId
+      id
       postDate
       status
-      factoryId
-      commission
-      commissionMonth
-      creationType
-      createdBy
-      userOwnerIds
+      url
     }
   }
 `;
@@ -601,7 +627,7 @@ export async function searchContacts(searchTerm: string, limit?: number): Promis
     throw new Error(response.errors[0]?.message || 'Failed to search contacts');
   }
 
-  return mapFormattedCreatedBy(response.data?.contactSearch);
+  return response.data?.contactSearch || [];
 }
 
 /**
@@ -703,10 +729,24 @@ export async function searchOrders(searchTerm: string, limit?: number): Promise<
 /**
  * Search for invoices
  */
-export async function searchInvoices(searchTerm: string, limit?: number): Promise<InvoiceSearchResult[]> {
+export interface InvoiceSearchOptions {
+  openOnly?: boolean;
+  unlockedOnly?: boolean;
+}
+
+export async function searchInvoices(
+  searchTerm: string,
+  limit?: number,
+  options?: InvoiceSearchOptions
+): Promise<InvoiceSearchResult[]> {
   const response = await crmGraphQLRequest<{ invoiceSearch: InvoiceSearchResult[] }>({
     query: INVOICE_SEARCH,
-    variables: { searchTerm, limit: limit ?? 50 },
+    variables: {
+      searchTerm,
+      limit: limit ?? 50,
+      openOnly: options?.openOnly,
+      unlockedOnly: options?.unlockedOnly,
+    },
   });
 
   if (response.errors) {
@@ -825,4 +865,24 @@ export async function fetchProductUoms(): Promise<ProductUomResult[]> {
   }
 
   return response.data?.productUoms || [];
+}
+
+/**
+ * Search for open invoices by factory and start date
+ * Used for Lines to Reconcile in check/commission creation
+ */
+export async function searchOpenInvoices(
+  factoryId: string,
+  startFrom: string
+): Promise<OpenInvoiceSearchResult[]> {
+  const response = await crmGraphQLRequest<{ searchOpenInvoices: OpenInvoiceSearchResult[] }>({
+    query: SEARCH_OPEN_INVOICES,
+    variables: { factoryId, startFrom },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search open invoices');
+  }
+
+  return response.data?.searchOpenInvoices || [];
 }

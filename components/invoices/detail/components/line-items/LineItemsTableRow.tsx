@@ -7,14 +7,14 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import type { Invoice, Order } from '@/lib/types/rms';
-import type { ColumnKey, ViewMode, LineItemCredit, InvoiceLineItem } from '../../types';
+import type { Order } from '@/lib/types/rms';
+import type { ColumnKey, ViewMode, LineItemCredit, InvoiceLineItem, EditableInvoice } from '../../types';
 import { formatCurrency } from '../../utils';
 import { getLinkedOrdersForInvoiceLine, getLinkedChecksForInvoice } from '../../utils';
 
 export interface LineItemsTableRowProps {
   item: InvoiceLineItem;
-  invoice: Invoice;
+  invoice: EditableInvoice;
   isSelected: boolean;
   onToggleSelection: (id: string) => void;
   visibleColumns: Set<ColumnKey>;
@@ -336,21 +336,21 @@ export function LineItemsTableRow({
       {/* Commission % (simple view) */}
       {visibleColumns.has('commissionPercent') && viewMode === 'simple' && (
         <td className="px-3 py-2 text-sm text-right text-purple-600">
-          {`${((item.commissionRate || 0.08) * 100).toFixed(0)}%`}
+          {`${((item.commissionRate ?? 0.08) * 100).toFixed(0)}%`}
         </td>
       )}
 
       {/* Commission */}
       {visibleColumns.has('commission') && (
         <td className="px-3 py-2 text-sm text-right text-purple-600">
-          {formatCurrency(item.amount * (item.commissionRate || 0.08))}
+          {formatCurrency(item.amount * (item.commissionRate ?? 0.08))}
         </td>
       )}
 
       {/* Commission Total */}
       {visibleColumns.has('commissionTotal') && (
         <td className="px-3 py-2 text-sm text-right text-purple-600 font-medium">
-          {formatCurrency(item.amount * (item.commissionRate || 0.08))}
+          {formatCurrency(item.amount * (item.commissionRate ?? 0.08))}
         </td>
       )}
 
@@ -362,14 +362,14 @@ export function LineItemsTableRow({
       {/* Commission % (overage view) */}
       {visibleColumns.has('commissionPercent') && viewMode === 'overage' && (
         <td className="px-3 py-2 text-sm text-right text-purple-600">
-          {`${((item.commissionRate || 0.08) * 100).toFixed(0)}%`}
+          {`${((item.commissionRate ?? 0.08) * 100).toFixed(0)}%`}
         </td>
       )}
 
       {/* Commission Amount */}
       {visibleColumns.has('commissionAmount') && (
         <td className="px-3 py-2 text-sm text-right text-purple-600">
-          {formatCurrency(item.amount * (item.commissionRate || 0.08))}
+          {formatCurrency(item.amount * (item.commissionRate ?? 0.08))}
         </td>
       )}
 
@@ -396,7 +396,7 @@ export function LineItemsTableRow({
       {visibleColumns.has('earnAmount') && (
         <td className="px-3 py-2 text-sm text-right text-green-600 font-medium">
           {formatCurrency(
-            item.amount * (item.commissionRate || 0.08) +
+            item.amount * (item.commissionRate ?? 0.08) +
               item.unitPrice * 0.15 * item.quantity * 0.85
           )}
         </td>

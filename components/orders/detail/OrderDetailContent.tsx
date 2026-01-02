@@ -6,7 +6,7 @@
 
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useOrderDetailState } from './hooks/useOrderDetailState';
 import { OrderDetailHeader } from './components/header';
@@ -29,10 +29,14 @@ import {
   CreditDetailModal,
   AdjustmentModal,
   AdjustmentDetailModal,
+  AcknowledgementModal,
+  AcknowledgementDetailModal,
   DeleteConfirmModal,
+  CreateInvoiceFromOrderModal,
 } from './components/modals';
 import { useCreditsState } from './hooks/useCreditsState';
 import { useAdjustmentsState } from './hooks/useAdjustmentsState';
+import { useAcknowledgementsState } from './hooks/useAcknowledgementsState';
 import { getLinkedInvoicesForLineItem, getLinkedChecksForInvoice, getLineShipStatus } from './utils';
 import { mockInvoices, mockChecks } from '@/lib/data/rms-mock';
 import { orderToasts } from '@/components/lib/toast';
@@ -50,6 +54,15 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
 
   // Adjustments state management
   const adjustmentsState = useAdjustmentsState();
+
+  // Acknowledgements state management
+  const acknowledgementsState = useAcknowledgementsState({
+    orderId: orderId !== 'new' ? orderId : null,
+    orderNumber: state?.order?.orderNumber || null,
+  });
+
+  // Create Invoice from Order modal state
+  const [showCreateInvoiceModal, setShowCreateInvoiceModal] = useState(false);
 
   // Loading state
   if (state?.isLoading) {
@@ -134,38 +147,38 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
 
       // Build inside reps array from insideRepSplits (supports multiple reps with split commission)
       // If split commission is enabled, use all reps from insideRepSplits; otherwise use primary insideRepId
-      let insideSplitRates: { userId: string; splitRate: string; position: number }[] | undefined;
+      let insideSplitRates: { userId: string; splitRate: number; position: number }[] | undefined;
       if (state.splitInsideCommission && state.insideRepSplits.length > 0) {
         // Use all inside reps from split modal
         insideSplitRates = state.insideRepSplits.map((rep, idx) => ({
           userId: rep.repId,
-          splitRate: String(rep.percentage),
+          splitRate: Number(rep.percentage),
           position: idx,
         }));
       } else if (state.orderInsideRep || order.insideRepId) {
         // Single inside rep
         insideSplitRates = [{
           userId: state.orderInsideRep || order.insideRepId || '',
-          splitRate: '100',
+          splitRate: 100,
           position: 0,
         }];
       }
 
       // Build outside reps array from outsideRepSplits (supports multiple reps with split commission)
       // If split commission is enabled, use all reps from outsideRepSplits; otherwise use primary outsideRepId
-      let outsideSplitRates: { userId: string; splitRate: string; position: number }[] | undefined;
+      let outsideSplitRates: { userId: string; splitRate: number; position: number }[] | undefined;
       if (state.splitOutsideCommission && state.outsideRepSplits.length > 0) {
         // Use all outside reps from split modal
         outsideSplitRates = state.outsideRepSplits.map((rep, idx) => ({
           userId: rep.repId,
-          splitRate: String(rep.percentage),
+          splitRate: Number(rep.percentage),
           position: idx,
         }));
       } else if (state.orderOutsideRep || (order as any).outsideRepId) {
         // Single outside rep
         outsideSplitRates = [{
           userId: state.orderOutsideRep || (order as any).outsideRepId || '',
-          splitRate: '100',
+          splitRate: 100,
           position: 0,
         }];
       }
@@ -186,7 +199,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           lineInsideSplitRates = (item as any).insideSplitRates.map((sr: any, idx: number) => ({
             ...(sr.id && isValidUUID(sr.id) ? { id: sr.id } : {}),
             userId: sr.userId || '',
-            splitRate: sr.splitRate || '100',
+            splitRate: Number(sr.splitRate) || 100,
             position: sr.position ?? idx,
           }));
         }
@@ -196,7 +209,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           lineOutsideSplitRates = (item as any).outsideSplitRates.map((sr: any, idx: number) => ({
             ...(sr.id && isValidUUID(sr.id) ? { id: sr.id } : {}),
             userId: sr.userId || '',
-            splitRate: sr.splitRate || '100',
+            splitRate: Number(sr.splitRate) || 100,
             position: sr.position ?? idx,
           }));
         }
@@ -210,6 +223,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           productDescriptionAdhoc: item.description || undefined,
           commissionRate: String((item.commissionRate || 0) * 100), // Convert decimal to percent for API
           divisionFactor: item.divisor ? String(item.divisor) : undefined,
+          uomId: item.uomId || undefined, // Send uomId, null becomes undefined
           // Include inside and outside rep splitRates on each line item
           insideSplitRates: lineInsideSplitRates,
           outsideSplitRates: lineOutsideSplitRates,
@@ -352,7 +366,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   };
 
   const handleAddAcknowledgement = () => {
-    state.openAcknowledgementModal();
+    acknowledgementsState.openCreateAcknowledgementModal();
   };
 
   const handleDeleteLines = () => {
@@ -416,6 +430,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         setActiveView={state.setActiveView}
         updateOrderStatus={state.updateOrderStatus}
         setShowQuoteLookupModal={state.setShowQuoteLookupModal}
+        onCreateInvoice={() => setShowCreateInvoiceModal(true)}
       />
 
       {/* Main Content Area with Tabs */}
@@ -535,7 +550,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         </div>
 
         {/* Tab Content */}
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto pb-32">
           {state.activeTab === 'line-items' && (
             <LineItemsTable
               order={order}
@@ -595,7 +610,17 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               onDeleteAdjustment={adjustmentsState.handleDeleteAdjustment}
             />
           )}
-          {state.activeTab === 'acknowledgements' && <AcknowledgementsTab onAddAcknowledgement={state.openAcknowledgementModal} />}
+          {state.activeTab === 'acknowledgements' && (
+            <AcknowledgementsTab
+              acknowledgements={acknowledgementsState.acknowledgements}
+              isLoading={acknowledgementsState.isLoadingAcknowledgements}
+              error={acknowledgementsState.acknowledgementsError}
+              onAddAcknowledgement={acknowledgementsState.openCreateAcknowledgementModal}
+              onViewAcknowledgement={acknowledgementsState.viewAcknowledgement}
+              onEditAcknowledgement={acknowledgementsState.openEditAcknowledgementModal}
+              onDeleteAcknowledgement={acknowledgementsState.handleDeleteAcknowledgement}
+            />
+          )}
           {state.activeTab === 'linked-objects' && <LinkedObjectsTab />}
           {state.activeTab === 'settings' && (
             <SettingsTab
@@ -800,6 +825,26 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         isDeleting={adjustmentsState.isDeletingAdjustment}
       />
 
+      {/* Acknowledgements Modals */}
+      <AcknowledgementModal
+        isOpen={acknowledgementsState.showAcknowledgementModal}
+        onClose={acknowledgementsState.closeAcknowledgementModal}
+        order={order}
+        acknowledgement={acknowledgementsState.acknowledgementToEdit}
+        onSubmit={acknowledgementsState.handleSaveAcknowledgement}
+        isLoading={acknowledgementsState.isSavingAcknowledgement}
+        isLoadingDetails={acknowledgementsState.isLoadingAcknowledgementDetails}
+      />
+
+      <AcknowledgementDetailModal
+        isOpen={acknowledgementsState.showAcknowledgementDetailModal}
+        onClose={acknowledgementsState.closeAcknowledgementDetailModal}
+        acknowledgement={acknowledgementsState.selectedAcknowledgement}
+        onEdit={acknowledgementsState.editAcknowledgementFromDetail}
+        onDelete={acknowledgementsState.deleteAcknowledgementFromDetail}
+        isDeleting={acknowledgementsState.isDeletingAcknowledgement}
+      />
+
       {/* Delete Confirmation Modal for Credits */}
       <DeleteConfirmModal
         isOpen={creditsState.showDeleteConfirmModal}
@@ -820,6 +865,31 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         isPending={adjustmentsState.isDeletingAdjustment}
         onConfirm={adjustmentsState.handleConfirmDelete}
         onCancel={adjustmentsState.closeDeleteConfirmModal}
+      />
+
+      {/* Delete Confirmation Modal for Acknowledgements */}
+      <DeleteConfirmModal
+        isOpen={acknowledgementsState.showDeleteConfirmModal}
+        title="Delete Acknowledgement?"
+        message="Are you sure you want to delete acknowledgement"
+        itemName={acknowledgementsState.acknowledgementToDelete?.orderAcknowledgementNumber || acknowledgementsState.acknowledgementToDelete?.id?.substring(0, 8)}
+        isPending={acknowledgementsState.isDeletingAcknowledgement}
+        onConfirm={acknowledgementsState.handleConfirmDelete}
+        onCancel={acknowledgementsState.closeDeleteConfirmModal}
+      />
+
+      {/* Create Invoice from Order Modal */}
+      <CreateInvoiceFromOrderModal
+        isOpen={showCreateInvoiceModal}
+        orderId={order.id}
+        orderNumber={order.orderNumber}
+        factoryId={order.manufacturerId}
+        factoryName={order.manufacturerName}
+        lineItems={order.lineItems || []}
+        onClose={() => setShowCreateInvoiceModal(false)}
+        onSuccess={(invoice) => {
+          orderToasts.invoiceCreatedFromOrder(invoice.invoiceNumber || invoice.id);
+        }}
       />
     </main>
   );

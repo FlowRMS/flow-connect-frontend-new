@@ -3,7 +3,7 @@
  * FlowCRM style with 6-step workflow
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { Takeoff, TakeoffDocument, ParsedItem, TakeoffStep, DocumentClassification, DocumentDiscipline } from '../types';
 import { ClassificationTab } from './ClassificationTab';
 import { ParsingTab } from './ParsingTab';
@@ -137,6 +137,8 @@ export function TakeoffDetailView({
   // AI Classification state
   const [isClassifying, setIsClassifying] = useState(false);
   const [classificationProgress, setClassificationProgress] = useState(0);
+  // Ref to prevent double-triggering of auto-classification (React StrictMode or race conditions)
+  const autoClassifyTriggeredRef = useRef(false);
 
   // Run AI classification on all documents
   const runAutoClassification = useCallback(async (isAutoTriggered = false) => {
@@ -238,10 +240,23 @@ export function TakeoffDetailView({
   // Auto-run classification when shouldAutoClassify is true
   useEffect(() => {
     if (shouldAutoClassify && documents.length > 0 && !isClassifying && currentStep === 'classification') {
+      // Prevent double-triggering due to React StrictMode or race conditions
+      if (autoClassifyTriggeredRef.current) {
+        console.log('[Classification] Auto-classification already triggered, skipping...');
+        return;
+      }
+      autoClassifyTriggeredRef.current = true;
       console.log('[Classification] Auto-starting classification...');
       runAutoClassification(true); // true = auto-triggered, don't show alerts
     }
   }, [shouldAutoClassify, documents.length, isClassifying, currentStep, runAutoClassification]);
+
+  // Reset the auto-classify ref when shouldAutoClassify becomes false
+  useEffect(() => {
+    if (!shouldAutoClassify) {
+      autoClassifyTriggeredRef.current = false;
+    }
+  }, [shouldAutoClassify]);
 
   // Navigation helpers
   const canGoBack = currentStepIndex > 0;

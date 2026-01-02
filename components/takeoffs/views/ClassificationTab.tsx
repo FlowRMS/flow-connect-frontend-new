@@ -326,7 +326,7 @@ export function ClassificationTab({
                         return (
                           <button
                             onClick={() => onViewReport(doc)}
-                            className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                            className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap"
                           >
                             View Report
                           </button>

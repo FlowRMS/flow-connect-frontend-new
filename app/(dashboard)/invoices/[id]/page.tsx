@@ -1,6 +1,7 @@
 'use client';
 
 import { use, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import InvoiceDetailContent from '@/components/invoices/detail/InvoiceDetailContent';
 
 export default function InvoiceDetailPage({
@@ -9,6 +10,10 @@ export default function InvoiceDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const resolvedParams = use(params);
+  const searchParams = useSearchParams();
+
+  // Get orderId from query params (used when creating new invoice from order)
+  const orderId = searchParams.get('orderId') || undefined;
 
   return (
     <Suspense
@@ -18,7 +23,7 @@ export default function InvoiceDetailPage({
         </div>
       }
     >
-      <InvoiceDetailContent invoiceId={resolvedParams.id} />
+      <InvoiceDetailContent invoiceId={resolvedParams.id} initialOrderId={orderId} />
     </Suspense>
   );
 }
