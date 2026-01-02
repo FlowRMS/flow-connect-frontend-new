@@ -13,9 +13,12 @@ import {
   createKnownProductCross,
   updateKnownProductCross,
   deleteKnownProductCross,
+  bulkCreateKnownProductCrosses,
   type KnownProductCross,
   type KnownProductCrossFilters,
+  type BulkKnownProductCrossInput,
 } from '../lib/graphql/product-crosses';
+import * as XLSX from 'xlsx';
 
 // Types
 interface ProductCross {
@@ -62,8 +65,11 @@ export function ProductCrossesContent() {
   const [deletingCross, setDeletingCross] = useState<ProductCross | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Debounced search
@@ -203,6 +209,75 @@ export function ProductCrossesContent() {
     }
   };
 
+  // Handle file selection for upload
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setUploadedFile(e.target.files[0]);
+    }
+  };
+
+  // Handle file upload and parsing
+  const handleUpload = async () => {
+    if (!uploadedFile) return;
+
+    setIsUploading(true);
+    try {
+      const data = await uploadedFile.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json<Record<string, string>>(worksheet);
+
+      // Map Excel columns to our format
+      const crossesToCreate: BulkKnownProductCrossInput[] = jsonData.map((row) => ({
+        competitorManufacturer: row['Competitor Manufacturer'] || row['competitor_manufacturer'] || '',
+        competitorPartNumber: row['Competitor Part Number'] || row['Competitor Part #'] || row['competitor_part_number'] || '',
+        competitorDescription: row['Competitor Description'] || row['competitor_description'] || null,
+        ourManufacturer: row['Our Manufacturer'] || row['our_manufacturer'] || '',
+        ourPartNumber: row['Our Part Number'] || row['Our Part #'] || row['our_part_number'] || '',
+        ourDescription: row['Our Description'] || row['our_description'] || null,
+        timesUsed: 0,
+      })).filter(cross => cross.competitorManufacturer && cross.competitorPartNumber && cross.ourManufacturer && cross.ourPartNumber);
+
+      if (crossesToCreate.length === 0) {
+        throw new Error('No valid product crosses found in the file. Please check the column headers.');
+      }
+
+      // Create crosses in bulk
+      await bulkCreateKnownProductCrosses(crossesToCreate);
+
+      // Reload data
+      await loadData();
+
+      // Close modal and reset
+      setIsUploadModalOpen(false);
+      setUploadedFile(null);
+    } catch (err) {
+      console.error('Failed to upload product crosses:', err);
+      setError(err instanceof Error ? err.message : 'Failed to upload product crosses');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Download template
+  const handleDownloadTemplate = () => {
+    const templateData = [
+      {
+        'Competitor Manufacturer': 'Example Competitor',
+        'Competitor Part #': 'COMP-12345',
+        'Competitor Description': 'Example competitor product description',
+        'Our Manufacturer': 'Our Company',
+        'Our Part #': 'OUR-98765',
+        'Our Description': 'Our equivalent product description',
+      },
+    ];
+    const worksheet = XLSX.utils.json_to_sheet(templateData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Product Crosses');
+    XLSX.writeFile(workbook, 'product_crosses_template.xlsx');
+  };
+
   // Server-side search is applied via API, so we just use crosses directly
   const filteredCrosses = crosses;
 
@@ -235,7 +310,10 @@ export function ProductCrossesContent() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <button className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+          <button
+            onClick={handleDownloadTemplate}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
               <polyline points="7 10 12 15 17 10"/>
@@ -243,7 +321,10 @@ export function ProductCrossesContent() {
             </svg>
             Download Template
           </button>
-          <button className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 transition-colors">
+          <button
+            onClick={() => setIsUploadModalOpen(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 transition-colors"
+          >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
               <polyline points="17 8 12 3 7 8"/>
@@ -642,6 +723,118 @@ export function ProductCrossesContent() {
                   </svg>
                 )}
                 {isSaving ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Modal */}
+      {isUploadModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">Upload Product Crosses</h2>
+              <button
+                onClick={() => {
+                  setIsUploadModalOpen(false);
+                  setUploadedFile(null);
+                }}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6">
+              <p className="text-sm text-gray-600 mb-4">
+                Upload an Excel or CSV file containing your product crosses. The file should include columns for:
+                Competitor Manufacturer, Competitor Part #, Competitor Description, Our Manufacturer, Our Part #, and Our Description.
+              </p>
+
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-orange-400 transition-colors">
+                <svg
+                  className="mx-auto h-12 w-12 text-gray-400"
+                  stroke="currentColor"
+                  fill="none"
+                  viewBox="0 0 48 48"
+                >
+                  <path
+                    d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                <div className="mt-4">
+                  <label htmlFor="file-upload" className="cursor-pointer">
+                    <span className="text-orange-500 hover:text-orange-600 font-medium">
+                      Choose file
+                    </span>
+                    <span className="text-gray-500"> or drag and drop</span>
+                    <input
+                      id="file-upload"
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      onChange={handleFileSelect}
+                      className="sr-only"
+                    />
+                  </label>
+                </div>
+                <p className="text-xs text-gray-400 mt-2">
+                  Excel (.xlsx, .xls) or CSV files only
+                </p>
+              </div>
+
+              {uploadedFile && (
+                <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-600">
+                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                      <polyline points="14 2 14 8 20 8" />
+                    </svg>
+                    <span className="text-sm text-gray-900">{uploadedFile.name}</span>
+                    <span className="text-xs text-gray-500">
+                      ({(uploadedFile.size / 1024).toFixed(1)} KB)
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setUploadedFile(null)}
+                    className="p-1 hover:bg-gray-200 rounded"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                    </svg>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setIsUploadModalOpen(false);
+                  setUploadedFile(null);
+                }}
+                disabled={isUploading}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpload}
+                disabled={!uploadedFile || isUploading}
+                className="px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              >
+                {isUploading && (
+                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                )}
+                {isUploading ? 'Uploading...' : 'Upload'}
               </button>
             </div>
           </div>
