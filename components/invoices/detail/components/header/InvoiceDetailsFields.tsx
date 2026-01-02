@@ -26,7 +26,6 @@ import {
   useJobSearch,
 } from '@/components/orders/api';
 import { useOrderSearch } from '@/components/orders/api';
-import { useInvoiceSearch } from '../../../api';
 
 interface InvoiceDetailsFieldsProps {
   invoice: EditableInvoice;
@@ -49,9 +48,8 @@ interface InvoiceDetailsFieldsProps {
   insideRepSplits: RepSplit[];
   setInsideRepSplits: (splits: RepSplit[]) => void;
   openInsideRepModal: () => void;
-  // New props for order/invoice selection
+  // New props for order selection
   onOrderSelect?: (orderId: string, orderNumber: string) => void;
-  onInvoiceSelect?: (invoiceId: string, invoiceNumber: string) => void;
   onUpdateInvoice?: (updates: Partial<EditableInvoice>) => void;
   isCreateMode?: boolean;
   isPaid?: boolean; // When true, all fields are read-only (PAID status)
@@ -83,7 +81,6 @@ export function InvoiceDetailsFields({
   setInsideRepSplits,
   openInsideRepModal,
   onOrderSelect,
-  onInvoiceSelect,
   onUpdateInvoice,
   isCreateMode = false,
   isPaid = false,
@@ -101,8 +98,6 @@ export function InvoiceDetailsFields({
   // Search states
   const [orderSearchTerm, setOrderSearchTerm] = useState('');
   const [orderSearchEnabled, setOrderSearchEnabled] = useState(false);
-  const [invoiceSearchTerm, setInvoiceSearchTerm] = useState('');
-  const [invoiceSearchEnabled, setInvoiceSearchEnabled] = useState(false);
   const [soldToSearchTerm, setSoldToSearchTerm] = useState('');
   const [soldToSearchEnabled, setSoldToSearchEnabled] = useState(false);
   const [billToSearchTerm, setBillToSearchTerm] = useState('');
@@ -120,7 +115,6 @@ export function InvoiceDetailsFields({
 
   // Search hooks
   const { data: orderResults, isLoading: isOrderSearchLoading } = useOrderSearch(orderSearchTerm, 20);
-  const { data: invoiceResults, isLoading: isInvoiceSearchLoading } = useInvoiceSearch(invoiceSearchTerm, invoiceSearchEnabled);
   const { data: soldToCustomers, isLoading: isSoldToLoading } = useCustomerSearch(soldToSearchTerm, soldToSearchEnabled);
   const { data: billToCustomers, isLoading: isBillToLoading } = useCustomerSearch(billToSearchTerm, billToSearchEnabled);
   const { data: endUserCustomers, isLoading: isEndUserLoading } = useCustomerSearch(endUserSearchTerm, endUserSearchEnabled);
@@ -137,14 +131,6 @@ export function InvoiceDetailsFields({
       sublabel: o.entityDate ? `Date: ${formatDate(o.entityDate)}` : undefined,
     }));
   }, [orderResults]);
-
-  const invoiceOptions = useMemo(() => {
-    return (invoiceResults || []).map((inv: any) => ({
-      id: inv.id,
-      label: inv.invoiceNumber,
-      sublabel: inv.entityDate ? `Date: ${formatDate(inv.entityDate)}` : undefined,
-    }));
-  }, [invoiceResults]);
 
   const soldToOptions = useMemo(() => {
     return (soldToCustomers || []).map(c => ({
@@ -213,32 +199,33 @@ export function InvoiceDetailsFields({
     <div className="border-b border-[var(--border)] bg-blue-50/30 flex-shrink-0">
       <button
         onClick={toggleHeaderFields}
-        className="w-full flex items-center justify-between px-6 py-2 hover:bg-blue-100/30 transition-colors"
+        className="w-full flex items-center justify-between px-6 py-3 hover:bg-blue-100/50 transition-colors group"
       >
         <span className="text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wide">
           {showHeaderFields ? 'Invoice Details' : 'Show Invoice Details'}
         </span>
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 20 20"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          className={`text-[var(--muted-foreground)] transition-transform ${
-            showHeaderFields ? '' : 'rotate-180'
-          }`}
-        >
-          <path
-            d="M6 12l4-4 4 4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors ${showHeaderFields ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600 group-hover:bg-blue-100 group-hover:text-blue-700'}`}>
+          <span className="text-xs font-medium">{showHeaderFields ? 'Collapse' : 'Expand'}</span>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            className={`transition-transform ${showHeaderFields ? '' : 'rotate-180'}`}
+          >
+            <path
+              d="M6 12l4-4 4 4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </div>
       </button>
       {showHeaderFields && (
         <div className="px-6 pb-4">
-          {/* Row 0: Order and Invoice Pre-populate Dropdowns */}
+          {/* Row 0: Order Pre-populate Dropdown */}
           <div className="grid grid-cols-6 gap-4 mb-4 p-4 bg-indigo-50/50 rounded-lg border border-indigo-100">
             <div className="col-span-2">
               <label className="block text-xs font-medium text-indigo-700 mb-1">
@@ -266,33 +253,7 @@ export function InvoiceDetailsFields({
               </p>
             </div>
 
-            <div className="col-span-2">
-              <label className="block text-xs font-medium text-indigo-700 mb-1">
-                Pre-populate from Invoice
-              </label>
-              <SearchableDropdownV2
-                value=""
-                displayValue=""
-                onChange={(id, label) => {
-                  if (onInvoiceSelect) {
-                    onInvoiceSelect(id, label);
-                  }
-                  setInvoiceSearchEnabled(false);
-                }}
-                options={invoiceOptions}
-                placeholder="Search existing invoice..."
-                isLoading={isInvoiceSearchLoading}
-                onSearch={(query) => {
-                  setInvoiceSearchTerm(query);
-                  setInvoiceSearchEnabled(true);
-                }}
-              />
-              <p className="text-xs text-indigo-600 mt-1">
-                Copy details from existing invoice
-              </p>
-            </div>
-
-            <div className="col-span-2 flex items-end">
+            <div className="col-span-4 flex items-end justify-end">
               {isConnectedToOrder && (
                 <div className="bg-green-100 text-green-800 text-xs px-3 py-2 rounded-lg flex items-center gap-2">
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">

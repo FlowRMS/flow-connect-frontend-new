@@ -223,6 +223,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           productDescriptionAdhoc: item.description || undefined,
           commissionRate: String((item.commissionRate || 0) * 100), // Convert decimal to percent for API
           divisionFactor: item.divisor ? String(item.divisor) : undefined,
+          uomId: item.uomId || undefined, // Send uomId, null becomes undefined
           // Include inside and outside rep splitRates on each line item
           insideSplitRates: lineInsideSplitRates,
           outsideSplitRates: lineOutsideSplitRates,
@@ -549,7 +550,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         </div>
 
         {/* Tab Content */}
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto pb-32">
           {state.activeTab === 'line-items' && (
             <LineItemsTable
               order={order}
