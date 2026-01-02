@@ -32,11 +32,12 @@ export default async function DashboardLayout({
     redirect("/sign-in");
   }
 
-  // Check if user belongs to "admin" org and redirect to admin dashboard
+  // Check if user belongs to "admin" org - sign out of CRM and redirect to admin portal
+  // This ensures CRM session is cleared so future logins get fresh redirect_uri
   if (accessToken) {
     const payload = decodeJwtPayload(accessToken);
     if (payload?.org_name === "admin") {
-      redirect("https://admin.flowrms.com/dashboard");
+      redirect("/api/auth/admin-redirect");
     }
   }
 
