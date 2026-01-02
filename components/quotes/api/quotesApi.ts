@@ -205,7 +205,7 @@ export interface QuoteLandingPage {
 export interface QuoteSplitRateInput {
   id?: string;
   userId: string;
-  splitRate: string;
+  splitRate: number;
   position?: number;
 }
 
@@ -546,6 +546,12 @@ const CREATE_QUOTE = `
         total
         totalLineCommission
         unitPrice
+        uom {
+          description
+          divisionFactor
+          id
+          title
+        }
       }
       duplicatedFrom
       entityDate
@@ -669,6 +675,12 @@ const UPDATE_QUOTE = `
         total
         totalLineCommission
         unitPrice
+        uom {
+          description
+          divisionFactor
+          id
+          title
+        }
       }
       duplicatedFrom
       entityDate

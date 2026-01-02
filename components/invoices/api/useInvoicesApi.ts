@@ -11,12 +11,14 @@ import {
   createInvoice,
   updateInvoice,
   deleteInvoice,
+  createInvoiceFromOrder,
   type Invoice,
   type InvoiceLandingPage,
   type InvoiceLandingPageFilter,
   type InvoiceLandingPageOrderBy,
   type CreateInvoiceInput,
   type UpdateInvoiceInput,
+  type CreateInvoiceFromOrderInput,
   type PaginatedInvoicesResult,
   type InvoiceSearchOptions,
 } from './invoicesApi';
@@ -137,6 +139,24 @@ export function useDeleteInvoice() {
       queryClient.removeQueries({ queryKey: invoiceQueryKeys.invoice(id) });
       // Invalidate invoice lists to refetch
       queryClient.invalidateQueries({ queryKey: invoiceQueryKeys.invoices() });
+    },
+  });
+}
+
+/**
+ * Hook to create an invoice from an order
+ */
+export function useCreateInvoiceFromOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: CreateInvoiceFromOrderInput) => createInvoiceFromOrder(input),
+    onSuccess: () => {
+      // Invalidate invoice lists to refetch
+      queryClient.invalidateQueries({ queryKey: invoiceQueryKeys.invoices() });
+      queryClient.invalidateQueries({ queryKey: invoiceQueryKeys.all });
+      // Also invalidate orders since the order may have been updated
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
     },
   });
 }

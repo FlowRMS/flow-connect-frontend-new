@@ -198,7 +198,7 @@ export function LineItemsTable({
       unitPrice: unitPrice,
       quantity: quantity,
       divisor: divisor,
-      uom: product.defaultUom?.title || item.uom || 'EA',
+      uom: product.defaultUom?.title || item.uom || '',
       uomId: product.defaultUom?.id || item.uomId || '',
       // Commission
       commissionRate: commissionRate,
@@ -336,7 +336,7 @@ export function LineItemsTable({
         displayValue = item.description || '—';
         break;
       case 'uom':
-        displayValue = item.uom || 'EA';
+        displayValue = item.uom || '—';
         break;
       case 'divisor':
         displayValue = String(item.divisor || 1);

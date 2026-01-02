@@ -523,8 +523,8 @@ export function transformQuoteDetailToLineItemV2(detail: QuoteDetail, quoteId: s
 
     // Quantity
     quantity,
-    uom: detail.uom?.title || 'EA',
-    uomId: detail.uom?.id,
+    uom: detail.uom?.title || '',
+    uomId: detail.uom?.id || '',
     divisor,
 
     // Pricing
@@ -623,7 +623,7 @@ export function transformLineItemV2ToDetailInput(
   const insideSplitRates = insideRepsSource?.map((rep) => ({
     ...(rep.id && isValidUUID(rep.id) ? { id: rep.id } : {}),
     userId: rep.userId || '',
-    splitRate: rep.splitRate || '100',
+    splitRate: Number(rep.splitRate) || 100,
     position: rep.position,
   }));
 
@@ -632,7 +632,7 @@ export function transformLineItemV2ToDetailInput(
   const outsideSplitRates = outsideRepsSource?.map((rep) => ({
     ...(rep.id && isValidUUID(rep.id) ? { id: rep.id } : {}),
     userId: rep.userId || '',
-    splitRate: rep.splitRate || '100',
+    splitRate: Number(rep.splitRate) || 100,
     position: rep.position,
   }));
 
