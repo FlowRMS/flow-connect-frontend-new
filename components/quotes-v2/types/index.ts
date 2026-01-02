@@ -390,7 +390,7 @@ export function transformLandingPageToQuoteV2(quote: QuoteLandingPage): QuoteV2 
     quoteAmount: Number(quote.total) || 0,
     basePrice: Number(quote.total) || 0,
     sellPrice: Number(quote.total) || 0,
-    commission: 0,
+    commission: Number(quote.commission) || 0,
 
     // Win tracking - Coming soon
     winProbability: 0,
@@ -523,8 +523,8 @@ export function transformQuoteDetailToLineItemV2(detail: QuoteDetail, quoteId: s
 
     // Quantity
     quantity,
-    uom: detail.uom?.title || 'EA',
-    uomId: detail.uom?.id,
+    uom: detail.uom?.title || '',
+    uomId: detail.uom?.id || '',
     divisor,
 
     // Pricing
@@ -604,8 +604,8 @@ export function transformLineItemV2ToDetailInput(
   productId?: string;
   status?: QuoteDetailStatus;
   uomId?: string;
-  insideSplitRates?: { id?: string; userId: string; splitRate: string; position?: number }[];
-  outsideSplitRates?: { id?: string; userId: string; splitRate: string; position?: number }[];
+  insideSplitRates?: { id?: string; userId: string; splitRate: number; position?: number }[];
+  outsideSplitRates?: { id?: string; userId: string; splitRate: number; position?: number }[];
 } {
   // Only include ID if it's a valid UUID (existing item from API)
   // New items with IDs like "li-123456" should not send ID
@@ -623,7 +623,7 @@ export function transformLineItemV2ToDetailInput(
   const insideSplitRates = insideRepsSource?.map((rep) => ({
     ...(rep.id && isValidUUID(rep.id) ? { id: rep.id } : {}),
     userId: rep.userId || '',
-    splitRate: rep.splitRate || '100',
+    splitRate: Number(rep.splitRate) || 100,
     position: rep.position,
   }));
 
@@ -632,7 +632,7 @@ export function transformLineItemV2ToDetailInput(
   const outsideSplitRates = outsideRepsSource?.map((rep) => ({
     ...(rep.id && isValidUUID(rep.id) ? { id: rep.id } : {}),
     userId: rep.userId || '',
-    splitRate: rep.splitRate || '100',
+    splitRate: Number(rep.splitRate) || 100,
     position: rep.position,
   }));
 

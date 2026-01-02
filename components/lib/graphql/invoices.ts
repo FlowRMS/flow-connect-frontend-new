@@ -201,7 +201,7 @@ export interface InvoiceLandingPage {
 export interface InvoiceSplitRateInput {
   id?: string;
   userId: string;
-  splitRate: string;
+  splitRate: number;
   position?: number;
 }
 
@@ -822,6 +822,168 @@ const DELETE_INVOICE = `
   }
 `;
 
+const CREATE_INVOICE_FROM_ORDER = `
+  mutation CreateInvoiceFromOrder(
+    $factoryId: UUID!
+    $invoiceNumber: String!
+    $orderId: UUID!
+    $dueDate: Date!
+    $orderDetailIds: [UUID!]
+  ) {
+    createInvoiceFromOrder(
+      factoryId: $factoryId
+      invoiceNumber: $invoiceNumber
+      orderId: $orderId
+      dueDate: $dueDate
+      orderDetailIds: $orderDetailIds
+    ) {
+      id
+      invoiceNumber
+      entityDate
+      dueDate
+      status
+      orderId
+      locked
+      published
+      url
+      balance {
+        commission
+        commissionDiscount
+        commissionDiscountRate
+        commissionRate
+        discount
+        discountRate
+        paidBalance
+        quantity
+        id
+        subtotal
+        total
+      }
+      balanceId
+      createdAt
+      createdBy {
+        authProviderId
+        email
+        enabled
+        firstName
+        fullName
+        id
+        inside
+        lastName
+        outside
+        role
+        username
+      }
+      createdById
+      creationType
+      details {
+        commission
+        commissionDiscount
+        commissionDiscountRate
+        commissionRate
+        discount
+        discountRate
+        divisionFactor
+        endUserId
+        id
+        invoiceId
+        invoicedBalance
+        itemNumber
+        leadTime
+        note
+        orderDetailId
+        outsideSplitRates {
+          id
+          invoiceDetailId
+          position
+          splitRate
+          userId
+        }
+        product {
+          approvalComments
+          upc
+          unitPriceDiscountRate
+          unitPrice
+          tags
+          published
+          minOrderQty
+          leadTime
+          id
+          factoryPartNumber
+          description
+          defaultDivisor
+          defaultCommissionRate
+          commissionDiscountRate
+          approvalNeeded
+          approvalDate
+        }
+        uom {
+          title
+          id
+          divisionFactor
+          description
+        }
+        uomId
+        unitPrice
+        totalLineCommission
+        total
+        subtotal
+        status
+        quantity
+        productNameAdhoc
+        productId
+        productDescriptionAdhoc
+      }
+      order {
+        url
+        status
+        soldToCustomerId
+        shipDate
+        shippingTerms
+        quoteId
+        published
+        projectedShipDate
+        outsidePerLineItem
+        orderType
+        orderNumber
+        markNumber
+        insidePerLineItem
+        id
+        headerStatus
+        freightTerms
+        factoryId
+        factSoNumber
+        entityDate
+        endUserPerLineItem
+        dueDate
+        creationType
+        createdById
+        createdAt
+        billToCustomerId
+        balanceId
+      }
+      factory {
+        title
+        published
+        phone
+        paymentTerms
+        overallDiscountRate
+        logoId
+        leadTime
+        id
+        freightTerms
+        freightDiscountType
+        externalPaymentTerms
+        email
+        commissionDiscountRate
+        baseCommissionRate
+        additionalInformation
+        accountNumber
+      }
+    }
+  }
+`;
+
 // ============================================================================
 // API Functions - Invoices
 // ============================================================================
@@ -959,4 +1121,47 @@ export async function deleteInvoice(id: string): Promise<boolean> {
   }
 
   return true;
+}
+
+// ============================================================================
+// Create Invoice from Order
+// ============================================================================
+
+export interface CreateInvoiceFromOrderInput {
+  factoryId: string;
+  invoiceNumber: string;
+  orderId: string;
+  dueDate: string;
+  orderDetailIds?: string[];
+}
+
+/**
+ * Create an invoice from an order
+ */
+export async function createInvoiceFromOrder(input: CreateInvoiceFromOrderInput): Promise<Invoice> {
+  // Pass array of IDs directly (backend expects [UUID!])
+  const orderDetailIds = input.orderDetailIds?.length
+    ? input.orderDetailIds
+    : undefined;
+
+  const response = await crmGraphQLRequest<{ createInvoiceFromOrder: Invoice }>({
+    query: CREATE_INVOICE_FROM_ORDER,
+    variables: {
+      factoryId: input.factoryId,
+      invoiceNumber: input.invoiceNumber,
+      orderId: input.orderId,
+      dueDate: input.dueDate,
+      orderDetailIds,
+    },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to create invoice from order');
+  }
+
+  if (!response.data?.createInvoiceFromOrder) {
+    throw new Error('No invoice returned from createInvoiceFromOrder mutation');
+  }
+
+  return response.data.createInvoiceFromOrder;
 }

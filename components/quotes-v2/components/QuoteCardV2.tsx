@@ -92,17 +92,24 @@ export const QuoteCardV2 = React.memo(function QuoteCardV2({
         </span>
       </div>
 
-      {/* Value */}
-      <div className="flex items-center justify-between">
+      {/* Value and Commission */}
+      <div className="flex items-center justify-between mb-1">
         <span className="text-sm font-semibold text-gray-900">
           ${Number(quote.quoteAmount || 0).toLocaleString()}
         </span>
-        {quote.quoteDate && (
+        <span className="text-xs font-medium text-green-600">
+          ${Number(quote.commission || 0).toLocaleString()} comm
+        </span>
+      </div>
+
+      {/* Date */}
+      {quote.quoteDate && (
+        <div className="text-right">
           <span className="text-xs text-gray-400">
             {new Date(quote.quoteDate).toLocaleDateString()}
           </span>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 });

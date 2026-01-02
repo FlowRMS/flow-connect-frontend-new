@@ -138,10 +138,25 @@ import {
   // Search result types
   type TaskSearchResult,
   type NoteSearchResult,
-  type QuoteSearchResult,
-  type OrderSearchResult,
-  type InvoiceSearchResult,
-  type CheckSearchResult,
+} from '../lib/crm-graphql';
+
+// Import search result types from central search API
+import type {
+  QuoteSearchResult,
+  OrderSearchResult,
+  InvoiceSearchResult,
+  CheckSearchResult,
+} from '../lib/api/search';
+
+// Re-export job related entity types for consumers
+export type {
+  JobRelatedQuote,
+  JobRelatedOrder,
+  JobRelatedInvoice,
+  JobRelatedCheck,
+  JobRelatedCustomer,
+  JobRelatedFactory,
+  JobRelatedProduct,
 } from '../lib/crm-graphql';
 
 // ============================================================================

@@ -9,7 +9,6 @@ import React, { useMemo, useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation';
 import AdvancedFilters, { ActiveFilter, ActiveSort } from './AdvancedFilters';
 import SortButton from './SortButton';
-import CreateCompanyModal from './CreateCompanyModal';
 import { useCRMCompanyLandingPagesInfinite, useDeleteCRMCompany, useUpdateCRMCompany, useCRMCompany } from './hooks/useCRMApi';
 
 import { companyToasts } from './lib/toast';
@@ -117,8 +116,6 @@ export default function CompaniesContent() {
     setIsEditing,
     editFormData,
     setEditFormData,
-    showCreateModal,
-    setShowCreateModal,
     deleteConfirmId,
     setDeleteConfirmId,
     activeFilters,
@@ -465,7 +462,7 @@ export default function CompaniesContent() {
             />
 
             <button
-              onClick={() => setShowCreateModal(true)}
+              onClick={() => router.push('/companies/new')}
               className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-xs sm:text-sm hover:bg-[var(--primary-hover)] transition-colors"
             >
               <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-4 sm:h-4">
@@ -478,13 +475,6 @@ export default function CompaniesContent() {
           </div>
         </div>
       </div>
-
-      {/* Create Company Modal */}
-      <CreateCompanyModal
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        onSuccess={() => refetch()}
-      />
 
       {/* Empty State */}
       {filteredCompanies.length === 0 && !isLoading ? (
@@ -499,7 +489,7 @@ export default function CompaniesContent() {
             Start by adding your first company. Companies you create will appear here.
           </p>
           <button
-            onClick={() => setShowCreateModal(true)}
+            onClick={() => router.push('/companies/new')}
             className="inline-flex items-center gap-2 px-6 py-3 bg-[var(--primary)] text-white font-medium rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">

@@ -38,6 +38,7 @@ interface HeaderTopBarProps {
   setShowQuoteLookupModal: (show: boolean) => void;
   handleMakeWarehouseOrder: () => void;
   handleGenerateFulfillmentRequest: () => void;
+  onCreateInvoice?: () => void;
 }
 
 const getStatusColor = (status: Order['status']) => {
@@ -78,6 +79,7 @@ export function HeaderTopBar({
   setShowQuoteLookupModal,
   handleMakeWarehouseOrder,
   handleGenerateFulfillmentRequest,
+  onCreateInvoice,
 }: HeaderTopBarProps) {
   const router = useRouter();
 
@@ -118,10 +120,11 @@ export function HeaderTopBar({
               <div className="absolute top-full left-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
                 <button
                   onClick={() => {
-                    router.push(`/invoices?order=${order.id}`);
                     setShowActionsDropdown(false);
+                    onCreateInvoice?.();
                   }}
-                  className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-t-lg flex items-center gap-2"
+                  disabled={isCreateMode || !order.id}
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-t-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" strokeLinecap="round" strokeLinejoin="round"/>

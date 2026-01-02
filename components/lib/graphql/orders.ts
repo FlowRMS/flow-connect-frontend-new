@@ -216,7 +216,7 @@ export interface OrderLandingPage {
 export interface OrderSplitRateInput {
   id?: string;
   userId: string;
-  splitRate: string;
+  splitRate: number;
   position?: number;
 }
 

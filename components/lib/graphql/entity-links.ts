@@ -15,8 +15,6 @@ import type {
   ContactRelatedEntities,
   NoteLink,
   Company,
-  Contact,
-  PreOpportunity,
 } from './types';
 
 // Re-export types
@@ -28,7 +26,24 @@ export type {
   JobRelatedEntities,
   ContactRelatedEntities,
   NoteLink,
-};
+} from './types';
+
+// Re-export extended job related entity types
+export type {
+  JobRelatedQuote,
+  JobRelatedOrder,
+  JobRelatedInvoice,
+  JobRelatedCheck,
+  JobRelatedCustomer,
+  JobRelatedFactory,
+  JobRelatedProduct,
+  BalanceLite,
+  CustomerLite,
+  FactoryLite,
+  UserLite,
+  OrderQuoteDetail,
+  CheckDetail,
+} from './types';
 
 // Re-export search functions and types from central search API
 export {
@@ -40,10 +55,6 @@ export {
   searchChecks,
   type TaskSearchResult,
   type NoteSearchResult,
-  type QuoteSearchResult,
-  type OrderSearchResult,
-  type InvoiceSearchResult,
-  type CheckSearchResult,
 } from '../api/search';
 
 // ============================================================================
@@ -100,27 +111,101 @@ const GET_JOB_RELATED_ENTITIES = `
     jobRelatedEntities(jobId: $jobId) {
       checks {
         checkNumber
-        commission
         commissionMonth
-        createdBy
+        createdAt
+        createdById
         creationType
+        details {
+          adjustment {
+            amount
+            adjustmentNumber
+            createdAt
+            createdById
+            creationType
+            customer {
+              companyName
+              id
+              isParent
+              parentId
+              published
+            }
+            entityDate
+            factory {
+              accountNumber
+              id
+              title
+            }
+            factoryId
+            id
+            locked
+            reason
+            status
+          }
+          adjustmentId
+          appliedAmount
+          checkId
+          credit {
+            balanceId
+            createdAt
+            createdById
+            creationType
+            creditType
+            creditNumber
+            entityDate
+            locked
+            id
+            orderId
+            reason
+            status
+            url
+          }
+          creditId
+          id
+          invoice {
+            balanceId
+            createdAt
+            createdById
+            creationType
+            dueDate
+            entityDate
+            id
+            invoiceNumber
+            locked
+            orderId
+            published
+            status
+            url
+          }
+          invoiceId
+        }
+        enteredCommissionAmount
         entityDate
-        entryDate
+        factory {
+          accountNumber
+          id
+          title
+        }
         factoryId
         id
         postDate
         status
-        userOwnerIds
+        url
       }
       companies {
         companySourceType
         createdAt
         createdBy {
           email
+          authProviderId
+          enabled
           firstName
           fullName
           id
+          inside
           lastName
+          outside
+          role
+          username
         }
         id
         name
@@ -130,48 +215,236 @@ const GET_JOB_RELATED_ENTITIES = `
         website
       }
       contacts {
-        territory
-        tags
-        role
-        phone
-        notes
-        lastName
-        id
-        firstName
-        email
         createdAt
+        email
+        firstName
+        id
+        lastName
+        notes
+        phone
+        role
+        tags
+        territory
+      }
+      customers {
+        companyName
+        createdBy {
+          authProviderId
+          email
+          enabled
+          firstName
+          fullName
+          id
+          inside
+          lastName
+          outside
+          username
+          role
+        }
+        id
+        insideReps {
+          customerId
+          id
+          repType
+          position
+          splitRate
+          user {
+            email
+            firstName
+            fullName
+            id
+            lastName
+          }
+        }
+        isParent
+        outsideReps {
+          customerId
+          id
+          position
+          repType
+          splitRate
+          user {
+            email
+            firstName
+            fullName
+            id
+            lastName
+          }
+        }
+        parentId
+        published
       }
       invoices {
         balanceId
-        createdBy
+        createdAt
+        createdById
         creationType
         dueDate
         entityDate
-        factoryId
-        entryDate
         id
         invoiceNumber
         locked
         orderId
         published
         status
-        userOwnerIds
+        url
+      }
+      factories {
+        accountNumber
+        additionalInformation
+        baseCommissionRate
+        commissionDiscountRate
+        createdBy {
+          email
+          firstName
+          fullName
+          id
+          lastName
+        }
+        email
+        externalPaymentTerms
+        freightDiscountType
+        freightTerms
+        id
+        leadTime
+        logoId
+        overallDiscountRate
+        paymentTerms
+        phone
+        published
+        splitRates {
+          factoryId
+          id
+          position
+          splitRate
+          user {
+            email
+            firstName
+            fullName
+            id
+            lastName
+          }
+        }
+        title
       }
       orders {
         balanceId
+        balance {
+          cancelledBalance
+          commission
+          commissionDiscount
+          commissionDiscountRate
+          commissionRate
+          discountRate
+          discount
+          freightChargeBalance
+          id
+          quantity
+          shippingBalance
+          subtotal
+          total
+        }
+        billToCustomer {
+          companyName
+          id
+          isParent
+          parentId
+          published
+        }
         billToCustomerId
+        createdAt
+        createdBy {
+          email
+          firstName
+          fullName
+          id
+          lastName
+        }
+        createdById
+        creationType
+        details {
+          cancelledBalance
+          commission
+          commissionDiscountRate
+          commissionDiscount
+          commissionRate
+          discount
+          discountRate
+          endUserId
+          freightCharge
+          id
+          insideSplitRates {
+            id
+            position
+            splitRate
+            userId
+          }
+          itemNumber
+          leadTime
+          note
+          orderId
+          outsideSplitRates {
+            id
+            position
+            userId
+            splitRate
+          }
+          product {
+            description
+            factoryPartNumber
+            id
+            unitPrice
+          }
+          productDescriptionAdhoc
+          productId
+          productNameAdhoc
+          quantity
+          shippingBalance
+          status
+          subtotal
+          total
+          totalLineCommission
+          unitPrice
+          uom {
+            description
+            divisionFactor
+            id
+            title
+          }
+        }
         dueDate
+        endUserPerLineItem
         entityDate
-        entryDate
         factSoNumber
         factoryId
+        freightTerms
+        headerStatus
         id
-        jobName
+        insidePerLineItem
+        job {
+          id
+          jobName
+          jobType
+        }
+        markNumber
         orderNumber
+        orderType
+        outsidePerLineItem
+        published
+        quoteId
         shipDate
+        projectedShipDate
+        shippingTerms
+        soldToCustomer {
+          companyName
+          id
+          isParent
+          parentId
+          published
+        }
         soldToCustomerId
         status
-        userOwnerIds
+        url
       }
       preOpportunities {
         acceptDate
@@ -193,18 +466,153 @@ const GET_JOB_RELATED_ENTITIES = `
         status
         tags
       }
-      quotes {
-        billToCustomerId
-        createdBy
-        blanket
-        entityDate
-        entryDate
-        expDate
+      products {
+        approvalComments
+        approvalDate
+        approvalNeeded
+        category {
+          commissionRate
+          factoryId
+          id
+          title
+        }
+        commissionDiscountRate
+        defaultCommissionRate
+        description
+        defaultDivisor
+        factory {
+          accountNumber
+          id
+          title
+        }
+        factoryPartNumber
         id
-        jobName
-        quoteNumber
+        leadTime
+        minOrderQty
+        published
+        tags
+        unitPrice
+        unitPriceDiscountRate
+        uom {
+          description
+          divisionFactor
+          id
+          title
+        }
+        upc
+      }
+      quotes {
+        acceptDate
+        balance {
+          commission
+          commissionDiscount
+          commissionDiscountRate
+          commissionRate
+          discount
+          id
+          discountRate
+          quantity
+          subtotal
+          total
+        }
+        balanceId
+        billToCustomer {
+          companyName
+          isParent
+          id
+          parentId
+          published
+        }
+        billToCustomerId
+        blanket
+        createdAt
+        createdBy {
+          email
+          firstName
+          id
+          fullName
+          lastName
+        }
+        createdById
+        creationType
+        customerRef
+        details {
+          commission
+          commissionDiscount
+          commissionDiscountRate
+          commissionRate
+          discount
+          discountRate
+          endUserId
+          factoryId
+          id
+          insideSplitRates {
+            id
+            position
+            splitRate
+            userId
+          }
+          itemNumber
+          leadTime
+          note
+          outsideSplitRates {
+            id
+            position
+            splitRate
+            userId
+          }
+          product {
+            description
+            factoryPartNumber
+            id
+            unitPrice
+          }
+          uom {
+            description
+            divisionFactor
+            id
+            title
+          }
+          unitPrice
+          totalLineCommission
+          total
+          subtotal
+          status
+          quoteId
+          quantity
+          productNameAdhoc
+          productId
+          productDescriptionAdhoc
+        }
+        versionOf
+        url
+        status
         soldToCustomerId
-        userOwnerIds
+        soldToCustomer {
+          published
+          parentId
+          isParent
+          id
+          companyName
+        }
+        reviseDate
+        quoteNumber
+        published
+        pipelineStage
+        paymentTerms
+        outsidePerLineItem
+        job {
+          jobName
+          jobType
+          id
+        }
+        insidePerLineItem
+        id
+        freightTerms
+        expDate
+        entityDate
+        endUserPerLineItem
+        duplicatedFrom
       }
     }
   }
@@ -338,6 +746,9 @@ export async function fetchJobRelatedEntities(jobId: string): Promise<JobRelated
   const data = response.data?.jobRelatedEntities || {
     companies: [],
     contacts: [],
+    customers: [],
+    factories: [],
+    products: [],
     preOpportunities: [],
     quotes: [],
     orders: [],
@@ -347,8 +758,11 @@ export async function fetchJobRelatedEntities(jobId: string): Promise<JobRelated
 
   return {
     companies: mapFormattedCreatedBy(data.companies) as Company[],
-    contacts: mapFormattedCreatedBy(data.contacts) as Contact[],
-    preOpportunities: mapFormattedCreatedBy(data.preOpportunities) as PreOpportunity[],
+    contacts: data.contacts || [],
+    customers: data.customers || [],
+    factories: data.factories || [],
+    products: data.products || [],
+    preOpportunities: data.preOpportunities || [],
     quotes: data.quotes || [],
     orders: data.orders || [],
     invoices: data.invoices || [],

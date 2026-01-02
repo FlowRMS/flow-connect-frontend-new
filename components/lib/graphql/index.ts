@@ -99,10 +99,20 @@ export {
   // Re-export search result types from central search API
   type TaskSearchResult,
   type NoteSearchResult,
-  type QuoteSearchResult,
-  type OrderSearchResult,
-  type InvoiceSearchResult,
-  type CheckSearchResult,
+  // Re-export extended job related entity types
+  type JobRelatedQuote,
+  type JobRelatedOrder,
+  type JobRelatedInvoice,
+  type JobRelatedCheck,
+  type JobRelatedCustomer,
+  type JobRelatedFactory,
+  type JobRelatedProduct,
+  type BalanceLite,
+  type CustomerLite,
+  type FactoryLite,
+  type UserLite,
+  type OrderQuoteDetail,
+  type CheckDetail as JobRelatedCheckDetail,
 } from './entity-links';
 
 // Notes module - re-exported from component API for backward compatibility
@@ -238,6 +248,7 @@ export {
   createInvoice,
   updateInvoice,
   deleteInvoice,
+  createInvoiceFromOrder,
   type Invoice,
   type InvoiceLandingPage,
   type InvoiceBalance,
@@ -251,6 +262,7 @@ export {
   type InvoiceCreationType,
   type CreateInvoiceInput,
   type UpdateInvoiceInput,
+  type CreateInvoiceFromOrderInput,
   type InvoiceDetailInput,
   type InvoiceSplitRateInput,
   type InvoiceLandingPageFilter,
