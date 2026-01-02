@@ -289,7 +289,6 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
         setInsideRepSplits={state.setInsideRepSplits}
         openInsideRepModal={() => state.setShowInsideRepSplitsModal(true)}
         onOrderSelect={state.handleOrderSelect}
-        onInvoiceSelect={state.handleInvoiceSelect}
         onUpdateInvoice={state.updateInvoice}
         isCreateMode={state.isCreateMode}
         isPaid={state.invoice.status === 'paid'}
@@ -438,7 +437,7 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
 
           {/* Tab Content */}
           {state.activeTab === 'line-items' && (
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-auto pb-32">
               <LineItemsTable
                 invoice={state.invoice}
                 selectedLineItems={state.selectedLineItems}

@@ -198,8 +198,8 @@ export function LineItemsTable({
       unitPrice: unitPrice,
       quantity: quantity,
       divisor: divisor,
-      uom: product.defaultUom?.title || item.uom || '',
-      uomId: product.defaultUom?.id || item.uomId || '',
+      uom: product.defaultUom?.title || item.uom || null,
+      uomId: product.defaultUom?.id || item.uomId || null,
       // Commission
       commissionRate: commissionRate,
       commissionPercent: commissionRate * 100, // For UI display (percentage format)
@@ -755,7 +755,13 @@ export function LineItemsTable({
             {/* Dropdown Container */}
             <div
               className="fixed bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-80"
-              style={{ top: dropdownOpen.position.top, left: dropdownOpen.position.left }}
+              style={{
+                // Check if dropdown would overflow bottom of screen, if so flip it above
+                top: dropdownOpen.position.top + 250 > window.innerHeight
+                  ? dropdownOpen.position.top - 258
+                  : dropdownOpen.position.top,
+                left: Math.min(dropdownOpen.position.left, window.innerWidth - 330),
+              }}
             >
               {/* Search Input */}
               <div className="p-2 border-b border-gray-100">

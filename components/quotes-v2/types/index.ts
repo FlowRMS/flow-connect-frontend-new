@@ -151,8 +151,8 @@ export interface LineItemV2 {
 
   // Quantity
   quantity: number;
-  uom: string;
-  uomId?: string;
+  uom: string | null;
+  uomId?: string | null;
   divisor: number; // divisionFactor from uom
 
   // Pricing
@@ -653,7 +653,7 @@ export function transformLineItemV2ToDetailInput(
     productNameAdhoc: lineItem.partNumber,
     productId: lineItem.productId,
     status: lineItem.status,
-    uomId: lineItem.uomId,
+    uomId: lineItem.uomId || undefined,
     insideSplitRates: insideSplitRates && insideSplitRates.length > 0 ? insideSplitRates : undefined,
     outsideSplitRates: outsideSplitRates && outsideSplitRates.length > 0 ? outsideSplitRates : undefined,
   };
