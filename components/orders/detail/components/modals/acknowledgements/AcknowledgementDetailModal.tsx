@@ -7,6 +7,7 @@
 
 import React from 'react';
 import type { AcknowledgementLandingPage } from '../../../../api/acknowledgementsApi';
+import { CreatedByBadge } from '@/components/ui/CreatedByBadge';
 
 interface AcknowledgementDetailModalProps {
   isOpen: boolean;
@@ -61,6 +62,12 @@ export function AcknowledgementDetailModal({
                 <p className="text-sm text-[var(--muted-foreground)] mt-0.5">
                   Order #{acknowledgement.orderNumber || '-'}
                 </p>
+                <CreatedByBadge
+                  createdBy={acknowledgement.createdBy}
+                  createdAt={acknowledgement.createdAt}
+                  size="sm"
+                  className="mt-2"
+                />
               </div>
             </div>
             <button
@@ -101,16 +108,12 @@ export function AcknowledgementDetailModal({
             </h3>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <span className="text-[var(--muted-foreground)] block text-xs mb-0.5">Ack Date</span>
-                <span className="font-medium">{formatDate(acknowledgement.entityDate)}</span>
+                <span className="text-[var(--muted-foreground)] block text-xs mb-0.5">Order Date</span>
+                <span className="font-medium">{formatDate(acknowledgement.orderEntityDate)}</span>
               </div>
               <div>
                 <span className="text-[var(--muted-foreground)] block text-xs mb-0.5">Created At</span>
                 <span className="font-medium">{formatDate(acknowledgement.createdAt)}</span>
-              </div>
-              <div>
-                <span className="text-[var(--muted-foreground)] block text-xs mb-0.5">Created By</span>
-                <span className="font-medium">{acknowledgement.createdBy || '-'}</span>
               </div>
               <div>
                 <span className="text-[var(--muted-foreground)] block text-xs mb-0.5">Item Number</span>

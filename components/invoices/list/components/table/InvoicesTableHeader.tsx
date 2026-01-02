@@ -242,6 +242,13 @@ export function InvoicesTableHeader({
         </span>
       </div>
 
+      {/* Created By */}
+      <div className="flex items-center">
+        <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
+          Created By
+        </span>
+      </div>
+
       {/* Due Date */}
       <div className="flex items-center">
         <button

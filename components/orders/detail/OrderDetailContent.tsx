@@ -58,7 +58,6 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   // Acknowledgements state management
   const acknowledgementsState = useAcknowledgementsState({
     orderId: orderId !== 'new' ? orderId : null,
-    orderNumber: state?.order?.orderNumber || null,
   });
 
   // Create Invoice from Order modal state

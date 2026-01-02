@@ -200,12 +200,12 @@ export interface OrderLandingPage {
   createdBy?: string;
   dueDate?: string;
   entityDate?: string;
-  headerStatus?: OrderHeaderStatus;
   orderNumber: string;
   orderType?: OrderType;
   published?: boolean;
   status?: string;
   total?: number;
+  commission?: number;
   userIds?: string[];
   factoryName?: string;
   soldToCustomerName?: string;
@@ -308,11 +308,11 @@ const ORDER_LANDING_PAGES = `
           id
           userIds
           total
+          commission
           status
           published
           orderType
           orderNumber
-          headerStatus
           dueDate
           entityDate
           createdBy

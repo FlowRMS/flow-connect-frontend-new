@@ -396,6 +396,14 @@ const DELETE_CHECK = `
   }
 `;
 
+const UNPOST_CHECK = `
+  mutation UnpostCheck($checkId: UUID!) {
+    unpostCheck(checkId: $checkId) {
+      ${CHECK_FIELDS}
+    }
+  }
+`;
+
 // ============================================================================
 // API Functions
 // ============================================================================
@@ -560,4 +568,25 @@ export async function deleteCheck(id: string): Promise<boolean> {
   }
 
   return true;
+}
+
+/**
+ * Unpost a check - changes status from POSTED back to OPEN
+ * This allows the check to be edited again
+ */
+export async function unpostCheck(checkId: string): Promise<Check> {
+  const response = await crmGraphQLRequest<{ unpostCheck: Check }>({
+    query: UNPOST_CHECK,
+    variables: { checkId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to unpost check');
+  }
+
+  if (!response.data?.unpostCheck) {
+    throw new Error('No check returned from unpost mutation');
+  }
+
+  return response.data.unpostCheck;
 }

@@ -211,9 +211,9 @@ describe('Campaigns API - Helper Functions', () => {
     });
 
     it('should return empty array when no tags', () => {
-      const items = [
-        { name: 'Item 1' },
-        { name: 'Item 2' },
+      const items: { tags?: string | string[] | null }[] = [
+        { tags: null },
+        { tags: undefined },
       ];
 
       const result = extractAllTags(items);

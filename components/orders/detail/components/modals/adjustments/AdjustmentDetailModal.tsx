@@ -8,6 +8,7 @@
 import React from 'react';
 import type { AdjustmentLandingPage, AllocationMethod, AdjustmentStatus } from '../../../../api/adjustmentsApi';
 import { formatCurrency } from '../../../utils';
+import { CreatedByBadge } from '@/components/ui/CreatedByBadge';
 
 // Allocation Method Configuration
 const ALLOCATION_METHOD_CONFIG: Record<AllocationMethod, { label: string; color: string; bgColor: string }> = {
@@ -87,6 +88,12 @@ export function AdjustmentDetailModal({
                 <p className="text-sm text-[var(--muted-foreground)] mt-0.5">
                   Commission Adjustment
                 </p>
+                <CreatedByBadge
+                  createdBy={adjustment.createdBy}
+                  createdAt={adjustment.createdAt}
+                  size="sm"
+                  className="mt-2"
+                />
               </div>
             </div>
             <button
@@ -125,10 +132,6 @@ export function AdjustmentDetailModal({
               <div>
                 <span className="text-[var(--muted-foreground)] block text-xs mb-0.5">Created At</span>
                 <span className="font-medium">{formatDate(adjustment.createdAt)}</span>
-              </div>
-              <div>
-                <span className="text-[var(--muted-foreground)] block text-xs mb-0.5">Created By</span>
-                <span className="font-medium">{adjustment.createdBy || '-'}</span>
               </div>
               <div>
                 <span className="text-[var(--muted-foreground)] block text-xs mb-0.5">Status</span>

@@ -28,6 +28,7 @@ import {
   useUpdateCheck,
   useDeleteCheck,
 } from '@/components/orders/api/checksApi';
+import { unpostCheck as unpostCheckApi } from '@/components/lib/graphql/checks';
 import type { AdjustmentLandingPage } from '@/components/orders/api/adjustmentsApi';
 import { DEFAULT_ACTIVE_TAB } from '../config/tabsConfig';
 import { DEFAULT_VISIBLE_COLUMNS } from '../constants';
@@ -771,6 +772,29 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     }
   }, [isCreateMode, checkId, deleteCheckMutation, router]);
 
+  // Unpost check state
+  const [isUnposting, setIsUnposting] = useState(false);
+
+  // Unpost check - changes status from POSTED back to OPEN
+  const handleUnpost = useCallback(async () => {
+    if (isCreateMode || status !== 'posted') return;
+
+    setIsUnposting(true);
+    try {
+      await unpostCheckApi(checkId);
+      toast.success('Check unposted successfully. You can now edit this check.');
+      // Update local status to unposted
+      setStatus('unposted');
+      // Refetch the check data to ensure sync with server
+      refetchCheck();
+    } catch (error) {
+      console.error('Error unposting check:', error);
+      toast.error(getErrorMessage(error));
+    } finally {
+      setIsUnposting(false);
+    }
+  }, [isCreateMode, checkId, status, refetchCheck]);
+
   // Loading state - show loading for existing checks that haven't loaded yet
   if (!isCreateMode && isLoadingCheck) {
     return {
@@ -791,12 +815,14 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     isLoadingCheck,
     checkError,
 
-    // Save/Delete actions
+    // Save/Delete/Unpost actions
     handleSave,
     handleSaveAndClose,
     handleDelete,
+    handleUnpost,
     isSaving: createCheckMutation.isPending || updateCheckMutation.isPending,
     isDeleting: deleteCheckMutation.isPending,
+    isUnposting,
 
     // Factory ID (for API)
     factoryId,

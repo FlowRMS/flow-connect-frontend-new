@@ -128,8 +128,10 @@ export default function CheckDetailContent({
         onSave={state.handleSave}
         onSaveAndClose={state.handleSaveAndClose}
         onSaveAsNewVersion={handleSaveAsNewVersion}
+        onUnpost={state.handleUnpost}
         isCreateMode={state.isCreateMode}
         isSaving={state.isSaving}
+        isUnposting={state.isUnposting}
       />
 
       {/* Pricing Summary Bar */}

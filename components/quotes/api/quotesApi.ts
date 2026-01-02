@@ -307,7 +307,7 @@ const QUOTE_LANDING_PAGES = `
           quoteNumber
           status
           total
-          # commission - TODO: uncomment when backend is ready
+          commission
           userIds
         }
       }
