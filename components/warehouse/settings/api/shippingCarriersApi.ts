@@ -117,24 +117,6 @@ const GET_SHIPPING_CARRIERS = `
       pickupLocation
       remarks
       internalNotes
-      billingAddress {
-        id
-        line1
-        line2
-        city
-        state
-        zipCode
-        country
-        isPrimary
-      }
-      primaryContact {
-        id
-        firstName
-        lastName
-        email
-        phone
-        role
-      }
     }
   }
 `;
@@ -162,24 +144,6 @@ const GET_SHIPPING_CARRIER = `
       pickupLocation
       remarks
       internalNotes
-      billingAddress {
-        id
-        line1
-        line2
-        city
-        state
-        zipCode
-        country
-        isPrimary
-      }
-      primaryContact {
-        id
-        firstName
-        lastName
-        email
-        phone
-        role
-      }
     }
   }
 `;

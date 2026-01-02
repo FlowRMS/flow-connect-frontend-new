@@ -10,6 +10,10 @@ export * from './useShippingCarriersApi';
 export * from './warehousesApi';
 export * from './useWarehousesApi';
 
+// Warehouse Locations API
+export * from './warehouseLocationsApi';
+export * from './useWarehouseLocationsApi';
+
 // Users API
 export * from './usersApi';
 export * from './useUsersApi';

@@ -16,6 +16,7 @@ interface LocationNodeProps {
   showProductSearch: string | null;
   productSearchQuery: string;
   filteredProducts: AvailableProduct[];
+  isSearchingProducts?: boolean;
   onToggle: (id: string) => void;
   onStartEdit: (id: string | null) => void;
   onRename: (id: string, name: string) => void;
@@ -37,6 +38,7 @@ export default function LocationNode({
   showProductSearch,
   productSearchQuery,
   filteredProducts,
+  isSearchingProducts = false,
   onToggle,
   onStartEdit,
   onRename,
@@ -204,6 +206,7 @@ export default function LocationNode({
               productSearchQuery={productSearchQuery}
               filteredProducts={filteredProducts}
               assignedProducts={location.products}
+              isSearching={isSearchingProducts}
               onToggleExpand={() => onToggle(location.id)}
               onShowProductSearch={(show) => onShowProductSearch(show ? location.id : null)}
               onProductSearchChange={onProductSearchChange}
@@ -225,6 +228,7 @@ export default function LocationNode({
                   showProductSearch={showProductSearch}
                   productSearchQuery={productSearchQuery}
                   filteredProducts={filteredProducts}
+                  isSearchingProducts={isSearchingProducts}
                   onToggle={onToggle}
                   onStartEdit={onStartEdit}
                   onRename={onRename}

@@ -1,88 +1,100 @@
-// QR code pattern generation utilities
+// QR code generation utilities using qrcode.react and qrcode
 
-import React from 'react';
+import * as QRCode from 'qrcode';
+import type { PrintFormat } from '../types';
 
 /**
- * Generate a deterministic QR-like pattern based on ID (for visual representation)
- * Returns SVG string for print
+ * QR code data structure for location encoding
  */
-export function generateQRPattern(id: string): string {
-  const hash = hashCode(id);
-  let svg = '';
-
-  // Corner markers
-  svg += `<rect x="5" y="5" width="20" height="20" fill="black"/>`;
-  svg += `<rect x="8" y="8" width="14" height="14" fill="white"/>`;
-  svg += `<rect x="11" y="11" width="8" height="8" fill="black"/>`;
-
-  svg += `<rect x="75" y="5" width="20" height="20" fill="black"/>`;
-  svg += `<rect x="78" y="8" width="14" height="14" fill="white"/>`;
-  svg += `<rect x="81" y="11" width="8" height="8" fill="black"/>`;
-
-  svg += `<rect x="5" y="75" width="20" height="20" fill="black"/>`;
-  svg += `<rect x="8" y="78" width="14" height="14" fill="white"/>`;
-  svg += `<rect x="11" y="81" width="8" height="8" fill="black"/>`;
-
-  // Data pattern based on hash
-  for (let i = 0; i < 8; i++) {
-    for (let j = 0; j < 8; j++) {
-      const bit = (hash >> (i * 8 + j)) & 1;
-      if (bit || (i + j) % 3 === 0) {
-        const x = 30 + i * 5;
-        const y = 30 + j * 5;
-        svg += `<rect x="${x}" y="${y}" width="4" height="4" fill="black"/>`;
-      }
-    }
-  }
-
-  return svg;
+export interface QRCodeData {
+  locationId: string;
+  locationName: string;
+  path: string;
+  warehouseName?: string;
 }
 
 /**
- * Generate a deterministic QR-like pattern as React nodes
- * Returns React elements for on-screen preview
+ * Generate the data to encode in the QR code
+ * Format: JSON string with location details
  */
-export function generateQRPatternSVG(id: string): React.ReactNode {
-  const hash = hashCode(id);
-  const elements: React.ReactNode[] = [];
-
-  // Corner markers
-  elements.push(React.createElement('rect', { key: 'c1', x: '5', y: '5', width: '20', height: '20', fill: 'currentColor' }));
-  elements.push(React.createElement('rect', { key: 'c1w', x: '8', y: '8', width: '14', height: '14', fill: 'white' }));
-  elements.push(React.createElement('rect', { key: 'c1b', x: '11', y: '11', width: '8', height: '8', fill: 'currentColor' }));
-
-  elements.push(React.createElement('rect', { key: 'c2', x: '75', y: '5', width: '20', height: '20', fill: 'currentColor' }));
-  elements.push(React.createElement('rect', { key: 'c2w', x: '78', y: '8', width: '14', height: '14', fill: 'white' }));
-  elements.push(React.createElement('rect', { key: 'c2b', x: '81', y: '11', width: '8', height: '8', fill: 'currentColor' }));
-
-  elements.push(React.createElement('rect', { key: 'c3', x: '5', y: '75', width: '20', height: '20', fill: 'currentColor' }));
-  elements.push(React.createElement('rect', { key: 'c3w', x: '8', y: '78', width: '14', height: '14', fill: 'white' }));
-  elements.push(React.createElement('rect', { key: 'c3b', x: '11', y: '81', width: '8', height: '8', fill: 'currentColor' }));
-
-  // Data pattern
-  for (let i = 0; i < 8; i++) {
-    for (let j = 0; j < 8; j++) {
-      const bit = (hash >> (i * 8 + j)) & 1;
-      if (bit || (i + j) % 3 === 0) {
-        const x = 30 + i * 5;
-        const y = 30 + j * 5;
-        elements.push(React.createElement('rect', { key: `d${i}${j}`, x, y, width: '4', height: '4', fill: 'currentColor' }));
-      }
-    }
-  }
-
-  return React.createElement(React.Fragment, {}, ...elements);
+export function generateQRCodeValue(data: QRCodeData): string {
+  return JSON.stringify({
+    id: data.locationId,
+    name: data.locationName,
+    path: data.path,
+    warehouse: data.warehouseName,
+    type: 'warehouse_location',
+  });
 }
 
 /**
- * Generate hash code from string for deterministic patterns
+ * Generate QR code as SVG string for printing
+ * Returns a promise that resolves to an SVG string
  */
-export function hashCode(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash = hash & hash;
+export async function generateQRCodeSVG(value: string, size: number): Promise<string> {
+  return QRCode.toString(value, {
+    type: 'svg',
+    width: size,
+    margin: 1,
+    errorCorrectionLevel: 'M',
+  });
+}
+
+/**
+ * Get QR code size based on print format (in pixels)
+ */
+export function getQRCodeSize(format: PrintFormat): number {
+  switch (format) {
+    case 'sheet-small':
+      return 80;
+    case 'sheet-medium':
+      return 120;
+    case 'sheet-large':
+      return 160;
+    case 'labels-30':
+      return 60;
+    case 'labels-80':
+      return 40;
+    default:
+      return 100;
   }
-  return Math.abs(hash);
+}
+
+/**
+ * Get preview QR code size class
+ */
+export function getPreviewQRSize(format: PrintFormat): string {
+  switch (format) {
+    case 'sheet-small':
+      return 'w-16 h-16';
+    case 'sheet-medium':
+      return 'w-20 h-20';
+    case 'sheet-large':
+      return 'w-24 h-24';
+    case 'labels-30':
+      return 'w-14 h-14';
+    case 'labels-80':
+      return 'w-10 h-10';
+    default:
+      return 'w-16 h-16';
+  }
+}
+
+/**
+ * Get preview label size class
+ */
+export function getPreviewLabelSize(format: PrintFormat): string {
+  switch (format) {
+    case 'sheet-small':
+    case 'labels-30':
+      return 'text-xs';
+    case 'sheet-medium':
+      return 'text-sm';
+    case 'sheet-large':
+      return 'text-base';
+    case 'labels-80':
+      return 'text-[10px]';
+    default:
+      return 'text-xs';
+  }
 }

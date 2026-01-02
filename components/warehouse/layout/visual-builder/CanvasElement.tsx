@@ -59,10 +59,10 @@ export default function CanvasElement({
     <div
       className={`absolute transition-shadow ${isSelected ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
       style={{
-        left: element.x,
-        top: element.y,
-        width: element.width,
-        height: element.height,
+        left: element.x ?? 0,
+        top: element.y ?? 0,
+        width: element.width ?? 100,
+        height: element.height ?? 100,
         transform: `rotate(${element.rotation || 0}deg)`,
         zIndex: isSelected ? 100 : 10 - depth,
       }}

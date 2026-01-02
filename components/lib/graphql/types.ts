@@ -439,10 +439,7 @@ export interface UpdatePreOpportunityInput {
 export interface ProductSearchResult {
   id: string;
   factoryPartNumber: string;
-  factory: {
-    id: string;
-    title: string;
-  };
+  description: string | null;
 }
 
 export interface FactorySearchResult {
