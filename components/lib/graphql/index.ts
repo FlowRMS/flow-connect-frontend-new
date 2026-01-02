@@ -352,3 +352,20 @@ export {
   type CheckDetailInput,
   type FindChecksLandingPagesResponse,
 } from './checks';
+
+// Acknowledgements module
+export {
+  fetchAcknowledgementById,
+  fetchAcknowledgementsByOrder,
+  fetchAcknowledgementsLandingPageByOrder,
+  fetchAcknowledgementsByOrderDetail,
+  createAcknowledgement,
+  updateAcknowledgement,
+  deleteAcknowledgement,
+  type OrderAcknowledgement,
+  type AcknowledgementLandingPage,
+  type AcknowledgementCreationType,
+  type CreateAcknowledgementInput,
+  type UpdateAcknowledgementInput,
+  type FindAcknowledgementsLandingPagesResponse,
+} from './acknowledgements';
