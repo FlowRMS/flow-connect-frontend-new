@@ -519,32 +519,378 @@ export interface DeleteLinkByEntitiesInput {
 // ============================================================================
 
 import type {
-  QuoteSearchResult,
-  OrderSearchResult,
-  InvoiceSearchResult,
-  CheckSearchResult,
   TaskSearchResult,
   NoteSearchResult,
 } from '../api/search';
 
 // Re-export for consumers
 export type {
-  QuoteSearchResult,
-  OrderSearchResult,
-  InvoiceSearchResult,
-  CheckSearchResult,
   TaskSearchResult,
   NoteSearchResult,
 };
 
+// ============================================================================
+// Extended Types for Job Related Entities
+// ============================================================================
+
+export interface UserLite {
+  id: string;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  fullName?: string;
+  authProviderId?: string;
+  enabled?: boolean;
+  inside?: boolean;
+  outside?: boolean;
+  role?: string;
+  username?: string;
+}
+
+export interface CustomerLite {
+  id: string;
+  companyName: string;
+  isParent?: boolean;
+  parentId?: string;
+  published?: boolean;
+}
+
+export interface FactoryLite {
+  id: string;
+  title: string;
+  accountNumber?: string;
+}
+
+export interface BalanceLite {
+  id: string;
+  quantity?: number;
+  subtotal?: number;
+  discount?: number;
+  discountRate?: number;
+  total?: number;
+  commission?: number;
+  commissionRate?: number;
+  commissionDiscount?: number;
+  commissionDiscountRate?: number;
+  cancelledBalance?: number;
+  freightChargeBalance?: number;
+  shippingBalance?: number;
+}
+
+export interface ProductLite {
+  id: string;
+  factoryPartNumber: string;
+  description?: string;
+  unitPrice?: number;
+}
+
+export interface UomLite {
+  id: string;
+  title: string;
+  description?: string;
+  divisionFactor?: number;
+}
+
+export interface SplitRateLite {
+  id: string;
+  userId: string;
+  splitRate: number;
+  position?: number;
+}
+
+export interface CustomerRep {
+  id: string;
+  customerId: string;
+  repType: string;
+  position?: number;
+  splitRate?: number;
+  user?: UserLite;
+}
+
+export interface FactorySplitRate {
+  id: string;
+  factoryId: string;
+  position?: number;
+  splitRate?: number;
+  user?: UserLite;
+}
+
+export interface JobLite {
+  id: string;
+  jobName: string;
+  jobType?: string;
+}
+
+export interface ProductCategory {
+  id: string;
+  title: string;
+  factoryId?: string;
+  commissionRate?: number;
+}
+
+// Check Detail types
+export interface CheckDetailAdjustment {
+  id: string;
+  adjustmentNumber: string;
+  amount?: number;
+  entityDate?: string;
+  status?: string;
+  reason?: string;
+  locked?: boolean;
+  createdAt?: string;
+  createdById?: string;
+  creationType?: string;
+  factoryId?: string;
+  customer?: CustomerLite;
+  factory?: FactoryLite;
+}
+
+export interface CheckDetailCredit {
+  id: string;
+  creditNumber: string;
+  creditType?: string;
+  balanceId?: string;
+  entityDate?: string;
+  status?: string;
+  reason?: string;
+  locked?: boolean;
+  orderId?: string;
+  url?: string;
+  createdAt?: string;
+  createdById?: string;
+  creationType?: string;
+}
+
+export interface CheckDetailInvoice {
+  id: string;
+  invoiceNumber: string;
+  balanceId?: string;
+  entityDate?: string;
+  dueDate?: string;
+  status?: string;
+  locked?: boolean;
+  published?: boolean;
+  orderId?: string;
+  url?: string;
+  createdAt?: string;
+  createdById?: string;
+  creationType?: string;
+}
+
+export interface CheckDetail {
+  id: string;
+  checkId: string;
+  appliedAmount?: number;
+  adjustmentId?: string;
+  adjustment?: CheckDetailAdjustment;
+  creditId?: string;
+  credit?: CheckDetailCredit;
+  invoiceId?: string;
+  invoice?: CheckDetailInvoice;
+}
+
+// Order/Quote detail types
+export interface OrderQuoteDetail {
+  id: string;
+  itemNumber: number;
+  productId?: string;
+  product?: ProductLite;
+  productNameAdhoc?: string;
+  productDescriptionAdhoc?: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal?: number;
+  discount?: number;
+  discountRate?: number;
+  total?: number;
+  commission?: number;
+  commissionRate?: number;
+  commissionDiscount?: number;
+  commissionDiscountRate?: number;
+  totalLineCommission?: number;
+  leadTime?: string;
+  note?: string;
+  status?: string;
+  endUserId?: string;
+  factoryId?: string;
+  orderId?: string;
+  quoteId?: string;
+  cancelledBalance?: number;
+  freightCharge?: number;
+  shippingBalance?: number;
+  insideSplitRates?: SplitRateLite[];
+  outsideSplitRates?: SplitRateLite[];
+  uom?: UomLite;
+}
+
+// Extended entity types for job related entities
+export interface JobRelatedCheck {
+  id: string;
+  checkNumber: string;
+  commissionMonth?: string;
+  entityDate?: string;
+  postDate?: string;
+  status?: string;
+  url?: string;
+  enteredCommissionAmount?: number;
+  factoryId?: string;
+  factory?: FactoryLite;
+  createdAt?: string;
+  createdById?: string;
+  creationType?: string;
+  details?: CheckDetail[];
+}
+
+export interface JobRelatedInvoice {
+  id: string;
+  invoiceNumber: string;
+  balanceId?: string;
+  entityDate?: string;
+  dueDate?: string;
+  status?: string;
+  locked?: boolean;
+  published?: boolean;
+  orderId?: string;
+  url?: string;
+  createdAt?: string;
+  createdById?: string;
+  creationType?: string;
+}
+
+export interface JobRelatedOrder {
+  id: string;
+  orderNumber: string;
+  orderType?: string;
+  entityDate?: string;
+  dueDate?: string;
+  shipDate?: string;
+  projectedShipDate?: string;
+  status?: string;
+  headerStatus?: string;
+  url?: string;
+  published?: boolean;
+  balanceId?: string;
+  balance?: BalanceLite;
+  factoryId?: string;
+  quoteId?: string;
+  factSoNumber?: string;
+  markNumber?: string;
+  freightTerms?: string;
+  shippingTerms?: string;
+  endUserPerLineItem?: boolean;
+  insidePerLineItem?: boolean;
+  outsidePerLineItem?: boolean;
+  soldToCustomerId?: string;
+  soldToCustomer?: CustomerLite;
+  billToCustomerId?: string;
+  billToCustomer?: CustomerLite;
+  job?: JobLite;
+  createdAt?: string;
+  createdById?: string;
+  createdBy?: UserLite | string;
+  creationType?: string;
+  details?: OrderQuoteDetail[];
+}
+
+export interface JobRelatedQuote {
+  id: string;
+  quoteNumber: string;
+  entityDate?: string;
+  expDate?: string;
+  acceptDate?: string;
+  reviseDate?: string;
+  status?: string;
+  pipelineStage?: string;
+  url?: string;
+  published?: boolean;
+  blanket?: boolean;
+  balanceId?: string;
+  balance?: BalanceLite;
+  customerRef?: string;
+  freightTerms?: string;
+  paymentTerms?: string;
+  endUserPerLineItem?: boolean;
+  insidePerLineItem?: boolean;
+  outsidePerLineItem?: boolean;
+  versionOf?: string;
+  duplicatedFrom?: string;
+  soldToCustomerId?: string;
+  soldToCustomer?: CustomerLite;
+  billToCustomerId?: string;
+  billToCustomer?: CustomerLite;
+  job?: JobLite;
+  createdAt?: string;
+  createdById?: string;
+  createdBy?: UserLite | string;
+  creationType?: string;
+  details?: OrderQuoteDetail[];
+}
+
+export interface JobRelatedCustomer {
+  id: string;
+  companyName: string;
+  isParent?: boolean;
+  parentId?: string;
+  published?: boolean;
+  createdBy?: UserLite | string;
+  insideReps?: CustomerRep[];
+  outsideReps?: CustomerRep[];
+}
+
+export interface JobRelatedFactory {
+  id: string;
+  title: string;
+  accountNumber?: string;
+  email?: string;
+  phone?: string;
+  published?: boolean;
+  baseCommissionRate?: number;
+  commissionDiscountRate?: number;
+  overallDiscountRate?: number;
+  paymentTerms?: number;
+  externalPaymentTerms?: number;
+  leadTime?: number;
+  logoId?: string;
+  freightDiscountType?: string;
+  freightTerms?: string;
+  additionalInformation?: string;
+  createdBy?: UserLite | string;
+  splitRates?: FactorySplitRate[];
+}
+
+export interface JobRelatedProduct {
+  id: string;
+  factoryPartNumber: string;
+  description?: string;
+  unitPrice?: number;
+  defaultCommissionRate?: number;
+  commissionDiscountRate?: number;
+  defaultDivisor?: number;
+  unitPriceDiscountRate?: number;
+  leadTime?: string;
+  minOrderQty?: number;
+  published?: boolean;
+  approvalNeeded?: boolean;
+  approvalComments?: string;
+  approvalDate?: string;
+  tags?: string;
+  upc?: string;
+  factory?: FactoryLite;
+  category?: ProductCategory;
+  uom?: UomLite;
+}
+
 export interface JobRelatedEntities {
   companies: Company[];
   contacts: Contact[];
+  customers: JobRelatedCustomer[];
+  factories: JobRelatedFactory[];
+  products: JobRelatedProduct[];
   preOpportunities: PreOpportunity[];
-  quotes: QuoteSearchResult[];
-  orders: OrderSearchResult[];
-  invoices: InvoiceSearchResult[];
-  checks: CheckSearchResult[];
+  quotes: JobRelatedQuote[];
+  orders: JobRelatedOrder[];
+  invoices: JobRelatedInvoice[];
+  checks: JobRelatedCheck[];
 }
 
 export interface ContactRelatedEntities {

@@ -18,7 +18,7 @@ export function QuotesV2Content() {
   const router = useRouter();
 
   // View state
-  const [viewMode, setViewMode] = useState<ViewMode>('kanban');
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [showSortMenu, setShowSortMenu] = useState(false);

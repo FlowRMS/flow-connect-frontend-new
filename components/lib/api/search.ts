@@ -63,9 +63,7 @@ export interface ContactSearchResult {
   notes: string;
   territory: string;
   tags: string;
-  companyId?: string;
   createdAt: string;
-  createdBy?: string;
 }
 
 export interface TaskSearchResult {
@@ -205,16 +203,16 @@ export interface OpenInvoiceSearchResult {
 export interface CheckSearchResult {
   id: string;
   checkNumber: string;
+  commissionMonth: string;
+  createdAt: string;
+  createdById: string;
+  creationType: string;
+  enteredCommissionAmount: number;
   entityDate: string;
-  entryDate: string;
+  factoryId: string;
   postDate: string;
   status: string;
-  factoryId: string;
-  commission: number;
-  commissionMonth: string;
-  creationType: string;
-  createdBy: string;
-  userOwnerIds: string[];
+  url: string;
 }
 
 export interface FactorySearchResult {
@@ -303,23 +301,15 @@ const CONTACT_SEARCH = `
   query ContactSearch($searchTerm: String!, $limit: Int) {
     contactSearch(searchTerm: $searchTerm, limit: $limit) {
       createdAt
-      createdBy {
-        email
-        firstName
-        fullName
-        id
-        lastName
-      }
       email
-      id
       firstName
+      id
       lastName
       notes
       phone
       role
-      territory
       tags
-      companyId
+      territory
     }
   }
 `;
@@ -507,18 +497,18 @@ const SEARCH_OPEN_INVOICES = `
 const CHECK_SEARCH = `
   query CheckSearch($searchTerm: String!, $limit: Int) {
     checkSearch(searchTerm: $searchTerm, limit: $limit) {
-      id
       checkNumber
+      commissionMonth
+      createdAt
+      createdById
+      creationType
+      enteredCommissionAmount
       entityDate
-      entryDate
+      factoryId
+      id
       postDate
       status
-      factoryId
-      commission
-      commissionMonth
-      creationType
-      createdBy
-      userOwnerIds
+      url
     }
   }
 `;
@@ -637,7 +627,7 @@ export async function searchContacts(searchTerm: string, limit?: number): Promis
     throw new Error(response.errors[0]?.message || 'Failed to search contacts');
   }
 
-  return mapFormattedCreatedBy(response.data?.contactSearch);
+  return response.data?.contactSearch || [];
 }
 
 /**

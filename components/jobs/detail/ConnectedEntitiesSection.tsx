@@ -13,30 +13,37 @@ import {
   useCRMTasksByEntity,
   useCRMNotesByEntity,
 } from '../../hooks/useCRMApi';
-import type { 
-  Company, 
-  Contact, 
-  PreOpportunity, 
+import type {
+  Company,
+  Contact,
+  PreOpportunity,
   CRMEntityType,
-  QuoteSearchResult,
-  OrderSearchResult,
-  InvoiceSearchResult,
-  CheckSearchResult,
+  JobRelatedQuote,
+  JobRelatedOrder,
+  JobRelatedInvoice,
+  JobRelatedCheck,
+  JobRelatedCustomer,
+  JobRelatedFactory,
+  JobRelatedProduct,
   TaskByEntity,
   Note,
 } from '../../lib/crm-graphql';
 import { AddLinkModal } from '../modals/AddLinkModal';
 import { linkToasts } from '../../lib/toast';
+import { EntityHoverCard } from './EntityHoverCard';
 
 interface ConnectedEntitiesSectionProps {
   jobId: string;
   onCompanyClick?: (company: Company) => void;
   onContactClick?: (contact: Contact) => void;
   onPreOpportunityClick?: (preOpp: PreOpportunity) => void;
-  onQuoteClick?: (quote: QuoteSearchResult) => void;
-  onOrderClick?: (order: OrderSearchResult) => void;
-  onInvoiceClick?: (invoice: InvoiceSearchResult) => void;
-  onCheckClick?: (check: CheckSearchResult) => void;
+  onQuoteClick?: (quote: JobRelatedQuote) => void;
+  onOrderClick?: (order: JobRelatedOrder) => void;
+  onInvoiceClick?: (invoice: JobRelatedInvoice) => void;
+  onCheckClick?: (check: JobRelatedCheck) => void;
+  onCustomerClick?: (customer: JobRelatedCustomer) => void;
+  onFactoryClick?: (factory: JobRelatedFactory) => void;
+  onProductClick?: (product: JobRelatedProduct) => void;
   onTaskClick?: (task: TaskByEntity) => void;
   onNoteClick?: (note: Note) => void;
 }
@@ -276,7 +283,7 @@ export function ConnectedEntitiesSection({
   };
 
   // Handle quote click
-  const handleQuoteClick = (quote: QuoteSearchResult) => {
+  const handleQuoteClick = (quote: JobRelatedQuote) => {
     if (onQuoteClick) {
       onQuoteClick(quote);
     }
@@ -284,7 +291,7 @@ export function ConnectedEntitiesSection({
   };
 
   // Handle order click
-  const handleOrderClick = (order: OrderSearchResult) => {
+  const handleOrderClick = (order: JobRelatedOrder) => {
     if (onOrderClick) {
       onOrderClick(order);
     }
@@ -292,7 +299,7 @@ export function ConnectedEntitiesSection({
   };
 
   // Handle invoice click
-  const handleInvoiceClick = (invoice: InvoiceSearchResult) => {
+  const handleInvoiceClick = (invoice: JobRelatedInvoice) => {
     if (onInvoiceClick) {
       onInvoiceClick(invoice);
     }
@@ -300,7 +307,7 @@ export function ConnectedEntitiesSection({
   };
 
   // Handle check click
-  const handleCheckClick = (check: CheckSearchResult) => {
+  const handleCheckClick = (check: JobRelatedCheck) => {
     if (onCheckClick) {
       onCheckClick(check);
     }
@@ -872,44 +879,51 @@ export function ConnectedEntitiesSection({
                 />
                 <div className="p-4 space-y-3">
                   {relatedEntities?.quotes && relatedEntities.quotes.length > 0 ? (
-                    relatedEntities.quotes.map((quote: QuoteSearchResult) => (
-                      <div
-                        key={quote.id}
-                        className="flex items-center justify-between p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]/30 transition-colors cursor-pointer group"
-                        onClick={() => handleQuoteClick(quote)}
-                      >
-                        <div className="flex items-center gap-3 flex-1">
-                          <div className="w-10 h-10 rounded-lg bg-indigo-500 flex items-center justify-center text-white flex-shrink-0">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" strokeLinecap="round" strokeLinejoin="round"/>
-                              <path d="M14 2v6h6" strokeLinecap="round" strokeLinejoin="round"/>
-                              <path d="M16 13H8M16 17H8M10 9H8" strokeLinecap="round"/>
-                            </svg>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-0.5">
-                              <h4 className="font-medium text-[var(--foreground)] truncate">{quote.quoteNumber}</h4>
-                            </div>
-                            <div className="text-sm text-[var(--muted-foreground)]">
-                              {quote.jobName && <span>{quote.jobName} • </span>}
-                              {quote.entityDate && <span>{quote.entityDate}</span>}
-                            </div>
-                          </div>
-                        </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleUnlink('QUOTE', quote.id);
-                          }}
-                          disabled={deleteLinkMutation.isPending}
-                          className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                          title="Unlink quote"
+                    relatedEntities.quotes.map((quote: JobRelatedQuote) => (
+                      <EntityHoverCard key={quote.id} entity={quote} type="quote">
+                        <div
+                          className="flex items-center justify-between p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]/30 transition-colors cursor-pointer group"
+                          onClick={() => handleQuoteClick(quote)}
                         >
-                          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
-                          </svg>
-                        </button>
-                      </div>
+                          <div className="flex items-center gap-3 flex-1">
+                            <div className="w-10 h-10 rounded-lg bg-indigo-500 flex items-center justify-center text-white flex-shrink-0">
+                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M14 2v6h6" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M16 13H8M16 17H8M10 9H8" strokeLinecap="round"/>
+                              </svg>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <h4 className="font-medium text-[var(--foreground)] truncate">{quote.quoteNumber}</h4>
+                                {quote.status && (
+                                  <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
+                                    {quote.status}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-sm text-[var(--muted-foreground)]">
+                                {quote.soldToCustomer?.companyName && <span>{quote.soldToCustomer.companyName} • </span>}
+                                {quote.balance?.total && <span>${quote.balance.total.toLocaleString()} • </span>}
+                                {quote.entityDate && <span>{quote.entityDate}</span>}
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleUnlink('QUOTE', quote.id);
+                            }}
+                            disabled={deleteLinkMutation.isPending}
+                            className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                            title="Unlink quote"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                            </svg>
+                          </button>
+                        </div>
+                      </EntityHoverCard>
                     ))
                   ) : (
                     <div className="text-center py-4 text-[var(--muted-foreground)]">
@@ -942,49 +956,51 @@ export function ConnectedEntitiesSection({
                 />
                 <div className="p-4 space-y-3">
                   {relatedEntities?.orders && relatedEntities.orders.length > 0 ? (
-                    relatedEntities.orders.map((order: OrderSearchResult) => (
-                      <div
-                        key={order.id}
-                        className="flex items-center justify-between p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]/30 transition-colors cursor-pointer group"
-                        onClick={() => handleOrderClick(order)}
-                      >
-                        <div className="flex items-center gap-3 flex-1">
-                          <div className="w-10 h-10 rounded-lg bg-cyan-500 flex items-center justify-center text-white flex-shrink-0">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <circle cx="9" cy="21" r="1"/>
-                              <circle cx="20" cy="21" r="1"/>
-                              <path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-0.5">
-                              <h4 className="font-medium text-[var(--foreground)] truncate">{order.orderNumber}</h4>
-                              {order.status && (
-                                <span className="px-2 py-0.5 bg-cyan-100 text-cyan-700 rounded text-xs font-medium">
-                                  {order.status}
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-sm text-[var(--muted-foreground)]">
-                              {order.jobName && <span>{order.jobName} • </span>}
-                              {order.entityDate && <span>{order.entityDate}</span>}
-                            </div>
-                          </div>
-                        </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleUnlink('ORDER', order.id);
-                          }}
-                          disabled={deleteLinkMutation.isPending}
-                          className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                          title="Unlink order"
+                    relatedEntities.orders.map((order: JobRelatedOrder) => (
+                      <EntityHoverCard key={order.id} entity={order} type="order">
+                        <div
+                          className="flex items-center justify-between p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]/30 transition-colors cursor-pointer group"
+                          onClick={() => handleOrderClick(order)}
                         >
-                          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
-                          </svg>
-                        </button>
-                      </div>
+                          <div className="flex items-center gap-3 flex-1">
+                            <div className="w-10 h-10 rounded-lg bg-cyan-500 flex items-center justify-center text-white flex-shrink-0">
+                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <circle cx="9" cy="21" r="1"/>
+                                <circle cx="20" cy="21" r="1"/>
+                                <path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <h4 className="font-medium text-[var(--foreground)] truncate">{order.orderNumber}</h4>
+                                {order.status && (
+                                  <span className="px-2 py-0.5 bg-cyan-100 text-cyan-700 rounded text-xs font-medium">
+                                    {order.status}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-sm text-[var(--muted-foreground)]">
+                                {order.soldToCustomer?.companyName && <span>{order.soldToCustomer.companyName} • </span>}
+                                {order.balance?.total && <span>${order.balance.total.toLocaleString()} • </span>}
+                                {order.entityDate && <span>{order.entityDate}</span>}
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleUnlink('ORDER', order.id);
+                            }}
+                            disabled={deleteLinkMutation.isPending}
+                            className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                            title="Unlink order"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                            </svg>
+                          </button>
+                        </div>
+                      </EntityHoverCard>
                     ))
                   ) : (
                     <div className="text-center py-4 text-[var(--muted-foreground)]">
@@ -1017,47 +1033,56 @@ export function ConnectedEntitiesSection({
                 />
                 <div className="p-4 space-y-3">
                   {relatedEntities?.invoices && relatedEntities.invoices.length > 0 ? (
-                    relatedEntities.invoices.map((invoice: InvoiceSearchResult) => (
-                      <div
-                        key={invoice.id}
-                        className="flex items-center justify-between p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]/30 transition-colors cursor-pointer group"
-                        onClick={() => handleInvoiceClick(invoice)}
-                      >
-                        <div className="flex items-center gap-3 flex-1">
-                          <div className="w-10 h-10 rounded-lg bg-emerald-500 flex items-center justify-center text-white flex-shrink-0">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
-                              <line x1="1" y1="10" x2="23" y2="10"/>
-                            </svg>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-0.5">
-                              <h4 className="font-medium text-[var(--foreground)] truncate">{invoice.invoiceNumber}</h4>
-                              {invoice.status && (
-                                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded text-xs font-medium">
-                                  {invoice.status}
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-sm text-[var(--muted-foreground)]">
-                              {invoice.entityDate && <span>{invoice.entityDate}</span>}
-                            </div>
-                          </div>
-                        </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleUnlink('INVOICE', invoice.id);
-                          }}
-                          disabled={deleteLinkMutation.isPending}
-                          className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                          title="Unlink invoice"
+                    relatedEntities.invoices.map((invoice: JobRelatedInvoice) => (
+                      <EntityHoverCard key={invoice.id} entity={invoice} type="invoice">
+                        <div
+                          className="flex items-center justify-between p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]/30 transition-colors cursor-pointer group"
+                          onClick={() => handleInvoiceClick(invoice)}
                         >
-                          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
-                          </svg>
-                        </button>
-                      </div>
+                          <div className="flex items-center gap-3 flex-1">
+                            <div className="w-10 h-10 rounded-lg bg-emerald-500 flex items-center justify-center text-white flex-shrink-0">
+                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+                                <line x1="1" y1="10" x2="23" y2="10"/>
+                              </svg>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <h4 className="font-medium text-[var(--foreground)] truncate">{invoice.invoiceNumber}</h4>
+                                {invoice.status && (
+                                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded text-xs font-medium">
+                                    {invoice.status}
+                                  </span>
+                                )}
+                                {invoice.locked && (
+                                  <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">
+                                    <svg className="w-3 h-3 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                    </svg>
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-sm text-[var(--muted-foreground)]">
+                                {invoice.entityDate && <span>{invoice.entityDate}</span>}
+                                {invoice.dueDate && <span> • Due: {invoice.dueDate}</span>}
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleUnlink('INVOICE', invoice.id);
+                            }}
+                            disabled={deleteLinkMutation.isPending}
+                            className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                            title="Unlink invoice"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                            </svg>
+                          </button>
+                        </div>
+                      </EntityHoverCard>
                     ))
                   ) : (
                     <div className="text-center py-4 text-[var(--muted-foreground)]">
@@ -1090,48 +1115,51 @@ export function ConnectedEntitiesSection({
                 />
                 <div className="p-4 space-y-3">
                   {relatedEntities?.checks && relatedEntities.checks.length > 0 ? (
-                    relatedEntities.checks.map((check: CheckSearchResult) => (
-                      <div
-                        key={check.id}
-                        className="flex items-center justify-between p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]/30 transition-colors cursor-pointer group"
-                        onClick={() => handleCheckClick(check)}
-                      >
-                        <div className="flex items-center gap-3 flex-1">
-                          <div className="w-10 h-10 rounded-lg bg-rose-500 flex items-center justify-center text-white flex-shrink-0">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <rect x="2" y="5" width="20" height="14" rx="2"/>
-                              <line x1="2" y1="10" x2="22" y2="10"/>
-                              <line x1="6" y1="15" x2="10" y2="15"/>
-                            </svg>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-0.5">
-                              <h4 className="font-medium text-[var(--foreground)] truncate">{check.checkNumber}</h4>
-                              {check.status && (
-                                <span className="px-2 py-0.5 bg-rose-100 text-rose-700 rounded text-xs font-medium">
-                                  {check.status}
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-sm text-[var(--muted-foreground)]">
-                              {check.entityDate && <span>{check.entityDate}</span>}
-                            </div>
-                          </div>
-                        </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleUnlink('CHECK', check.id);
-                          }}
-                          disabled={deleteLinkMutation.isPending}
-                          className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                          title="Unlink check"
+                    relatedEntities.checks.map((check: JobRelatedCheck) => (
+                      <EntityHoverCard key={check.id} entity={check} type="check">
+                        <div
+                          className="flex items-center justify-between p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]/30 transition-colors cursor-pointer group"
+                          onClick={() => handleCheckClick(check)}
                         >
-                          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
-                          </svg>
-                        </button>
-                      </div>
+                          <div className="flex items-center gap-3 flex-1">
+                            <div className="w-10 h-10 rounded-lg bg-rose-500 flex items-center justify-center text-white flex-shrink-0">
+                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <rect x="2" y="5" width="20" height="14" rx="2"/>
+                                <line x1="2" y1="10" x2="22" y2="10"/>
+                                <line x1="6" y1="15" x2="10" y2="15"/>
+                              </svg>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <h4 className="font-medium text-[var(--foreground)] truncate">{check.checkNumber}</h4>
+                                {check.status && (
+                                  <span className="px-2 py-0.5 bg-rose-100 text-rose-700 rounded text-xs font-medium">
+                                    {check.status}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-sm text-[var(--muted-foreground)]">
+                                {check.factory?.title && <span>{check.factory.title} • </span>}
+                                {check.enteredCommissionAmount && <span>${check.enteredCommissionAmount.toLocaleString()} • </span>}
+                                {check.entityDate && <span>{check.entityDate}</span>}
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleUnlink('CHECK', check.id);
+                            }}
+                            disabled={deleteLinkMutation.isPending}
+                            className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                            title="Unlink check"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                            </svg>
+                          </button>
+                        </div>
+                      </EntityHoverCard>
                     ))
                   ) : (
                     <div className="text-center py-4 text-[var(--muted-foreground)]">

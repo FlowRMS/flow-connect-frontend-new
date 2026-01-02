@@ -218,7 +218,7 @@ export function LineItemsTabV2({
       description: '',
       manufacturerName: '',
       quantity: 1,
-      uom: 'EA',
+      uom: '',
       divisor: 1,
       unitPrice: 0,
       sellTotal: 0,
