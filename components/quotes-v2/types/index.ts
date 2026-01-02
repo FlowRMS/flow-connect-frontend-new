@@ -604,8 +604,8 @@ export function transformLineItemV2ToDetailInput(
   productId?: string;
   status?: QuoteDetailStatus;
   uomId?: string;
-  insideSplitRates?: { id?: string; userId: string; splitRate: string; position?: number }[];
-  outsideSplitRates?: { id?: string; userId: string; splitRate: string; position?: number }[];
+  insideSplitRates?: { id?: string; userId: string; splitRate: number; position?: number }[];
+  outsideSplitRates?: { id?: string; userId: string; splitRate: number; position?: number }[];
 } {
   // Only include ID if it's a valid UUID (existing item from API)
   // New items with IDs like "li-123456" should not send ID
