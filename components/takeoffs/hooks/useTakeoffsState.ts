@@ -850,48 +850,102 @@ export function useTakeoffsState() {
         const alternatives = crosses[0].crosses.flatMap(c => c.alternatives);
         const bestAlternative = alternatives[0];
 
+        const crossedManufacturer = bestAlternative?.name || 'Our Company';
+        const crossedPartNumber = bestAlternative?.description?.split(' ')[0] || `OC-${Math.floor(Math.random() * 90000) + 10000}`;
+        const crossedDescription = bestAlternative?.description || item.description + ' (Crossed)';
+
         setParsedItems(items =>
           items.map(i => {
             if (i.id !== itemId) return i;
             return {
               ...i,
               isCrossed: true,
-              crossedManufacturer: bestAlternative?.name || 'Our Company',
-              crossedPartNumber: bestAlternative?.description?.split(' ')[0] || `OC-${Math.floor(Math.random() * 90000) + 10000}`,
-              crossedDescription: bestAlternative?.description || i.description + ' (Crossed)',
+              crossedManufacturer,
+              crossedPartNumber,
+              crossedDescription,
             };
           })
         );
+
+        // Persist to known product crosses database
+        try {
+          await createKnownProductCross({
+            competitorManufacturer: item.manufacturer,
+            competitorPartNumber: item.partNumber,
+            competitorDescription: item.description || '',
+            ourManufacturer: crossedManufacturer,
+            ourPartNumber: crossedPartNumber,
+            ourDescription: crossedDescription,
+          });
+        } catch (persistError) {
+          console.error('Failed to persist product cross:', persistError);
+        }
       } else {
         // Fallback if no crosses found
+        const crossedManufacturer = 'Our Company';
+        const crossedPartNumber = `OC-${Math.floor(Math.random() * 90000) + 10000}`;
+        const crossedDescription = item.description + ' (Crossed)';
+
         setParsedItems(items =>
           items.map(i => {
             if (i.id !== itemId) return i;
             return {
               ...i,
               isCrossed: true,
-              crossedManufacturer: 'Our Company',
-              crossedPartNumber: `OC-${Math.floor(Math.random() * 90000) + 10000}`,
-              crossedDescription: i.description + ' (Crossed)',
+              crossedManufacturer,
+              crossedPartNumber,
+              crossedDescription,
             };
           })
         );
+
+        // Persist fallback cross to database
+        try {
+          await createKnownProductCross({
+            competitorManufacturer: item.manufacturer,
+            competitorPartNumber: item.partNumber,
+            competitorDescription: item.description || '',
+            ourManufacturer: crossedManufacturer,
+            ourPartNumber: crossedPartNumber,
+            ourDescription: crossedDescription,
+          });
+        } catch (persistError) {
+          console.error('Failed to persist product cross:', persistError);
+        }
       }
     } catch (error) {
       console.error('Failed to cross item:', error);
       // Fallback to local cross on error
+      const crossedManufacturer = 'Our Company';
+      const crossedPartNumber = `OC-${Math.floor(Math.random() * 90000) + 10000}`;
+      const crossedDescription = item.description + ' (Crossed)';
+
       setParsedItems(items =>
         items.map(i => {
           if (i.id !== itemId) return i;
           return {
             ...i,
             isCrossed: true,
-            crossedManufacturer: 'Our Company',
-            crossedPartNumber: `OC-${Math.floor(Math.random() * 90000) + 10000}`,
-            crossedDescription: i.description + ' (Crossed)',
+            crossedManufacturer,
+            crossedPartNumber,
+            crossedDescription,
           };
         })
       );
+
+      // Try to persist even on AI error
+      try {
+        await createKnownProductCross({
+          competitorManufacturer: item.manufacturer,
+          competitorPartNumber: item.partNumber,
+          competitorDescription: item.description || '',
+          ourManufacturer: crossedManufacturer,
+          ourPartNumber: crossedPartNumber,
+          ourDescription: crossedDescription,
+        });
+      } catch (persistError) {
+        console.error('Failed to persist product cross:', persistError);
+      }
     } finally {
       setProductCrossState({ isProcessing: false, progress: 100 });
     }
