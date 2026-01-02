@@ -61,10 +61,9 @@ const defaultConfig: SidebarConfig = {
       label: 'Quotes',
       collapsed: false,
       items: [
-        // { id: 'take-offs', name: 'Take-Offs', href: '/take-offs', enabled: true },
-        // { id: 'product-crosses', name: 'Product Crosses', href: '/product-crosses', enabled: true },
+        { id: 'take-offs', name: 'Take-Offs', href: '/take-offs', enabled: true },
+        { id: 'product-crosses', name: 'Product Crosses', href: '/product-crosses', enabled: true },
         { id: 'quotes', name: 'Quotes', href: '/quotes-v2', enabled: true },
-        // { id: 'quotes-v2', name: 'Quotes V2', href: '/quotes-v2', enabled: true },
       ]
     },
     {
@@ -139,7 +138,7 @@ const defaultConfig: SidebarConfig = {
 };
 
 const STORAGE_KEY = 'sidebar-config';
-const CONFIG_VERSION = 21; // Increment this to force a reset of cached sidebar config (reordered financial items)
+const CONFIG_VERSION = 22; // Increment this to force a reset of cached sidebar config (re-enabled takeoffs and product crosses)
 
 const SidebarConfigContext = createContext<SidebarConfigContextType | undefined>(undefined);
 
