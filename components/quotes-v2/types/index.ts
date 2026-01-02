@@ -390,7 +390,7 @@ export function transformLandingPageToQuoteV2(quote: QuoteLandingPage): QuoteV2 
     quoteAmount: Number(quote.total) || 0,
     basePrice: Number(quote.total) || 0,
     sellPrice: Number(quote.total) || 0,
-    commission: 0,
+    commission: Number(quote.commission) || 0,
 
     // Win tracking - Coming soon
     winProbability: 0,

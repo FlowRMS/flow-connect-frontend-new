@@ -198,6 +198,7 @@ export interface QuoteLandingPage {
   quoteNumber: string;
   status?: QuoteStatus;
   total?: number;
+  commission?: number;
   userIds?: string[];
 }
 
@@ -306,6 +307,7 @@ const QUOTE_LANDING_PAGES = `
           quoteNumber
           status
           total
+          # commission - TODO: uncomment when backend is ready
           userIds
         }
       }

@@ -24,7 +24,6 @@ export function useCompaniesState(
   const [editFormData, setEditFormData] = useState<Partial<Company>>({});
 
   // Modals
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Filtering and sorting
@@ -162,8 +161,6 @@ export function useCompaniesState(
     setEditFormData,
 
     // Modals
-    showCreateModal,
-    setShowCreateModal,
     deleteConfirmId,
     setDeleteConfirmId,
 

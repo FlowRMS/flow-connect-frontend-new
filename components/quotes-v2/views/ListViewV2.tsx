@@ -8,7 +8,7 @@ interface ListViewV2Props {
   onQuoteClick: (quote: QuoteV2) => void;
 }
 
-type SortKey = 'quoteNumber' | 'status' | 'pipelineStage' | 'quoteAmount' | 'entryDate' | 'quoteDate' | 'expirationDate' | 'published';
+type SortKey = 'quoteNumber' | 'status' | 'pipelineStage' | 'quoteAmount' | 'commission' | 'entryDate' | 'quoteDate' | 'expirationDate' | 'published';
 
 function getStatusBadgeClass(status: string): string {
   switch (status) {
@@ -92,6 +92,10 @@ export function ListViewV2({ quotes, onQuoteClick }: ListViewV2Props) {
         case 'quoteAmount':
           aVal = a.quoteAmount;
           bVal = b.quoteAmount;
+          break;
+        case 'commission':
+          aVal = a.commission;
+          bVal = b.commission;
           break;
         case 'entryDate':
           aVal = a.entryDate;
@@ -215,6 +219,12 @@ export function ListViewV2({ quotes, onQuoteClick }: ListViewV2Props) {
                   Total {renderFilterIcon()} {renderSortIcon('quoteAmount')}
                 </div>
               </th>
+              {/* Commission */}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('commission')}>
+                  Commission {renderFilterIcon()} {renderSortIcon('commission')}
+                </div>
+              </th>
               {/* Entry Date */}
               <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                 <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('entryDate')}>
@@ -286,6 +296,10 @@ export function ListViewV2({ quotes, onQuoteClick }: ListViewV2Props) {
                   {/* Quote Amount */}
                   <td className="px-3 py-3 text-sm text-gray-900">
                     ${Number(quote.quoteAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                  {/* Commission */}
+                  <td className="px-3 py-3 text-sm text-green-600 font-medium">
+                    ${Number(quote.commission).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                   {/* Entry Date */}
                   <td className="px-3 py-3 text-sm text-gray-900">{formatDate(quote.entryDate)}</td>

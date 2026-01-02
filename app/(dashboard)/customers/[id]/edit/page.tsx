@@ -6,11 +6,9 @@ import { toast } from 'sonner';
 import {
   useCustomer,
   useUpdateCustomer,
-  type Customer,
 } from '../../../../../components/customers/api/useCustomersApi';
 import {
   SplitRatesInput,
-  entriesToSplitRateInputs,
   type SplitRateEntry,
 } from '../../../../../components/customers/components/SplitRatesInput';
 
@@ -175,7 +173,6 @@ export default function CustomerEditPage() {
     }
 
     // Convert entries to the format expected by the API
-    // The API expects insideSplitRates and outsideSplitRates as separate fields
     const insideSplitRate = insideRepEntries.length > 0 ? {
       userId: insideRepEntries[0].userId,
       splitRate: insideRepEntries[0].splitRate,
@@ -227,8 +224,8 @@ export default function CustomerEditPage() {
     return (
       <main className="flex-1 overflow-y-auto bg-gray-50 p-6">
         <div className="flex items-center justify-center h-64">
-          <div className="flex items-center gap-3">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="flex flex-col items-center gap-4">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
             <span className="text-gray-600">Loading customer...</span>
           </div>
         </div>
@@ -240,11 +237,13 @@ export default function CustomerEditPage() {
     return (
       <main className="flex-1 overflow-y-auto bg-gray-50 p-6">
         <div className="flex flex-col items-center justify-center h-64">
-          <svg className="w-16 h-16 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+            <svg className="w-8 h-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">Customer not found</h3>
-          <p className="text-gray-500 mb-4">The customer you're looking for doesn't exist or has been deleted.</p>
+          <p className="text-gray-500 mb-4">The customer you&apos;re looking for doesn&apos;t exist or has been deleted.</p>
           <button
             onClick={() => router.push('/customers')}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -275,9 +274,11 @@ export default function CustomerEditPage() {
               </svg>
             </button>
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center">
-                <svg className="w-6 h-6 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+                <svg className="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
                 </svg>
               </div>
               <div>
@@ -302,6 +303,11 @@ export default function CustomerEditPage() {
             {isParent && (
               <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
                 Parent
+              </span>
+            )}
+            {hasChanges && (
+              <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                Unsaved Changes
               </span>
             )}
 
@@ -363,6 +369,72 @@ export default function CustomerEditPage() {
         <div ref={el => { sectionRefs.current['overview'] = el; }} id="section-overview">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Overview</h2>
 
+          {/* Status Toggles */}
+          <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
+            <div className="grid grid-cols-2 gap-4">
+              {/* Published Toggle */}
+              <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-gray-50">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-700">Published</span>
+                  <div className="relative group">
+                    <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 w-64 z-50">
+                      Published customers are visible and active in the system.
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPublished(!published);
+                    handleFieldChange();
+                  }}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    published ? 'bg-green-600' : 'bg-gray-300'
+                  }`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    published ? 'translate-x-6' : 'translate-x-1'
+                  }`}/>
+                </button>
+              </div>
+
+              {/* Parent Customer Toggle */}
+              <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-gray-50">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-700">Parent Customer</span>
+                  <div className="relative group">
+                    <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 w-64 z-50">
+                      Mark as a parent customer that can have child customer accounts.
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsParent(!isParent);
+                    handleFieldChange();
+                  }}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    isParent ? 'bg-purple-600' : 'bg-gray-300'
+                  }`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    isParent ? 'translate-x-6' : 'translate-x-1'
+                  }`}/>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Customer Details */}
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -394,25 +466,38 @@ export default function CustomerEditPage() {
         {/* ============ INSIDE REPS SECTION ============ */}
         <div ref={el => { sectionRefs.current['inside-reps'] = el; }} id="section-inside-reps">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Inside Representatives</h2>
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+              Inside Representatives
+            </h2>
             {hasInsideReps && (
-              <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${
                 isInsideValid
                   ? 'bg-green-100 text-green-700'
                   : insideTotal > 100
                     ? 'bg-red-100 text-red-700'
                     : 'bg-amber-100 text-amber-700'
               }`}>
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={isInsideValid ? "M5 13l4 4L19 7" : "M12 9v2m0 4h.01"} />
+                </svg>
                 Total: {insideTotal.toFixed(1)}%
               </div>
             )}
           </div>
 
           <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <p className="text-sm text-gray-500 mb-6">
-              Manage inside sales representatives and their commission split rates.
-              Inside reps must total 100% independently.
-            </p>
+            <div className="flex items-start gap-3 mb-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
+              <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <p className="text-sm text-blue-900 font-medium">Commission Split Rules</p>
+                <p className="text-sm text-blue-700 mt-1">
+                  Inside representatives handle internal sales operations. Split rates must total 100%.
+                </p>
+              </div>
+            </div>
 
             <SplitRatesInput
               repType="INSIDE"
@@ -426,25 +511,38 @@ export default function CustomerEditPage() {
         {/* ============ OUTSIDE REPS SECTION ============ */}
         <div ref={el => { sectionRefs.current['outside-reps'] = el; }} id="section-outside-reps">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Outside Representatives</h2>
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+              Outside Representatives
+            </h2>
             {hasOutsideReps && (
-              <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${
                 isOutsideValid
                   ? 'bg-green-100 text-green-700'
                   : outsideTotal > 100
                     ? 'bg-red-100 text-red-700'
                     : 'bg-amber-100 text-amber-700'
               }`}>
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={isOutsideValid ? "M5 13l4 4L19 7" : "M12 9v2m0 4h.01"} />
+                </svg>
                 Total: {outsideTotal.toFixed(1)}%
               </div>
             )}
           </div>
 
           <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <p className="text-sm text-gray-500 mb-6">
-              Manage outside sales representatives and their commission split rates.
-              Outside reps must total 100% independently.
-            </p>
+            <div className="flex items-start gap-3 mb-6 p-4 bg-purple-50 rounded-lg border border-purple-100">
+              <svg className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <p className="text-sm text-purple-900 font-medium">Commission Split Rules</p>
+                <p className="text-sm text-purple-700 mt-1">
+                  Outside representatives handle field sales and client relationships. Split rates must total 100%.
+                </p>
+              </div>
+            </div>
 
             <SplitRatesInput
               repType="OUTSIDE"
@@ -459,61 +557,42 @@ export default function CustomerEditPage() {
         <div ref={el => { sectionRefs.current['settings'] = el; }} id="section-settings">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Settings</h2>
 
-          <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-            {/* Is Parent Toggle */}
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div>
-                <label className="block text-sm font-medium text-gray-900">
-                  Parent Customer
-                </label>
-                <p className="text-xs text-gray-500">Mark as a parent customer that can have child customers</p>
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <div className="space-y-4">
+              {/* Additional settings info */}
+              <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <svg className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <div>
+                  <p className="text-sm text-gray-900 font-medium">Customer Settings</p>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Configure published status and parent customer designation using the toggles in the Overview section above.
+                  </p>
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsParent(!isParent);
-                  handleFieldChange();
-                }}
-                className={`relative w-11 h-6 rounded-full transition-colors ${
-                  isParent ? 'bg-purple-500' : 'bg-gray-300'
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow-sm ${
-                    isParent ? 'translate-x-5' : 'translate-x-0'
-                  }`}
-                />
-              </button>
-            </div>
 
-            {/* Published Toggle */}
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div>
-                <label className="block text-sm font-medium text-gray-900">
-                  Published
-                </label>
-                <p className="text-xs text-gray-500">Make this customer visible and active in the system</p>
+              {/* Customer ID info */}
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Customer ID</label>
+                  <p className="text-xs text-gray-500 mt-0.5">Unique identifier for this customer</p>
+                </div>
+                <code className="px-3 py-1.5 bg-gray-200 rounded-lg text-xs font-mono text-gray-700">
+                  {customerId}
+                </code>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setPublished(!published);
-                  handleFieldChange();
-                }}
-                className={`relative w-11 h-6 rounded-full transition-colors ${
-                  published ? 'bg-green-500' : 'bg-gray-300'
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow-sm ${
-                    published ? 'translate-x-5' : 'translate-x-0'
-                  }`}
-                />
-              </button>
             </div>
           </div>
         </div>
 
+        {/* Required Fields Note */}
+        <div className="flex items-center justify-center pt-4 pb-8">
+          <div className="text-sm text-gray-500">
+            <span className="text-red-500">*</span> Required fields
+          </div>
+        </div>
       </div>
     </main>
   );
