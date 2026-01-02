@@ -10,9 +10,6 @@ export * from './types';
 // Constants
 export * from './constants';
 
-// Mock Data
-export * from './mockData';
-
 // Utils
 export * from './utils';
 

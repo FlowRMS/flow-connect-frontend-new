@@ -2,7 +2,7 @@
  * Take-Off Constants and Configurations
  */
 
-import type { TakeoffFilterOption, StepConfig, DocumentCategory, TakeoffStatus } from './types';
+import type { TakeoffFilterOption, TakeoffStatus } from './types';
 
 // Status color mapping
 export const STATUS_COLORS: Record<TakeoffStatus, string> = {
@@ -23,30 +23,6 @@ export const TAKEOFF_STATUS_OPTIONS = [
   'Complete',
 ] as const;
 
-// Priority options for filtering
-export const TAKEOFF_PRIORITY_OPTIONS = [
-  'Low',
-  'Medium',
-  'High',
-] as const;
-
-// Source options for filtering
-export const TAKEOFF_SOURCE_OPTIONS = [
-  'Manual Upload',
-  'Email',
-  'API',
-] as const;
-
-// Discipline options for document filtering
-export const DOCUMENT_DISCIPLINE_OPTIONS = [
-  'Plumbing',
-  'Electrical',
-  'HVAC',
-  'Fire Protection',
-  'Lighting',
-  'General',
-] as const;
-
 // Filter options for take-offs list
 export const TAKEOFF_FILTER_OPTIONS: TakeoffFilterOption[] = [
   { id: 'takeoffId', label: 'Takeoff ID', type: 'text', columnName: 'id' },
@@ -62,12 +38,6 @@ export const TAKEOFF_FILTER_OPTIONS: TakeoffFilterOption[] = [
   { id: 'date', label: 'Date', type: 'date', columnName: 'createdDate' },
 ];
 
-// Step configuration for detail view
-export const TAKEOFF_STEPS: StepConfig[] = [
-  { id: 'classification', label: 'Classification', icon: '📑' },
-  { id: 'parsing', label: 'Schedule Parsing', icon: '🔍' },
-] as const;
-
 // Document classification options
 export const CLASSIFICATION_OPTIONS = [
   { value: 'Fixture Schedules', label: 'Fixture Schedules' },
@@ -75,15 +45,6 @@ export const CLASSIFICATION_OPTIONS = [
   { value: 'Blueprints', label: 'Blueprints' },
   { value: 'Other Docs', label: 'Other Useful Docs' },
   { value: 'Irrelevant', label: 'Irrelevant' },
-] as const;
-
-// Default document categories for tabs
-export const DEFAULT_DOCUMENT_CATEGORIES: DocumentCategory[] = [
-  { id: 'Fixture Schedules', label: 'Fixture Schedules', count: 0 },
-  { id: 'Specifications', label: 'Specifications', count: 0 },
-  { id: 'Blueprints', label: 'Blueprints', count: 0 },
-  { id: 'Other Docs', label: 'Other Docs', count: 0 },
-  { id: 'Irrelevant', label: 'Irrelevant', count: 0 },
 ] as const;
 
 // Abridgment threshold (pages above this can be abridged)
@@ -97,11 +58,3 @@ export const MAX_UPLOAD_FILES = 20;
 
 // Accepted file types
 export const ACCEPTED_FILE_TYPES = '.pdf';
-
-// Sort options for take-offs
-export const TAKEOFF_SORT_OPTIONS = [
-  { columnName: 'title', label: 'Title' },
-  { columnName: 'createdDate', label: 'Created Date' },
-  { columnName: 'status', label: 'Status' },
-  { columnName: 'createdBy', label: 'Created By' },
-] as const;
