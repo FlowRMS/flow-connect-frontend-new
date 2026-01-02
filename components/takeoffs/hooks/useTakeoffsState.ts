@@ -877,8 +877,12 @@ export function useTakeoffsState() {
             ourPartNumber: crossedPartNumber,
             ourDescription: crossedDescription,
           });
+          showSuccessToast('Product cross saved to database');
         } catch (persistError) {
           console.error('Failed to persist product cross:', persistError);
+          showErrorToast('Failed to save product cross', {
+            description: persistError instanceof Error ? persistError.message : 'Unknown error'
+          });
         }
       } else {
         // Fallback if no crosses found
@@ -909,8 +913,12 @@ export function useTakeoffsState() {
             ourPartNumber: crossedPartNumber,
             ourDescription: crossedDescription,
           });
+          showSuccessToast('Product cross saved to database');
         } catch (persistError) {
           console.error('Failed to persist product cross:', persistError);
+          showErrorToast('Failed to save product cross', {
+            description: persistError instanceof Error ? persistError.message : 'Unknown error'
+          });
         }
       }
     } catch (error) {
@@ -943,8 +951,12 @@ export function useTakeoffsState() {
           ourPartNumber: crossedPartNumber,
           ourDescription: crossedDescription,
         });
+        showSuccessToast('Product cross saved to database');
       } catch (persistError) {
         console.error('Failed to persist product cross:', persistError);
+        showErrorToast('Failed to save product cross', {
+          description: persistError instanceof Error ? persistError.message : 'Unknown error'
+        });
       }
     } finally {
       setProductCrossState({ isProcessing: false, progress: 100 });
