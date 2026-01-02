@@ -91,12 +91,15 @@ export function ClassificationTab({
 
   // Handle "Abridge All Large Documents" button click
   const handleAbridgeAllClick = useCallback(() => {
+    // Always switch to Fixture Schedules tab first
+    setActiveTab('Fixture Schedules');
+
+    // Check if there are documents to abridge
     if (docsToAbridge.length === 0) {
       showInfoToast('No documents to abridge. Documents must be classified as "Fixture Schedules" or "Specifications" and not already abridged.');
       return;
     }
-    // Switch to Fixture Schedules tab to show progress
-    setActiveTab('Fixture Schedules');
+
     // Start abridging
     onAbridgeAll();
   }, [docsToAbridge.length, onAbridgeAll]);
