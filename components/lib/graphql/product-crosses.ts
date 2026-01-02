@@ -288,6 +288,7 @@ export interface BulkKnownProductCrossInput {
 }
 
 export interface KnownProductCrossFilters {
+  [key: string]: string | number | undefined;
   limit?: number;
   offset?: number;
   search?: string;

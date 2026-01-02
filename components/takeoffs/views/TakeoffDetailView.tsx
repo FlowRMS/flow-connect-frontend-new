@@ -508,8 +508,8 @@ export function TakeoffDetailView({
 
           {(() => {
             const nextStep = canGoForward ? WORKFLOW_STEPS[currentStepIndex + 1] : null;
-            const buttonBg = nextStep ? nextStep.colors.bg : 'bg-gray-200';
-            const hoverBg = nextStep ? nextStep.colors.bg.replace('500', '600').replace('600', '700') : '';
+            const buttonBg = nextStep?.colors?.bg ?? 'bg-gray-200';
+            const hoverBg = nextStep?.colors?.bg?.replace('500', '600')?.replace('600', '700') ?? '';
             return (
               <button
                 onClick={goToNextStep}

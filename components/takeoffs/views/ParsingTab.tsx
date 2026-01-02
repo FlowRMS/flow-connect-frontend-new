@@ -53,7 +53,8 @@ export function ParsingTab({
         </div>
         <button
           onClick={onCrossAll}
-          className="px-4 py-2 bg-purple-600 text-white rounded-full text-sm font-medium hover:bg-purple-700 transition-colors"
+          disabled={selectableItems.length === 0}
+          className="px-4 py-2 bg-purple-600 text-white rounded-full text-sm font-medium hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Cross All
         </button>

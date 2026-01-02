@@ -1039,11 +1039,12 @@ export async function createTakeoffWithFiles(
       // Construct documents from our input as a last resort
       result.documents = documents.map((doc, index) => ({
         id: `temp-${index}-${Date.now()}`,
+        takeoffId: result.id,
         name: doc.name,
-        fileType: doc.fileType,
+        fileType: doc.fileType || '',
         fileSize: doc.fileSize,
-        documentUrl: doc.documentUrl,
-        pages: doc.pages,
+        documentUrl: doc.documentUrl ?? null,
+        pages: doc.pages || 0,
         abridged: doc.abridged || false,
         abridgedPages: null,
         reductionPercentage: null,
