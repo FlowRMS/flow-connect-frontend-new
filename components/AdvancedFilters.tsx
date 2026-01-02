@@ -102,19 +102,31 @@ export default function AdvancedFilters({
         if (existingFilter) {
           if (existingFilter.operator === 'IN' && existingFilter.values) {
             setSelectedValues(existingFilter.values);
+            setFilterValue('');
           } else if (existingFilter.value) {
-            setSelectedValues([existingFilter.value]);
+            // For text filters, set the filterValue; for dropdown, set selectedValues
+            if (option.type === 'text') {
+              setFilterValue(existingFilter.value);
+              setSelectedValues([]);
+            } else {
+              setSelectedValues([existingFilter.value]);
+              setFilterValue('');
+            }
           } else {
             setSelectedValues([]);
+            setFilterValue('');
           }
         } else {
           setSelectedValues([]);
+          setFilterValue('');
         }
       } else {
         setSelectedValues([]);
+        setFilterValue('');
       }
     } else {
       setSelectedValues([]);
+      setFilterValue('');
     }
   }, [expandedFilterId, localFilters, filterOptions]);
 
@@ -350,11 +362,40 @@ export default function AdvancedFilters({
                       )}
                     </button>
 
-                    {/* Inline Dropdown for filter value - expanded to show all options */}
+                    {/* Inline Dropdown/Input for filter value */}
                     {expandedFilterId === option.id && option.available !== false && (
                       <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-xl z-10 overflow-hidden">
-                        {/* Multi-select Dropdown - Show all options without scrolling */}
-                        <div className="flex flex-col">
+                        {/* Text input for text-type filters */}
+                        {option.type === 'text' ? (
+                          <div className="flex flex-col">
+                            <div className="p-3">
+                              <input
+                                type="text"
+                                value={filterValue}
+                                onChange={(e) => setFilterValue(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && filterValue.trim()) {
+                                    handleApplyFilter(option, filterValue, 'ILIKE');
+                                  }
+                                }}
+                                placeholder={`Enter ${option.label.toLowerCase()}...`}
+                                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                autoFocus
+                              />
+                            </div>
+                            <div className="p-3 border-t border-gray-100 bg-gray-50 flex justify-end">
+                              <button
+                                onClick={() => handleApplyFilter(option, filterValue, 'ILIKE')}
+                                disabled={!filterValue.trim()}
+                                className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                Apply
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          /* Multi-select Dropdown for dropdown-type filters */
+                          <div className="flex flex-col">
                             <div className="p-3 border-b border-gray-100">
                               <input
                                 type="text"
@@ -379,12 +420,12 @@ export default function AdvancedFilters({
                                     <span className="text-sm text-gray-700">{opt}</span>
                                   </label>
                                 ))}
-                                {(!option.options || option.options.length === 0) && (
-                                  <div className="px-2 py-2 text-sm text-gray-500 text-center">No options available</div>
-                                )}
-                                {option.options && option.options.filter(opt => opt.toLowerCase().includes(filterValue.toLowerCase())).length === 0 && option.options.length > 0 && (
-                                  <div className="px-2 py-2 text-sm text-gray-500 text-center">No options found</div>
-                                )}
+                              {(!option.options || option.options.length === 0) && (
+                                <div className="px-2 py-2 text-sm text-gray-500 text-center">No options available</div>
+                              )}
+                              {option.options && option.options.filter(opt => opt.toLowerCase().includes(filterValue.toLowerCase())).length === 0 && option.options.length > 0 && (
+                                <div className="px-2 py-2 text-sm text-gray-500 text-center">No options found</div>
+                              )}
                             </div>
                             <div className="p-3 border-t border-gray-100 bg-gray-50 flex justify-between items-center">
                               <span className="text-xs text-gray-500">{selectedValues.length} selected</span>
@@ -396,6 +437,7 @@ export default function AdvancedFilters({
                               </button>
                             </div>
                           </div>
+                        )}
                       </div>
                     )}
                   </div>
