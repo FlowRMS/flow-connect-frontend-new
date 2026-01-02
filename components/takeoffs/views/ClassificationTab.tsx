@@ -3,9 +3,10 @@
  * Clean table layout matching FlowCRM design
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import type { TakeoffDocument, DocumentClassification, DocumentDiscipline } from '../types';
 import { CLASSIFICATION_OPTIONS } from '../constants';
+import { showInfoToast } from '../../lib/toast';
 
 // Abridgement state per document
 interface DocumentAbridgeState {
@@ -79,6 +80,27 @@ export function ClassificationTab({
     return documents.filter(doc => doc.classification === activeTab);
   }, [documents, activeTab]);
 
+  // Documents that can be abridged (Fixture Schedules or Specifications, not already abridged)
+  const docsToAbridge = useMemo(() => {
+    return documents.filter(d =>
+      !d.abridged &&
+      d.documentUrl &&
+      (d.classification === 'Fixture Schedules' || d.classification === 'Specifications')
+    );
+  }, [documents]);
+
+  // Handle "Abridge All Large Documents" button click
+  const handleAbridgeAllClick = useCallback(() => {
+    if (docsToAbridge.length === 0) {
+      showInfoToast('No documents to abridge. Documents must be classified as "Fixture Schedules" or "Specifications" and not already abridged.');
+      return;
+    }
+    // Switch to Fixture Schedules tab to show progress
+    setActiveTab('Fixture Schedules');
+    // Start abridging
+    onAbridgeAll();
+  }, [docsToAbridge.length, onAbridgeAll]);
+
   const formatDate = (dateString: string) => {
     if (!dateString) return '-';
     try {
@@ -130,7 +152,7 @@ export function ClassificationTab({
             Download All (ZIP)
           </button>
           <button
-            onClick={onAbridgeAll}
+            onClick={handleAbridgeAllClick}
             className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
           >
             Abridge All Large Documents
