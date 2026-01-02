@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import type { Order } from '@/lib/types/rms';
 import type { ViewMode, VersionInfo } from '../../types';
 import { orderStatusLabels } from '../../constants';
+import { CreatedByBadge } from '@/components/ui/CreatedByBadge';
 
 interface HeaderTopBarProps {
   order: Order;
@@ -98,6 +99,11 @@ export function HeaderTopBar({
               </svg>
             </button>
             <h1 className="text-2xl font-semibold text-[var(--foreground)]">{order.orderNumber}</h1>
+            <CreatedByBadge
+              createdBy={order.createdBy}
+              createdAt={order.createdAt}
+              size="sm"
+            />
           </div>
         </div>
         <div className="flex items-center gap-2">

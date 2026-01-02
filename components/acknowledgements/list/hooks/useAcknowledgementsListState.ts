@@ -1,33 +1,75 @@
 /**
- * useAcknowledgementsState Hook
- * Manages acknowledgements state for the order detail page
- * Uses orderAcknowledgementsByOrder query (not findLandingPages)
+ * useAcknowledgementsListState Hook
+ * Manages acknowledgements state for the standalone acknowledgements page
+ * with infinite scroll pagination and search functionality
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
 import {
   type OrderAcknowledgement,
+  type AcknowledgementLandingPage,
   type CreateAcknowledgementInput,
-  useOrderAcknowledgements,
+  useAcknowledgementsInfinite,
+  useAcknowledgementSearch,
   useCreateAcknowledgement,
   useUpdateAcknowledgement,
   useDeleteAcknowledgement,
   fetchAcknowledgementById,
-} from '../../api/acknowledgementsApi';
+} from '@/components/orders/api/acknowledgementsApi';
 
-interface UseAcknowledgementsStateProps {
-  orderId: string | null;
-}
+export function useAcknowledgementsListState() {
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
 
-export function useAcknowledgementsState({ orderId }: UseAcknowledgementsStateProps) {
-  // Fetch acknowledgements from API using orderAcknowledgementsByOrder query
+  // Fetch acknowledgements from API with infinite scroll
   const {
-    data: acknowledgements = [],
+    data: acknowledgementsData,
     isLoading: isLoadingAcknowledgements,
     error: acknowledgementsError,
     refetch: refetchAcknowledgements,
-  } = useOrderAcknowledgements(orderId);
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useAcknowledgementsInfinite();
+
+  // Search acknowledgements - only when search query has 2+ characters
+  const { data: searchResults, isLoading: isSearching } = useAcknowledgementSearch(
+    searchQuery,
+    100
+  );
+
+  // Flatten paginated data
+  const allAcknowledgementsData = useMemo(() => {
+    if (!acknowledgementsData?.pages) return [];
+    return acknowledgementsData.pages.flatMap(page => page.records);
+  }, [acknowledgementsData]);
+
+  // Get total count
+  const totalCount = useMemo(() => {
+    if (!acknowledgementsData?.pages || acknowledgementsData.pages.length === 0) return 0;
+    return acknowledgementsData.pages[0].total;
+  }, [acknowledgementsData]);
+
+  // Use search results when searching, otherwise use paginated data
+  const acknowledgements = useMemo(() => {
+    if (searchQuery.length >= 2 && searchResults) {
+      return searchResults;
+    }
+    return allAcknowledgementsData;
+  }, [allAcknowledgementsData, searchQuery, searchResults]);
+
+  // Scroll handler for infinite scroll
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLDivElement;
+    const { scrollTop, scrollHeight, clientHeight } = target;
+    // Load more when within 200px of bottom
+    if (scrollHeight - scrollTop - clientHeight < 200) {
+      if (hasNextPage && !isFetchingNextPage && !searchQuery) {
+        fetchNextPage();
+      }
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, searchQuery]);
 
   // Mutations
   const createAcknowledgementMutation = useCreateAcknowledgement();
@@ -38,9 +80,9 @@ export function useAcknowledgementsState({ orderId }: UseAcknowledgementsStatePr
   const [showAcknowledgementModal, setShowAcknowledgementModal] = useState(false);
   const [showAcknowledgementDetailModal, setShowAcknowledgementDetailModal] = useState(false);
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
-  const [selectedAcknowledgement, setSelectedAcknowledgement] = useState<OrderAcknowledgement | null>(null);
+  const [selectedAcknowledgement, setSelectedAcknowledgement] = useState<AcknowledgementLandingPage | null>(null);
   const [acknowledgementToEdit, setAcknowledgementToEdit] = useState<OrderAcknowledgement | null>(null);
-  const [acknowledgementToDelete, setAcknowledgementToDelete] = useState<OrderAcknowledgement | null>(null);
+  const [acknowledgementToDelete, setAcknowledgementToDelete] = useState<AcknowledgementLandingPage | null>(null);
   const [isLoadingAcknowledgementDetails, setIsLoadingAcknowledgementDetails] = useState(false);
 
   // Open create acknowledgement modal
@@ -50,7 +92,7 @@ export function useAcknowledgementsState({ orderId }: UseAcknowledgementsStatePr
   }, []);
 
   // Open edit acknowledgement modal - fetches full acknowledgement data
-  const openEditAcknowledgementModal = useCallback(async (acknowledgement: OrderAcknowledgement) => {
+  const openEditAcknowledgementModal = useCallback(async (acknowledgement: AcknowledgementLandingPage) => {
     setIsLoadingAcknowledgementDetails(true);
     setShowAcknowledgementModal(true);
 
@@ -62,8 +104,7 @@ export function useAcknowledgementsState({ orderId }: UseAcknowledgementsStatePr
       }
     } catch (error) {
       console.error('Error fetching acknowledgement details:', error);
-      // Fall back to using the acknowledgement data we have
-      setAcknowledgementToEdit(acknowledgement);
+      // Fall back to using the landing page data
     } finally {
       setIsLoadingAcknowledgementDetails(false);
     }
@@ -76,7 +117,7 @@ export function useAcknowledgementsState({ orderId }: UseAcknowledgementsStatePr
   }, []);
 
   // Open acknowledgement detail modal
-  const openAcknowledgementDetailModal = useCallback((acknowledgement: OrderAcknowledgement) => {
+  const openAcknowledgementDetailModal = useCallback((acknowledgement: AcknowledgementLandingPage) => {
     setSelectedAcknowledgement(acknowledgement);
     setShowAcknowledgementDetailModal(true);
   }, []);
@@ -120,7 +161,7 @@ export function useAcknowledgementsState({ orderId }: UseAcknowledgementsStatePr
   }, [acknowledgementToEdit, createAcknowledgementMutation, updateAcknowledgementMutation, closeAcknowledgementModal, refetchAcknowledgements]);
 
   // Open delete confirmation modal
-  const openDeleteConfirmModal = useCallback((acknowledgement: OrderAcknowledgement) => {
+  const openDeleteConfirmModal = useCallback((acknowledgement: AcknowledgementLandingPage) => {
     setAcknowledgementToDelete(acknowledgement);
     setShowDeleteConfirmModal(true);
   }, []);
@@ -148,12 +189,12 @@ export function useAcknowledgementsState({ orderId }: UseAcknowledgementsStatePr
   }, [acknowledgementToDelete, deleteAcknowledgementMutation, closeDeleteConfirmModal, closeAcknowledgementDetailModal, refetchAcknowledgements]);
 
   // Handle delete acknowledgement request (opens confirmation modal)
-  const handleDeleteAcknowledgement = useCallback((acknowledgement: OrderAcknowledgement) => {
+  const handleDeleteAcknowledgement = useCallback((acknowledgement: AcknowledgementLandingPage) => {
     openDeleteConfirmModal(acknowledgement);
   }, [openDeleteConfirmModal]);
 
   // View acknowledgement details
-  const viewAcknowledgement = useCallback((acknowledgement: OrderAcknowledgement) => {
+  const viewAcknowledgement = useCallback((acknowledgement: AcknowledgementLandingPage) => {
     openAcknowledgementDetailModal(acknowledgement);
   }, [openAcknowledgementDetailModal]);
 
@@ -178,6 +219,18 @@ export function useAcknowledgementsState({ orderId }: UseAcknowledgementsStatePr
     isLoadingAcknowledgements,
     acknowledgementsError,
     refetchAcknowledgements,
+
+    // Pagination
+    totalCount,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    handleScroll,
+
+    // Search
+    searchQuery,
+    setSearchQuery,
+    isSearching,
 
     // Modal states
     showAcknowledgementModal,

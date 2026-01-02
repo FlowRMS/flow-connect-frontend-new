@@ -12,6 +12,7 @@ import type { AdjustmentLandingPage, AdjustmentStatus } from '@/components/order
 import { AdjustmentModal } from '@/components/orders/detail/components/modals/adjustments/AdjustmentModal';
 import { AdjustmentDetailModal } from '@/components/orders/detail/components/modals/adjustments/AdjustmentDetailModal';
 import { DeleteConfirmModal } from '@/components/orders/detail/components/modals/utility/DeleteConfirmModal';
+import { AvatarInline } from '@/components/ui/CreatedByBadge';
 
 // Status Configuration
 const STATUS_CONFIG: Record<AdjustmentStatus, { label: string; color: string; bgColor: string }> = {
@@ -337,6 +338,7 @@ export default function AdjustmentsListContent() {
                     </div>
                   </th>
                   <th className="text-center px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Status</th>
+                  <th className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Created By</th>
                   <th className="text-center px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Actions</th>
                 </tr>
               </thead>
@@ -389,6 +391,9 @@ export default function AdjustmentsListContent() {
                         )}
                       </td>
                       <td className="px-4 py-3">
+                        <AvatarInline name={(adjustment as any).createdBy} size="sm" />
+                      </td>
+                      <td className="px-4 py-3">
                         <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={() => viewAdjustment(adjustment)}
@@ -433,7 +438,7 @@ export default function AdjustmentsListContent() {
                   <tr>
                     <td colSpan={3} className="px-4 py-3 text-right font-semibold text-sm">Total:</td>
                     <td className="px-4 py-3 text-right font-bold text-indigo-600">{formatCurrency(totals.adjustmentAmount)}</td>
-                    <td colSpan={2}></td>
+                    <td colSpan={3}></td>
                   </tr>
                 </tfoot>
               )}

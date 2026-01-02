@@ -32,7 +32,6 @@ export interface OrderAcknowledgement {
 export interface AcknowledgementLandingPage {
   id: string;
   orderAcknowledgementNumber?: string;
-  entityDate?: string;
   quantity?: string;
   shipDate?: string;
   creationType?: AcknowledgementCreationType;
@@ -52,6 +51,23 @@ export interface FindAcknowledgementsLandingPagesResponse {
   records: AcknowledgementLandingPage[];
 }
 
+export interface PaginatedAcknowledgementsResult {
+  records: AcknowledgementLandingPage[];
+  total: number;
+}
+
+export interface AcknowledgementFilter {
+  columnName: string;
+  operator: string;
+  value?: string;
+  values?: string[];
+}
+
+export interface PaginationParams {
+  limit?: number;
+  offset?: number;
+}
+
 export interface CreateAcknowledgementInput {
   id?: string;
   orderId: string;
@@ -59,7 +75,6 @@ export interface CreateAcknowledgementInput {
   orderAcknowledgementNumber?: string;
   entityDate: string;
   quantity: string;
-  shipDate?: string;
   creationType?: AcknowledgementCreationType;
 }
 
@@ -78,7 +93,6 @@ const ACKNOWLEDGEMENT_FIELDS = `
   orderAcknowledgementNumber
   entityDate
   quantity
-  shipDate
   creationType
   createdAt
   createdById
@@ -126,7 +140,6 @@ const FIND_ACKNOWLEDGEMENTS_LANDING_PAGE = `
         ... on OrderAcknowledgementLandingPage {
           id
           orderAcknowledgementNumber
-          entityDate
           quantity
           shipDate
           creationType
@@ -343,4 +356,73 @@ export async function deleteAcknowledgement(id: string): Promise<boolean> {
   }
 
   return true;
+}
+
+/**
+ * Fetch acknowledgements landing page with pagination
+ */
+export async function fetchAcknowledgementsWithPagination(
+  filters?: AcknowledgementFilter[],
+  pagination?: PaginationParams
+): Promise<PaginatedAcknowledgementsResult> {
+  const response = await crmGraphQLRequest<{ findLandingPages: FindAcknowledgementsLandingPagesResponse }>({
+    query: FIND_ACKNOWLEDGEMENTS_LANDING_PAGE,
+    variables: {
+      filters,
+      limit: pagination?.limit ?? 50,
+      offset: pagination?.offset ?? 0,
+      orderBy: [
+        {
+          columnName: 'createdAt',
+          direction: 'DESC',
+        },
+      ],
+    },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch acknowledgements');
+  }
+
+  return {
+    records: response.data?.findLandingPages?.records || [],
+    total: response.data?.findLandingPages?.total || 0,
+  };
+}
+
+/**
+ * Search acknowledgements by term
+ */
+export async function searchAcknowledgements(
+  searchTerm: string,
+  limit: number = 100
+): Promise<AcknowledgementLandingPage[]> {
+  // Search by acknowledgement number or order number
+  const response = await crmGraphQLRequest<{ findLandingPages: FindAcknowledgementsLandingPagesResponse }>({
+    query: FIND_ACKNOWLEDGEMENTS_LANDING_PAGE,
+    variables: {
+      filters: [
+        {
+          columnName: 'orderAcknowledgementNumber',
+          operator: 'LIKE',
+          value: `%${searchTerm}%`,
+        },
+      ],
+      limit,
+      offset: 0,
+      orderBy: [
+        {
+          columnName: 'createdAt',
+          direction: 'DESC',
+        },
+      ],
+    },
+  });
+
+  if (response.errors) {
+    console.warn('searchAcknowledgements error:', response.errors[0]?.message);
+    return [];
+  }
+
+  return response.data?.findLandingPages?.records || [];
 }
