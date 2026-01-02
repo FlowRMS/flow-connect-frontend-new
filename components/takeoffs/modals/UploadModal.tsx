@@ -39,6 +39,7 @@ export function UploadModal({
   onUploadStart,
 }: UploadModalProps) {
   const [isDragging, setIsDragging] = useState(false);
+  const [takeoffTitle, setTakeoffTitle] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Calculate overall progress
@@ -72,8 +73,8 @@ export function UploadModal({
 
   const handleSubmit = () => {
     if (files.length === 0 || isUploading) return;
-    // Generate project name from first file
-    const projectName = files[0]?.name.replace(/\.[^/.]+$/, '') || 'New Project';
+    // Use provided title or generate from first file
+    const projectName = takeoffTitle.trim() || files[0]?.name.replace(/\.[^/.]+$/, '') || 'New Project';
     onUploadStart({
       projectName,
       clientName: 'New Client',
@@ -107,6 +108,21 @@ export function UploadModal({
 
         {/* Content */}
         <div className="px-6 pb-6">
+          {/* Takeoff Title Input */}
+          <div className="mb-4">
+            <label htmlFor="takeoff-title" className="block text-sm font-medium text-gray-700 mb-1">
+              Takeoff Title
+            </label>
+            <input
+              id="takeoff-title"
+              type="text"
+              value={takeoffTitle}
+              onChange={(e) => setTakeoffTitle(e.target.value)}
+              placeholder="Enter takeoff title..."
+              disabled={isUploading}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:opacity-50 disabled:bg-gray-100"
+            />
+          </div>
           {/* Drop Zone */}
           {!isUploading && (
             <div
