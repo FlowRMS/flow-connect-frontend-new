@@ -157,6 +157,8 @@ export function useTakeoffsState() {
     search?: string;
     status?: string;
     source?: string;
+    title?: string;
+    createdBy?: string;
   }) => {
     setIsLoading(true);
     setError(null);
@@ -166,6 +168,8 @@ export function useTakeoffsState() {
         search: options?.search || undefined,
         status: options?.status || undefined,
         source: options?.source || undefined,
+        title: options?.title || undefined,
+        createdBy: options?.createdBy || undefined,
       };
       console.log('[Takeoffs] Fetching with params:', searchParams);
 
@@ -176,7 +180,7 @@ export function useTakeoffsState() {
       setTakeoffsData(transformedTakeoffs);
 
       // Update totalCount when no filters are applied (for "Showing X of Y" display)
-      const hasFilters = options?.search || options?.status || options?.source;
+      const hasFilters = options?.search || options?.status || options?.source || options?.title || options?.createdBy;
       if (!hasFilters) {
         setTotalCount(transformedTakeoffs.length);
       }
@@ -206,6 +210,22 @@ export function useTakeoffsState() {
     return undefined;
   }, [activeFilters]);
 
+  const titleFilter = useMemo(() => {
+    const titleFilterItem = activeFilters.find(f => f.columnName === 'title');
+    if (titleFilterItem?.value) {
+      return titleFilterItem.value;
+    }
+    return undefined;
+  }, [activeFilters]);
+
+  const createdByFilter = useMemo(() => {
+    const createdByFilterItem = activeFilters.find(f => f.columnName === 'createdBy');
+    if (createdByFilterItem?.value) {
+      return createdByFilterItem.value;
+    }
+    return undefined;
+  }, [activeFilters]);
+
   const priorityFilter = useMemo(() => {
     const priorityFilterItem = activeFilters.find(f => f.columnName === 'priority');
     if (priorityFilterItem?.values && priorityFilterItem.values.length > 0) {
@@ -230,8 +250,10 @@ export function useTakeoffsState() {
       search: debouncedSearch || undefined,
       status: statusFilter,
       source: sourceFilter,
+      title: titleFilter,
+      createdBy: createdByFilter,
     });
-  }, [loadTakeoffs, debouncedSearch, statusFilter, sourceFilter]);
+  }, [loadTakeoffs, debouncedSearch, statusFilter, sourceFilter, titleFilter, createdByFilter]);
 
   // Apply client-side filtering for priority (backend doesn't support it)
   const takeoffs = useMemo(() => {
@@ -1366,8 +1388,11 @@ export function useTakeoffsState() {
     loadTakeoffs({
       search: debouncedSearch || undefined,
       status: statusFilter,
+      source: sourceFilter,
+      title: titleFilter,
+      createdBy: createdByFilter,
     });
-  }, [loadTakeoffs, debouncedSearch, statusFilter]);
+  }, [loadTakeoffs, debouncedSearch, statusFilter, sourceFilter, titleFilter, createdByFilter]);
 
   // Modal handlers
   const handleOpenUploadModal = useCallback(() => {
