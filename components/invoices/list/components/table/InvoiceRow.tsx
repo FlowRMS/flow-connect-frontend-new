@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import type { Invoice } from '@/lib/types/rms';
 import { invoiceStatusColors, invoiceStatusLabels } from '../../constants';
 import { formatCurrency, formatDate, isOverdue } from '../../utils';
+import { AvatarInline } from '@/components/ui/CreatedByBadge';
 
 interface InvoiceRowProps {
   invoice: Invoice;
@@ -142,6 +143,11 @@ export function InvoiceRow({
         <span className="text-xs text-[var(--muted-foreground)]">
           {invoice.entryDate ? formatDate(invoice.entryDate) : '-'}
         </span>
+      </div>
+
+      {/* Created By */}
+      <div className="flex items-center">
+        <AvatarInline name={(invoice as any).createdBy} size="sm" />
       </div>
 
       {/* Due Date */}

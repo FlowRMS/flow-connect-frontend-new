@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import type { Order } from '@/lib/types/rms';
 import { orderStatusColors, orderStatusLabels } from '../../constants';
 import { formatCurrency, formatDate } from '../../utils';
+import { AvatarInline } from '@/components/ui/CreatedByBadge';
 
 interface OrderRowProps {
   order: Order;
@@ -94,10 +95,10 @@ export function OrderRow({
         </span>
       </div>
 
-      {/* Factory SO */}
-      <div className="flex items-center">
-        <span className="text-sm text-[var(--muted-foreground)] truncate">
-          {order.factorySoNumber || '-'}
+      {/* Commission */}
+      <div className="flex items-center justify-end">
+        <span className="text-sm text-green-600">
+          {formatCurrency(order.totalCommission)}
         </span>
       </div>
 
@@ -126,11 +127,16 @@ export function OrderRow({
         </span>
       </div>
 
-      {/* Entry Date */}
+      {/* Entry Date (createdAt) */}
       <div className="flex items-center">
         <span className="text-xs text-[var(--muted-foreground)]">
-          {order.entryDate ? formatDate(order.entryDate) : '-'}
+          {order.createdAt ? formatDate(order.createdAt) : '-'}
         </span>
+      </div>
+
+      {/* Created By */}
+      <div className="flex items-center">
+        <AvatarInline name={order.createdBy} size="sm" />
       </div>
 
       {/* Ship Date */}
@@ -158,13 +164,6 @@ export function OrderRow({
       <div className="flex items-center">
         <span className="text-sm text-[var(--foreground)] truncate">
           {(order as any).soldToCustomerName || order.customerName || '-'}
-        </span>
-      </div>
-
-      {/* Commission */}
-      <div className="flex items-center justify-end">
-        <span className="text-sm text-green-600">
-          {formatCurrency(order.totalCommission)}
         </span>
       </div>
 

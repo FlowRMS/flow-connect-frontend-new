@@ -8,6 +8,7 @@ import type { InvoiceStatus } from '@/lib/types/rms';
 import type { ViewMode, VersionInfo, ColumnKey, EditableInvoice } from '../../types';
 import { invoiceStatusLabels } from '../../constants';
 import { isOverdue } from '../../utils';
+import { CreatedByBadge } from '@/components/ui/CreatedByBadge';
 
 interface HeaderTopBarProps {
   invoice: EditableInvoice;
@@ -136,6 +137,11 @@ export function HeaderTopBar({
             <h1 className="text-2xl font-semibold text-[var(--foreground)]">
               {invoice.invoiceNumber}
             </h1>
+            <CreatedByBadge
+              createdBy={(invoice as any).createdBy}
+              createdAt={(invoice as any).createdAt}
+              size="sm"
+            />
             {overdue && (
               <span className="px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-700">
                 Overdue

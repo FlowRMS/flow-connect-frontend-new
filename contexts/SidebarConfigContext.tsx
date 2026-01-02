@@ -76,6 +76,7 @@ const defaultConfig: SidebarConfig = {
         { id: 'invoices', name: 'Invoices', href: '/invoices', enabled: true },
         { id: 'commissions', name: 'Commissions', href: '/commissions', enabled: true },
         { id: 'adjustments', name: 'Adjustments', href: '/adjustments', enabled: true },
+        { id: 'acknowledgements', name: 'Acknowledgements', href: '/acknowledgements', enabled: true },
         // { id: 'buysell', name: 'Buy/Sell', href: '/buysell', enabled: true },
       ]
     },

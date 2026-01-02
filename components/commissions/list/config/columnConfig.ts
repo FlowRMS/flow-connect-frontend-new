@@ -23,6 +23,7 @@ export const COMMISSION_TABLE_COLUMNS: ColumnConfig[] = [
   { id: 'postDate', width: '1fr', label: 'Post Date', sortable: true, filterable: true },
   { id: 'checkDate', width: '1fr', label: 'Check Date', sortable: true, filterable: true },
   { id: 'entryDate', width: '1fr', label: 'Entry Date', sortable: true, filterable: true },
+  { id: 'createdBy', width: '1fr', label: 'Created By', sortable: false, filterable: false },
   { id: 'checkBalance', width: '1fr', label: 'Check Balance', sortable: true, filterable: false, align: 'right' },
 ];
 
@@ -31,6 +32,6 @@ export const COMMISSION_TABLE_COLUMNS: ColumnConfig[] = [
  * Uses CSS grid layout with the widths defined above
  */
 export const getGridTemplateColumns = (): string => {
-  return '40px auto 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr';
+  return '40px auto 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr';
 };
 

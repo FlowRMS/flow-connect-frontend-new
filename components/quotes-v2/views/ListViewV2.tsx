@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import type { QuoteV2, QuotePipelineStage } from '../types';
+import { AvatarInline } from '@/components/ui/CreatedByBadge';
 
 interface ListViewV2Props {
   quotes: QuoteV2[];
@@ -243,6 +244,10 @@ export function ListViewV2({ quotes, onQuoteClick }: ListViewV2Props) {
                   Exp. Date {renderFilterIcon()} {renderSortIcon('expirationDate')}
                 </div>
               </th>
+              {/* Created By */}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Created By
+              </th>
               {/* Published */}
               <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                 <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('published')}>
@@ -310,6 +315,10 @@ export function ListViewV2({ quotes, onQuoteClick }: ListViewV2Props) {
                     <span className={`text-sm ${isExpiringSoon(quote.expirationDate) ? 'text-red-600 font-medium' : 'text-gray-900'}`}>
                       {formatDate(quote.expirationDate)}
                     </span>
+                  </td>
+                  {/* Created By */}
+                  <td className="px-3 py-3">
+                    <AvatarInline name={quote.createdByName} size="sm" />
                   </td>
                   {/* Published */}
                   <td className="px-3 py-3 text-center">

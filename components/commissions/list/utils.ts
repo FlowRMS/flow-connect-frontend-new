@@ -30,9 +30,13 @@ export const formatDate = (dateString: string): string => {
 /**
  * Format a month string (YYYY-MM) to readable format (Month - YYYY)
  * Example: "2025-01" -> "Jan - 2025"
+ * Returns "-" if null/undefined
  */
-export const formatMonth = (monthString: string): string => {
+export const formatMonth = (monthString: string | null | undefined): string => {
+  if (!monthString) return '-';
   const date = new Date(monthString + '-01');
+  // Check for invalid date
+  if (isNaN(date.getTime())) return '-';
   const month = date.toLocaleDateString('en-US', { month: 'short' });
   const year = date.getFullYear();
   return `${month} - ${year}`;
@@ -83,14 +87,16 @@ export const getQuickDateRange = (
  * Check is linked if it's posted (has been finalized)
  */
 export const isCheckLinked = (check: CommissionCheck): boolean => {
-  return check.status === 'posted';
+  const status = check.status?.toUpperCase();
+  return status === 'POSTED';
 };
 
 /**
  * Get the reason why a check is linked (cannot be selected for bulk actions)
  */
 export const getCheckLinkedReason = (check: CommissionCheck): string => {
-  if (check.status === 'posted') {
+  const status = check.status?.toUpperCase();
+  if (status === 'POSTED') {
     return 'Cannot select: Check has been posted';
   }
   return 'Cannot select: Check is linked to other entities';

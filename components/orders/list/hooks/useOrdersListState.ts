@@ -26,7 +26,7 @@ function transformLandingPageToOrder(landing: OrderLandingPage): Order {
     customerId: '',
     customerName: landing.soldToCustomerName || '-',
     jobName: landing.jobName || '',
-    status: mapApiStatusToUiStatus(landing.headerStatus, landing.status),
+    status: mapApiStatusToUiStatus(landing.status),
     fulfillmentStatus: 'not_started',
     billingStatus: 'not_invoiced',
     commissionStatus: 'pending',
@@ -48,11 +48,11 @@ function transformLandingPageToOrder(landing: OrderLandingPage): Order {
 }
 
 /**
- * Map API status/headerStatus to UI status
+ * Map API status to UI status
  */
-function mapApiStatusToUiStatus(headerStatus?: string, status?: string): 'draft' | 'open' | 'partial_shipped' | 'shipped' | 'cancelled' | 'dormant' {
-  const hs = headerStatus?.toUpperCase();
-  switch (hs) {
+function mapApiStatusToUiStatus(status?: string): 'draft' | 'open' | 'partial_shipped' | 'shipped' | 'cancelled' | 'dormant' {
+  const s = status?.toUpperCase();
+  switch (s) {
     case 'DRAFT':
       return 'draft';
     case 'OPEN':
@@ -81,7 +81,7 @@ function transformSearchResultToOrder(result: OrderSearchResult): Order {
     manufacturerName: '',
     customerId: result.soldToCustomerId || '',
     customerName: '',
-    status: mapApiStatusToUiStatus(result.headerStatus, result.status),
+    status: mapApiStatusToUiStatus(result.status),
     fulfillmentStatus: 'not_started',
     billingStatus: 'not_invoiced',
     commissionStatus: 'pending',

@@ -6,6 +6,7 @@ import { SearchableDropdownV2 } from './SearchableDropdownV2';
 import { useCustomerSearch, useUserSearch, useJobSearch } from '../../quotes/api/useQuotesApi';
 import { searchUsers } from '../../quotes/api/quotesApi';
 import { CreateOrderFromQuoteModal } from '../modals/CreateOrderFromQuoteModal';
+import { CreatedByBadge } from '@/components/ui/CreatedByBadge';
 
 interface QuoteDetailHeaderV2Props {
   quote: QuoteV2;
@@ -467,6 +468,15 @@ export function QuoteDetailHeaderV2({
           <h1 className="text-xl font-semibold text-gray-900">
             {isNew ? 'New Quote' : quote.quoteNumber || 'Quote'}
           </h1>
+
+          {/* Created By Badge */}
+          {!isNew && (
+            <CreatedByBadge
+              createdBy={quote.createdByName}
+              createdAt={quote.entryDate}
+              size="sm"
+            />
+          )}
 
           {/* Unsaved Changes Indicator */}
           {hasChanges && (
