@@ -99,6 +99,7 @@ export function QuoteDetailHeaderV2({
   const [showSaveMenu, setShowSaveMenu] = useState(false);
   const [viewMode, setViewMode] = useState<'simple' | 'overage'>('simple');
   const [showCreateOrderModal, setShowCreateOrderModal] = useState(false);
+  const [showQuoteDetails, setShowQuoteDetails] = useState(true);
 
   // Customer search state
   const [soldToSearchTerm, setSoldToSearchTerm] = useState('');
@@ -694,9 +695,32 @@ export function QuoteDetailHeaderV2({
         </div>
       </div>
 
-      {/* Quote Details Section */}
-      <div className="px-6 py-4 border-b border-gray-200">
-        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Quote Details</h2>
+      {/* Quote Details Section - Collapsible */}
+      <div className="border-b border-gray-200 bg-blue-50/30">
+        <button
+          onClick={() => setShowQuoteDetails(!showQuoteDetails)}
+          className="w-full flex items-center justify-between px-6 py-3 hover:bg-blue-100/50 transition-colors group"
+        >
+          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+            {showQuoteDetails ? 'Quote Details' : 'Show Quote Details'}
+          </span>
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors ${showQuoteDetails ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600 group-hover:bg-blue-100 group-hover:text-blue-700'}`}>
+            <span className="text-xs font-medium">{showQuoteDetails ? 'Collapse' : 'Expand'}</span>
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              className={`transition-transform ${showQuoteDetails ? '' : 'rotate-180'}`}
+            >
+              <path d="M6 12l4-4 4 4" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+        </button>
+        {showQuoteDetails && (
+        <div className="px-6 pb-4">
 
         {/* Row 1 */}
         <div className="grid grid-cols-8 gap-4 mb-4">
@@ -1069,6 +1093,8 @@ export function QuoteDetailHeaderV2({
             <span className="text-sm text-gray-700">Blanket</span>
           </label>
         </div>
+        </div>
+        )}
       </div>
 
       {/* Inside Rep Split Commission Modal */}

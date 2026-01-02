@@ -159,8 +159,8 @@ export function LineItemsTable({
         lineNumber: lineItems.length + 1,
         partNumber: '',
         description: '',
-        uom: '',
-        uomId: '',
+        uom: null,
+        uomId: null,
         divisor: 1,
         quantity: 1,
         quantityShipped: 0,
@@ -835,7 +835,13 @@ export function LineItemsTable({
             <div className="fixed inset-0 z-40" onClick={() => { setDropdownOpen(null); setSearchQuery(''); }} />
             <div
               className="fixed bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-80"
-              style={{ top: dropdownOpen.position.top, left: dropdownOpen.position.left }}
+              style={{
+                // Check if dropdown would overflow bottom of screen, if so flip it above
+                top: dropdownOpen.position.top + 250 > window.innerHeight
+                  ? dropdownOpen.position.top - 258
+                  : dropdownOpen.position.top,
+                left: Math.min(dropdownOpen.position.left, window.innerWidth - 330),
+              }}
             >
               <div className="p-2 border-b border-gray-100">
                 <input

@@ -20,6 +20,7 @@ import { SettingsTabV2 } from './tabs/SettingsTabV2';
 import { FilesTabV2 } from './tabs/FilesTabV2';
 import { ColumnsConfigModalV2 } from './modals/ColumnsConfigModalV2';
 import { AdditionalDetailsModalV2 } from './modals/AdditionalDetailsModalV2';
+import { DuplicateQuoteModal } from './modals/DuplicateQuoteModal';
 import {
   defaultQuoteSettingsV2,
   defaultColumnConfigV2,
@@ -111,6 +112,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
   // Modal states
   const [showColumnsModal, setShowColumnsModal] = useState(false);
   const [showAdditionalDetailsModal, setShowAdditionalDetailsModal] = useState(false);
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [selectedLineItem, setSelectedLineItem] = useState<LineItemV2 | null>(null);
 
   // Saving state
@@ -412,17 +414,20 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
     }
   }, [quote.id, quote.quoteNumber, deleteQuoteMutation, onBack]);
 
-  const handleDuplicate = useCallback(async () => {
+  const handleDuplicate = useCallback(() => {
     if (!quote.id) return;
+    setShowDuplicateModal(true);
+  }, [quote.id]);
 
-    const newQuoteNumber = prompt('Enter new quote number:', `${quote.quoteNumber}-COPY`);
-    if (!newQuoteNumber) return;
+  const handleDuplicateConfirm = useCallback(async (newQuoteNumber: string) => {
+    if (!quote.id) return;
 
     try {
       const result = await duplicateQuoteMutation.mutateAsync({
         sourceQuoteId: quote.id,
         newQuoteNumber,
       });
+      setShowDuplicateModal(false);
       quoteToasts.duplicateSuccess(newQuoteNumber);
       window.location.href = `/quotes-v2/${result.id}`;
     } catch (err) {
@@ -430,7 +435,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       setSaveError(errorMessage);
       quoteToasts.duplicateError(errorMessage);
     }
-  }, [quote.id, quote.quoteNumber, duplicateQuoteMutation]);
+  }, [quote.id, duplicateQuoteMutation]);
 
   const tabs: { key: TabType; label: string; count?: number; comingSoon?: boolean }[] = useMemo(() => [
     { key: 'lineItems', label: 'Line Items', count: lineItems.length },
@@ -635,6 +640,14 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         lineItem={selectedLineItem}
         onSave={handleSaveAdditionalDetails}
         settings={settings}
+      />
+
+      <DuplicateQuoteModal
+        isOpen={showDuplicateModal}
+        quoteNumber={quote.quoteNumber}
+        isPending={duplicateQuoteMutation.isPending}
+        onClose={() => setShowDuplicateModal(false)}
+        onDuplicate={handleDuplicateConfirm}
       />
     </div>
   );

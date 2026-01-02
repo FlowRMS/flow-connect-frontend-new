@@ -221,24 +221,27 @@ export function CheckDetailsFields({
     <div className="border-b border-[var(--border)] bg-blue-50/30 flex-shrink-0">
       <button
         onClick={toggleHeaderFields}
-        className="w-full px-6 py-2 flex items-center justify-between text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+        className="w-full px-6 py-3 flex items-center justify-between text-sm text-[var(--muted-foreground)] hover:bg-blue-100/50 transition-colors group"
       >
-        <span className="font-medium">Check Details</span>
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 20 20"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          className={`transition-transform ${showHeaderFields ? 'rotate-180' : ''}`}
-        >
-          <path
-            d="M6 8l4 4 4-4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+        <span className="text-xs font-medium uppercase tracking-wide">Check Details</span>
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors ${showHeaderFields ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600 group-hover:bg-blue-100 group-hover:text-blue-700'}`}>
+          <span className="text-xs font-medium">{showHeaderFields ? 'Collapse' : 'Expand'}</span>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            className={`transition-transform ${showHeaderFields ? 'rotate-180' : ''}`}
+          >
+            <path
+              d="M6 8l4 4 4-4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </div>
       </button>
       {showHeaderFields && (
         <div className="px-6 pb-4">

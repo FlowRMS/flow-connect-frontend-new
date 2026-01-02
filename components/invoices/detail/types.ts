@@ -16,8 +16,8 @@ export interface InvoiceLineItem {
   description: string;
   quantity: number;
   unitPrice: number;
-  uom: string;
-  uomId?: string;
+  uom: string | null;
+  uomId?: string | null;
   divisor: number;
   total: number;
   // Amount is the extended price (qty * unitPrice / divisor)

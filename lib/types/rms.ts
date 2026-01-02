@@ -220,8 +220,8 @@ export interface OrderLineItem {
   partNumber?: string; // Optional for order-level credits
   custPartNumber?: string;
   description: string;
-  uom?: string;  // Unit of measure (EA, BOX, etc.)
-  uomId?: string;  // UOM ID for API
+  uom?: string | null;  // Unit of measure (EA, BOX, etc.)
+  uomId?: string | null;  // UOM ID for API
   divisor?: number;  // Pricing divisor
   quantity: number;
   unitPrice: number;
