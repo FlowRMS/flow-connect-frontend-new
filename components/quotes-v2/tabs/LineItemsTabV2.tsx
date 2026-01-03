@@ -236,6 +236,16 @@ export function LineItemsTabV2({
     onLineItemsChange([...lineItems, newItem]);
   };
 
+  const removeLineItem = (id: string) => {
+    onLineItemsChange(lineItems.filter((li) => li.id !== id));
+    // Also remove from selection if selected
+    if (selectedItems.has(id)) {
+      const newSet = new Set(selectedItems);
+      newSet.delete(id);
+      setSelectedItems(newSet);
+    }
+  };
+
   const renderCell = (item: LineItemV2, column: ColumnConfig) => {
     const isEditing = editingCell?.itemId === item.id && editingCell?.column === column.key;
     const isDropdown = dropdownOpen?.itemId === item.id && dropdownOpen?.column === column.key;
@@ -463,9 +473,9 @@ export function LineItemsTabV2({
         </div>
         <div className="border border-gray-200 rounded-lg overflow-x-auto">
           <table className="w-full min-w-[1200px]">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
               <tr>
-                <th className="w-10 px-3 py-2">
+                <th className="w-10 px-3 py-2 bg-gray-50">
                   <input
                     type="checkbox"
                     className="rounded border-gray-300 accent-indigo-600"
@@ -476,7 +486,7 @@ export function LineItemsTabV2({
                 {visibleColumns.map((col) => (
                   <th
                     key={col.key}
-                    className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center whitespace-nowrap"
+                    className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center whitespace-nowrap bg-gray-50"
                   >
                     {col.label}
                     <svg width="10" height="10" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="inline ml-1 text-gray-400">
@@ -484,7 +494,7 @@ export function LineItemsTabV2({
                     </svg>
                   </th>
                 ))}
-                <th className="w-10 px-3 py-2"></th>
+                <th className="w-10 px-3 py-2 bg-gray-50"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -500,14 +510,26 @@ export function LineItemsTabV2({
                   </td>
                   {visibleColumns.map((col) => renderCell(item, col))}
                   <td className="px-3 py-2">
-                    <button
-                      onClick={() => onOpenAdditionalDetails(item)}
-                      className="p-1 hover:bg-gray-100 rounded transition-colors"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" className="text-gray-400">
-                        <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-                      </svg>
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => removeLineItem(item.id)}
+                        className="p-1 hover:bg-red-100 rounded transition-colors group"
+                        title="Remove line item"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-400 group-hover:text-red-500">
+                          <path d="M6 6l8 8M6 14l8-8" strokeLinecap="round" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => onOpenAdditionalDetails(item)}
+                        className="p-1 hover:bg-gray-100 rounded transition-colors"
+                        title="More options"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" className="text-gray-400">
+                          <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                        </svg>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

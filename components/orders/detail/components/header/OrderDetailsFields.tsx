@@ -470,9 +470,14 @@ export function OrderDetailsFields({
                     {splitOutsideCommission && (
                       <button
                         onClick={openOutsideRepModal}
-                        className="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors whitespace-nowrap"
+                        className="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors whitespace-nowrap flex items-center gap-1"
                       >
                         Split
+                        {outsideRepSplits.length > 1 && (
+                          <span className="bg-indigo-600 text-white text-[10px] px-1.5 py-0.5 rounded-full font-medium">
+                            +{outsideRepSplits.length - 1}
+                          </span>
+                        )}
                       </button>
                     )}
                   </div>
@@ -544,9 +549,14 @@ export function OrderDetailsFields({
                     {splitInsideCommission && (
                       <button
                         onClick={openInsideRepModal}
-                        className="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors whitespace-nowrap"
+                        className="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors whitespace-nowrap flex items-center gap-1"
                       >
                         Split
+                        {insideRepSplits.length > 1 && (
+                          <span className="bg-indigo-600 text-white text-[10px] px-1.5 py-0.5 rounded-full font-medium">
+                            +{insideRepSplits.length - 1}
+                          </span>
+                        )}
                       </button>
                     )}
                   </div>

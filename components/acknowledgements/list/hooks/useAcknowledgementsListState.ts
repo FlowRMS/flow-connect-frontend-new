@@ -17,6 +17,64 @@ import {
   useDeleteAcknowledgement,
   fetchAcknowledgementById,
 } from '@/components/orders/api/acknowledgementsApi';
+import { fetchOrderById, type Order as ApiOrder, type OrderDetail } from '@/components/orders/api/ordersApi';
+import type { Order, OrderLineItem } from '@/lib/types/rms';
+
+/**
+ * Transform API Order to UI Order format for AcknowledgementModal
+ */
+function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
+  // Map line items from API format to UI format
+  const lineItems: OrderLineItem[] = (apiOrder.details || []).map((detail: OrderDetail, index: number) => ({
+    id: detail.id,
+    lineNumber: detail.itemNumber || index + 1,
+    productId: detail.productId || '',
+    partNumber: detail.product?.factoryPartNumber || detail.productNameAdhoc || '',
+    custPartNumber: '',
+    description: detail.product?.description || detail.productDescriptionAdhoc || '',
+    uom: detail.uom?.title || null,
+    uomId: detail.uom?.id || null,
+    divisor: detail.uom?.divisionFactor || parseFloat(detail.divisionFactor || '1'),
+    quantity: parseFloat(detail.quantity || '0'),
+    unitPrice: parseFloat(detail.unitPrice || '0'),
+    extendedPrice: detail.subtotal || 0,
+    commissionRate: parseFloat(detail.commissionRate || '0') / 100,
+    commissionAmount: detail.commission || 0,
+    quantityShipped: detail.shippingBalance || 0,
+    quantityInvoiced: 0,
+    quantityCredited: detail.cancelledBalance || 0,
+    isCancelled: detail.status === 'CANCELLED',
+    isConsignment: false,
+    status: detail.status === 'CANCELLED' ? 'cancelled' : detail.status === 'SHIPPED' ? 'shipped' : 'open',
+  }));
+
+  return {
+    id: apiOrder.id,
+    orderNumber: apiOrder.orderNumber,
+    factorySoNumber: apiOrder.factSoNumber,
+    manufacturerId: apiOrder.factoryId || '',
+    manufacturerName: apiOrder.factory?.title || '',
+    customerId: apiOrder.soldToCustomerId || '',
+    customerName: apiOrder.soldToCustomer?.companyName || '',
+    status: 'open',
+    fulfillmentStatus: 'not_started',
+    billingStatus: 'not_invoiced',
+    commissionStatus: 'pending',
+    orderDate: apiOrder.entityDate || '',
+    entryDate: apiOrder.entityDate,
+    shipDate: apiOrder.shipDate,
+    dueDate: apiOrder.dueDate,
+    lineItems,
+    subtotal: apiOrder.balance?.subtotal || 0,
+    freight: apiOrder.balance?.freightChargeBalance || 0,
+    total: apiOrder.balance?.total || 0,
+    totalCommission: apiOrder.balance?.commission || 0,
+    splitRates: [],
+    createdAt: apiOrder.createdAt || '',
+    createdBy: apiOrder.createdBy?.fullName || '',
+    updatedAt: apiOrder.createdAt || '',
+  };
+}
 
 export function useAcknowledgementsListState() {
   // Search state
@@ -80,20 +138,53 @@ export function useAcknowledgementsListState() {
   const [showAcknowledgementModal, setShowAcknowledgementModal] = useState(false);
   const [showAcknowledgementDetailModal, setShowAcknowledgementDetailModal] = useState(false);
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [showOrderSelectModal, setShowOrderSelectModal] = useState(false);
   const [selectedAcknowledgement, setSelectedAcknowledgement] = useState<AcknowledgementLandingPage | null>(null);
   const [acknowledgementToEdit, setAcknowledgementToEdit] = useState<OrderAcknowledgement | null>(null);
   const [acknowledgementToDelete, setAcknowledgementToDelete] = useState<AcknowledgementLandingPage | null>(null);
   const [isLoadingAcknowledgementDetails, setIsLoadingAcknowledgementDetails] = useState(false);
 
-  // Open create acknowledgement modal
+  // Order state for create/edit modal
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [isLoadingOrder, setIsLoadingOrder] = useState(false);
+
+  // Open order select modal for creating new acknowledgement
   const openCreateAcknowledgementModal = useCallback(() => {
     setAcknowledgementToEdit(null);
-    setShowAcknowledgementModal(true);
+    setSelectedOrder(null);
+    setShowOrderSelectModal(true);
   }, []);
 
-  // Open edit acknowledgement modal - fetches full acknowledgement data
+  // Close order select modal
+  const closeOrderSelectModal = useCallback(() => {
+    setShowOrderSelectModal(false);
+  }, []);
+
+  // Handle order selection - fetch full order and open acknowledgement modal
+  const handleOrderSelect = useCallback(async (orderId: string) => {
+    setIsLoadingOrder(true);
+    try {
+      const apiOrder = await fetchOrderById(orderId);
+      if (apiOrder) {
+        const uiOrder = transformApiOrderToUiOrder(apiOrder);
+        setSelectedOrder(uiOrder);
+        setShowOrderSelectModal(false);
+        setShowAcknowledgementModal(true);
+      } else {
+        toast.error('Failed to load order details');
+      }
+    } catch (error) {
+      console.error('Error fetching order:', error);
+      toast.error('Failed to load order details');
+    } finally {
+      setIsLoadingOrder(false);
+    }
+  }, []);
+
+  // Open edit acknowledgement modal - fetches full acknowledgement data and order
   const openEditAcknowledgementModal = useCallback(async (acknowledgement: AcknowledgementLandingPage) => {
     setIsLoadingAcknowledgementDetails(true);
+    setIsLoadingOrder(true);
     setShowAcknowledgementModal(true);
 
     try {
@@ -101,12 +192,23 @@ export function useAcknowledgementsListState() {
       const fullAcknowledgement = await fetchAcknowledgementById(acknowledgement.id);
       if (fullAcknowledgement) {
         setAcknowledgementToEdit(fullAcknowledgement);
+
+        // Fetch the order for this acknowledgement
+        if (fullAcknowledgement.orderId) {
+          const apiOrder = await fetchOrderById(fullAcknowledgement.orderId);
+          if (apiOrder) {
+            const uiOrder = transformApiOrderToUiOrder(apiOrder);
+            setSelectedOrder(uiOrder);
+          }
+        }
       }
     } catch (error) {
       console.error('Error fetching acknowledgement details:', error);
-      // Fall back to using the landing page data
+      toast.error('Failed to load acknowledgement details');
+      setShowAcknowledgementModal(false);
     } finally {
       setIsLoadingAcknowledgementDetails(false);
+      setIsLoadingOrder(false);
     }
   }, []);
 
@@ -114,6 +216,7 @@ export function useAcknowledgementsListState() {
   const closeAcknowledgementModal = useCallback(() => {
     setShowAcknowledgementModal(false);
     setAcknowledgementToEdit(null);
+    setSelectedOrder(null);
   }, []);
 
   // Open acknowledgement detail modal
@@ -236,10 +339,15 @@ export function useAcknowledgementsListState() {
     showAcknowledgementModal,
     showAcknowledgementDetailModal,
     showDeleteConfirmModal,
+    showOrderSelectModal,
     selectedAcknowledgement,
     acknowledgementToEdit,
     acknowledgementToDelete,
     isLoadingAcknowledgementDetails,
+
+    // Order state for create/edit
+    selectedOrder,
+    isLoadingOrder,
 
     // Modal actions
     openCreateAcknowledgementModal,
@@ -248,6 +356,8 @@ export function useAcknowledgementsListState() {
     openAcknowledgementDetailModal,
     closeAcknowledgementDetailModal,
     closeDeleteConfirmModal,
+    closeOrderSelectModal,
+    handleOrderSelect,
 
     // CRUD actions
     handleSaveAcknowledgement,

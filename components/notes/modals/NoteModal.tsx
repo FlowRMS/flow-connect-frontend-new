@@ -8,17 +8,18 @@
 import React, { useState, useMemo } from 'react';
 import type { ParsedNote, NoteConversation } from '../types';
 import { formatTimestamp, formatTimeAgo, getInitials, getAvatarColor, parseNote } from '../utils';
-import { 
-  useNoteConversations, 
-  useNoteRelatedEntities, 
-  useAddNoteConversation, 
+import {
+  useNoteConversations,
+  useRelatedEntities,
+  useAddNoteConversation,
   useUpdateNoteConversation,
   useDeleteNoteConversation,
   useDeleteNote,
   useContactSearch,
-  type EntityType 
+  type EntityType
 } from '../api';
 import { noteToasts, showSuccessToast, showErrorToast } from '../../lib/toast';
+import { RelatedEntityHoverCard, type EntityType as HoverCardEntityType } from '../../shared/RelatedEntityHoverCard';
 
 interface NoteModalProps {
   note: ParsedNote;
@@ -38,8 +39,8 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
   // Fetch contacts for mention resolution
   const { data: contacts = [] } = useContactSearch('');
   
-  // Fetch related entities for this note
-  const { data: relatedEntities } = useNoteRelatedEntities(note.id);
+  // Fetch related entities for this note using centralized endpoint
+  const { data: relatedEntities } = useRelatedEntities(note.id, 'NOTES');
   
   // Resolve mention IDs to contact names for display
   const mentionNames = useMemo(() => {
@@ -52,45 +53,69 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
     });
   }, [note.mentions, contacts]);
   
-  // Resolve related entities for display
+  // Map API entity types to hover card entity types
+  const mapToHoverCardType = (type: EntityType): HoverCardEntityType => {
+    const typeMap: Record<string, HoverCardEntityType> = {
+      'COMPANY': 'company',
+      'CONTACT': 'contact',
+      'JOB': 'job',
+      'TASK': 'task',
+      'NOTE': 'note',
+      'QUOTE': 'quote',
+      'ORDER': 'order',
+      'INVOICE': 'invoice',
+      'CHECK': 'check',
+      'PRE_OPPORTUNITY': 'preOpportunity',
+      'FACTORY': 'factory',
+      'CUSTOMER': 'customer',
+      'PRODUCT': 'product',
+    };
+    return typeMap[type] || 'note';
+  };
+
+  // Resolve related entities for display (includes full entity for hover card)
   const resolvedLinks = useMemo(() => {
     if (!relatedEntities) return [];
-    
-    const links: Array<{ id: string; type: EntityType; name: string; entityId: string }> = [];
-    
+
+    const links: Array<{ id: string; type: EntityType; name: string; entityId: string; entity: unknown }> = [];
+
     relatedEntities.companies?.forEach(company => {
       links.push({
         id: company.id,
         type: 'COMPANY',
         name: company.name,
         entityId: company.id,
+        entity: company,
       });
     });
-    
+
     relatedEntities.contacts?.forEach(contact => {
       links.push({
         id: contact.id,
         type: 'CONTACT',
         name: `${contact.firstName} ${contact.lastName}`,
         entityId: contact.id,
+        entity: contact,
       });
     });
-    
+
     relatedEntities.jobs?.forEach(job => {
       links.push({
         id: job.id,
         type: 'JOB',
         name: job.jobName,
         entityId: job.id,
+        entity: job,
       });
     });
-    
+
     relatedEntities.tasks?.forEach(task => {
       links.push({
         id: task.id,
         type: 'TASK',
         name: task.title,
         entityId: task.id,
+        entity: task,
       });
     });
 
@@ -100,6 +125,7 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
         type: 'PRE_OPPORTUNITY',
         name: preOpp.entityNumber || 'Unknown Pre-Opportunity',
         entityId: preOpp.id,
+        entity: preOpp,
       });
     });
 
@@ -107,8 +133,9 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
       links.push({
         id: quote.id,
         type: 'QUOTE',
-        name: quote.quoteNumber || quote.jobName || 'Unknown Quote',
+        name: quote.quoteNumber || 'Unknown Quote',
         entityId: quote.id,
+        entity: quote,
       });
     });
 
@@ -116,8 +143,9 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
       links.push({
         id: order.id,
         type: 'ORDER',
-        name: order.orderNumber || order.jobName || 'Unknown Order',
+        name: order.orderNumber || 'Unknown Order',
         entityId: order.id,
+        entity: order,
       });
     });
 
@@ -127,6 +155,7 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
         type: 'INVOICE',
         name: invoice.invoiceNumber || 'Unknown Invoice',
         entityId: invoice.id,
+        entity: invoice,
       });
     });
 
@@ -136,6 +165,7 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
         type: 'CHECK',
         name: check.checkNumber || 'Unknown Check',
         entityId: check.id,
+        entity: check,
       });
     });
 
@@ -145,6 +175,7 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
         type: 'FACTORY',
         name: factory.title || 'Unknown Factory',
         entityId: factory.id,
+        entity: factory,
       });
     });
 
@@ -154,6 +185,7 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
         type: 'CUSTOMER',
         name: customer.companyName || 'Unknown Customer',
         entityId: customer.id,
+        entity: customer,
       });
     });
 
@@ -163,9 +195,10 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
         type: 'PRODUCT',
         name: product.factoryPartNumber || 'Unknown Product',
         entityId: product.id,
+        entity: product,
       });
     });
-    
+
     return links;
   }, [relatedEntities]);
   
@@ -455,13 +488,14 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
                   Note Content
                 </h3>
                 <div className="p-4 bg-[var(--muted)]/30 rounded-lg border border-[var(--border)]">
-                  <p className="text-sm text-[var(--foreground)] leading-relaxed whitespace-pre-wrap">
-                    {note.content ? (
-                      <div dangerouslySetInnerHTML={{ __html: note.content }} />
-                    ) : (
-                      <span className="text-[var(--muted-foreground)] italic">No content</span>
-                    )}
-                  </p>
+                  {note.content ? (
+                    <div
+                      className="text-sm text-[var(--foreground)] leading-relaxed whitespace-pre-wrap"
+                      dangerouslySetInnerHTML={{ __html: note.content }}
+                    />
+                  ) : (
+                    <p className="text-sm text-[var(--muted-foreground)] italic">No content</p>
+                  )}
                 </div>
               </div>
 
@@ -511,13 +545,18 @@ export function NoteModal({ note, onClose, onEdit, onDelete, currentUserId }: No
                   </h3>
                   <div className="flex gap-2 flex-wrap">
                     {resolvedLinks.map((link) => (
-                      <span 
-                        key={link.id} 
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium ${getLinkTypeColor(link.type)}`}
+                      <RelatedEntityHoverCard
+                        key={link.id}
+                        entity={link.entity as never}
+                        type={mapToHoverCardType(link.type)}
                       >
-                        {getLinkTypeIcon(link.type)}
-                        <span className="max-w-[200px] truncate">{link.name}</span>
-                      </span>
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer transition-all hover:shadow-md hover:scale-105 ${getLinkTypeColor(link.type)}`}
+                        >
+                          {getLinkTypeIcon(link.type)}
+                          <span className="max-w-[200px] truncate">{link.name}</span>
+                        </span>
+                      </RelatedEntityHoverCard>
                     ))}
                   </div>
                 </div>

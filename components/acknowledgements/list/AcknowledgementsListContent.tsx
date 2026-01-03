@@ -10,8 +10,10 @@ import React, { useState, useMemo } from 'react';
 import { useAcknowledgementsListState } from './hooks/useAcknowledgementsListState';
 import type { AcknowledgementLandingPage, AcknowledgementCreationType } from '@/components/orders/api/acknowledgementsApi';
 import { AcknowledgementDetailModal } from '@/components/orders/detail/components/modals/acknowledgements/AcknowledgementDetailModal';
+import { AcknowledgementModal } from '@/components/orders/detail/components/modals/acknowledgements/AcknowledgementModal';
 import { DeleteConfirmModal } from '@/components/orders/detail/components/modals/utility/DeleteConfirmModal';
 import { AvatarInline } from '@/components/ui/CreatedByBadge';
+import { OrderSelectModal } from './OrderSelectModal';
 
 // Creation Type Configuration
 const CREATION_TYPE_CONFIG: Record<AcknowledgementCreationType, { label: string; color: string; bgColor: string }> = {
@@ -46,17 +48,33 @@ export default function AcknowledgementsListContent() {
     setSearchQuery,
     isSearching,
     // Modals
+    showAcknowledgementModal,
     showAcknowledgementDetailModal,
     showDeleteConfirmModal,
+    showOrderSelectModal,
     selectedAcknowledgement,
+    acknowledgementToEdit,
     acknowledgementToDelete,
+    isLoadingAcknowledgementDetails,
+    // Order state
+    selectedOrder,
+    isLoadingOrder,
+    // Modal actions
+    openCreateAcknowledgementModal,
+    closeAcknowledgementModal,
     closeAcknowledgementDetailModal,
     closeDeleteConfirmModal,
+    closeOrderSelectModal,
+    handleOrderSelect,
+    // CRUD actions
+    handleSaveAcknowledgement,
     handleDeleteAcknowledgement,
     handleConfirmDelete,
     viewAcknowledgement,
     editAcknowledgementFromDetail,
     deleteAcknowledgementFromDetail,
+    // Mutation states
+    isSavingAcknowledgement,
     isDeletingAcknowledgement,
   } = useAcknowledgementsListState();
 
@@ -133,6 +151,17 @@ export default function AcknowledgementsListContent() {
               </p>
             </div>
           </div>
+
+          {/* Create Button */}
+          <button
+            onClick={openCreateAcknowledgementModal}
+            className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-medium text-sm"
+          >
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M10 4v12M4 10h12" strokeLinecap="round"/>
+            </svg>
+            Create Acknowledgement
+          </button>
         </div>
       </div>
 
@@ -417,10 +446,16 @@ export default function AcknowledgementsListContent() {
         )}
 
         {/* Loading indicator for infinite scroll */}
-        {isFetchingNextPage && (
-          <div className="flex items-center justify-center py-4">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-teal-600" />
-            <span className="ml-2 text-sm text-[var(--muted-foreground)]">Loading more acknowledgements...</span>
+        {(isFetchingNextPage || hasNextPage) && (
+          <div className="flex items-center justify-center py-4 bg-[var(--card)] border border-[var(--border)] rounded-lg mt-4">
+            {isFetchingNextPage ? (
+              <>
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-teal-600" />
+                <span className="ml-2 text-sm text-[var(--muted-foreground)]">Loading more acknowledgements...</span>
+              </>
+            ) : (
+              <span className="text-sm text-[var(--muted-foreground)]">Scroll for more...</span>
+            )}
           </div>
         )}
 
@@ -433,6 +468,25 @@ export default function AcknowledgementsListContent() {
       </div>
 
       {/* Modals */}
+      <OrderSelectModal
+        isOpen={showOrderSelectModal}
+        onClose={closeOrderSelectModal}
+        onSelect={handleOrderSelect}
+        isLoading={isLoadingOrder}
+      />
+
+      {selectedOrder && (
+        <AcknowledgementModal
+          isOpen={showAcknowledgementModal}
+          onClose={closeAcknowledgementModal}
+          order={selectedOrder}
+          acknowledgement={acknowledgementToEdit}
+          onSubmit={handleSaveAcknowledgement}
+          isLoading={isSavingAcknowledgement}
+          isLoadingDetails={isLoadingAcknowledgementDetails || isLoadingOrder}
+        />
+      )}
+
       <AcknowledgementDetailModal
         isOpen={showAcknowledgementDetailModal}
         onClose={closeAcknowledgementDetailModal}

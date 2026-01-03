@@ -6,7 +6,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useUpdateNote, useDeleteNote, useNoteRelatedEntities, useCreateLink, useDeleteLinkByEntities, useContactSearch, type EntityType } from '../api/useNotesApi';
+import { useUpdateNote, useDeleteNote, useRelatedEntities, useCreateLink, useDeleteLinkByEntities, useContactSearch, type EntityType } from '../api/useNotesApi';
 import { noteToasts } from '../../lib/toast';
 import { MentionTextarea, MentionInput, type SelectedContact } from '../components/MentionTextarea';
 import { LinkSelector, type SelectedLink } from '../components/LinkSelector';
@@ -42,8 +42,8 @@ export function EditNoteModal({ isOpen, onClose, onSuccess, note }: EditNoteModa
   const createLinkMutation = useCreateLink();
   const deleteLinkByEntitiesMutation = useDeleteLinkByEntities();
 
-  // Fetch related entities for links
-  const { data: relatedEntitiesData } = useNoteRelatedEntities(note.id);
+  // Fetch related entities for links using centralized endpoint
+  const { data: relatedEntitiesData } = useRelatedEntities(note.id, 'NOTES');
   
   // Use contact search with empty string to get contacts for mention resolution
   const { data: contactsData } = useContactSearch('', true);

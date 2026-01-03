@@ -5,11 +5,11 @@
 import React, { useState } from 'react';
 import { JobDetailHeader } from './JobDetailHeader';
 import { JobDetailsForm } from './JobDetailsForm';
-import { ConnectedEntitiesSection } from './ConnectedEntitiesSection';
+import { ConnectedEntitiesSection } from '../../shared/ConnectedEntitiesSection';
 import { RepTypeModal } from '../modals/RepTypeModal';
 import { DeleteJobConfirmModal } from '../modals/DeleteJobConfirmModal';
 import type { Job, RepType } from '../types';
-import type { Company, Contact } from '../../lib/crm-graphql';
+import type { RelatedEntityCompany, RelatedEntityContact } from '../../lib/crm-graphql';
 
 interface JobDetailViewProps {
   job: Job;
@@ -27,8 +27,8 @@ interface JobDetailViewProps {
   onDelete?: () => void;
   onRepTypeChange: (type: RepType) => void;
   onToggleRepTypeModal: (show: boolean) => void;
-  onCompanyClick?: (company: Company) => void;
-  onContactClick?: (contact: Contact) => void;
+  onCompanyClick?: (company: RelatedEntityCompany) => void;
+  onContactClick?: (contact: RelatedEntityContact) => void;
 }
 
 export function JobDetailView({
@@ -84,7 +84,8 @@ export function JobDetailView({
       />
 
       <ConnectedEntitiesSection
-        jobId={job.id}
+        entityId={job.id}
+        sourceEntityType="JOB"
         onCompanyClick={onCompanyClick}
         onContactClick={onContactClick}
       />

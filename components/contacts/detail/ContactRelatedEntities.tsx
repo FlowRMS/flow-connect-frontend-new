@@ -7,12 +7,12 @@
 
 import React, { useState } from 'react';
 import type { Contact } from '../types';
-import { 
-  useCRMContactRelatedEntities,
+import {
+  useRelatedEntities,
   useCRMJobsByContact,
-  useDeleteCRMLinkByEntities 
+  useDeleteCRMLinkByEntities
 } from '../../hooks/useCRMApi';
-import type { Job as APIJob, Company as APICompany, CRMEntityType } from '../../lib/crm-graphql';
+import type { Job as APIJob, RelatedEntityCompany, CRMEntityType } from '../../lib/crm-graphql';
 import { AddLinkModal } from '../modals/AddLinkModal';
 import { linkToasts } from '../../lib/toast';
 
@@ -23,7 +23,7 @@ import { linkToasts } from '../../lib/toast';
 interface ContactRelatedEntitiesProps {
   contact: Contact;
   onJobClick?: (job: APIJob) => void;
-  onCompanyClick?: (company: APICompany) => void;
+  onCompanyClick?: (company: RelatedEntityCompany) => void;
 }
 
 type LinkEntityType = 'COMPANY' | 'JOB';
@@ -108,10 +108,10 @@ function CompanyInfoCard({
   isUnlinking,
   onClick
 }: {
-  company: APICompany;
+  company: RelatedEntityCompany;
   onUnlink: () => void;
   isUnlinking: boolean;
-  onClick?: (company: APICompany) => void;
+  onClick?: (company: RelatedEntityCompany) => void;
 }) {
   return (
     <div 
@@ -221,13 +221,13 @@ export default function ContactRelatedEntities({
   const [showAddLinkModal, setShowAddLinkModal] = useState(false);
   const [addLinkEntityType, setAddLinkEntityType] = useState<LinkEntityType>('COMPANY');
 
-  // Fetch company data for this contact
-  const { 
-    data: relatedEntities, 
-    isLoading: companiesLoading, 
+  // Fetch related entities for this contact using centralized endpoint
+  const {
+    data: relatedEntities,
+    isLoading: companiesLoading,
     error: companiesError,
-    refetch: refetchCompanies 
-  } = useCRMContactRelatedEntities(contact.id);
+    refetch: refetchCompanies
+  } = useRelatedEntities(contact.id, 'CONTACTS');
 
   // Fetch jobs separately using existing endpoint
   const { 

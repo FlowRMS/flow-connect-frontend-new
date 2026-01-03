@@ -14,7 +14,6 @@ import {
   updateNoteConversation,
   deleteNoteConversation,
   fetchNoteConversations,
-  fetchNoteRelatedEntities,
   searchCompanies,
   searchContacts,
   searchTasks,
@@ -32,7 +31,6 @@ import {
   deleteLinkByEntities,
   type Note,
   type NoteConversation,
-  type NoteRelatedEntities,
   type CompanySearchResult,
   type ContactSearchResult,
   type TaskSearchResult,
@@ -49,8 +47,16 @@ import {
   type EntityType,
 } from './notesApi';
 
+// Import centralized related entities hook and types
+import { useRelatedEntities, crmQueryKeys } from '../../hooks/useCRMApi';
+import type { RelatedEntities } from '../../lib/crm-graphql';
+
 // Re-export EntityType for external consumers
 export type { EntityType };
+
+// Re-export useRelatedEntities for note consumers
+export { useRelatedEntities };
+export type { RelatedEntities };
 
 // ============================================================================
 // Query Keys
@@ -61,7 +67,7 @@ export const notesQueryKeys = {
   list: () => [...notesQueryKeys.all, 'list'] as const,
   detail: (id: string) => [...notesQueryKeys.all, 'detail', id] as const,
   conversations: (noteId: string) => [...notesQueryKeys.all, 'conversations', noteId] as const,
-  relatedEntities: (noteId: string) => [...notesQueryKeys.all, 'relatedEntities', noteId] as const,
+  // Note: relatedEntities now uses crmQueryKeys.relatedEntities(noteId, 'NOTES')
   search: {
     companies: (term: string) => ['search', 'companies', term] as const,
     contacts: (term: string) => ['search', 'contacts', term] as const,
@@ -108,14 +114,10 @@ export function useNoteConversations(noteId: string) {
 
 /**
  * Fetch related entities for a note
+ * @deprecated Use useRelatedEntities(noteId, 'NOTES') from this module instead
  */
 export function useNoteRelatedEntities(noteId: string) {
-  return useQuery<NoteRelatedEntities, Error>({
-    queryKey: notesQueryKeys.relatedEntities(noteId),
-    queryFn: () => fetchNoteRelatedEntities(noteId),
-    enabled: !!noteId,
-    staleTime: 30 * 1000,
-  });
+  return useRelatedEntities(noteId, 'NOTES');
 }
 
 /**
@@ -404,10 +406,10 @@ export function useCreateLink() {
   >({
     mutationFn: createLink,
     onSuccess: (_, variables) => {
-      // Invalidate related entities for the note
+      // Invalidate related entities for the note using centralized query key
       if (variables.sourceEntityType === 'NOTE') {
         queryClient.invalidateQueries({
-          queryKey: notesQueryKeys.relatedEntities(variables.sourceEntityId),
+          queryKey: crmQueryKeys.relatedEntities(variables.sourceEntityId, 'NOTES'),
         });
       }
     },
@@ -423,9 +425,9 @@ export function useDeleteLink() {
   return useMutation<boolean, Error, { linkId: string; noteId: string }>({
     mutationFn: ({ linkId }) => deleteLink(linkId),
     onSuccess: (_, variables) => {
-      // Invalidate related entities for the note
+      // Invalidate related entities for the note using centralized query key
       queryClient.invalidateQueries({
-        queryKey: notesQueryKeys.relatedEntities(variables.noteId),
+        queryKey: crmQueryKeys.relatedEntities(variables.noteId, 'NOTES'),
       });
     },
   });
@@ -449,10 +451,10 @@ export function useDeleteLinkByEntities() {
   >({
     mutationFn: deleteLinkByEntities,
     onSuccess: (_, variables) => {
-      // Invalidate related entities for the note
+      // Invalidate related entities for the note using centralized query key
       if (variables.sourceEntityType === 'NOTE') {
         queryClient.invalidateQueries({
-          queryKey: notesQueryKeys.relatedEntities(variables.sourceEntityId),
+          queryKey: crmQueryKeys.relatedEntities(variables.sourceEntityId, 'NOTES'),
         });
       }
     },
@@ -463,7 +465,6 @@ export function useDeleteLinkByEntities() {
 export type {
   Note,
   NoteConversation,
-  NoteRelatedEntities,
   CompanySearchResult,
   ContactSearchResult,
   TaskSearchResult,
