@@ -487,17 +487,12 @@ export function CheckDetailsFields({
                         </div>
                       </div>
                       <div className="relative">
-                        <input
-                          type="date"
-                          value={unpaidInvoicesAfterDate}
-                          onChange={(e) => setUnpaidInvoicesAfterDate(e.target.value)}
+                        <StyledDatePicker
+                          selected={parseDateString(unpaidInvoicesAfterDate)}
+                          onChange={(date) => setUnpaidInvoicesAfterDate(formatDateToString(date))}
+                          placeholder="Select date..."
                           disabled={!factoryId}
-                          className={`w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm ${
-                            !factoryId
-                              ? 'bg-gray-50 cursor-not-allowed text-[var(--muted-foreground)]'
-                              : 'bg-white cursor-pointer'
-                          }`}
-                          title={!factoryId ? 'Select a factory first' : 'Select invoice date'}
+                          className="!py-2 !px-3 !rounded-md !text-sm"
                         />
                         {isSearchingOpenInvoices && (
                           <div className="absolute right-8 top-1/2 -translate-y-1/2">

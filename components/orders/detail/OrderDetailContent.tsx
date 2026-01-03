@@ -444,20 +444,26 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               { id: 'acknowledgements', label: 'Acknowledgements' },
               { id: 'notes', label: 'Notes' },
               { id: 'tasks', label: 'Tasks' },
-              { id: 'activity', label: 'Activity' },
+              { id: 'activity', label: 'Activity', comingSoon: true },
               { id: 'linked-objects', label: 'Linked Objects' },
               { id: 'settings', label: 'Settings' },
             ].filter(tab => !tab.hidden).map(tab => (
               <button
                 key={tab.id}
-                onClick={() => state.setActiveTab(tab.id as any)}
+                onClick={() => !tab.comingSoon && state.setActiveTab(tab.id as any)}
+                disabled={tab.comingSoon}
                 className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                  state.activeTab === tab.id
+                  tab.comingSoon
+                    ? 'border-transparent text-[var(--muted-foreground)] opacity-50 cursor-not-allowed'
+                    : state.activeTab === tab.id
                     ? 'border-[var(--primary)] text-[var(--primary)]'
                     : 'border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
                 }`}
               >
                 {tab.label}
+                {tab.comingSoon && (
+                  <span className="ml-1 px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-500">Soon</span>
+                )}
                 {tab.count !== undefined && tab.count > 0 && (
                   <span className="ml-2 px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-600">
                     {tab.count}
@@ -473,64 +479,29 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               {/* Views Dropdown */}
               <div className="relative">
                 <button
-                  onClick={() => state.setShowViewsMenu(!state.showViewsMenu)}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                  disabled
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg transition-colors opacity-50 cursor-not-allowed"
                 >
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                     <rect x="3" y="3" width="14" height="14" rx="2"/>
                     <path d="M3 8h14M8 8v9"/>
                   </svg>
-                  {state.savedViews.find(v => v.id === state.activeView)?.name || 'Custom'}
-                  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
+                  Default
+                  <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">Soon</span>
                 </button>
-                {state.showViewsMenu && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => state.setShowViewsMenu(false)} />
-                    <div className="absolute top-full right-0 mt-1 w-56 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20">
-                      <div className="p-2 border-b border-[var(--border)]">
-                        <p className="text-xs font-semibold text-[var(--muted-foreground)] uppercase px-2">Saved Views</p>
-                      </div>
-                      {state.savedViews.map(view => (
-                        <button
-                          key={view.id}
-                          onClick={() => {
-                            state.setVisibleColumns(new Set(view.columns));
-                            state.setActiveView(view.id);
-                            state.setShowViewsMenu(false);
-                          }}
-                          className={`w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors flex items-center justify-between ${
-                            state.activeView === view.id ? 'text-[var(--primary)] font-medium' : ''
-                          }`}
-                        >
-                          {view.name}
-                          {state.activeView === view.id && (
-                            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5">
-                              <path d="M5 10l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
               </div>
 
               {/* Sections Button */}
               <button
-                onClick={() => state.setShowSectionsModal(true)}
-                className={`flex items-center gap-2 px-3 py-1.5 text-sm border rounded-lg transition-colors ${
-                  state.showSections
-                    ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]'
-                    : 'border-[var(--border)] hover:bg-[var(--muted)]'
-                }`}
+                disabled
+                className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg transition-colors opacity-50 cursor-not-allowed"
               >
                 <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                   <rect x="3" y="3" width="14" height="4" rx="1"/>
                   <rect x="3" y="10" width="14" height="7" rx="1"/>
                 </svg>
                 Sections
+                <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">Soon</span>
               </button>
 
               {/* Columns Button */}

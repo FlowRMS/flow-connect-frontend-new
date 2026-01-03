@@ -204,7 +204,7 @@ export function CreditModal({
   // Search for outside reps
   const { data: repResults, isLoading: isRepLoading } = useUserSearch(
     repSearchTerm,
-    { isOutside: true },
+    { isInside: false, isOutside: true },
     repSearchEnabled
   );
 

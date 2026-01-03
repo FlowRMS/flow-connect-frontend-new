@@ -13,7 +13,7 @@ import ConnectedTasksSection from '../../tasks/ConnectedTasksSection';
 import DeleteConfirmModal from './DeleteConfirmModal';
 import { AddTaskNoteLinkModal } from '../modals/AddTaskNoteLinkModal';
 import type { Contact, ContactAddress, AddressType } from '../types';
-import type { Job as APIJob, Company as APICompany } from '../../lib/crm-graphql';
+import type { Job as APIJob, Company, RelatedEntityCompany } from '../../lib/crm-graphql';
 import { AddAddressModal, type Address } from '../../shared/AddAddressModal';
 import { useCRMCompanies } from '../../hooks/useCRMApi';
 
@@ -296,7 +296,7 @@ interface ContactDetailViewProps {
   onFieldChange: (field: string, value: string | string[] | boolean) => void;
   setDeleteConfirmId: (id: string | null) => void;
   onJobClick?: (job: APIJob) => void;
-  onCompanyClick?: (company: APICompany) => void;
+  onCompanyClick?: (company: RelatedEntityCompany) => void;
 }
 
 // Address Card Component
@@ -679,7 +679,7 @@ function CompanySearchSelect({ value, companyId, onChange, disabled }: CompanySe
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleSelect = (company: APICompany) => {
+  const handleSelect = (company: Company) => {
     onChange(company.id, company.name);
     setIsOpen(false);
     setSearchTerm('');

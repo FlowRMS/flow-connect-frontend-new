@@ -176,10 +176,20 @@ export interface UpdatePreOpportunityInput {
 export interface ProductSearchResult {
   id: string;
   factoryPartNumber: string;
-  factory: {
-    id: string;
-    title: string;
-  };
+  description?: string;
+  unitPrice?: number;
+  defaultCommissionRate?: number;
+  approvalNeeded?: boolean;
+  published?: boolean;
+  approvalComments?: string;
+  approvalDate?: string;
+  commissionDiscountRate?: number;
+  defaultDivisor?: number;
+  leadTime?: string;
+  minOrderQty?: number;
+  tags?: string[];
+  unitPriceDiscountRate?: number;
+  upc?: string;
 }
 
 export interface FactorySearchResult {

@@ -27,6 +27,27 @@ export type SortDirection = 'ASC' | 'DESC';
 
 export type SourceType = 'JOBS' | 'COMPANIES' | 'CONTACTS';
 
+// Related Entities Source Types - used for the generic relatedEntities endpoint
+export type RelatedEntitiesSourceType =
+  | 'JOBS'
+  | 'COMPANIES'
+  | 'CONTACTS'
+  | 'TASKS'
+  | 'NOTES'
+  | 'PRE_OPPORTUNITIES'
+  | 'CAMPAIGNS'
+  | 'CUSTOMERS'
+  | 'FACTORIES'
+  | 'PRODUCTS'
+  | 'QUOTES'
+  | 'ORDERS'
+  | 'FILES'
+  | 'INVOICES'
+  | 'CREDITS'
+  | 'ADJUSTMENTS'
+  | 'CHECKS'
+  | 'ORDER_ACKNOWLEDGEMENTS';
+
 export interface LandingPageFilter {
   operator: FilterOperator;
   columnName: string;
@@ -439,10 +460,20 @@ export interface UpdatePreOpportunityInput {
 export interface ProductSearchResult {
   id: string;
   factoryPartNumber: string;
-  factory: {
-    id: string;
-    title: string;
-  };
+  description?: string;
+  unitPrice?: number;
+  defaultCommissionRate?: number;
+  approvalNeeded?: boolean;
+  published?: boolean;
+  approvalComments?: string;
+  approvalDate?: string;
+  commissionDiscountRate?: number;
+  defaultDivisor?: number;
+  leadTime?: string;
+  minOrderQty?: number;
+  tags?: string[];
+  unitPriceDiscountRate?: number;
+  upc?: string;
 }
 
 export interface FactorySearchResult {
@@ -905,4 +936,244 @@ export interface NoteLink {
   targetEntityId: string;
   createdAt: string;
   createdBy: string;
+}
+
+// ============================================================================
+// Related Entities Types (Generic endpoint for all entity types)
+// ============================================================================
+
+export interface RelatedEntityCheck {
+  id: string;
+  checkNumber: string;
+  commissionMonth?: string;
+  entityDate?: string;
+  postDate?: string;
+  status?: string;
+  url?: string;
+  enteredCommissionAmount?: number;
+  factoryId?: string;
+  createdAt?: string;
+  createdById?: string;
+  creationType?: string;
+}
+
+export interface RelatedEntityCompany {
+  id: string;
+  name: string;
+  companySourceType?: string;
+  parentCompanyId?: string;
+  phone?: string;
+  website?: string;
+  tags?: string;
+  createdAt?: string;
+}
+
+export interface RelatedEntityContact {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email?: string;
+  phone?: string;
+  role?: string;
+  notes?: string;
+  tags?: string;
+  territory?: string;
+  createdAt?: string;
+}
+
+export interface RelatedEntityCustomer {
+  id: string;
+  companyName: string;
+  isParent?: boolean;
+  parentId?: string;
+  published?: boolean;
+}
+
+export interface RelatedEntityFactory {
+  id: string;
+  title: string;
+  accountNumber?: string;
+  email?: string;
+  phone?: string;
+  published?: boolean;
+  baseCommissionRate?: number;
+  commissionDiscountRate?: number;
+  overallDiscountRate?: number;
+  paymentTerms?: number;
+  externalPaymentTerms?: number;
+  leadTime?: number;
+  logoId?: string;
+  freightDiscountType?: string;
+  freightTerms?: string;
+  additionalInformation?: string;
+}
+
+export interface RelatedEntityInvoice {
+  id: string;
+  invoiceNumber: string;
+  balanceId?: string;
+  entityDate?: string;
+  dueDate?: string;
+  status?: string;
+  locked?: boolean;
+  published?: boolean;
+  orderId?: string;
+  url?: string;
+  createdAt?: string;
+  createdById?: string;
+  creationType?: string;
+}
+
+export interface RelatedEntityJob {
+  id: string;
+  jobName: string;
+  jobType?: string;
+  description?: string;
+  additionalInformation?: string;
+  structuralDetails?: string;
+  structuralInformation?: string;
+  startDate?: string;
+  endDate?: string;
+  requesterId?: string;
+  createdAt?: string;
+  tags?: string;
+}
+
+export interface RelatedEntityNote {
+  id: string;
+  title: string;
+  content?: string;
+  mentions?: string;
+  tags?: string;
+  createdAt?: string;
+  createdBy?: UserLite;
+}
+
+export interface RelatedEntityOrder {
+  id: string;
+  orderNumber: string;
+  orderType?: string;
+  entityDate?: string;
+  dueDate?: string;
+  shipDate?: string;
+  projectedShipDate?: string;
+  status?: string;
+  headerStatus?: string;
+  url?: string;
+  published?: boolean;
+  balanceId?: string;
+  factoryId?: string;
+  quoteId?: string;
+  factSoNumber?: string;
+  markNumber?: string;
+  freightTerms?: string;
+  shippingTerms?: string;
+  endUserPerLineItem?: boolean;
+  insidePerLineItem?: boolean;
+  outsidePerLineItem?: boolean;
+  soldToCustomerId?: string;
+  billToCustomerId?: string;
+  createdAt?: string;
+  createdById?: string;
+  creationType?: string;
+}
+
+export interface RelatedEntityPreOpportunity {
+  id: string;
+  entityNumber: string;
+  entityDate?: string;
+  status?: string;
+  expDate?: string;
+  acceptDate?: string;
+  reviseDate?: string;
+  customerRef?: string;
+  freightTerms?: string;
+  paymentTerms?: string;
+  jobId?: string;
+  soldToCustomerId?: string;
+  soldToCustomerAddressId?: string;
+  billToCustomerId?: string;
+  billToCustomerAddressId?: string;
+  createdAt?: string;
+  createdById?: string;
+  tags?: string;
+}
+
+export interface RelatedEntityProduct {
+  id: string;
+  factoryPartNumber: string;
+  description?: string;
+  unitPrice?: number;
+  defaultCommissionRate?: number;
+  commissionDiscountRate?: number;
+  defaultDivisor?: number;
+  unitPriceDiscountRate?: number;
+  leadTime?: string;
+  minOrderQty?: number;
+  published?: boolean;
+  approvalNeeded?: boolean;
+  approvalComments?: string;
+  approvalDate?: string;
+  tags?: string;
+  upc?: string;
+}
+
+export interface RelatedEntityQuote {
+  id: string;
+  quoteNumber: string;
+  entityDate?: string;
+  expDate?: string;
+  acceptDate?: string;
+  reviseDate?: string;
+  status?: string;
+  pipelineStage?: string;
+  url?: string;
+  published?: boolean;
+  blanket?: boolean;
+  balanceId?: string;
+  customerRef?: string;
+  freightTerms?: string;
+  paymentTerms?: string;
+  endUserPerLineItem?: boolean;
+  insidePerLineItem?: boolean;
+  outsidePerLineItem?: boolean;
+  versionOf?: string;
+  duplicatedFrom?: string;
+  soldToCustomerId?: string;
+  billToCustomerId?: string;
+  createdAt?: string;
+  createdById?: string;
+  creationType?: string;
+}
+
+export interface RelatedEntityTask {
+  id: string;
+  title: string;
+  description?: string;
+  status?: string;
+  priority?: string;
+  dueDate?: string;
+  reminderDate?: string;
+  assignedToId?: string;
+  createdAt?: string;
+  createdBy?: UserLite;
+  tags?: string;
+}
+
+export interface RelatedEntities {
+  sourceType: RelatedEntitiesSourceType;
+  sourceEntityId: string;
+  checks: RelatedEntityCheck[];
+  companies: RelatedEntityCompany[];
+  contacts: RelatedEntityContact[];
+  customers: RelatedEntityCustomer[];
+  factories: RelatedEntityFactory[];
+  invoices: RelatedEntityInvoice[];
+  jobs: RelatedEntityJob[];
+  notes: RelatedEntityNote[];
+  orders: RelatedEntityOrder[];
+  preOpportunities: RelatedEntityPreOpportunity[];
+  products: RelatedEntityProduct[];
+  quotes: RelatedEntityQuote[];
+  tasks: RelatedEntityTask[];
 }

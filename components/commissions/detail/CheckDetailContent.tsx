@@ -132,6 +132,7 @@ export default function CheckDetailContent({
         isCreateMode={state.isCreateMode}
         isSaving={state.isSaving}
         isUnposting={state.isUnposting}
+        isOriginallyPosted={state.isOriginallyPosted}
       />
 
       {/* Pricing Summary Bar */}
@@ -363,7 +364,7 @@ export default function CheckDetailContent({
 
           {/* Tab Content */}
           {state.activeTab === 'line-items' && (
-            <div className="flex-1 overflow-auto min-h-0 pb-32">
+            <div className="flex-1 min-h-0">
               <LineItemsTable
                 lineItems={state.lineItems}
                 visibleColumns={state.visibleColumns}
@@ -372,6 +373,7 @@ export default function CheckDetailContent({
                 onTogglePaid={state.togglePaid}
                 onAddNewLine={state.addNewLine}
                 onRowClick={state.openLineItemDetail}
+                onUpdateStatedCommission={state.updateLineItemAmount}
               />
             </div>
           )}

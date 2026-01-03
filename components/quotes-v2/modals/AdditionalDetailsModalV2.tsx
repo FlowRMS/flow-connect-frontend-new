@@ -59,12 +59,13 @@ export function AdditionalDetailsModalV2({
   );
   const { data: insideReps, isLoading: isInsideRepLoading } = useUserSearch(
     insideRepSearchTerm,
-    true, // enabled flag
-    insideRepSearchEnabled && !!settings?.insideRepAtLineLevel
+    true, // isInside
+    insideRepSearchEnabled && !!settings?.insideRepAtLineLevel,
+    false // isOutside
   );
   const { data: outsideReps, isLoading: isOutsideRepLoading } = useUserSearch(
     outsideRepSearchTerm,
-    true,
+    false, // isInside
     outsideRepSearchEnabled && !!settings?.outsideRepAtLineLevel,
     true // isOutside
   );

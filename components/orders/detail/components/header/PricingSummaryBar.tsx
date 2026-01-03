@@ -27,19 +27,8 @@ interface PricingSummaryBarProps {
 export function PricingSummaryBar({ order, viewMode, totals }: PricingSummaryBarProps) {
   return (
     <div className="border-b border-[var(--border)] bg-[var(--card)] flex-shrink-0 px-6 py-2 flex items-center justify-between">
-      {/* Shipping Status */}
+      {/* Shipping Status - placeholder for spacing */}
       <div className="flex items-center gap-2">
-        {order && (() => {
-          const shipStatus = getOrderShipStatus(order.lineItems || []);
-          return (
-            <>
-              <span className="text-xs text-[var(--muted-foreground)]">Ship Status:</span>
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${shipStatus.color}`}>
-                {shipStatus.label}
-              </span>
-            </>
-          );
-        })()}
       </div>
       {/* Totals */}
       <div className="flex items-center gap-3 text-xs">

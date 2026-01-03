@@ -35,8 +35,6 @@ import {
   type EntityLink,
   type CreateLinkInput,
   type DeleteLinkByEntitiesInput,
-  type JobRelatedEntities,
-  type ContactRelatedEntities,
   type Note,
   type NoteConversation,
   type NoteLandingPage,
@@ -44,6 +42,9 @@ import {
   type UpdateNoteInput,
   type AddNoteConversationInput,
   type UpdateNoteConversationInput,
+  // Related Entities types
+  type RelatedEntities,
+  type RelatedEntitiesSourceType,
   // Task types
   type CRMTask,
   type TaskLandingPage,
@@ -98,8 +99,7 @@ import {
   createLink,
   deleteLink,
   deleteLinkByEntities,
-  fetchJobRelatedEntities,
-  fetchContactRelatedEntities,
+  fetchRelatedEntities,
   fetchLinksBySource,
   fetchNotesByEntity,
   type NoteLink,
@@ -219,11 +219,9 @@ export const crmQueryKeys = {
   checkSearch: (searchTerm: string) => 
     [...crmQueryKeys.all, 'checkSearch', { searchTerm }] as const,
   
-  // Entity Links
-  jobRelatedEntities: (jobId: string) => 
-    [...crmQueryKeys.all, 'jobRelatedEntities', jobId] as const,
-  contactRelatedEntities: (contactId: string) => 
-    [...crmQueryKeys.all, 'contactRelatedEntities', contactId] as const,
+  // Entity Links - centralized related entities endpoint
+  relatedEntities: (entityId: string, sourceType: RelatedEntitiesSourceType) =>
+    [...crmQueryKeys.all, 'relatedEntities', sourceType, entityId] as const,
   
   // Notes
   notes: () => [...crmQueryKeys.all, 'notes'] as const,
@@ -1024,25 +1022,25 @@ export function useDeleteCRMPreOpportunity() {
 // ============================================================================
 
 /**
- * Fetch job related entities (companies, contacts, pre-opportunities)
+ * Centralized hook for fetching related entities from any entity type.
+ * This is the recommended hook for new implementations.
+ *
+ * @param entityId - The UUID of the source entity
+ * @param sourceType - The type of the source entity (e.g., 'JOBS', 'CONTACTS', etc.)
+ * @returns Query result with all related entities
+ *
+ * @example
+ * // For a job detail page
+ * const { data, isLoading } = useRelatedEntities(jobId, 'JOBS');
+ *
+ * // For a contact detail page
+ * const { data, isLoading } = useRelatedEntities(contactId, 'CONTACTS');
  */
-export function useCRMJobRelatedEntities(jobId: string) {
-  return useQuery<JobRelatedEntities, Error>({
-    queryKey: crmQueryKeys.jobRelatedEntities(jobId),
-    queryFn: () => fetchJobRelatedEntities(jobId),
-    enabled: !!jobId,
-    staleTime: 30 * 1000,
-  });
-}
-
-/**
- * Fetch related entities for a specific contact
- */
-export function useCRMContactRelatedEntities(contactId: string) {
-  return useQuery<ContactRelatedEntities, Error>({
-    queryKey: crmQueryKeys.contactRelatedEntities(contactId),
-    queryFn: () => fetchContactRelatedEntities(contactId),
-    enabled: !!contactId,
+export function useRelatedEntities(entityId: string, sourceType: RelatedEntitiesSourceType) {
+  return useQuery<RelatedEntities, Error>({
+    queryKey: crmQueryKeys.relatedEntities(entityId, sourceType),
+    queryFn: () => fetchRelatedEntities(entityId, sourceType),
+    enabled: !!entityId && !!sourceType,
     staleTime: 30 * 1000,
   });
 }
@@ -1058,13 +1056,13 @@ export function useCreateCRMLink() {
     onSuccess: (_, variables) => {
       // Invalidate related entities queries based on entity types
       if (variables.sourceEntityType === 'JOB') {
-        queryClient.invalidateQueries({ 
-          queryKey: crmQueryKeys.jobRelatedEntities(variables.sourceEntityId) 
+        queryClient.invalidateQueries({
+          queryKey: crmQueryKeys.relatedEntities(variables.sourceEntityId, 'JOBS')
         });
       }
       if (variables.targetEntityType === 'JOB') {
-        queryClient.invalidateQueries({ 
-          queryKey: crmQueryKeys.jobRelatedEntities(variables.targetEntityId) 
+        queryClient.invalidateQueries({
+          queryKey: crmQueryKeys.relatedEntities(variables.targetEntityId, 'JOBS')
         });
       }
       // Invalidate company-related queries
@@ -1100,33 +1098,33 @@ export function useCreateCRMLink() {
       }
       // Invalidate contact-related queries
       if (variables.sourceEntityType === 'CONTACT') {
-        queryClient.invalidateQueries({ 
-          queryKey: crmQueryKeys.jobsByContact(variables.sourceEntityId) 
+        queryClient.invalidateQueries({
+          queryKey: crmQueryKeys.jobsByContact(variables.sourceEntityId)
         });
-        queryClient.invalidateQueries({ 
-          queryKey: crmQueryKeys.contactRelatedEntities(variables.sourceEntityId) 
+        queryClient.invalidateQueries({
+          queryKey: crmQueryKeys.relatedEntities(variables.sourceEntityId, 'CONTACTS')
         });
         // Invalidate tasks and notes for this contact
-        queryClient.invalidateQueries({ 
-          queryKey: crmQueryKeys.tasksByEntity(variables.sourceEntityId, 'CONTACT') 
+        queryClient.invalidateQueries({
+          queryKey: crmQueryKeys.tasksByEntity(variables.sourceEntityId, 'CONTACT')
         });
-        queryClient.invalidateQueries({ 
-          queryKey: crmQueryKeys.notesByEntity(variables.sourceEntityId, 'CONTACT') 
+        queryClient.invalidateQueries({
+          queryKey: crmQueryKeys.notesByEntity(variables.sourceEntityId, 'CONTACT')
         });
       }
       if (variables.targetEntityType === 'CONTACT') {
-        queryClient.invalidateQueries({ 
-          queryKey: crmQueryKeys.jobsByContact(variables.targetEntityId) 
+        queryClient.invalidateQueries({
+          queryKey: crmQueryKeys.jobsByContact(variables.targetEntityId)
         });
-        queryClient.invalidateQueries({ 
-          queryKey: crmQueryKeys.contactRelatedEntities(variables.targetEntityId) 
+        queryClient.invalidateQueries({
+          queryKey: crmQueryKeys.relatedEntities(variables.targetEntityId, 'CONTACTS')
         });
         // Invalidate tasks and notes for this contact
-        queryClient.invalidateQueries({ 
-          queryKey: crmQueryKeys.tasksByEntity(variables.targetEntityId, 'CONTACT') 
+        queryClient.invalidateQueries({
+          queryKey: crmQueryKeys.tasksByEntity(variables.targetEntityId, 'CONTACT')
         });
-        queryClient.invalidateQueries({ 
-          queryKey: crmQueryKeys.notesByEntity(variables.targetEntityId, 'CONTACT') 
+        queryClient.invalidateQueries({
+          queryKey: crmQueryKeys.notesByEntity(variables.targetEntityId, 'CONTACT')
         });
       }
       // Invalidate task-related queries
@@ -1164,10 +1162,10 @@ export function useDeleteCRMLink() {
   return useMutation<boolean, Error, { id: string; jobId?: string }>({
     mutationFn: ({ id }) => deleteLink(id),
     onSuccess: (_, variables) => {
-      // Invalidate job related entities if jobId provided
+      // Invalidate related entities if jobId provided
       if (variables.jobId) {
-        queryClient.invalidateQueries({ 
-          queryKey: crmQueryKeys.jobRelatedEntities(variables.jobId) 
+        queryClient.invalidateQueries({
+          queryKey: crmQueryKeys.relatedEntities(variables.jobId, 'JOBS')
         });
       }
     },
@@ -1185,13 +1183,13 @@ export function useDeleteCRMLinkByEntities() {
     onSuccess: (_, variables) => {
       // Invalidate related entities queries based on entity types
       if (variables.sourceEntityType === 'JOB') {
-        queryClient.invalidateQueries({ 
-          queryKey: crmQueryKeys.jobRelatedEntities(variables.sourceEntityId) 
+        queryClient.invalidateQueries({
+          queryKey: crmQueryKeys.relatedEntities(variables.sourceEntityId, 'JOBS')
         });
       }
       if (variables.targetEntityType === 'JOB') {
-        queryClient.invalidateQueries({ 
-          queryKey: crmQueryKeys.jobRelatedEntities(variables.targetEntityId) 
+        queryClient.invalidateQueries({
+          queryKey: crmQueryKeys.relatedEntities(variables.targetEntityId, 'JOBS')
         });
       }
       // Invalidate company-related queries

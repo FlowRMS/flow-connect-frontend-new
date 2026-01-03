@@ -172,7 +172,7 @@ export function LinkSelector({
   const [showDropdown, setShowDropdown] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('JOB');
   const [searchQuery, setSearchQuery] = useState('');
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0, openUpward: false });
+  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number; openUpward: boolean } | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   // Track if we've ever opened the dropdown to trigger data loading
   const [hasOpened, setHasOpened] = useState(false);
@@ -210,16 +210,16 @@ export function LinkSelector({
     }
   }, [showDropdown, hasOpened]);
 
-  // Update dropdown position - check if it would go off screen
-  useEffect(() => {
-    if (showDropdown && inputRef.current) {
+  // Calculate dropdown position
+  const updateDropdownPosition = () => {
+    if (inputRef.current) {
       const rect = inputRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom;
       const spaceAbove = rect.top;
-      
+
       // Open upward if not enough space below and more space above
       const openUpward = spaceBelow < DROPDOWN_HEIGHT && spaceAbove > spaceBelow;
-      
+
       setDropdownPosition({
         top: openUpward ? rect.top - DROPDOWN_HEIGHT - 4 : rect.bottom + 4,
         left: rect.left,
@@ -227,6 +227,31 @@ export function LinkSelector({
         openUpward,
       });
     }
+  };
+
+  // Update dropdown position when opening
+  useEffect(() => {
+    if (showDropdown) {
+      updateDropdownPosition();
+    }
+  }, [showDropdown]);
+
+  // Update position on scroll/resize
+  useEffect(() => {
+    if (!showDropdown) return;
+
+    const handleScrollOrResize = () => {
+      updateDropdownPosition();
+    };
+
+    // Listen to scroll on all scrollable ancestors
+    window.addEventListener('scroll', handleScrollOrResize, true);
+    window.addEventListener('resize', handleScrollOrResize);
+
+    return () => {
+      window.removeEventListener('scroll', handleScrollOrResize, true);
+      window.removeEventListener('resize', handleScrollOrResize);
+    };
   }, [showDropdown]);
 
   // Close dropdown when clicking outside
@@ -487,7 +512,7 @@ export function LinkSelector({
   };
 
   // Dropdown content - rendered via portal
-  const dropdownContent = showDropdown && !disabled && (
+  const dropdownContent = showDropdown && !disabled && dropdownPosition && (
     <div
       ref={dropdownRef}
       style={{

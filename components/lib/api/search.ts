@@ -559,6 +559,29 @@ const PRODUCT_SEARCH = `
   }
 `;
 
+const PRODUCT_SEARCH_WITH_FACTORY = `
+  query ProductSearchWithFactory($searchTerm: String!, $factoryId: String!, $limit: Int) {
+    productSearch(searchTerm: $searchTerm, factoryId: $factoryId, limit: $limit) {
+      approvalComments
+      approvalDate
+      approvalNeeded
+      commissionDiscountRate
+      defaultCommissionRate
+      defaultDivisor
+      description
+      factoryPartNumber
+      id
+      leadTime
+      minOrderQty
+      published
+      tags
+      unitPrice
+      unitPriceDiscountRate
+      upc
+    }
+  }
+`;
+
 const USER_SEARCH = `
   query UserSearch($searchTerm: String!, $isInside: Boolean, $isOutside: Boolean, $enabled: Boolean, $limit: Int) {
     userSearch(
@@ -568,6 +591,24 @@ const USER_SEARCH = `
       enabled: $enabled
       limit: $limit
     ) {
+      id
+      authProviderId
+      email
+      enabled
+      firstName
+      fullName
+      inside
+      lastName
+      outside
+      role
+      username
+    }
+  }
+`;
+
+const GET_USER = `
+  query GetUser($id: UUID!) {
+    user(id: $id) {
       id
       authProviderId
       email
@@ -806,15 +847,21 @@ export async function searchCustomers(searchTerm: string, published?: boolean, l
 
 /**
  * Search for products
+ * If factoryId is provided, filters products by that manufacturer
  */
 export async function searchProducts(
   searchTerm: string,
-  _factoryId?: string,
+  factoryId?: string,
   limit?: number
 ): Promise<ProductSearchResult[]> {
+  // Use the factory-filtered query only if factoryId is provided and not empty
+  const useFactoryFilter = factoryId && factoryId.trim() !== '';
+
   const response = await crmGraphQLRequest<{ productSearch: ProductSearchResult[] }>({
-    query: PRODUCT_SEARCH,
-    variables: { searchTerm, limit: limit ?? 50 },
+    query: useFactoryFilter ? PRODUCT_SEARCH_WITH_FACTORY : PRODUCT_SEARCH,
+    variables: useFactoryFilter
+      ? { searchTerm, factoryId, limit: limit ?? 50 }
+      : { searchTerm, limit: limit ?? 50 },
   });
 
   if (response.errors) {
@@ -850,6 +897,25 @@ export async function searchUsers(params: {
   }
 
   return response.data?.userSearch || [];
+}
+
+/**
+ * Fetch a single user by ID
+ * Used to resolve user IDs (e.g., assignedToId in tasks) to user details
+ */
+export async function fetchUserById(id: string): Promise<UserSearchResult | null> {
+  const response = await crmGraphQLRequest<{ user: UserSearchResult }>({
+    query: GET_USER,
+    variables: { id },
+  });
+
+  if (response.errors) {
+    // Silently return null if user not found, don't throw
+    console.warn('Failed to fetch user:', response.errors[0]?.message);
+    return null;
+  }
+
+  return response.data?.user || null;
 }
 
 /**

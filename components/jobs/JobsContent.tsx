@@ -24,7 +24,7 @@ import { ListView } from './views/ListView';
 import { getCompanyDetails } from './mockData';
 import type { Job } from './types';
 import { mapAPIJobToUIJob } from './types';
-import type { Company, Contact, JobLandingPage, LandingPageFilter, LandingPageOrderBy } from '../lib/crm-graphql';
+import type { JobLandingPage, LandingPageFilter, LandingPageOrderBy, RelatedEntityCompany, RelatedEntityContact } from '../lib/crm-graphql';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 
 export default function JobsContent() {
@@ -613,8 +613,8 @@ export default function JobsContent() {
         onDelete={handleDeleteJob}
         onRepTypeChange={setRepType}
         onToggleRepTypeModal={setShowRepTypeModal}
-        onCompanyClick={(company: Company) => setSelectedCompany(company)}
-        onContactClick={(contact: Contact) => router.push(`/contacts?id=${contact.id}`)}
+        onCompanyClick={(company: RelatedEntityCompany) => setSelectedCompany(company)}
+        onContactClick={(contact: RelatedEntityContact) => router.push(`/contacts?id=${contact.id}`)}
       />
     );
   }

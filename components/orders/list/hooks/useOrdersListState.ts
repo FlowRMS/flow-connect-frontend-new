@@ -38,7 +38,7 @@ function transformLandingPageToOrder(landing: OrderLandingPage): Order {
     subtotal: landing.total || 0,
     freight: 0,
     total: landing.total || 0,
-    totalCommission: 0, // API landing page doesn't provide this
+    totalCommission: landing.commission || 0,
     splitRates: [],
     dueDate: landing.dueDate,
     // Pass through new fields directly

@@ -1,6 +1,7 @@
 /**
- * Add Link Modal Component
- * Allows users to link entities to a Job
+ * Add Link Modal Component - CENTRALIZED
+ * A reusable modal for linking entities to any source entity type
+ *
  * Supports: Company, Contact, Task, Note, Pre-Opportunity, Quote, Order, Invoice, Check
  */
 
@@ -10,7 +11,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   useRelatedEntities,
   useCreateCRMLink,
-} from '../../hooks/useCRMApi';
+} from '../hooks/useCRMApi';
 import {
   useCompanySearch,
   useContactSearch,
@@ -34,13 +35,30 @@ import {
   type FactorySearchResult,
   type CustomerSearchResult,
   type ProductSearchResult,
-} from '../../notes/api';
-import { useNoteSearch, type NoteSearchResult } from '../../tasks/api';
-import type { CRMEntityType } from '../../lib/crm-graphql';
-import { linkToasts } from '../../lib/toast';
+} from '../notes/api';
+import { useNoteSearch, type NoteSearchResult } from '../tasks/api';
+import type { CRMEntityType, RelatedEntitiesSourceType } from '../lib/crm-graphql';
+import { linkToasts } from '../lib/toast';
 
 // All linkable entity types
 type LinkEntityType = 'COMPANY' | 'CONTACT' | 'TASK' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'FACTORY' | 'CUSTOMER' | 'PRODUCT';
+
+// Source entity types
+type SourceEntityType = 'JOB' | 'CONTACT' | 'COMPANY' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'TASK' | 'NOTE';
+
+// Map source entity type to API endpoint type
+const SOURCE_TYPE_TO_API_TYPE: Record<SourceEntityType, RelatedEntitiesSourceType> = {
+  JOB: 'JOBS',
+  CONTACT: 'CONTACTS',
+  COMPANY: 'COMPANIES',
+  PRE_OPPORTUNITY: 'PRE_OPPORTUNITIES',
+  QUOTE: 'QUOTES',
+  ORDER: 'ORDERS',
+  INVOICE: 'INVOICES',
+  CHECK: 'CHECKS',
+  TASK: 'TASKS',
+  NOTE: 'NOTES',
+};
 
 // Entity type configuration for display
 const ENTITY_TYPE_CONFIG: Record<LinkEntityType, { label: string; plural: string; color: string; icon: React.ReactNode }> = {
@@ -183,13 +201,21 @@ const ALL_ENTITY_TYPES: LinkEntityType[] = [
 
 interface AddLinkModalProps {
   isOpen: boolean;
-  jobId: string;
+  sourceEntityId: string;
+  sourceEntityType: SourceEntityType;
   initialEntityType?: LinkEntityType;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onClose, onSuccess }: AddLinkModalProps) {
+export function AddLinkModal({
+  isOpen,
+  sourceEntityId,
+  sourceEntityType,
+  initialEntityType = 'COMPANY',
+  onClose,
+  onSuccess
+}: AddLinkModalProps) {
   const [entityType, setEntityType] = useState<LinkEntityType>(initialEntityType);
   const [selectedEntityIds, setSelectedEntityIds] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState('');
@@ -244,9 +270,9 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
   const { data: factories = [], isLoading: factoriesLoading } = useFactorySearch(searchTerm, isOpen);
   const { data: customers = [], isLoading: customersLoading } = useCustomerSearch(searchTerm, isOpen);
   const { data: products = [], isLoading: productsLoading } = useProductSearch(searchTerm, isOpen);
-  
-  // Fetch already linked entities for this job using centralized endpoint
-  const { data: relatedEntities } = useRelatedEntities(jobId, 'JOBS');
+
+  // Fetch already linked entities using centralized endpoint
+  const { data: relatedEntities } = useRelatedEntities(sourceEntityId, SOURCE_TYPE_TO_API_TYPE[sourceEntityType]);
 
   // Create link mutation
   const createLinkMutation = useCreateCRMLink();
@@ -268,39 +294,38 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
   }), [relatedEntities]);
 
   // Get display info for an entity
-  const getEntityDisplay = (entity: any, type: LinkEntityType): { name: string; subtitle: string } => {
+  const getEntityDisplay = (entity: Record<string, unknown>, type: LinkEntityType): { name: string; subtitle: string } => {
     switch (type) {
       case 'COMPANY':
-        return { name: entity.name, subtitle: entity.companySourceType || '' };
+        return { name: entity.name as string, subtitle: (entity.companySourceType as string) || '' };
       case 'CONTACT':
-        return { name: `${entity.firstName} ${entity.lastName}`, subtitle: entity.email || entity.role || '' };
+        return { name: `${entity.firstName} ${entity.lastName}`, subtitle: (entity.email as string) || (entity.role as string) || '' };
       case 'TASK':
-        return { name: entity.title, subtitle: `${entity.status} - ${entity.priority}` };
+        return { name: entity.title as string, subtitle: `${entity.status} - ${entity.priority}` };
       case 'NOTE':
-        return { name: entity.title, subtitle: entity.content?.substring(0, 50) || '' };
+        return { name: entity.title as string, subtitle: ((entity.content as string) || '').substring(0, 50) };
       case 'PRE_OPPORTUNITY':
-        return { name: entity.entityNumber || entity.id, subtitle: `${entity.status || ''} ${entity.entityDate || ''}`.trim() };
+        return { name: (entity.entityNumber as string) || (entity.id as string), subtitle: `${entity.status || ''} ${entity.entityDate || ''}`.trim() };
       case 'QUOTE':
-        return { name: entity.quoteNumber || entity.id, subtitle: entity.jobName || '' };
+        return { name: (entity.quoteNumber as string) || (entity.id as string), subtitle: (entity.jobName as string) || '' };
       case 'ORDER':
-        return { name: entity.orderNumber || entity.id, subtitle: entity.jobName || entity.status || '' };
+        return { name: (entity.orderNumber as string) || (entity.id as string), subtitle: (entity.jobName as string) || (entity.status as string) || '' };
       case 'INVOICE':
-        return { name: entity.invoiceNumber || entity.id, subtitle: entity.status || '' };
+        return { name: (entity.invoiceNumber as string) || (entity.id as string), subtitle: (entity.status as string) || '' };
       case 'CHECK':
-        return { name: entity.checkNumber || entity.id, subtitle: entity.status || '' };
+        return { name: (entity.checkNumber as string) || (entity.id as string), subtitle: (entity.status as string) || '' };
       case 'FACTORY':
-        return { name: entity.title || entity.id, subtitle: 'Factory' };
+        return { name: (entity.title as string) || (entity.id as string), subtitle: 'Factory' };
       case 'CUSTOMER':
-        return { name: entity.companyName || entity.id, subtitle: 'Customer' };
+        return { name: (entity.companyName as string) || (entity.id as string), subtitle: 'Customer' };
       case 'PRODUCT':
-        return { name: entity.factoryPartNumber || entity.id, subtitle: 'Product' };
+        return { name: (entity.factoryPartNumber as string) || (entity.id as string), subtitle: 'Product' };
       default:
-        return { name: entity.id, subtitle: '' };
+        return { name: entity.id as string, subtitle: '' };
     }
   };
 
   // Get entities and loading state based on current type
-  // API handles search, we only filter out already linked entities
   const { entities, isLoading } = useMemo(() => {
     switch (entityType) {
       case 'COMPANY':
@@ -367,7 +392,7 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
         return { entities: [], isLoading: false };
     }
   }, [
-    entityType, 
+    entityType,
     companies, companiesLoading,
     contacts, contactsLoading,
     tasks, tasksLoading,
@@ -383,9 +408,11 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
     linkedIds,
   ]);
 
+  const config = ENTITY_TYPE_CONFIG[entityType];
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (selectedEntityIds.size === 0) return;
 
     setIsLinking(true);
@@ -398,25 +425,25 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
 
     // Link entities one by one (API calls in sequence)
     for (let i = 0; i < entityIdsArray.length; i++) {
-      const entityId = entityIdsArray[i];
+      const targetEntityId = entityIdsArray[i];
       setLinkProgress({ current: i + 1, total: entityIdsArray.length });
 
       try {
         await createLinkMutation.mutateAsync({
-          sourceEntityType: 'JOB' as CRMEntityType,
-          sourceEntityId: jobId,
+          sourceEntityType: sourceEntityType as CRMEntityType,
+          sourceEntityId: sourceEntityId,
           targetEntityType: entityType as CRMEntityType,
-          targetEntityId: entityId,
+          targetEntityId: targetEntityId,
         });
         successCount++;
-      } catch (error: any) {
-        console.error(`Failed to link entity ${entityId}:`, error);
-        
+      } catch (error: unknown) {
+        console.error(`Failed to link entity ${targetEntityId}:`, error);
+
         // Check if error is "Link already exists"
-        const errorMessage = error?.message || '';
-        const isAlreadyExists = errorMessage.includes('Link already exists') || 
+        const errorMessage = error instanceof Error ? error.message : '';
+        const isAlreadyExists = errorMessage.includes('Link already exists') ||
                                 errorMessage.includes('already exists');
-        
+
         if (isAlreadyExists) {
           alreadyExistsCount++;
         } else {
@@ -426,7 +453,7 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
     }
 
     setIsLinking(false);
-    
+
     // Reset and close
     setSelectedEntityIds(new Set());
     setSearchTerm('');
@@ -437,11 +464,11 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
     if (successCount > 0) {
       linkToasts.createSuccess(`${successCount} ${config.label}${successCount > 1 ? 's' : ''}`);
     }
-    
+
     if (alreadyExistsCount > 0) {
       linkToasts.alreadyExists(`${alreadyExistsCount} ${config.label}${alreadyExistsCount > 1 ? 's' : ''}`);
     }
-    
+
     if (failCount > 0) {
       linkToasts.createError(`Failed to link ${failCount} ${config.label}${failCount > 1 ? 's' : ''}`);
     }
@@ -462,7 +489,19 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
 
   if (!isOpen) return null;
 
-  const config = ENTITY_TYPE_CONFIG[entityType];
+  // Get source entity label for display
+  const sourceEntityLabels: Record<SourceEntityType, string> = {
+    JOB: 'Job',
+    CONTACT: 'Contact',
+    COMPANY: 'Company',
+    PRE_OPPORTUNITY: 'Pre-Opportunity',
+    QUOTE: 'Quote',
+    ORDER: 'Order',
+    INVOICE: 'Invoice',
+    CHECK: 'Check',
+    TASK: 'Task',
+    NOTE: 'Note',
+  };
 
   return (
     <div
@@ -472,7 +511,7 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
       <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-2xl w-full max-h-[85vh] flex flex-col">
         {/* Header */}
         <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between flex-shrink-0">
-          <h2 className="text-xl font-semibold text-[var(--foreground)]">Link Entity to Job</h2>
+          <h2 className="text-xl font-semibold text-[var(--foreground)]">Link Entity to {sourceEntityLabels[sourceEntityType]}</h2>
           <button
             onClick={onClose}
             className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
@@ -545,7 +584,7 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
                     </button>
                     {selectedEntityIds.size > 0 && (
                       <>
-                        <span className="text-[var(--muted-foreground)]">•</span>
+                        <span className="text-[var(--muted-foreground)]">|</span>
                         <button
                           type="button"
                           onClick={deselectAllEntities}
@@ -577,16 +616,16 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
                   <div className="divide-y divide-[var(--border)]">
                     {entities.map((entity: { id: string }) => {
                       const isSelected = selectedEntityIds.has(entity.id);
-                      const { name, subtitle } = getEntityDisplay(entity, entityType);
-                      
+                      const { name, subtitle } = getEntityDisplay(entity as Record<string, unknown>, entityType);
+
                       return (
                         <button
                           key={entity.id}
                           type="button"
                           onClick={() => toggleEntitySelection(entity.id)}
                           className={`w-full text-left px-4 py-3 transition-colors ${
-                            isSelected 
-                              ? 'bg-[var(--primary)]/10 border-l-4 border-[var(--primary)]' 
+                            isSelected
+                              ? 'bg-[var(--primary)]/10 border-l-4 border-[var(--primary)]'
                               : 'hover:bg-[var(--muted)]/50'
                           }`}
                         >
@@ -662,3 +701,5 @@ export function AddLinkModal({ isOpen, jobId, initialEntityType = 'COMPANY', onC
     </div>
   );
 }
+
+export default AddLinkModal;
