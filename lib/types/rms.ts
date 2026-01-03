@@ -387,7 +387,7 @@ export interface CreditReason {
 // Commission Check Types
 // -----------------------------------------------------------------------------
 
-export type CheckStatus = 'draft' | 'posted' | 'void';
+export type CheckStatus = 'OPEN' | 'POSTED' | 'VOID';
 
 export interface CommissionCheck {
   id: string;
@@ -659,15 +659,15 @@ export const creditStatusColors: Record<CreditStatus, string> = {
 };
 
 export const checkStatusLabels: Record<CheckStatus, string> = {
-  draft: 'Draft',
-  posted: 'Posted',
-  void: 'Void',
+  OPEN: 'Open',
+  POSTED: 'Posted',
+  VOID: 'Void',
 };
 
 export const checkStatusColors: Record<CheckStatus, string> = {
-  draft: 'bg-gray-100 text-gray-700',
-  posted: 'bg-green-100 text-green-700',
-  void: 'bg-red-100 text-red-700',
+  OPEN: 'bg-yellow-100 text-yellow-700',
+  POSTED: 'bg-green-100 text-green-700',
+  VOID: 'bg-red-100 text-red-700',
 };
 
 // -----------------------------------------------------------------------------

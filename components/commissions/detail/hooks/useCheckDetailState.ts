@@ -72,7 +72,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
         manufacturerId: '',
         manufacturerName: '',
         commissionMonth: '',
-        status: 'draft' as const,
+        status: 'OPEN' as const,
         postDate: '',
         checkDate: '',
         entryDate: now,
@@ -95,7 +95,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
       manufacturerId: apiCheck.factoryId || '',
       manufacturerName: apiCheck.factory?.title || '',
       commissionMonth: apiCheck.commissionMonth || '',
-      status: apiCheck.status === 'POSTED' ? 'posted' as const : 'draft' as const,
+      status: (apiCheck.status || 'OPEN') as 'OPEN' | 'POSTED' | 'VOID',
       postDate: apiCheck.postDate || '',
       checkDate: apiCheck.entityDate || '',
       entryDate: apiCheck.createdAt || now,
@@ -185,7 +185,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
   );
   const [checkDate, setCheckDate] = useState(check?.checkDate || '');
   const [status, setStatus] = useState<CheckStatus>(
-    check?.status === 'posted' ? 'posted' : 'unposted'
+    check?.status === 'POSTED' ? 'posted' : 'unposted'
   );
   const [postedDate, setPostedDate] = useState<string>(
     new Date().toISOString().split('T')[0]
@@ -211,7 +211,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
       setCheckNumber(check.checkNumber || '');
       setCommissionAmount(check.netAmount || 0);
       setCheckDate(check.checkDate || '');
-      setStatus(check.status === 'posted' ? 'posted' : 'unposted');
+      setStatus(check.status === 'POSTED' ? 'posted' : 'unposted');
     }
   }, [check]);
 
@@ -917,6 +917,8 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     setStatus,
     postedDate,
     setPostedDate,
+    // Whether the check was originally posted (from API) - used to disable Save button
+    isOriginallyPosted: !isCreateMode && apiCheck?.status === 'POSTED',
     isTotalStatedCommission,
     setIsTotalStatedCommission,
     isTiedToCommissionUpload,

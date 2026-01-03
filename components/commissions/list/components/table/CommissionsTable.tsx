@@ -4,6 +4,7 @@
  */
 
 import type { CommissionCheck } from '@/lib/types/rms';
+import type { CheckStatus } from '@/components/lib/graphql/checks';
 import type { SortField, SortDirection, ColumnFilters } from '../../types';
 import { getGridTemplateColumns } from '../../config/columnConfig';
 import { isCheckLinked, getCheckLinkedReason } from '../../utils';
@@ -37,8 +38,9 @@ interface CommissionsTableProps {
   // Bulk actions
   showBulkActionsMenu: boolean;
   setShowBulkActionsMenu: (show: boolean) => void;
-  bulkSetStatus: (status: any) => void;
+  bulkSetStatus: (status: CheckStatus) => void;
   bulkDelete: () => void;
+  isBulkUpdating?: boolean;
   // Selected check for preview
   setSelectedCheck: (check: CommissionCheck) => void;
 }
@@ -63,6 +65,7 @@ export function CommissionsTable({
   setShowBulkActionsMenu,
   bulkSetStatus,
   bulkDelete,
+  isBulkUpdating = false,
   setSelectedCheck,
 }: CommissionsTableProps) {
   const gridColumns = getGridTemplateColumns();
@@ -70,7 +73,7 @@ export function CommissionsTable({
   return (
     <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
       {/* Bulk Actions Bar */}
-      {selectedCheckIds.size > 0 && (
+      {(selectedCheckIds.size > 0 || isBulkUpdating) && (
         <BulkActionsBar
           selectedCount={selectedCheckIds.size}
           showBulkActionsMenu={showBulkActionsMenu}
@@ -78,6 +81,7 @@ export function CommissionsTable({
           onClearSelection={clearSelection}
           onBulkSetStatus={bulkSetStatus}
           onBulkDelete={bulkDelete}
+          isLoading={isBulkUpdating}
         />
       )}
 
