@@ -16,7 +16,6 @@ import {
   addTaskConversation,
   deleteTaskConversation,
   fetchTaskConversations,
-  fetchTaskRelatedEntities,
   searchCompanies,
   searchContacts,
   searchJobs,
@@ -36,7 +35,6 @@ import {
   type Task,
   type TaskLandingPage,
   type TaskConversation,
-  type TaskRelatedEntities,
   type CompanySearchResult,
   type ContactSearchResult,
   type JobSearchResult,
@@ -59,6 +57,14 @@ import {
   type TaskLandingPageOrderBy,
 } from './tasksApi';
 
+// Import centralized related entities hook and types
+import { useRelatedEntities, crmQueryKeys } from '../../hooks/useCRMApi';
+import type { RelatedEntities } from '../../lib/crm-graphql';
+
+// Re-export useRelatedEntities for task consumers
+export { useRelatedEntities };
+export type { RelatedEntities };
+
 // ============================================================================
 // Query Keys
 // ============================================================================
@@ -69,7 +75,7 @@ export const tasksQueryKeys = {
     [...tasksQueryKeys.all, 'list', { filters, orderBy }] as const,
   detail: (id: string) => [...tasksQueryKeys.all, 'detail', id] as const,
   conversations: (taskId: string) => [...tasksQueryKeys.all, 'conversations', taskId] as const,
-  relatedEntities: (taskId: string) => [...tasksQueryKeys.all, 'relatedEntities', taskId] as const,
+  // Note: relatedEntities now uses crmQueryKeys.relatedEntities(taskId, 'TASKS')
   contact: (id: string) => ['contact', id] as const,
   contactsMap: (ids: string[]) => ['contacts', 'map', ids.sort().join(',')] as const,
   search: {
@@ -157,14 +163,10 @@ export function useTaskConversations(taskId: string) {
 
 /**
  * Fetch related entities for a task
+ * @deprecated Use useRelatedEntities(taskId, 'TASKS') from this module instead
  */
 export function useTaskRelatedEntities(taskId: string) {
-  return useQuery<TaskRelatedEntities, Error>({
-    queryKey: tasksQueryKeys.relatedEntities(taskId),
-    queryFn: () => fetchTaskRelatedEntities(taskId),
-    enabled: !!taskId,
-    staleTime: 30 * 1000,
-  });
+  return useRelatedEntities(taskId, 'TASKS');
 }
 
 /**
@@ -547,10 +549,10 @@ export function useCreateTaskLink() {
   >({
     mutationFn: createTaskLink,
     onSuccess: (_, variables) => {
-      // Invalidate related entities for the task
+      // Invalidate related entities for the task using centralized query key
       if (variables.sourceEntityType === 'TASK') {
         queryClient.invalidateQueries({
-          queryKey: tasksQueryKeys.relatedEntities(variables.sourceEntityId),
+          queryKey: crmQueryKeys.relatedEntities(variables.sourceEntityId, 'TASKS'),
         });
       }
     },
@@ -575,10 +577,10 @@ export function useDeleteTaskLinkByEntities() {
   >({
     mutationFn: deleteTaskLinkByEntities,
     onSuccess: (_, variables) => {
-      // Invalidate related entities for the task
+      // Invalidate related entities for the task using centralized query key
       if (variables.sourceEntityType === 'TASK') {
         queryClient.invalidateQueries({
-          queryKey: tasksQueryKeys.relatedEntities(variables.sourceEntityId),
+          queryKey: crmQueryKeys.relatedEntities(variables.sourceEntityId, 'TASKS'),
         });
       }
     },
@@ -590,7 +592,6 @@ export type {
   Task,
   TaskLandingPage,
   TaskConversation,
-  TaskRelatedEntities,
   CompanySearchResult,
   ContactSearchResult,
   JobSearchResult,
@@ -604,3 +605,5 @@ export type {
   TaskLandingPageFilter,
   TaskLandingPageOrderBy,
 };
+
+// Note: TaskRelatedEntities has been replaced with RelatedEntities from lib/crm-graphql

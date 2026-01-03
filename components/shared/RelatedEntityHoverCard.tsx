@@ -47,7 +47,7 @@ export type EntityType =
   | 'customer'
   | 'product';
 
-type EntityUnion =
+export type EntityUnion =
   | RelatedEntityCompany
   | RelatedEntityContact
   | RelatedEntityJob
