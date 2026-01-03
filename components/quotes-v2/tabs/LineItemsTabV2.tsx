@@ -54,14 +54,16 @@ export function LineItemsTabV2({
   const isUomDropdown = dropdownOpen?.column === 'uom';
   const isEndUserDropdown = dropdownOpen?.column === 'endUser' && settings?.specifyEndUserPerLine;
 
-  // Get current line item's productId for CPN search
+  // Get current line item's productId and manufacturerId for searches
   const currentLineItem = dropdownOpen ? lineItems.find(li => li.id === dropdownOpen.itemId) : null;
   const currentProductId = currentLineItem?.productId;
+  const currentManufacturerId = currentLineItem?.manufacturerId;
 
   // API hooks for search - trigger on dropdown open with empty string or debounced search
+  // Pass manufacturerId to filter products by manufacturer if one is selected
   const { data: productResults = [], isLoading: productsLoading } = useProductSearch(
     debouncedSearch,
-    undefined,
+    currentManufacturerId, // Only pass if manufacturer is selected, otherwise undefined
     isProductDropdown ?? false
   );
   const { data: factoryResults = [], isLoading: factoriesLoading } = useFactorySearch(
@@ -332,13 +334,20 @@ export function LineItemsTabV2({
 
     // Dropdown cells
     if (isDropdownColumn) {
+      // Check if field has a value - for manufacturer check manufacturerName, for partNumber check partNumber
+      const hasValue = column.key === 'manufacturer'
+        ? !!item.manufacturerName
+        : column.key === 'partNumber'
+        ? !!item.partNumber
+        : !!item[column.key as keyof LineItemV2];
+
       return (
         <td key={column.key} className="px-3 py-2 text-sm relative">
           <button
             onClick={(e) => handleCellClick(item.id, column.key, e)}
             className="w-full text-left px-2 py-1 rounded hover:bg-gray-100 transition-colors flex items-center justify-between gap-1"
           >
-            <span className={`truncate ${!item[column.key as keyof LineItemV2] ? 'text-gray-400' : ''}`}>
+            <span className={`truncate ${!hasValue ? 'text-gray-400' : ''}`}>
               {displayValue}
             </span>
             <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-gray-400 flex-shrink-0">
@@ -443,6 +452,15 @@ export function LineItemsTabV2({
 
       {/* Table */}
       <div className="flex-1 overflow-auto px-6 py-4 pb-32">
+        {/* Tip indicator */}
+        <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" className="text-blue-500 flex-shrink-0">
+            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+          </svg>
+          <span>
+            <strong>Tip:</strong> Select a manufacturer first to filter products by that manufacturer when searching for part numbers.
+          </span>
+        </div>
         <div className="border border-gray-200 rounded-lg overflow-x-auto">
           <table className="w-full min-w-[1200px]">
             <thead className="bg-gray-50">
@@ -561,24 +579,58 @@ export function LineItemsTabV2({
                 {/* Factory/Manufacturer results */}
                 {dropdownOpen.column === 'manufacturer' && !factoriesLoading && (
                   <>
-                    {factoryResults.map((factory) => (
+                    {/* No selection option */}
+                    {!searchQuery.trim() && (
                       <button
-                        key={factory.id}
                         onClick={() => {
+                          // Clear manufacturer and all product-related fields
                           updateLineItem(dropdownOpen.itemId, {
-                            manufacturerId: factory.id,
-                            manufacturerName: factory.title,
+                            manufacturerId: undefined,
+                            manufacturerName: '',
+                            productId: undefined,
+                            partNumber: '',
+                            description: '',
+                            customerPartNumber: '',
                           });
                           setDropdownOpen(null);
                           setSearchQuery('');
                           setDebouncedSearch('');
                         }}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition-colors"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition-colors text-gray-500 italic border-b border-gray-100"
                       >
-                        {factory.title}
+                        No selection
                       </button>
-                    ))}
-                    {factoryResults.length === 0 && (
+                    )}
+                    {factoryResults.map((factory) => {
+                      const currentItem = lineItems.find(li => li.id === dropdownOpen.itemId);
+                      const isChangingManufacturer = currentItem?.manufacturerId && currentItem.manufacturerId !== factory.id;
+                      return (
+                        <button
+                          key={factory.id}
+                          onClick={() => {
+                            // If changing manufacturer, clear product-related fields to maintain consistency
+                            const updates: Partial<LineItemV2> = {
+                              manufacturerId: factory.id,
+                              manufacturerName: factory.title,
+                            };
+                            if (isChangingManufacturer) {
+                              updates.productId = undefined;
+                              updates.partNumber = '';
+                              updates.description = '';
+                              updates.customerPartNumber = '';
+                            }
+                            updateLineItem(dropdownOpen.itemId, updates);
+                            setDropdownOpen(null);
+                            setSearchQuery('');
+                            setDebouncedSearch('');
+                          }}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition-colors"
+                        >
+                          {factory.title}
+                        </button>
+                      );
+                    })}
+                    {factoryResults.length === 0 && searchQuery.trim() && (
                       <div className="px-3 py-2 text-sm text-gray-500">No manufacturers found</div>
                     )}
                   </>
@@ -587,6 +639,28 @@ export function LineItemsTabV2({
                 {/* Product results */}
                 {isProductDropdown && !productsLoading && (
                   <>
+                    {/* No selection option */}
+                    {!searchQuery.trim() && (
+                      <button
+                        onClick={() => {
+                          // Clear part number and all related fields
+                          updateLineItem(dropdownOpen.itemId, {
+                            productId: undefined,
+                            partNumber: '',
+                            description: '',
+                            customerPartNumber: '',
+                            manufacturerId: undefined,
+                            manufacturerName: '',
+                          });
+                          setDropdownOpen(null);
+                          setSearchQuery('');
+                          setDebouncedSearch('');
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition-colors text-gray-500 italic border-b border-gray-100"
+                      >
+                        No selection
+                      </button>
+                    )}
                     {productResults.map((product) => (
                       <button
                         key={product.id}
@@ -648,7 +722,7 @@ export function LineItemsTabV2({
                         )}
                       </button>
                     ))}
-                    {productResults.length === 0 && (
+                    {productResults.length === 0 && searchQuery.trim() && (
                       <div className="px-3 py-2 text-sm text-gray-500">No products found</div>
                     )}
                   </>
@@ -771,16 +845,24 @@ export function LineItemsTabV2({
                   <button
                     onClick={() => {
                       if (dropdownOpen.column === 'manufacturer') {
+                        // Adhoc manufacturer clears product-related fields to maintain consistency
                         updateLineItem(dropdownOpen.itemId, {
                           manufacturerId: undefined,
                           manufacturerName: searchQuery.trim(),
+                          productId: undefined,
+                          partNumber: '',
+                          description: '',
+                          customerPartNumber: '',
                         });
                       } else if (dropdownOpen.column === 'partNumber') {
-                        // Adhoc part number clears productId and CPN
+                        // Adhoc part number clears productId, CPN, and manufacturer
                         updateLineItem(dropdownOpen.itemId, {
                           productId: undefined,
                           partNumber: searchQuery.trim(),
-                          customerPartNumber: '', // Clear CPN when part number changes
+                          description: '',
+                          customerPartNumber: '',
+                          manufacturerId: undefined,
+                          manufacturerName: '',
                         });
                       } else if (dropdownOpen.column === 'description') {
                         updateLineItem(dropdownOpen.itemId, {

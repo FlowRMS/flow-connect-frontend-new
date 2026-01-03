@@ -151,27 +151,26 @@ export function HeaderTopBar({
                   Duplicate Order
                 </button>
                 <button
-                  onClick={() => {
-                    setShowQuoteLookupModal(true);
-                    setShowActionsDropdown(false);
-                  }}
-                  className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
+                  disabled
+                  className="w-full px-4 py-2 text-left text-sm transition-colors flex items-center gap-2 opacity-50 cursor-not-allowed"
                 >
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M12 5v14M5 12h14" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                   Add New Lines from Quotes
+                  <span className="ml-auto px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">Soon</span>
                 </button>
                 <div className="border-t border-[var(--border)]" />
                 <button
-                  onClick={handleMakeWarehouseOrder}
-                  className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors flex items-center gap-2 text-teal-600"
+                  disabled
+                  className="w-full px-4 py-2 text-left text-sm transition-colors flex items-center gap-2 opacity-50 cursor-not-allowed"
                 >
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M3 7h14l-1.5 9H4.5L3 7z" strokeLinecap="round" strokeLinejoin="round"/>
                     <path d="M8 7V5a2 2 0 012-2v0a2 2 0 012 2v2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                   Convert Products to Warehouse
+                  <span className="ml-auto px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">Soon</span>
                 </button>
               </div>
             )}
@@ -235,130 +234,33 @@ export function HeaderTopBar({
           {/* Version Dropdown */}
           <div className="relative">
             <button
-              onClick={() => {
-                setShowVersionDropdown(!showVersionDropdown);
-                setShowActionsDropdown(false);
-                setShowStatusDropdown(false);
-                setShowSaveDropdown(false);
-              }}
-              className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
+              disabled
+              className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm font-medium transition-colors opacity-50 cursor-not-allowed"
             >
               v{currentVersion}
-              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+              <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">Soon</span>
             </button>
-            {showVersionDropdown && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setShowVersionDropdown(false)} />
-                <div className="absolute top-full left-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
-                  {availableVersions.map((v) => (
-                    <button
-                      key={v.version}
-                      onClick={() => {
-                        setCurrentVersion(v.version);
-                        setShowVersionDropdown(false);
-                      }}
-                      className={`w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors first:rounded-t-lg last:rounded-b-lg flex items-center justify-between ${
-                        currentVersion === v.version ? 'bg-[var(--primary)]/10 text-[var(--primary)]' : ''
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span>v{v.version}</span>
-                        {v.isLatest && (
-                          <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-xs">Latest</span>
-                        )}
-                      </div>
-                      <span className="text-xs text-[var(--muted-foreground)]">{v.date}</span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
           </div>
 
           {/* View Mode Dropdown */}
           <div className="relative">
             <button
-              onClick={() => {
-                setShowViewModeDropdown(!showViewModeDropdown);
-                setShowActionsDropdown(false);
-                setShowStatusDropdown(false);
-                setShowVersionDropdown(false);
-                setShowSaveDropdown(false);
-              }}
-              className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
+              disabled
+              className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm font-medium transition-colors opacity-50 cursor-not-allowed"
             >
               <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M1 10s4-6 9-6 9 6 9 6-4 6-9 6-9-6-9-6z" strokeLinecap="round" strokeLinejoin="round"/>
                 <circle cx="10" cy="10" r="3"/>
               </svg>
-              {viewMode === 'simple' ? 'Simple View' : 'Overage View'}
-              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+              Simple View
+              <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">Soon</span>
             </button>
-            {showViewModeDropdown && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setShowViewModeDropdown(false)} />
-                <div className="absolute top-full right-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20">
-                  <button
-                    onClick={() => {
-                      setViewMode('simple');
-                      setVisibleColumns(new Set(['partNumber', 'custPartNumber', 'description', 'quantity', 'uom', 'divisor', 'unitPrice', 'lineStatus', 'sellTotal', 'commissionPercent', 'commission', 'commissionTotal', 'linkedQuote', 'linkedInvoice', 'linkedCheck', 'linkedFulfillment', 'iconAcknowledgement', 'iconDocumentSpecific', 'iconWarehouse', 'iconCredit']));
-                      setActiveView('default');
-                      setShowViewModeDropdown(false);
-                    }}
-                    className={`w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors rounded-t-lg flex items-center justify-between ${
-                      viewMode === 'simple' ? 'text-[var(--primary)] font-medium' : ''
-                    }`}
-                  >
-                    <span className="flex items-center gap-2">
-                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                        <rect x="3" y="3" width="14" height="14" rx="2"/>
-                        <path d="M3 8h14"/>
-                      </svg>
-                      Simple View
-                    </span>
-                    {viewMode === 'simple' && (
-                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <path d="M5 10l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setViewMode('overage');
-                      setVisibleColumns(new Set(['quantity', 'uom', 'unitPrice', 'percentOver', 'sellTotal', 'commissionPercent', 'commissionAmount', 'ovgPercent', 'ovgAmount', 'earnPercent', 'earnAmount']));
-                      setActiveView('overage');
-                      setShowViewModeDropdown(false);
-                    }}
-                    className={`w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors rounded-b-lg flex items-center justify-between ${
-                      viewMode === 'overage' ? 'text-[var(--primary)] font-medium' : ''
-                    }`}
-                  >
-                    <span className="flex items-center gap-2">
-                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M12 2v6l4-2-4-2z" fill="currentColor"/>
-                        <path d="M2 10h16M2 6h8M2 14h12"/>
-                      </svg>
-                      Overage View
-                    </span>
-                    {viewMode === 'overage' && (
-                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <path d="M5 10l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    )}
-                  </button>
-                </div>
-              </>
-            )}
           </div>
 
           {/* Generate PDF Button */}
           <button
-            onClick={() => alert('Generate PDF')}
-            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+            disabled
+            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium transition-colors opacity-50 cursor-not-allowed"
           >
             <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M6 2h8l4 4v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2z" strokeLinecap="round" strokeLinejoin="round"/>
@@ -366,6 +268,7 @@ export function HeaderTopBar({
               <path d="M8 12h4M8 16h4M8 8h1" strokeLinecap="round"/>
             </svg>
             PDF
+            <span className="px-1.5 py-0.5 bg-red-400 text-white rounded text-xs">Soon</span>
           </button>
 
           {/* Save/Create Button with Dropdown */}
@@ -401,24 +304,14 @@ export function HeaderTopBar({
                     Save
                   </button>
                   <button
-                    onClick={() => {
-                      const newVersion = Math.max(...availableVersions.map(v => v.version)) + 1;
-                      const today = new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
-                      const newVersions = [
-                        ...availableVersions.map(v => ({ ...v, isLatest: false })),
-                        { version: newVersion, date: today, isLatest: true }
-                      ];
-                      setAvailableVersions(newVersions);
-                      setCurrentVersion(newVersion);
-                      setShowSaveDropdown(false);
-                      alert(`Saved as version ${newVersion}`);
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
+                    disabled
+                    className="w-full text-left px-4 py-2 text-sm transition-colors flex items-center gap-2 opacity-50 cursor-not-allowed"
                   >
                     <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
                     </svg>
                     Save as New Version
+                    <span className="ml-auto px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">Soon</span>
                   </button>
                 </div>
               </>

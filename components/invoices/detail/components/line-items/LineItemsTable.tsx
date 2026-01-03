@@ -682,21 +682,13 @@ export function LineItemsTable({
                     {/* Linked Order */}
                     {visibleColumns.has('linkedOrder') && (
                       <td className="px-3 py-2 text-sm text-left min-w-[120px]">
-                        {item.orderLineItemId ? (
-                          <button
-                            onClick={() => {
-                              // Find the linked order from the invoice
-                              const linkedOrder = mockOrders.find(o =>
-                                o.lineItems?.some(li => li.id === item.orderLineItemId)
-                              );
-                              if (linkedOrder) {
-                                window.location.href = `/orders/${linkedOrder.id}`;
-                              }
-                            }}
+                        {invoice.orderId ? (
+                          <a
+                            href={`/orders/${invoice.orderId}`}
                             className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer whitespace-nowrap"
                           >
                             View Order
-                          </button>
+                          </a>
                         ) : (
                           <span className="text-[var(--muted-foreground)]">-</span>
                         )}

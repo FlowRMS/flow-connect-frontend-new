@@ -18,6 +18,7 @@ interface LineItemsTableProps {
   onTogglePaid: (id: string) => void;
   onAddNewLine: () => void;
   onRowClick: (item: LineItem) => void;
+  onUpdateStatedCommission?: (id: string, amount: number) => void;
 }
 
 export function LineItemsTable({
@@ -28,6 +29,7 @@ export function LineItemsTable({
   onTogglePaid,
   onAddNewLine,
   onRowClick,
+  onUpdateStatedCommission,
 }: LineItemsTableProps) {
   return (
     <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-x-auto">
@@ -55,6 +57,7 @@ export function LineItemsTable({
                 status={status}
                 onTogglePaid={onTogglePaid}
                 onRowClick={onRowClick}
+                onUpdateStatedCommission={onUpdateStatedCommission}
               />
             ))
           )}

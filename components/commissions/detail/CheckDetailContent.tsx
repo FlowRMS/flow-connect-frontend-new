@@ -372,6 +372,7 @@ export default function CheckDetailContent({
                 onTogglePaid={state.togglePaid}
                 onAddNewLine={state.addNewLine}
                 onRowClick={state.openLineItemDetail}
+                onUpdateStatedCommission={state.updateLineItemAmount}
               />
             </div>
           )}
