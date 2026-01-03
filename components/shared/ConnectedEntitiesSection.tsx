@@ -12,6 +12,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import {
   useRelatedEntities,
   useDeleteCRMLinkByEntities,
@@ -28,20 +29,22 @@ import type {
   RelatedEntityCheck,
   RelatedEntityTask,
   RelatedEntityNote,
+  RelatedEntityJob,
 } from '../lib/crm-graphql';
 import { AddLinkModal } from './AddLinkModal';
 import { linkToasts } from '../lib/toast';
 import { RelatedEntityHoverCard } from './RelatedEntityHoverCard';
+import { fetchFilesByLinkedEntity, formatFileSize, type FileResponse, type FileEntityType } from '../lib/graphql/files';
 
 // ============================================================================
 // Types
 // ============================================================================
 
 // Category types for filtering (user-facing)
-export type EntityCategory = 'contacts' | 'companies' | 'pre-opportunities' | 'tasks' | 'notes' | 'quotes' | 'orders' | 'invoices' | 'checks';
+export type EntityCategory = 'contacts' | 'companies' | 'pre-opportunities' | 'tasks' | 'notes' | 'quotes' | 'orders' | 'invoices' | 'checks' | 'jobs' | 'files';
 
 // API entity types for linking
-export type LinkEntityType = 'COMPANY' | 'CONTACT' | 'TASK' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK';
+export type LinkEntityType = 'COMPANY' | 'CONTACT' | 'TASK' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'JOB' | 'FILE';
 
 // Source entity types - what entity is hosting this connected entities section
 export type SourceEntityType = 'JOB' | 'CONTACT' | 'COMPANY' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'TASK' | 'NOTE';
@@ -81,6 +84,8 @@ export interface ConnectedEntitiesSectionProps {
   onCheckClick?: (check: RelatedEntityCheck) => void;
   onTaskClick?: (task: RelatedEntityTask) => void;
   onNoteClick?: (note: RelatedEntityNote) => void;
+  onJobClick?: (job: RelatedEntityJob) => void;
+  onFileClick?: (file: FileResponse) => void;
 }
 
 // Default categories - all available
@@ -94,6 +99,8 @@ const ALL_CATEGORIES: EntityCategory[] = [
   'orders',
   'invoices',
   'checks',
+  'jobs',
+  'files',
 ];
 
 // ============================================================================
@@ -118,6 +125,8 @@ function EntityGridHeader({ title, entityType, hasEntities, onAddLink }: EntityG
     ORDER: 'Order',
     INVOICE: 'Invoice',
     CHECK: 'Check',
+    JOB: 'Job',
+    FILE: 'File',
   };
 
   return (
@@ -157,6 +166,8 @@ export function ConnectedEntitiesSection({
   onCheckClick,
   onTaskClick,
   onNoteClick,
+  onJobClick,
+  onFileClick,
 }: ConnectedEntitiesSectionProps) {
   const router = useRouter();
 
@@ -183,6 +194,17 @@ export function ConnectedEntitiesSection({
     refetch
   } = useRelatedEntities(entityId, SOURCE_TYPE_TO_API_TYPE[sourceEntityType]);
 
+  // Fetch linked files separately (uses different API endpoint)
+  const {
+    data: linkedFiles = [],
+    isLoading: filesLoading,
+    refetch: refetchFiles
+  } = useQuery({
+    queryKey: ['files', 'byEntity', entityId, sourceEntityType],
+    queryFn: () => fetchFilesByLinkedEntity(sourceEntityType as FileEntityType, entityId),
+    enabled: availableCategories.includes('files'),
+  });
+
   // Delete link mutation
   const deleteLinkMutation = useDeleteCRMLinkByEntities();
 
@@ -197,6 +219,8 @@ export function ConnectedEntitiesSection({
     const checksCount = relatedEntities?.checks?.length || 0;
     const tasksCount = relatedEntities?.tasks?.length || 0;
     const notesCount = relatedEntities?.notes?.length || 0;
+    const jobsCount = relatedEntities?.jobs?.length || 0;
+    const filesCount = linkedFiles?.length || 0;
 
     return {
       companies: companiesCount,
@@ -208,9 +232,11 @@ export function ConnectedEntitiesSection({
       checks: checksCount,
       tasks: tasksCount,
       notes: notesCount,
-      total: companiesCount + contactsCount + preOppsCount + quotesCount + ordersCount + invoicesCount + checksCount + tasksCount + notesCount,
+      jobs: jobsCount,
+      files: filesCount,
+      total: companiesCount + contactsCount + preOppsCount + quotesCount + ordersCount + invoicesCount + checksCount + tasksCount + notesCount + jobsCount + filesCount,
     };
-  }, [relatedEntities]);
+  }, [relatedEntities, linkedFiles]);
 
   // Toggle category visibility
   const toggleCategory = (category: EntityCategory) => {
@@ -250,6 +276,8 @@ export function ConnectedEntitiesSection({
         ORDER: 'Order',
         INVOICE: 'Invoice',
         CHECK: 'Check',
+        JOB: 'Job',
+        FILE: 'File',
       };
 
       linkToasts.deleteSuccess(entityTypeLabels[entityType]);
@@ -265,6 +293,7 @@ export function ConnectedEntitiesSection({
   // Handle successful link creation
   const handleLinkSuccess = () => {
     refetch();
+    refetchFiles();
   };
 
   // Handle company click - navigate to companies page
@@ -342,6 +371,25 @@ export function ConnectedEntitiesSection({
       onCheckClick(check);
     }
     // Checks don't have a detail page yet
+  };
+
+  // Handle job click - navigate to jobs page
+  const handleJobClick = (job: RelatedEntityJob) => {
+    if (onJobClick) {
+      onJobClick(job);
+    } else {
+      router.push(`/jobs/${job.id}`);
+    }
+  };
+
+  // Handle file click - open file or download
+  const handleFileClick = (file: FileResponse) => {
+    if (onFileClick) {
+      onFileClick(file);
+    } else if (file.filePath) {
+      // Open file in new tab
+      window.open(file.filePath, '_blank');
+    }
   };
 
   // Check if a category is enabled
@@ -516,6 +564,30 @@ export function ConnectedEntitiesSection({
                 }`}
               >
                 Checks ({totals.checks})
+              </button>
+            )}
+            {isCategoryEnabled('jobs') && (
+              <button
+                onClick={() => toggleCategory('jobs')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  visibleCategories.includes('jobs')
+                    ? 'bg-[var(--primary)] text-white'
+                    : 'bg-[var(--muted)] text-[var(--muted-foreground)] hover:bg-[var(--secondary)]'
+                }`}
+              >
+                Jobs ({totals.jobs})
+              </button>
+            )}
+            {isCategoryEnabled('files') && (
+              <button
+                onClick={() => toggleCategory('files')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  visibleCategories.includes('files')
+                    ? 'bg-[var(--primary)] text-white'
+                    : 'bg-[var(--muted)] text-[var(--muted-foreground)] hover:bg-[var(--secondary)]'
+                }`}
+              >
+                Files ({totals.files})
               </button>
             )}
           </div>
@@ -1274,6 +1346,151 @@ export function ConnectedEntitiesSection({
                         className="mt-2 text-sm text-[var(--primary)] hover:underline"
                       >
                         + Add a check
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Jobs */}
+            {isCategoryEnabled('jobs') && visibleCategories.includes('jobs') && (
+              <div className="border border-[var(--border)] rounded-lg overflow-hidden">
+                <EntityGridHeader
+                  title={`Jobs (${totals.jobs})`}
+                  entityType="JOB"
+                  hasEntities={Boolean(relatedEntities?.jobs && relatedEntities.jobs.length > 0)}
+                  onAddLink={openAddLinkModal}
+                />
+                <div className="p-4">
+                  {relatedEntities?.jobs && relatedEntities.jobs.length > 0 ? (
+                    <div className="flex flex-wrap gap-3">
+                    {relatedEntities.jobs.map((job: RelatedEntityJob) => (
+                      <RelatedEntityHoverCard key={job.id} entity={job} type="job">
+                        <div
+                          className="flex items-center justify-between p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]/30 transition-colors cursor-pointer group"
+                          onClick={() => handleJobClick(job)}
+                        >
+                          <div className="flex items-center gap-3 flex-1">
+                            <div className="w-10 h-10 rounded-lg bg-indigo-500 flex items-center justify-center text-white flex-shrink-0">
+                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                              </svg>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <h4 className="font-medium text-[var(--foreground)] truncate">{job.jobName}</h4>
+                                {job.jobType && (
+                                  <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-medium flex-shrink-0">
+                                    {job.jobType}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-4 text-sm text-[var(--muted-foreground)]">
+                                {job.startDate && <span>Start: {job.startDate}</span>}
+                                {job.endDate && <span>End: {job.endDate}</span>}
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleUnlink('JOB', job.id);
+                            }}
+                            disabled={deleteLinkMutation.isPending}
+                            className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all flex-shrink-0 ml-2"
+                            title="Unlink job"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                            </svg>
+                          </button>
+                        </div>
+                      </RelatedEntityHoverCard>
+                    ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-4 text-[var(--muted-foreground)]">
+                      <div className="w-12 h-12 mx-auto mb-3 rounded-lg bg-indigo-500/10 flex items-center justify-center">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-indigo-500">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      <p className="text-sm">No jobs linked</p>
+                      <button
+                        onClick={() => openAddLinkModal('JOB')}
+                        className="mt-2 text-sm text-[var(--primary)] hover:underline"
+                      >
+                        + Add a job
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Files */}
+            {isCategoryEnabled('files') && visibleCategories.includes('files') && (
+              <div className="border border-[var(--border)] rounded-lg overflow-hidden">
+                <EntityGridHeader
+                  title={`Files (${totals.files})`}
+                  entityType="FILE"
+                  hasEntities={Boolean(linkedFiles && linkedFiles.length > 0)}
+                  onAddLink={openAddLinkModal}
+                />
+                <div className="p-4">
+                  {linkedFiles && linkedFiles.length > 0 ? (
+                    <div className="flex flex-wrap gap-3">
+                    {linkedFiles.map((file: FileResponse) => (
+                      <RelatedEntityHoverCard key={file.id} entity={file} type="file">
+                        <div
+                          className="flex items-center justify-between p-3 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]/30 transition-colors cursor-pointer group"
+                          onClick={() => handleFileClick(file)}
+                        >
+                          <div className="flex items-center gap-3 flex-1">
+                            <div className="w-10 h-10 rounded-lg bg-gray-500 flex items-center justify-center text-white flex-shrink-0">
+                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                              </svg>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-medium text-[var(--foreground)] truncate mb-0.5">{file.fileName}</h4>
+                              <div className="flex items-center gap-4 text-sm text-[var(--muted-foreground)]">
+                                {file.fileSize && <span>{formatFileSize(file.fileSize)}</span>}
+                                {file.fileType && <span>{file.fileType}</span>}
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleUnlink('FILE', file.id);
+                            }}
+                            disabled={deleteLinkMutation.isPending}
+                            className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all flex-shrink-0 ml-2"
+                            title="Unlink file"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+                            </svg>
+                          </button>
+                        </div>
+                      </RelatedEntityHoverCard>
+                    ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-4 text-[var(--muted-foreground)]">
+                      <div className="w-12 h-12 mx-auto mb-3 rounded-lg bg-gray-500/10 flex items-center justify-center">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-500">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      <p className="text-sm">No files linked</p>
+                      <button
+                        onClick={() => openAddLinkModal('FILE')}
+                        className="mt-2 text-sm text-[var(--primary)] hover:underline"
+                      >
+                        + Add a file
                       </button>
                     </div>
                   )}

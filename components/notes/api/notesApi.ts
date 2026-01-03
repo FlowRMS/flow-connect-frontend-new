@@ -33,6 +33,17 @@ export {
   type ProductSearchResult,
 } from '../../lib/api/search';
 
+// Re-export file functions from files module
+export {
+  searchFiles,
+  fetchFilesByLinkedEntity,
+  linkFileToEntity,
+  formatFileSize,
+  getFileIcon,
+  type FileResponse,
+  type FileEntityType,
+} from '../../lib/graphql/files';
+
 type CreatedByResponse =
   | string
   | null

@@ -26,6 +26,7 @@ import {
   searchFactories,
   searchCustomers,
   searchProducts,
+  searchFiles,
   createLink,
   deleteLink,
   deleteLinkByEntities,
@@ -43,6 +44,7 @@ import {
   type FactorySearchResult,
   type CustomerSearchResult,
   type ProductSearchResult,
+  type FileResponse,
   type EntityLink,
   type EntityType,
 } from './notesApi';
@@ -81,6 +83,7 @@ export const notesQueryKeys = {
     factories: (term: string) => ['search', 'factories', term] as const,
     customers: (term: string) => ['search', 'customers', term] as const,
     products: (term: string) => ['search', 'products', term] as const,
+    files: (term: string) => ['search', 'files', term] as const,
   },
 };
 
@@ -379,6 +382,19 @@ export function useProductSearch(searchTerm: string, enabled = true) {
   return useQuery<ProductSearchResult[], Error>({
     queryKey: notesQueryKeys.search.products(searchTerm),
     queryFn: () => searchProducts(searchTerm),
+    enabled: enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * Search for files
+ * Returns all files when empty string is passed
+ */
+export function useFileSearch(searchTerm: string, enabled = true) {
+  return useQuery<FileResponse[], Error>({
+    queryKey: notesQueryKeys.search.files(searchTerm),
+    queryFn: () => searchFiles(searchTerm),
     enabled: enabled,
     staleTime: 60 * 1000,
   });
