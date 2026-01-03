@@ -34,7 +34,7 @@ export function CustomSelect<T extends string = string>({
 }: CustomSelectProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
-  const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
+  const [position, setPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -46,27 +46,52 @@ export function CustomSelect<T extends string = string>({
     setPortalTarget(document.body);
   }, []);
 
-  // Update position when opening
-  useEffect(() => {
-    if (isOpen && triggerRef.current) {
+  // Calculate position based on trigger element
+  const updatePosition = () => {
+    if (triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom;
       const dropdownHeight = Math.min(options.length * 44, 220);
-      
+
       if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
         setPosition({
-          top: rect.top + window.scrollY - dropdownHeight - 4,
-          left: rect.left + window.scrollX,
+          top: rect.top - dropdownHeight - 4,
+          left: rect.left,
           width: rect.width,
         });
       } else {
         setPosition({
-          top: rect.bottom + window.scrollY + 4,
-          left: rect.left + window.scrollX,
+          top: rect.bottom + 4,
+          left: rect.left,
           width: rect.width,
         });
       }
     }
+  };
+
+  // Update position when opening
+  useEffect(() => {
+    if (isOpen) {
+      updatePosition();
+    }
+  }, [isOpen, options.length]);
+
+  // Update position on scroll/resize
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleScrollOrResize = () => {
+      updatePosition();
+    };
+
+    // Listen to scroll on all scrollable ancestors
+    window.addEventListener('scroll', handleScrollOrResize, true);
+    window.addEventListener('resize', handleScrollOrResize);
+
+    return () => {
+      window.removeEventListener('scroll', handleScrollOrResize, true);
+      window.removeEventListener('resize', handleScrollOrResize);
+    };
   }, [isOpen, options.length]);
 
   // Close when clicking outside
@@ -87,7 +112,7 @@ export function CustomSelect<T extends string = string>({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
 
-  const dropdownContent = isOpen && !disabled && portalTarget && createPortal(
+  const dropdownContent = isOpen && !disabled && portalTarget && position && createPortal(
     <div
       ref={dropdownRef}
       className="fixed z-[9999] bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden"

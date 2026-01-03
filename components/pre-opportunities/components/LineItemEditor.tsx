@@ -212,7 +212,7 @@ export function LineItemEditor({
               value={productSearchValue}
               onChange={handleProductChange}
               onFocus={handleProductFocus}
-              placeholder="Click to see all products or type to search..."
+              placeholder="Search by Part #, CPN, or description..."
               className="w-full px-4 py-3 bg-white text-gray-900 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400"
             />
             {isLoadingProducts && (
@@ -234,7 +234,9 @@ export function LineItemEditor({
                         className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0"
                       >
                         <div className="font-medium text-gray-900">{product.factoryPartNumber}</div>
-                        <div className="text-xs text-gray-500">Factory: {product.factory.title}</div>
+                        {product.description && (
+                          <div className="text-xs text-gray-500 truncate">{product.description}</div>
+                        )}
                       </button>
                     ))}
                   </div>
@@ -247,7 +249,7 @@ export function LineItemEditor({
             )}
           </div>
           <p className="mt-2 text-xs text-blue-700">
-            💡 Tip: Click the field to see all available products, or start typing to filter
+            💡 Tip: Search by Part #, CPN, or description to find products
           </p>
         </div>
       )}

@@ -296,7 +296,9 @@ export function PreOpportunityLineItems({ preOpp, isEditing = false, onLineItems
                       className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0 text-sm"
                     >
                       <div className="font-medium text-gray-900">{product.factoryPartNumber}</div>
-                      <div className="text-xs text-gray-500">Factory: {product.factory.title}</div>
+                      {product.description && (
+                        <div className="text-xs text-gray-500 truncate">{product.description}</div>
+                      )}
                     </button>
                   ))}
                 </div>

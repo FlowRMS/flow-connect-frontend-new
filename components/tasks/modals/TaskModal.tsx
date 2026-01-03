@@ -756,7 +756,7 @@ export default function TaskModal({
                       placeholderText="Select due date..."
                     />
                   ) : (
-                    <p className="text-sm text-[var(--foreground)]">{formatDate(task.dueDate)}</p>
+                    <p className="text-sm text-[var(--foreground)]">{formatDate(localTask.dueDate)}</p>
                   )}
                 </div>
               </div>
@@ -774,7 +774,7 @@ export default function TaskModal({
                       placeholderText="Select reminder date..."
                     />
                   ) : (
-                    <p className="text-sm text-[var(--foreground)]">{task.reminderDate ? formatDate(task.reminderDate) : 'Not set'}</p>
+                    <p className="text-sm text-[var(--foreground)]">{localTask.reminderDate ? formatDate(localTask.reminderDate) : 'Not set'}</p>
                   )}
                 </div>
                 <div />
@@ -796,7 +796,7 @@ export default function TaskModal({
                 ) : (
                   <div className="p-4 bg-[var(--muted)]/30 rounded-lg">
                     <p className="text-sm text-[var(--foreground)] leading-relaxed whitespace-pre-wrap">
-                      {task.description || 'No description'}
+                      {localTask.description || 'No description'}
                     </p>
                   </div>
                 )}
