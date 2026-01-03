@@ -5,7 +5,7 @@
 
 'use client';
 
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import type { LineItem, ColumnKey, CheckStatus } from '../../types';
 
 interface LineItemsTableRowProps {
@@ -14,6 +14,7 @@ interface LineItemsTableRowProps {
   status: CheckStatus;
   onTogglePaid: (id: string) => void;
   onRowClick: (item: LineItem) => void;
+  onUpdateStatedCommission?: (id: string, amount: number) => void;
 }
 
 export function LineItemsTableRow({
@@ -22,7 +23,42 @@ export function LineItemsTableRow({
   status,
   onTogglePaid,
   onRowClick,
+  onUpdateStatedCommission,
 }: LineItemsTableRowProps) {
+  const [statedCommission, setStatedCommission] = useState(item.paidCommission.toString());
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Sync local state when prop changes (e.g., updated from modal)
+  useEffect(() => {
+    setStatedCommission(item.paidCommission.toString());
+  }, [item.paidCommission]);
+
+  const handleStatedCommissionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setStatedCommission(e.target.value);
+  };
+
+  const handleStatedCommissionBlur = () => {
+    const newAmount = parseFloat(statedCommission) || 0;
+    if (newAmount !== item.paidCommission && onUpdateStatedCommission) {
+      onUpdateStatedCommission(item.id, newAmount);
+    }
+  };
+
+  const handleStatedCommissionFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    // Select all text on focus to allow quick value entry
+    e.target.select();
+  };
+
+  const handleStatedCommissionKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      inputRef.current?.blur();
+    }
+  };
+
+  const handleStatedCommissionClick = (e: React.MouseEvent) => {
+    // Prevent row click when clicking on the input
+    e.stopPropagation();
+  };
   return (
     <tr
       className="border-b border-[var(--border)] hover:bg-[var(--muted)]/30 transition-colors cursor-pointer"
@@ -83,7 +119,24 @@ export function LineItemsTableRow({
       )}
       {visibleColumns.has('paidCommission') && (
         <td className="px-4 py-3 text-sm text-[var(--foreground)]">
-          ${item.paidCommission.toFixed(4)}
+          {status === 'posted' ? (
+            <span>${item.paidCommission.toFixed(4)}</span>
+          ) : (
+            <div className="flex items-center" onClick={handleStatedCommissionClick}>
+              <span className="text-[var(--muted-foreground)] mr-1">$</span>
+              <input
+                ref={inputRef}
+                type="number"
+                step="0.0001"
+                value={statedCommission}
+                onChange={handleStatedCommissionChange}
+                onBlur={handleStatedCommissionBlur}
+                onFocus={handleStatedCommissionFocus}
+                onKeyDown={handleStatedCommissionKeyDown}
+                className="w-24 px-2 py-1 bg-white border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-[var(--primary)]"
+              />
+            </div>
+          )}
         </td>
       )}
       {visibleColumns.has('balance') && (

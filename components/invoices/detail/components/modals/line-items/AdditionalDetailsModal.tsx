@@ -60,7 +60,7 @@ export function AdditionalDetailsModal({
   const [outsideRepSearchEnabled, setOutsideRepSearchEnabled] = useState(false);
   const { data: outsideReps, isLoading: isOutsideRepLoading } = useUserSearch(
     outsideRepSearchTerm,
-    { isOutside: true },
+    { isInside: false, isOutside: true },
     outsideRepSearchEnabled
   );
 

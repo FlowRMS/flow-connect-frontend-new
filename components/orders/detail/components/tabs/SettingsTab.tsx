@@ -96,26 +96,29 @@ export function SettingsTab({
         {/* Divider */}
         <div className="border-t border-[var(--border)]"></div>
 
-        {/* Customer Part Number Source Radio */}
-        <div className="space-y-2">
-          <span className="text-sm font-medium text-[var(--foreground)]">Customer Part Number Source</span>
+        {/* Customer Part Number Source Radio - Coming Soon */}
+        <div className="space-y-2 opacity-50">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-[var(--foreground)]">Customer Part Number Source</span>
+            <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">Soon</span>
+          </div>
           <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2 cursor-pointer">
+            <label className="flex items-center gap-2 cursor-not-allowed">
               <input
                 type="radio"
                 name="customerPartNumberSource"
                 checked={customerPartNumberSource === 'soldTo'}
-                onChange={() => setCustomerPartNumberSource('soldTo')}
+                disabled
                 className="accent-[var(--primary)]"
               />
               <span className="text-sm text-[var(--muted-foreground)]">Sold To Customer</span>
             </label>
-            <label className="flex items-center gap-2 cursor-pointer">
+            <label className="flex items-center gap-2 cursor-not-allowed">
               <input
                 type="radio"
                 name="customerPartNumberSource"
                 checked={customerPartNumberSource === 'endUser'}
-                onChange={() => setCustomerPartNumberSource('endUser')}
+                disabled
                 className="accent-[var(--primary)]"
               />
               <span className="text-sm text-[var(--muted-foreground)]">End User</span>
@@ -126,22 +129,21 @@ export function SettingsTab({
         {/* Divider */}
         <div className="border-t border-[var(--border)]"></div>
 
-        {/* Freight Line Toggle */}
-        <div className="flex items-center gap-3">
+        {/* Freight Line Toggle - Coming Soon */}
+        <div className="flex items-center gap-3 opacity-50">
           <button
-            onClick={onToggleFreightLine}
-            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 ${
-              hasFreightLine ? 'bg-[var(--primary)]' : 'bg-[var(--muted)]'
-            }`}
+            disabled
+            className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 bg-[var(--muted)] cursor-not-allowed"
           >
             <span
-              className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform ${
-                hasFreightLine ? 'translate-x-5' : 'translate-x-0.5'
-              }`}
+              className="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform translate-x-0.5"
             />
           </button>
           <div className="flex flex-col">
-            <span className="text-sm font-medium text-[var(--foreground)]">Freight line</span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-[var(--foreground)]">Freight line</span>
+              <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">Soon</span>
+            </div>
             <span className="text-xs text-[var(--muted-foreground)]">Add a freight line item to this order</span>
           </div>
         </div>

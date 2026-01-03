@@ -43,7 +43,7 @@ export default function CommissionsListContent() {
                     Commission Check
                   </h1>
                   <p className="text-sm text-[var(--muted-foreground)]">
-                    {state.checks.length} checks
+                    {state.totalCount > 0 ? `${state.checks.length} of ${state.totalCount} checks` : `${state.checks.length} checks`}
                   </p>
                 </div>
               </div>
@@ -105,29 +105,54 @@ export default function CommissionsListContent() {
         </div>
 
         {/* Commissions Table */}
-        <div className="flex-1 overflow-auto p-6 pt-4">
-          <CommissionsTable
-            filteredChecks={state.filteredChecks}
-            selectedCheckIds={state.selectedCheckIds}
-            toggleCheckSelection={state.toggleCheckSelection}
-            selectAllChecks={state.selectAllChecks}
-            clearSelection={state.clearSelection}
-            areAllEligibleSelected={state.areAllEligibleSelected}
-            sortField={state.sortField}
-            sortDirection={state.sortDirection}
-            handleSort={state.handleSort}
-            columnFilters={state.columnFilters}
-            setColumnFilters={state.setColumnFilters}
-            openFilter={state.openFilter}
-            setOpenFilter={state.setOpenFilter}
-            uniqueStatuses={state.uniqueStatuses}
-            uniqueManufacturers={state.uniqueManufacturers}
-            showBulkActionsMenu={state.showBulkActionsMenu}
-            setShowBulkActionsMenu={state.setShowBulkActionsMenu}
-            bulkSetStatus={state.bulkSetStatus}
-            bulkDelete={state.bulkDelete}
-            setSelectedCheck={state.setSelectedCheck}
-          />
+        <div className="flex-1 overflow-auto p-6 pt-4" onScroll={state.handleScroll}>
+          {state.isLoadingChecks ? (
+            <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-12">
+              <div className="flex flex-col items-center justify-center">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[var(--primary)] mb-4" />
+                <p className="text-[var(--muted-foreground)] text-sm">Loading checks...</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              <CommissionsTable
+                filteredChecks={state.filteredChecks}
+                selectedCheckIds={state.selectedCheckIds}
+                toggleCheckSelection={state.toggleCheckSelection}
+                selectAllChecks={state.selectAllChecks}
+                clearSelection={state.clearSelection}
+                areAllEligibleSelected={state.areAllEligibleSelected}
+                sortField={state.sortField}
+                sortDirection={state.sortDirection}
+                handleSort={state.handleSort}
+                columnFilters={state.columnFilters}
+                setColumnFilters={state.setColumnFilters}
+                openFilter={state.openFilter}
+                setOpenFilter={state.setOpenFilter}
+                uniqueStatuses={state.uniqueStatuses}
+                uniqueManufacturers={state.uniqueManufacturers}
+                showBulkActionsMenu={state.showBulkActionsMenu}
+                setShowBulkActionsMenu={state.setShowBulkActionsMenu}
+                bulkSetStatus={state.bulkSetStatus}
+                bulkDelete={state.bulkDelete}
+                setSelectedCheck={state.setSelectedCheck}
+                isBulkUpdating={state.isBulkUpdating}
+              />
+              {/* Infinite Scroll Loading Indicator */}
+              {state.isFetchingNextPage && (
+                <div className="flex items-center justify-center py-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[var(--primary)] mr-2" />
+                  <span className="text-sm text-[var(--muted-foreground)]">Loading more checks...</span>
+                </div>
+              )}
+              {/* End of List Indicator */}
+              {!state.hasNextPage && state.checks.length > 0 && (
+                <div className="text-center py-4 text-sm text-[var(--muted-foreground)]">
+                  All {state.totalCount} checks loaded
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
 
@@ -136,6 +161,9 @@ export default function CommissionsListContent() {
         <CheckDetailPanel
           check={state.selectedCheck}
           onClose={() => state.setSelectedCheck(null)}
+          onPostCheck={state.handlePostCheck}
+          onUnpostCheck={state.handleUnpostCheck}
+          isUpdating={state.isUpdatingCheck}
         />
       )}
     </main>

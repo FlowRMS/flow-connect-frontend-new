@@ -49,7 +49,10 @@ export {
 // React Query Hooks (Optional - for component use)
 // ============================================================================
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
+import type { CheckLandingPage, FindChecksLandingPagesResponse } from '../../lib/graphql/checks';
+
+const DEFAULT_PAGE_SIZE = 50;
 
 /**
  * Hook to fetch a single check
@@ -63,7 +66,7 @@ export function useCheck(checkId: string | null) {
 }
 
 /**
- * Hook to fetch checks (landing page)
+ * Hook to fetch checks (landing page) - non-paginated for backward compatibility
  */
 export function useChecksLandingPage(
   filters?: Array<{ columnName: string; operator: string; value: string }>,
@@ -72,6 +75,28 @@ export function useChecksLandingPage(
   return useQuery({
     queryKey: ['checksLandingPage', filters, limit],
     queryFn: () => _fetchChecksLandingPage(filters, limit),
+  });
+}
+
+/**
+ * Hook to fetch checks with infinite scroll pagination
+ */
+export function useChecksInfinite(
+  filters?: Array<{ columnName: string; operator: string; value: string }>,
+  pageSize: number = DEFAULT_PAGE_SIZE
+) {
+  return useInfiniteQuery<FindChecksLandingPagesResponse, Error>({
+    queryKey: ['checksInfinite', filters, pageSize],
+    queryFn: async ({ pageParam = 0 }) => {
+      return _fetchChecksLandingPage(filters, pageSize, pageParam as number);
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const totalFetched = allPages.reduce((acc, page) => acc + page.records.length, 0);
+      if (totalFetched >= lastPage.total) return undefined;
+      return totalFetched;
+    },
+    staleTime: 30 * 1000,
   });
 }
 
@@ -107,6 +132,7 @@ export function useCreateCheck() {
     onSuccess: () => {
       // Invalidate and refetch
       queryClient.invalidateQueries({ queryKey: ['checksLandingPage'] });
+      queryClient.invalidateQueries({ queryKey: ['checksInfinite'] });
       queryClient.invalidateQueries({ queryKey: ['checkSearch'] });
       queryClient.invalidateQueries({ queryKey: ['checksByFactory'] });
     },
@@ -125,6 +151,7 @@ export function useUpdateCheck() {
       // Invalidate and refetch
       queryClient.invalidateQueries({ queryKey: ['check', data.id] });
       queryClient.invalidateQueries({ queryKey: ['checksLandingPage'] });
+      queryClient.invalidateQueries({ queryKey: ['checksInfinite'] });
       queryClient.invalidateQueries({ queryKey: ['checkSearch'] });
       queryClient.invalidateQueries({ queryKey: ['checksByFactory'] });
     },
@@ -142,6 +169,7 @@ export function useDeleteCheck() {
     onSuccess: () => {
       // Invalidate all check queries
       queryClient.invalidateQueries({ queryKey: ['checksLandingPage'] });
+      queryClient.invalidateQueries({ queryKey: ['checksInfinite'] });
       queryClient.invalidateQueries({ queryKey: ['checkSearch'] });
       queryClient.invalidateQueries({ queryKey: ['checksByFactory'] });
     },

@@ -154,7 +154,7 @@ export default function CheckDetailContent({ checkId }: CheckDetailContentProps)
   const [checkNumber, setCheckNumber] = useState(check?.checkNumber || '');
   const [commissionAmount, setCommissionAmount] = useState(check?.netAmount || 0);
   const [checkDate, setCheckDate] = useState(check?.checkDate || '');
-  const [status, setStatus] = useState<CheckStatus>(check?.status === 'posted' ? 'posted' : 'unposted');
+  const [status, setStatus] = useState<CheckStatus>(check?.status === 'POSTED' ? 'posted' : 'unposted');
   const [postedDate, setPostedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [isTotalStatedCommission, setIsTotalStatedCommission] = useState(false);
   const [isTiedToCommissionUpload, setIsTiedToCommissionUpload] = useState(true); // Default to true if check is associated

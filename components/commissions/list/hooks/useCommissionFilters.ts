@@ -71,19 +71,19 @@ export function useCommissionFilters(checks: CommissionCheck[]) {
     return [
       { label: 'All', value: 'All', count: checks.length },
       {
-        label: 'Draft',
-        value: 'draft',
-        count: checks.filter((c) => c.status === 'draft').length,
+        label: 'Open',
+        value: 'OPEN',
+        count: checks.filter((c) => c.status === 'OPEN').length,
       },
       {
         label: 'Posted',
-        value: 'posted',
-        count: checks.filter((c) => c.status === 'posted').length,
+        value: 'POSTED',
+        count: checks.filter((c) => c.status === 'POSTED').length,
       },
       {
         label: 'Void',
-        value: 'void',
-        count: checks.filter((c) => c.status === 'void').length,
+        value: 'VOID',
+        count: checks.filter((c) => c.status === 'VOID').length,
       },
     ];
   }, [checks]);

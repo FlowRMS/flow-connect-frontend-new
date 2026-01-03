@@ -28,18 +28,23 @@ export const formatDate = (dateString: string): string => {
 };
 
 /**
- * Format a month string (YYYY-MM) to readable format (Month - YYYY)
- * Example: "2025-01" -> "Jan - 2025"
+ * Format a month string to readable format (Month YYYY)
+ * Handles both formats: "YYYY-MM" (e.g., "2025-01") and "YYYY-MM-DD" (e.g., "2025-01-01")
+ * Example: "2025-01" -> "Jan 2025", "2025-01-15" -> "Jan 2025"
  * Returns "-" if null/undefined
  */
 export const formatMonth = (monthString: string | null | undefined): string => {
   if (!monthString) return '-';
-  const date = new Date(monthString + '-01');
+
+  // Parse the date - works with both YYYY-MM and YYYY-MM-DD formats
+  const date = new Date(monthString);
+
   // Check for invalid date
   if (isNaN(date.getTime())) return '-';
+
   const month = date.toLocaleDateString('en-US', { month: 'short' });
   const year = date.getFullYear();
-  return `${month} - ${year}`;
+  return `${month} ${year}`;
 };
 
 /**

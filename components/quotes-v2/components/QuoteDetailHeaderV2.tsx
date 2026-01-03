@@ -158,8 +158,10 @@ export function QuoteDetailHeaderV2({
     }
     return [];
   });
-  const [splitRepSearchTerm, setSplitRepSearchTerm] = useState('');
-  const [splitRepSearchEnabled, setSplitRepSearchEnabled] = useState(false);
+  const [insideSplitRepSearchTerm, setInsideSplitRepSearchTerm] = useState('');
+  const [insideSplitRepSearchEnabled, setInsideSplitRepSearchEnabled] = useState(false);
+  const [outsideSplitRepSearchTerm, setOutsideSplitRepSearchTerm] = useState('');
+  const [outsideSplitRepSearchEnabled, setOutsideSplitRepSearchEnabled] = useState(false);
 
   // Sync split commission state when quote.insideReps changes
   useEffect(() => {
@@ -272,10 +274,11 @@ export function QuoteDetailHeaderV2({
   const { data: soldToCustomers, isLoading: isSoldToLoading } = useCustomerSearch(soldToSearchTerm, soldToSearchEnabled);
   const { data: billToCustomers, isLoading: isBillToLoading } = useCustomerSearch(billToSearchTerm, billToSearchEnabled);
   const { data: endUserCustomers, isLoading: isEndUserLoading } = useCustomerSearch(endUserSearchTerm, endUserSearchEnabled);
-  const { data: insideReps, isLoading: isInsideRepLoading } = useUserSearch(insideRepSearchTerm, true, insideRepSearchEnabled);
+  const { data: insideReps, isLoading: isInsideRepLoading } = useUserSearch(insideRepSearchTerm, true, insideRepSearchEnabled, false); // isInside=true, isOutside=false
   const { data: jobs, isLoading: isJobsLoading } = useJobSearch(jobSearchTerm, jobSearchEnabled);
-  const { data: outsideReps, isLoading: isOutsideRepLoading } = useUserSearch(outsideRepSearchTerm, true, outsideRepSearchEnabled, true); // isOutside = true
-  const { data: splitRepResults, isLoading: isSplitRepLoading } = useUserSearch(splitRepSearchTerm, true, splitRepSearchEnabled);
+  const { data: outsideReps, isLoading: isOutsideRepLoading } = useUserSearch(outsideRepSearchTerm, false, outsideRepSearchEnabled, true); // isInside=false, isOutside=true
+  const { data: insideSplitRepResults, isLoading: isInsideSplitRepLoading } = useUserSearch(insideSplitRepSearchTerm, true, insideSplitRepSearchEnabled, false); // isInside=true, isOutside=false
+  const { data: outsideSplitRepResults, isLoading: isOutsideSplitRepLoading } = useUserSearch(outsideSplitRepSearchTerm, false, outsideSplitRepSearchEnabled, true); // isInside=false, isOutside=true
 
   const formatDateForInput = useCallback((dateStr: string): string => {
     if (!dateStr) return '';
@@ -317,9 +320,14 @@ export function QuoteDetailHeaderV2({
     setOutsideRepSearchEnabled(true);
   }, []);
 
-  const handleSplitRepSearch = useCallback((term: string) => {
-    setSplitRepSearchTerm(term);
-    setSplitRepSearchEnabled(true);
+  const handleInsideSplitRepSearch = useCallback((term: string) => {
+    setInsideSplitRepSearchTerm(term);
+    setInsideSplitRepSearchEnabled(true);
+  }, []);
+
+  const handleOutsideSplitRepSearch = useCallback((term: string) => {
+    setOutsideSplitRepSearchTerm(term);
+    setOutsideSplitRepSearchEnabled(true);
   }, []);
 
   // Handle end user same as sold to checkbox
@@ -440,7 +448,16 @@ export function QuoteDetailHeaderV2({
     sublabel: u.email,
   }));
 
-  const splitRepOptions = (splitRepResults || []).map((u) => ({
+  const insideSplitRepOptions = (insideSplitRepResults || []).map((u) => ({
+    id: u.id,
+    label: u.fullName || `${u.firstName} ${u.lastName}`,
+    sublabel: u.email,
+    fullName: u.fullName,
+    firstName: u.firstName,
+    lastName: u.lastName,
+  }));
+
+  const outsideSplitRepOptions = (outsideSplitRepResults || []).map((u) => ({
     id: u.id,
     label: u.fullName || `${u.firstName} ${u.lastName}`,
     sublabel: u.email,
@@ -1164,14 +1181,14 @@ export function QuoteDetailHeaderV2({
                     value=""
                     displayValue=""
                     onChange={(id) => {
-                      const rep = splitRepResults?.find(r => r.id === id);
+                      const rep = insideSplitRepResults?.find(r => r.id === id);
                       if (rep) {
                         addRepToSplit(rep, true);
                       }
                     }}
-                    options={splitRepOptions.filter(opt => !insideSplitReps.some(r => r.userId === opt.id))}
-                    onSearch={handleSplitRepSearch}
-                    isLoading={isSplitRepLoading}
+                    options={insideSplitRepOptions.filter(opt => !insideSplitReps.some(r => r.userId === opt.id))}
+                    onSearch={handleInsideSplitRepSearch}
+                    isLoading={isInsideSplitRepLoading}
                     placeholder="Search reps to add..."
                   />
                 </div>
@@ -1281,14 +1298,14 @@ export function QuoteDetailHeaderV2({
                     value=""
                     displayValue=""
                     onChange={(id) => {
-                      const rep = splitRepResults?.find(r => r.id === id);
+                      const rep = outsideSplitRepResults?.find(r => r.id === id);
                       if (rep) {
                         addRepToSplit(rep, false);
                       }
                     }}
-                    options={splitRepOptions.filter(opt => !outsideSplitReps.some(r => r.userId === opt.id))}
-                    onSearch={handleSplitRepSearch}
-                    isLoading={isSplitRepLoading}
+                    options={outsideSplitRepOptions.filter(opt => !outsideSplitReps.some(r => r.userId === opt.id))}
+                    onSearch={handleOutsideSplitRepSearch}
+                    isLoading={isOutsideSplitRepLoading}
                     placeholder="Search reps to add..."
                   />
                 </div>

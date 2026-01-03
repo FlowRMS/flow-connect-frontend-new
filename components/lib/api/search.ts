@@ -559,6 +559,29 @@ const PRODUCT_SEARCH = `
   }
 `;
 
+const PRODUCT_SEARCH_WITH_FACTORY = `
+  query ProductSearchWithFactory($searchTerm: String!, $factoryId: String!, $limit: Int) {
+    productSearch(searchTerm: $searchTerm, factoryId: $factoryId, limit: $limit) {
+      approvalComments
+      approvalDate
+      approvalNeeded
+      commissionDiscountRate
+      defaultCommissionRate
+      defaultDivisor
+      description
+      factoryPartNumber
+      id
+      leadTime
+      minOrderQty
+      published
+      tags
+      unitPrice
+      unitPriceDiscountRate
+      upc
+    }
+  }
+`;
+
 const USER_SEARCH = `
   query UserSearch($searchTerm: String!, $isInside: Boolean, $isOutside: Boolean, $enabled: Boolean, $limit: Int) {
     userSearch(
@@ -806,15 +829,21 @@ export async function searchCustomers(searchTerm: string, published?: boolean, l
 
 /**
  * Search for products
+ * If factoryId is provided, filters products by that manufacturer
  */
 export async function searchProducts(
   searchTerm: string,
-  _factoryId?: string,
+  factoryId?: string,
   limit?: number
 ): Promise<ProductSearchResult[]> {
+  // Use the factory-filtered query only if factoryId is provided and not empty
+  const useFactoryFilter = factoryId && factoryId.trim() !== '';
+
   const response = await crmGraphQLRequest<{ productSearch: ProductSearchResult[] }>({
-    query: PRODUCT_SEARCH,
-    variables: { searchTerm, limit: limit ?? 50 },
+    query: useFactoryFilter ? PRODUCT_SEARCH_WITH_FACTORY : PRODUCT_SEARCH,
+    variables: useFactoryFilter
+      ? { searchTerm, factoryId, limit: limit ?? 50 }
+      : { searchTerm, limit: limit ?? 50 },
   });
 
   if (response.errors) {

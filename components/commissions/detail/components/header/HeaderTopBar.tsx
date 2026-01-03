@@ -42,6 +42,8 @@ interface HeaderTopBarProps {
   isCreateMode?: boolean;
   isSaving?: boolean;
   isUnposting?: boolean;
+  // Whether the check was originally posted (from API) - controls if Save is disabled
+  isOriginallyPosted?: boolean;
 }
 
 const getStatusColor = (status: CheckStatus) => {
@@ -76,6 +78,7 @@ export function HeaderTopBar({
   isCreateMode = false,
   isSaving = false,
   isUnposting = false,
+  isOriginallyPosted = false,
 }: HeaderTopBarProps) {
   const router = useRouter();
 
@@ -144,18 +147,18 @@ export function HeaderTopBar({
           />
         </div>
         <div className="flex items-center gap-2">
-          {/* Actions Dropdown (unposted) OR See Posted Statement Button (posted) */}
+          {/* Actions Button - Coming Soon (unposted) OR See Posted Statement Button (posted) */}
           {status === 'unposted' ? (
-            <div className="relative">
+            <div className="relative opacity-50">
               <button
-                onClick={() => {
-                  setShowActionsDropdown(!showActionsDropdown);
-                  setShowStatusDropdown(false);
-                  setShowSaveDropdown(false);
-                }}
-                className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
+                disabled
+                className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm font-medium cursor-not-allowed bg-gray-50"
+                title="Coming Soon"
               >
                 Actions
+                <span className="text-[9px] bg-gray-200 text-gray-500 px-1 py-0.5 rounded font-medium">
+                  Soon
+                </span>
                 <svg
                   width="14"
                   height="14"
@@ -171,87 +174,6 @@ export function HeaderTopBar({
                   />
                 </svg>
               </button>
-              {showActionsDropdown && (
-                <>
-                  <div
-                    className="fixed inset-0 z-10"
-                    onClick={() => setShowActionsDropdown(false)}
-                  />
-                  <div className="absolute top-full right-0 mt-1 w-72 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20 py-1">
-                    <button
-                      onClick={handleExportCheckDetails}
-                      className="w-full px-4 py-3 text-left hover:bg-[var(--muted)] transition-colors rounded-t-lg flex items-start gap-3"
-                    >
-                      <svg
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        className="text-[var(--muted-foreground)] mt-0.5"
-                      >
-                        <path
-                          d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                        <path
-                          d="M14 2v6h6M8 13h8M8 17h8M8 9h2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                      <div>
-                        <div className="text-sm font-medium text-[var(--foreground)]">
-                          Export Check Details
-                        </div>
-                        <div className="text-xs text-[var(--muted-foreground)]">
-                          Export to Excel
-                        </div>
-                      </div>
-                    </button>
-                    <button
-                      onClick={handleReconcileCheck}
-                      className="w-full px-4 py-3 text-left hover:bg-[var(--muted)] transition-colors rounded-b-lg flex items-start gap-3"
-                    >
-                      <svg
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        className="text-[var(--muted-foreground)] mt-0.5"
-                      >
-                        <path
-                          d="M12 3l1.5 3.5L17 8l-3.5 1.5L12 13l-1.5-3.5L7 8l3.5-1.5L12 3z"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                        <path
-                          d="M5 17l1 2 2 1-2 1-1 2-1-2-2-1 2-1 1-2z"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                        <path
-                          d="M19 13l1 2 2 1-2 1-1 2-1-2-2-1 2-1 1-2z"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                      <div>
-                        <div className="text-sm font-medium text-[var(--foreground)]">
-                          Reconcile Check
-                        </div>
-                        <div className="text-xs text-[var(--muted-foreground)]">
-                          AI-powered automatic reconciliation
-                        </div>
-                      </div>
-                    </button>
-                  </div>
-                </>
-              )}
             </div>
           ) : (
             <>
@@ -485,8 +407,8 @@ export function HeaderTopBar({
             </div>
           )}
 
-          {/* Save Button - Disabled for posted checks */}
-          {status === 'posted' ? (
+          {/* Save Button - Disabled only for checks that were originally posted (from API) */}
+          {isOriginallyPosted ? (
             <div
               className="px-4 py-2 bg-gray-300 text-gray-500 rounded-lg text-sm font-medium cursor-not-allowed flex items-center gap-2"
               title="Posted checks cannot be edited. Use Unpost to enable editing."
