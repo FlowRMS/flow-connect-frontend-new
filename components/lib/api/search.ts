@@ -606,6 +606,24 @@ const USER_SEARCH = `
   }
 `;
 
+const GET_USER = `
+  query GetUser($id: UUID!) {
+    user(id: $id) {
+      id
+      authProviderId
+      email
+      enabled
+      firstName
+      fullName
+      inside
+      lastName
+      outside
+      role
+      username
+    }
+  }
+`;
+
 const PRODUCT_UOMS = `
   query ProductUoms {
     productUoms {
@@ -879,6 +897,25 @@ export async function searchUsers(params: {
   }
 
   return response.data?.userSearch || [];
+}
+
+/**
+ * Fetch a single user by ID
+ * Used to resolve user IDs (e.g., assignedToId in tasks) to user details
+ */
+export async function fetchUserById(id: string): Promise<UserSearchResult | null> {
+  const response = await crmGraphQLRequest<{ user: UserSearchResult }>({
+    query: GET_USER,
+    variables: { id },
+  });
+
+  if (response.errors) {
+    // Silently return null if user not found, don't throw
+    console.warn('Failed to fetch user:', response.errors[0]?.message);
+    return null;
+  }
+
+  return response.data?.user || null;
 }
 
 /**

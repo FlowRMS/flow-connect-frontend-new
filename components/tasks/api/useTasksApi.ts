@@ -31,7 +31,6 @@ import {
   searchProducts,
   createTaskLink,
   deleteTaskLinkByEntities,
-  fetchContactById,
   type Task,
   type TaskLandingPage,
   type TaskConversation,
@@ -56,6 +55,9 @@ import {
   type TaskLandingPageFilter,
   type TaskLandingPageOrderBy,
 } from './tasksApi';
+
+// Import centralized user fetch function
+import { fetchUserById } from '../../lib/api/search';
 
 // Import centralized related entities hook and types
 import { useRelatedEntities, crmQueryKeys } from '../../hooks/useCRMApi';
@@ -170,32 +172,32 @@ export function useTaskRelatedEntities(taskId: string) {
 }
 
 /**
- * Fetch contacts by IDs and return a map of ID -> Contact name
- * Used to resolve assignedTo IDs to display names
+ * Fetch users by IDs and return a map of ID -> User name
+ * Used to resolve assignedTo IDs (user IDs) to display names
  */
-export function useContactsMap(contactIds: string[]) {
+export function useContactsMap(userIds: string[]) {
   return useQuery<Map<string, string>, Error>({
-    queryKey: tasksQueryKeys.contactsMap(contactIds),
+    queryKey: tasksQueryKeys.contactsMap(userIds),
     queryFn: async () => {
-      const contactMap = new Map<string, string>();
+      const userMap = new Map<string, string>();
       
-      // Fetch contacts in parallel
+      // Fetch users in parallel
       const results = await Promise.allSettled(
-        contactIds.map(id => fetchContactById(id))
+        userIds.map(id => fetchUserById(id))
       );
       
       results.forEach((result, index) => {
         if (result.status === 'fulfilled' && result.value) {
-          const contact = result.value;
-          const name = `${contact.firstName || ''} ${contact.lastName || ''}`.trim();
-          contactMap.set(contactIds[index], name || 'Unknown');
+          const user = result.value;
+          const name = user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim();
+          userMap.set(userIds[index], name || 'Unknown');
         }
       });
       
-      return contactMap;
+      return userMap;
     },
-    enabled: contactIds.length > 0,
-    staleTime: 5 * 60 * 1000, // 5 minutes - contact names don't change often
+    enabled: userIds.length > 0,
+    staleTime: 5 * 60 * 1000, // 5 minutes - user names don't change often
   });
 }
 
