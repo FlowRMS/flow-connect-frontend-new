@@ -185,6 +185,7 @@ export interface Quote {
   endUserPerLineItem?: boolean;
   insidePerLineItem?: boolean;
   outsidePerLineItem?: boolean;
+  factoryPerLineItem?: boolean;
 }
 
 export interface QuoteLandingPage {
@@ -255,6 +256,7 @@ export interface CreateQuoteInput {
   endUserPerLineItem?: boolean;
   insidePerLineItem?: boolean;
   outsidePerLineItem?: boolean;
+  factoryPerLineItem?: boolean;
 }
 
 export interface UpdateQuoteInput extends CreateQuoteInput {}
@@ -459,6 +461,7 @@ const FIND_QUOTE_BY_ID = `
       endUserPerLineItem
       insidePerLineItem
       outsidePerLineItem
+      factoryPerLineItem
     }
   }
 `;
@@ -592,6 +595,7 @@ const CREATE_QUOTE = `
       endUserPerLineItem
       insidePerLineItem
       outsidePerLineItem
+      factoryPerLineItem
     }
   }
 `;
@@ -721,6 +725,7 @@ const UPDATE_QUOTE = `
       endUserPerLineItem
       insidePerLineItem
       outsidePerLineItem
+      factoryPerLineItem
     }
   }
 `;

@@ -113,11 +113,25 @@ export interface TaskLandingPage {
   createdAt: string;
 }
 
+export interface ConversationCreatedBy {
+  id: string;
+  authProviderId?: string;
+  email?: string;
+  enabled?: boolean;
+  firstName?: string;
+  fullName?: string;
+  inside?: boolean;
+  lastName?: string;
+  outside?: boolean;
+  role?: string;
+  username?: string;
+}
+
 export interface TaskConversation {
   id: string;
   taskId: string;
   content: string;
-  createdBy: string;
+  createdBy?: ConversationCreatedBy;
   createdAt: string;
 }
 
@@ -313,11 +327,28 @@ const DELETE_TASK = `
   }
 `;
 
+const TASK_CONVERSATION_CREATED_BY_FIELDS = `
+  createdBy {
+    authProviderId
+    email
+    enabled
+    firstName
+    fullName
+    id
+    inside
+    lastName
+    outside
+    role
+    username
+  }
+`;
+
 const ADD_TASK_CONVERSATION = `
   mutation AddTaskConversation($input: TaskConversationInput!) {
     addTaskConversation(input: $input) {
       content
       createdAt
+      ${TASK_CONVERSATION_CREATED_BY_FIELDS}
       id
       taskId
     }
@@ -335,6 +366,7 @@ const GET_TASK_CONVERSATIONS = `
     taskConversations(taskId: $taskId) {
       content
       createdAt
+      ${TASK_CONVERSATION_CREATED_BY_FIELDS}
       id
       taskId
     }
@@ -401,6 +433,7 @@ const UPDATE_TASK_CONVERSATION = `
     updateTaskConversation(taskConversationId: $taskConversationId, input: $input) {
       content
       createdAt
+      ${TASK_CONVERSATION_CREATED_BY_FIELDS}
       id
       taskId
     }

@@ -591,7 +591,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               onDeleteAcknowledgement={acknowledgementsState.handleDeleteAcknowledgement}
             />
           )}
-          {state.activeTab === 'linked-objects' && <LinkedObjectsTab />}
+          {state.activeTab === 'linked-objects' && <LinkedObjectsTab orderId={orderId} />}
           {state.activeTab === 'settings' && (
             <SettingsTab
               showEndUserPerLine={state.showEndUserPerLine}

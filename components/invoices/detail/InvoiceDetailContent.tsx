@@ -495,7 +495,7 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
           {/* Linked Objects Tab */}
           {state.activeTab === 'linked-objects' && (
             <div className="flex-1 overflow-auto">
-              <LinkedObjectsTab />
+              <LinkedObjectsTab invoiceId={invoiceId} />
             </div>
           )}
 

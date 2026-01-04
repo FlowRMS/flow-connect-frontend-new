@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import {
   fetchNotes,
+  fetchNote,
   createNote,
   updateNote,
   deleteNote,
@@ -49,6 +50,8 @@ import {
   type EntityType,
 } from './notesApi';
 
+import { searchUsers, type UserSearchResult } from '../../lib/api/search';
+
 // Import centralized related entities hook and types
 import { useRelatedEntities, crmQueryKeys } from '../../hooks/useCRMApi';
 import type { RelatedEntities } from '../../lib/crm-graphql';
@@ -84,6 +87,7 @@ export const notesQueryKeys = {
     customers: (term: string) => ['search', 'customers', term] as const,
     products: (term: string) => ['search', 'products', term] as const,
     files: (term: string) => ['search', 'files', term] as const,
+    users: (term: string) => ['search', 'users', term] as const,
   },
 };
 
@@ -100,6 +104,18 @@ export function useNotes() {
     queryFn: fetchNotes,
     enabled: true,
     staleTime: 30 * 1000, // 30 seconds
+  });
+}
+
+/**
+ * Fetch a single note by ID (includes mentions)
+ */
+export function useFetchNote(noteId: string, enabled = true) {
+  return useQuery<Note | null, Error>({
+    queryKey: notesQueryKeys.detail(noteId),
+    queryFn: () => fetchNote(noteId),
+    enabled: enabled && !!noteId,
+    staleTime: 30 * 1000,
   });
 }
 
@@ -400,6 +416,19 @@ export function useFileSearch(searchTerm: string, enabled = true) {
   });
 }
 
+/**
+ * Search for users (for mentions)
+ * Returns enabled users when searching
+ */
+export function useUserSearch(searchTerm: string, enabled = true) {
+  return useQuery<UserSearchResult[], Error>({
+    queryKey: notesQueryKeys.search.users(searchTerm),
+    queryFn: () => searchUsers({ searchTerm, enabled: true, limit: 20 }),
+    enabled: enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
 // ============================================================================
 // Link Hooks
 // ============================================================================
@@ -491,4 +520,5 @@ export type {
   InvoiceSearchResult,
   CheckSearchResult,
   EntityLink,
+  UserSearchResult,
 };

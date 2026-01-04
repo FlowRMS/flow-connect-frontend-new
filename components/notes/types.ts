@@ -3,12 +3,28 @@
  * These types match the GraphQL API schema
  */
 
+// Creator info for conversations
+export interface ConversationCreatedBy {
+  id: string;
+  authProviderId?: string;
+  email?: string;
+  enabled?: boolean;
+  firstName?: string;
+  fullName?: string;
+  inside?: boolean;
+  lastName?: string;
+  outside?: boolean;
+  role?: string;
+  username?: string;
+}
+
 // Conversation/Comment type from API
 export interface NoteConversation {
   id: string;
   noteId: string;
   content: string;
   createdAt: string;
+  createdBy?: ConversationCreatedBy;
 }
 
 // Note type from API
@@ -16,7 +32,7 @@ export interface Note {
   id: string;
   title: string;
   content: string;
-  mentions: string;
+  mentions: string | string[]; // API returns array of UUIDs when fetching
   tags: string;
   createdBy: string;
   createdAt: string;

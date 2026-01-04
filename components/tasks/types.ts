@@ -120,10 +120,12 @@ export interface TaskEntities {
   notes?: Array<{ id: string; name: string }>;
 }
 
-// Comment type for task conversations (legacy format)
+// Comment type for task conversations
 export interface TaskComment {
   id: string;
   author: string;
+  authorInside?: boolean;
+  authorOutside?: boolean;
   content: string;
   timestamp: string;
 }

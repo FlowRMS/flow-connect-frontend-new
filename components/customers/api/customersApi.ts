@@ -79,8 +79,8 @@ export interface CreateCustomerInput {
   isParent: boolean;
   parentId?: string;
   published: boolean;
-  insideSplitRates?: CustomerSplitRateInput;
-  outsideSplitRates?: CustomerSplitRateInput;
+  insideSplitRates?: CustomerSplitRateInput[];
+  outsideSplitRates?: CustomerSplitRateInput[];
 }
 
 export interface UpdateCustomerInput {
@@ -88,8 +88,8 @@ export interface UpdateCustomerInput {
   isParent?: boolean;
   parentId?: string;
   published?: boolean;
-  insideSplitRates?: CustomerSplitRateInput;
-  outsideSplitRates?: CustomerSplitRateInput;
+  insideSplitRates?: CustomerSplitRateInput[];
+  outsideSplitRates?: CustomerSplitRateInput[];
 }
 
 // User Search Types

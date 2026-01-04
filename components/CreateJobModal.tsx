@@ -222,6 +222,16 @@ export default function CreateJobModal({ isOpen, onClose, onSuccess, defaultStat
       return;
     }
 
+    // Validate end date is not before start date
+    if (formData.startDate && formData.endDate) {
+      const startDate = new Date(formData.startDate);
+      const endDate = new Date(formData.endDate);
+      if (endDate < startDate) {
+        setError('End date cannot be before start date');
+        return;
+      }
+    }
+
     try {
       await createJobMutation.mutateAsync(buildJobInput());
       jobToasts.createSuccess(formData.jobName);

@@ -346,6 +346,7 @@ export const defaultQuoteSettingsV2: QuoteSettingsV2 = {
   specifyEndUserPerLine: true,
   outsideRepAtLineLevel: false,
   insideRepAtLineLevel: false,
+  factoryPerLineItem: false,
   customerPartNumberSource: 'sold_to',
   priceLevels: [
     { id: 'l1', name: 'L1', percent: 10, description: 'Standard contractor' },

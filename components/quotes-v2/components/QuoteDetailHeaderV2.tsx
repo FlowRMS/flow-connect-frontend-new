@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import type { QuoteV2, QuotePipelineStage, LineItemV2, QuoteSettingsV2 } from '../types';
 import { SearchableDropdownV2 } from './SearchableDropdownV2';
-import { useCustomerSearch, useUserSearch, useJobSearch } from '../../quotes/api/useQuotesApi';
+import { useCustomerSearch, useUserSearch, useJobSearch, useFactorySearch } from '../../quotes/api/useQuotesApi';
 import { searchUsers } from '../../quotes/api/quotesApi';
 import { CreateOrderFromQuoteModal } from '../modals/CreateOrderFromQuoteModal';
 import { CreatedByBadge } from '@/components/ui/CreatedByBadge';
@@ -20,6 +20,7 @@ interface QuoteDetailHeaderV2Props {
   isNew?: boolean;
   lineItems?: LineItemV2[];
   settings?: QuoteSettingsV2;
+  onClearLineItemProducts?: () => void;
 }
 
 // Pipeline stage options using API enum values
@@ -92,6 +93,7 @@ export function QuoteDetailHeaderV2({
   isNew = false,
   lineItems = [],
   settings,
+  onClearLineItemProducts,
 }: QuoteDetailHeaderV2Props) {
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [showStageMenu, setShowStageMenu] = useState(false);
@@ -122,6 +124,10 @@ export function QuoteDetailHeaderV2({
   // Job search state
   const [jobSearchTerm, setJobSearchTerm] = useState('');
   const [jobSearchEnabled, setJobSearchEnabled] = useState(false);
+
+  // Factory/Manufacturer search state (for header-level when factoryPerLineItem is false)
+  const [factorySearchTerm, setFactorySearchTerm] = useState('');
+  const [factorySearchEnabled, setFactorySearchEnabled] = useState(false);
 
   // Split commission state
   const [showInsideSplitCommission, setShowInsideSplitCommission] = useState(
@@ -276,6 +282,7 @@ export function QuoteDetailHeaderV2({
   const { data: endUserCustomers, isLoading: isEndUserLoading } = useCustomerSearch(endUserSearchTerm, endUserSearchEnabled);
   const { data: insideReps, isLoading: isInsideRepLoading } = useUserSearch(insideRepSearchTerm, true, insideRepSearchEnabled, false); // isInside=true, isOutside=false
   const { data: jobs, isLoading: isJobsLoading } = useJobSearch(jobSearchTerm, jobSearchEnabled);
+  const { data: factories, isLoading: isFactoriesLoading } = useFactorySearch(factorySearchTerm, factorySearchEnabled);
   const { data: outsideReps, isLoading: isOutsideRepLoading } = useUserSearch(outsideRepSearchTerm, false, outsideRepSearchEnabled, true); // isInside=false, isOutside=true
   const { data: insideSplitRepResults, isLoading: isInsideSplitRepLoading } = useUserSearch(insideSplitRepSearchTerm, true, insideSplitRepSearchEnabled, false); // isInside=true, isOutside=false
   const { data: outsideSplitRepResults, isLoading: isOutsideSplitRepLoading } = useUserSearch(outsideSplitRepSearchTerm, false, outsideSplitRepSearchEnabled, true); // isInside=false, isOutside=true
@@ -465,6 +472,18 @@ export function QuoteDetailHeaderV2({
     firstName: u.firstName,
     lastName: u.lastName,
   }));
+
+  // Factory/Manufacturer options for header-level selection
+  const factoryOptions = (factories || []).map((f) => ({
+    id: f.id,
+    label: f.title,
+  }));
+
+  // Factory search handler
+  const handleFactorySearch = useCallback((term: string) => {
+    setFactorySearchTerm(term);
+    setFactorySearchEnabled(true);
+  }, []);
 
   return (
     <div className="flex-shrink-0">
@@ -1099,7 +1118,42 @@ export function QuoteDetailHeaderV2({
           </div>
         </div>
 
-        {/* Row 3 - Published and Blanket Checkboxes */}
+        {/* Row 3 - Manufacturer (header-level) */}
+        <div className="grid grid-cols-7 gap-4 mb-4">
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Manufacturer</label>
+            {settings?.factoryPerLineItem ? (
+              <div className="relative">
+                <input
+                  type="text"
+                  value="Per line item"
+                  disabled
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md bg-gray-100 text-gray-400 cursor-not-allowed"
+                />
+              </div>
+            ) : (
+              <SearchableDropdownV2
+                value={quote.factoryId || ''}
+                displayValue={quote.factoryName || ''}
+                placeholder="Select manufacturer..."
+                isLoading={isFactoriesLoading}
+                options={factoryOptions}
+                onSearch={handleFactorySearch}
+                onChange={(id, label) => {
+                  // If manufacturer changed and there are line items with products, clear them
+                  const manufacturerChanged = id !== quote.factoryId;
+                  if (manufacturerChanged && onClearLineItemProducts) {
+                    onClearLineItemProducts();
+                  }
+                  onQuoteChange({ factoryId: id || undefined, factoryName: label });
+                  setFactorySearchEnabled(false);
+                }}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Row 4 - Published and Blanket Checkboxes */}
         <div className="flex items-center gap-6 mt-4">
           <label className="flex items-center gap-2 cursor-pointer">
             <input

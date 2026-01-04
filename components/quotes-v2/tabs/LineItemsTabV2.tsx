@@ -14,6 +14,8 @@ interface LineItemsTabV2Props {
   quoteId?: string;
   settings?: QuoteSettingsV2;
   soldToCustomerId?: string;
+  headerFactoryId?: string;
+  headerFactoryName?: string;
 }
 
 export function LineItemsTabV2({
@@ -25,6 +27,8 @@ export function LineItemsTabV2({
   quoteId,
   settings,
   soldToCustomerId,
+  headerFactoryId,
+  headerFactoryName,
 }: LineItemsTabV2Props) {
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [showSectionsMenu, setShowSectionsMenu] = useState(false);
@@ -59,11 +63,18 @@ export function LineItemsTabV2({
   const currentProductId = currentLineItem?.productId;
   const currentManufacturerId = currentLineItem?.manufacturerId;
 
+  // Determine which factoryId to use for product search:
+  // - If factoryPerLineItem is true (or undefined for backwards compatibility), use line item's manufacturerId
+  // - If factoryPerLineItem is false, use header-level factoryId
+  const factoryIdForProductSearch = settings?.factoryPerLineItem !== false
+    ? currentManufacturerId
+    : headerFactoryId;
+
   // API hooks for search - trigger on dropdown open with empty string or debounced search
   // Pass manufacturerId to filter products by manufacturer if one is selected
   const { data: productResults = [], isLoading: productsLoading } = useProductSearch(
     debouncedSearch,
-    currentManufacturerId, // Only pass if manufacturer is selected, otherwise undefined
+    factoryIdForProductSearch, // Use header factoryId when factoryPerLineItem is false
     isProductDropdown ?? false
   );
   const { data: factoryResults = [], isLoading: factoriesLoading } = useFactorySearch(
@@ -129,6 +140,10 @@ export function LineItemsTabV2({
     }
     // Read-only columns - no interaction
     const readOnlyColumns: LineItemColumnKey[] = ['customerPartNumber', 'description'];
+    // When factoryPerLineItem is false, manufacturer column is also read-only (set at header level)
+    if (settings?.factoryPerLineItem === false && column === 'manufacturer') {
+      return; // Manufacturer is set at header level, not editable per line
+    }
     if (readOnlyColumns.includes(column)) {
       return; // Do nothing for read-only columns
     }
@@ -275,7 +290,10 @@ export function LineItemsTabV2({
         displayValue = item.description || '—';
         break;
       case 'manufacturer':
-        displayValue = item.manufacturerName || 'Select...';
+        // When factoryPerLineItem is false, show header-level manufacturer name
+        displayValue = settings?.factoryPerLineItem === false
+          ? (headerFactoryName || '—')
+          : (item.manufacturerName || 'Select...');
         break;
       case 'quantity':
         displayValue = (item.quantity || 0).toString();
@@ -344,12 +362,28 @@ export function LineItemsTabV2({
 
     // Dropdown cells
     if (isDropdownColumn) {
-      // Check if field has a value - for manufacturer check manufacturerName, for partNumber check partNumber
+      // Check if manufacturer column should be disabled (when factoryPerLineItem is false)
+      const isManufacturerDisabled = column.key === 'manufacturer' && settings?.factoryPerLineItem === false;
+
+      // Check if field has a value - for manufacturer check manufacturerName or headerFactoryName, for partNumber check partNumber
       const hasValue = column.key === 'manufacturer'
-        ? !!item.manufacturerName
+        ? (settings?.factoryPerLineItem === false ? !!headerFactoryName : !!item.manufacturerName)
         : column.key === 'partNumber'
         ? !!item.partNumber
         : !!item[column.key as keyof LineItemV2];
+
+      // Render disabled state for manufacturer when factoryPerLineItem is false
+      if (isManufacturerDisabled) {
+        return (
+          <td key={column.key} className="px-3 py-2 text-sm relative">
+            <div className="w-full text-left px-2 py-1 rounded bg-gray-100 text-gray-400 cursor-not-allowed">
+              <span className="truncate">
+                {displayValue}
+              </span>
+            </div>
+          </td>
+        );
+      }
 
       return (
         <td key={column.key} className="px-3 py-2 text-sm relative">
@@ -462,13 +496,21 @@ export function LineItemsTabV2({
 
       {/* Table */}
       <div className="flex-1 overflow-auto px-6 py-4 pb-32">
-        {/* Tip indicator */}
+        {/* Tip indicator - different message based on factoryPerLineItem setting */}
         <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
           <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" className="text-blue-500 flex-shrink-0">
             <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
           </svg>
           <span>
-            <strong>Tip:</strong> Select a manufacturer first to filter products by that manufacturer when searching for part numbers.
+            {settings?.factoryPerLineItem === false ? (
+              <>
+                <strong>Tip:</strong> {headerFactoryName ? `Products are filtered by ${headerFactoryName} (set in header).` : 'Select a manufacturer in the header to filter products when searching for part numbers.'}
+              </>
+            ) : (
+              <>
+                <strong>Tip:</strong> Select a manufacturer first to filter products by that manufacturer when searching for part numbers.
+              </>
+            )}
           </span>
         </div>
         <div className="border border-gray-200 rounded-lg overflow-x-auto">

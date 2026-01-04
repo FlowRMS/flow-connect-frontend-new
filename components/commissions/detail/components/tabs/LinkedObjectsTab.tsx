@@ -1,17 +1,26 @@
 /**
  * LinkedObjectsTab Component
- * Displays linked objects for the check
+ * Displays related entities connected to the check using the centralized ConnectedEntitiesSection
  */
 
 'use client';
 
 import React from 'react';
+import { ConnectedEntitiesSection } from '@/components/shared/ConnectedEntitiesSection';
 
-export function LinkedObjectsTab() {
+interface LinkedObjectsTabProps {
+  checkId: string;
+}
+
+export function LinkedObjectsTab({ checkId }: LinkedObjectsTabProps) {
   return (
-    <div className="text-center py-12">
-      <p className="text-[var(--muted-foreground)]">No linked objects</p>
+    <div className="p-4">
+      <ConnectedEntitiesSection
+        entityId={checkId}
+        sourceEntityType="CHECK"
+        title="Linked Objects"
+        showAddLinkButton={true}
+      />
     </div>
   );
 }
-
