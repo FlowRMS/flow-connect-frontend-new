@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import {
   fetchNotes,
+  fetchNote,
   createNote,
   updateNote,
   deleteNote,
@@ -26,6 +27,7 @@ import {
   searchFactories,
   searchCustomers,
   searchProducts,
+  searchFiles,
   createLink,
   deleteLink,
   deleteLinkByEntities,
@@ -43,9 +45,12 @@ import {
   type FactorySearchResult,
   type CustomerSearchResult,
   type ProductSearchResult,
+  type FileResponse,
   type EntityLink,
   type EntityType,
 } from './notesApi';
+
+import { searchUsers, type UserSearchResult } from '../../lib/api/search';
 
 // Import centralized related entities hook and types
 import { useRelatedEntities, crmQueryKeys } from '../../hooks/useCRMApi';
@@ -81,6 +86,8 @@ export const notesQueryKeys = {
     factories: (term: string) => ['search', 'factories', term] as const,
     customers: (term: string) => ['search', 'customers', term] as const,
     products: (term: string) => ['search', 'products', term] as const,
+    files: (term: string) => ['search', 'files', term] as const,
+    users: (term: string) => ['search', 'users', term] as const,
   },
 };
 
@@ -97,6 +104,18 @@ export function useNotes() {
     queryFn: fetchNotes,
     enabled: true,
     staleTime: 30 * 1000, // 30 seconds
+  });
+}
+
+/**
+ * Fetch a single note by ID (includes mentions)
+ */
+export function useFetchNote(noteId: string, enabled = true) {
+  return useQuery<Note | null, Error>({
+    queryKey: notesQueryKeys.detail(noteId),
+    queryFn: () => fetchNote(noteId),
+    enabled: enabled && !!noteId,
+    staleTime: 30 * 1000,
   });
 }
 
@@ -384,6 +403,32 @@ export function useProductSearch(searchTerm: string, enabled = true) {
   });
 }
 
+/**
+ * Search for files
+ * Returns all files when empty string is passed
+ */
+export function useFileSearch(searchTerm: string, enabled = true) {
+  return useQuery<FileResponse[], Error>({
+    queryKey: notesQueryKeys.search.files(searchTerm),
+    queryFn: () => searchFiles(searchTerm),
+    enabled: enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * Search for users (for mentions)
+ * Returns enabled users when searching
+ */
+export function useUserSearch(searchTerm: string, enabled = true) {
+  return useQuery<UserSearchResult[], Error>({
+    queryKey: notesQueryKeys.search.users(searchTerm),
+    queryFn: () => searchUsers({ searchTerm, enabled: true, limit: 20 }),
+    enabled: enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
 // ============================================================================
 // Link Hooks
 // ============================================================================
@@ -475,4 +520,5 @@ export type {
   InvoiceSearchResult,
   CheckSearchResult,
   EntityLink,
+  UserSearchResult,
 };

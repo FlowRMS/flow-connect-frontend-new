@@ -24,6 +24,9 @@ import {
   useFactorySearch,
   useCustomerSearch,
   useProductSearch,
+  useJobSearch,
+  useFileSearch,
+  formatFileSize,
   type CompanySearchResult,
   type ContactSearchResult,
   type TaskSearchResult,
@@ -35,16 +38,18 @@ import {
   type FactorySearchResult,
   type CustomerSearchResult,
   type ProductSearchResult,
+  type JobSearchResult,
+  type FileResponse,
 } from '../notes/api';
 import { useNoteSearch, type NoteSearchResult } from '../tasks/api';
 import type { CRMEntityType, RelatedEntitiesSourceType } from '../lib/crm-graphql';
 import { linkToasts } from '../lib/toast';
 
 // All linkable entity types
-type LinkEntityType = 'COMPANY' | 'CONTACT' | 'TASK' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'FACTORY' | 'CUSTOMER' | 'PRODUCT';
+type LinkEntityType = 'COMPANY' | 'CONTACT' | 'TASK' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'FACTORY' | 'CUSTOMER' | 'PRODUCT' | 'JOB' | 'FILE';
 
 // Source entity types
-type SourceEntityType = 'JOB' | 'CONTACT' | 'COMPANY' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'TASK' | 'NOTE';
+type SourceEntityType = 'JOB' | 'CONTACT' | 'COMPANY' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'TASK' | 'NOTE' | 'FACTORY';
 
 // Map source entity type to API endpoint type
 const SOURCE_TYPE_TO_API_TYPE: Record<SourceEntityType, RelatedEntitiesSourceType> = {
@@ -58,6 +63,7 @@ const SOURCE_TYPE_TO_API_TYPE: Record<SourceEntityType, RelatedEntitiesSourceTyp
   CHECK: 'CHECKS',
   TASK: 'TASKS',
   NOTE: 'NOTES',
+  FACTORY: 'FACTORIES',
 };
 
 // Entity type configuration for display
@@ -182,6 +188,26 @@ const ENTITY_TYPE_CONFIG: Record<LinkEntityType, { label: string; plural: string
       </svg>
     ),
   },
+  JOB: {
+    label: 'Job',
+    plural: 'Jobs',
+    color: 'bg-indigo-500',
+    icon: (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+      </svg>
+    ),
+  },
+  FILE: {
+    label: 'File',
+    plural: 'Files',
+    color: 'bg-gray-500',
+    icon: (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+      </svg>
+    ),
+  },
 };
 
 const ALL_ENTITY_TYPES: LinkEntityType[] = [
@@ -197,6 +223,8 @@ const ALL_ENTITY_TYPES: LinkEntityType[] = [
   'FACTORY',
   'CUSTOMER',
   'PRODUCT',
+  'JOB',
+  'FILE',
 ];
 
 interface AddLinkModalProps {
@@ -270,6 +298,8 @@ export function AddLinkModal({
   const { data: factories = [], isLoading: factoriesLoading } = useFactorySearch(searchTerm, isOpen);
   const { data: customers = [], isLoading: customersLoading } = useCustomerSearch(searchTerm, isOpen);
   const { data: products = [], isLoading: productsLoading } = useProductSearch(searchTerm, isOpen);
+  const { data: jobs = [], isLoading: jobsLoading } = useJobSearch(searchTerm, isOpen);
+  const { data: files = [], isLoading: filesLoading } = useFileSearch(searchTerm, isOpen);
 
   // Fetch already linked entities using centralized endpoint
   const { data: relatedEntities } = useRelatedEntities(sourceEntityId, SOURCE_TYPE_TO_API_TYPE[sourceEntityType]);
@@ -278,6 +308,7 @@ export function AddLinkModal({
   const createLinkMutation = useCreateCRMLink();
 
   // Get IDs of already linked entities
+  // Note: Files are not returned by relatedEntities API - they use a separate endpoint
   const linkedIds = useMemo(() => ({
     companies: new Set(relatedEntities?.companies?.map((c: { id: string }) => c.id) || []),
     contacts: new Set(relatedEntities?.contacts?.map((c: { id: string }) => c.id) || []),
@@ -291,6 +322,8 @@ export function AddLinkModal({
     factories: new Set(relatedEntities?.factories?.map((f: { id: string }) => f.id) || []),
     customers: new Set(relatedEntities?.customers?.map((c: { id: string }) => c.id) || []),
     products: new Set(relatedEntities?.products?.map((p: { id: string }) => p.id) || []),
+    jobs: new Set(relatedEntities?.jobs?.map((j: { id: string }) => j.id) || []),
+    files: new Set<string>(), // Files not returned by relatedEntities - tracked separately
   }), [relatedEntities]);
 
   // Get display info for an entity
@@ -320,6 +353,10 @@ export function AddLinkModal({
         return { name: (entity.companyName as string) || (entity.id as string), subtitle: 'Customer' };
       case 'PRODUCT':
         return { name: (entity.factoryPartNumber as string) || (entity.id as string), subtitle: 'Product' };
+      case 'JOB':
+        return { name: (entity.jobName as string) || (entity.id as string), subtitle: (entity.jobType as string) || '' };
+      case 'FILE':
+        return { name: (entity.fileName as string) || (entity.id as string), subtitle: formatFileSize(entity.fileSize as number) };
       default:
         return { name: entity.id as string, subtitle: '' };
     }
@@ -388,6 +425,16 @@ export function AddLinkModal({
           entities: products.filter((p: ProductSearchResult) => !linkedIds.products.has(p.id)),
           isLoading: productsLoading,
         };
+      case 'JOB':
+        return {
+          entities: jobs.filter((j: JobSearchResult) => !linkedIds.jobs.has(j.id)),
+          isLoading: jobsLoading,
+        };
+      case 'FILE':
+        return {
+          entities: files.filter((f: FileResponse) => !linkedIds.files.has(f.id)),
+          isLoading: filesLoading,
+        };
       default:
         return { entities: [], isLoading: false };
     }
@@ -405,6 +452,8 @@ export function AddLinkModal({
     factories, factoriesLoading,
     customers, customersLoading,
     products, productsLoading,
+    jobs, jobsLoading,
+    files, filesLoading,
     linkedIds,
   ]);
 
@@ -501,6 +550,7 @@ export function AddLinkModal({
     CHECK: 'Check',
     TASK: 'Task',
     NOTE: 'Note',
+    FACTORY: 'Factory',
   };
 
   return (

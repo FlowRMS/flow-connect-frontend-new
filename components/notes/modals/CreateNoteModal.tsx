@@ -181,7 +181,7 @@ export function CreateNoteModal({ isOpen, onClose, onSuccess }: CreateNoteModalP
                   onMentionsChange={setContentMentions}
                   rows={6}
                   className={`${inputClass} resize-none`}
-                  placeholder="Write your note content here... Type @ to mention contacts"
+                  placeholder="Write your note content here... Type @ to mention users"
                 />
               </div>
             </div>
@@ -229,7 +229,7 @@ export function CreateNoteModal({ isOpen, onClose, onSuccess }: CreateNoteModalP
                   className={inputClass}
                 />
                 <p className="text-xs text-gray-500 mt-1.5">
-                  Search and select contacts to mention
+                  Search and select users to mention
                 </p>
               </div>
             </div>

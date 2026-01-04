@@ -19,7 +19,7 @@ import { getContactFilterOptions, getContactSortOptions } from './config/filterC
 import { CONTACT_TYPES } from './constants';
 import { mapAPIContactToUIContact } from './types';
 import type { DuplicateGroup } from './types';
-import type { Job as APIJob, RelatedEntityCompany } from '../lib/crm-graphql';
+import type { RelatedEntityCompany, RelatedEntityJob } from '../lib/crm-graphql';
 
 export default function ContactsContent() {
   const router = useRouter();
@@ -82,7 +82,7 @@ export default function ContactsContent() {
   };
 
   // Navigation handlers for related entities
-  const handleJobClick = (job: APIJob) => {
+  const handleJobClick = (job: RelatedEntityJob) => {
     router.push(`/jobs?id=${job.id}`);
   };
 

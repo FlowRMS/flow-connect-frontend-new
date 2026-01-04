@@ -149,6 +149,8 @@ export interface CheckSearchResult {
 export interface CheckLandingPage {
   id: string;
   checkNumber?: string;
+  checkDate?: string;
+  postDate?: string;
   commissionMonth?: string;
   enteredCommissionAmount?: string;
   status?: CheckStatus;
@@ -357,6 +359,8 @@ const FIND_CHECKS_LANDING_PAGE = `
         ... on CheckLandingPage {
           id
           checkNumber
+          checkDate
+          postDate
           commissionMonth
           enteredCommissionAmount
           status

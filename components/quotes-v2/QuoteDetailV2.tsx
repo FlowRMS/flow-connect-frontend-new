@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import type { QuoteV2, LineItemV2, NoteV2, TaskV2, ActivityV2, LinkedObjectV2, VersionV2, QuoteSettingsV2, ColumnConfig } from './types';
+import type { QuoteV2, LineItemV2, NoteV2, TaskV2, ActivityV2, VersionV2, QuoteSettingsV2, ColumnConfig } from './types';
 import { QuoteDetailHeaderV2 } from './components/QuoteDetailHeaderV2';
 import { LineItemsTabV2 } from './tabs/LineItemsTabV2';
 import { NotesTabV2 } from './tabs/NotesTabV2';
@@ -17,7 +17,6 @@ import {
   mockNotesV2,
   mockTasksV2,
   mockActivitiesV2,
-  mockLinkedObjectsV2,
   mockVersionsV2,
   defaultQuoteSettingsV2,
   defaultColumnConfigV2,
@@ -143,7 +142,7 @@ export function QuoteDetailV2({ quote: initialQuote, onBack }: QuoteDetailV2Prop
         )}
 
         {activeTab === 'linkedObjects' && (
-          <LinkedObjectsTabV2 linkedObjects={mockLinkedObjectsV2} />
+          <LinkedObjectsTabV2 quoteId={quote.id} />
         )}
 
         {activeTab === 'versions' && (

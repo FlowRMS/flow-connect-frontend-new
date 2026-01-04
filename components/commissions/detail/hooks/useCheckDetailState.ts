@@ -654,8 +654,8 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
         appliedAmount: String(Math.abs(item.paidCommission)),
       };
 
-      // If editing an existing detail, include the id
-      if (!item.id.startsWith('li-')) {
+      // If editing an existing detail, include the id (skip temp- and li- prefixes which indicate new items)
+      if (!item.id.startsWith('li-') && !item.id.startsWith('temp-')) {
         detailInput.id = item.id;
       }
 

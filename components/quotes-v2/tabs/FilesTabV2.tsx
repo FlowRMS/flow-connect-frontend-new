@@ -215,7 +215,7 @@ export function FilesTabV2({ entityId, entityType }: FilesTabV2Props) {
 
   return (
     <div className="h-full overflow-auto">
-      <div className="px-6 py-4">
+      <div className="px-6 py-4 pb-32">
         {/* Error Banner */}
         {error && (
           <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between">

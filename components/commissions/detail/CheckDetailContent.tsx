@@ -397,7 +397,7 @@ export default function CheckDetailContent({
 
           {state.activeTab === 'activity' && <ActivityTab />}
 
-          {state.activeTab === 'linked-objects' && <LinkedObjectsTab />}
+          {state.activeTab === 'linked-objects' && <LinkedObjectsTab checkId={checkId} />}
 
           {state.activeTab === 'settings' && (
             <SettingsTab

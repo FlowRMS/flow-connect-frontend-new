@@ -145,24 +145,39 @@ function NoteCard({ note, isLast, isMounted, contacts }: NoteCardProps) {
 
           {/* Actual Comments */}
           <div className="space-y-4">
-            {conversations.map((conversation) => (
-              <div key={conversation.id} className="flex gap-3">
-                <div className={`w-7 h-7 rounded-full ${getAvatarColor('User')} flex items-center justify-center text-white text-xs font-semibold flex-shrink-0`}>
-                  {getInitials('User')}
-                </div>
-                <div className="flex-1">
-                  <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-medium text-[var(--foreground)]">User</span>
-                      <span className="text-xs text-[var(--muted-foreground)]">{isMounted ? formatTimeAgo(conversation.createdAt) : ''}</span>
+            {conversations.map((conversation) => {
+              const creatorName = conversation.createdBy?.fullName
+                || (conversation.createdBy?.firstName && conversation.createdBy?.lastName
+                    ? `${conversation.createdBy.firstName} ${conversation.createdBy.lastName}`
+                    : conversation.createdBy?.email || 'Unknown User');
+              const isInside = conversation.createdBy?.inside;
+              const isOutside = conversation.createdBy?.outside;
+
+              return (
+                <div key={conversation.id} className="flex gap-3">
+                  <div className={`w-7 h-7 rounded-full ${getAvatarColor(creatorName)} flex items-center justify-center text-white text-xs font-semibold flex-shrink-0`}>
+                    {getInitials(creatorName)}
+                  </div>
+                  <div className="flex-1">
+                    <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="text-sm font-medium text-[var(--foreground)]">{creatorName}</span>
+                        {isInside && (
+                          <span className="px-1.5 py-0.5 text-[10px] font-medium bg-blue-100 text-blue-700 rounded">Inside</span>
+                        )}
+                        {isOutside && (
+                          <span className="px-1.5 py-0.5 text-[10px] font-medium bg-purple-100 text-purple-700 rounded">Outside</span>
+                        )}
+                        <span className="text-xs text-[var(--muted-foreground)]">{isMounted ? formatTimeAgo(conversation.createdAt) : ''}</span>
+                      </div>
+                      <p className="text-sm text-[var(--foreground)]">
+                        {conversation.content}
+                      </p>
                     </div>
-                    <p className="text-sm text-[var(--foreground)]">
-                      {conversation.content}
-                    </p>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       ) : null}
