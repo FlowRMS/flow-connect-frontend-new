@@ -1,28 +1,89 @@
 'use client';
 
 import React, { useState } from 'react';
-import type { TaskV2 } from '../types';
+import { useRelatedEntities } from '@/components/hooks/useCRMApi';
+import type { RelatedEntityTask } from '@/components/lib/crm-graphql';
 
 interface TasksTabV2Props {
-  tasks: TaskV2[];
-  onTasksChange: (tasks: TaskV2[]) => void;
+  quoteId: string;
 }
 
-function getStatusBadge(status: TaskV2['status']): { class: string; label: string } {
-  switch (status) {
-    case 'overdue':
-      return { class: 'bg-red-100 text-red-700', label: 'Overdue' };
-    case 'due_soon':
-      return { class: 'bg-yellow-100 text-yellow-700', label: 'Due Soon' };
-    case 'completed':
-      return { class: 'bg-green-100 text-green-700', label: 'Completed' };
-    case 'pending':
+// Get status styling based on task status
+function getStatusStyle(status?: string): { border: string; badge: string; label: string } {
+  switch (status?.toUpperCase()) {
+    case 'COMPLETED':
+      return {
+        border: 'border-l-green-500',
+        badge: 'bg-green-100 text-green-700',
+        label: 'Completed',
+      };
+    case 'IN_PROGRESS':
+      return {
+        border: 'border-l-blue-500',
+        badge: 'bg-blue-100 text-blue-700',
+        label: 'In Progress',
+      };
+    case 'PENDING':
+      return {
+        border: 'border-l-gray-400',
+        badge: 'bg-gray-100 text-gray-700',
+        label: 'Pending',
+      };
     default:
-      return { class: 'bg-gray-100 text-gray-700', label: 'Pending' };
+      return {
+        border: 'border-l-gray-400',
+        badge: 'bg-gray-100 text-gray-700',
+        label: status?.replace(/_/g, ' ') || 'Pending',
+      };
   }
 }
 
-export function TasksTabV2({ tasks, onTasksChange }: TasksTabV2Props) {
+// Check if a task is overdue
+function isOverdue(dueDate?: string, status?: string): boolean {
+  if (!dueDate || status?.toUpperCase() === 'COMPLETED') return false;
+  return new Date(dueDate) < new Date();
+}
+
+// Check if due soon (within 3 days)
+function isDueSoon(dueDate?: string, status?: string): boolean {
+  if (!dueDate || status?.toUpperCase() === 'COMPLETED') return false;
+  const due = new Date(dueDate);
+  const now = new Date();
+  const threeDaysFromNow = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+  return due > now && due <= threeDaysFromNow;
+}
+
+// Get priority styling
+function getPriorityStyle(priority?: string): { badge: string; label: string } | null {
+  switch (priority?.toUpperCase()) {
+    case 'URGENT':
+    case 'CRITICAL':
+      return {
+        badge: 'bg-red-100 text-red-700',
+        label: priority,
+      };
+    case 'HIGH':
+      return {
+        badge: 'bg-orange-100 text-orange-700',
+        label: 'High',
+      };
+    case 'NORMAL':
+    case 'MEDIUM':
+      return {
+        badge: 'bg-yellow-100 text-yellow-700',
+        label: priority,
+      };
+    case 'LOW':
+      return {
+        badge: 'bg-gray-100 text-gray-600',
+        label: 'Low',
+      };
+    default:
+      return null;
+  }
+}
+
+export function TasksTabV2({ quoteId }: TasksTabV2Props) {
   const [showAddTask, setShowAddTask] = useState(false);
   const [newTask, setNewTask] = useState({
     title: '',
@@ -31,7 +92,12 @@ export function TasksTabV2({ tasks, onTasksChange }: TasksTabV2Props) {
     assigneeName: '',
   });
 
-  const formatDate = (dateStr: string): string => {
+  const { data: relatedEntities, isLoading, error } = useRelatedEntities(quoteId, 'QUOTES');
+
+  const tasks = relatedEntities?.tasks || [];
+
+  const formatDate = (dateStr: string | undefined): string => {
+    if (!dateStr) return '';
     const date = new Date(dateStr);
     return date.toLocaleDateString('en-US', {
       month: 'short',
@@ -42,38 +108,27 @@ export function TasksTabV2({ tasks, onTasksChange }: TasksTabV2Props) {
 
   const handleAddTask = () => {
     if (!newTask.title.trim()) return;
-
-    const task: TaskV2 = {
-      id: `task-${Date.now()}`,
-      quoteId: tasks[0]?.quoteId || '',
-      title: newTask.title.trim(),
-      description: newTask.description.trim(),
-      dueDate: newTask.dueDate,
-      assigneeId: 'current-user',
-      assigneeName: newTask.assigneeName.trim() || 'Unassigned',
-      status: 'pending',
-    };
-
-    onTasksChange([...tasks, task]);
+    // TODO: Implement adding task via API
+    console.log('Adding task:', newTask);
     setNewTask({ title: '', description: '', dueDate: '', assigneeName: '' });
     setShowAddTask(false);
   };
 
-  const toggleTaskComplete = (taskId: string) => {
-    onTasksChange(
-      tasks.map((t) =>
-        t.id === taskId
-          ? {
-              ...t,
-              status: t.status === 'completed' ? 'pending' : 'completed',
-              completedAt: t.status === 'completed' ? undefined : new Date().toISOString(),
-              completedById: t.status === 'completed' ? undefined : 'current-user',
-              completedByName: t.status === 'completed' ? undefined : 'Current User',
-            }
-          : t
-      )
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+      </div>
     );
-  };
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-red-500">Failed to load tasks</p>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full overflow-auto">
@@ -149,39 +204,63 @@ export function TasksTabV2({ tasks, onTasksChange }: TasksTabV2Props) {
 
         {/* Tasks List */}
         <div className="space-y-3">
-          {tasks.map((task) => {
-            const statusBadge = getStatusBadge(task.status);
+          {tasks.map((task: RelatedEntityTask) => {
+            const overdue = isOverdue(task.dueDate, task.status);
+            const dueSoon = isDueSoon(task.dueDate, task.status);
+            const isCompleted = task.status?.toUpperCase() === 'COMPLETED';
+
+            let statusStyle = getStatusStyle(task.status);
+            if (overdue) {
+              statusStyle = {
+                border: 'border-l-red-500',
+                badge: 'bg-red-100 text-red-700',
+                label: 'Overdue',
+              };
+            } else if (dueSoon) {
+              statusStyle = {
+                border: 'border-l-yellow-500',
+                badge: 'bg-yellow-100 text-yellow-700',
+                label: 'Due Soon',
+              };
+            }
+
+            const priorityStyle = getPriorityStyle(task.priority);
 
             return (
               <div
                 key={task.id}
-                className={`p-4 bg-white border border-gray-200 rounded-lg hover:shadow-sm transition-shadow ${
-                  task.status === 'completed' ? 'opacity-70' : ''
+                className={`p-4 bg-white border-l-4 ${statusStyle.border} border border-gray-200 rounded-lg hover:shadow-sm transition-shadow ${
+                  isCompleted ? 'opacity-70' : ''
                 }`}
               >
                 <div className="flex items-start gap-3">
                   {/* Checkbox */}
                   <input
                     type="checkbox"
-                    checked={task.status === 'completed'}
-                    onChange={() => toggleTaskComplete(task.id)}
+                    checked={isCompleted}
+                    readOnly
                     className="mt-1 rounded border-gray-300 accent-indigo-600"
                   />
 
                   <div className="flex-1 min-w-0">
                     {/* Title and Status */}
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`text-sm font-medium ${task.status === 'completed' ? 'line-through text-gray-500' : 'text-gray-900'}`}>
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className={`text-sm font-medium ${isCompleted ? 'line-through text-gray-500' : 'text-gray-900'}`}>
                         {task.title}
                       </span>
-                      <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${statusBadge.class}`}>
-                        {statusBadge.label}
+                      <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${statusStyle.badge}`}>
+                        {statusStyle.label}
                       </span>
+                      {priorityStyle && (
+                        <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${priorityStyle.badge}`}>
+                          {priorityStyle.label}
+                        </span>
+                      )}
                     </div>
 
                     {/* Description */}
                     {task.description && (
-                      <p className={`text-sm mb-2 ${task.status === 'completed' ? 'text-gray-400' : 'text-gray-600'}`}>
+                      <p className={`text-sm mb-2 ${isCompleted ? 'text-gray-400' : 'text-gray-600'}`}>
                         {task.description}
                       </p>
                     )}
@@ -194,20 +273,18 @@ export function TasksTabV2({ tasks, onTasksChange }: TasksTabV2Props) {
                             <rect x="3" y="4" width="14" height="14" rx="2" />
                             <path d="M3 8h14M7 2v4M13 2v4" strokeLinecap="round" />
                           </svg>
-                          {task.status === 'completed' && task.completedAt
-                            ? `Completed: ${formatDate(task.completedAt)}`
-                            : `Due: ${formatDate(task.dueDate)}`}
+                          Due: {formatDate(task.dueDate)}
                         </span>
                       )}
-                      <span className="flex items-center gap-1">
-                        <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                          <circle cx="10" cy="7" r="3" />
-                          <path d="M3 18v-2a4 4 0 014-4h6a4 4 0 014 4v2" strokeLinecap="round" />
-                        </svg>
-                        {task.status === 'completed' && task.completedByName
-                          ? `By: ${task.completedByName}`
-                          : `Assigned: ${task.assigneeName}`}
-                      </span>
+                      {task.assignedToId && (
+                        <span className="flex items-center gap-1">
+                          <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                            <circle cx="10" cy="7" r="3" />
+                            <path d="M3 18v-2a4 4 0 014-4h6a4 4 0 014 4v2" strokeLinecap="round" />
+                          </svg>
+                          Assigned
+                        </span>
+                      )}
                     </div>
                   </div>
 

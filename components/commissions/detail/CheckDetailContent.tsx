@@ -18,6 +18,7 @@ import {
   DeductionsTab,
   SettingsTab,
 } from './components/tabs';
+import { FilesTab } from '@/components/shared/FilesTab';
 import {
   PostedStatementModal,
   RepSplitsModal,
@@ -380,6 +381,14 @@ export default function CheckDetailContent({
             </div>
           )}
 
+          {/* Files Tab */}
+          {state.activeTab === 'files' && (
+            <FilesTab
+              entityId={checkId}
+              entityType="CHECK"
+            />
+          )}
+
           {/* Other Tabs */}
           {state.activeTab === 'deductions' && (
             <DeductionsTab
@@ -393,9 +402,9 @@ export default function CheckDetailContent({
             />
           )}
 
-          {state.activeTab === 'notes' && <NotesTab />}
+          {state.activeTab === 'notes' && <NotesTab checkId={checkId} />}
 
-          {state.activeTab === 'tasks' && <TasksTab />}
+          {state.activeTab === 'tasks' && <TasksTab checkId={checkId} />}
 
           {state.activeTab === 'activity' && <ActivityTab />}
 

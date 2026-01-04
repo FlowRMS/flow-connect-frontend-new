@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import type { QuoteV2, LineItemV2, NoteV2, TaskV2, QuoteSettingsV2, ColumnConfig, Quote } from './types';
+import type { QuoteV2, LineItemV2, QuoteSettingsV2, ColumnConfig, Quote } from './types';
 import {
   transformQuoteToQuoteV2,
   transformQuoteDetailToLineItemV2,
@@ -17,7 +17,7 @@ import { ActivityTabV2 } from './tabs/ActivityTabV2';
 import { LinkedObjectsTabV2 } from './tabs/LinkedObjectsTabV2';
 import { VersionsTabV2 } from './tabs/VersionsTabV2';
 import { SettingsTabV2 } from './tabs/SettingsTabV2';
-import { FilesTabV2 } from './tabs/FilesTabV2';
+import { FilesTab } from '@/components/shared/FilesTab';
 import { ColumnsConfigModalV2 } from './modals/ColumnsConfigModalV2';
 import { AdditionalDetailsModalV2 } from './modals/AdditionalDetailsModalV2';
 import { DuplicateQuoteModal } from './modals/DuplicateQuoteModal';
@@ -25,8 +25,6 @@ import { ConnectedEntitiesSection } from '@/components/shared/ConnectedEntitiesS
 import {
   defaultQuoteSettingsV2,
   defaultColumnConfigV2,
-  mockNotesV2,
-  mockTasksV2,
   mockActivitiesV2,
   mockVersionsV2,
 } from './data/mockData';
@@ -101,9 +99,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
   // Line items state
   const [lineItems, setLineItems] = useState<LineItemV2[]>([]);
 
-  // Other data states (Coming soon - using mock data)
-  const [notes, setNotes] = useState<NoteV2[]>(mockNotesV2);
-  const [tasks, setTasks] = useState<TaskV2[]>(mockTasksV2);
+  // Settings state
   const [settings, setSettings] = useState<QuoteSettingsV2>(defaultQuoteSettingsV2);
 
   // Column configuration
@@ -574,7 +570,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         )}
 
         {activeTab === 'files' && (
-          <FilesTabV2
+          <FilesTab
             entityId={quote.id}
             entityType="QUOTE"
           />
@@ -587,7 +583,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
                 <span className="font-medium">Coming Soon:</span> Notes functionality is not yet available via API.
               </p>
             </div>
-            <NotesTabV2 notes={notes} onNotesChange={setNotes} />
+            <NotesTabV2 quoteId={quote.id} />
           </div>
         )}
 
@@ -598,7 +594,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
                 <span className="font-medium">Coming Soon:</span> Tasks functionality is not yet available via API.
               </p>
             </div>
-            <TasksTabV2 tasks={tasks} onTasksChange={setTasks} />
+            <TasksTabV2 quoteId={quote.id} />
           </div>
         )}
 

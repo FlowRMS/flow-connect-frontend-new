@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import type { QuoteV2, LineItemV2, NoteV2, TaskV2, ActivityV2, VersionV2, QuoteSettingsV2, ColumnConfig } from './types';
+import type { QuoteV2, LineItemV2, QuoteSettingsV2, ColumnConfig } from './types';
 import { QuoteDetailHeaderV2 } from './components/QuoteDetailHeaderV2';
 import { LineItemsTabV2 } from './tabs/LineItemsTabV2';
 import { NotesTabV2 } from './tabs/NotesTabV2';
@@ -14,8 +14,6 @@ import { ColumnsConfigModalV2 } from './modals/ColumnsConfigModalV2';
 import { AdditionalDetailsModalV2 } from './modals/AdditionalDetailsModalV2';
 import {
   mockLineItemsV2,
-  mockNotesV2,
-  mockTasksV2,
   mockActivitiesV2,
   mockVersionsV2,
   defaultQuoteSettingsV2,
@@ -41,9 +39,7 @@ export function QuoteDetailV2({ quote: initialQuote, onBack }: QuoteDetailV2Prop
     mockLineItemsV2.filter((li) => li.quoteId === initialQuote.id)
   );
 
-  // Other data states
-  const [notes, setNotes] = useState<NoteV2[]>(mockNotesV2);
-  const [tasks, setTasks] = useState<TaskV2[]>(mockTasksV2);
+  // Settings state
   const [settings, setSettings] = useState<QuoteSettingsV2>(defaultQuoteSettingsV2);
 
   // Column configuration
@@ -130,11 +126,11 @@ export function QuoteDetailV2({ quote: initialQuote, onBack }: QuoteDetailV2Prop
         )}
 
         {activeTab === 'notes' && (
-          <NotesTabV2 notes={notes} onNotesChange={setNotes} />
+          <NotesTabV2 quoteId={quote.id} />
         )}
 
         {activeTab === 'tasks' && (
-          <TasksTabV2 tasks={tasks} onTasksChange={setTasks} />
+          <TasksTabV2 quoteId={quote.id} />
         )}
 
         {activeTab === 'activity' && (

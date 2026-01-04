@@ -3,3 +3,4 @@
  */
 
 export { StyledDatePicker, parseDateString, formatDateToString } from './StyledDatePicker';
+export { FilesTab } from './FilesTab';
