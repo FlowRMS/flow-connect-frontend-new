@@ -17,6 +17,10 @@ export const getTabsConfig = (lineItemsCount: number = 0): TabConfig[] => {
       count: lineItemsCount,
     },
     {
+      id: 'files',
+      label: 'Files',
+    },
+    {
       id: 'credits',
       label: 'Credits',
     },

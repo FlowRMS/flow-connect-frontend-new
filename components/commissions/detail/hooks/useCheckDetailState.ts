@@ -499,6 +499,10 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
   const [showLineItemDetailModal, setShowLineItemDetailModal] = useState(false);
   const [selectedLineItem, setSelectedLineItem] = useState<LineItem | null>(null);
 
+  // Order detail modal state
+  const [showOrderDetailModal, setShowOrderDetailModal] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+
   // Open add line item modal
   const addNewLine = () => {
     setShowAddLineItemModal(true);
@@ -527,6 +531,18 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
   const closeLineItemDetail = () => {
     setShowLineItemDetailModal(false);
     setSelectedLineItem(null);
+  };
+
+  // Open order detail modal
+  const openOrderDetail = (orderId: string) => {
+    setSelectedOrderId(orderId);
+    setShowOrderDetailModal(true);
+  };
+
+  // Close order detail modal
+  const closeOrderDetail = () => {
+    setShowOrderDetailModal(false);
+    setSelectedOrderId(null);
   };
 
   // Update line item amount
@@ -967,6 +983,13 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     openLineItemDetail,
     closeLineItemDetail,
     updateLineItemAmount,
+
+    // Order detail modal
+    showOrderDetailModal,
+    setShowOrderDetailModal,
+    selectedOrderId,
+    openOrderDetail,
+    closeOrderDetail,
 
     // Computed values
     summary,

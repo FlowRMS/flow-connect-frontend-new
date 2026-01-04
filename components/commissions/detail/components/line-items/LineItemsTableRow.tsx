@@ -15,6 +15,7 @@ interface LineItemsTableRowProps {
   onTogglePaid: (id: string) => void;
   onRowClick: (item: LineItem) => void;
   onUpdateStatedCommission?: (id: string, amount: number) => void;
+  onOrderClick?: (orderId: string) => void;
 }
 
 export function LineItemsTableRow({
@@ -24,6 +25,7 @@ export function LineItemsTableRow({
   onTogglePaid,
   onRowClick,
   onUpdateStatedCommission,
+  onOrderClick,
 }: LineItemsTableRowProps) {
   const [statedCommission, setStatedCommission] = useState(item.paidCommission.toString());
   const inputRef = useRef<HTMLInputElement>(null);
@@ -85,9 +87,29 @@ export function LineItemsTableRow({
           {item.type === 'adjustment' ? (
             <span className="text-xs italic">N/A</span>
           ) : item.orderNumber ? (
-            <span className="font-medium">{item.orderNumber}</span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onOrderClick && item.orderId) {
+                  onOrderClick(item.orderId);
+                }
+              }}
+              className="font-medium text-[var(--primary)] hover:underline focus:outline-none focus:underline"
+            >
+              {item.orderNumber}
+            </button>
           ) : item.orderId ? (
-            <span className="font-mono text-xs">{item.orderId.substring(0, 8)}...</span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onOrderClick) {
+                  onOrderClick(item.orderId);
+                }
+              }}
+              className="font-mono text-xs text-[var(--primary)] hover:underline focus:outline-none focus:underline"
+            >
+              {item.orderId.substring(0, 8)}...
+            </button>
           ) : '-'}
         </td>
       )}

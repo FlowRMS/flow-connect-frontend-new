@@ -18,12 +18,14 @@ import {
   DeductionsTab,
   SettingsTab,
 } from './components/tabs';
+import { FilesTab } from '@/components/shared/FilesTab';
 import {
   PostedStatementModal,
   RepSplitsModal,
   ColumnsModal,
   LineItemDetailModal,
   AddLineItemModal,
+  OrderDetailModal,
 } from './components/modals';
 import {
   AdjustmentModal,
@@ -374,8 +376,17 @@ export default function CheckDetailContent({
                 onAddNewLine={state.addNewLine}
                 onRowClick={state.openLineItemDetail}
                 onUpdateStatedCommission={state.updateLineItemAmount}
+                onOrderClick={state.openOrderDetail}
               />
             </div>
+          )}
+
+          {/* Files Tab */}
+          {state.activeTab === 'files' && (
+            <FilesTab
+              entityId={checkId}
+              entityType="CHECK"
+            />
           )}
 
           {/* Other Tabs */}
@@ -391,9 +402,9 @@ export default function CheckDetailContent({
             />
           )}
 
-          {state.activeTab === 'notes' && <NotesTab />}
+          {state.activeTab === 'notes' && <NotesTab checkId={checkId} />}
 
-          {state.activeTab === 'tasks' && <TasksTab />}
+          {state.activeTab === 'tasks' && <TasksTab checkId={checkId} />}
 
           {state.activeTab === 'activity' && <ActivityTab />}
 
@@ -508,6 +519,14 @@ export default function CheckDetailContent({
         onConfirm={adjustmentsState.handleConfirmDelete}
         onCancel={adjustmentsState.closeDeleteConfirmModal}
       />
+
+      {/* Order Detail Modal */}
+      {state.showOrderDetailModal && state.selectedOrderId && (
+        <OrderDetailModal
+          orderId={state.selectedOrderId}
+          onClose={state.closeOrderDetail}
+        />
+      )}
     </main>
   );
 }

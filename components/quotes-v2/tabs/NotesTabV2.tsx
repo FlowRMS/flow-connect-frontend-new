@@ -1,18 +1,23 @@
 'use client';
 
 import React, { useState } from 'react';
-import type { NoteV2 } from '../types';
+import { useRelatedEntities } from '@/components/hooks/useCRMApi';
+import type { RelatedEntityNote } from '@/components/lib/crm-graphql';
 
 interface NotesTabV2Props {
-  notes: NoteV2[];
-  onNotesChange: (notes: NoteV2[]) => void;
+  quoteId: string;
 }
 
-export function NotesTabV2({ notes, onNotesChange }: NotesTabV2Props) {
+export function NotesTabV2({ quoteId }: NotesTabV2Props) {
   const [newNoteContent, setNewNoteContent] = useState('');
   const [showAddNote, setShowAddNote] = useState(false);
 
-  const formatDate = (dateStr: string): string => {
+  const { data: relatedEntities, isLoading, error } = useRelatedEntities(quoteId, 'QUOTES');
+
+  const notes = relatedEntities?.notes || [];
+
+  const formatDate = (dateStr: string | undefined): string => {
+    if (!dateStr) return '';
     const date = new Date(dateStr);
     return date.toLocaleDateString('en-US', {
       month: 'short',
@@ -25,23 +30,60 @@ export function NotesTabV2({ notes, onNotesChange }: NotesTabV2Props) {
     });
   };
 
+  // Get initials from author
+  const getInitials = (note: RelatedEntityNote): string => {
+    const first = note.createdBy?.firstName?.[0]?.toUpperCase() || '';
+    const last = note.createdBy?.lastName?.[0]?.toUpperCase() || '';
+    return first + last || '??';
+  };
+
+  // Get avatar color based on name
+  const getAvatarColor = (note: RelatedEntityNote): string => {
+    const name = (note.createdBy?.firstName || '') + (note.createdBy?.lastName || '');
+    const colors = [
+      'bg-purple-100 text-purple-700',
+      'bg-blue-100 text-blue-700',
+      'bg-green-100 text-green-700',
+      'bg-orange-100 text-orange-700',
+      'bg-pink-100 text-pink-700',
+      'bg-teal-100 text-teal-700',
+    ];
+    const index = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
+    return colors[index];
+  };
+
+  // Get author display name
+  const getAuthorName = (note: RelatedEntityNote): string => {
+    if (note.createdBy?.fullName) return note.createdBy.fullName;
+    if (note.createdBy?.firstName || note.createdBy?.lastName) {
+      return `${note.createdBy.firstName || ''} ${note.createdBy.lastName || ''}`.trim();
+    }
+    return 'Unknown';
+  };
+
   const handleAddNote = () => {
     if (!newNoteContent.trim()) return;
-
-    const newNote: NoteV2 = {
-      id: `note-${Date.now()}`,
-      quoteId: notes[0]?.quoteId || '',
-      authorId: 'current-user',
-      authorName: 'Current User',
-      authorInitials: 'CU',
-      content: newNoteContent.trim(),
-      createdAt: new Date().toISOString(),
-    };
-
-    onNotesChange([newNote, ...notes]);
+    // TODO: Implement adding note via API
+    console.log('Adding note:', newNoteContent);
     setNewNoteContent('');
     setShowAddNote(false);
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-red-500">Failed to load notes</p>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full overflow-auto">
@@ -93,23 +135,30 @@ export function NotesTabV2({ notes, onNotesChange }: NotesTabV2Props) {
 
         {/* Notes List */}
         <div className="space-y-4">
-          {notes.map((note) => (
+          {notes.map((note: RelatedEntityNote) => (
             <div
               key={note.id}
               className="p-4 bg-white border border-gray-200 rounded-lg hover:shadow-sm transition-shadow"
             >
               <div className="flex items-start gap-3">
                 {/* Avatar */}
-                <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 text-xs font-medium flex-shrink-0">
-                  {note.authorInitials}
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 ${getAvatarColor(note)}`}>
+                  {getInitials(note)}
                 </div>
 
                 <div className="flex-1 min-w-0">
                   {/* Author and Date */}
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm font-medium text-gray-900">{note.authorName}</span>
+                    <span className="text-sm font-medium text-gray-900">
+                      {getAuthorName(note)}
+                    </span>
                     <span className="text-xs text-gray-500">{formatDate(note.createdAt)}</span>
                   </div>
+
+                  {/* Title */}
+                  {note.title && (
+                    <h4 className="text-sm font-medium text-gray-900 mb-1">{note.title}</h4>
+                  )}
 
                   {/* Content */}
                   <p className="text-sm text-gray-700 whitespace-pre-wrap">{note.content}</p>

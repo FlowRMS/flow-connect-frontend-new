@@ -11,16 +11,18 @@ import {
   getFileExtension,
   type FileResponse,
   type FileEntityType,
-} from '../../lib/graphql/files';
+} from '../lib/graphql/files';
+import { DeleteConfirmModal } from '@/components/orders/detail/components/modals/utility/DeleteConfirmModal';
+import { showSuccessToast, showErrorToast } from '@/components/lib/toast';
 
-interface FilesTabV2Props {
+interface FilesTabProps {
   entityId: string;
   entityType: FileEntityType;
 }
 
 type ViewMode = 'grid' | 'list';
 
-export function FilesTabV2({ entityId, entityType }: FilesTabV2Props) {
+export function FilesTab({ entityId, entityType }: FilesTabProps) {
   const [files, setFiles] = useState<FileResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +31,10 @@ export function FilesTabV2({ entityId, entityType }: FilesTabV2Props) {
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [isDragging, setIsDragging] = useState(false);
+  const [isDropZoneCollapsed, setIsDropZoneCollapsed] = useState(false);
+  const [fileToDelete, setFileToDelete] = useState<FileResponse | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch files on mount and when entityId changes
@@ -110,35 +116,59 @@ export function FilesTabV2({ entityId, entityType }: FilesTabV2Props) {
     try {
       await archiveFile(file.id);
       await loadFiles();
+      showSuccessToast('File Archived', { description: `"${file.fileName}" has been archived` });
     } catch (err) {
       console.error('Failed to archive file:', err);
-      setError(err instanceof Error ? err.message : 'Failed to archive file');
+      const errorMsg = err instanceof Error ? err.message : 'Failed to archive file';
+      setError(errorMsg);
+      showErrorToast('Failed to Archive File', { description: errorMsg });
     }
   };
 
-  const handleDelete = async (file: FileResponse) => {
-    if (!confirm(`Are you sure you want to permanently delete "${file.fileName}"? This action cannot be undone.`)) return;
+  const handleDelete = (file: FileResponse) => {
+    setFileToDelete(file);
+  };
 
+  const confirmDelete = async () => {
+    if (!fileToDelete) return;
+
+    setIsDeleting(true);
     try {
-      await deleteFile(file.id);
+      await deleteFile(fileToDelete.id);
       await loadFiles();
+      showSuccessToast('File Deleted', { description: `"${fileToDelete.fileName}" has been deleted` });
+      setFileToDelete(null);
     } catch (err) {
       console.error('Failed to delete file:', err);
-      setError(err instanceof Error ? err.message : 'Failed to delete file');
+      const errorMsg = err instanceof Error ? err.message : 'Failed to delete file';
+      setError(errorMsg);
+      showErrorToast('Failed to Delete File', { description: errorMsg });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
-  const handleBulkDelete = async () => {
+  const handleBulkDelete = () => {
     if (selectedFiles.size === 0) return;
-    if (!confirm(`Are you sure you want to delete ${selectedFiles.size} file(s)?`)) return;
+    setShowBulkDeleteModal(true);
+  };
 
+  const confirmBulkDelete = async () => {
+    setIsDeleting(true);
     try {
       await Promise.all(Array.from(selectedFiles).map((fileId) => archiveFile(fileId)));
+      const count = selectedFiles.size;
       setSelectedFiles(new Set());
       await loadFiles();
+      showSuccessToast('Files Deleted', { description: `${count} file(s) have been deleted` });
+      setShowBulkDeleteModal(false);
     } catch (err) {
       console.error('Failed to delete files:', err);
-      setError(err instanceof Error ? err.message : 'Failed to delete files');
+      const errorMsg = err instanceof Error ? err.message : 'Failed to delete files';
+      setError(errorMsg);
+      showErrorToast('Failed to Delete Files', { description: errorMsg });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -301,35 +331,55 @@ export function FilesTabV2({ entityId, entityType }: FilesTabV2Props) {
           </div>
         )}
 
-        {/* Drop Zone */}
-        <div
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          className={`mb-6 border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-            isDragging
-              ? 'border-indigo-400 bg-indigo-50'
-              : 'border-gray-300 hover:border-gray-400'
-          } ${!entityId ? 'opacity-50 pointer-events-none' : ''}`}
-        >
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="mx-auto mb-4 text-gray-300">
-            <path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          <p className="text-gray-600 mb-1">
-            {isDragging ? 'Drop files here...' : 'Drag and drop files here, or'}
-          </p>
-          {!isDragging && (
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={!entityId}
-              className="text-indigo-600 hover:text-indigo-700 font-medium"
+        {/* Drop Zone - Collapsible */}
+        <div className="mb-6">
+          <button
+            onClick={() => setIsDropZoneCollapsed(!isDropZoneCollapsed)}
+            className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 mb-2 transition-colors"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className={`transition-transform ${isDropZoneCollapsed ? '-rotate-90' : ''}`}
             >
-              browse to upload
-            </button>
+              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+            {isDropZoneCollapsed ? 'Show upload area' : 'Hide upload area'}
+          </button>
+
+          {!isDropZoneCollapsed && (
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                isDragging
+                  ? 'border-indigo-400 bg-indigo-50'
+                  : 'border-gray-300 hover:border-gray-400'
+              } ${!entityId ? 'opacity-50 pointer-events-none' : ''}`}
+            >
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="mx-auto mb-4 text-gray-300">
+                <path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <p className="text-gray-600 mb-1">
+                {isDragging ? 'Drop files here...' : 'Drag and drop files here, or'}
+              </p>
+              {!isDragging && (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={!entityId}
+                  className="text-indigo-600 hover:text-indigo-700 font-medium"
+                >
+                  browse to upload
+                </button>
+              )}
+              <p className="text-xs text-gray-400 mt-2">
+                Supports all file types. Max file size: 50MB
+              </p>
+            </div>
           )}
-          <p className="text-xs text-gray-400 mt-2">
-            Supports all file types. Max file size: 50MB
-          </p>
         </div>
 
         {/* Files Display */}
@@ -526,8 +576,29 @@ export function FilesTabV2({ entityId, entityType }: FilesTabV2Props) {
           </div>
         )}
       </div>
+
+      {/* Single File Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={!!fileToDelete}
+        title="Delete File?"
+        message="Are you sure you want to permanently delete"
+        itemName={fileToDelete?.fileName}
+        isPending={isDeleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setFileToDelete(null)}
+      />
+
+      {/* Bulk Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={showBulkDeleteModal}
+        title="Delete Files?"
+        message={`Are you sure you want to delete ${selectedFiles.size} file(s)`}
+        isPending={isDeleting}
+        onConfirm={confirmBulkDelete}
+        onCancel={() => setShowBulkDeleteModal(false)}
+      />
     </div>
   );
 }
 
-export default FilesTabV2;
+export default FilesTab;

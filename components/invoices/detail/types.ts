@@ -100,6 +100,7 @@ export interface EditableInvoice extends Omit<BaseInvoice, 'lineItems'> {
 // Tab types
 export type TabType =
   | 'line-items'
+  | 'files'
   | 'credits'
   | 'notes'
   | 'tasks'

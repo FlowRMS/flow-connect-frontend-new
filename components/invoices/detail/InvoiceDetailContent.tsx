@@ -20,6 +20,7 @@ import {
   LinkedObjectsTab,
   SettingsTab,
 } from './components/tabs';
+import { FilesTab } from '@/components/shared/FilesTab';
 import {
   OutsideRepSplitsModal,
   InsideRepSplitsModal,
@@ -461,6 +462,16 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
             </div>
           )}
 
+          {/* Files Tab */}
+          {state.activeTab === 'files' && (
+            <div className="flex-1 overflow-auto">
+              <FilesTab
+                entityId={invoiceId}
+                entityType="INVOICE"
+              />
+            </div>
+          )}
+
           {/* Credits Tab */}
           {state.activeTab === 'credits' && (
             <div className="flex-1 overflow-auto">
@@ -474,14 +485,14 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
           {/* Notes Tab */}
           {state.activeTab === 'notes' && (
             <div className="flex-1 overflow-auto">
-              <NotesTab />
+              <NotesTab invoiceId={invoiceId} />
             </div>
           )}
 
           {/* Tasks Tab */}
           {state.activeTab === 'tasks' && (
             <div className="flex-1 overflow-auto">
-              <TasksTab />
+              <TasksTab invoiceId={invoiceId} />
             </div>
           )}
 

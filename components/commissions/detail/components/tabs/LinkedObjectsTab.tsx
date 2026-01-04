@@ -14,13 +14,15 @@ interface LinkedObjectsTabProps {
 
 export function LinkedObjectsTab({ checkId }: LinkedObjectsTabProps) {
   return (
-    <div className="p-4">
-      <ConnectedEntitiesSection
-        entityId={checkId}
-        sourceEntityType="CHECK"
-        title="Linked Objects"
-        showAddLinkButton={true}
-      />
+    <div className="h-full overflow-auto">
+      <div className="p-4">
+        <ConnectedEntitiesSection
+          entityId={checkId}
+          sourceEntityType="CHECK"
+          title="Linked Objects"
+          showAddLinkButton={true}
+        />
+      </div>
     </div>
   );
 }
