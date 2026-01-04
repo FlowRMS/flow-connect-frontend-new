@@ -14,9 +14,11 @@ import {
   getFilePresignedUrl,
   searchFiles,
   searchFolders,
+  fetchFilesByLinkedEntity,
   type FolderResponse,
   type FolderWithContents,
   type FileResponse,
+  type FileEntityType,
 } from '../lib/graphql/files';
 import { showSuccessToast, showErrorToast } from '../lib/toast';
 import { Breadcrumbs } from './components/Breadcrumbs';
@@ -34,6 +36,7 @@ import { RenameModal } from './modals/RenameModal';
 import { ItemDetailsModal } from './modals/ItemDetailsModal';
 import { MoveItemModal } from './modals/MoveItemModal';
 import { LinkFileToEntityModal } from './modals/LinkFileToEntityModal';
+import { EntityModeSelector, type SelectedEntity, type EntityModeEntityType } from './components/EntityModeSelector';
 import { useFileSelection } from './hooks/useFileSelection';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
@@ -103,6 +106,12 @@ export default function FilesContent() {
   const [detailsItem, setDetailsItem] = useState<{ item: FolderResponse | FileResponse; type: 'file' | 'folder' } | null>(null);
   const [moveItem, setMoveItem] = useState<{ id: string; type: 'file' | 'folder'; name: string } | null>(null);
   const [linkFileItem, setLinkFileItem] = useState<FileResponse | null>(null);
+
+  // Entity mode state
+  const [isEntityMode, setIsEntityMode] = useState(false);
+  const [selectedEntity, setSelectedEntity] = useState<SelectedEntity | null>(null);
+  const [entityFiles, setEntityFiles] = useState<FileResponse[]>([]);
+  const [isLoadingEntityFiles, setIsLoadingEntityFiles] = useState(false);
 
   // Selection
   const {
@@ -189,6 +198,43 @@ export default function FilesContent() {
 
     return () => clearTimeout(timeoutId);
   }, [searchTerm]);
+
+  // Load entity files when entity is selected
+  useEffect(() => {
+    if (!selectedEntity) {
+      setEntityFiles([]);
+      return;
+    }
+
+    const loadEntityFiles = async () => {
+      setIsLoadingEntityFiles(true);
+      try {
+        const files = await fetchFilesByLinkedEntity(
+          selectedEntity.type as FileEntityType,
+          selectedEntity.id
+        );
+        setEntityFiles(files);
+      } catch (error) {
+        console.error('Failed to load entity files:', error);
+        showErrorToast('Failed to load files', {
+          description: error instanceof Error ? error.message : 'Unknown error',
+        });
+        setEntityFiles([]);
+      } finally {
+        setIsLoadingEntityFiles(false);
+      }
+    };
+
+    loadEntityFiles();
+  }, [selectedEntity]);
+
+  // Handle exiting entity mode
+  const handleExitEntityMode = useCallback(() => {
+    setIsEntityMode(false);
+    setSelectedEntity(null);
+    setEntityFiles([]);
+    clearSelection();
+  }, [clearSelection]);
 
   // Load more items on scroll
   const handleScroll = useCallback(() => {
@@ -557,35 +603,46 @@ export default function FilesContent() {
     >
       {/* Header with breadcrumbs and toolbar */}
       <div className="flex-shrink-0 border-b border-[var(--border)] bg-[var(--card)]">
-        <Breadcrumbs
-          path={folderPath}
-          onNavigate={navigateToFolder}
-          isSearching={!!searchTerm}
-        />
-        <Toolbar
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-          selectedCount={selectedCount}
-          onUpload={handleUploadClick}
-          onNewFolder={viewMode === 'grid' ? startInlineFolderCreation : () => setShowCreateFolderModal(true)}
-          onDelete={handleDeleteClick}
-          searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
-          isSearching={isSearching}
-          sortField={sortField}
-          sortDirection={sortDirection}
-          onSortChange={(field, direction) => {
-            setSortField(field);
-            setSortDirection(direction);
-          }}
-          isUploading={isUploading}
-          uploadProgress={uploadProgress}
-          canUpload={!!currentFolderId}
-        />
+        {isEntityMode ? (
+          <EntityModeSelector
+            selectedEntity={selectedEntity}
+            onSelectEntity={setSelectedEntity}
+            onExitEntityMode={handleExitEntityMode}
+          />
+        ) : (
+          <>
+            <Breadcrumbs
+              path={folderPath}
+              onNavigate={navigateToFolder}
+              isSearching={!!searchTerm}
+            />
+            <Toolbar
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              selectedCount={selectedCount}
+              onUpload={handleUploadClick}
+              onNewFolder={viewMode === 'grid' ? startInlineFolderCreation : () => setShowCreateFolderModal(true)}
+              onDelete={handleDeleteClick}
+              onViewFilesByEntity={() => setIsEntityMode(true)}
+              searchTerm={searchTerm}
+              onSearchChange={setSearchTerm}
+              isSearching={isSearching}
+              sortField={sortField}
+              sortDirection={sortDirection}
+              onSortChange={(field, direction) => {
+                setSortField(field);
+                setSortDirection(direction);
+              }}
+              isUploading={isUploading}
+              uploadProgress={uploadProgress}
+              canUpload={!!currentFolderId}
+            />
+          </>
+        )}
       </div>
 
-      {/* Quick Access Section (only at root and not searching) */}
-      {!currentFolderId && !searchTerm && recentFiles.length > 0 && (
+      {/* Quick Access Section (only at root and not searching, not in entity mode) */}
+      {!isEntityMode && !currentFolderId && !searchTerm && recentFiles.length > 0 && (
         <QuickAccess
           recentFiles={recentFiles}
           onFileClick={handleFileDoubleClick}
@@ -602,79 +659,163 @@ export default function FilesContent() {
           setContextMenu(null);
         }}
       >
-        {isLoading ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="flex flex-col items-center gap-3">
-              <div className="w-8 h-8 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
-              <p className="text-sm text-[var(--muted-foreground)]">Loading...</p>
+        {isEntityMode ? (
+          // Entity Mode: Show files linked to selected entity
+          isLoadingEntityFiles ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-8 h-8 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+                <p className="text-sm text-[var(--muted-foreground)]">Loading files...</p>
+              </div>
             </div>
-          </div>
-        ) : isEmpty ? (
-          <EmptyState
-            isSearch={!!searchTerm}
-            searchTerm={searchTerm}
-            onUpload={handleUploadClick}
-            onNewFolder={() => setShowCreateFolderModal(true)}
-          />
-        ) : viewMode === 'grid' ? (
-          <div onClick={(e) => e.stopPropagation()}>
-            <GridView
-              folders={displayFolders}
-              files={displayFiles}
-              isSelected={isSelected}
-              isHighlighted={isHighlighted}
-              onItemClick={handleItemClick}
-              onCheckboxClick={handleCheckboxClick}
-              onFolderDoubleClick={handleFolderDoubleClick}
-              onFileDoubleClick={handleFileDoubleClick}
-              onContextMenu={handleContextMenu}
-              onDownload={handleDownload}
-              isCreatingFolder={isCreatingFolderInline}
-              onCreateFolder={handleCreateFolderInline}
-              onCancelCreateFolder={() => setIsCreatingFolderInline(false)}
-            />
-            {hasMore && (
-              <div className="flex justify-center py-8">
-                <button
-                  onClick={() => setDisplayLimit(prev => prev + ITEMS_PER_PAGE)}
-                  className="px-4 py-2 text-sm text-[var(--primary)] hover:bg-[var(--muted)] rounded-lg transition-colors"
-                >
-                  Load more ({displayedItems} of {totalItems})
-                </button>
+          ) : !selectedEntity ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-xl bg-purple-100 flex items-center justify-center">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-purple-600">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" />
+                    <path d="M14 2v6h6" />
+                    <circle cx="11" cy="14" r="3" />
+                    <path d="M21 21l-2.5-2.5" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">View Files by Entity</h3>
+                <p className="text-sm text-[var(--muted-foreground)] max-w-sm">
+                  Select an entity type above and search for an entity to view its linked files.
+                </p>
               </div>
-            )}
-          </div>
+            </div>
+          ) : entityFiles.length === 0 ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-xl bg-[var(--muted)] flex items-center justify-center">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-[var(--muted-foreground)]">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" />
+                    <path d="M14 2v6h6" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">No Files Linked</h3>
+                <p className="text-sm text-[var(--muted-foreground)]">
+                  This entity doesn&apos;t have any files linked to it yet.
+                </p>
+              </div>
+            </div>
+          ) : viewMode === 'grid' ? (
+            <div onClick={(e) => e.stopPropagation()}>
+              <GridView
+                folders={[]}
+                files={sortItems(entityFiles)}
+                isSelected={isSelected}
+                isHighlighted={isHighlighted}
+                onItemClick={handleItemClick}
+                onCheckboxClick={handleCheckboxClick}
+                onFolderDoubleClick={handleFolderDoubleClick}
+                onFileDoubleClick={handleFileDoubleClick}
+                onContextMenu={handleContextMenu}
+                onDownload={handleDownload}
+                isCreatingFolder={false}
+                onCreateFolder={async () => {}}
+                onCancelCreateFolder={() => {}}
+              />
+            </div>
+          ) : (
+            <div onClick={(e) => e.stopPropagation()}>
+              <ListView
+                folders={[]}
+                files={sortItems(entityFiles)}
+                isSelected={isSelected}
+                isHighlighted={isHighlighted}
+                onItemClick={handleItemClick}
+                onCheckboxClick={handleCheckboxClick}
+                onFolderDoubleClick={handleFolderDoubleClick}
+                onFileDoubleClick={handleFileDoubleClick}
+                onContextMenu={handleContextMenu}
+                onDownload={handleDownload}
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSortChange={(field, direction) => {
+                  setSortField(field);
+                  setSortDirection(direction);
+                }}
+              />
+            </div>
+          )
         ) : (
-          <div onClick={(e) => e.stopPropagation()}>
-            <ListView
-              folders={displayFolders}
-              files={displayFiles}
-              isSelected={isSelected}
-              isHighlighted={isHighlighted}
-              onItemClick={handleItemClick}
-              onCheckboxClick={handleCheckboxClick}
-              onFolderDoubleClick={handleFolderDoubleClick}
-              onFileDoubleClick={handleFileDoubleClick}
-              onContextMenu={handleContextMenu}
-              onDownload={handleDownload}
-              sortField={sortField}
-              sortDirection={sortDirection}
-              onSortChange={(field, direction) => {
-                setSortField(field);
-                setSortDirection(direction);
-              }}
-            />
-            {hasMore && (
-              <div className="flex justify-center py-8">
-                <button
-                  onClick={() => setDisplayLimit(prev => prev + ITEMS_PER_PAGE)}
-                  className="px-4 py-2 text-sm text-[var(--primary)] hover:bg-[var(--muted)] rounded-lg transition-colors"
-                >
-                  Load more ({displayedItems} of {totalItems})
-                </button>
+          // Normal Mode: Show folder contents
+          isLoading ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-8 h-8 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+                <p className="text-sm text-[var(--muted-foreground)]">Loading...</p>
               </div>
-            )}
-          </div>
+            </div>
+          ) : isEmpty ? (
+            <EmptyState
+              isSearch={!!searchTerm}
+              searchTerm={searchTerm}
+              onUpload={handleUploadClick}
+              onNewFolder={() => setShowCreateFolderModal(true)}
+            />
+          ) : viewMode === 'grid' ? (
+            <div onClick={(e) => e.stopPropagation()}>
+              <GridView
+                folders={displayFolders}
+                files={displayFiles}
+                isSelected={isSelected}
+                isHighlighted={isHighlighted}
+                onItemClick={handleItemClick}
+                onCheckboxClick={handleCheckboxClick}
+                onFolderDoubleClick={handleFolderDoubleClick}
+                onFileDoubleClick={handleFileDoubleClick}
+                onContextMenu={handleContextMenu}
+                onDownload={handleDownload}
+                isCreatingFolder={isCreatingFolderInline}
+                onCreateFolder={handleCreateFolderInline}
+                onCancelCreateFolder={() => setIsCreatingFolderInline(false)}
+              />
+              {hasMore && (
+                <div className="flex justify-center py-8">
+                  <button
+                    onClick={() => setDisplayLimit(prev => prev + ITEMS_PER_PAGE)}
+                    className="px-4 py-2 text-sm text-[var(--primary)] hover:bg-[var(--muted)] rounded-lg transition-colors"
+                  >
+                    Load more ({displayedItems} of {totalItems})
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div onClick={(e) => e.stopPropagation()}>
+              <ListView
+                folders={displayFolders}
+                files={displayFiles}
+                isSelected={isSelected}
+                isHighlighted={isHighlighted}
+                onItemClick={handleItemClick}
+                onCheckboxClick={handleCheckboxClick}
+                onFolderDoubleClick={handleFolderDoubleClick}
+                onFileDoubleClick={handleFileDoubleClick}
+                onContextMenu={handleContextMenu}
+                onDownload={handleDownload}
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSortChange={(field, direction) => {
+                  setSortField(field);
+                  setSortDirection(direction);
+                }}
+              />
+              {hasMore && (
+                <div className="flex justify-center py-8">
+                  <button
+                    onClick={() => setDisplayLimit(prev => prev + ITEMS_PER_PAGE)}
+                    className="px-4 py-2 text-sm text-[var(--primary)] hover:bg-[var(--muted)] rounded-lg transition-colors"
+                  >
+                    Load more ({displayedItems} of {totalItems})
+                  </button>
+                </div>
+              )}
+            </div>
+          )
         )}
 
         {/* Drop zone overlay */}

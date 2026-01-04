@@ -8,6 +8,7 @@ interface ToolbarProps {
   onUpload: () => void;
   onNewFolder: () => void;
   onDelete: () => void;
+  onViewFilesByEntity: () => void;
   searchTerm: string;
   onSearchChange: (term: string) => void;
   isSearching: boolean;
@@ -26,6 +27,7 @@ export function Toolbar({
   onUpload,
   onNewFolder,
   onDelete,
+  onViewFilesByEntity,
   searchTerm,
   onSearchChange,
   isSearching,
@@ -97,6 +99,20 @@ export function Toolbar({
               Upload
             </>
           )}
+        </button>
+
+        <div className="w-px h-6 bg-[var(--border)] mx-1" />
+        <button
+          onClick={onViewFilesByEntity}
+          className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border border-[var(--border)] hover:bg-[var(--muted)] transition-colors"
+          title="View files linked to an entity"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" />
+            <path d="M14 2v6h6" />
+            <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
+          </svg>
+          <span className="hidden sm:inline">Files by Entity</span>
         </button>
 
         {selectedCount > 0 && (

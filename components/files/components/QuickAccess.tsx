@@ -1,8 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { FileResponse } from '../../lib/graphql/files';
 import { formatFileSize } from '../../lib/graphql/files';
+
+const STORAGE_KEY = 'files-quick-access-collapsed';
 
 interface QuickAccessProps {
   recentFiles: FileResponse[];
@@ -10,7 +12,18 @@ interface QuickAccessProps {
 }
 
 export function QuickAccess({ recentFiles, onFileClick }: QuickAccessProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    // Initialize from localStorage on client side
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(STORAGE_KEY) === 'true';
+    }
+    return false;
+  });
+
+  // Persist collapse state to localStorage
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, String(isCollapsed));
+  }, [isCollapsed]);
 
   if (recentFiles.length === 0) return null;
 
