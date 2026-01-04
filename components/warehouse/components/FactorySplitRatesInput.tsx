@@ -41,12 +41,14 @@ export function FactorySplitRatesInput({
 
   const total = entries.reduce((sum, entry) => sum + (parseFloat(entry.splitRate) || 0), 0);
 
-  // User search query - search all users (no rep type filter)
+  // User search query - search only outside reps for manufacturer split rates
   const { data: searchResults = [], isLoading: isSearching } = useQuery({
     queryKey: ['factoryUserSearch', searchTerm],
     queryFn: () => searchUsers({
       searchTerm,
       enabled: true,
+      isOutside: false,
+      isInside: true,
       limit: 10,
     }),
     enabled: activeSearchIndex !== null,

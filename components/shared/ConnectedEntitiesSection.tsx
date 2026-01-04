@@ -47,7 +47,7 @@ export type EntityCategory = 'contacts' | 'companies' | 'pre-opportunities' | 't
 export type LinkEntityType = 'COMPANY' | 'CONTACT' | 'TASK' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'JOB' | 'FILE';
 
 // Source entity types - what entity is hosting this connected entities section
-export type SourceEntityType = 'JOB' | 'CONTACT' | 'COMPANY' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'TASK' | 'NOTE';
+export type SourceEntityType = 'JOB' | 'CONTACT' | 'COMPANY' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'TASK' | 'NOTE' | 'FACTORY';
 
 // Map source entity type to API endpoint type
 const SOURCE_TYPE_TO_API_TYPE: Record<SourceEntityType, RelatedEntitiesSourceType> = {
@@ -61,6 +61,7 @@ const SOURCE_TYPE_TO_API_TYPE: Record<SourceEntityType, RelatedEntitiesSourceTyp
   CHECK: 'CHECKS',
   TASK: 'TASKS',
   NOTE: 'NOTES',
+  FACTORY: 'FACTORIES',
 };
 
 export interface ConnectedEntitiesSectionProps {

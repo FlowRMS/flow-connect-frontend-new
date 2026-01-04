@@ -74,11 +74,11 @@ export function PreOpportunityDetailView({
             onLineItemsChange={onLineItemsChange}
           />
 
-          {/* Connected Entities - Tasks, Notes, and Jobs */}
+          {/* Connected Entities - All entities except pre-opportunities */}
           <ConnectedEntitiesSection
             entityId={preOpp.id}
             sourceEntityType="PRE_OPPORTUNITY"
-            enabledCategories={['tasks', 'notes', 'jobs']}
+            enabledCategories={['contacts', 'companies', 'jobs', 'tasks', 'notes', 'quotes', 'orders', 'invoices', 'checks', 'files']}
             title="Connected Entities"
             showAddLinkButton={true}
           />

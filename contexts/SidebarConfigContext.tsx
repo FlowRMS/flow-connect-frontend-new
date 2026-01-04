@@ -121,6 +121,7 @@ const defaultConfig: SidebarConfig = {
         { id: 'companies', name: 'Companies', href: '/companies', enabled: true },
         { id: 'customers', name: 'Customers', href: '/customers', enabled: true },
         { id: 'products', name: 'Products', href: '/products', enabled: true },
+        { id: 'manufacturers', name: 'Manufacturers', href: '/manufacturers', enabled: true },
         // { id: 'spec-sheets', name: 'Spec Sheets', href: '/spec-sheets', enabled: true },
       ]
     },
@@ -140,7 +141,7 @@ const defaultConfig: SidebarConfig = {
 };
 
 const STORAGE_KEY = 'sidebar-config';
-const CONFIG_VERSION = 21; // Increment this to force a reset of cached sidebar config (reordered financial items)
+const CONFIG_VERSION = 22; // Increment this to force a reset of cached sidebar config (added manufacturers)
 
 const SidebarConfigContext = createContext<SidebarConfigContextType | undefined>(undefined);
 

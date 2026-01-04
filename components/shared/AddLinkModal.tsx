@@ -49,7 +49,7 @@ import { linkToasts } from '../lib/toast';
 type LinkEntityType = 'COMPANY' | 'CONTACT' | 'TASK' | 'NOTE' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'FACTORY' | 'CUSTOMER' | 'PRODUCT' | 'JOB' | 'FILE';
 
 // Source entity types
-type SourceEntityType = 'JOB' | 'CONTACT' | 'COMPANY' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'TASK' | 'NOTE';
+type SourceEntityType = 'JOB' | 'CONTACT' | 'COMPANY' | 'PRE_OPPORTUNITY' | 'QUOTE' | 'ORDER' | 'INVOICE' | 'CHECK' | 'TASK' | 'NOTE' | 'FACTORY';
 
 // Map source entity type to API endpoint type
 const SOURCE_TYPE_TO_API_TYPE: Record<SourceEntityType, RelatedEntitiesSourceType> = {
@@ -63,6 +63,7 @@ const SOURCE_TYPE_TO_API_TYPE: Record<SourceEntityType, RelatedEntitiesSourceTyp
   CHECK: 'CHECKS',
   TASK: 'TASKS',
   NOTE: 'NOTES',
+  FACTORY: 'FACTORIES',
 };
 
 // Entity type configuration for display
@@ -549,6 +550,7 @@ export function AddLinkModal({
     CHECK: 'Check',
     TASK: 'Task',
     NOTE: 'Note',
+    FACTORY: 'Factory',
   };
 
   return (
