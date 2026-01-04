@@ -130,6 +130,7 @@ const defaultConfig: SidebarConfig = {
       label: 'Admin',
       collapsed: false,
       items: [
+        { id: 'files', name: 'Files', href: '/files', enabled: true },
         { id: 'settings', name: 'Settings', href: '/settings', enabled: true },
         { id: 'email-integrations', name: 'Email Integrations', href: '/integrations', enabled: true },
         // { id: 'data-integrations', name: 'Data Integrations', href: '/data-integrations', enabled: true },
@@ -141,7 +142,7 @@ const defaultConfig: SidebarConfig = {
 };
 
 const STORAGE_KEY = 'sidebar-config';
-const CONFIG_VERSION = 22; // Increment this to force a reset of cached sidebar config (added manufacturers)
+const CONFIG_VERSION = 23; // Increment this to force a reset of cached sidebar config (added Files page)
 
 const SidebarConfigContext = createContext<SidebarConfigContextType | undefined>(undefined);
 

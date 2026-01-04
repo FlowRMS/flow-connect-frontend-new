@@ -71,6 +71,45 @@ export type FileEntityType =
   | 'PRODUCT';
 
 // ============================================================================
+// Folder Types
+// ============================================================================
+
+export interface FolderResponse {
+  id: string;
+  name: string;
+  description?: string;
+  parentId?: string;
+  archived: boolean;
+  createdAt: string;
+  createdBy?: FileCreatedBy | string;
+}
+
+export interface FolderWithContents extends FolderResponse {
+  children: FolderResponse[];
+  files: FileResponse[];
+  parent?: FolderResponse;
+}
+
+export interface CreateFolderInput {
+  name: string;
+  description?: string;
+  parentId?: string;
+}
+
+export interface UpdateFolderInput {
+  folderId: string;
+  name?: string;
+  description?: string;
+  parentId?: string;
+}
+
+export interface MoveFolderInput {
+  factoryId: string;
+  oldFolderPath: string;
+  newFolderPath: string;
+}
+
+// ============================================================================
 // GraphQL Queries
 // ============================================================================
 
@@ -197,6 +236,167 @@ const GET_FILES_BY_FOLDER = `
 `;
 
 // ============================================================================
+// Folder GraphQL Queries
+// ============================================================================
+
+const GET_ROOT_FOLDERS = `
+  query GetRootFolders {
+    rootFolders {
+      id
+      name
+      description
+      parentId
+      archived
+      createdAt
+      createdBy {
+        authProviderId
+        email
+        enabled
+        firstName
+        fullName
+        id
+        inside
+        lastName
+        outside
+        role
+        username
+      }
+    }
+  }
+`;
+
+const GET_FOLDER = `
+  query GetFolder($folderId: UUID!) {
+    folder(folderId: $folderId) {
+      id
+      name
+      description
+      parentId
+      archived
+      createdAt
+      createdBy {
+        authProviderId
+        email
+        enabled
+        firstName
+        fullName
+        id
+        inside
+        lastName
+        outside
+        role
+        username
+      }
+    }
+  }
+`;
+
+const GET_FOLDER_WITH_CONTENTS = `
+  query GetFolderWithContents($folderId: UUID!) {
+    folderWithContents(folderId: $folderId) {
+      id
+      name
+      description
+      parentId
+      archived
+      createdAt
+      createdBy {
+        authProviderId
+        email
+        enabled
+        firstName
+        fullName
+        id
+        inside
+        lastName
+        outside
+        role
+        username
+      }
+      children {
+        id
+        name
+        description
+        parentId
+        archived
+        createdAt
+      }
+      files {
+        id
+        fileName
+        filePath
+        fileSha
+        fileSize
+        fileType
+        folderId
+        archived
+        createdAt
+      }
+      parent {
+        id
+        name
+        description
+        parentId
+        archived
+        createdAt
+      }
+    }
+  }
+`;
+
+const GET_FOLDERS_BY_PARENT = `
+  query GetFoldersByParent($parentId: UUID!) {
+    foldersByParent(parentId: $parentId) {
+      id
+      name
+      description
+      parentId
+      archived
+      createdAt
+      createdBy {
+        authProviderId
+        email
+        enabled
+        firstName
+        fullName
+        id
+        inside
+        lastName
+        outside
+        role
+        username
+      }
+    }
+  }
+`;
+
+const SEARCH_FOLDERS = `
+  query SearchFolders($searchTerm: String!, $limit: Int!) {
+    searchFolders(searchTerm: $searchTerm, limit: $limit) {
+      id
+      name
+      description
+      parentId
+      archived
+      createdAt
+      createdBy {
+        authProviderId
+        email
+        enabled
+        firstName
+        fullName
+        id
+        inside
+        lastName
+        outside
+        role
+        username
+      }
+    }
+  }
+`;
+
+// ============================================================================
 // GraphQL Mutations
 // ============================================================================
 
@@ -290,6 +490,80 @@ const CREATE_LINK = `
       targetEntityId
       createdAt
     }
+  }
+`;
+
+// ============================================================================
+// Folder GraphQL Mutations
+// ============================================================================
+
+const CREATE_FOLDER = `
+  mutation CreateFolder($name: String!, $description: String, $parentId: UUID) {
+    createFolder(input: { name: $name, description: $description, parentId: $parentId }) {
+      id
+      name
+      description
+      parentId
+      archived
+      createdAt
+      createdBy {
+        authProviderId
+        email
+        enabled
+        firstName
+        fullName
+        id
+        inside
+        lastName
+        outside
+        role
+        username
+      }
+    }
+  }
+`;
+
+const UPDATE_FOLDER = `
+  mutation UpdateFolder($folderId: UUID!, $name: String, $description: String, $parentId: UUID) {
+    updateFolder(input: { folderId: $folderId, name: $name, description: $description, parentId: $parentId }) {
+      id
+      name
+      description
+      parentId
+      archived
+      createdAt
+      createdBy {
+        authProviderId
+        email
+        enabled
+        firstName
+        fullName
+        id
+        inside
+        lastName
+        outside
+        role
+        username
+      }
+    }
+  }
+`;
+
+const ARCHIVE_FOLDER = `
+  mutation ArchiveFolder($folderId: UUID!) {
+    archiveFolder(folderId: $folderId)
+  }
+`;
+
+const DELETE_FOLDER = `
+  mutation DeleteFolder($folderId: UUID!) {
+    deleteFolder(folderId: $folderId)
+  }
+`;
+
+const MOVE_FOLDER = `
+  mutation MoveFolder($factoryId: UUID!, $oldFolderPath: String!, $newFolderPath: String!) {
+    moveFolder(input: { factoryId: $factoryId, oldFolderPath: $oldFolderPath, newFolderPath: $newFolderPath })
   }
 `;
 
@@ -601,4 +875,218 @@ export async function uploadAndLinkFiles(
   );
 
   return uploadedFiles;
+}
+
+// ============================================================================
+// Folder API Functions
+// ============================================================================
+
+/**
+ * Fetch root folders (folders without a parent)
+ */
+export async function fetchRootFolders(): Promise<FolderResponse[]> {
+  const response = await crmGraphQLRequest<{ rootFolders: FolderResponse[] }>({
+    query: GET_ROOT_FOLDERS,
+    variables: {},
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch root folders');
+  }
+
+  const folders = response.data?.rootFolders || [];
+  return folders.filter(f => !f.archived);
+}
+
+/**
+ * Fetch a single folder by ID
+ */
+export async function fetchFolder(folderId: string): Promise<FolderResponse | null> {
+  const response = await crmGraphQLRequest<{ folder: FolderResponse }>({
+    query: GET_FOLDER,
+    variables: { folderId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch folder');
+  }
+
+  return response.data?.folder || null;
+}
+
+/**
+ * Fetch a folder with its contents (child folders and files)
+ */
+export async function fetchFolderWithContents(folderId: string): Promise<FolderWithContents | null> {
+  const response = await crmGraphQLRequest<{ folderWithContents: FolderWithContents }>({
+    query: GET_FOLDER_WITH_CONTENTS,
+    variables: { folderId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch folder with contents');
+  }
+
+  const folder = response.data?.folderWithContents;
+  if (!folder) return null;
+
+  // Filter out archived children and files
+  return {
+    ...folder,
+    children: (folder.children || []).filter(f => !f.archived),
+    files: (folder.files || []).filter(f => !f.archived),
+  };
+}
+
+/**
+ * Fetch child folders by parent ID
+ */
+export async function fetchFoldersByParent(parentId: string): Promise<FolderResponse[]> {
+  const response = await crmGraphQLRequest<{ foldersByParent: FolderResponse[] }>({
+    query: GET_FOLDERS_BY_PARENT,
+    variables: { parentId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch folders by parent');
+  }
+
+  const folders = response.data?.foldersByParent || [];
+  return folders.filter(f => !f.archived);
+}
+
+/**
+ * Search folders by name
+ */
+export async function searchFolders(searchTerm: string, limit: number = 10): Promise<FolderResponse[]> {
+  const response = await crmGraphQLRequest<{ searchFolders: FolderResponse[] }>({
+    query: SEARCH_FOLDERS,
+    variables: { searchTerm, limit },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to search folders');
+  }
+
+  const folders = response.data?.searchFolders || [];
+  return folders.filter(f => !f.archived);
+}
+
+/**
+ * Create a new folder
+ */
+export async function createFolder(input: CreateFolderInput): Promise<FolderResponse> {
+  const response = await crmGraphQLRequest<{ createFolder: FolderResponse }>({
+    query: CREATE_FOLDER,
+    variables: {
+      name: input.name,
+      description: input.description || null,
+      parentId: input.parentId || null,
+    },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to create folder');
+  }
+
+  if (!response.data?.createFolder) {
+    throw new Error('No folder returned from create mutation');
+  }
+
+  return response.data.createFolder;
+}
+
+/**
+ * Update a folder
+ */
+export async function updateFolder(input: UpdateFolderInput): Promise<FolderResponse> {
+  const response = await crmGraphQLRequest<{ updateFolder: FolderResponse }>({
+    query: UPDATE_FOLDER,
+    variables: {
+      folderId: input.folderId,
+      name: input.name || null,
+      description: input.description || null,
+      parentId: input.parentId || null,
+    },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to update folder');
+  }
+
+  if (!response.data?.updateFolder) {
+    throw new Error('No folder returned from update mutation');
+  }
+
+  return response.data.updateFolder;
+}
+
+/**
+ * Archive a folder (soft delete)
+ */
+export async function archiveFolder(folderId: string): Promise<boolean> {
+  const response = await crmGraphQLRequest<{ archiveFolder: boolean }>({
+    query: ARCHIVE_FOLDER,
+    variables: { folderId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to archive folder');
+  }
+
+  return response.data?.archiveFolder || false;
+}
+
+/**
+ * Permanently delete a folder
+ */
+export async function deleteFolder(folderId: string): Promise<boolean> {
+  const response = await crmGraphQLRequest<{ deleteFolder: boolean }>({
+    query: DELETE_FOLDER,
+    variables: { folderId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to delete folder');
+  }
+
+  return response.data?.deleteFolder || false;
+}
+
+/**
+ * Move a folder to a new location
+ */
+export async function moveFolder(input: MoveFolderInput): Promise<boolean> {
+  const response = await crmGraphQLRequest<{ moveFolder: boolean }>({
+    query: MOVE_FOLDER,
+    variables: {
+      factoryId: input.factoryId,
+      oldFolderPath: input.oldFolderPath,
+      newFolderPath: input.newFolderPath,
+    },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to move folder');
+  }
+
+  return response.data?.moveFolder || false;
+}
+
+/**
+ * Build folder path (breadcrumb trail) from a folder to root
+ * Recursively fetches parent folders to construct the path
+ */
+export async function buildFolderPath(folderId: string): Promise<FolderResponse[]> {
+  const path: FolderResponse[] = [];
+  let currentId: string | undefined = folderId;
+
+  while (currentId) {
+    const folder = await fetchFolder(currentId);
+    if (!folder) break;
+    path.unshift(folder);
+    currentId = folder.parentId;
+  }
+
+  return path;
 }
