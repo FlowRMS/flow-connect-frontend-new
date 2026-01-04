@@ -19,6 +19,7 @@ interface LineItemsTableProps {
   onAddNewLine: () => void;
   onRowClick: (item: LineItem) => void;
   onUpdateStatedCommission?: (id: string, amount: number) => void;
+  onOrderClick?: (orderId: string) => void;
 }
 
 export function LineItemsTable({
@@ -30,6 +31,7 @@ export function LineItemsTable({
   onAddNewLine,
   onRowClick,
   onUpdateStatedCommission,
+  onOrderClick,
 }: LineItemsTableProps) {
   return (
     <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] flex flex-col h-full">
@@ -60,6 +62,7 @@ export function LineItemsTable({
                   onTogglePaid={onTogglePaid}
                   onRowClick={onRowClick}
                   onUpdateStatedCommission={onUpdateStatedCommission}
+                  onOrderClick={onOrderClick}
                 />
               ))
             )}

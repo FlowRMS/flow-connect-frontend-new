@@ -24,6 +24,7 @@ import {
   ColumnsModal,
   LineItemDetailModal,
   AddLineItemModal,
+  OrderDetailModal,
 } from './components/modals';
 import {
   AdjustmentModal,
@@ -374,6 +375,7 @@ export default function CheckDetailContent({
                 onAddNewLine={state.addNewLine}
                 onRowClick={state.openLineItemDetail}
                 onUpdateStatedCommission={state.updateLineItemAmount}
+                onOrderClick={state.openOrderDetail}
               />
             </div>
           )}
@@ -508,6 +510,14 @@ export default function CheckDetailContent({
         onConfirm={adjustmentsState.handleConfirmDelete}
         onCancel={adjustmentsState.closeDeleteConfirmModal}
       />
+
+      {/* Order Detail Modal */}
+      {state.showOrderDetailModal && state.selectedOrderId && (
+        <OrderDetailModal
+          orderId={state.selectedOrderId}
+          onClose={state.closeOrderDetail}
+        />
+      )}
     </main>
   );
 }

@@ -11,6 +11,7 @@ import type { LineItem } from '../../types';
 import { searchInvoices, type InvoiceSearchResult } from '@/components/lib/api/search';
 import { searchCredits, type CreditSearchResult } from '@/components/orders/api/creditsApi';
 import { searchAdjustments, type AdjustmentSearchResult } from '@/components/orders/api/adjustmentsApi';
+import { fetchInvoiceById, type Invoice } from '@/components/lib/graphql/invoices';
 
 interface AddLineItemModalProps {
   onClose: () => void;
@@ -32,6 +33,10 @@ export function AddLineItemModal({
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceSearchResult | null>(null);
   const [showInvoiceDropdown, setShowInvoiceDropdown] = useState(false);
   const [isSearchingInvoices, setIsSearchingInvoices] = useState(false);
+
+  // Full invoice details (fetched after selection)
+  const [invoiceDetails, setInvoiceDetails] = useState<Invoice | null>(null);
+  const [isLoadingInvoiceDetails, setIsLoadingInvoiceDetails] = useState(false);
 
   // Credit search state
   const [creditSearch, setCreditSearch] = useState('');
@@ -125,10 +130,25 @@ export function AddLineItemModal({
   };
 
   // Handle invoice selection
-  const handleSelectInvoice = (invoice: InvoiceSearchResult) => {
+  const handleSelectInvoice = async (invoice: InvoiceSearchResult) => {
     setSelectedInvoice(invoice);
     setInvoiceSearch(invoice.invoiceNumber);
     setShowInvoiceDropdown(false);
+
+    // Fetch full invoice details
+    setIsLoadingInvoiceDetails(true);
+    try {
+      const details = await fetchInvoiceById(invoice.id);
+      setInvoiceDetails(details);
+      // Pre-fill applied amount with the invoice's commission if available
+      if (details?.balance?.commission) {
+        setAppliedAmount(details.balance.commission);
+      }
+    } catch (error) {
+      console.error('Error fetching invoice details:', error);
+    } finally {
+      setIsLoadingInvoiceDetails(false);
+    }
   };
 
   // Handle credit selection
@@ -152,6 +172,7 @@ export function AddLineItemModal({
   // Clear invoice selection
   const handleClearInvoice = () => {
     setSelectedInvoice(null);
+    setInvoiceDetails(null);
     setInvoiceSearch('');
     setAppliedAmount(0);
   };
@@ -303,6 +324,7 @@ export function AddLineItemModal({
                 onClick={() => {
                   setType('credit');
                   setSelectedInvoice(null);
+                  setInvoiceDetails(null);
                   setInvoiceSearch('');
                   setSelectedAdjustment(null);
                   setAdjustmentSearch('');
@@ -320,6 +342,7 @@ export function AddLineItemModal({
                 onClick={() => {
                   setType('adjustment');
                   setSelectedInvoice(null);
+                  setInvoiceDetails(null);
                   setInvoiceSearch('');
                   setSelectedCredit(null);
                   setCreditSearch('');
@@ -635,22 +658,59 @@ export function AddLineItemModal({
               <div className="grid grid-cols-2 gap-2 text-sm">
                 {type === 'invoice' && selectedInvoice && (
                   <>
-                    <div>
-                      <span className="text-[var(--muted-foreground)]">Number:</span>{' '}
-                      <span className="font-medium">{selectedInvoice.invoiceNumber}</span>
-                    </div>
-                    <div>
-                      <span className="text-[var(--muted-foreground)]">Date:</span>{' '}
-                      <span className="font-medium">{selectedInvoice.entityDate || '-'}</span>
-                    </div>
-                    <div>
-                      <span className="text-[var(--muted-foreground)]">Due Date:</span>{' '}
-                      <span className="font-medium">{selectedInvoice.dueDate || '-'}</span>
-                    </div>
-                    <div>
-                      <span className="text-[var(--muted-foreground)]">Status:</span>{' '}
-                      <span className="font-medium">{selectedInvoice.status || '-'}</span>
-                    </div>
+                    {isLoadingInvoiceDetails ? (
+                      <div className="col-span-2 flex items-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[var(--primary)]" />
+                        <span className="text-[var(--muted-foreground)]">Loading details...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <div>
+                          <span className="text-[var(--muted-foreground)]">Number:</span>{' '}
+                          <span className="font-medium">{selectedInvoice.invoiceNumber}</span>
+                        </div>
+                        <div>
+                          <span className="text-[var(--muted-foreground)]">Date:</span>{' '}
+                          <span className="font-medium">{selectedInvoice.entityDate || '-'}</span>
+                        </div>
+                        <div>
+                          <span className="text-[var(--muted-foreground)]">Due Date:</span>{' '}
+                          <span className="font-medium">{selectedInvoice.dueDate || '-'}</span>
+                        </div>
+                        <div>
+                          <span className="text-[var(--muted-foreground)]">Status:</span>{' '}
+                          <span className="font-medium">{selectedInvoice.status || '-'}</span>
+                        </div>
+                        {invoiceDetails && (
+                          <>
+                            <div>
+                              <span className="text-[var(--muted-foreground)]">Total:</span>{' '}
+                              <span className="font-medium">
+                                ${invoiceDetails.balance?.total?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[var(--muted-foreground)]">Commission Rate:</span>{' '}
+                              <span className="font-medium">
+                                {invoiceDetails.balance?.commissionRate != null
+                                  ? `${Number(invoiceDetails.balance.commissionRate).toFixed(2)}%`
+                                  : '-'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[var(--muted-foreground)]">Commission:</span>{' '}
+                              <span className="font-medium text-green-600">
+                                ${invoiceDetails.balance?.commission?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[var(--muted-foreground)]">Order #:</span>{' '}
+                              <span className="font-medium">{invoiceDetails.order?.orderNumber || '-'}</span>
+                            </div>
+                          </>
+                        )}
+                      </>
+                    )}
                   </>
                 )}
                 {type === 'credit' && selectedCredit && (
