@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { handleSignOut } from "@/lib/actions";
 
 export default function AuthErrorPage() {
   return (
@@ -30,6 +31,27 @@ export default function AuthErrorPage() {
               Please contact the FlowRMS team to get your account set up.
             </p>
           </div>
+
+          <form action={handleSignOut}>
+            <button
+              type="submit"
+              className="flex items-center justify-center gap-2 w-full px-4 py-3 text-sm font-medium text-white bg-[var(--destructive)] rounded-lg hover:bg-[var(--destructive)]/90 transition-colors"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />
+              </svg>
+              Sign Out
+            </button>
+          </form>
 
           <p className="text-center text-xs text-[var(--muted-foreground)]">
             If you believe this is an error, please reach out to your administrator.
