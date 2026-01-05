@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { MobileSidebarContext } from './Sidebar';
-import AIUploaderModal from './ai-uploader/AIUploaderModal';
 import UniversalSearch from './UniversalSearch';
 import { useUser } from './providers/user-provider';
 import { useOrgName } from './hooks/useOrgName';
@@ -17,7 +16,6 @@ export default function TopBar() {
   const user = useUser();
   const { orgName, isLoading: orgLoading } = useOrgName();
   const { setIsOpen, isMobile } = React.useContext(MobileSidebarContext);
-  const [isUploaderOpen, setIsUploaderOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   return (
@@ -180,8 +178,8 @@ export default function TopBar() {
       {/* Right: AI Uploader, DISC Analytics, Back to FlowRMS & Notifications */}
       <div className="flex items-center gap-2 sm:gap-3">
         {/* AI Uploader Button */}
-        <button
-          onClick={() => setIsUploaderOpen(true)}
+        <Link
+          href="/flow-ai/upload"
           className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium bg-gradient-to-r from-violet-500 to-purple-600 text-white rounded-lg hover:from-violet-600 hover:to-purple-700 transition-all shadow-sm"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-4 sm:h-4">
@@ -189,7 +187,7 @@ export default function TopBar() {
           </svg>
           <span className="hidden sm:inline">AI Uploader</span>
           <span className="sm:hidden">AI</span>
-        </button>
+        </Link>
 
         {/* DISC Analytics Button - HIDDEN */}
         {/* <Link
@@ -253,11 +251,6 @@ export default function TopBar() {
         </button>
       )}
 
-      {/* AI Uploader Modal */}
-      <AIUploaderModal
-        isOpen={isUploaderOpen}
-        onClose={() => setIsUploaderOpen(false)}
-      />
     </div>
   );
 }

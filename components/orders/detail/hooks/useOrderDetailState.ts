@@ -10,7 +10,8 @@ import type { Order, OrderLineItem } from '@/lib/types/rms';
 import type { FulfillmentOrder } from '@/lib/types/warehouse';
 import type { TabType, LineItemAcknowledgement, LineItemCredit, ColumnKey } from '../types';
 import { mockFulfillmentOrders } from '@/lib/data/warehouse-mock';
-import { useOrder, useUpdateOrder, useCreateOrder, searchUsers, searchFactories, searchCustomers, getProductCpnByCustomer, type Order as ApiOrder, type OrderDetail } from '../../api';
+import { useOrder, useUpdateOrder, useCreateOrder, searchUsers, searchCustomers, getProductCpnByCustomer, type Order as ApiOrder, type OrderDetail } from '../../api';
+import { fetchFactoryById } from '@/components/warehouse/api/factoriesApi';
 import { DEFAULT_ACTIVE_TAB } from '../config/tabsConfig';
 import { useOrderHeader } from './useOrderHeader';
 import { useLineItemsTable } from './useLineItemsTable';
@@ -267,9 +268,8 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
 
       // Fetch factory name if we have a factoryId
       if (transformedOrder.manufacturerId) {
-        const factoryPromise = searchFactories('', true)
-          .then((factories) => {
-            const factory = factories.find(f => f.id === transformedOrder.manufacturerId);
+        const factoryPromise = fetchFactoryById(transformedOrder.manufacturerId)
+          .then((factory) => {
             if (factory) {
               setLocalOrder(prev => ({ ...prev, manufacturerName: factory.title }));
             }
