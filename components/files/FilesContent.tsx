@@ -333,6 +333,7 @@ export default function FilesContent() {
           file,
           fileName: file.name,
           folderId: currentFolderId || undefined,
+          fileEntityType: 'UNDEFINED', // Files uploaded from /files page are not linked to specific entity types
         });
       }
 
