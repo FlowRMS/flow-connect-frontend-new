@@ -73,9 +73,15 @@ export function JobDetailHeader({
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-1.5 md:mb-2">
                 <h1 className="text-lg md:text-2xl font-bold text-[var(--foreground)] truncate">{job.name}</h1>
-                <span className={`px-2 md:px-3 py-0.5 md:py-1 rounded-full text-xs md:text-sm font-medium ${getStatusColor(job.status)}`}>
-                  {job.status}
-                </span>
+                {(() => {
+                  const statusColor = getStatusColor(job.status);
+                  return (
+                    <span className={`inline-flex items-center gap-1.5 px-2 md:px-3 py-0.5 md:py-1 rounded-full text-xs md:text-sm font-medium ${statusColor.bg} ${statusColor.text}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${statusColor.dot} flex-shrink-0`}></span>
+                      {job.status}
+                    </span>
+                  );
+                })()}
               </div>
 
               <div className="flex flex-wrap items-center gap-2 md:gap-4 text-xs md:text-sm text-[var(--muted-foreground)]">
