@@ -455,16 +455,16 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
     }
   }, [quote.id, duplicateQuoteMutation]);
 
-  const tabs: { key: TabType; label: string; count?: number; comingSoon?: boolean }[] = useMemo(() => [
+  const tabs: { key: TabType; label: string; count?: number; comingSoon?: boolean; disabled?: boolean; disabledReason?: string }[] = useMemo(() => [
     { key: 'lineItems', label: 'Line Items', count: lineItems.length },
-    { key: 'files', label: 'Files' },
-    { key: 'notes', label: 'Notes', comingSoon: true },
-    { key: 'tasks', label: 'Tasks', comingSoon: true },
-    { key: 'activity', label: 'Activity', comingSoon: true },
-    { key: 'linkedObjects', label: 'Linked Objects', comingSoon: true },
-    { key: 'versions', label: 'Versions', comingSoon: true },
+    { key: 'files', label: 'Files', disabled: isNew, disabledReason: 'Save quote first' },
+    { key: 'notes', label: 'Notes', comingSoon: true, disabled: isNew, disabledReason: 'Save quote first' },
+    { key: 'tasks', label: 'Tasks', comingSoon: true, disabled: isNew, disabledReason: 'Save quote first' },
+    { key: 'activity', label: 'Activity', comingSoon: true, disabled: isNew, disabledReason: 'Save quote first' },
+    { key: 'linkedObjects', label: 'Linked Objects', comingSoon: true, disabled: isNew, disabledReason: 'Save quote first' },
+    { key: 'versions', label: 'Versions', comingSoon: true, disabled: isNew, disabledReason: 'Save quote first' },
     { key: 'settings', label: 'Settings', comingSoon: true },
-  ], [lineItems.length]);
+  ], [lineItems.length, isNew]);
 
   // Loading state
   if (isLoading && !isNew) {
@@ -530,26 +530,35 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         {tabs.map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
+            onClick={() => !tab.disabled && setActiveTab(tab.key)}
+            disabled={tab.disabled}
+            title={tab.disabled ? tab.disabledReason : undefined}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === tab.key
+              tab.disabled
+                ? 'border-transparent text-gray-300 cursor-not-allowed'
+                : activeTab === tab.key
                 ? 'border-indigo-600 text-indigo-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
             {tab.label}
             {tab.count !== undefined && (
-              <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">
+              <span className={`px-2 py-0.5 rounded text-xs ${tab.disabled ? 'bg-gray-50 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
                 {tab.count}
               </span>
             )}
-            {tab.comingSoon && (
+            {tab.comingSoon && !tab.disabled && (
               <span className="px-1.5 py-0.5 bg-gray-100 text-gray-400 rounded text-[10px] uppercase">
                 Soon
               </span>
             )}
           </button>
         ))}
+        {isNew && (
+          <span className="ml-auto text-xs text-gray-400 italic pr-2">
+            Some tabs will unlock after saving
+          </span>
+        )}
       </div>
 
       {/* Tab Content */}
