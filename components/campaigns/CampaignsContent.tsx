@@ -8,6 +8,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useCampaignState } from './hooks/useCampaignState';
+import { useCampaignsListState } from './hooks/useCampaignsListState';
 import { useRuleState } from './hooks/useRuleState';
 import { rules as mockRules } from './mockData';
 import CampaignsListView from './views/CampaignsListView';
@@ -18,7 +19,6 @@ import AIModal from './modals/AIModal';
 import type { Campaign } from './types';
 import { mapCampaignStatus } from './types';
 import {
-  useCampaigns,
   useCampaign,
   useCampaignRecipients,
   useDeleteCampaign,
@@ -31,6 +31,9 @@ import {
 import CampaignStatusModal from './modals/CampaignStatusModal';
 import { mapAPIToListType } from './types';
 import { campaignToasts } from '../lib/toast';
+import AdvancedFilters from '../AdvancedFilters';
+import SortButton from '../SortButton';
+import { getCampaignFilterOptions, getCampaignSortOptions } from './config/filterConfig';
 
 export default function CampaignsContent() {
   // URL routing
@@ -85,10 +88,9 @@ export default function CampaignsContent() {
   // Check if we should poll (when on campaigns tab and there are active campaigns)
   const shouldPoll = campaignState.activeTab === 'campaigns';
 
+  // Campaigns list state with filtering and sorting
   // Fetch campaigns from API with background polling every 15 seconds when viewing list
-  const { data: campaignsData, isLoading: campaignsLoading, error: campaignsError } = useCampaigns(
-    shouldPoll ? 15000 : undefined
-  );
+  const campaignsListState = useCampaignsListState(shouldPoll ? 15000 : undefined);
 
   // Campaign mutations
   const deleteCampaignMutation = useDeleteCampaign();
@@ -265,21 +267,8 @@ export default function CampaignsContent() {
     campaignState.setActiveTab('edit-campaign');
   };
 
-  // Transform API campaigns to UI format
-  const campaigns: Campaign[] = useMemo(() => {
-    if (!campaignsData?.records) return [];
-    return campaignsData.records.map((campaign) => ({
-      id: campaign.id,
-      name: campaign.name,
-      subject: '', // Subject is not returned in landing page query
-      recipients: campaign.recipientsCount,
-      status: mapCampaignStatus(campaign.status),
-      sentCount: campaign.sentCount,
-      createdDate: campaign.createdAt,
-      recipientListType: campaign.recipientListType,
-      progress: campaign.progress,
-    }));
-  }, [campaignsData]);
+  // Use campaigns from list state (already filtered and sorted by server)
+  const campaigns: Campaign[] = campaignsListState.campaigns;
 
   // Handle campaign actions
   const handleDeleteCampaign = async (campaignId: string) => {
@@ -549,18 +538,16 @@ export default function CampaignsContent() {
                 </svg>
               </button>
             </div>
-            <button className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors">
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M3 6h14M3 10h14M3 14h14" strokeLinecap="round"/>
-              </svg>
-              Filter
-            </button>
-            <button className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--muted)] transition-colors">
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M3 4h14M6 8h11M9 12h8M12 16h5" strokeLinecap="round"/>
-              </svg>
-              Sort
-            </button>
+            <SortButton
+              sortOptions={getCampaignSortOptions()}
+              onMultiSortChange={campaignsListState.handleMultiSortChange}
+              activeSorts={campaignsListState.activeSorts}
+            />
+            <AdvancedFilters
+              filterOptions={getCampaignFilterOptions(campaignsListState.uniqueStatuses, campaignsListState.uniqueNames)}
+              activeFilters={campaignsListState.activeFilters}
+              onFiltersChange={campaignsListState.handleFiltersChange}
+            />
             <button
               onClick={handleNewCampaign}
               className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"
@@ -611,18 +598,18 @@ export default function CampaignsContent() {
       {/* Content Area */}
       {campaignState.activeTab === 'campaigns' && (
         <>
-          {campaignsLoading && (
+          {campaignsListState.isLoading && (
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary)]"></div>
               <span className="ml-3 text-[var(--muted-foreground)]">Loading campaigns...</span>
             </div>
           )}
-          {campaignsError && (
+          {campaignsListState.error && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
               Failed to load campaigns. Please try again.
             </div>
           )}
-          {!campaignsLoading && !campaignsError && (
+          {!campaignsListState.isLoading && !campaignsListState.error && (
             <CampaignsListView
               campaigns={campaigns}
               onDelete={handleDeleteCampaign}
