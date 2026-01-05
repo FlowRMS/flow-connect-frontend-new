@@ -165,9 +165,9 @@ async function gmailGraphQLRequest<T>(
 
   if (!accessToken) {
     if (typeof window !== 'undefined') {
-      window.location.href = '/sign-in';
+      window.location.href = '/auth-error';
     }
-    throw new Error('Authentication required. Redirecting to sign-in...');
+    throw new Error('Authentication failed. Please clear your cookies and try again.');
   }
 
   const endpoint = getGraphQLEndpoint();
@@ -205,9 +205,9 @@ async function gmailGraphQLRequest<T>(
       });
     } else {
       if (typeof window !== 'undefined') {
-        window.location.href = '/sign-in';
+        window.location.href = '/auth-error';
       }
-      throw new Error('Authentication expired. Redirecting to sign-in...');
+      throw new Error('Authentication expired. Please clear your cookies and try again.');
     }
   }
 
