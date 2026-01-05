@@ -39,6 +39,9 @@ import {
   addShipmentRequest,
 } from '@/lib/data/warehouse-mock';
 import { BackorderReviewData, AssignedUserRole, AttachedDocument } from '@/lib/types/warehouse';
+// Inventory API for real inventory data
+import { useInventoriesByProducts } from './api/useInventoryApi';
+import type { Inventory } from './api/inventoryApi';
 
 // Local type for backorder items compatible with API types
 interface BackorderItem {
@@ -294,6 +297,27 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   const isPacking = displayStatus === 'PACKING';
   const isShipping = displayStatus === 'SHIPPING';
   const isShipped = displayStatus === 'SHIPPED';
+
+  // Fetch real inventory data for picking - only when in picking mode
+  const productIds = useMemo(
+    () => fulfillmentOrder.lineItems.map((li) => li.productId),
+    [fulfillmentOrder.lineItems]
+  );
+  const { data: inventoryList } = useInventoriesByProducts(
+    productIds,
+    fulfillmentOrder.warehouseId || '',
+    { enabled: isPicking && !!fulfillmentOrder.warehouseId }
+  );
+
+  // Convert inventory list to a Map for efficient lookup by productId
+  const inventoryDataMap = useMemo(() => {
+    if (!inventoryList) return undefined;
+    const map = new Map<string, Inventory>();
+    inventoryList.forEach((inv) => {
+      map.set(inv.productId, inv);
+    });
+    return map;
+  }, [inventoryList]);
 
   // Picking handlers
   const handleMarkAsPicked = async (lineItemId: string, qty: number) => {
@@ -1055,6 +1079,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
               onExpandNote={setExpandedNoteId}
               onCompletePicking={handleCompletePicking}
               onReportInventoryDiscrepancy={handleInventoryDiscrepancy}
+              inventoryData={inventoryDataMap}
             />
           </div>
         )}

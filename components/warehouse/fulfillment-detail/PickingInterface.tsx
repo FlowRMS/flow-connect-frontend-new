@@ -3,6 +3,11 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { FulfillmentOrder, InventoryLocation, FulfillmentOrderLineItem } from '@/lib/types/warehouse';
 import { getProductLocations, calculatePickingAllocation } from '@/lib/data/warehouse-mock';
+import {
+  Inventory,
+  calculatePickingAllocationFromInventory,
+  PickingAllocation,
+} from '../api/inventoryApi';
 
 interface LocationPickState {
   locationId: string;
@@ -46,6 +51,33 @@ interface PickingInterfaceProps {
   onExpandNote: (lineItemId: string | null) => void;
   onCompletePicking: () => void;
   onReportInventoryDiscrepancy?: (discrepancy: InventoryDiscrepancy) => void;
+  /** Real inventory data from API - when provided, uses real data instead of mocks */
+  inventoryData?: Map<string, Inventory>;
+}
+
+// Helper function to get allocations - uses real inventory if available, falls back to mock
+function getAllocationsForLineItem(
+  lineItem: FulfillmentOrderLineItem,
+  inventoryData?: Map<string, Inventory>
+): { locationId: string; locationName: string; locationType: string; quantity: number }[] {
+  // If real inventory data is available, use it
+  if (inventoryData) {
+    const inventory = inventoryData.get(lineItem.productId);
+    if (inventory) {
+      const allocations = calculatePickingAllocationFromInventory(inventory, lineItem.allocatedQty);
+      return allocations.map((alloc) => ({
+        locationId: alloc.locationId,
+        locationName: alloc.locationName,
+        locationType: alloc.locationType,
+        quantity: alloc.quantity,
+      }));
+    }
+    // Product not in inventory - return empty (will show as shortage)
+    return [];
+  }
+
+  // Fall back to mock data
+  return calculatePickingAllocation(lineItem.productId, lineItem.allocatedQty);
 }
 
 export default function PickingInterface({
@@ -59,12 +91,13 @@ export default function PickingInterface({
   onExpandNote,
   onCompletePicking,
   onReportInventoryDiscrepancy,
+  inventoryData,
 }: PickingInterfaceProps) {
   // Track picked quantities per location per line item
   const [locationPicks, setLocationPicks] = useState<Record<string, LineItemPickState>>(() => {
     const initial: Record<string, LineItemPickState> = {};
     fulfillmentOrder.lineItems.forEach(li => {
-      const allocations = calculatePickingAllocation(li.productId, li.allocatedQty);
+      const allocations = getAllocationsForLineItem(li, inventoryData);
       initial[li.id] = {
         lineItemId: li.id,
         locations: allocations.map(loc => ({
@@ -312,7 +345,7 @@ export default function PickingInterface({
       const lineItem = fulfillmentOrder.lineItems.find(li => li.id === lineItemId);
       if (!lineItem) return prev;
 
-      const originalAllocations = calculatePickingAllocation(lineItem.productId, lineItem.allocatedQty);
+      const originalAllocations = getAllocationsForLineItem(lineItem, inventoryData);
 
       // Rebuild locations: restore original expected for this and subsequent locations
       const newLocations = lineState.locations.map((loc, idx) => {
@@ -436,7 +469,7 @@ export default function PickingInterface({
       const lineItem = fulfillmentOrder.lineItems.find(li => li.id === lineItemId);
       if (!lineItem) return prev;
 
-      const allocations = calculatePickingAllocation(lineItem.productId, lineItem.allocatedQty);
+      const allocations = getAllocationsForLineItem(lineItem, inventoryData);
       const newLocations = allocations.map(loc => ({
         locationId: loc.locationId,
         locationName: loc.locationName,
@@ -458,7 +491,7 @@ export default function PickingInterface({
         },
       };
     });
-  }, [onMarkAsPicked, fulfillmentOrder.lineItems]);
+  }, [onMarkAsPicked, fulfillmentOrder.lineItems, inventoryData]);
 
   // Report all inventory discrepancies across the order
   const handleReportAllDiscrepancies = useCallback(() => {
