@@ -40,11 +40,15 @@ export interface FileResponse {
   createdBy?: FileCreatedBy | string;
 }
 
+// Document entity types for file uploads
+export type DocumentEntityType = 'QUOTES' | 'ORDERS' | 'INVOICES' | 'CHECKS' | 'CUSTOMERS' | 'FACTORIES' | 'PRODUCTS' | 'UNDEFINED';
+
 export interface FileUploadInput {
   file: File;
   fileName: string;
   folderId?: string;
   folderPath?: string;
+  fileEntityType?: DocumentEntityType;
 }
 
 export interface MultiFileUploadInput {
@@ -401,8 +405,8 @@ const SEARCH_FOLDERS = `
 // ============================================================================
 
 const UPLOAD_FILE = `
-  mutation UploadFile($file: Upload!, $fileName: String!, $folderId: UUID, $folderPath: String) {
-    uploadFile(input: { file: $file, fileName: $fileName, folderId: $folderId, folderPath: $folderPath }) {
+  mutation UploadFile($file: Upload!, $fileName: String!, $folderId: UUID, $folderPath: String, $fileEntityType: DocumentEntityType) {
+    uploadFile(input: { file: $file, fileName: $fileName, folderId: $folderId, folderPath: $folderPath, fileEntityType: $fileEntityType }) {
       id
       fileName
       filePath
@@ -719,6 +723,9 @@ export async function uploadFile(input: FileUploadInput): Promise<FileResponse> 
   }
   if (input.folderPath) {
     variables.folderPath = input.folderPath;
+  }
+  if (input.fileEntityType) {
+    variables.fileEntityType = input.fileEntityType;
   }
 
   const response = await crmGraphQLMultipartRequest<{ uploadFile: FileResponse }>({

@@ -1,0 +1,182 @@
+import { CheckCircle2, AlertCircle, Search, Loader2, Plus, Sparkles, Ban, PlusCircle } from 'lucide-react';
+import { Button } from '@/components/flow-ai/ui/button';
+import { Checkbox } from '@/components/flow-ai/ui/checkbox';
+import { Label } from '@/components/flow-ai/ui/label';
+import { Switch } from '@/components/flow-ai/ui/switch';
+import type { FilterType } from '@/components/flow-ai/types/entity-matching';
+
+interface EntityFilterControlsProps {
+  activeFilters: Set<FilterType>;
+  toggleFilter: (filter: FilterType) => void;
+  createNewMode: boolean;
+  setCreateNewMode: (mode: boolean) => void;
+  selectedCount: number;
+  selectableCount: number;
+  entitiesCount: number;
+  allSelected: boolean;
+  onSelectAll: () => void;
+  onBulkApprove: () => void;
+  onBulkCreateNew: () => void;
+  isLoading?: boolean;
+}
+
+export function EntityFilterControls({
+  activeFilters,
+  toggleFilter,
+  createNewMode,
+  setCreateNewMode,
+  selectedCount,
+  selectableCount,
+  entitiesCount,
+  allSelected,
+  onSelectAll,
+  onBulkApprove,
+  onBulkCreateNew,
+  isLoading = false
+}: EntityFilterControlsProps) {
+  return (
+    <div className="p-4 bg-white border rounded-lg space-y-4">
+      {/* Top Row: Select All, Filters, Create New Mode */}
+      <div className="flex flex-wrap items-center gap-4">
+        {/* Select All Checkbox */}
+        <div className="flex items-center gap-2">
+          <Checkbox
+            checked={selectableCount > 0 && allSelected}
+            onCheckedChange={onSelectAll}
+            id="select-all"
+            disabled={selectableCount === 0}
+          />
+          <Label htmlFor="select-all" className="text-sm font-medium cursor-pointer whitespace-nowrap">
+            Select All ({selectableCount})
+          </Label>
+        </div>
+
+        {/* Filter Buttons */}
+        {!createNewMode && (
+          <div className="flex flex-wrap items-center gap-2 pl-4 border-l">
+            <Label className="text-sm text-muted-foreground mr-1">Show:</Label>
+            {/* Auto Matched */}
+            <Button
+              variant={activeFilters.has('auto-matched') ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => toggleFilter('auto-matched')}
+              className="h-7 text-xs px-3"
+            >
+              <Sparkles className="w-3 h-3 mr-1" />
+              Auto Matched
+            </Button>
+            {/* Needs Review */}
+            <Button
+              variant={(activeFilters.has('needs-review') || activeFilters.has('pending')) ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => {
+                // Toggle both needs review filters together
+                const hasEither = activeFilters.has('needs-review') || activeFilters.has('pending');
+                if (hasEither) {
+                  if (activeFilters.has('needs-review')) toggleFilter('needs-review');
+                  if (activeFilters.has('pending')) toggleFilter('pending');
+                } else {
+                  if (!activeFilters.has('needs-review')) toggleFilter('needs-review');
+                  if (!activeFilters.has('pending')) toggleFilter('pending');
+                }
+              }}
+              className="h-7 text-xs px-3"
+            >
+              <AlertCircle className="w-3 h-3 mr-1" />
+              Needs Review
+            </Button>
+            {/* Confirmed */}
+            <Button
+              variant={activeFilters.has('confirmed') ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => toggleFilter('confirmed')}
+              className="h-7 text-xs px-3"
+            >
+              <CheckCircle2 className="w-3 h-3 mr-1" />
+              Confirmed
+            </Button>
+            {/* Rejected / No Match */}
+            <Button
+              variant={activeFilters.has('no-match') ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => toggleFilter('no-match')}
+              className="h-7 text-xs px-3"
+            >
+              <Ban className="w-3 h-3 mr-1" />
+              Rejected
+            </Button>
+          </div>
+        )}
+
+        {/* Create New Mode Toggle */}
+        <div className="flex items-center gap-2 pl-4 border-l ml-auto">
+          <Switch
+            id="create-mode"
+            checked={createNewMode}
+            onCheckedChange={setCreateNewMode}
+          />
+          <Label htmlFor="create-mode" className="text-sm font-medium cursor-pointer whitespace-nowrap">
+            Create New Mode
+          </Label>
+        </div>
+      </div>
+
+      {/* Bottom Row: Action Buttons */}
+      <div className="flex flex-wrap items-center gap-3 pt-3 border-t">
+        <Label className="text-sm text-muted-foreground mr-1">Actions:</Label>
+        {!createNewMode ? (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onBulkApprove}
+              disabled={selectedCount === 0 || isLoading}
+              className="h-8 px-4"
+            >
+              {isLoading ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 mr-2" />
+              )}
+              {selectedCount > 1 ? `Bulk Approve Matches (${selectedCount})` : `Approve Match (${selectedCount})`}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onBulkCreateNew}
+              disabled={selectedCount === 0 || isLoading}
+              className="h-8 px-4"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              {selectedCount > 1 ? `Bulk Create New (${selectedCount})` : `Create New (${selectedCount})`}
+            </Button>
+          </>
+        ) : (
+          <Button
+            variant="default"
+            size="sm"
+            onClick={onBulkCreateNew}
+            disabled={selectedCount === 0 || isLoading}
+            className="h-8 px-4"
+          >
+            {isLoading ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Plus className="w-4 h-4 mr-2" />
+            )}
+            Create Selected ({selectedCount})
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+
+
+
+
+
+
+

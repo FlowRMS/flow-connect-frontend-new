@@ -44,6 +44,7 @@
     "flow-analytics-main (1)",
     "revogrid-pro-main",
     "flow-crm-warehouse-additions",
-    "flow-crm-feature-analytics-integration"
+    "flow-crm-feature-analytics-integration",
+    "flow-ai-frontend"
   ]
 }

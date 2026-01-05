@@ -11,7 +11,25 @@ import {
   getFileExtension,
   type FileResponse,
   type FileEntityType,
+  type DocumentEntityType,
 } from '../lib/graphql/files';
+
+// Map FileEntityType to DocumentEntityType for file uploads
+const getDocumentEntityType = (entityType: FileEntityType): DocumentEntityType | undefined => {
+  switch (entityType) {
+    case 'QUOTE':
+      return 'QUOTES';
+    case 'ORDER':
+      return 'ORDERS';
+    case 'INVOICE':
+      return 'INVOICES';
+    case 'CHECK':
+      return 'CHECKS';
+    default:
+      // For other entity types (JOB, TASK, CONTACT, etc.), don't send fileEntityType
+      return undefined;
+  }
+};
 import { DeleteConfirmModal } from '@/components/orders/detail/components/modals/utility/DeleteConfirmModal';
 import { showSuccessToast, showErrorToast } from '@/components/lib/toast';
 
@@ -71,6 +89,9 @@ export function FilesTab({ entityId, entityType }: FilesTabProps) {
     setIsUploading(true);
     setError(null);
 
+    // Get the document entity type for this entity type (QUOTES, ORDERS, INVOICES, CHECKS)
+    const documentEntityType = getDocumentEntityType(entityType);
+
     try {
       for (let i = 0; i < fileList.length; i++) {
         const file = fileList[i];
@@ -80,6 +101,7 @@ export function FilesTab({ entityId, entityType }: FilesTabProps) {
           {
             file,
             fileName: file.name,
+            fileEntityType: documentEntityType,
           },
           entityType,
           entityId
