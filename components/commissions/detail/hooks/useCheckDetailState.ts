@@ -579,6 +579,15 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     dueDate?: string;
     status?: string;
     orderId?: string;
+    order?: {
+      id: string;
+      orderNumber: string;
+      entityDate?: string;
+      status?: string;
+      headerStatus?: string;
+      factoryId?: string;
+      soldToCustomerId?: string;
+    };
     balanceId?: string;
     locked?: boolean;
     published?: boolean;
@@ -593,7 +602,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
       type: 'invoice' as const,
       number: invoice.invoiceNumber || '',
       orderId: invoice.orderId || '',
-      orderNumber: '', // Will be populated if needed
+      orderNumber: invoice.order?.orderNumber || '',
       customer: '-',
       salesRep: '-',
       commissionRateExpected: 0,

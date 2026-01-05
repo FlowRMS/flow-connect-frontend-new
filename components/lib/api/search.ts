@@ -191,6 +191,15 @@ export interface OpenInvoiceSearchResult {
   dueDate?: string;
   status?: string;
   orderId?: string;
+  order?: {
+    id: string;
+    orderNumber: string;
+    entityDate?: string;
+    status?: string;
+    headerStatus?: string;
+    factoryId?: string;
+    soldToCustomerId?: string;
+  };
   balanceId?: string;
   locked?: boolean;
   published?: boolean;
@@ -483,6 +492,15 @@ const SEARCH_OPEN_INVOICES = `
       dueDate
       status
       orderId
+      order {
+        id
+        orderNumber
+        entityDate
+        status
+        headerStatus
+        factoryId
+        soldToCustomerId
+      }
       balanceId
       locked
       published
