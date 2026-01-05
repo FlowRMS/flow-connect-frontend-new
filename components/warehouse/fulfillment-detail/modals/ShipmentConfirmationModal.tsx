@@ -116,17 +116,18 @@ export default function ShipmentConfirmationModal({
   );
 
   // Variable definitions for this shipment
+  const shipTo = fulfillmentOrder.shipTo || fulfillmentOrder.shipToAddress;
   const variables: Record<string, string> = {
     orderNumber: fulfillmentOrder.orderNumber,
-    customerName: fulfillmentOrder.shipTo.name,
+    customerName: shipTo?.name || fulfillmentOrder.customerName || 'N/A',
     trackingInfo: trackingNumbers
       ? `Tracking Number(s): ${trackingNumbers}\nCarrier: ${carrier ? carrier.toUpperCase().replace('_', ' ') : 'N/A'}`
       : 'Tracking information will be provided once available.',
-    shippingAddress: [
-      fulfillmentOrder.shipTo.addressLine1,
-      fulfillmentOrder.shipTo.addressLine2,
-      `${fulfillmentOrder.shipTo.city}, ${fulfillmentOrder.shipTo.state} ${fulfillmentOrder.shipTo.postalCode}`,
-    ].filter(Boolean).join('\n'),
+    shippingAddress: shipTo ? [
+      shipTo.addressLine1 || shipTo.street,
+      shipTo.addressLine2,
+      `${shipTo.city || ''}, ${shipTo.state || ''} ${shipTo.postalCode || ''}`.trim(),
+    ].filter(Boolean).join('\n') : 'No shipping address provided',
     orderItems: fulfillmentOrder.lineItems.map(item =>
       `• ${item.productName} (${item.partNumber}) x ${item.allocatedQty}`
     ).join('\n'),

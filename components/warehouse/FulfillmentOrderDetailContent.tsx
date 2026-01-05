@@ -244,6 +244,32 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
     return manufacturerIds.flatMap(id => getPendingShipmentRequestsForManufacturer(id));
   }, [backorderItems]);
 
+  // Fetch real inventory data for picking - moved here to ensure hooks are called unconditionally
+  const productIds = useMemo(
+    () => fulfillmentOrder?.lineItems.map((li) => li.productId) || [],
+    [fulfillmentOrder?.lineItems]
+  );
+
+  // Determine if we're in picking mode (need to check before early returns for hook consistency)
+  const currentStatus = fulfillmentOrder?.status;
+  const shouldFetchInventory = currentStatus === 'PICKING' && !!fulfillmentOrder?.warehouseId;
+
+  const { data: inventoryList } = useInventoriesByProducts(
+    productIds,
+    fulfillmentOrder?.warehouseId || '',
+    { enabled: shouldFetchInventory }
+  );
+
+  // Convert inventory list to a Map for efficient lookup by productId
+  const inventoryDataMap = useMemo(() => {
+    if (!inventoryList) return undefined;
+    const map = new Map<string, Inventory>();
+    inventoryList.forEach((inv) => {
+      map.set(inv.productId, inv);
+    });
+    return map;
+  }, [inventoryList]);
+
   // Loading state
   if (isLoading) {
     return (
@@ -297,27 +323,6 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   const isPacking = displayStatus === 'PACKING';
   const isShipping = displayStatus === 'SHIPPING';
   const isShipped = displayStatus === 'SHIPPED';
-
-  // Fetch real inventory data for picking - only when in picking mode
-  const productIds = useMemo(
-    () => fulfillmentOrder.lineItems.map((li) => li.productId),
-    [fulfillmentOrder.lineItems]
-  );
-  const { data: inventoryList } = useInventoriesByProducts(
-    productIds,
-    fulfillmentOrder.warehouseId || '',
-    { enabled: isPicking && !!fulfillmentOrder.warehouseId }
-  );
-
-  // Convert inventory list to a Map for efficient lookup by productId
-  const inventoryDataMap = useMemo(() => {
-    if (!inventoryList) return undefined;
-    const map = new Map<string, Inventory>();
-    inventoryList.forEach((inv) => {
-      map.set(inv.productId, inv);
-    });
-    return map;
-  }, [inventoryList]);
 
   // Picking handlers
   const handleMarkAsPicked = async (lineItemId: string, qty: number) => {
