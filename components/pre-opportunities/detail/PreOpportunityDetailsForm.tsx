@@ -400,25 +400,7 @@ export function PreOpportunityDetailsForm({
         
         {isAdditionalDetailsOpen && (
           <div className="p-6">
-            <div className="grid grid-cols-3 gap-5">
-              {/* Customer Reference */}
-              <div>
-                <label className={labelClass}>
-                  <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                  Customer Reference
-                </label>
-                <input
-                  type="text"
-                  value={editFormData.customerRef}
-                  onChange={(e) => onChange('customerRef', e.target.value)}
-                  className={inputBaseClass}
-                  readOnly={!isEditing}
-                  placeholder={isEditing ? "Enter customer reference" : "-"}
-                />
-              </div>
-              
+            <div className="grid grid-cols-2 gap-5">
               {/* Payment Terms */}
               <div>
                 <label className={labelClass}>

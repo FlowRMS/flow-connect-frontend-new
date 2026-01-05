@@ -8,12 +8,21 @@ import React from 'react';
 import type { PreOpportunity } from '../types';
 import { formatCurrency, formatDate } from '../utils';
 import { useCRMCustomerSearch, useCRMJobSearch } from '../../hooks/useCRMApi';
+import type { EditFormData } from './PreOpportunityDetailsForm';
 
 interface PreOpportunitySummaryProps {
   preOpp: PreOpportunity;
+  isEditing?: boolean;
+  editFormData?: EditFormData;
+  onChange?: (field: keyof EditFormData, value: string) => void;
 }
 
-export function PreOpportunitySummary({ preOpp }: PreOpportunitySummaryProps) {
+export function PreOpportunitySummary({ 
+  preOpp, 
+  isEditing = false, 
+  editFormData, 
+  onChange 
+}: PreOpportunitySummaryProps) {
   const totalSubtotal = preOpp.details.reduce((sum, detail) => sum + (Number(detail.subtotal) || 0), 0);
   const totalDiscount = preOpp.details.reduce((sum, detail) => sum + (Number(detail.discount) || 0), 0);
   const grandTotal = preOpp.balance?.total || totalSubtotal - totalDiscount;
@@ -135,6 +144,22 @@ export function PreOpportunitySummary({ preOpp }: PreOpportunitySummaryProps) {
             <div className="text-sm font-medium text-gray-900 bg-gray-50 p-2 rounded mt-1">
               {getCustomerName(preOpp.soldToCustomerId)}
             </div>
+          </div>
+          <div>
+            <div className="text-sm text-gray-500">Customer Reference</div>
+            {isEditing && editFormData && onChange ? (
+              <input
+                type="text"
+                value={editFormData.customerRef || ''}
+                onChange={(e) => onChange('customerRef', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent mt-1"
+                placeholder="Enter customer reference"
+              />
+            ) : (
+              <div className="text-sm font-medium text-gray-900 bg-gray-50 p-2 rounded mt-1">
+                {preOpp.customerRef || '-'}
+              </div>
+            )}
           </div>
           {preOpp.billToCustomerId && (
             <div>
