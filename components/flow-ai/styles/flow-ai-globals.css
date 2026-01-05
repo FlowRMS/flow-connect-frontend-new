@@ -1,0 +1,281 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* RevoGrid Web Component global styles */
+@import './revogrid-official.css';
+
+/* Flow-Scan Design System - Premium color palette with purple primary */
+/* Scoped to .flow-ai-scope to avoid conflicts with CRM styles */
+
+.flow-ai-scope {
+  /* Flow-Scan Light Theme */
+  --primary: 246 75% 60%;           /* #5048E6 - Premium Purple */
+  --primary-foreground: 0 0% 100%;   /* #FFFFFF */
+  
+  --secondary: 199 85% 41%;          /* #0B84C7 - Cyan */
+  --secondary-foreground: 0 0% 100%; /* #FFFFFF */
+  
+  --success: 148 53% 58%;            /* #6BD194 - Green */
+  --warning: 35 73% 69%;             /* #F0B972 - Gold */
+  --destructive: 2 100% 64%;         /* #FF4A44 - Red */
+  
+  --background: 216 33% 97%;         /* #F6F7F9 - Soft gray-blue */
+  --foreground: 212 32% 13%;         /* #232F3F - Dark slate */
+  
+  --card: 0 0% 100%;                 /* #FFFFFF */
+  --card-foreground: 212 32% 13%;    /* #232F3F */
+  
+  --muted: 213 29% 95%;              /* #EFF3F7 - Light muted */
+  --muted-foreground: 206 10% 44%;   /* #606F7B - Gray text */
+  
+  --border: 211 23% 92%;             /* #E2E9F2 - Subtle border */
+  --input: 211 23% 92%;              /* #E2E9F2 */
+  --ring: 246 75% 60%;               /* Primary ring */
+  
+  --accent: 213 29% 95%;             /* #EFF3F7 */
+  --accent-foreground: 212 32% 13%;  /* #232F3F */
+  
+  --popover: 0 0% 100%;
+  --popover-foreground: 212 32% 13%;
+  
+  --radius: 0.75rem;
+  
+  /* Status colors */
+  --status-completed: 148 53% 58%;   /* Success green */
+  --status-processing: 199 85% 41%;  /* Secondary cyan */
+  --status-failed: 2 100% 64%;       /* Destructive red */
+  --status-pending: 206 10% 44%;     /* Muted gray */
+  
+  /* Apply base styles */
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.flow-ai-scope.dark,
+.dark .flow-ai-scope {
+  /* Flow-Scan Dark Theme */
+  --primary: 246 100% 77%;           /* #8D86FF - Lighter purple */
+  --primary-foreground: 210 20% 8%;  /* #0F1419 */
+  
+  --secondary: 200 46% 65%;          /* #73B1D6 - Lighter cyan */
+  --secondary-foreground: 210 20% 8%; /* #0F1419 */
+  
+  --success: 149 61% 68%;            /* #79E0AD - Lighter green */
+  --warning: 35 84% 76%;             /* #F6C889 - Lighter gold */
+  --destructive: 2 100% 70%;         /* #FF6D67 - Lighter red */
+  
+  --background: 210 20% 8%;          /* #0F1419 - Deep dark */
+  --foreground: 210 8% 91%;          /* #E6E8EB - Light text */
+  
+  --card: 210 14% 11%;               /* #1A2128 - Dark card */
+  --card-foreground: 210 8% 91%;     /* #E6E8EB */
+  
+  --muted: 210 14% 11%;              /* #1A2128 */
+  --muted-foreground: 209 14% 68%;   /* #A5B1BC - Muted text */
+  
+  --border: 210 19% 23%;             /* #33404D - Subtle border */
+  --input: 210 19% 23%;              /* #33404D */
+  --ring: 246 100% 77%;              /* Primary ring */
+  
+  --accent: 210 14% 11%;             /* #1A2128 */
+  --accent-foreground: 210 8% 91%;   /* #E6E8EB */
+  
+  --popover: 210 14% 11%;
+  --popover-foreground: 210 8% 91%;
+  
+  /* Status colors dark */
+  --status-completed: 149 61% 68%;
+  --status-processing: 200 46% 65%;
+  --status-failed: 2 100% 70%;
+  --status-pending: 209 14% 68%;
+}
+
+/* Premium card styling - scoped */
+.flow-ai-scope .flow-card {
+  background-color: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  transition: all 0.2s;
+}
+
+.flow-ai-scope .flow-card:hover {
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  border-color: hsl(var(--primary) / 0.1);
+}
+
+/* Interactive elements */
+.flow-ai-scope .hover-lift {
+  transition: all 0.3s;
+}
+
+.flow-ai-scope .hover-lift:hover {
+  transform: scale(1.02) translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+/* Gradient backgrounds */
+.flow-ai-scope .gradient-primary {
+  background: linear-gradient(to bottom right, hsl(var(--primary)), hsl(var(--primary) / 0.8));
+}
+
+.flow-ai-scope .gradient-card {
+  background: linear-gradient(to bottom right, hsl(var(--card)), hsl(var(--card)), hsl(var(--muted) / 0.3));
+}
+
+/* Animated border */
+.flow-ai-scope .animated-border {
+  position: relative;
+  overflow: hidden;
+}
+
+.flow-ai-scope .animated-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 0.75rem;
+  background: linear-gradient(to right, hsl(var(--primary)), hsl(var(--secondary)), hsl(var(--primary)));
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+
+.flow-ai-scope .animated-border:hover::before {
+  opacity: 0.1;
+}
+
+/* Fade in animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.flow-ai-scope .fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Slide in animation */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.flow-ai-scope .slide-in {
+  animation: slideIn 0.4s ease-out;
+}
+
+/* Pulse glow */
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px hsl(var(--primary) / 0);
+  }
+}
+
+.flow-ai-scope .pulse-glow {
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+/* Slide across animation for loading bar */
+@keyframes slide-across {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+
+.flow-ai-scope .animate-\[slide-across_2s_ease-in-out_infinite\] {
+  animation: slide-across 2s ease-in-out infinite;
+}
+
+/* Pseudo code container styling for workflows */
+.flow-ai-scope .pseudo-code-container {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.875rem;
+  line-height: 1.625;
+}
+
+.flow-ai-scope .pseudo-code-content {
+  color: hsl(var(--foreground));
+}
+
+.flow-ai-scope .pseudo-formatted-content {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.flow-ai-scope .pseudo-item {
+  position: relative;
+  margin-bottom: 0.25rem;
+  line-height: 1.625;
+}
+
+/* Button variants for FlowAI */
+.flow-ai-scope [data-slot="button"] {
+  font-family: 'Inter', sans-serif;
+}
+
+/* Ensure proper text colors */
+.flow-ai-scope h1,
+.flow-ai-scope h2,
+.flow-ai-scope h3,
+.flow-ai-scope h4,
+.flow-ai-scope h5,
+.flow-ai-scope h6 {
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: hsl(var(--foreground));
+}
+
+.flow-ai-scope p {
+  color: hsl(var(--foreground));
+}
+
+.flow-ai-scope .text-muted-foreground {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+.flow-ai-scope .text-primary {
+  color: hsl(var(--primary)) !important;
+}
+
+.flow-ai-scope .bg-primary {
+  background-color: hsl(var(--primary)) !important;
+}
+
+.flow-ai-scope .bg-card {
+  background-color: hsl(var(--card)) !important;
+}
+
+.flow-ai-scope .bg-background {
+  background-color: hsl(var(--background)) !important;
+}
+
+.flow-ai-scope .bg-muted {
+  background-color: hsl(var(--muted)) !important;
+}
+
+.flow-ai-scope .border-border {
+  border-color: hsl(var(--border)) !important;
+}
+
+.flow-ai-scope .border-primary {
+  border-color: hsl(var(--primary)) !important;
+}

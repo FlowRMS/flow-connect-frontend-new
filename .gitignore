@@ -46,3 +46,5 @@ next-env.d.ts
 .github\instructions\codacy.instructions.md
 
 flow-py-backend/
+
+flow-ai-frontend/
