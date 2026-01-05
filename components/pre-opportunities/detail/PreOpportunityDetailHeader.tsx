@@ -5,7 +5,7 @@
 
 import React from 'react';
 import type { PreOpportunity, PreOpportunityStatus } from '../types';
-import { formatDate, formatCurrency } from '../utils';
+import { formatDate, formatCurrency, getOwnerInitials, getOwnerColor } from '../utils';
 
 // Status color mapping
 const STATUS_COLORS: Record<PreOpportunityStatus, { bg: string; text: string; dot: string }> = {
@@ -52,25 +52,6 @@ export function PreOpportunityDetailHeader({
   onCreateQuote,
 }: PreOpportunityDetailHeaderProps) {
   const statusColors = STATUS_COLORS[preOpp.status] || STATUS_COLORS.QUALIFIED;
-
-  // Get owner initials and color
-  const getOwnerInitials = (owner: string) => {
-    if (!owner) return '?';
-    const parts = owner.split(/[\s._-]+/);
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[1][0]).toUpperCase();
-    }
-    return owner.substring(0, 2).toUpperCase();
-  };
-
-  const getOwnerColor = (id: string) => {
-    const colors = [
-      'bg-blue-500', 'bg-green-500', 'bg-purple-500', 
-      'bg-amber-500', 'bg-rose-500', 'bg-cyan-500'
-    ];
-    const hash = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return colors[hash % colors.length];
-  };
 
   const ownerInitials = getOwnerInitials(preOpp.createdBy);
   const ownerColor = getOwnerColor(preOpp.id);

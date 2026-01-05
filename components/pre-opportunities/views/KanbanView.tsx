@@ -30,7 +30,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { getPreOppsByStatus, formatCurrency, formatDate, getStatusLabel } from '../utils';
+import { getPreOppsByStatus, formatCurrency, formatDate, getStatusLabel, getOwnerInitials, getOwnerColor } from '../utils';
 import type { PreOpportunityLandingPage, PreOppStage, PreOpportunityStatus } from '../types';
 import { useUpdateCRMPreOpportunity, useDeleteCRMPreOpportunity, crmQueryKeys } from '../../hooks/useCRMApi';
 import { fetchPreOpportunity } from '../../lib/crm-graphql';
@@ -176,8 +176,8 @@ function KanbanCard({ preOpp, onDelete }: { preOpp: PreOpportunityLandingPage; o
 
       {/* Created By */}
       <div className="flex items-center gap-1.5 md:gap-2 pt-2 border-t border-gray-100">
-        <div className="w-5 h-5 md:w-6 md:h-6 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-[10px] md:text-xs font-semibold shadow-sm flex-shrink-0">
-          {preOpp.createdBy?.charAt(0)?.toUpperCase() || '?'}
+        <div className={`w-5 h-5 md:w-6 md:h-6 rounded-full ${getOwnerColor(preOpp.id)} flex items-center justify-center text-white text-[10px] md:text-xs font-semibold shadow-sm flex-shrink-0`}>
+          {getOwnerInitials(preOpp.createdBy)}
         </div>
         <span className="text-[10px] md:text-xs text-gray-500 truncate">{preOpp.createdBy}</span>
       </div>
