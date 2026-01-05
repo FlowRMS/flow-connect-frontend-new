@@ -3,14 +3,14 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
-  mockFulfillmentOrders,
-  getFulfillmentOrderStats,
-  getWarehouseCustomers,
-} from '@/lib/data/warehouse-mock';
-import {
+  useFulfillmentOrders,
+  useFulfillmentStats,
+  useBulkAssignFulfillmentOrders,
+} from './api/useFulfillmentApi';
+import type {
   FulfillmentOrder,
   FulfillmentOrderStatus,
-} from '@/lib/types/warehouse';
+} from './api/fulfillmentApi';
 import { useWarehouse } from './WarehouseContext';
 
 // Statuses that workers can see (released and beyond, not pending)
@@ -51,7 +51,17 @@ export default function WarehouseFulfillmentContent() {
   const router = useRouter();
   const urlFilter = searchParams.get('filter') as StatFilter | null;
 
-  const [fulfillmentOrders] = useState<FulfillmentOrder[]>(mockFulfillmentOrders);
+  // Fetch fulfillment orders from API
+  const { data: fulfillmentOrders = [], isLoading, error } = useFulfillmentOrders({
+    warehouseId: selectedWarehouse?.id,
+  });
+
+  // Fetch stats from API
+  const { data: stats } = useFulfillmentStats(selectedWarehouse?.id);
+
+  // Bulk assign mutation
+  const bulkAssignMutation = useBulkAssignFulfillmentOrders();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [activeStatFilter, setActiveStatFilter] = useState<StatFilter>(urlFilter || 'all');
 
@@ -80,8 +90,6 @@ export default function WarehouseFulfillmentContent() {
     }
   }, [urlFilter]);
 
-  const stats = useMemo(() => getFulfillmentOrderStats(), []);
-  const customers = useMemo(() => getWarehouseCustomers(), []);
 
   const handleStatCardClick = (filter: StatFilter) => {
     setActiveStatFilter(prev => prev === filter ? 'all' : filter);
@@ -220,12 +228,18 @@ export default function WarehouseFulfillmentContent() {
     }
   };
 
-  const handleBulkAssignSubmit = (workerId: string, workerName: string, managerId?: string, managerName?: string, dueDate?: string) => {
-    // In a real app, this would update the orders in the backend
-    console.log('Assigning orders:', selectedOrderIds, 'worker:', workerName, 'manager:', managerName, 'due:', dueDate);
-    // For now, just close modal and clear selection
-    setShowBulkAssignModal(false);
-    setSelectedOrderIds([]);
+  const handleBulkAssignSubmit = async (workerId: string, workerName: string, managerId?: string, managerName?: string, dueDate?: string) => {
+    try {
+      await bulkAssignMutation.mutateAsync({
+        fulfillmentOrderIds: selectedOrderIds,
+        workerIds: workerId ? [workerId] : undefined,
+        managerIds: managerId ? [managerId] : undefined,
+      });
+      setShowBulkAssignModal(false);
+      setSelectedOrderIds([]);
+    } catch (error) {
+      console.error('Failed to assign orders:', error);
+    }
   };
 
   const handleClearSelection = () => {
@@ -237,13 +251,35 @@ export default function WarehouseFulfillmentContent() {
     return fulfillmentOrders.filter(fo => selectedOrderIds.includes(fo.id));
   }, [fulfillmentOrders, selectedOrderIds]);
 
-  // Calculate pending/in progress stats from our data (filtered by worker view if applicable)
+  // Calculate stats - prefer API stats if available, otherwise calculate from data
   const baseOrders = isWorkerView
     ? fulfillmentOrders.filter(fo => WORKER_VISIBLE_STATUSES.includes(fo.status))
     : fulfillmentOrders;
-  const pendingCount = baseOrders.filter(fo => fo.status === 'PENDING' || fo.status === 'RELEASED').length;
-  const inProgressCount = baseOrders.filter(fo => fo.status === 'PICKING' || fo.status === 'PACKING' || fo.status === 'SHIPPING').length;
-  const completedCount = baseOrders.filter(fo => fo.status === 'SHIPPED' || fo.status === 'PARTIAL_SHIPPED' || fo.status === 'DELIVERED').length;
+  const pendingCount = stats?.pendingCount ?? baseOrders.filter(fo => fo.status === 'PENDING' || fo.status === 'RELEASED').length;
+  const inProgressCount = stats?.inProgressCount ?? baseOrders.filter(fo => fo.status === 'PICKING' || fo.status === 'PACKING' || fo.status === 'SHIPPING').length;
+  const completedCount = stats?.completedCount ?? baseOrders.filter(fo => fo.status === 'SHIPPED' || fo.status === 'PARTIAL_SHIPPED' || fo.status === 'DELIVERED').length;
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <main className="flex-1 bg-[var(--background)] overflow-auto">
+        <div className="p-6 flex items-center justify-center h-64">
+          <div className="text-muted-foreground">Loading fulfillment orders...</div>
+        </div>
+      </main>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <main className="flex-1 bg-[var(--background)] overflow-auto">
+        <div className="p-6 flex items-center justify-center h-64">
+          <div className="text-destructive">Error loading fulfillment orders: {error.message}</div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="flex-1 bg-[var(--background)] overflow-auto">
