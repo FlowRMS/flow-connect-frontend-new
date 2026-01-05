@@ -1,4 +1,3 @@
-import React from 'react';
 import type { ShippingCarrier } from '../types';
 import CarrierBasicInfo from './CarrierBasicInfo';
 import CarrierAccountBilling from './CarrierAccountBilling';

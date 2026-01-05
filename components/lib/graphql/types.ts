@@ -460,7 +460,7 @@ export interface UpdatePreOpportunityInput {
 export interface ProductSearchResult {
   id: string;
   factoryPartNumber: string;
-  description?: string;
+  description?: string | null;
   unitPrice?: number;
   defaultCommissionRate?: number;
   approvalNeeded?: boolean;

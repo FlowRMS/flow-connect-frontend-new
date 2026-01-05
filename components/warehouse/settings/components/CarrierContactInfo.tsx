@@ -1,4 +1,3 @@
-import React from 'react';
 import type { ShippingCarrier } from '../types';
 
 interface CarrierContactInfoProps {
@@ -6,7 +5,10 @@ interface CarrierContactInfoProps {
   onUpdate: (updates: Partial<ShippingCarrier>) => void;
 }
 
-export default function CarrierContactInfo({ carrier, onUpdate }: CarrierContactInfoProps) {
+export default function CarrierContactInfo({
+  carrier,
+  onUpdate,
+}: CarrierContactInfoProps) {
   return (
     <div>
       <h3 className="text-sm font-medium text-[var(--foreground)] mb-3 flex items-center gap-2">
@@ -21,19 +23,26 @@ export default function CarrierContactInfo({ carrier, onUpdate }: CarrierContact
         Contact Information
       </h3>
       <div className="bg-[var(--background)] rounded-lg border border-[var(--border)] p-3 space-y-3">
+        {/* Contact Name */}
         <div>
-          <label className="block text-xs text-[var(--muted-foreground)] mb-1">Contact Name</label>
+          <label className="block text-xs text-[var(--muted-foreground)] mb-1">
+            Contact Name
+          </label>
           <input
             type="text"
             value={carrier.contactName || ''}
             onChange={(e) => onUpdate({ contactName: e.target.value })}
-            placeholder="Primary contact name"
+            placeholder="e.g. John Smith"
             className="w-full px-3 py-1.5 border border-[var(--border)] rounded-lg bg-[var(--card)] text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
+
+        {/* Phone & Email */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs text-[var(--muted-foreground)] mb-1">Phone</label>
+            <label className="block text-xs text-[var(--muted-foreground)] mb-1">
+              Phone
+            </label>
             <input
               type="tel"
               value={carrier.contactPhone || ''}
@@ -43,7 +52,9 @@ export default function CarrierContactInfo({ carrier, onUpdate }: CarrierContact
             />
           </div>
           <div>
-            <label className="block text-xs text-[var(--muted-foreground)] mb-1">Email</label>
+            <label className="block text-xs text-[var(--muted-foreground)] mb-1">
+              Email
+            </label>
             <input
               type="email"
               value={carrier.contactEmail || ''}

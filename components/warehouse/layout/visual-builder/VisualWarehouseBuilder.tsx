@@ -482,7 +482,7 @@ export default function VisualWarehouseBuilder({
                       <input
                         type="number"
                         value={pixelsToFeet(selectedElement.x)}
-                        onChange={(e) => onElementMove(selectedElement.id, feetToPixels(parseInt(e.target.value) || 0), selectedElement.y)}
+                        onChange={(e) => onElementMove(selectedElement.id, feetToPixels(parseInt(e.target.value) || 0), selectedElement.y ?? 0)}
                         className="w-full mt-0.5 px-1.5 py-1 text-[10px] border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)]"
                       />
                     </div>
@@ -491,7 +491,7 @@ export default function VisualWarehouseBuilder({
                       <input
                         type="number"
                         value={pixelsToFeet(selectedElement.y)}
-                        onChange={(e) => onElementMove(selectedElement.id, selectedElement.x, feetToPixels(parseInt(e.target.value) || 0))}
+                        onChange={(e) => onElementMove(selectedElement.id, selectedElement.x ?? 0, feetToPixels(parseInt(e.target.value) || 0))}
                         className="w-full mt-0.5 px-1.5 py-1 text-[10px] border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)]"
                       />
                     </div>
@@ -500,7 +500,7 @@ export default function VisualWarehouseBuilder({
                       <input
                         type="number"
                         value={pixelsToFeet(selectedElement.width)}
-                        onChange={(e) => onElementResize(selectedElement.id, feetToPixels(parseInt(e.target.value) || 10), selectedElement.height)}
+                        onChange={(e) => onElementResize(selectedElement.id, feetToPixels(parseInt(e.target.value) || 10), selectedElement.height ?? 100)}
                         className="w-full mt-0.5 px-1.5 py-1 text-[10px] border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)]"
                       />
                     </div>
@@ -509,7 +509,7 @@ export default function VisualWarehouseBuilder({
                       <input
                         type="number"
                         value={pixelsToFeet(selectedElement.height)}
-                        onChange={(e) => onElementResize(selectedElement.id, selectedElement.width, feetToPixels(parseInt(e.target.value) || 10))}
+                        onChange={(e) => onElementResize(selectedElement.id, selectedElement.width ?? 100, feetToPixels(parseInt(e.target.value) || 10))}
                         className="w-full mt-0.5 px-1.5 py-1 text-[10px] border border-[var(--border)] rounded bg-[var(--background)] text-[var(--foreground)]"
                       />
                     </div>

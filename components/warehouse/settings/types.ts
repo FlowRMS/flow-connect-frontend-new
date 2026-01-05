@@ -9,6 +9,27 @@ export interface WarehouseWorker {
   avatar?: string;
 }
 
+// Billing address data structure for linked Address entity
+export interface BillingAddressData {
+  line1: string;
+  line2?: string;
+  city: string;
+  state?: string;
+  zipCode?: string;
+  country: string;
+}
+
+// Contact data structure for linked Contact entity
+export interface ContactData {
+  firstName: string;
+  lastName: string;
+  email?: string;
+  phone?: string;
+  role?: string;
+  territory?: string;
+  notes?: string;
+}
+
 // Shipping carrier interface with comprehensive warehouse fields
 export interface ShippingCarrier {
   id: string;
@@ -17,16 +38,20 @@ export interface ShippingCarrier {
   isActive: boolean;
   // Account & Billing
   accountNumber?: string;
-  billingAddress?: string;
+  billingAddress?: string; // Formatted display string
+  billingAddressId?: string; // ID of linked Address entity
+  billingAddressData?: BillingAddressData; // Structured address data
   paymentTerms?: string;
   // API Integration
   apiKey?: string;
   apiEndpoint?: string;
   trackingUrlTemplate?: string; // e.g., https://www.fedex.com/track?trknbr={tracking_number}
-  // Contact Information
-  contactName?: string;
+  // Contact Information (linked Contact entity)
+  contactName?: string; // Formatted display name (firstName + lastName)
   contactPhone?: string;
   contactEmail?: string;
+  contactId?: string; // ID of linked Contact entity
+  contactData?: ContactData; // Structured contact data
   // Service Configuration
   serviceTypes?: string[]; // e.g., ['Ground', 'Express', '2-Day', 'Overnight']
   defaultServiceType?: string;
@@ -53,8 +78,16 @@ export interface WarehouseSettingsState {
   workers: WarehouseWorkerAssignment[];
 }
 
+// Partial settings for tracking modifications - fields are optional
+export interface PartialWarehouseSettingsState {
+  locationLevels?: WarehouseLocationLevelConfig[];
+  workers?: WarehouseWorkerAssignment[];
+}
+
 export interface WarehouseWithSettings extends Warehouse {
   settings: WarehouseSettingsState;
+  // Address tracking - addressId is set when address exists in backend
+  addressId?: string;
 }
 
 // Container type interface

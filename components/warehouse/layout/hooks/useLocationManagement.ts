@@ -1,21 +1,75 @@
 // Location Management Hook
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { WarehouseLocation, WarehouseLocationLevel, AvailableProduct } from '../types';
-import { buildLocationTree, updateLocationInTree, removeLocationFromTree, addLocationToTree } from '../utils';
+import {
+  buildLocationTreeFromApi,
+  buildEmptyLocationTree,
+  updateLocationInTree,
+  removeLocationFromTree,
+  addLocationToTree,
+  convertLocationsToApiInput,
+} from '../utils';
 import { levelLabels } from '../constants';
+import {
+  useWarehouseLocationTreeQuery,
+  useBulkSaveWarehouseLocations,
+} from '../../settings/api/useWarehouseLocationsApi';
 
 export interface UseLocationManagementProps {
   warehouseId?: string;
   enabledLevels: WarehouseLocationLevel[];
 }
 
-export function useLocationManagement({ warehouseId = 'WH-001', enabledLevels }: UseLocationManagementProps) {
-  // State
-  const [locations, setLocations] = useState<WarehouseLocation[]>(() => buildLocationTree(warehouseId));
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(
-    new Set(['SEC-001', 'SEC-002', 'AISLE-001', 'AISLE-002'])
+export function useLocationManagement({ warehouseId, enabledLevels }: UseLocationManagementProps) {
+  // Fetch locations from API
+  const {
+    data: apiLocations,
+    isLoading,
+    error,
+    refetch,
+  } = useWarehouseLocationTreeQuery(warehouseId || null);
+
+  // Bulk save mutation
+  const bulkSaveMutation = useBulkSaveWarehouseLocations();
+
+  // Local state for locations (initialized from API)
+  const [locations, setLocations] = useState<WarehouseLocation[]>([]);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  // Update local state when API data changes
+  useEffect(() => {
+    if (apiLocations) {
+      setLocations(buildLocationTreeFromApi(apiLocations));
+      setHasUnsavedChanges(false);
+    } else if (!isLoading && !error) {
+      setLocations(buildEmptyLocationTree());
+    }
+  }, [apiLocations, isLoading, error]);
+
+  // Track changes - wrap setLocations to track unsaved changes
+  const setLocationsWithTracking = useCallback(
+    (updater: WarehouseLocation[] | ((prev: WarehouseLocation[]) => WarehouseLocation[])) => {
+      setLocations(updater);
+      setHasUnsavedChanges(true);
+    },
+    []
   );
+
+  // Save to backend
+  const saveLocations = useCallback(async () => {
+    if (!warehouseId) return;
+
+    const apiInput = convertLocationsToApiInput(locations);
+    await bulkSaveMutation.mutateAsync({
+      warehouseId,
+      locations: apiInput,
+    });
+    setHasUnsavedChanges(false);
+    await refetch();
+  }, [warehouseId, locations, bulkSaveMutation, refetch]);
+
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showProductSearch, setShowProductSearch] = useState<string | null>(null);
@@ -68,11 +122,11 @@ export function useLocationManagement({ warehouseId = 'WH-001', enabledLevels }:
         products: [],
       };
 
-      setLocations((prev) => addLocationToTree(prev, parentId, newEntity));
+      setLocationsWithTracking((prev) => addLocationToTree(prev, parentId, newEntity));
       setExpandedNodes((prev) => new Set([...prev, parentId]));
       setTimeout(() => setEditingId(newEntity.id), 50);
     },
-    [getNextLevelType]
+    [getNextLevelType, setLocationsWithTracking]
   );
 
   // Add a new root section
@@ -85,85 +139,103 @@ export function useLocationManagement({ warehouseId = 'WH-001', enabledLevels }:
       children: [],
       products: [],
     };
-    setLocations((prev) => [...prev, newSection]);
+    setLocationsWithTracking((prev) => [...prev, newSection]);
     setTimeout(() => setEditingId(newSection.id), 50);
-  }, []);
+  }, [setLocationsWithTracking]);
 
   // Add section at specific position (for visual builder)
-  const addSectionAtPosition = useCallback((x: number, y: number) => {
-    const newSection: WarehouseLocation = {
-      id: `SECTION-${Date.now()}`,
-      name: 'New Section',
-      type: 'section',
-      isActive: true,
-      x,
-      y,
-      width: 300,
-      height: 200,
-      children: [],
-      products: [],
-    };
-    setLocations((prev) => [...prev, newSection]);
-    return newSection.id;
-  }, []);
+  const addSectionAtPosition = useCallback(
+    (x: number, y: number) => {
+      const newSection: WarehouseLocation = {
+        id: `SECTION-${Date.now()}`,
+        name: 'New Section',
+        type: 'section',
+        isActive: true,
+        x,
+        y,
+        width: 300,
+        height: 200,
+        children: [],
+        products: [],
+      };
+      setLocationsWithTracking((prev) => [...prev, newSection]);
+      return newSection.id;
+    },
+    [setLocationsWithTracking]
+  );
 
   // Rename a location
-  const renameLocation = useCallback((id: string, newName: string) => {
-    if (!newName.trim()) return;
-    setLocations((prev) => updateLocationInTree(prev, id, { name: newName }));
-    setEditingId(null);
-  }, []);
+  const renameLocation = useCallback(
+    (id: string, newName: string) => {
+      if (!newName.trim()) return;
+      setLocationsWithTracking((prev) => updateLocationInTree(prev, id, { name: newName }));
+      setEditingId(null);
+    },
+    [setLocationsWithTracking]
+  );
 
   // Delete a location
-  const deleteLocation = useCallback((id: string) => {
-    setLocations((prev) => removeLocationFromTree(prev, id));
-  }, []);
+  const deleteLocation = useCallback(
+    (id: string) => {
+      setLocationsWithTracking((prev) => removeLocationFromTree(prev, id));
+    },
+    [setLocationsWithTracking]
+  );
 
   // Update location properties
-  const updateLocation = useCallback((id: string, updates: Partial<WarehouseLocation>) => {
-    setLocations((prev) => updateLocationInTree(prev, id, updates));
-  }, []);
+  const updateLocation = useCallback(
+    (id: string, updates: Partial<WarehouseLocation>) => {
+      setLocationsWithTracking((prev) => updateLocationInTree(prev, id, updates));
+    },
+    [setLocationsWithTracking]
+  );
 
   // Add product to bin
-  const addProduct = useCallback((binId: string, product: AvailableProduct) => {
-    setLocations((prev) => {
-      const addProductToLocation = (items: WarehouseLocation[]): WarehouseLocation[] => {
-        return items.map((item) => {
-          if (item.id === binId) {
-            const newProduct = {
-              id: `PROD-${Date.now()}`,
-              productId: product.id,
-              productName: product.name,
-              partNumber: product.partNumber,
-              quantity: 0,
-            };
-            return { ...item, products: [...(item.products || []), newProduct] };
-          }
-          if (item.children) return { ...item, children: addProductToLocation(item.children) };
-          return item;
-        });
-      };
-      return addProductToLocation(prev);
-    });
-    setShowProductSearch(null);
-    setProductSearchQuery('');
-  }, []);
+  const addProduct = useCallback(
+    (binId: string, product: AvailableProduct) => {
+      setLocationsWithTracking((prev) => {
+        const addProductToLocation = (items: WarehouseLocation[]): WarehouseLocation[] => {
+          return items.map((item) => {
+            if (item.id === binId) {
+              const newProduct = {
+                id: `PROD-${Date.now()}`,
+                productId: product.id,
+                productName: product.name,
+                partNumber: product.partNumber,
+                quantity: 0,
+              };
+              return { ...item, products: [...(item.products || []), newProduct] };
+            }
+            if (item.children) return { ...item, children: addProductToLocation(item.children) };
+            return item;
+          });
+        };
+        return addProductToLocation(prev);
+      });
+      setShowProductSearch(null);
+      setProductSearchQuery('');
+    },
+    [setLocationsWithTracking]
+  );
 
   // Remove product from bin
-  const removeProduct = useCallback((binId: string, productAssignmentId: string) => {
-    setLocations((prev) => {
-      const removeProductFromLocation = (items: WarehouseLocation[]): WarehouseLocation[] => {
-        return items.map((item) => {
-          if (item.id === binId) {
-            return { ...item, products: (item.products || []).filter((p) => p.id !== productAssignmentId) };
-          }
-          if (item.children) return { ...item, children: removeProductFromLocation(item.children) };
-          return item;
-        });
-      };
-      return removeProductFromLocation(prev);
-    });
-  }, []);
+  const removeProduct = useCallback(
+    (binId: string, productAssignmentId: string) => {
+      setLocationsWithTracking((prev) => {
+        const removeProductFromLocation = (items: WarehouseLocation[]): WarehouseLocation[] => {
+          return items.map((item) => {
+            if (item.id === binId) {
+              return { ...item, products: (item.products || []).filter((p) => p.id !== productAssignmentId) };
+            }
+            if (item.children) return { ...item, children: removeProductFromLocation(item.children) };
+            return item;
+          });
+        };
+        return removeProductFromLocation(prev);
+      });
+    },
+    [setLocationsWithTracking]
+  );
 
   return {
     // State
@@ -174,8 +246,14 @@ export function useLocationManagement({ warehouseId = 'WH-001', enabledLevels }:
     showProductSearch,
     productSearchQuery,
 
+    // Loading state
+    isLoading,
+    error,
+    hasUnsavedChanges,
+    isSaving: bulkSaveMutation.isPending,
+
     // Setters
-    setLocations,
+    setLocations: setLocationsWithTracking,
     setExpandedNodes,
     setEditingId,
     setSearchQuery,
@@ -192,6 +270,7 @@ export function useLocationManagement({ warehouseId = 'WH-001', enabledLevels }:
     updateLocation,
     addProduct,
     removeProduct,
+    saveLocations,
 
     // Helpers
     getNextLevelType,
