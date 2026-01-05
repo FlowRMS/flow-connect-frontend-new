@@ -234,11 +234,11 @@ export async function emailGraphQLRequest<T = unknown>(
   const accessToken = await getAccessToken();
 
   if (!accessToken) {
-    // Redirect to sign-in if no token available
+    // Redirect to auth-error to avoid loops
     if (typeof window !== 'undefined') {
-      window.location.href = '/sign-in';
+      window.location.href = '/auth-error';
     }
-    throw new Error('Authentication required. Redirecting to sign-in...');
+    throw new Error('Authentication failed. Please clear your cookies and try again.');
   }
 
   const endpoint = getGraphQLEndpoint();
@@ -277,11 +277,11 @@ export async function emailGraphQLRequest<T = unknown>(
         }),
       });
     } else {
-      // Token refresh failed, redirect to sign-in
+      // Token refresh failed, redirect to sign-in to re-authenticate
       if (typeof window !== 'undefined') {
         window.location.href = '/sign-in';
       }
-      throw new Error('Authentication expired. Redirecting to sign-in...');
+      throw new Error('Session expired. Please sign in again.');
     }
   }
 

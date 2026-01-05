@@ -8,10 +8,12 @@ import type { TabType, TabConfig } from '../types';
 /**
  * Get all available tabs
  * Count is dynamically calculated based on data
+ * isCreateMode disables certain tabs that require the check to exist first
  */
 export const getTabsConfig = (
   lineItemsCount: number = 0,
-  deductionsCount: number = 0
+  deductionsCount: number = 0,
+  isCreateMode: boolean = false
 ): TabConfig[] => {
   return [
     {
@@ -22,27 +24,39 @@ export const getTabsConfig = (
     {
       id: 'files',
       label: 'Files',
+      disabled: isCreateMode,
+      disabledReason: 'Save check first',
     },
     {
       id: 'deductions',
       label: 'Deductions',
       count: deductionsCount > 0 ? deductionsCount : undefined,
+      disabled: isCreateMode,
+      disabledReason: 'Save check first',
     },
     {
       id: 'notes',
       label: 'Notes',
+      disabled: isCreateMode,
+      disabledReason: 'Save check first',
     },
     {
       id: 'tasks',
       label: 'Tasks',
+      disabled: isCreateMode,
+      disabledReason: 'Save check first',
     },
     {
       id: 'activity',
       label: 'Activity',
+      disabled: isCreateMode,
+      disabledReason: 'Save check first',
     },
     {
       id: 'linked-objects',
       label: 'Linked Objects',
+      disabled: isCreateMode,
+      disabledReason: 'Save check first',
     },
     {
       id: 'settings',
