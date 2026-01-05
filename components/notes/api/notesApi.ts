@@ -33,6 +33,17 @@ export {
   type ProductSearchResult,
 } from '../../lib/api/search';
 
+// Re-export file functions from files module
+export {
+  searchFiles,
+  fetchFilesByLinkedEntity,
+  linkFileToEntity,
+  formatFileSize,
+  getFileIcon,
+  type FileResponse,
+  type FileEntityType,
+} from '../../lib/graphql/files';
+
 type CreatedByResponse =
   | string
   | null
@@ -68,10 +79,24 @@ export interface Note {
   id: string;
   title: string;
   content: string;
-  mentions: string;
+  mentions: string | string[]; // API returns array of UUIDs, but also accepts string
   tags: string;
   createdBy: string;
   createdAt: string;
+}
+
+export interface ConversationCreatedBy {
+  id: string;
+  authProviderId?: string;
+  email?: string;
+  enabled?: boolean;
+  firstName?: string;
+  fullName?: string;
+  inside?: boolean;
+  lastName?: string;
+  outside?: boolean;
+  role?: string;
+  username?: string;
 }
 
 export interface NoteConversation {
@@ -79,6 +104,7 @@ export interface NoteConversation {
   noteId: string;
   content: string;
   createdAt: string;
+  createdBy?: ConversationCreatedBy;
 }
 
 export interface NoteLandingPage {
@@ -233,11 +259,28 @@ const DELETE_NOTE = `
   }
 `;
 
+const CONVERSATION_CREATED_BY_FIELDS = `
+  createdBy {
+    authProviderId
+    email
+    enabled
+    firstName
+    fullName
+    id
+    inside
+    lastName
+    outside
+    role
+    username
+  }
+`;
+
 const ADD_NOTE_CONVERSATION = `
   mutation AddNoteConversation($input: NoteConversationInput!) {
     addNoteConversation(input: $input) {
       content
       createdAt
+      ${CONVERSATION_CREATED_BY_FIELDS}
       id
       noteId
     }
@@ -249,6 +292,7 @@ const UPDATE_NOTE_CONVERSATION = `
     updateNoteConversation(noteConversationId: $noteConversationId, input: $input) {
       content
       createdAt
+      ${CONVERSATION_CREATED_BY_FIELDS}
       id
       noteId
     }
@@ -266,6 +310,7 @@ const GET_NOTE_CONVERSATIONS = `
     noteConversations(noteId: $noteId) {
       content
       createdAt
+      ${CONVERSATION_CREATED_BY_FIELDS}
       id
       noteId
     }
@@ -385,14 +430,15 @@ export async function fetchNote(id: string): Promise<Note | null> {
  * Create a new note
  */
 export async function createNote(input: CreateNoteInput): Promise<Note> {
-  // Build input object, excluding mentions if empty (API expects UUID or undefined)
-  const apiInput: { title: string; content: string; tags?: string; mentions?: string } = {
+  // Build input object, converting mentions from comma-separated string to array of UUIDs
+  const apiInput: { title: string; content: string; tags?: string; mentions?: string[] } = {
     title: input.title,
     content: input.content,
     tags: input.tags,
   };
   if (input.mentions && input.mentions.trim()) {
-    apiInput.mentions = input.mentions;
+    // Convert comma-separated string to array of UUIDs
+    apiInput.mentions = input.mentions.split(',').map(id => id.trim()).filter(id => id);
   }
 
   const response = await crmGraphQLRequest<{ createNote: Note }>({
@@ -418,14 +464,15 @@ export async function updateNote(
   id: string,
   input: UpdateNoteInput
 ): Promise<Note> {
-  // Build input object, excluding mentions if empty (API expects UUID or undefined)
-  const apiInput: { title: string; content: string; tags?: string; mentions?: string } = {
+  // Build input object, converting mentions from comma-separated string to array of UUIDs
+  const apiInput: { title: string; content: string; tags?: string; mentions?: string[] } = {
     title: input.title,
     content: input.content,
     tags: input.tags,
   };
   if (input.mentions && input.mentions.trim()) {
-    apiInput.mentions = input.mentions;
+    // Convert comma-separated string to array of UUIDs
+    apiInput.mentions = input.mentions.split(',').map(id => id.trim()).filter(id => id);
   }
 
   const response = await crmGraphQLRequest<{ updateNote: Note }>({

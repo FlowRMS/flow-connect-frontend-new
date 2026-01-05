@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import type { QuoteV2, LineItemV2, NoteV2, TaskV2, QuoteSettingsV2, ColumnConfig, Quote } from './types';
+import type { QuoteV2, LineItemV2, QuoteSettingsV2, ColumnConfig, Quote } from './types';
 import {
   transformQuoteToQuoteV2,
   transformQuoteDetailToLineItemV2,
@@ -17,17 +17,15 @@ import { ActivityTabV2 } from './tabs/ActivityTabV2';
 import { LinkedObjectsTabV2 } from './tabs/LinkedObjectsTabV2';
 import { VersionsTabV2 } from './tabs/VersionsTabV2';
 import { SettingsTabV2 } from './tabs/SettingsTabV2';
-import { FilesTabV2 } from './tabs/FilesTabV2';
+import { FilesTab } from '@/components/shared/FilesTab';
 import { ColumnsConfigModalV2 } from './modals/ColumnsConfigModalV2';
 import { AdditionalDetailsModalV2 } from './modals/AdditionalDetailsModalV2';
 import { DuplicateQuoteModal } from './modals/DuplicateQuoteModal';
+import { ConnectedEntitiesSection } from '@/components/shared/ConnectedEntitiesSection';
 import {
   defaultQuoteSettingsV2,
   defaultColumnConfigV2,
-  mockNotesV2,
-  mockTasksV2,
   mockActivitiesV2,
-  mockLinkedObjectsV2,
   mockVersionsV2,
 } from './data/mockData';
 import {
@@ -101,9 +99,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
   // Line items state
   const [lineItems, setLineItems] = useState<LineItemV2[]>([]);
 
-  // Other data states (Coming soon - using mock data)
-  const [notes, setNotes] = useState<NoteV2[]>(mockNotesV2);
-  const [tasks, setTasks] = useState<TaskV2[]>(mockTasksV2);
+  // Settings state
   const [settings, setSettings] = useState<QuoteSettingsV2>(defaultQuoteSettingsV2);
 
   // Column configuration
@@ -183,6 +179,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         specifyEndUserPerLine: apiQuote.endUserPerLineItem ?? false,
         insideRepAtLineLevel: apiQuote.insidePerLineItem ?? false,
         outsideRepAtLineLevel: apiQuote.outsidePerLineItem ?? false,
+        factoryPerLineItem: apiQuote.factoryPerLineItem ?? false,
       }));
 
       // Extract inside and outside reps from line item split rates
@@ -345,6 +342,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       endUserPerLineItem: settings.specifyEndUserPerLine,
       insidePerLineItem: settings.insideRepAtLineLevel,
       outsidePerLineItem: settings.outsideRepAtLineLevel,
+      factoryPerLineItem: settings.factoryPerLineItem,
       // Split rates are now at detail level (insideSplitRates and outsideSplitRates per line item)
       // Pass settings so each line item uses its own split rates when per-line-item is enabled
       details: lineItems.map((li, index) => ({
@@ -418,6 +416,26 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
     if (!quote.id) return;
     setShowDuplicateModal(true);
   }, [quote.id]);
+
+  // Clear line item products when header manufacturer changes (for factoryPerLineItem === false mode)
+  const handleClearLineItemProducts = useCallback(() => {
+    // Clear product-related fields from all line items
+    setLineItems(prev => prev.map(item => ({
+      ...item,
+      productId: undefined,
+      partNumber: '',
+      description: '',
+      customerPartNumber: '',
+      manufacturerId: undefined,
+      manufacturerName: '',
+      unitPrice: 0,
+      commissionRate: '',
+      commissionTotal: 0,
+      sellPrice: 0,
+      basePrice: 0,
+    })));
+    setHasChanges(true);
+  }, []);
 
   const handleDuplicateConfirm = useCallback(async (newQuoteNumber: string) => {
     if (!quote.id) return;
@@ -504,6 +522,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         isNew={isNew}
         lineItems={lineItems}
         settings={settings}
+        onClearLineItemProducts={handleClearLineItemProducts}
       />
 
       {/* Tabs */}
@@ -545,11 +564,13 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
             quoteId={quote.id}
             settings={settings}
             soldToCustomerId={quote.soldToCustomerId}
+            headerFactoryId={quote.factoryId}
+            headerFactoryName={quote.factoryName}
           />
         )}
 
         {activeTab === 'files' && (
-          <FilesTabV2
+          <FilesTab
             entityId={quote.id}
             entityType="QUOTE"
           />
@@ -562,7 +583,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
                 <span className="font-medium">Coming Soon:</span> Notes functionality is not yet available via API.
               </p>
             </div>
-            <NotesTabV2 notes={notes} onNotesChange={setNotes} />
+            <NotesTabV2 quoteId={quote.id} />
           </div>
         )}
 
@@ -573,7 +594,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
                 <span className="font-medium">Coming Soon:</span> Tasks functionality is not yet available via API.
               </p>
             </div>
-            <TasksTabV2 tasks={tasks} onTasksChange={setTasks} />
+            <TasksTabV2 quoteId={quote.id} />
           </div>
         )}
 
@@ -589,13 +610,21 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         )}
 
         {activeTab === 'linkedObjects' && (
-          <div className="p-6">
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
-              <p className="text-amber-700 text-sm">
-                <span className="font-medium">Coming Soon:</span> Linked Objects functionality is not yet available via API.
-              </p>
+          <div className="h-full overflow-auto">
+            <div className="px-6 py-4 pb-32">
+              {quote.id ? (
+                <ConnectedEntitiesSection
+                  entityId={quote.id}
+                  sourceEntityType="QUOTE"
+                  title="Linked Objects"
+                  showAddLinkButton={true}
+                />
+              ) : (
+                <div className="text-center py-8 text-[var(--muted-foreground)]">
+                  Save the quote first to view linked objects.
+                </div>
+              )}
             </div>
-            <LinkedObjectsTabV2 linkedObjects={mockLinkedObjectsV2} />
           </div>
         )}
 
@@ -615,7 +644,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         )}
 
         {activeTab === 'settings' && (
-          <div className="p-6">
+          <div className="h-full overflow-auto p-6">
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
               <p className="text-amber-700 text-sm">
                 <span className="font-medium">Coming Soon:</span> Quote settings are not yet available via API.

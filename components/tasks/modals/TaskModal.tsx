@@ -228,12 +228,21 @@ export default function TaskModal({
   }, []);
 
   // Convert API conversations to TaskComment format
-  const conversation: TaskComment[] = apiConversations.map(conv => ({
-    id: conv.id,
-    author: conv.createdBy || 'Unknown',
-    content: conv.content,
-    timestamp: conv.createdAt,
-  }));
+  const conversation: TaskComment[] = apiConversations.map(conv => {
+    const createdBy = conv.createdBy;
+    const authorName = createdBy?.fullName
+      || (createdBy?.firstName && createdBy?.lastName
+          ? `${createdBy.firstName} ${createdBy.lastName}`
+          : createdBy?.email || 'Unknown User');
+    return {
+      id: conv.id,
+      author: authorName,
+      authorInside: createdBy?.inside,
+      authorOutside: createdBy?.outside,
+      content: conv.content,
+      timestamp: conv.createdAt,
+    };
+  });
 
   // Get tags from full task or fallback to landing page task
   const displayTags = fullTask?.tags ? parseTagsString(fullTask.tags) : task.tags;
@@ -1477,10 +1486,16 @@ export default function TaskModal({
                         <div className="flex-1">
                           <div className="bg-[var(--muted)]/30 rounded-lg p-3">
                             <div className="flex items-center justify-between mb-1">
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-sm font-semibold text-[var(--foreground)]">
                                   {comment.author}
                                 </span>
+                                {comment.authorInside && (
+                                  <span className="px-1.5 py-0.5 text-[10px] font-medium bg-blue-100 text-blue-700 rounded">Inside</span>
+                                )}
+                                {comment.authorOutside && (
+                                  <span className="px-1.5 py-0.5 text-[10px] font-medium bg-purple-100 text-purple-700 rounded">Outside</span>
+                                )}
                                 <span className="text-xs text-[var(--muted-foreground)]">
                                   {formatTimestamp(comment.timestamp)}
                                 </span>

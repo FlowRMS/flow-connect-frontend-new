@@ -38,7 +38,7 @@ export function SettingsTabV2({ settings, onSettingsChange }: SettingsTabV2Props
 
   return (
     <div className="h-full overflow-auto">
-      <div className="px-6 py-4">
+      <div className="px-6 py-4 pb-32">
         {/* Toggle Settings */}
         <div className="space-y-4 mb-8">
           {/* Specify End User Per Line */}
@@ -103,6 +103,28 @@ export function SettingsTabV2({ settings, onSettingsChange }: SettingsTabV2Props
               </div>
             </div>
           </div>
+
+          {/* Factory/Manufacturer Per Line Item */}
+          <div className="flex items-center justify-between py-2">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => handleToggle('factoryPerLineItem')}
+                className={`w-10 h-6 rounded-full transition-colors relative ${
+                  settings.factoryPerLineItem ? 'bg-indigo-600' : 'bg-gray-200'
+                }`}
+              >
+                <span
+                  className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform shadow-sm ${
+                    settings.factoryPerLineItem ? 'left-5' : 'left-1'
+                  }`}
+                />
+              </button>
+              <div>
+                <span className="text-sm text-gray-900">Manufacturer per line item</span>
+                <p className="text-xs text-gray-500">{settings.factoryPerLineItem ? 'Set manufacturer on each line item' : 'Set manufacturer in header for all lines'}</p>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Customer Part Number Source */}
@@ -132,31 +154,35 @@ export function SettingsTabV2({ settings, onSettingsChange }: SettingsTabV2Props
           </div>
         </div>
 
-        {/* Price Levels */}
-        <div>
+        {/* Price Levels - Coming Soon */}
+        <div className="opacity-50 pointer-events-none">
+          <div className="flex items-center gap-2 mb-3">
+            <h4 className="text-sm font-medium text-gray-900">Price Levels</h4>
+            <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded uppercase">Coming Soon</span>
+          </div>
           <div className="space-y-3">
             {settings.priceLevels.map((level, index) => (
               <div key={level.id} className="flex items-center gap-3">
-                <span className="w-8 text-sm font-medium text-indigo-600">{level.name}</span>
+                <span className="w-8 text-sm font-medium text-gray-400">{level.name}</span>
                 <div className="flex items-center gap-1">
                   <input
                     type="number"
                     value={level.percent}
-                    onChange={(e) => handlePriceLevelChange(index, { percent: parseInt(e.target.value) || 0 })}
-                    className="w-16 px-2 py-1.5 text-sm text-center border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    disabled
+                    className="w-16 px-2 py-1.5 text-sm text-center border border-gray-200 rounded-md bg-gray-100 text-gray-400"
                   />
-                  <span className="text-sm text-gray-500">%</span>
+                  <span className="text-sm text-gray-400">%</span>
                 </div>
                 <input
                   type="text"
                   value={level.description}
-                  onChange={(e) => handlePriceLevelChange(index, { description: e.target.value })}
+                  disabled
                   placeholder="Description"
-                  className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-md bg-gray-100 text-gray-400"
                 />
                 <button
-                  onClick={() => removePriceLevel(index)}
-                  className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                  disabled
+                  className="p-1.5 text-gray-300 rounded cursor-not-allowed"
                 >
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round" />
@@ -167,8 +193,8 @@ export function SettingsTabV2({ settings, onSettingsChange }: SettingsTabV2Props
           </div>
 
           <button
-            onClick={addPriceLevel}
-            className="mt-4 flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700 transition-colors"
+            disabled
+            className="mt-4 flex items-center gap-2 text-sm text-gray-400 cursor-not-allowed"
           >
             <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M10 5v10M5 10h10" strokeLinecap="round" />

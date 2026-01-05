@@ -1,0 +1,82 @@
+:root {
+  /* Flow-Scan Primary Colors */
+  --primary: 240 72% 73%;
+  --primary-foreground: 0 0% 100%;
+  
+  /* Flow-Scan Secondary Colors */
+  --secondary: 203 71% 42%;
+  --secondary-foreground: 0 0% 100%;
+  
+  /* Flow-Scan Status Colors */
+  --success: 156 74% 84%;
+  --success-foreground: 24 69% 10%;
+  
+  --warning: 35 75% 87%;
+  --warning-foreground: 0 0% 100%;
+  
+  --destructive: 0 91% 78%;
+  --destructive-foreground: 0 0% 100%;
+  
+  /* Flow-Scan Surface Colors */
+  --background: 215 32% 96%;
+  --foreground: 215 25% 25%;
+  
+  --card: 0 0% 100%;
+  --card-foreground: 215 25% 25%;
+  
+  --popover: 0 0% 100%;
+  --popover-foreground: 215 25% 25%;
+  
+  /* Flow-Scan Muted Colors */
+  --muted: 213 32% 97%;
+  --muted-foreground: 210 15% 47%;
+  
+  /* Flow-Scan Accent Colors */
+  --accent: 213 32% 97%;
+  --accent-foreground: 240 72% 73%;
+  
+  /* Flow-Scan Border & Input */
+  --border: 210 26% 93%;
+  --input: 210 26% 93%;
+  --ring: 240 72% 73%;
+  --radius: 0.75rem;
+}
+
+
+.dark {
+  /* Dark mode Flow-Scan colors */
+  --primary: 245 85% 89%;
+  --primary-foreground: 215 25% 25%;
+  
+  --secondary: 207 48% 86%;
+  --secondary-foreground: 215 25% 25%;
+  
+  --background: 224 71% 8%;
+  --foreground: 210 16% 91%;
+  
+  --card: 220 13% 18%;
+  --card-foreground: 210 16% 91%;
+  
+  --popover: 220 13% 18%;
+  --popover-foreground: 210 16% 91%;
+  
+  --muted: 216 21% 16%;
+  --muted-foreground: 212 12% 75%;
+  
+  --accent: 216 21% 16%;
+  --accent-foreground: 245 85% 89%;
+  
+  --border: 215 25% 33%;
+  --input: 215 25% 33%;
+  --ring: 245 85% 89%;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  color: hsl(var(--foreground));
+  background: hsl(var(--background));
+  font-feature-settings: "rlig" 1, "calt" 1;
+}

@@ -12,6 +12,7 @@ import { useOrderDetailState } from './hooks/useOrderDetailState';
 import { OrderDetailHeader } from './components/header';
 import { LineItemsTable } from './components/line-items';
 import { NotesTab, TasksTab, ActivityTab, CreditsTab, AdjustmentsTab, AcknowledgementsTab, LinkedObjectsTab, SettingsTab } from './components/tabs';
+import { FilesTab } from '@/components/shared/FilesTab';
 import {
   SetOverageModal,
   SetEndUserModal,
@@ -439,31 +440,26 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           <div className="flex gap-1">
             {[
               { id: 'line-items', label: 'Line Items', count: (order.lineItems || []).length },
+              { id: 'files', label: 'Files' },
               { id: 'credits', label: 'Credits' },
               { id: 'adjustments', label: 'Adjustments', hidden: true }, // Hidden - adjustments now has its own page in sidebar
               { id: 'acknowledgements', label: 'Acknowledgements' },
               { id: 'notes', label: 'Notes' },
               { id: 'tasks', label: 'Tasks' },
-              { id: 'activity', label: 'Activity', comingSoon: true },
+              { id: 'activity', label: 'Activity' },
               { id: 'linked-objects', label: 'Linked Objects' },
               { id: 'settings', label: 'Settings' },
             ].filter(tab => !tab.hidden).map(tab => (
               <button
                 key={tab.id}
-                onClick={() => !tab.comingSoon && state.setActiveTab(tab.id as any)}
-                disabled={tab.comingSoon}
+                onClick={() => state.setActiveTab(tab.id as any)}
                 className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                  tab.comingSoon
-                    ? 'border-transparent text-[var(--muted-foreground)] opacity-50 cursor-not-allowed'
-                    : state.activeTab === tab.id
+                  state.activeTab === tab.id
                     ? 'border-[var(--primary)] text-[var(--primary)]'
                     : 'border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
                 }`}
               >
                 {tab.label}
-                {tab.comingSoon && (
-                  <span className="ml-1 px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-500">Soon</span>
-                )}
                 {tab.count !== undefined && tab.count > 0 && (
                   <span className="ml-2 px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-600">
                     {tab.count}
@@ -555,8 +551,17 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
             />
           )}
 
-          {state.activeTab === 'notes' && <NotesTab />}
-          {state.activeTab === 'tasks' && <TasksTab />}
+          {state.activeTab === 'files' && (
+            <div className="flex-1 overflow-auto">
+              <FilesTab
+                entityId={orderId}
+                entityType="ORDER"
+              />
+            </div>
+          )}
+
+          {state.activeTab === 'notes' && <NotesTab orderId={orderId} />}
+          {state.activeTab === 'tasks' && <TasksTab orderId={orderId} />}
           {state.activeTab === 'activity' && <ActivityTab />}
           {state.activeTab === 'credits' && (
             <CreditsTab
@@ -591,7 +596,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               onDeleteAcknowledgement={acknowledgementsState.handleDeleteAcknowledgement}
             />
           )}
-          {state.activeTab === 'linked-objects' && <LinkedObjectsTab />}
+          {state.activeTab === 'linked-objects' && <LinkedObjectsTab orderId={orderId} />}
           {state.activeTab === 'settings' && (
             <SettingsTab
               showEndUserPerLine={state.showEndUserPerLine}

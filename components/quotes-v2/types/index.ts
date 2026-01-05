@@ -134,6 +134,10 @@ export interface QuoteV2 {
   // Created by info
   createdById?: string;
   createdByName?: string;
+
+  // Header-level manufacturer (used when factoryPerLineItem is false)
+  factoryId?: string;
+  factoryName?: string;
 }
 
 export interface LineItemV2 {
@@ -264,6 +268,7 @@ export interface QuoteSettingsV2 {
   specifyEndUserPerLine: boolean;
   outsideRepAtLineLevel: boolean;
   insideRepAtLineLevel: boolean;
+  factoryPerLineItem: boolean;
   customerPartNumberSource: 'sold_to' | 'end_user';
   priceLevels: PriceLevelV2[];
 }

@@ -332,7 +332,7 @@ export default function ProductEditModal({
 
               {/* Row 2 */}
               <div>
-                <label className={labelClass}>Unit Price</label>
+                <label className={labelClass}>Unit Price*</label>
                 <input
                   type="number"
                   step="0.01"

@@ -45,6 +45,19 @@ const defaultConfig: SidebarConfig = {
       ]
     },
     {
+      id: 'flow-ai',
+      label: 'FlowAI',
+      collapsed: false,
+      items: [
+        { id: 'flow-ai-scan', name: 'Document Scan', href: '/flow-ai', enabled: true },
+        { id: 'flow-ai-queue', name: 'Queue', href: '/flow-ai/queue', enabled: true },
+        { id: 'flow-ai-upload', name: 'Upload', href: '/flow-ai/upload', enabled: true },
+        { id: 'flow-ai-templates', name: 'Templates', href: '/flow-ai/templates', enabled: true },
+        { id: 'flow-ai-workflows', name: 'Workflows', href: '/flow-ai/workflows', enabled: true },
+        { id: 'flow-ai-chat', name: 'AI Chat', href: '/flow-ai/ai-chat', enabled: true },
+      ]
+    },
+    {
       id: 'email',
       label: 'Email',
       collapsed: false,
@@ -121,6 +134,7 @@ const defaultConfig: SidebarConfig = {
         { id: 'companies', name: 'Companies', href: '/companies', enabled: true },
         { id: 'customers', name: 'Customers', href: '/customers', enabled: true },
         { id: 'products', name: 'Products', href: '/products', enabled: true },
+        { id: 'manufacturers', name: 'Manufacturers', href: '/manufacturers', enabled: true },
         // { id: 'spec-sheets', name: 'Spec Sheets', href: '/spec-sheets', enabled: true },
       ]
     },
@@ -129,6 +143,7 @@ const defaultConfig: SidebarConfig = {
       label: 'Admin',
       collapsed: false,
       items: [
+        { id: 'files', name: 'Files', href: '/files', enabled: true },
         { id: 'settings', name: 'Settings', href: '/settings', enabled: true },
         { id: 'email-integrations', name: 'Email Integrations', href: '/integrations', enabled: true },
         // { id: 'data-integrations', name: 'Data Integrations', href: '/data-integrations', enabled: true },
@@ -140,7 +155,7 @@ const defaultConfig: SidebarConfig = {
 };
 
 const STORAGE_KEY = 'sidebar-config';
-const CONFIG_VERSION = 21; // Increment this to force a reset of cached sidebar config (reordered financial items)
+const CONFIG_VERSION = 24; // Increment this to force a reset of cached sidebar config (added FlowAI)
 
 const SidebarConfigContext = createContext<SidebarConfigContextType | undefined>(undefined);
 

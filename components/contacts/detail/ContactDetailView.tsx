@@ -7,17 +7,15 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom';
 import { CONTACT_ROLES } from '../constants';
 import { getInitials, getAvatarColor } from '../utils';
-import ContactRelatedEntities from './ContactRelatedEntities';
-import ConnectedNotesSection from '../../notes/ConnectedNotesSection';
-import ConnectedTasksSection from '../../tasks/ConnectedTasksSection';
+import { ConnectedEntitiesSection } from '../../shared/ConnectedEntitiesSection';
 import DeleteConfirmModal from './DeleteConfirmModal';
-import { AddTaskNoteLinkModal } from '../modals/AddTaskNoteLinkModal';
 import type { Contact, ContactAddress, AddressType } from '../types';
-import type { Job as APIJob, Company, RelatedEntityCompany } from '../../lib/crm-graphql';
+import type { RelatedEntityCompany, RelatedEntityJob } from '../../lib/crm-graphql';
+import type { Company } from '../../lib/graphql/types';
 import { AddAddressModal, type Address } from '../../shared/AddAddressModal';
 import { useCRMCompanies } from '../../hooks/useCRMApi';
 
-type TabId = 'overview' | 'sales-reps' | 'addresses' | 'company' | 'emails' | 'meetings' | 'tasks' | 'notes' | 'jobs' | 'pre-quotes' | 'quotes' | 'orders' | 'invoices' | 'commissions';
+type TabId = 'overview' | 'sales-reps' | 'addresses' | 'emails' | 'meetings' | 'connected-entities';
 
 // Default contact type options
 const DEFAULT_CONTACT_TYPES = [
@@ -295,7 +293,7 @@ interface ContactDetailViewProps {
   onDelete: (id: string) => void;
   onFieldChange: (field: string, value: string | string[] | boolean) => void;
   setDeleteConfirmId: (id: string | null) => void;
-  onJobClick?: (job: APIJob) => void;
+  onJobClick?: (job: RelatedEntityJob) => void;
   onCompanyClick?: (company: RelatedEntityCompany) => void;
 }
 
@@ -834,11 +832,6 @@ export default function ContactDetailView({
   onJobClick,
   onCompanyClick,
 }: ContactDetailViewProps) {
-  // Modal states for linking tasks/notes
-  const [showAddLinkModal, setShowAddLinkModal] = useState(false);
-  const [addLinkEntityType, setAddLinkEntityType] = useState<'TASK' | 'NOTE'>('TASK');
-  const [tasksSectionKey, setTasksSectionKey] = useState(0);
-  const [notesSectionKey, setNotesSectionKey] = useState(0);
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [showAddAddressModal, setShowAddAddressModal] = useState(false);
   const [showAddListModal, setShowAddListModal] = useState(false);
@@ -852,17 +845,9 @@ export default function ContactDetailView({
     'overview': null,
     'sales-reps': null,
     'addresses': null,
-    'company': null,
     'emails': null,
     'meetings': null,
-    'tasks': null,
-    'notes': null,
-    'jobs': null,
-    'pre-quotes': null,
-    'quotes': null,
-    'orders': null,
-    'invoices': null,
-    'commissions': null,
+    'connected-entities': null,
   });
 
   // Reference to the scrollable container
@@ -888,7 +873,7 @@ export default function ContactDetailView({
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    const tabIds: TabId[] = ['overview', 'sales-reps', 'addresses', 'company', 'emails', 'meetings', 'tasks', 'notes', 'jobs', 'pre-quotes', 'quotes', 'orders', 'invoices', 'commissions'];
+    const tabIds: TabId[] = ['overview', 'sales-reps', 'addresses', 'emails', 'meetings', 'connected-entities'];
 
     const handleScroll = () => {
       const scrollTop = container.scrollTop;
@@ -913,36 +898,13 @@ export default function ContactDetailView({
     return () => container.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Handle link success - trigger refetch via key change
-  const handleLinkSuccess = () => {
-    if (addLinkEntityType === 'TASK') {
-      setTasksSectionKey(prev => prev + 1);
-    } else {
-      setNotesSectionKey(prev => prev + 1);
-    }
-  };
-
-  // Open add link modal for specific entity type
-  const openAddLinkModal = (entityType: 'TASK' | 'NOTE') => {
-    setAddLinkEntityType(entityType);
-    setShowAddLinkModal(true);
-  };
-
   const tabs: { id: TabId; label: string }[] = [
     { id: 'overview', label: 'Overview' },
     { id: 'sales-reps', label: 'Sales Reps' },
     { id: 'addresses', label: 'Addresses' },
-    { id: 'company', label: 'Company' },
     { id: 'emails', label: 'Emails' },
     { id: 'meetings', label: 'Meetings' },
-    { id: 'tasks', label: 'Tasks' },
-    { id: 'notes', label: 'Notes' },
-    { id: 'jobs', label: 'Jobs' },
-    { id: 'pre-quotes', label: 'Pre-Quotes' },
-    { id: 'quotes', label: 'Quotes' },
-    { id: 'orders', label: 'Orders' },
-    { id: 'invoices', label: 'Invoices' },
-    { id: 'commissions', label: 'Commissions' },
+    { id: 'connected-entities', label: 'Connected Entities' },
   ];
 
   // Address management functions
@@ -1495,17 +1457,6 @@ export default function ContactDetailView({
           </div>
         </div>
 
-        {/* ============ COMPANY SECTION ============ */}
-        <div ref={el => { sectionRefs.current['company'] = el; }} id="section-company">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Company</h2>
-
-          <ContactRelatedEntities
-            contact={contact}
-            onJobClick={onJobClick}
-            onCompanyClick={onCompanyClick}
-          />
-        </div>
-
         {/* ============ EMAILS SECTION ============ */}
         <div ref={el => { sectionRefs.current['emails'] = el; }} id="section-emails">
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -1586,284 +1537,18 @@ export default function ContactDetailView({
           </div>
         </div>
 
-        {/* ============ TASKS SECTION ============ */}
-        <div ref={el => { sectionRefs.current['tasks'] = el; }} id="section-tasks">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Connected Tasks</h2>
-
-          <ConnectedTasksSection
-            key={`tasks-${tasksSectionKey}`}
+        {/* ============ CONNECTED ENTITIES SECTION ============ */}
+        <div ref={el => { sectionRefs.current['connected-entities'] = el; }} id="section-connected-entities">
+          <ConnectedEntitiesSection
             entityId={contact.id}
-            entityType="CONTACT"
-            title=""
-            onAddClick={() => { openAddLinkModal('TASK'); }}
-            onUnlinkSuccess={() => setTasksSectionKey(prev => prev + 1)}
+            sourceEntityType="CONTACT"
+            title="Connected Entities"
+            enabledCategories={['companies', 'jobs', 'pre-opportunities', 'tasks', 'notes', 'quotes', 'orders', 'invoices', 'checks', 'files']}
+            onCompanyClick={onCompanyClick}
+            onJobClick={onJobClick}
           />
-        </div>
-
-        {/* ============ NOTES SECTION ============ */}
-        <div ref={el => { sectionRefs.current['notes'] = el; }} id="section-notes">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Connected Notes</h2>
-
-          <ConnectedNotesSection
-            key={`notes-${notesSectionKey}`}
-            entityId={contact.id}
-            entityType="CONTACT"
-            title=""
-            onAddClick={() => { openAddLinkModal('NOTE'); }}
-            onUnlinkSuccess={() => setNotesSectionKey(prev => prev + 1)}
-          />
-        </div>
-
-        {/* ============ JOBS SECTION ============ */}
-        <div ref={el => { sectionRefs.current['jobs'] = el; }} id="section-jobs">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg font-semibold text-gray-900">Jobs</h2>
-                <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">
-                  0
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Link Job
-                </button>
-                <button className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-                  </svg>
-                  New Job
-                </button>
-              </div>
-            </div>
-            <div className="p-6">
-              <div className="text-center py-8 text-gray-500">
-                <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-                <p className="text-sm">No jobs linked</p>
-                <button className="mt-2 text-sm text-blue-600 hover:underline">
-                  + Add a job
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ============ PRE-QUOTES SECTION ============ */}
-        <div ref={el => { sectionRefs.current['pre-quotes'] = el; }} id="section-pre-quotes">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg font-semibold text-gray-900">Pre-Quotes</h2>
-                <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">
-                  0
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Link Pre-Quote
-                </button>
-                <button className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-                  </svg>
-                  New Pre-Quote
-                </button>
-              </div>
-            </div>
-            <div className="p-6">
-              <div className="text-center py-8 text-gray-500">
-                <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <p className="text-sm">No pre-quotes linked</p>
-                <button className="mt-2 text-sm text-blue-600 hover:underline">
-                  + Add a pre-quote
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ============ QUOTES SECTION ============ */}
-        <div ref={el => { sectionRefs.current['quotes'] = el; }} id="section-quotes">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg font-semibold text-gray-900">Quotes</h2>
-                <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">
-                  0
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Link Quote
-                </button>
-                <button className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-                  </svg>
-                  New Quote
-                </button>
-              </div>
-            </div>
-            <div className="p-6">
-              <div className="text-center py-8 text-gray-500">
-                <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <p className="text-sm">No quotes linked</p>
-                <button className="mt-2 text-sm text-blue-600 hover:underline">
-                  + Add a quote
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ============ ORDERS SECTION ============ */}
-        <div ref={el => { sectionRefs.current['orders'] = el; }} id="section-orders">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg font-semibold text-gray-900">Orders</h2>
-                <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">
-                  0
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Link Order
-                </button>
-                <button className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-                  </svg>
-                  New Order
-                </button>
-              </div>
-            </div>
-            <div className="p-6">
-              <div className="text-center py-8 text-gray-500">
-                <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                </svg>
-                <p className="text-sm">No orders linked</p>
-                <button className="mt-2 text-sm text-blue-600 hover:underline">
-                  + Add an order
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ============ INVOICES SECTION ============ */}
-        <div ref={el => { sectionRefs.current['invoices'] = el; }} id="section-invoices">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg font-semibold text-gray-900">Invoices</h2>
-                <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">
-                  0
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Link Invoice
-                </button>
-                <button className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-                  </svg>
-                  New Invoice
-                </button>
-              </div>
-            </div>
-            <div className="p-6">
-              <div className="text-center py-8 text-gray-500">
-                <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
-                </svg>
-                <p className="text-sm">No invoices linked</p>
-                <button className="mt-2 text-sm text-blue-600 hover:underline">
-                  + Add an invoice
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ============ COMMISSIONS SECTION ============ */}
-        <div ref={el => { sectionRefs.current['commissions'] = el; }} id="section-commissions">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg font-semibold text-gray-900">Commissions</h2>
-                <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">
-                  0
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Link Commission
-                </button>
-                <button className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-                  </svg>
-                  New Commission
-                </button>
-              </div>
-            </div>
-            <div className="p-6">
-              <div className="text-center py-8 text-gray-500">
-                <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <p className="text-sm">No commissions linked</p>
-                <button className="mt-2 text-sm text-blue-600 hover:underline">
-                  + Add a commission
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
-
-      {/* Add Link Modal for Tasks/Notes */}
-      <AddTaskNoteLinkModal
-        isOpen={showAddLinkModal}
-        entityId={contact.id}
-        entityType="CONTACT"
-        initialLinkType={addLinkEntityType}
-        onClose={() => setShowAddLinkModal(false)}
-        onSuccess={handleLinkSuccess}
-      />
 
       <AddAddressModal
         isOpen={showAddAddressModal}

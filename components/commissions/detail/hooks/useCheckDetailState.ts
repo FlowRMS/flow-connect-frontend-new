@@ -499,6 +499,10 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
   const [showLineItemDetailModal, setShowLineItemDetailModal] = useState(false);
   const [selectedLineItem, setSelectedLineItem] = useState<LineItem | null>(null);
 
+  // Order detail modal state
+  const [showOrderDetailModal, setShowOrderDetailModal] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+
   // Open add line item modal
   const addNewLine = () => {
     setShowAddLineItemModal(true);
@@ -527,6 +531,18 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
   const closeLineItemDetail = () => {
     setShowLineItemDetailModal(false);
     setSelectedLineItem(null);
+  };
+
+  // Open order detail modal
+  const openOrderDetail = (orderId: string) => {
+    setSelectedOrderId(orderId);
+    setShowOrderDetailModal(true);
+  };
+
+  // Close order detail modal
+  const closeOrderDetail = () => {
+    setShowOrderDetailModal(false);
+    setSelectedOrderId(null);
   };
 
   // Update line item amount
@@ -563,6 +579,15 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     dueDate?: string;
     status?: string;
     orderId?: string;
+    order?: {
+      id: string;
+      orderNumber: string;
+      entityDate?: string;
+      status?: string;
+      headerStatus?: string;
+      factoryId?: string;
+      soldToCustomerId?: string;
+    };
     balanceId?: string;
     locked?: boolean;
     published?: boolean;
@@ -577,7 +602,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
       type: 'invoice' as const,
       number: invoice.invoiceNumber || '',
       orderId: invoice.orderId || '',
-      orderNumber: '', // Will be populated if needed
+      orderNumber: invoice.order?.orderNumber || '',
       customer: '-',
       salesRep: '-',
       commissionRateExpected: 0,
@@ -654,8 +679,8 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
         appliedAmount: String(Math.abs(item.paidCommission)),
       };
 
-      // If editing an existing detail, include the id
-      if (!item.id.startsWith('li-')) {
+      // If editing an existing detail, include the id (skip temp- and li- prefixes which indicate new items)
+      if (!item.id.startsWith('li-') && !item.id.startsWith('temp-')) {
         detailInput.id = item.id;
       }
 
@@ -967,6 +992,13 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     openLineItemDetail,
     closeLineItemDetail,
     updateLineItemAmount,
+
+    // Order detail modal
+    showOrderDetailModal,
+    setShowOrderDetailModal,
+    selectedOrderId,
+    openOrderDetail,
+    closeOrderDetail,
 
     // Computed values
     summary,

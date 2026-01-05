@@ -27,6 +27,7 @@ import type {
   RelatedEntityCustomer,
   RelatedEntityProduct,
 } from '../lib/crm-graphql';
+import { formatFileSize, type FileResponse } from '../notes/api';
 
 // ============================================================================
 // Types
@@ -45,7 +46,8 @@ export type EntityType =
   | 'preOpportunity'
   | 'factory'
   | 'customer'
-  | 'product';
+  | 'product'
+  | 'file';
 
 export type EntityUnion =
   | RelatedEntityCompany
@@ -60,7 +62,8 @@ export type EntityUnion =
   | RelatedEntityPreOpportunity
   | RelatedEntityFactory
   | RelatedEntityCustomer
-  | RelatedEntityProduct;
+  | RelatedEntityProduct
+  | FileResponse;
 
 interface RelatedEntityHoverCardProps {
   children: React.ReactNode;
@@ -185,6 +188,11 @@ const EntityIcons: Record<EntityType, React.ReactNode> = {
       <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
     </svg>
   ),
+  file: (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+    </svg>
+  ),
 };
 
 const EntityColors: Record<EntityType, string> = {
@@ -201,6 +209,7 @@ const EntityColors: Record<EntityType, string> = {
   factory: '#64748b',      // Slate
   customer: '#d946ef',     // Fuchsia
   product: '#84cc16',      // Lime
+  file: '#6b7280',         // Gray
 };
 
 const EntityLabels: Record<EntityType, string> = {
@@ -217,6 +226,7 @@ const EntityLabels: Record<EntityType, string> = {
   factory: 'Factory',
   customer: 'Customer',
   product: 'Product',
+  file: 'File',
 };
 
 // ============================================================================
@@ -1156,6 +1166,85 @@ function ProductContent({ entity }: { entity: RelatedEntityProduct }) {
   );
 }
 
+function FileContent({ entity }: { entity: FileResponse }) {
+  // Get file extension for display
+  const getFileExtension = (fileName: string): string => {
+    const parts = fileName.split('.');
+    return parts.length > 1 ? parts[parts.length - 1].toUpperCase() : 'FILE';
+  };
+
+  // Get icon color based on file type
+  const getFileTypeColor = (fileName: string): { from: string; to: string; border: string; text: string } => {
+    const ext = fileName.split('.').pop()?.toLowerCase() || '';
+
+    // Images
+    if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp'].includes(ext)) {
+      return { from: 'from-pink-50', to: 'to-rose-50', border: 'border-pink-100', text: 'text-pink-600' };
+    }
+    // Documents
+    if (['pdf', 'doc', 'docx', 'txt', 'rtf'].includes(ext)) {
+      return { from: 'from-red-50', to: 'to-orange-50', border: 'border-red-100', text: 'text-red-600' };
+    }
+    // Spreadsheets
+    if (['xls', 'xlsx', 'csv'].includes(ext)) {
+      return { from: 'from-green-50', to: 'to-emerald-50', border: 'border-green-100', text: 'text-green-600' };
+    }
+    // Presentations
+    if (['ppt', 'pptx'].includes(ext)) {
+      return { from: 'from-orange-50', to: 'to-amber-50', border: 'border-orange-100', text: 'text-orange-600' };
+    }
+    // Archives
+    if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
+      return { from: 'from-amber-50', to: 'to-yellow-50', border: 'border-amber-100', text: 'text-amber-600' };
+    }
+    // Default
+    return { from: 'from-gray-50', to: 'to-slate-50', border: 'border-gray-200', text: 'text-gray-600' };
+  };
+
+  const colors = getFileTypeColor(entity.fileName);
+  const extension = getFileExtension(entity.fileName);
+
+  return (
+    <div className="space-y-3">
+      {/* Header with gradient */}
+      <div className={`flex items-start gap-3 p-3 -m-1 rounded-xl bg-gradient-to-br ${colors.from} ${colors.to} border ${colors.border}`}>
+        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-gray-500 to-slate-600 flex items-center justify-center text-white shadow-md">
+          {EntityIcons.file}
+        </div>
+        <div className="flex-1 min-w-0">
+          <h4 className="font-semibold text-[var(--foreground)] truncate">{entity.fileName}</h4>
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium mt-1 bg-white/60 ${colors.text}`}>
+            {extension}
+          </span>
+        </div>
+      </div>
+
+      {/* File details */}
+      <div className="grid grid-cols-2 gap-2">
+        <div className="p-2 bg-[var(--muted)]/40 rounded-lg">
+          <div className="text-[10px] text-[var(--muted-foreground)] uppercase tracking-wide flex items-center gap-1">
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" /></svg>
+            Size
+          </div>
+          <div className="text-sm font-medium text-[var(--foreground)]">{formatFileSize(entity.fileSize)}</div>
+        </div>
+        {entity.fileType && (
+          <div className="p-2 bg-[var(--muted)]/40 rounded-lg">
+            <div className="text-[10px] text-[var(--muted-foreground)] uppercase tracking-wide">Type</div>
+            <div className="text-sm font-medium text-[var(--foreground)] truncate">{entity.fileType}</div>
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className="pt-2 border-t border-[var(--border)] text-[10px] text-[var(--muted-foreground)] flex items-center gap-1">
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        Uploaded {formatTimeAgo(entity.createdAt)}
+      </div>
+    </div>
+  );
+}
+
 // ============================================================================
 // Main Component
 // ============================================================================
@@ -1258,6 +1347,8 @@ export function RelatedEntityHoverCard({ children, entity, type, disabled = fals
         return <CustomerContent entity={entity as RelatedEntityCustomer} />;
       case 'product':
         return <ProductContent entity={entity as RelatedEntityProduct} />;
+      case 'file':
+        return <FileContent entity={entity as FileResponse} />;
       default:
         return null;
     }

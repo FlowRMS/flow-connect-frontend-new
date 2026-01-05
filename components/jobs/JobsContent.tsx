@@ -401,7 +401,20 @@ export default function JobsContent() {
     // Use detailedJob if available, otherwise fallback to selectedJob
     const currentJob = detailedJob || selectedJob;
     if (!currentJob) return;
-    
+
+    // Validate end date is not before start date
+    const startDate = editFormData.startDate && editFormData.startDate !== '-' ? editFormData.startDate : null;
+    const endDate = editFormData.endDate && editFormData.endDate !== '-' ? editFormData.endDate : null;
+
+    if (startDate && endDate) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      if (end < start) {
+        jobToasts.updateError('End date cannot be before start date');
+        return;
+      }
+    }
+
     try {
       // Find the statusId from the job's current status name
       const currentStatus = apiStatuses?.find(s => s.name === currentJob.status);

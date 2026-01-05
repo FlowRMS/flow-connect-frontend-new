@@ -1,0 +1,973 @@
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { toast } from 'sonner';
+import {
+  Q_GET_PENDING_ENTITIES,
+  Q_GET_ALL_PENDING_ENTITIES,
+  Q_SEARCH_EXISTING_ENTITIES,
+  Q_USER_SEARCH,
+  M_CONFIRM_ENTITY_MATCH,
+  M_BULK_CONFIRM_ENTITIES,
+  M_CREATE_NEW_ENTITY,
+} from '@/lib/flow-ai/gql';
+import { flowrmsApolloClient } from '@/lib/flow-ai/flowrms-apollo';
+import type {
+  PendingEntity,
+  PendingEntityType,
+  EntityStep,
+  FilterType,
+  BulkConfirmAction,
+  SearchEntity,
+  StepStatus,
+} from '@/components/flow-ai/types/entity-matching';
+import {
+  stepToEntityType,
+  statusToFilterType,
+  isResolved,
+  needsAction,
+} from '@/components/flow-ai/types/entity-matching';
+
+// Type for pending entities response
+interface PendingEntitiesResponse {
+  pendingEntities: PendingEntity[];
+}
+
+// Type for all pending entities response (single query)
+interface AllPendingEntitiesResponse {
+  factories: PendingEntity[];
+  customers: PendingEntity[];
+  billToCustomers: PendingEntity[];
+  endUsers: PendingEntity[];
+  products: PendingEntity[];
+}
+
+// Type for search response
+interface SearchEntitiesResponse {
+  searchExistingEntities: SearchEntity[];
+}
+
+// Type for confirm mutation response
+interface ConfirmEntityResponse {
+  confirmEntityMatch: PendingEntity;
+}
+
+// Type for bulk confirm mutation response
+interface BulkConfirmResponse {
+  bulkConfirmEntities: PendingEntity[];
+}
+
+// Type for create new entity mutation response
+interface CreateNewEntityResponse {
+  createNewEntity: PendingEntity;
+}
+
+// Type for user search result
+export interface UserResult {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+}
+
+// Type for user search response
+interface UserSearchResponse {
+  userSearch: UserResult[];
+}
+
+// Type for createExtraFields in mutations
+// - Customers/End Users: outsideRepId required, insideRepId optional
+// - Factories: insideRepId required only
+// - Products: factoryId required
+export interface CreateExtraFields {
+  insideRepId?: string;
+  outsideRepId?: string;
+  factoryId?: string;
+}
+
+export interface UseEntityMatchingOptions {
+  pendingDocumentId: string | null;
+}
+
+export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOptions) {
+  // Entity state by type
+  const [factories, setFactories] = useState<PendingEntity[]>([]);
+  const [customers, setCustomers] = useState<PendingEntity[]>([]);
+  const [billToCustomers, setBillToCustomers] = useState<PendingEntity[]>([]);
+  const [endUsers, setEndUsers] = useState<PendingEntity[]>([]);
+  const [products, setProducts] = useState<PendingEntity[]>([]);
+
+  // Track which steps have been loaded
+  const [loadedSteps, setLoadedSteps] = useState<Set<EntityStep>>(new Set());
+
+  // UI state
+  const [currentStep, setCurrentStep] = useState<EntityStep>('factories');
+  // Default filters exclude 'auto-matched' to hide auto-matched entities by default
+  const [activeFilters, setActiveFilters] = useState<Set<FilterType>>(
+    new Set(['needs-review', 'pending', 'confirmed', 'no-match'])
+  );
+  const [createNewMode, setCreateNewMode] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  const [loadingEntities, setLoadingEntities] = useState<Set<string>>(new Set());
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [bulkConfirmLoading, setBulkConfirmLoading] = useState(false);
+
+  // Track if component is mounted
+  const mountedRef = useRef(true);
+
+  // Direct query function - adds originalIndex for stable sorting
+  const fetchEntities = useCallback(
+    async (entityType: PendingEntityType, docId: string): Promise<PendingEntity[]> => {
+      try {
+        console.log(`Fetching entities for ${entityType}...`);
+        const result = await flowrmsApolloClient.query<PendingEntitiesResponse>({
+          query: Q_GET_PENDING_ENTITIES,
+          variables: {
+            filterInput: {
+              entityType,
+              pendingDocumentId: docId,
+            },
+          },
+          fetchPolicy: 'network-only',
+        });
+        console.log(`Fetched ${result.data?.pendingEntities?.length || 0} entities for ${entityType}`);
+        // Add originalIndex to each entity for stable sorting
+        const entities = result.data?.pendingEntities || [];
+        return entities.map((entity, index) => ({
+          ...entity,
+          originalIndex: index,
+        }));
+      } catch (error) {
+        // Ignore abort errors
+        if (error instanceof Error && error.name === 'AbortError') {
+          console.log('Request aborted for', entityType);
+          return [];
+        }
+        console.error(`Error fetching ${entityType}:`, error);
+        throw error;
+      }
+    },
+    []
+  );
+
+  // Load ALL entities on mount using a single GraphQL query
+  const loadAllEntities = useCallback(async () => {
+    if (!pendingDocumentId) return;
+
+    setIsLoading(true);
+    try {
+      console.log('Loading all entity types in single query...');
+
+      // Single query to fetch all entity types at once
+      const result = await flowrmsApolloClient.query<AllPendingEntitiesResponse>({
+        query: Q_GET_ALL_PENDING_ENTITIES,
+        variables: { pendingDocumentId },
+        fetchPolicy: 'network-only',
+      });
+
+      if (!mountedRef.current) return;
+
+      // Add originalIndex to each entity for stable sorting
+      const addOriginalIndex = (entities: PendingEntity[]) =>
+        entities.map((entity, index) => ({ ...entity, originalIndex: index }));
+
+      const factoriesData = addOriginalIndex(result.data?.factories || []);
+      const customersData = addOriginalIndex(result.data?.customers || []);
+      const billToCustomersData = addOriginalIndex(result.data?.billToCustomers || []);
+      const endUsersData = addOriginalIndex(result.data?.endUsers || []);
+      const productsData = addOriginalIndex(result.data?.products || []);
+
+      console.log('Loaded entities:', {
+        factories: factoriesData.length,
+        customers: customersData.length,
+        billToCustomers: billToCustomersData.length,
+        endUsers: endUsersData.length,
+        products: productsData.length,
+      });
+
+      setFactories(factoriesData);
+      setCustomers(customersData);
+      setBillToCustomers(billToCustomersData);
+      setEndUsers(endUsersData);
+      setProducts(productsData);
+
+      // Mark all steps as loaded
+      setLoadedSteps(new Set(['factories', 'customers', 'billtocustomers', 'endusers', 'products']));
+      setInitialLoadComplete(true);
+    } catch (error) {
+      if (!mountedRef.current) return;
+      console.error('Error loading entities:', error);
+      toast.error('Failed to load entities');
+    } finally {
+      if (mountedRef.current) {
+        setIsLoading(false);
+      }
+    }
+  }, [pendingDocumentId]);
+
+  // Load all entities on mount
+  useEffect(() => {
+    mountedRef.current = true;
+
+    if (pendingDocumentId && !initialLoadComplete) {
+      loadAllEntities();
+    }
+
+    return () => {
+      mountedRef.current = false;
+    };
+  }, [pendingDocumentId, initialLoadComplete, loadAllEntities]);
+
+  // Reset state when pendingDocumentId changes
+  useEffect(() => {
+    setLoadedSteps(new Set());
+    setFactories([]);
+    setCustomers([]);
+    setBillToCustomers([]);
+    setEndUsers([]);
+    setProducts([]);
+    setInitialLoadComplete(false);
+  }, [pendingDocumentId]);
+
+  // Get entities for current step
+  const getEntitiesByStep = useCallback(
+    (step: EntityStep): PendingEntity[] => {
+      switch (step) {
+        case 'factories':
+          return factories;
+        case 'customers':
+          return customers;
+        case 'billtocustomers':
+          return billToCustomers;
+        case 'endusers':
+          return endUsers;
+        case 'products':
+          return products;
+      }
+    },
+    [factories, customers, billToCustomers, endUsers, products]
+  );
+
+  // Set entities by step
+  const setEntitiesByStep = useCallback(
+    (step: EntityStep, entities: PendingEntity[] | ((prev: PendingEntity[]) => PendingEntity[])) => {
+      switch (step) {
+        case 'factories':
+          setFactories(entities as PendingEntity[]);
+          break;
+        case 'customers':
+          setCustomers(entities as PendingEntity[]);
+          break;
+        case 'billtocustomers':
+          setBillToCustomers(entities as PendingEntity[]);
+          break;
+        case 'endusers':
+          setEndUsers(entities as PendingEntity[]);
+          break;
+        case 'products':
+          setProducts(entities as PendingEntity[]);
+          break;
+      }
+    },
+    []
+  );
+
+  // Get current step entity type
+  const getCurrentEntityType = useCallback((): PendingEntityType => {
+    return stepToEntityType[currentStep];
+  }, [currentStep]);
+
+  // Filter entities based on active filters and createNewMode
+  const currentStepEntities = useMemo(() => {
+    return getEntitiesByStep(currentStep);
+  }, [currentStep, getEntitiesByStep]);
+
+  const getCurrentEntities = useCallback((): PendingEntity[] => {
+    let entities = currentStepEntities;
+
+    if (createNewMode) {
+      // In create new mode, show only entities needing review or without matches
+      entities = entities.filter(
+        (e) =>
+          e.confirmationStatus === 'NEEDS_REVIEW' ||
+          e.confirmationStatus === 'PENDING_REVIEW' ||
+          e.confirmationStatus === 'REJECTED' ||
+          !e.bestMatchId
+      );
+    } else {
+      // Filter by active filters
+      entities = entities.filter((e) => {
+        const filterType = statusToFilterType[e.confirmationStatus];
+
+        // First, check by status-based filter
+        if (activeFilters.has(filterType)) {
+          return true;
+        }
+
+        // For entities with NO match candidates at all, check 'no-match' filter
+        // But only if they don't match their status-based filter
+        if (e.matchCandidates.length === 0 && e.confirmationStatus !== 'CREATED_NEW') {
+          return activeFilters.has('no-match');
+        }
+
+        return false;
+      });
+    }
+
+    // Stable sort: needs attention first (not completed/rejected), then by original index
+    // This prevents reordering when user makes selections or changes
+    return [...entities].sort((a, b) => {
+      const aResolved = isResolved(a.confirmationStatus);
+      const bResolved = isResolved(b.confirmationStatus);
+
+      // Unresolved items come first
+      if (aResolved !== bResolved) {
+        return aResolved ? 1 : -1;
+      }
+
+      // Within the same resolved/unresolved group, maintain original order
+      return (a.originalIndex ?? 0) - (b.originalIndex ?? 0);
+    });
+  }, [currentStepEntities, createNewMode, activeFilters]);
+
+  // Toggle filter
+  const toggleFilter = useCallback((filter: FilterType) => {
+    setActiveFilters((prev) => {
+      const newFilters = new Set(prev);
+      if (newFilters.has(filter)) {
+        newFilters.delete(filter);
+      } else {
+        newFilters.add(filter);
+      }
+      return newFilters;
+    });
+  }, []);
+
+  // Toggle entity selection
+  const handleToggleSelect = useCallback(
+    (entityId: string) => {
+      const updateFn = (entities: PendingEntity[]) =>
+        entities.map((e) =>
+          e.id === entityId ? { ...e, selected: !e.selected } : e
+        );
+
+      switch (currentStep) {
+        case 'factories':
+          setFactories(updateFn);
+          break;
+        case 'customers':
+          setCustomers(updateFn);
+          break;
+        case 'billtocustomers':
+          setBillToCustomers(updateFn);
+          break;
+        case 'endusers':
+          setEndUsers(updateFn);
+          break;
+        case 'products':
+          setProducts(updateFn);
+          break;
+      }
+    },
+    [currentStep]
+  );
+
+  // Helper to check if entity is locked (cannot be selected)
+  const isEntityLocked = useCallback((entity: PendingEntity): boolean => {
+    return entity.confirmationStatus === 'CONFIRMED' ||
+           entity.confirmationStatus === 'REJECTED' ||
+           entity.confirmationStatus === 'CREATED_NEW';
+  }, []);
+
+  // Select all entities in current view (only selectable ones)
+  const handleSelectAll = useCallback(() => {
+    const currentEntities = getCurrentEntities();
+    // Only consider selectable (non-locked) entities
+    const selectableEntities = currentEntities.filter(e => !isEntityLocked(e));
+    const selectableIds = new Set(selectableEntities.map((e) => e.id));
+    const allSelected = selectableEntities.length > 0 && selectableEntities.every((e) => e.selected);
+
+    const updateFn = (entities: PendingEntity[]) =>
+      entities.map((e) =>
+        selectableIds.has(e.id) ? { ...e, selected: !allSelected } : e
+      );
+
+    switch (currentStep) {
+      case 'factories':
+        setFactories(updateFn);
+        break;
+      case 'customers':
+        setCustomers(updateFn);
+        break;
+      case 'billtocustomers':
+        setBillToCustomers(updateFn);
+        break;
+      case 'endusers':
+        setEndUsers(updateFn);
+        break;
+      case 'products':
+        setProducts(updateFn);
+        break;
+    }
+  }, [currentStep, getCurrentEntities, isEntityLocked]);
+
+  // Confirm a single entity match
+  const handleConfirmMatch = useCallback(
+    async (pendingEntityId: string, existingEntityId: string, existingEntityName: string) => {
+      setLoadingEntities((prev) => new Set(prev).add(pendingEntityId));
+      try {
+        const result = await flowrmsApolloClient.mutate<ConfirmEntityResponse>({
+          mutation: M_CONFIRM_ENTITY_MATCH,
+          variables: {
+            input: { pendingEntityId, existingEntityId, existingEntityName },
+          },
+        });
+
+        if (result.data?.confirmEntityMatch) {
+          const updatedEntity = result.data.confirmEntityMatch;
+          const updateFn = (entities: PendingEntity[]) =>
+            entities.map((e) =>
+              e.id === pendingEntityId
+                ? { ...updatedEntity, selected: false, originalIndex: e.originalIndex }
+                : e
+            );
+
+          switch (currentStep) {
+            case 'factories':
+              setFactories(updateFn);
+              break;
+            case 'customers':
+              setCustomers(updateFn);
+              break;
+            case 'billtocustomers':
+              setBillToCustomers(updateFn);
+              break;
+            case 'endusers':
+              setEndUsers(updateFn);
+              break;
+            case 'products':
+              setProducts(updateFn);
+              break;
+          }
+          toast.success('Match confirmed');
+        }
+      } catch (error) {
+        console.error('Error confirming match:', error);
+        toast.error('Failed to confirm match');
+      } finally {
+        setLoadingEntities((prev) => {
+          const next = new Set(prev);
+          next.delete(pendingEntityId);
+          return next;
+        });
+      }
+    },
+    [currentStep]
+  );
+
+  // Bulk action on selected entities
+  const handleBulkAction = useCallback(
+    async (action: BulkConfirmAction, createExtraFields?: CreateExtraFields) => {
+      const currentEntities = getCurrentEntities();
+      let selectedEntities = currentEntities.filter((e) => e.selected);
+
+      if (selectedEntities.length === 0) {
+        toast.error('No entities selected');
+        return;
+      }
+
+      // For MATCH_EXISTING, filter out entities without bestMatchId or matchCandidates (required by API)
+      if (action === 'MATCH_EXISTING') {
+        // An entity can be approved if it has either:
+        // 1. A bestMatchId already set, OR
+        // 2. matchCandidates available (we'll use the first/best one)
+        const entitiesWithMatch = selectedEntities.filter(
+          (e) => e.bestMatchId || (e.matchCandidates && e.matchCandidates.length > 0)
+        );
+        const skippedCount = selectedEntities.length - entitiesWithMatch.length;
+        if (skippedCount > 0) {
+          toast.warning(`${skippedCount} entities skipped (no match available)`);
+        }
+        if (entitiesWithMatch.length === 0) {
+          toast.error('No entities with matches to approve');
+          return;
+        }
+        selectedEntities = entitiesWithMatch;
+      }
+
+      // Build inputs for bulk mutation
+      const inputs = selectedEntities.map((entity) => {
+        // Get the selected match ID - this is the entity selected in the dropdown
+        // bestMatchId is updated when user selects from dropdown or search
+        const selectedMatchId = entity.bestMatchId ||
+          (entity.matchCandidates && entity.matchCandidates.length > 0
+            ? entity.matchCandidates[0].entityId
+            : null);
+
+        // Get the selected match name - from bestMatchName or lookup from candidates
+        let selectedMatchName = entity.bestMatchName;
+        if (!selectedMatchName && selectedMatchId) {
+          const candidate = entity.matchCandidates.find(c => c.entityId === selectedMatchId);
+          selectedMatchName = candidate?.name || null;
+        }
+
+        const input: {
+          pendingEntityId: string;
+          action: BulkConfirmAction;
+          existingEntityId?: string;
+          existingEntityName?: string;
+          flowIndex?: number;
+          fieldOverrides?: string;
+          createExtraFields?: CreateExtraFields;
+        } = {
+          pendingEntityId: entity.id,
+          action,
+        };
+
+        // Always include existingEntityId and existingEntityName when available
+        if (selectedMatchId) {
+          input.existingEntityId = selectedMatchId;
+        }
+        if (selectedMatchName) {
+          input.existingEntityName = selectedMatchName;
+        }
+
+        // Include flowIndex from flowIndexDetail (parse as integer)
+        if (entity.flowIndexDetail !== null && entity.flowIndexDetail !== undefined) {
+          const flowIndexNum = parseInt(String(entity.flowIndexDetail), 10);
+          if (!isNaN(flowIndexNum)) {
+            input.flowIndex = flowIndexNum;
+          }
+        }
+
+        // Include createExtraFields for CREATE_NEW action (inside/outside rep)
+        if (action === 'CREATE_NEW' && createExtraFields) {
+          input.createExtraFields = createExtraFields;
+        }
+
+        return input;
+      });
+
+      setBulkConfirmLoading(true);
+      try {
+        const result = await flowrmsApolloClient.mutate<BulkConfirmResponse>({
+          mutation: M_BULK_CONFIRM_ENTITIES,
+          variables: { inputs },
+        });
+
+        if (result.data?.bulkConfirmEntities) {
+          const updatedEntities = result.data.bulkConfirmEntities;
+          const updatedMap = new Map<string, PendingEntity>(
+            updatedEntities.map((e) => [e.id, e])
+          );
+
+          // Preserve originalIndex when updating entities
+          const updateFn = (entities: PendingEntity[]): PendingEntity[] =>
+            entities.map((e): PendingEntity =>
+              updatedMap.has(e.id)
+                ? { ...updatedMap.get(e.id)!, selected: false, originalIndex: e.originalIndex }
+                : e
+            );
+
+          switch (currentStep) {
+            case 'factories':
+              setFactories(updateFn);
+              break;
+            case 'customers':
+              setCustomers(updateFn);
+              break;
+            case 'billtocustomers':
+              setBillToCustomers(updateFn);
+              break;
+            case 'endusers':
+              setEndUsers(updateFn);
+              break;
+            case 'products':
+              setProducts(updateFn);
+              break;
+          }
+
+          const actionLabel =
+            action === 'MATCH_EXISTING'
+              ? 'approved'
+              : action === 'CREATE_NEW'
+              ? 'marked for creation'
+              : 'rejected';
+          toast.success(
+            `${selectedEntities.length} ${
+              selectedEntities.length === 1 ? 'entity' : 'entities'
+            } ${actionLabel}`
+          );
+        }
+      } catch (error) {
+        console.error('Error performing bulk action:', error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        // Check for duplicate key error
+        if (errorMessage.includes('duplicate key') || errorMessage.includes('UniqueViolation') || errorMessage.includes('already exists')) {
+          const nameMatch = errorMessage.match(/Key \([^)]+\)=\(([^)]+)\)/);
+          const entityName = nameMatch ? nameMatch[1] : 'An entity';
+          toast.error(`"${entityName}" already exists. Please remove it from selection or match to existing.`);
+        } else {
+          toast.error('Failed to perform bulk action');
+        }
+      } finally {
+        setBulkConfirmLoading(false);
+      }
+    },
+    [getCurrentEntities, currentStep]
+  );
+
+  // Convenience methods for bulk actions
+  const handleBulkApprove = useCallback(
+    () => handleBulkAction('MATCH_EXISTING'),
+    [handleBulkAction]
+  );
+
+  const handleBulkCreateNew = useCallback(
+    (createExtraFields?: CreateExtraFields) => handleBulkAction('CREATE_NEW', createExtraFields),
+    [handleBulkAction]
+  );
+
+  const handleBulkReject = useCallback(
+    () => handleBulkAction('REJECT'),
+    [handleBulkAction]
+  );
+
+  // Select a match for an entity (local state only - does NOT call API)
+  // Use this for dropdown selection - actual confirmation happens via bulk/approve buttons
+  const handleSelectMatch = useCallback(
+    (entityId: string, matchEntityId: string) => {
+      const updateFn = (entities: PendingEntity[]) =>
+        entities.map((e) => {
+          if (e.id !== entityId) return e;
+          // Find the selected match candidate to get its similarity score and name
+          const selectedCandidate = e.matchCandidates.find(c => c.entityId === matchEntityId);
+          return {
+            ...e,
+            bestMatchId: matchEntityId,
+            bestMatchName: selectedCandidate?.name || e.bestMatchName,
+            bestMatchSimilarity: selectedCandidate?.similarityScore || e.bestMatchSimilarity,
+          };
+        });
+
+      switch (currentStep) {
+        case 'factories':
+          setFactories(updateFn);
+          break;
+        case 'customers':
+          setCustomers(updateFn);
+          break;
+        case 'billtocustomers':
+          setBillToCustomers(updateFn);
+          break;
+        case 'endusers':
+          setEndUsers(updateFn);
+          break;
+        case 'products':
+          setProducts(updateFn);
+          break;
+      }
+    },
+    [currentStep]
+  );
+
+  // Select a match from search results - adds the result to matchCandidates if not present
+  const handleSelectFromSearch = useCallback(
+    (entityId: string, searchResult: { entityId: string; name: string; similarityScore: number }) => {
+      const updateFn = (entities: PendingEntity[]) =>
+        entities.map((e) => {
+          if (e.id !== entityId) return e;
+
+          // Check if this match already exists in candidates
+          const existingCandidate = e.matchCandidates.find(c => c.entityId === searchResult.entityId);
+
+          // If not in candidates, add it
+          const updatedCandidates = existingCandidate
+            ? e.matchCandidates
+            : [
+                {
+                  entityId: searchResult.entityId,
+                  name: searchResult.name,
+                  similarityScore: searchResult.similarityScore,
+                  rank: 0,
+                  metadata: null,
+                },
+                ...e.matchCandidates,
+              ];
+
+          return {
+            ...e,
+            bestMatchId: searchResult.entityId,
+            bestMatchName: searchResult.name,
+            bestMatchSimilarity: searchResult.similarityScore,
+            matchCandidates: updatedCandidates,
+          };
+        });
+
+      switch (currentStep) {
+        case 'factories':
+          setFactories(updateFn);
+          break;
+        case 'customers':
+          setCustomers(updateFn);
+          break;
+        case 'billtocustomers':
+          setBillToCustomers(updateFn);
+          break;
+        case 'endusers':
+          setEndUsers(updateFn);
+          break;
+        case 'products':
+          setProducts(updateFn);
+          break;
+      }
+    },
+    [currentStep]
+  );
+
+  // Select an alternative match for an entity (calls API to confirm)
+  const handleSelectAlternative = useCallback(
+    async (entityId: string, alternativeEntityId: string, alternativeEntityName: string) => {
+      await handleConfirmMatch(entityId, alternativeEntityId, alternativeEntityName);
+    },
+    [handleConfirmMatch]
+  );
+
+  // Create a new entity (single entity)
+  const handleCreateNew = useCallback(
+    async (
+      pendingEntityId: string,
+      fieldOverrides?: Record<string, unknown>,
+      flowIndex?: number,
+      createExtraFields?: CreateExtraFields
+    ) => {
+      setLoadingEntities((prev) => new Set(prev).add(pendingEntityId));
+      try {
+        // Build input with optional flowIndex and createExtraFields
+        const input: {
+          pendingEntityId: string;
+          fieldOverrides: Record<string, unknown> | null;
+          flowIndex?: number;
+          createExtraFields?: CreateExtraFields;
+        } = {
+          pendingEntityId,
+          fieldOverrides: fieldOverrides || null,
+        };
+
+        // Include flowIndex if provided
+        if (flowIndex !== undefined && flowIndex !== null && !isNaN(flowIndex)) {
+          input.flowIndex = flowIndex;
+        }
+
+        // Include createExtraFields if provided (for inside/outside rep)
+        if (createExtraFields) {
+          input.createExtraFields = createExtraFields;
+        }
+
+        const result = await flowrmsApolloClient.mutate<CreateNewEntityResponse>({
+          mutation: M_CREATE_NEW_ENTITY,
+          variables: { input },
+        });
+
+        if (result.data?.createNewEntity) {
+          const updatedEntity = result.data.createNewEntity;
+          const updateFn = (entities: PendingEntity[]) =>
+            entities.map((e) =>
+              e.id === pendingEntityId
+                ? { ...updatedEntity, selected: false, originalIndex: e.originalIndex }
+                : e
+            );
+
+          switch (currentStep) {
+            case 'factories':
+              setFactories(updateFn);
+              break;
+            case 'customers':
+              setCustomers(updateFn);
+              break;
+            case 'billtocustomers':
+              setBillToCustomers(updateFn);
+              break;
+            case 'endusers':
+              setEndUsers(updateFn);
+              break;
+            case 'products':
+              setProducts(updateFn);
+              break;
+          }
+          toast.success('New entity created');
+        }
+      } catch (error) {
+        console.error('Error creating new entity:', error);
+        // Check for duplicate key error
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (errorMessage.includes('duplicate key') || errorMessage.includes('UniqueViolation') || errorMessage.includes('already exists')) {
+          // Try to extract the entity name from the error message
+          // Format: Key (title)=(Factory A) already exists.
+          const nameMatch = errorMessage.match(/Key \([^)]+\)=\(([^)]+)\)/);
+          const entityName = nameMatch ? nameMatch[1] : 'this name';
+          toast.error(`"${entityName}" already exists. Please use a different name or match to the existing entity.`);
+        } else {
+          toast.error('Failed to create new entity');
+        }
+      } finally {
+        setLoadingEntities((prev) => {
+          const next = new Set(prev);
+          next.delete(pendingEntityId);
+          return next;
+        });
+      }
+    },
+    [currentStep]
+  );
+
+  // Search for existing entities
+  const handleSearchEntities = useCallback(
+    async (query: string, limit = 10): Promise<SearchEntity[]> => {
+      // Allow empty string queries - API returns default results
+      setSearchLoading(true);
+      try {
+        const result = await flowrmsApolloClient.query<SearchEntitiesResponse>({
+          query: Q_SEARCH_EXISTING_ENTITIES,
+          variables: {
+            input: {
+              entityType: stepToEntityType[currentStep],
+              query,
+              limit,
+            },
+          },
+          fetchPolicy: 'network-only',
+        });
+        return result.data?.searchExistingEntities || [];
+      } catch (error) {
+        console.error('Error searching entities:', error);
+        return [];
+      } finally {
+        setSearchLoading(false);
+      }
+    },
+    [currentStep]
+  );
+
+  // Search for users (inside or outside reps)
+  const handleSearchUsers = useCallback(
+    async (searchTerm: string, type: 'inside' | 'outside', limit = 10): Promise<UserResult[]> => {
+      try {
+        const result = await flowrmsApolloClient.query<UserSearchResponse>({
+          query: Q_USER_SEARCH,
+          variables: {
+            searchTerm,
+            isInside: type === 'inside',
+            isOutside: type === 'outside',
+            limit,
+          },
+          fetchPolicy: 'network-only',
+        });
+        return result.data?.userSearch || [];
+      } catch (error) {
+        console.error('Error searching users:', error);
+        return [];
+      }
+    },
+    []
+  );
+
+  // Get step status for navigation
+  const getStepStatus = useCallback(
+    (step: EntityStep): StepStatus => {
+      const entities = getEntitiesByStep(step);
+      const needsReviewCount = entities.filter(
+        (e) => needsAction(e.confirmationStatus)
+      ).length;
+      const validated = entities.length === 0 || entities.every((e) => isResolved(e.confirmationStatus));
+
+      return {
+        validated: loadedSteps.has(step) ? validated : false,
+        needsReview: needsReviewCount,
+        total: entities.length,
+      };
+    },
+    [getEntitiesByStep, loadedSteps]
+  );
+
+  // Check if all entities are validated (only for loaded steps)
+  const allValidated = useMemo(() => {
+    const allSteps: EntityStep[] = ['factories', 'customers', 'billtocustomers', 'endusers', 'products'];
+
+    // Check if all steps are loaded
+    if (!allSteps.every(step => loadedSteps.has(step))) {
+      return false;
+    }
+
+    const allEntities = [...factories, ...customers, ...billToCustomers, ...endUsers, ...products];
+    return allEntities.length === 0 || allEntities.every((e) => isResolved(e.confirmationStatus));
+  }, [factories, customers, billToCustomers, endUsers, products, loadedSteps]);
+
+  // Refresh entities for current step
+  const refreshCurrentStep = useCallback(async () => {
+    if (!pendingDocumentId) return;
+
+    setIsLoading(true);
+    try {
+      const entities = await fetchEntities(
+        stepToEntityType[currentStep],
+        pendingDocumentId
+      );
+      setEntitiesByStep(currentStep, entities);
+    } catch (error) {
+      console.error('Error refreshing entities:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [pendingDocumentId, currentStep, fetchEntities, setEntitiesByStep]);
+
+  return {
+    // Entity data
+    factories,
+    customers,
+    billToCustomers,
+    endUsers,
+    products,
+
+    // UI state
+    currentStep,
+    setCurrentStep,
+    activeFilters,
+    toggleFilter,
+    createNewMode,
+    setCreateNewMode,
+    isLoading,
+    initialLoadComplete,
+    bulkConfirmLoading,
+    searchLoading,
+    loadingEntities,
+    loadedSteps,
+
+    // Computed values
+    getCurrentEntities,
+    getCurrentEntityType,
+    getStepStatus,
+    allValidated,
+
+    // Actions
+    handleToggleSelect,
+    handleSelectAll,
+    handleSelectMatch,
+    handleSelectFromSearch,
+    handleConfirmMatch,
+    handleCreateNew,
+    handleBulkApprove,
+    handleBulkCreateNew,
+    handleBulkReject,
+    handleBulkAction,
+    handleSelectAlternative,
+    handleSearchEntities,
+    handleSearchUsers,
+    refreshCurrentStep,
+  };
+}
+
+
+
+
+
