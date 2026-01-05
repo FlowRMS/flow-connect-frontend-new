@@ -133,7 +133,6 @@ export function AcknowledgementModal({
       orderAcknowledgementNumber: ackNumber.trim(),
       entityDate: formatDateToString(ackDate) || new Date().toISOString().split('T')[0],
       quantity: quantity,
-      shipDate: shipDate ? formatDateToString(shipDate) : undefined,
       creationType: 'MANUAL',
     };
 

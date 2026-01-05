@@ -86,7 +86,7 @@ export function OrdersTable({
       )}
 
       <div className="overflow-x-auto">
-        <div className="min-w-[1850px]">
+        <div className="min-w-[1990px]">
           {/* Table Header */}
           <OrdersTableHeader
             filteredOrders={filteredOrders}

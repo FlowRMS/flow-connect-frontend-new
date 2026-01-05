@@ -86,8 +86,7 @@ export {
   createLink,
   deleteLink,
   deleteLinkByEntities,
-  fetchJobRelatedEntities,
-  fetchContactRelatedEntities,
+  fetchRelatedEntities,
   searchTasks,
   searchNotes,
   searchQuotes,
@@ -113,6 +112,22 @@ export {
   type UserLite,
   type OrderQuoteDetail,
   type CheckDetail as JobRelatedCheckDetail,
+  // Re-export centralized related entities types
+  type RelatedEntities,
+  type RelatedEntitiesSourceType,
+  type RelatedEntityCheck,
+  type RelatedEntityCompany,
+  type RelatedEntityContact,
+  type RelatedEntityCustomer,
+  type RelatedEntityFactory,
+  type RelatedEntityInvoice,
+  type RelatedEntityJob,
+  type RelatedEntityNote,
+  type RelatedEntityOrder,
+  type RelatedEntityPreOpportunity,
+  type RelatedEntityProduct,
+  type RelatedEntityQuote,
+  type RelatedEntityTask,
 } from './entity-links';
 
 // Notes module - re-exported from component API for backward compatibility

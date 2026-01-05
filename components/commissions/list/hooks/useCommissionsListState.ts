@@ -11,30 +11,59 @@ import {
   type Check,
   type CheckLandingPage,
   type CreateCheckInput,
-  useChecksLandingPage,
+  type UpdateCheckInput,
+  type CheckStatus,
+  useChecksInfinite,
   useCreateCheck,
   useUpdateCheck,
   useDeleteCheck,
   fetchCheckById,
 } from '@/components/orders/api/checksApi';
+import { unpostCheck } from '@/components/lib/graphql/checks';
 import { useCommissionFilters } from './useCommissionFilters';
 import { useCommissionSelection } from './useCommissionSelection';
-import { useCommissionBulkActions } from './useCommissionBulkActions';
 
 export function useCommissionsListState() {
-  // Fetch checks from real API
+  // Fetch checks from real API with infinite scroll
   const {
     data: checksData,
     isLoading: isLoadingChecks,
     error: checksError,
     refetch: refetchChecks,
-  } = useChecksLandingPage();
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useChecksInfinite();
+
+  // Flatten paginated data
+  const allChecksData = useMemo(() => {
+    if (!checksData?.pages) return [];
+    return checksData.pages.flatMap(page => page.records);
+  }, [checksData]);
+
+  // Get total count
+  const totalCount = useMemo(() => {
+    if (!checksData?.pages || checksData.pages.length === 0) return 0;
+    return checksData.pages[0].total;
+  }, [checksData]);
+
+  // Scroll handler for infinite scroll
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLDivElement;
+    const { scrollTop, scrollHeight, clientHeight } = target;
+    // Load more when within 200px of bottom
+    if (scrollHeight - scrollTop - clientHeight < 200) {
+      if (hasNextPage && !isFetchingNextPage) {
+        fetchNextPage();
+      }
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   // Convert API data to CommissionCheck format for compatibility
   const checks: CommissionCheck[] = useMemo(() => {
-    if (!checksData?.records) return [];
+    if (!allChecksData.length) return [];
     const now = new Date().toISOString();
-    return checksData.records.map((check) => ({
+    return allChecksData.map((check) => ({
       id: check.id,
       checkNumber: check.checkNumber || '',
       salesRepId: '',
@@ -42,9 +71,9 @@ export function useCommissionsListState() {
       manufacturerId: '',
       manufacturerName: check.factoryName || '',
       commissionMonth: check.commissionMonth || '',
-      status: check.status === 'POSTED' ? 'posted' as const : 'draft' as const,
-      postDate: '',
-      checkDate: '',
+      status: (check.status || 'OPEN') as 'OPEN' | 'POSTED' | 'VOID',
+      postDate: check.postDate || '',
+      checkDate: check.checkDate || '',
       entryDate: check.createdAt || now,
       createdDate: check.createdAt || now,
       details: [],
@@ -55,7 +84,7 @@ export function useCommissionsListState() {
       checkBalance: 0,
       createdBy: check.createdBy || '',
     }));
-  }, [checksData]);
+  }, [allChecksData]);
 
   // Mutations
   const createCheckMutation = useCreateCheck();
@@ -71,6 +100,13 @@ export function useCommissionsListState() {
   const [checkToEdit, setCheckToEdit] = useState<Check | null>(null);
   const [checkToDelete, setCheckToDelete] = useState<CommissionCheck | null>(null);
   const [isLoadingCheckDetails, setIsLoadingCheckDetails] = useState(false);
+
+  // Sidebar action states
+  const [isUpdatingCheck, setIsUpdatingCheck] = useState(false);
+
+  // Bulk action states
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+  const [showBulkActionsMenu, setShowBulkActionsMenu] = useState(false);
 
   // Open create check modal
   const openCreateCheckModal = useCallback(() => {
@@ -172,18 +208,169 @@ export function useCommissionsListState() {
     openDeleteConfirmModal(check);
   }, [openDeleteConfirmModal]);
 
+  // Handle post check from sidebar panel
+  const handlePostCheck = useCallback(async (checkId: string) => {
+    setIsUpdatingCheck(true);
+    try {
+      // Fetch full check details first
+      const fullCheck = await fetchCheckById(checkId);
+      if (!fullCheck) {
+        throw new Error('Check not found');
+      }
+
+      // Update status to POSTED
+      await updateCheckMutation.mutateAsync({
+        id: fullCheck.id,
+        checkNumber: fullCheck.checkNumber,
+        entityDate: fullCheck.entityDate || new Date().toISOString().split('T')[0],
+        enteredCommissionAmount: fullCheck.enteredCommissionAmount || '0',
+        factoryId: fullCheck.factoryId || '',
+        commissionMonth: fullCheck.commissionMonth,
+        postDate: fullCheck.postDate,
+        status: 'POSTED',
+        creationType: fullCheck.creationType || 'MANUAL',
+        details: fullCheck.details?.map(d => ({
+          id: d.id,
+          invoiceId: d.invoiceId,
+          creditId: d.creditId,
+          adjustmentId: d.adjustmentId,
+          appliedAmount: d.appliedAmount || '0',
+        })) || [],
+      });
+      toast.success('Check posted successfully');
+      setSelectedCheck(null);
+      refetchChecks();
+    } catch (error) {
+      console.error('Error posting check:', error);
+      toast.error(getErrorMessage(error));
+    } finally {
+      setIsUpdatingCheck(false);
+    }
+  }, [updateCheckMutation, refetchChecks]);
+
+  // Handle unpost check from sidebar panel
+  const handleUnpostCheck = useCallback(async (checkId: string) => {
+    setIsUpdatingCheck(true);
+    try {
+      await unpostCheck(checkId);
+      toast.success('Check unposted successfully');
+      setSelectedCheck(null);
+      refetchChecks();
+    } catch (error) {
+      console.error('Error unposting check:', error);
+      toast.error(getErrorMessage(error));
+    } finally {
+      setIsUpdatingCheck(false);
+    }
+  }, [refetchChecks]);
+
   // Integrate filter hook
   const filterState = useCommissionFilters(checks);
 
   // Integrate selection hook
   const selectionState = useCommissionSelection();
 
-  // Integrate bulk actions hook - create a no-op setChecks since we use API
-  const bulkActionsState = useCommissionBulkActions({
-    selectedCheckIds: selectionState.selectedCheckIds,
-    clearSelection: selectionState.clearSelection,
-    setChecks: () => {}, // No-op since we use API
-  });
+  // Bulk set status - update each check one by one via API
+  const bulkSetStatus = useCallback(async (status: CheckStatus) => {
+    const selectedIds = Array.from(selectionState.selectedCheckIds);
+    if (selectedIds.length === 0) return;
+
+    setIsBulkUpdating(true);
+    setShowBulkActionsMenu(false);
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const checkId of selectedIds) {
+      try {
+        if (status === 'POSTED') {
+          // Fetch full check details first
+          const fullCheck = await fetchCheckById(checkId);
+          if (!fullCheck) {
+            errorCount++;
+            continue;
+          }
+
+          await updateCheckMutation.mutateAsync({
+            id: fullCheck.id,
+            checkNumber: fullCheck.checkNumber,
+            entityDate: fullCheck.entityDate || new Date().toISOString().split('T')[0],
+            enteredCommissionAmount: fullCheck.enteredCommissionAmount || '0',
+            factoryId: fullCheck.factoryId || '',
+            commissionMonth: fullCheck.commissionMonth,
+            postDate: fullCheck.postDate,
+            status: 'POSTED',
+            creationType: fullCheck.creationType || 'MANUAL',
+            details: fullCheck.details?.map(d => ({
+              id: d.id,
+              invoiceId: d.invoiceId,
+              creditId: d.creditId,
+              adjustmentId: d.adjustmentId,
+              appliedAmount: d.appliedAmount || '0',
+            })) || [],
+          });
+          successCount++;
+        } else if (status === 'OPEN') {
+          // Use unpost mutation
+          await unpostCheck(checkId);
+          successCount++;
+        }
+      } catch (error) {
+        console.error(`Error updating check ${checkId}:`, error);
+        errorCount++;
+      }
+    }
+
+    setIsBulkUpdating(false);
+    selectionState.clearSelection();
+
+    if (successCount > 0) {
+      toast.success(`${successCount} check(s) updated successfully`);
+    }
+    if (errorCount > 0) {
+      toast.error(`Failed to update ${errorCount} check(s)`);
+    }
+
+    refetchChecks();
+  }, [selectionState, updateCheckMutation, refetchChecks]);
+
+  // Bulk delete - delete each check one by one via API
+  const bulkDelete = useCallback(async () => {
+    const selectedIds = Array.from(selectionState.selectedCheckIds);
+    if (selectedIds.length === 0) return;
+
+    if (!confirm(`Are you sure you want to delete ${selectedIds.length} check(s)? This action cannot be undone.`)) {
+      return;
+    }
+
+    setIsBulkUpdating(true);
+    setShowBulkActionsMenu(false);
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const checkId of selectedIds) {
+      try {
+        await deleteCheckMutation.mutateAsync(checkId);
+        successCount++;
+      } catch (error) {
+        console.error(`Error deleting check ${checkId}:`, error);
+        errorCount++;
+      }
+    }
+
+    setIsBulkUpdating(false);
+    selectionState.clearSelection();
+
+    if (successCount > 0) {
+      toast.success(`${successCount} check(s) deleted successfully`);
+    }
+    if (errorCount > 0) {
+      toast.error(`Failed to delete ${errorCount} check(s). Posted checks cannot be deleted.`);
+    }
+
+    refetchChecks();
+  }, [selectionState, deleteCheckMutation, refetchChecks]);
 
   return {
     // Checks data
@@ -191,6 +378,13 @@ export function useCommissionsListState() {
     isLoadingChecks,
     checksError,
     refetchChecks,
+    totalCount,
+
+    // Infinite scroll
+    handleScroll,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
 
     // Selected check for sidebar
     selectedCheck,
@@ -214,6 +408,11 @@ export function useCommissionsListState() {
     handleDeleteCheck,
     handleConfirmDelete,
 
+    // Sidebar panel actions
+    handlePostCheck,
+    handleUnpostCheck,
+    isUpdatingCheck,
+
     // Mutation states
     isSavingCheck: createCheckMutation.isPending || updateCheckMutation.isPending,
     isDeletingCheck: deleteCheckMutation.isPending,
@@ -224,8 +423,11 @@ export function useCommissionsListState() {
     // Selection state and actions
     ...selectionState,
 
-    // Bulk actions state and actions
-    ...bulkActionsState,
+    // Bulk actions
+    showBulkActionsMenu,
+    setShowBulkActionsMenu,
+    bulkSetStatus,
+    bulkDelete,
+    isBulkUpdating,
   };
 }
-

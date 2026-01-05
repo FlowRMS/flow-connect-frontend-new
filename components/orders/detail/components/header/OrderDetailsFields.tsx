@@ -17,7 +17,6 @@ import {
   useCustomerSearch,
   useFactorySearch,
   useUserSearch,
-  useJobSearch,
 } from '../../../api';
 
 // ComingSoonBadge component for unsupported features
@@ -91,8 +90,6 @@ export function OrderDetailsFields({
   const [outsideRepSearchEnabled, setOutsideRepSearchEnabled] = useState(false);
   const [insideRepSearchTerm, setInsideRepSearchTerm] = useState('');
   const [insideRepSearchEnabled, setInsideRepSearchEnabled] = useState(false);
-  const [jobSearchTerm, setJobSearchTerm] = useState('');
-  const [jobSearchEnabled, setJobSearchEnabled] = useState(false);
   const [endUserSearchTerm, setEndUserSearchTerm] = useState('');
   const [endUserSearchEnabled, setEndUserSearchEnabled] = useState(false);
 
@@ -118,9 +115,8 @@ export function OrderDetailsFields({
   const { data: billToCustomers, isLoading: isBillToLoading } = useCustomerSearch(billToSearchTerm, billToSearchEnabled);
   const { data: endUserCustomers, isLoading: isEndUserLoading } = useCustomerSearch(endUserSearchTerm, endUserSearchEnabled);
   const { data: factories, isLoading: isFactoryLoading } = useFactorySearch(factorySearchTerm, factorySearchEnabled);
-  const { data: outsideReps, isLoading: isOutsideRepLoading } = useUserSearch(outsideRepSearchTerm, { isOutside: true }, outsideRepSearchEnabled);
-  const { data: insideReps, isLoading: isInsideRepLoading } = useUserSearch(insideRepSearchTerm, { isInside: true }, insideRepSearchEnabled);
-  const { data: jobs, isLoading: isJobsLoading } = useJobSearch(jobSearchTerm, jobSearchEnabled);
+  const { data: outsideReps, isLoading: isOutsideRepLoading } = useUserSearch(outsideRepSearchTerm, { isInside: false, isOutside: true }, outsideRepSearchEnabled);
+  const { data: insideReps, isLoading: isInsideRepLoading } = useUserSearch(insideRepSearchTerm, { isInside: true, isOutside: false }, insideRepSearchEnabled);
 
   // Transform search results to dropdown options
   const soldToOptions = useMemo(() => {
@@ -171,13 +167,6 @@ export function OrderDetailsFields({
     }));
   }, [insideReps]);
 
-  const jobOptions = useMemo(() => {
-    return (jobs || []).map(j => ({
-      id: j.id,
-      label: j.jobName,
-      sublabel: j.description,
-    }));
-  }, [jobs]);
 
   // Field update handlers
   const handleFieldUpdate = (field: keyof Order, value: unknown) => {
@@ -361,8 +350,8 @@ export function OrderDetailsFields({
             </div>
           </div>
 
-          {/* Row 2: Order Type, Job, Shipping Terms, Payment Terms, Mark #, Projected Ship Date */}
-          <div className="grid grid-cols-6 gap-4 mb-4">
+          {/* Row 2: Order Type, Shipping Terms, Payment Terms, Mark #, Projected Ship Date */}
+          <div className="grid grid-cols-5 gap-4 mb-4">
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
                 Order Type<span className="text-red-500">*</span>
@@ -376,28 +365,6 @@ export function OrderDetailsFields({
                   { value: 'RELEASE', label: 'Release' },
                 ]}
                 className="!py-2"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Job
-              </label>
-              <SearchableDropdownV2
-                value={order.jobId || ''}
-                displayValue={order.jobName}
-                onChange={(id, label) => {
-                  handleFieldUpdate('jobId', id);
-                  handleFieldUpdate('jobName', label);
-                  setJobSearchEnabled(false);
-                }}
-                options={jobOptions}
-                placeholder="Select Job..."
-                isLoading={isJobsLoading}
-                onSearch={(query) => {
-                  setJobSearchTerm(query);
-                  setJobSearchEnabled(true);
-                }}
               />
             </div>
 
@@ -503,9 +470,14 @@ export function OrderDetailsFields({
                     {splitOutsideCommission && (
                       <button
                         onClick={openOutsideRepModal}
-                        className="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors whitespace-nowrap"
+                        className="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors whitespace-nowrap flex items-center gap-1"
                       >
                         Split
+                        {outsideRepSplits.length > 1 && (
+                          <span className="bg-indigo-600 text-white text-[10px] px-1.5 py-0.5 rounded-full font-medium">
+                            +{outsideRepSplits.length - 1}
+                          </span>
+                        )}
                       </button>
                     )}
                   </div>
@@ -577,9 +549,14 @@ export function OrderDetailsFields({
                     {splitInsideCommission && (
                       <button
                         onClick={openInsideRepModal}
-                        className="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors whitespace-nowrap"
+                        className="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors whitespace-nowrap flex items-center gap-1"
                       >
                         Split
+                        {insideRepSplits.length > 1 && (
+                          <span className="bg-indigo-600 text-white text-[10px] px-1.5 py-0.5 rounded-full font-medium">
+                            +{insideRepSplits.length - 1}
+                          </span>
+                        )}
                       </button>
                     )}
                   </div>

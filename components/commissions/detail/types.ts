@@ -8,6 +8,7 @@ import type { CommissionCheck } from '@/lib/types/rms';
 // Tab types
 export type TabType =
   | 'line-items'
+  | 'files'
   | 'deductions'
   | 'notes'
   | 'tasks'

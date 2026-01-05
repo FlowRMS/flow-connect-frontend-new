@@ -39,7 +39,7 @@ export function InsideRepSplitsModal({
   // Search for inside reps using API
   const { data: repResults, isLoading: isRepLoading } = useUserSearch(
     searchTerm,
-    { isInside: true },
+    { isInside: true, isOutside: false },
     searchEnabled
   );
 

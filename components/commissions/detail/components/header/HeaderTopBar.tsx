@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import type { CommissionCheck } from '@/lib/types/rms';
 import type { CheckStatus, VersionInfo } from '../../types';
 import { CHECK_STATUS_LABELS, CHECK_STATUS_COLORS } from '../../constants';
+import { CreatedByBadge } from '@/components/ui/CreatedByBadge';
 
 interface HeaderTopBarProps {
   check: CommissionCheck;
@@ -36,9 +37,13 @@ interface HeaderTopBarProps {
   onSave?: () => void;
   onSaveAndClose?: () => void;
   onSaveAsNewVersion?: () => void;
+  onUnpost?: () => void;
   // Create mode
   isCreateMode?: boolean;
   isSaving?: boolean;
+  isUnposting?: boolean;
+  // Whether the check was originally posted (from API) - controls if Save is disabled
+  isOriginallyPosted?: boolean;
 }
 
 const getStatusColor = (status: CheckStatus) => {
@@ -69,8 +74,11 @@ export function HeaderTopBar({
   onSave,
   onSaveAndClose,
   onSaveAsNewVersion,
+  onUnpost,
   isCreateMode = false,
   isSaving = false,
+  isUnposting = false,
+  isOriginallyPosted = false,
 }: HeaderTopBarProps) {
   const router = useRouter();
 
@@ -132,20 +140,25 @@ export function HeaderTopBar({
           <h1 className="text-2xl font-semibold text-[var(--foreground)]">
             {check.checkNumber}
           </h1>
+          <CreatedByBadge
+            createdBy={(check as any).createdBy}
+            createdAt={(check as any).createdAt}
+            size="sm"
+          />
         </div>
         <div className="flex items-center gap-2">
-          {/* Actions Dropdown (unposted) OR See Posted Statement Button (posted) */}
+          {/* Actions Button - Coming Soon (unposted) OR See Posted Statement Button (posted) */}
           {status === 'unposted' ? (
-            <div className="relative">
+            <div className="relative opacity-50">
               <button
-                onClick={() => {
-                  setShowActionsDropdown(!showActionsDropdown);
-                  setShowStatusDropdown(false);
-                  setShowSaveDropdown(false);
-                }}
-                className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
+                disabled
+                className="flex items-center gap-2 px-3 py-2 border border-[var(--border)] rounded-lg text-sm font-medium cursor-not-allowed bg-gray-50"
+                title="Coming Soon"
               >
                 Actions
+                <span className="text-[9px] bg-gray-200 text-gray-500 px-1 py-0.5 rounded font-medium">
+                  Soon
+                </span>
                 <svg
                   width="14"
                   height="14"
@@ -161,95 +174,109 @@ export function HeaderTopBar({
                   />
                 </svg>
               </button>
-              {showActionsDropdown && (
-                <>
-                  <div
-                    className="fixed inset-0 z-10"
-                    onClick={() => setShowActionsDropdown(false)}
-                  />
-                  <div className="absolute top-full right-0 mt-1 w-72 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20 py-1">
-                    <button
-                      onClick={handleExportCheckDetails}
-                      className="w-full px-4 py-3 text-left hover:bg-[var(--muted)] transition-colors rounded-t-lg flex items-start gap-3"
-                    >
-                      <svg
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        className="text-[var(--muted-foreground)] mt-0.5"
-                      >
-                        <path
-                          d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                        <path
-                          d="M14 2v6h6M8 13h8M8 17h8M8 9h2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                      <div>
-                        <div className="text-sm font-medium text-[var(--foreground)]">
-                          Export Check Details
-                        </div>
-                        <div className="text-xs text-[var(--muted-foreground)]">
-                          Export to Excel
-                        </div>
-                      </div>
-                    </button>
-                    <button
-                      onClick={handleReconcileCheck}
-                      className="w-full px-4 py-3 text-left hover:bg-[var(--muted)] transition-colors rounded-b-lg flex items-start gap-3"
-                    >
-                      <svg
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        className="text-[var(--muted-foreground)] mt-0.5"
-                      >
-                        <path
-                          d="M12 3l1.5 3.5L17 8l-3.5 1.5L12 13l-1.5-3.5L7 8l3.5-1.5L12 3z"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                        <path
-                          d="M5 17l1 2 2 1-2 1-1 2-1-2-2-1 2-1 1-2z"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                        <path
-                          d="M19 13l1 2 2 1-2 1-1 2-1-2-2-1 2-1 1-2z"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                      <div>
-                        <div className="text-sm font-medium text-[var(--foreground)]">
-                          Reconcile Check
-                        </div>
-                        <div className="text-xs text-[var(--muted-foreground)]">
-                          AI-powered automatic reconciliation
-                        </div>
-                      </div>
-                    </button>
-                  </div>
-                </>
-              )}
             </div>
           ) : (
-            <div className="relative">
-              <div className="flex">
-                <button
-                  onClick={onSeePostedStatement}
-                  className="flex items-center gap-2 px-3 py-2 bg-[var(--primary)] text-white rounded-l-lg text-sm font-medium hover:bg-[var(--primary)]/90 transition-colors"
-                >
+            <>
+              {/* See Posted Statement Button */}
+              <div className="relative">
+                <div className="flex">
+                  <button
+                    onClick={onSeePostedStatement}
+                    className="flex items-center gap-2 px-3 py-2 bg-[var(--primary)] text-white rounded-l-lg text-sm font-medium hover:bg-[var(--primary)]/90 transition-colors"
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path
+                        d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d="M14 2v6h6"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d="M16 13H8M16 17H8M10 9H8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    See Posted Statement
+                  </button>
+                  <button
+                    onClick={() =>
+                      setShowPostedStatementDropdown(!showPostedStatementDropdown)
+                    }
+                    className="px-2 py-2 bg-[var(--primary)] text-white rounded-r-lg hover:bg-[var(--primary)]/90 transition-colors border-l border-[var(--primary)]/50"
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 20 20"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path
+                        d="M6 8l4 4 4-4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
+                </div>
+                {showPostedStatementDropdown && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setShowPostedStatementDropdown(false)}
+                    />
+                    <div className="absolute top-full right-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20 overflow-hidden">
+                      <button
+                        onClick={handleDownloadExcel}
+                        className="w-full px-4 py-2.5 text-left text-sm hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
+                      >
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <path
+                            d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                        Download Excel
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Unpost Button - Only shown for posted checks */}
+              <button
+                onClick={onUnpost}
+                disabled={isUnposting}
+                className="flex items-center gap-2 px-3 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Unpost this check to enable editing"
+              >
+                {isUnposting ? (
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                  </svg>
+                ) : (
                   <svg
                     width="16"
                     height="16"
@@ -259,76 +286,20 @@ export function HeaderTopBar({
                     strokeWidth="2"
                   >
                     <path
-                      d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"
+                      d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8"
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     />
                     <path
-                      d="M14 2v6h6"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <path
-                      d="M16 13H8M16 17H8M10 9H8"
+                      d="M3 3v5h5"
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     />
                   </svg>
-                  See Posted Statement
-                </button>
-                <button
-                  onClick={() =>
-                    setShowPostedStatementDropdown(!showPostedStatementDropdown)
-                  }
-                  className="px-2 py-2 bg-[var(--primary)] text-white rounded-r-lg hover:bg-[var(--primary)]/90 transition-colors border-l border-[var(--primary)]/50"
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 20 20"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path
-                      d="M6 8l4 4 4-4"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </button>
-              </div>
-              {showPostedStatementDropdown && (
-                <>
-                  <div
-                    className="fixed inset-0 z-10"
-                    onClick={() => setShowPostedStatementDropdown(false)}
-                  />
-                  <div className="absolute top-full right-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20 overflow-hidden">
-                    <button
-                      onClick={handleDownloadExcel}
-                      className="w-full px-4 py-2.5 text-left text-sm hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
-                    >
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                      >
-                        <path
-                          d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                      Download Excel
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
+                )}
+                {isUnposting ? 'Unposting...' : 'Unpost'}
+              </button>
+            </>
           )}
 
           {/* Version Dropdown - Coming Soon */}
@@ -359,79 +330,39 @@ export function HeaderTopBar({
             </button>
           </div>
 
-          {/* Status Dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => {
-                setShowStatusDropdown(!showStatusDropdown);
-                setShowActionsDropdown(false);
-                setShowVersionDropdown(false);
-                setShowSaveDropdown(false);
-              }}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${getStatusColor(status)}`}
+          {/* Status Display - Read-only for posted checks */}
+          {status === 'posted' ? (
+            <div
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${getStatusColor(status)}`}
+              title="Posted checks cannot be edited. Use Unpost to enable editing."
             >
               {CHECK_STATUS_LABELS[status]}
               <svg
                 width="14"
                 height="14"
                 viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
+                fill="currentColor"
+                className="opacity-60"
               >
                 <path
-                  d="M6 8l4 4 4-4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+                  fillRule="evenodd"
+                  d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
+                  clipRule="evenodd"
                 />
               </svg>
-            </button>
-            {showStatusDropdown && (
-              <>
-                <div
-                  className="fixed inset-0 z-10"
-                  onClick={() => setShowStatusDropdown(false)}
-                />
-                <div className="absolute top-full right-0 mt-1 w-36 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20 overflow-hidden">
-                  {(['unposted', 'posted'] as CheckStatus[]).map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => {
-                        setStatus(s);
-                        setShowStatusDropdown(false);
-                      }}
-                      className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
-                        status === s
-                          ? 'bg-[var(--primary)]/10 text-[var(--primary)] font-medium'
-                          : 'hover:bg-[var(--muted)]'
-                      }`}
-                    >
-                      {CHECK_STATUS_LABELS[s]}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Save Button */}
-          <div className="relative">
-            <div className="flex">
-              <button
-                onClick={handleSave}
-                className="px-4 py-2 bg-green-600 text-white rounded-l-lg hover:bg-green-700 transition-colors text-sm font-medium"
-              >
-                Save
-              </button>
+            </div>
+          ) : (
+            <div className="relative">
               <button
                 onClick={() => {
-                  setShowSaveDropdown(!showSaveDropdown);
+                  setShowStatusDropdown(!showStatusDropdown);
                   setShowActionsDropdown(false);
-                  setShowStatusDropdown(false);
                   setShowVersionDropdown(false);
+                  setShowSaveDropdown(false);
                 }}
-                className="px-2 py-2 bg-green-600 text-white rounded-r-lg hover:bg-green-700 transition-colors border-l border-green-500"
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${getStatusColor(status)}`}
               >
+                {CHECK_STATUS_LABELS[status]}
                 <svg
                   width="14"
                   height="14"
@@ -447,40 +378,123 @@ export function HeaderTopBar({
                   />
                 </svg>
               </button>
+              {showStatusDropdown && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setShowStatusDropdown(false)}
+                  />
+                  <div className="absolute top-full right-0 mt-1 w-36 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20 overflow-hidden">
+                    {(['unposted', 'posted'] as CheckStatus[]).map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => {
+                          setStatus(s);
+                          setShowStatusDropdown(false);
+                        }}
+                        className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
+                          status === s
+                            ? 'bg-[var(--primary)]/10 text-[var(--primary)] font-medium'
+                            : 'hover:bg-[var(--muted)]'
+                        }`}
+                      >
+                        {CHECK_STATUS_LABELS[s]}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
-            {showSaveDropdown && (
-              <>
-                <div
-                  className="fixed inset-0 z-10"
-                  onClick={() => setShowSaveDropdown(false)}
+          )}
+
+          {/* Save Button - Disabled only for checks that were originally posted (from API) */}
+          {isOriginallyPosted ? (
+            <div
+              className="px-4 py-2 bg-gray-300 text-gray-500 rounded-lg text-sm font-medium cursor-not-allowed flex items-center gap-2"
+              title="Posted checks cannot be edited. Use Unpost to enable editing."
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
+                  clipRule="evenodd"
                 />
-                <div className="absolute top-full right-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20">
-                  <button
-                    onClick={handleSave}
-                    className="w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors rounded-t-lg"
+              </svg>
+              Save
+            </div>
+          ) : (
+            <div className="relative">
+              <div className="flex">
+                <button
+                  onClick={handleSave}
+                  className="px-4 py-2 bg-green-600 text-white rounded-l-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => {
+                    setShowSaveDropdown(!showSaveDropdown);
+                    setShowActionsDropdown(false);
+                    setShowStatusDropdown(false);
+                    setShowVersionDropdown(false);
+                  }}
+                  className="px-2 py-2 bg-green-600 text-white rounded-r-lg hover:bg-green-700 transition-colors border-l border-green-500"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
                   >
-                    Save
-                  </button>
-                  <button
-                    onClick={handleSaveAndClose}
-                    className="w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors"
-                  >
-                    Save & Close
-                  </button>
-                  <button
-                    disabled
-                    className="w-full text-left px-4 py-2 text-sm transition-colors rounded-b-lg border-t border-[var(--border)] opacity-50 cursor-not-allowed flex items-center justify-between"
-                    title="Coming Soon"
-                  >
-                    <span>Save as New Version</span>
-                    <span className="text-[9px] bg-gray-200 text-gray-500 px-1 py-0.5 rounded font-medium">
-                      Soon
-                    </span>
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+                    <path
+                      d="M6 8l4 4 4-4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+              </div>
+              {showSaveDropdown && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setShowSaveDropdown(false)}
+                  />
+                  <div className="absolute top-full right-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20">
+                    <button
+                      onClick={handleSave}
+                      className="w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors rounded-t-lg"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={handleSaveAndClose}
+                      className="w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors"
+                    >
+                      Save & Close
+                    </button>
+                    <button
+                      disabled
+                      className="w-full text-left px-4 py-2 text-sm transition-colors rounded-b-lg border-t border-[var(--border)] opacity-50 cursor-not-allowed flex items-center justify-between"
+                      title="Coming Soon"
+                    >
+                      <span>Save as New Version</span>
+                      <span className="text-[9px] bg-gray-200 text-gray-500 px-1 py-0.5 rounded font-medium">
+                        Soon
+                      </span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

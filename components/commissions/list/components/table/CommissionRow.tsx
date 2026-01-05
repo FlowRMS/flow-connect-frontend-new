@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import type { CommissionCheck } from '@/lib/types/rms';
 import { checkStatusLabels, checkStatusColors } from '../../constants';
 import { formatCurrency, formatDate, formatMonth } from '../../utils';
+import { AvatarInline } from '@/components/ui/CreatedByBadge';
 
 interface CommissionRowProps {
   check: CommissionCheck;
@@ -96,28 +97,39 @@ export function CommissionRow({
 
       {/* Posted Status */}
       <div className="flex items-center">
-        <span
-          className={`px-2 py-0.5 text-xs font-medium rounded-full inline-flex items-center gap-1 ${
-            check.status === 'posted'
-              ? 'bg-blue-100 text-blue-700'
-              : check.status === 'draft'
-              ? 'bg-gray-100 text-gray-700'
-              : 'bg-red-100 text-red-700'
-          }`}
-        >
-          <span
-            className={`w-1.5 h-1.5 rounded-full ${
-              check.status === 'posted'
-                ? 'bg-blue-500'
-                : check.status === 'draft'
-                ? 'bg-gray-500'
-                : 'bg-red-500'
-            }`}
-          ></span>
-          {check.status === 'posted'
-            ? 'OPEN'
-            : checkStatusLabels[check.status].toUpperCase()}
-        </span>
+        {(() => {
+          const status = check.status?.toUpperCase();
+          const isOpen = status === 'OPEN';
+          const isPosted = status === 'POSTED';
+          const isDraft = status === 'DRAFT';
+
+          return (
+            <span
+              className={`px-2 py-0.5 text-xs font-medium rounded-full inline-flex items-center gap-1 ${
+                isOpen
+                  ? 'bg-yellow-100 text-yellow-700'
+                  : isPosted
+                  ? 'bg-green-100 text-green-700'
+                  : isDraft
+                  ? 'bg-gray-100 text-gray-700'
+                  : 'bg-red-100 text-red-700'
+              }`}
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  isOpen
+                    ? 'bg-yellow-500'
+                    : isPosted
+                    ? 'bg-green-500'
+                    : isDraft
+                    ? 'bg-gray-500'
+                    : 'bg-red-500'
+                }`}
+              ></span>
+              {status || 'UNKNOWN'}
+            </span>
+          );
+        })()}
       </div>
 
       {/* Commission */}
@@ -167,6 +179,11 @@ export function CommissionRow({
         <span className="text-sm text-[var(--muted-foreground)]">
           {formatDate(check.entryDate)}
         </span>
+      </div>
+
+      {/* Created By */}
+      <div className="flex items-center">
+        <AvatarInline name={(check as any).createdBy} size="sm" />
       </div>
 
       {/* Check Balance */}

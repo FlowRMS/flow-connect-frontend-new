@@ -8,6 +8,7 @@ import type { Order, OrderLineItem, OrderSplitRate } from '@/lib/types/rms';
 // Tab types
 export type TabType =
   | 'line-items'
+  | 'files'
   | 'credits'
   | 'adjustments'
   | 'acknowledgements'

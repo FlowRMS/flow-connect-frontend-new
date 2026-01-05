@@ -12,6 +12,7 @@ import { useOrderDetailState } from './hooks/useOrderDetailState';
 import { OrderDetailHeader } from './components/header';
 import { LineItemsTable } from './components/line-items';
 import { NotesTab, TasksTab, ActivityTab, CreditsTab, AdjustmentsTab, AcknowledgementsTab, LinkedObjectsTab, SettingsTab } from './components/tabs';
+import { FilesTab } from '@/components/shared/FilesTab';
 import {
   SetOverageModal,
   SetEndUserModal,
@@ -58,7 +59,6 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   // Acknowledgements state management
   const acknowledgementsState = useAcknowledgementsState({
     orderId: orderId !== 'new' ? orderId : null,
-    orderNumber: state?.order?.orderNumber || null,
   });
 
   // Create Invoice from Order modal state
@@ -440,6 +440,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           <div className="flex gap-1">
             {[
               { id: 'line-items', label: 'Line Items', count: (order.lineItems || []).length },
+              { id: 'files', label: 'Files' },
               { id: 'credits', label: 'Credits' },
               { id: 'adjustments', label: 'Adjustments', hidden: true }, // Hidden - adjustments now has its own page in sidebar
               { id: 'acknowledgements', label: 'Acknowledgements' },
@@ -474,64 +475,29 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               {/* Views Dropdown */}
               <div className="relative">
                 <button
-                  onClick={() => state.setShowViewsMenu(!state.showViewsMenu)}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                  disabled
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg transition-colors opacity-50 cursor-not-allowed"
                 >
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                     <rect x="3" y="3" width="14" height="14" rx="2"/>
                     <path d="M3 8h14M8 8v9"/>
                   </svg>
-                  {state.savedViews.find(v => v.id === state.activeView)?.name || 'Custom'}
-                  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
+                  Default
+                  <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">Soon</span>
                 </button>
-                {state.showViewsMenu && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => state.setShowViewsMenu(false)} />
-                    <div className="absolute top-full right-0 mt-1 w-56 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-20">
-                      <div className="p-2 border-b border-[var(--border)]">
-                        <p className="text-xs font-semibold text-[var(--muted-foreground)] uppercase px-2">Saved Views</p>
-                      </div>
-                      {state.savedViews.map(view => (
-                        <button
-                          key={view.id}
-                          onClick={() => {
-                            state.setVisibleColumns(new Set(view.columns));
-                            state.setActiveView(view.id);
-                            state.setShowViewsMenu(false);
-                          }}
-                          className={`w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors flex items-center justify-between ${
-                            state.activeView === view.id ? 'text-[var(--primary)] font-medium' : ''
-                          }`}
-                        >
-                          {view.name}
-                          {state.activeView === view.id && (
-                            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5">
-                              <path d="M5 10l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
               </div>
 
               {/* Sections Button */}
               <button
-                onClick={() => state.setShowSectionsModal(true)}
-                className={`flex items-center gap-2 px-3 py-1.5 text-sm border rounded-lg transition-colors ${
-                  state.showSections
-                    ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]'
-                    : 'border-[var(--border)] hover:bg-[var(--muted)]'
-                }`}
+                disabled
+                className="flex items-center gap-2 px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg transition-colors opacity-50 cursor-not-allowed"
               >
                 <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                   <rect x="3" y="3" width="14" height="4" rx="1"/>
                   <rect x="3" y="10" width="14" height="7" rx="1"/>
                 </svg>
                 Sections
+                <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">Soon</span>
               </button>
 
               {/* Columns Button */}
@@ -585,8 +551,17 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
             />
           )}
 
-          {state.activeTab === 'notes' && <NotesTab />}
-          {state.activeTab === 'tasks' && <TasksTab />}
+          {state.activeTab === 'files' && (
+            <div className="flex-1 overflow-auto">
+              <FilesTab
+                entityId={orderId}
+                entityType="ORDER"
+              />
+            </div>
+          )}
+
+          {state.activeTab === 'notes' && <NotesTab orderId={orderId} />}
+          {state.activeTab === 'tasks' && <TasksTab orderId={orderId} />}
           {state.activeTab === 'activity' && <ActivityTab />}
           {state.activeTab === 'credits' && (
             <CreditsTab
@@ -621,7 +596,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               onDeleteAcknowledgement={acknowledgementsState.handleDeleteAcknowledgement}
             />
           )}
-          {state.activeTab === 'linked-objects' && <LinkedObjectsTab />}
+          {state.activeTab === 'linked-objects' && <LinkedObjectsTab orderId={orderId} />}
           {state.activeTab === 'settings' && (
             <SettingsTab
               showEndUserPerLine={state.showEndUserPerLine}

@@ -45,6 +45,19 @@ const defaultConfig: SidebarConfig = {
       ]
     },
     {
+      id: 'flow-ai',
+      label: 'Flow AI',
+      collapsed: false,
+      items: [
+        { id: 'flow-ai-upload', name: 'Upload', href: '/flow-ai/upload', enabled: true },
+        { id: 'flow-ai-queue', name: 'Queue', href: '/flow-ai/queue', enabled: true },
+        { id: 'flow-ai-templates', name: 'Upload Templates', href: '/flow-ai/templates', enabled: true },
+        { id: 'flow-ai-workflows', name: 'Data Workflows', href: '/flow-ai/workflows', enabled: true },
+        { id: 'flow-ai-chat', name: 'Flow Chat', href: '/flow-ai/ai-chat', enabled: true },
+        { id: 'flow-ai-scan', name: 'Upload Preview', href: '/flow-ai', enabled: true },
+      ]
+    },
+    {
       id: 'email',
       label: 'Email',
       collapsed: false,
@@ -75,6 +88,7 @@ const defaultConfig: SidebarConfig = {
         { id: 'invoices', name: 'Invoices', href: '/invoices', enabled: true },
         { id: 'commissions', name: 'Commissions', href: '/commissions', enabled: true },
         { id: 'adjustments', name: 'Adjustments', href: '/adjustments', enabled: true },
+        { id: 'acknowledgements', name: 'Acknowledgements', href: '/acknowledgements', enabled: true },
         // { id: 'buysell', name: 'Buy/Sell', href: '/buysell', enabled: true },
       ]
     },
@@ -119,6 +133,7 @@ const defaultConfig: SidebarConfig = {
         { id: 'companies', name: 'Companies', href: '/companies', enabled: true },
         { id: 'customers', name: 'Customers', href: '/customers', enabled: true },
         { id: 'products', name: 'Products', href: '/products', enabled: true },
+        { id: 'manufacturers', name: 'Manufacturers', href: '/manufacturers', enabled: true },
         // { id: 'spec-sheets', name: 'Spec Sheets', href: '/spec-sheets', enabled: true },
       ]
     },
@@ -127,6 +142,7 @@ const defaultConfig: SidebarConfig = {
       label: 'Admin',
       collapsed: false,
       items: [
+        { id: 'files', name: 'Files', href: '/files', enabled: true },
         { id: 'settings', name: 'Settings', href: '/settings', enabled: true },
         { id: 'email-integrations', name: 'Email Integrations', href: '/integrations', enabled: true },
         // { id: 'data-integrations', name: 'Data Integrations', href: '/data-integrations', enabled: true },
@@ -138,7 +154,7 @@ const defaultConfig: SidebarConfig = {
 };
 
 const STORAGE_KEY = 'sidebar-config';
-const CONFIG_VERSION = 22; // Increment this to force a reset of cached sidebar config (re-enabled takeoffs and product crosses)
+const CONFIG_VERSION = 26; // Increment this to force a reset of cached sidebar config (merged staging-v6)
 
 const SidebarConfigContext = createContext<SidebarConfigContextType | undefined>(undefined);
 

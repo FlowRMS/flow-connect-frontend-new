@@ -23,7 +23,9 @@
       "Bash(python:*)",
       "Bash(wc:*)",
       "Bash(cd:*)",
-      "Bash(npm i:*)"
+      "Bash(npm i:*)",
+      "Bash(findstr:*)",
+      "Bash(diff:*)"
     ],
     "deny": [],
     "ask": []

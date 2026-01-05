@@ -11,7 +11,7 @@ import type {
   TaskPriorityAPI,
   TaskLandingPage,
   ParsedTask,
-  TaskRelatedEntities,
+  RelatedEntities,
   LinkedTitle,
 } from './types';
 import type { CRMTask } from '../lib/crm-graphql';
@@ -238,57 +238,75 @@ export function convertCRMTaskToUI(task: CRMTask): Task {
 }
 
 /**
- * Convert TaskRelatedEntities to TaskEntities UI format
+ * Convert RelatedEntities to TaskEntities UI format
+ * Works with the new centralized RelatedEntities type from entity-links.ts
  */
-export function convertRelatedEntitiesToUI(relatedEntities: TaskRelatedEntities) {
+export function convertRelatedEntitiesToUI(relatedEntities: RelatedEntities) {
   return {
     checks: relatedEntities.checks?.map(check => ({
       id: check.id,
       name: check.checkNumber || 'Unknown Check',
+      entity: check, // Keep full entity for hover card
     })) || [],
     companies: relatedEntities.companies?.map(company => ({
       id: company.id,
       name: company.name || 'Unknown Company',
+      entity: company,
     })) || [],
     contacts: relatedEntities.contacts?.map(contact => ({
       id: contact.id,
       name: `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || 'Unknown Contact',
+      entity: contact,
     })) || [],
     customers: relatedEntities.customers?.map(customer => ({
       id: customer.id,
       name: customer.companyName || 'Unknown Customer',
+      entity: customer,
     })) || [],
     factories: relatedEntities.factories?.map(factory => ({
       id: factory.id,
       name: factory.title || 'Unknown Factory',
+      entity: factory,
     })) || [],
     invoices: relatedEntities.invoices?.map(invoice => ({
       id: invoice.id,
       name: invoice.invoiceNumber || 'Unknown Invoice',
+      entity: invoice,
     })) || [],
     jobs: relatedEntities.jobs?.map(job => ({
       id: job.id,
       name: job.jobName || 'Unknown Job',
+      entity: job,
     })) || [],
     notes: relatedEntities.notes?.map(note => ({
       id: note.id,
       name: note.title || 'Untitled Note',
+      entity: note,
     })) || [],
     orders: relatedEntities.orders?.map(order => ({
       id: order.id,
-      name: order.orderNumber || order.jobName || 'Unknown Order',
+      name: order.orderNumber || 'Unknown Order',
+      entity: order,
     })) || [],
     preOpportunities: relatedEntities.preOpportunities?.map(preOpp => ({
       id: preOpp.id,
       name: preOpp.entityNumber || 'Unknown Pre-Opp',
+      entity: preOpp,
     })) || [],
     products: relatedEntities.products?.map(product => ({
       id: product.id,
       name: product.factoryPartNumber || 'Unknown Product',
+      entity: product,
     })) || [],
     quotes: relatedEntities.quotes?.map(quote => ({
       id: quote.id,
-      name: quote.quoteNumber || quote.jobName || 'Unknown Quote',
+      name: quote.quoteNumber || 'Unknown Quote',
+      entity: quote,
+    })) || [],
+    tasks: relatedEntities.tasks?.map(task => ({
+      id: task.id,
+      name: task.title || 'Untitled Task',
+      entity: task,
     })) || [],
   };
 }

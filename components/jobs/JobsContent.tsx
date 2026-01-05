@@ -24,7 +24,7 @@ import { ListView } from './views/ListView';
 import { getCompanyDetails } from './mockData';
 import type { Job } from './types';
 import { mapAPIJobToUIJob } from './types';
-import type { Company, Contact, JobLandingPage, LandingPageFilter, LandingPageOrderBy } from '../lib/crm-graphql';
+import type { JobLandingPage, LandingPageFilter, LandingPageOrderBy, RelatedEntityCompany, RelatedEntityContact } from '../lib/crm-graphql';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 
 export default function JobsContent() {
@@ -401,7 +401,20 @@ export default function JobsContent() {
     // Use detailedJob if available, otherwise fallback to selectedJob
     const currentJob = detailedJob || selectedJob;
     if (!currentJob) return;
-    
+
+    // Validate end date is not before start date
+    const startDate = editFormData.startDate && editFormData.startDate !== '-' ? editFormData.startDate : null;
+    const endDate = editFormData.endDate && editFormData.endDate !== '-' ? editFormData.endDate : null;
+
+    if (startDate && endDate) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      if (end < start) {
+        jobToasts.updateError('End date cannot be before start date');
+        return;
+      }
+    }
+
     try {
       // Find the statusId from the job's current status name
       const currentStatus = apiStatuses?.find(s => s.name === currentJob.status);
@@ -613,8 +626,8 @@ export default function JobsContent() {
         onDelete={handleDeleteJob}
         onRepTypeChange={setRepType}
         onToggleRepTypeModal={setShowRepTypeModal}
-        onCompanyClick={(company: Company) => setSelectedCompany(company)}
-        onContactClick={(contact: Contact) => router.push(`/contacts?id=${contact.id}`)}
+        onCompanyClick={(company: RelatedEntityCompany) => setSelectedCompany(company)}
+        onContactClick={(contact: RelatedEntityContact) => router.push(`/contacts?id=${contact.id}`)}
       />
     );
   }

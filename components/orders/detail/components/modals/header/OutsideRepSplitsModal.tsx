@@ -39,7 +39,7 @@ export function OutsideRepSplitsModal({
   // Search for outside reps using API
   const { data: repResults, isLoading: isRepLoading } = useUserSearch(
     searchTerm,
-    { isOutside: true },
+    { isInside: false, isOutside: true },
     searchEnabled
   );
 

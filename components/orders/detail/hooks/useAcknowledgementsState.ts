@@ -1,15 +1,15 @@
 /**
  * useAcknowledgementsState Hook
  * Manages acknowledgements state for the order detail page
+ * Uses orderAcknowledgementsByOrder query (not findLandingPages)
  */
 
 import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import {
   type OrderAcknowledgement,
-  type AcknowledgementLandingPage,
   type CreateAcknowledgementInput,
-  useOrderAcknowledgementsLandingPage,
+  useOrderAcknowledgements,
   useCreateAcknowledgement,
   useUpdateAcknowledgement,
   useDeleteAcknowledgement,
@@ -18,17 +18,16 @@ import {
 
 interface UseAcknowledgementsStateProps {
   orderId: string | null;
-  orderNumber: string | null;
 }
 
-export function useAcknowledgementsState({ orderId, orderNumber }: UseAcknowledgementsStateProps) {
-  // Fetch acknowledgements from API using landing page query for enriched data
+export function useAcknowledgementsState({ orderId }: UseAcknowledgementsStateProps) {
+  // Fetch acknowledgements from API using orderAcknowledgementsByOrder query
   const {
     data: acknowledgements = [],
     isLoading: isLoadingAcknowledgements,
     error: acknowledgementsError,
     refetch: refetchAcknowledgements,
-  } = useOrderAcknowledgementsLandingPage(orderNumber);
+  } = useOrderAcknowledgements(orderId);
 
   // Mutations
   const createAcknowledgementMutation = useCreateAcknowledgement();
@@ -39,9 +38,9 @@ export function useAcknowledgementsState({ orderId, orderNumber }: UseAcknowledg
   const [showAcknowledgementModal, setShowAcknowledgementModal] = useState(false);
   const [showAcknowledgementDetailModal, setShowAcknowledgementDetailModal] = useState(false);
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
-  const [selectedAcknowledgement, setSelectedAcknowledgement] = useState<AcknowledgementLandingPage | null>(null);
+  const [selectedAcknowledgement, setSelectedAcknowledgement] = useState<OrderAcknowledgement | null>(null);
   const [acknowledgementToEdit, setAcknowledgementToEdit] = useState<OrderAcknowledgement | null>(null);
-  const [acknowledgementToDelete, setAcknowledgementToDelete] = useState<AcknowledgementLandingPage | null>(null);
+  const [acknowledgementToDelete, setAcknowledgementToDelete] = useState<OrderAcknowledgement | null>(null);
   const [isLoadingAcknowledgementDetails, setIsLoadingAcknowledgementDetails] = useState(false);
 
   // Open create acknowledgement modal
@@ -51,7 +50,7 @@ export function useAcknowledgementsState({ orderId, orderNumber }: UseAcknowledg
   }, []);
 
   // Open edit acknowledgement modal - fetches full acknowledgement data
-  const openEditAcknowledgementModal = useCallback(async (acknowledgement: AcknowledgementLandingPage) => {
+  const openEditAcknowledgementModal = useCallback(async (acknowledgement: OrderAcknowledgement) => {
     setIsLoadingAcknowledgementDetails(true);
     setShowAcknowledgementModal(true);
 
@@ -63,16 +62,8 @@ export function useAcknowledgementsState({ orderId, orderNumber }: UseAcknowledg
       }
     } catch (error) {
       console.error('Error fetching acknowledgement details:', error);
-      // Fall back to using the acknowledgement data we have - convert landing page to OrderAcknowledgement
-      setAcknowledgementToEdit({
-        id: acknowledgement.id,
-        orderAcknowledgementNumber: acknowledgement.orderAcknowledgementNumber,
-        entityDate: acknowledgement.entityDate,
-        quantity: acknowledgement.quantity,
-        shipDate: acknowledgement.shipDate,
-        creationType: acknowledgement.creationType,
-        createdAt: acknowledgement.createdAt,
-      });
+      // Fall back to using the acknowledgement data we have
+      setAcknowledgementToEdit(acknowledgement);
     } finally {
       setIsLoadingAcknowledgementDetails(false);
     }
@@ -85,7 +76,7 @@ export function useAcknowledgementsState({ orderId, orderNumber }: UseAcknowledg
   }, []);
 
   // Open acknowledgement detail modal
-  const openAcknowledgementDetailModal = useCallback((acknowledgement: AcknowledgementLandingPage) => {
+  const openAcknowledgementDetailModal = useCallback((acknowledgement: OrderAcknowledgement) => {
     setSelectedAcknowledgement(acknowledgement);
     setShowAcknowledgementDetailModal(true);
   }, []);
@@ -129,7 +120,7 @@ export function useAcknowledgementsState({ orderId, orderNumber }: UseAcknowledg
   }, [acknowledgementToEdit, createAcknowledgementMutation, updateAcknowledgementMutation, closeAcknowledgementModal, refetchAcknowledgements]);
 
   // Open delete confirmation modal
-  const openDeleteConfirmModal = useCallback((acknowledgement: AcknowledgementLandingPage) => {
+  const openDeleteConfirmModal = useCallback((acknowledgement: OrderAcknowledgement) => {
     setAcknowledgementToDelete(acknowledgement);
     setShowDeleteConfirmModal(true);
   }, []);
@@ -157,12 +148,12 @@ export function useAcknowledgementsState({ orderId, orderNumber }: UseAcknowledg
   }, [acknowledgementToDelete, deleteAcknowledgementMutation, closeDeleteConfirmModal, closeAcknowledgementDetailModal, refetchAcknowledgements]);
 
   // Handle delete acknowledgement request (opens confirmation modal)
-  const handleDeleteAcknowledgement = useCallback((acknowledgement: AcknowledgementLandingPage) => {
+  const handleDeleteAcknowledgement = useCallback((acknowledgement: OrderAcknowledgement) => {
     openDeleteConfirmModal(acknowledgement);
   }, [openDeleteConfirmModal]);
 
   // View acknowledgement details
-  const viewAcknowledgement = useCallback((acknowledgement: AcknowledgementLandingPage) => {
+  const viewAcknowledgement = useCallback((acknowledgement: OrderAcknowledgement) => {
     openAcknowledgementDetailModal(acknowledgement);
   }, [openAcknowledgementDetailModal]);
 

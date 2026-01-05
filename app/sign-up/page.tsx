@@ -4,10 +4,16 @@ import Link from "next/link";
 import Image from "next/image";
 
 export default async function SignUpPage() {
-  const { user } = await withAuth();
+  const { user, accessToken } = await withAuth();
 
-  if (user) {
+  // If user exists and has a valid access token, redirect to dashboard
+  if (user && accessToken) {
     redirect("/");
+  }
+
+  // If user exists but no valid token, there's an auth issue - avoid redirect loop
+  if (user && !accessToken) {
+    redirect("/auth-error");
   }
 
   const signUpUrl = await getSignUpUrl();

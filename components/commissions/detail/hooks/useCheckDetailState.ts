@@ -28,6 +28,7 @@ import {
   useUpdateCheck,
   useDeleteCheck,
 } from '@/components/orders/api/checksApi';
+import { unpostCheck as unpostCheckApi } from '@/components/lib/graphql/checks';
 import type { AdjustmentLandingPage } from '@/components/orders/api/adjustmentsApi';
 import { DEFAULT_ACTIVE_TAB } from '../config/tabsConfig';
 import { DEFAULT_VISIBLE_COLUMNS } from '../constants';
@@ -71,7 +72,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
         manufacturerId: '',
         manufacturerName: '',
         commissionMonth: '',
-        status: 'draft' as const,
+        status: 'OPEN' as const,
         postDate: '',
         checkDate: '',
         entryDate: now,
@@ -94,7 +95,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
       manufacturerId: apiCheck.factoryId || '',
       manufacturerName: apiCheck.factory?.title || '',
       commissionMonth: apiCheck.commissionMonth || '',
-      status: apiCheck.status === 'POSTED' ? 'posted' as const : 'draft' as const,
+      status: (apiCheck.status || 'OPEN') as 'OPEN' | 'POSTED' | 'VOID',
       postDate: apiCheck.postDate || '',
       checkDate: apiCheck.entityDate || '',
       entryDate: apiCheck.createdAt || now,
@@ -184,7 +185,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
   );
   const [checkDate, setCheckDate] = useState(check?.checkDate || '');
   const [status, setStatus] = useState<CheckStatus>(
-    check?.status === 'posted' ? 'posted' : 'unposted'
+    check?.status === 'POSTED' ? 'posted' : 'unposted'
   );
   const [postedDate, setPostedDate] = useState<string>(
     new Date().toISOString().split('T')[0]
@@ -210,7 +211,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
       setCheckNumber(check.checkNumber || '');
       setCommissionAmount(check.netAmount || 0);
       setCheckDate(check.checkDate || '');
-      setStatus(check.status === 'posted' ? 'posted' : 'unposted');
+      setStatus(check.status === 'POSTED' ? 'posted' : 'unposted');
     }
   }, [check]);
 
@@ -498,6 +499,10 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
   const [showLineItemDetailModal, setShowLineItemDetailModal] = useState(false);
   const [selectedLineItem, setSelectedLineItem] = useState<LineItem | null>(null);
 
+  // Order detail modal state
+  const [showOrderDetailModal, setShowOrderDetailModal] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+
   // Open add line item modal
   const addNewLine = () => {
     setShowAddLineItemModal(true);
@@ -526,6 +531,18 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
   const closeLineItemDetail = () => {
     setShowLineItemDetailModal(false);
     setSelectedLineItem(null);
+  };
+
+  // Open order detail modal
+  const openOrderDetail = (orderId: string) => {
+    setSelectedOrderId(orderId);
+    setShowOrderDetailModal(true);
+  };
+
+  // Close order detail modal
+  const closeOrderDetail = () => {
+    setShowOrderDetailModal(false);
+    setSelectedOrderId(null);
   };
 
   // Update line item amount
@@ -562,6 +579,15 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     dueDate?: string;
     status?: string;
     orderId?: string;
+    order?: {
+      id: string;
+      orderNumber: string;
+      entityDate?: string;
+      status?: string;
+      headerStatus?: string;
+      factoryId?: string;
+      soldToCustomerId?: string;
+    };
     balanceId?: string;
     locked?: boolean;
     published?: boolean;
@@ -576,7 +602,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
       type: 'invoice' as const,
       number: invoice.invoiceNumber || '',
       orderId: invoice.orderId || '',
-      orderNumber: '', // Will be populated if needed
+      orderNumber: invoice.order?.orderNumber || '',
       customer: '-',
       salesRep: '-',
       commissionRateExpected: 0,
@@ -653,8 +679,8 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
         appliedAmount: String(Math.abs(item.paidCommission)),
       };
 
-      // If editing an existing detail, include the id
-      if (!item.id.startsWith('li-')) {
+      // If editing an existing detail, include the id (skip temp- and li- prefixes which indicate new items)
+      if (!item.id.startsWith('li-') && !item.id.startsWith('temp-')) {
         detailInput.id = item.id;
       }
 
@@ -771,6 +797,29 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     }
   }, [isCreateMode, checkId, deleteCheckMutation, router]);
 
+  // Unpost check state
+  const [isUnposting, setIsUnposting] = useState(false);
+
+  // Unpost check - changes status from POSTED back to OPEN
+  const handleUnpost = useCallback(async () => {
+    if (isCreateMode || status !== 'posted') return;
+
+    setIsUnposting(true);
+    try {
+      await unpostCheckApi(checkId);
+      toast.success('Check unposted successfully. You can now edit this check.');
+      // Update local status to unposted
+      setStatus('unposted');
+      // Refetch the check data to ensure sync with server
+      refetchCheck();
+    } catch (error) {
+      console.error('Error unposting check:', error);
+      toast.error(getErrorMessage(error));
+    } finally {
+      setIsUnposting(false);
+    }
+  }, [isCreateMode, checkId, status, refetchCheck]);
+
   // Loading state - show loading for existing checks that haven't loaded yet
   if (!isCreateMode && isLoadingCheck) {
     return {
@@ -791,12 +840,14 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     isLoadingCheck,
     checkError,
 
-    // Save/Delete actions
+    // Save/Delete/Unpost actions
     handleSave,
     handleSaveAndClose,
     handleDelete,
+    handleUnpost,
     isSaving: createCheckMutation.isPending || updateCheckMutation.isPending,
     isDeleting: deleteCheckMutation.isPending,
+    isUnposting,
 
     // Factory ID (for API)
     factoryId,
@@ -891,6 +942,8 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     setStatus,
     postedDate,
     setPostedDate,
+    // Whether the check was originally posted (from API) - used to disable Save button
+    isOriginallyPosted: !isCreateMode && apiCheck?.status === 'POSTED',
     isTotalStatedCommission,
     setIsTotalStatedCommission,
     isTiedToCommissionUpload,
@@ -939,6 +992,13 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     openLineItemDetail,
     closeLineItemDetail,
     updateLineItemAmount,
+
+    // Order detail modal
+    showOrderDetailModal,
+    setShowOrderDetailModal,
+    selectedOrderId,
+    openOrderDetail,
+    closeOrderDetail,
 
     // Computed values
     summary,

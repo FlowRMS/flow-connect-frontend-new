@@ -28,8 +28,14 @@ export default async function DashboardLayout({
 }) {
   const { user, accessToken } = await withAuth();
 
+  // If no user or no valid access token, redirect appropriately
   if (!user) {
     redirect("/sign-in");
+  }
+
+  // If user exists but no accessToken, there's an auth issue - avoid redirect loop
+  if (!accessToken) {
+    redirect("/auth-error");
   }
 
   // Check if user belongs to "admin" org - sign out of CRM and redirect to admin portal

@@ -68,7 +68,7 @@ export function AdditionalDetailsModal({
   const [insideRepSearchEnabled, setInsideRepSearchEnabled] = useState(false);
   const { data: insideReps, isLoading: isInsideRepLoading } = useUserSearch(
     insideRepSearchTerm,
-    { isInside: true },
+    { isInside: true, isOutside: false },
     insideRepSearchEnabled && showInsideRepPerLine
   );
 
@@ -77,7 +77,7 @@ export function AdditionalDetailsModal({
   const [outsideRepSearchEnabled, setOutsideRepSearchEnabled] = useState(false);
   const { data: outsideReps, isLoading: isOutsideRepLoading } = useUserSearch(
     outsideRepSearchTerm,
-    { isOutside: true },
+    { isInside: false, isOutside: true },
     outsideRepSearchEnabled && showOutsideRepPerLine
   );
 

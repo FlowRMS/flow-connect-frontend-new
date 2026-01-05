@@ -20,6 +20,7 @@ export const INVOICE_TABLE_COLUMNS: ColumnConfig[] = [
   { id: 'totalCommission', width: '100px', label: 'Comm Amount', sortable: false, filterable: false, align: 'right' },
   { id: 'manufacturerName', width: '140px', label: 'Factory', sortable: true, filterable: true },
   { id: 'entryDate', width: '90px', label: 'Entry Date', sortable: false, filterable: false },
+  { id: 'createdBy', width: '140px', label: 'Created By', sortable: false, filterable: false },
   { id: 'dueDate', width: '90px', label: 'Due Date', sortable: true, filterable: true },
   { id: 'paid', width: '60px', label: 'Paid', sortable: false, filterable: false, align: 'center' },
 ];

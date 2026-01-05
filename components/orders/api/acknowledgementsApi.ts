@@ -9,6 +9,8 @@ import {
   fetchAcknowledgementsByOrder as _fetchAcknowledgementsByOrder,
   fetchAcknowledgementsLandingPageByOrder as _fetchAcknowledgementsLandingPageByOrder,
   fetchAcknowledgementsByOrderDetail as _fetchAcknowledgementsByOrderDetail,
+  fetchAcknowledgementsWithPagination as _fetchAcknowledgementsWithPagination,
+  searchAcknowledgements as _searchAcknowledgements,
   createAcknowledgement as _createAcknowledgement,
   updateAcknowledgement as _updateAcknowledgement,
   deleteAcknowledgement as _deleteAcknowledgement,
@@ -16,6 +18,8 @@ import {
   type AcknowledgementLandingPage,
   type CreateAcknowledgementInput,
   type UpdateAcknowledgementInput,
+  type PaginatedAcknowledgementsResult,
+  type AcknowledgementFilter,
 } from '../../lib/graphql/acknowledgements';
 
 // Re-export everything from the centralized acknowledgements module
@@ -24,6 +28,8 @@ export {
   fetchAcknowledgementsByOrder,
   fetchAcknowledgementsLandingPageByOrder,
   fetchAcknowledgementsByOrderDetail,
+  fetchAcknowledgementsWithPagination,
+  searchAcknowledgements,
   createAcknowledgement,
   updateAcknowledgement,
   deleteAcknowledgement,
@@ -33,13 +39,17 @@ export {
   type CreateAcknowledgementInput,
   type UpdateAcknowledgementInput,
   type FindAcknowledgementsLandingPagesResponse,
+  type PaginatedAcknowledgementsResult,
+  type AcknowledgementFilter,
 } from '../../lib/graphql/acknowledgements';
 
 // ============================================================================
 // React Query Hooks (Optional - for component use)
 // ============================================================================
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
+
+const DEFAULT_PAGE_SIZE = 50;
 
 /**
  * Hook to fetch a single acknowledgement
@@ -134,6 +144,46 @@ export function useDeleteAcknowledgement() {
       // Invalidate all acknowledgement queries
       queryClient.invalidateQueries({ queryKey: ['orderAcknowledgements'] });
       queryClient.invalidateQueries({ queryKey: ['orderDetailAcknowledgements'] });
+      queryClient.invalidateQueries({ queryKey: ['acknowledgementsLandingPage'] });
     },
+  });
+}
+
+// ============================================================================
+// Landing Page Hooks (for standalone acknowledgements page)
+// ============================================================================
+
+/**
+ * Hook to fetch acknowledgements with infinite scroll pagination
+ */
+export function useAcknowledgementsInfinite(
+  filters?: AcknowledgementFilter[],
+  pageSize: number = DEFAULT_PAGE_SIZE
+) {
+  return useInfiniteQuery<PaginatedAcknowledgementsResult, Error>({
+    queryKey: ['acknowledgementsLandingPage', filters, 'infinite'],
+    queryFn: async ({ pageParam = 0 }) => {
+      return _fetchAcknowledgementsWithPagination(filters, {
+        limit: pageSize,
+        offset: pageParam as number,
+      });
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const totalFetched = allPages.reduce((acc, page) => acc + page.records.length, 0);
+      if (totalFetched >= lastPage.total) return undefined;
+      return totalFetched;
+    },
+  });
+}
+
+/**
+ * Hook to search acknowledgements
+ */
+export function useAcknowledgementSearch(searchTerm: string, limit: number = 100) {
+  return useQuery({
+    queryKey: ['acknowledgementsSearch', searchTerm, limit],
+    queryFn: () => _searchAcknowledgements(searchTerm, limit),
+    enabled: searchTerm.length >= 2,
   });
 }

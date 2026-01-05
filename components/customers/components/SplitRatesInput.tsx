@@ -123,22 +123,28 @@ export function SplitRatesInput({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [activeSearchIndex]);
 
-  // Calculate equal split rate for all entries
-  const calculateEqualSplitRate = (count: number): string => {
-    if (count === 0) return '';
-    const rate = 100 / count;
-    // Round to 1 decimal place for cleaner display
-    return rate.toFixed(1);
-  };
-
   // Auto-redistribute split rates equally among all entries (each rep type independently totals 100%)
+  // Handles remainders by giving extra 0.1% to the last entry(ies) to ensure total is exactly 100%
   const redistributeSplitRates = (newEntries: SplitRateEntry[]): SplitRateEntry[] => {
     if (newEntries.length === 0) return newEntries;
-    const newRate = calculateEqualSplitRate(newEntries.length);
-    return newEntries.map(entry => ({
-      ...entry,
-      splitRate: newRate,
-    }));
+
+    const count = newEntries.length;
+    // Calculate base rate rounded down to 1 decimal
+    const baseRate = Math.floor(100 / count * 10) / 10;
+    // Calculate how much is left after giving everyone the base rate
+    const totalWithBase = baseRate * count;
+    // Calculate remainder (in 0.1% increments)
+    const remainderUnits = Math.round((100 - totalWithBase) * 10);
+
+    return newEntries.map((entry, index) => {
+      // Give extra 0.1% to the last 'remainderUnits' entries
+      const extraUnits = index >= (count - remainderUnits) ? 1 : 0;
+      const rate = baseRate + (extraUnits * 0.1);
+      return {
+        ...entry,
+        splitRate: rate.toFixed(1),
+      };
+    });
   };
 
   const handleAddEntry = () => {

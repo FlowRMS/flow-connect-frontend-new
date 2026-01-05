@@ -20,6 +20,10 @@ export const getTabsConfig = (
       count: lineItemsCount,
     },
     {
+      id: 'files',
+      label: 'Files',
+    },
+    {
       id: 'deductions',
       label: 'Deductions',
       count: deductionsCount > 0 ? deductionsCount : undefined,

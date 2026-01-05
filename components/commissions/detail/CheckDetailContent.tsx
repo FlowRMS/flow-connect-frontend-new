@@ -18,12 +18,14 @@ import {
   DeductionsTab,
   SettingsTab,
 } from './components/tabs';
+import { FilesTab } from '@/components/shared/FilesTab';
 import {
   PostedStatementModal,
   RepSplitsModal,
   ColumnsModal,
   LineItemDetailModal,
   AddLineItemModal,
+  OrderDetailModal,
 } from './components/modals';
 import {
   AdjustmentModal,
@@ -128,8 +130,11 @@ export default function CheckDetailContent({
         onSave={state.handleSave}
         onSaveAndClose={state.handleSaveAndClose}
         onSaveAsNewVersion={handleSaveAsNewVersion}
+        onUnpost={state.handleUnpost}
         isCreateMode={state.isCreateMode}
         isSaving={state.isSaving}
+        isUnposting={state.isUnposting}
+        isOriginallyPosted={state.isOriginallyPosted}
       />
 
       {/* Pricing Summary Bar */}
@@ -361,7 +366,7 @@ export default function CheckDetailContent({
 
           {/* Tab Content */}
           {state.activeTab === 'line-items' && (
-            <div className="flex-1 overflow-auto min-h-0 pb-32">
+            <div className="flex-1 min-h-0">
               <LineItemsTable
                 lineItems={state.lineItems}
                 visibleColumns={state.visibleColumns}
@@ -370,8 +375,18 @@ export default function CheckDetailContent({
                 onTogglePaid={state.togglePaid}
                 onAddNewLine={state.addNewLine}
                 onRowClick={state.openLineItemDetail}
+                onUpdateStatedCommission={state.updateLineItemAmount}
+                onOrderClick={state.openOrderDetail}
               />
             </div>
+          )}
+
+          {/* Files Tab */}
+          {state.activeTab === 'files' && (
+            <FilesTab
+              entityId={checkId}
+              entityType="CHECK"
+            />
           )}
 
           {/* Other Tabs */}
@@ -387,13 +402,13 @@ export default function CheckDetailContent({
             />
           )}
 
-          {state.activeTab === 'notes' && <NotesTab />}
+          {state.activeTab === 'notes' && <NotesTab checkId={checkId} />}
 
-          {state.activeTab === 'tasks' && <TasksTab />}
+          {state.activeTab === 'tasks' && <TasksTab checkId={checkId} />}
 
           {state.activeTab === 'activity' && <ActivityTab />}
 
-          {state.activeTab === 'linked-objects' && <LinkedObjectsTab />}
+          {state.activeTab === 'linked-objects' && <LinkedObjectsTab checkId={checkId} />}
 
           {state.activeTab === 'settings' && (
             <SettingsTab
@@ -504,6 +519,14 @@ export default function CheckDetailContent({
         onConfirm={adjustmentsState.handleConfirmDelete}
         onCancel={adjustmentsState.closeDeleteConfirmModal}
       />
+
+      {/* Order Detail Modal */}
+      {state.showOrderDetailModal && state.selectedOrderId && (
+        <OrderDetailModal
+          orderId={state.selectedOrderId}
+          onClose={state.closeOrderDetail}
+        />
+      )}
     </main>
   );
 }

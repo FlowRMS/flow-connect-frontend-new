@@ -206,10 +206,10 @@ export function AdjustmentModal({
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
   const [customerSearchEnabled, setCustomerSearchEnabled] = useState(false);
 
-  // Search hooks - use isOutside: true for rep search (outside reps only)
+  // Search hooks - use isInside: false, isOutside: true for rep search (outside reps only)
   const { data: repResults, isLoading: isRepLoading } = useUserSearch(
     repSearchTerm,
-    { isOutside: true },
+    { isInside: false, isOutside: true },
     repSearchEnabled
   );
 

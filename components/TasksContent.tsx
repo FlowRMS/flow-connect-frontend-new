@@ -571,6 +571,7 @@ export default function TasksContent() {
         <CalendarView
           tasks={filteredTasks}
           onToggleComplete={toggleTaskComplete}
+          onSelectTask={setSelectedTask}
         />
       )}
 
@@ -593,6 +594,8 @@ export default function TasksContent() {
           task={selectedTask}
           onClose={handleBack}
           onToggleComplete={toggleTaskComplete}
+          onTaskUpdated={() => refetch()}
+          onTaskDeleted={() => refetch()}
         />
       )}
 

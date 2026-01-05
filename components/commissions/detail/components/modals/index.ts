@@ -7,4 +7,5 @@ export { RepSplitsModal } from './RepSplitsModal';
 export { ColumnsModal } from './ColumnsModal';
 export { LineItemDetailModal } from './LineItemDetailModal';
 export { AddLineItemModal } from './AddLineItemModal';
+export { OrderDetailModal } from './OrderDetailModal';
 

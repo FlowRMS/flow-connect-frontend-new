@@ -1,6 +1,6 @@
 /**
  * Mention Textarea Component
- * A textarea that supports @mentions with contact autocomplete dropdown
+ * A textarea that supports @mentions with user autocomplete dropdown
  * Similar to Instagram/Facebook mention functionality
  */
 
@@ -8,7 +8,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { useContactSearch, type ContactSearchResult } from '../api';
+import { useUserSearch, type UserSearchResult } from '../api';
 
 interface SelectedContact {
   id: string;
@@ -30,7 +30,7 @@ export function MentionTextarea({
   onChange,
   selectedMentions,
   onMentionsChange,
-  placeholder = 'Write your content here... Use @ to mention contacts',
+  placeholder = 'Write your content here... Use @ to mention users',
   rows = 6,
   className = '',
 }: MentionTextareaProps) {
@@ -44,13 +44,13 @@ export function MentionTextarea({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
-  const { data: contacts = [] } = useContactSearch(searchQuery);
+  const { data: users = [] } = useUserSearch(searchQuery);
 
-  // Filter contacts based on search query and exclude already mentioned
-  const filteredContacts = contacts.filter((contact: ContactSearchResult) => {
-    const fullName = `${contact.firstName} ${contact.lastName}`.toLowerCase();
-    const alreadyMentioned = selectedMentions.some(m => m.id === contact.id);
-    return fullName.includes(searchQuery.toLowerCase()) && !alreadyMentioned;
+  // Filter users based on search query and exclude already mentioned
+  const filteredUsers = users.filter((user: UserSearchResult) => {
+    const fullName = user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim();
+    const alreadyMentioned = selectedMentions.some(m => m.id === user.id);
+    return fullName.toLowerCase().includes(searchQuery.toLowerCase()) && !alreadyMentioned;
   }).slice(0, 8); // Limit to 8 suggestions
 
   // Calculate dropdown position based on cursor
@@ -123,33 +123,33 @@ export function MentionTextarea({
     setMentionStartIndex(-1);
   };
 
-  // Handle selecting a contact from dropdown
-  const selectContact = (contact: ContactSearchResult) => {
+  // Handle selecting a user from dropdown
+  const selectUser = (user: UserSearchResult) => {
     if (mentionStartIndex === -1) return;
-    
-    const fullName = `${contact.firstName} ${contact.lastName}`;
+
+    const fullName = user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim();
     const beforeMention = value.substring(0, mentionStartIndex);
     const afterMention = value.substring(cursorPosition);
-    
+
     // Replace the @query with @FullName
     const newValue = `${beforeMention}@${fullName} ${afterMention}`;
     onChange(newValue);
-    
+
     // Add to selected mentions
     const newMention: SelectedContact = {
-      id: contact.id,
+      id: user.id,
       name: fullName,
     };
-    
-    if (!selectedMentions.some(m => m.id === contact.id)) {
+
+    if (!selectedMentions.some(m => m.id === user.id)) {
       onMentionsChange([...selectedMentions, newMention]);
     }
-    
+
     // Close dropdown and reset
     setShowDropdown(false);
     setMentionStartIndex(-1);
     setSearchQuery('');
-    
+
     // Focus back on textarea
     setTimeout(() => {
       if (textareaRef.current) {
@@ -162,13 +162,13 @@ export function MentionTextarea({
 
   // Handle keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (!showDropdown || filteredContacts.length === 0) return;
-    
+    if (!showDropdown || filteredUsers.length === 0) return;
+
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
-        setSelectedIndex(prev => 
-          prev < filteredContacts.length - 1 ? prev + 1 : prev
+        setSelectedIndex(prev =>
+          prev < filteredUsers.length - 1 ? prev + 1 : prev
         );
         break;
       case 'ArrowUp':
@@ -177,8 +177,8 @@ export function MentionTextarea({
         break;
       case 'Enter':
         e.preventDefault();
-        if (filteredContacts[selectedIndex]) {
-          selectContact(filteredContacts[selectedIndex]);
+        if (filteredUsers[selectedIndex]) {
+          selectUser(filteredUsers[selectedIndex]);
         }
         break;
       case 'Escape':
@@ -186,9 +186,9 @@ export function MentionTextarea({
         setShowDropdown(false);
         break;
       case 'Tab':
-        if (filteredContacts[selectedIndex]) {
+        if (filteredUsers[selectedIndex]) {
           e.preventDefault();
-          selectContact(filteredContacts[selectedIndex]);
+          selectUser(filteredUsers[selectedIndex]);
         }
         break;
     }
@@ -296,7 +296,7 @@ export function MentionTextarea({
       />
       
       {/* Mention Dropdown */}
-      {showDropdown && filteredContacts.length > 0 && (
+      {showDropdown && filteredUsers.length > 0 && (
         <div
           ref={dropdownRef}
           style={{ top: dropdownPosition.top }}
@@ -304,48 +304,53 @@ export function MentionTextarea({
         >
           <div className="px-3 py-2 border-b border-gray-100">
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Contacts
+              Users
             </p>
           </div>
-          {filteredContacts.map((contact: ContactSearchResult, index: number) => (
-            <button
-              key={contact.id}
-              type="button"
-              onClick={() => selectContact(contact)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors ${
-                index === selectedIndex
-                  ? 'bg-blue-50 text-blue-900'
-                  : 'hover:bg-gray-50'
-              }`}
-            >
-              <div className={`w-8 h-8 rounded-full ${getAvatarColor(contact.firstName)} flex items-center justify-center text-white text-xs font-semibold flex-shrink-0`}>
-                {getInitials(contact.firstName, contact.lastName)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">
-                  {contact.firstName} {contact.lastName}
-                </p>
-                {contact.email && (
-                  <p className="text-xs text-gray-500 truncate">{contact.email}</p>
+          {filteredUsers.map((user: UserSearchResult, index: number) => {
+            const firstName = user.firstName || '';
+            const lastName = user.lastName || '';
+            const fullName = user.fullName || `${firstName} ${lastName}`.trim();
+            return (
+              <button
+                key={user.id}
+                type="button"
+                onClick={() => selectUser(user)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors ${
+                  index === selectedIndex
+                    ? 'bg-blue-50 text-blue-900'
+                    : 'hover:bg-gray-50'
+                }`}
+              >
+                <div className={`w-8 h-8 rounded-full ${getAvatarColor(firstName || fullName)} flex items-center justify-center text-white text-xs font-semibold flex-shrink-0`}>
+                  {getInitials(firstName || fullName, lastName)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    {fullName}
+                  </p>
+                  {user.email && (
+                    <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                  )}
+                </div>
+                {user.role && (
+                  <span className="text-xs text-gray-400 flex-shrink-0">{user.role}</span>
                 )}
-              </div>
-              {contact.role && (
-                <span className="text-xs text-gray-400 flex-shrink-0">{contact.role}</span>
-              )}
-            </button>
-          ))}
+              </button>
+            );
+          })}
           <div className="px-3 py-2 border-t border-gray-100 bg-gray-50">
             <p className="text-xs text-gray-400">
-              <kbd className="px-1.5 py-0.5 bg-gray-200 rounded text-[10px] font-mono">↑↓</kbd> to navigate, 
+              <kbd className="px-1.5 py-0.5 bg-gray-200 rounded text-[10px] font-mono">↑↓</kbd> to navigate,
               <kbd className="px-1.5 py-0.5 bg-gray-200 rounded text-[10px] font-mono ml-1">Enter</kbd> to select,
               <kbd className="px-1.5 py-0.5 bg-gray-200 rounded text-[10px] font-mono ml-1">Esc</kbd> to close
             </p>
           </div>
         </div>
       )}
-      
+
       {/* No results message */}
-      {showDropdown && filteredContacts.length === 0 && searchQuery && (
+      {showDropdown && filteredUsers.length === 0 && searchQuery && (
         <div
           ref={dropdownRef}
           style={{ top: dropdownPosition.top }}
@@ -355,7 +360,7 @@ export function MentionTextarea({
             <svg className="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
-            <p className="text-sm text-gray-500">No contacts found for &quot;{searchQuery}&quot;</p>
+            <p className="text-sm text-gray-500">No users found for &quot;{searchQuery}&quot;</p>
           </div>
         </div>
       )}
@@ -388,7 +393,7 @@ export function MentionInput({
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
-  const { data: contacts = [] } = useContactSearch(searchQuery);
+  const { data: users = [] } = useUserSearch(searchQuery);
 
   // Mark as mounted for portal
   useEffect(() => {
@@ -407,11 +412,11 @@ export function MentionInput({
     }
   }, [showDropdown]);
 
-  // Filter contacts based on search query and exclude already mentioned
-  const filteredContacts = contacts.filter((contact: ContactSearchResult) => {
-    const fullName = `${contact.firstName} ${contact.lastName}`.toLowerCase();
-    const alreadyMentioned = selectedMentions.some(m => m.id === contact.id);
-    return fullName.includes(searchQuery.toLowerCase()) && !alreadyMentioned;
+  // Filter users based on search query and exclude already mentioned
+  const filteredUsers = users.filter((user: UserSearchResult) => {
+    const fullName = user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim();
+    const alreadyMentioned = selectedMentions.some(m => m.id === user.id);
+    return fullName.toLowerCase().includes(searchQuery.toLowerCase()) && !alreadyMentioned;
   }).slice(0, 8);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -420,35 +425,35 @@ export function MentionInput({
     setSelectedIndex(0);
   };
 
-  const selectContact = (contact: ContactSearchResult) => {
-    const fullName = `${contact.firstName} ${contact.lastName}`;
+  const selectUser = (user: UserSearchResult) => {
+    const fullName = user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim();
     const newMention: SelectedContact = {
-      id: contact.id,
+      id: user.id,
       name: fullName,
     };
-    
-    if (!selectedMentions.some(m => m.id === contact.id)) {
+
+    if (!selectedMentions.some(m => m.id === user.id)) {
       onMentionsChange([...selectedMentions, newMention]);
     }
-    
+
     setSearchQuery('');
     setShowDropdown(false);
     inputRef.current?.focus();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!showDropdown || filteredContacts.length === 0) {
+    if (!showDropdown || filteredUsers.length === 0) {
       if (e.key === 'ArrowDown' && searchQuery === '') {
         setShowDropdown(true);
       }
       return;
     }
-    
+
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
-        setSelectedIndex(prev => 
-          prev < filteredContacts.length - 1 ? prev + 1 : prev
+        setSelectedIndex(prev =>
+          prev < filteredUsers.length - 1 ? prev + 1 : prev
         );
         break;
       case 'ArrowUp':
@@ -457,8 +462,8 @@ export function MentionInput({
         break;
       case 'Enter':
         e.preventDefault();
-        if (filteredContacts[selectedIndex]) {
-          selectContact(filteredContacts[selectedIndex]);
+        if (filteredUsers[selectedIndex]) {
+          selectUser(filteredUsers[selectedIndex]);
         }
         break;
       case 'Escape':
@@ -468,8 +473,8 @@ export function MentionInput({
     }
   };
 
-  const removeMention = (contactId: string) => {
-    onMentionsChange(selectedMentions.filter(m => m.id !== contactId));
+  const removeMention = (userId: string) => {
+    onMentionsChange(selectedMentions.filter(m => m.id !== userId));
   };
 
   useEffect(() => {
@@ -515,37 +520,42 @@ export function MentionInput({
       }}
       className="bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto"
     >
-      {filteredContacts.length > 0 ? (
+      {filteredUsers.length > 0 ? (
         <>
           <div className="px-3 py-2 border-b border-gray-100">
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Select Contacts
+              Select Users
             </p>
           </div>
-          {filteredContacts.map((contact: ContactSearchResult, index: number) => (
-            <button
-              key={contact.id}
-              type="button"
-              onClick={() => selectContact(contact)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors ${
-                index === selectedIndex
-                  ? 'bg-blue-50 text-blue-900'
-                  : 'hover:bg-gray-50'
-              }`}
-            >
-              <div className={`w-8 h-8 rounded-full ${getAvatarColor(contact.firstName)} flex items-center justify-center text-white text-xs font-semibold flex-shrink-0`}>
-                {getInitials(contact.firstName, contact.lastName)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">
-                  {contact.firstName} {contact.lastName}
-                </p>
-                {contact.email && (
-                  <p className="text-xs text-gray-500 truncate">{contact.email}</p>
-                )}
-              </div>
-            </button>
-          ))}
+          {filteredUsers.map((user: UserSearchResult, index: number) => {
+            const firstName = user.firstName || '';
+            const lastName = user.lastName || '';
+            const fullName = user.fullName || `${firstName} ${lastName}`.trim();
+            return (
+              <button
+                key={user.id}
+                type="button"
+                onClick={() => selectUser(user)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors ${
+                  index === selectedIndex
+                    ? 'bg-blue-50 text-blue-900'
+                    : 'hover:bg-gray-50'
+                }`}
+              >
+                <div className={`w-8 h-8 rounded-full ${getAvatarColor(firstName || fullName)} flex items-center justify-center text-white text-xs font-semibold flex-shrink-0`}>
+                  {getInitials(firstName || fullName, lastName)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    {fullName}
+                  </p>
+                  {user.email && (
+                    <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                  )}
+                </div>
+              </button>
+            );
+          })}
         </>
       ) : (
         <div className="px-4 py-6 text-center">
@@ -553,7 +563,7 @@ export function MentionInput({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
           </svg>
           <p className="text-sm text-gray-500">
-            {searchQuery ? `No contacts found for "${searchQuery}"` : 'No more contacts to add'}
+            {searchQuery ? `No users found for "${searchQuery}"` : 'No more users to add'}
           </p>
         </div>
       )}
@@ -592,7 +602,7 @@ export function MentionInput({
         onChange={handleInputChange}
         onKeyDown={handleKeyDown}
         onFocus={() => setShowDropdown(true)}
-        placeholder={selectedMentions.length > 0 ? 'Add more contacts...' : 'Search and select contacts...'}
+        placeholder={selectedMentions.length > 0 ? 'Add more users...' : 'Search and select users...'}
         className={className}
       />
       

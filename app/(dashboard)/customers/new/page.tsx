@@ -126,27 +126,30 @@ export default function CreateCustomerPage() {
     }
 
     // Convert entries to the format expected by the API
-    const insideSplitRate = insideRepEntries.length > 0 ? {
-      userId: insideRepEntries[0].userId,
-      splitRate: insideRepEntries[0].splitRate,
-      position: 1,
-      id: insideRepEntries[0].id,
-    } : undefined;
+    // The API expects insideSplitRates and outsideSplitRates as arrays
+    const insideSplitRates = insideRepEntries
+      .filter(entry => entry.userId && entry.splitRate)
+      .map((entry, index) => ({
+        userId: entry.userId,
+        splitRate: entry.splitRate,
+        position: index + 1,
+      }));
 
-    const outsideSplitRate = outsideRepEntries.length > 0 ? {
-      userId: outsideRepEntries[0].userId,
-      splitRate: outsideRepEntries[0].splitRate,
-      position: 1,
-      id: outsideRepEntries[0].id,
-    } : undefined;
+    const outsideSplitRates = outsideRepEntries
+      .filter(entry => entry.userId && entry.splitRate)
+      .map((entry, index) => ({
+        userId: entry.userId,
+        splitRate: entry.splitRate,
+        position: index + 1,
+      }));
 
     try {
       const newCustomer = await createCustomer.mutateAsync({
         companyName: companyName.trim(),
         isParent,
         published,
-        insideSplitRates: insideSplitRate,
-        outsideSplitRates: outsideSplitRate,
+        insideSplitRates: insideSplitRates.length > 0 ? insideSplitRates : undefined,
+        outsideSplitRates: outsideSplitRates.length > 0 ? outsideSplitRates : undefined,
       });
 
       toast.success('Customer created successfully');

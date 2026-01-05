@@ -6,7 +6,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useUpdateNote, useDeleteNote, useNoteRelatedEntities, useCreateLink, useDeleteLinkByEntities, useContactSearch, type EntityType } from '../api/useNotesApi';
+import { useUpdateNote, useDeleteNote, useRelatedEntities, useCreateLink, useDeleteLinkByEntities, useUserSearch, useFetchNote, type EntityType } from '../api/useNotesApi';
 import { noteToasts } from '../../lib/toast';
 import { MentionTextarea, MentionInput, type SelectedContact } from '../components/MentionTextarea';
 import { LinkSelector, type SelectedLink } from '../components/LinkSelector';
@@ -42,11 +42,14 @@ export function EditNoteModal({ isOpen, onClose, onSuccess, note }: EditNoteModa
   const createLinkMutation = useCreateLink();
   const deleteLinkByEntitiesMutation = useDeleteLinkByEntities();
 
-  // Fetch related entities for links
-  const { data: relatedEntitiesData } = useNoteRelatedEntities(note.id);
-  
-  // Use contact search with empty string to get contacts for mention resolution
-  const { data: contactsData } = useContactSearch('', true);
+  // Fetch the full note data (includes mentions) - landing pages don't include mentions
+  const { data: fullNoteData } = useFetchNote(note.id);
+
+  // Fetch related entities for links using centralized endpoint
+  const { data: relatedEntitiesData } = useRelatedEntities(note.id, 'NOTES');
+
+  // Use user search with empty string to get users for mention resolution
+  const { data: usersData } = useUserSearch('', true);
 
   // Parse related entities into selectedLinks format and store original links
   useEffect(() => {
@@ -168,27 +171,42 @@ export function EditNoteModal({ isOpen, onClose, onSuccess, note }: EditNoteModa
     }
   }, [relatedEntitiesData]);
 
-  // Parse mentions from note - resolve UUIDs to contact names using search results
+  // Parse mentions from full note data - resolve UUIDs to user names using search results
+  // Note: We use fullNoteData because landing pages don't include mentions
   useEffect(() => {
-    if (note.mentions && note.mentions.length > 0 && contactsData && contactsData.length > 0) {
-      interface ContactRecord {
-        id: string;
-        firstName: string;
-        lastName: string;
+    if (fullNoteData?.mentions && usersData && usersData.length > 0) {
+      // The API returns mentions as an array of UUIDs
+      let mentionIds: string[] = [];
+
+      if (Array.isArray(fullNoteData.mentions)) {
+        mentionIds = fullNoteData.mentions.filter((id: string) => id);
+      } else if (typeof fullNoteData.mentions === 'string' && fullNoteData.mentions.trim()) {
+        // Fallback: if it's a string (comma-separated), parse it
+        mentionIds = fullNoteData.mentions.split(',').map((id: string) => id.trim()).filter((id: string) => id);
       }
-      const contactMap = new Map<string, ContactRecord>(
-        contactsData.map((c: ContactRecord) => [c.id, c])
+
+      if (mentionIds.length === 0) return;
+
+      interface UserRecord {
+        id: string;
+        firstName?: string;
+        lastName?: string;
+        fullName?: string;
+      }
+      const userMap = new Map<string, UserRecord>(
+        usersData.map((u: UserRecord) => [u.id, u])
       );
-      const resolvedMentions = note.mentions.map((id: string) => {
-        const contact = contactMap.get(id);
-        if (contact) {
-          return { id, name: `${contact.firstName} ${contact.lastName}` };
+      const resolvedMentions = mentionIds.map((id: string) => {
+        const user = userMap.get(id);
+        if (user) {
+          const name = user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim();
+          return { id, name };
         }
         return { id, name: id };
       });
       setFieldMentions(resolvedMentions);
     }
-  }, [note.mentions, contactsData]);
+  }, [fullNoteData?.mentions, usersData]);
 
   // Sync content mentions to field mentions
   useEffect(() => {
@@ -211,10 +229,10 @@ export function EditNoteModal({ isOpen, onClose, onSuccess, note }: EditNoteModa
 
   if (!isOpen) return null;
 
-  // Get mention IDs - returns only the first one due to API limitation
+  // Get mention IDs as comma-separated string
   const getMentionsString = (): string => {
     if (fieldMentions.length === 0) return '';
-    return fieldMentions[0].id;
+    return fieldMentions.map(m => m.id).join(',');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -381,7 +399,7 @@ export function EditNoteModal({ isOpen, onClose, onSuccess, note }: EditNoteModa
                   onMentionsChange={setContentMentions}
                   rows={6}
                   className={`${inputClass} resize-none`}
-                  placeholder="Write your note content here... Type @ to mention contacts"
+                  placeholder="Write your note content here... Type @ to mention users"
                 />
               </div>
             </div>
@@ -429,7 +447,7 @@ export function EditNoteModal({ isOpen, onClose, onSuccess, note }: EditNoteModa
                   className={inputClass}
                 />
                 <p className="text-xs text-gray-500 mt-1.5">
-                  Search and select contacts to mention
+                  Search and select users to mention
                 </p>
               </div>
             </div>

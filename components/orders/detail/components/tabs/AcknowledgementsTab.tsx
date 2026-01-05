@@ -1,12 +1,13 @@
 /**
  * AcknowledgementsTab Component
  * Displays acknowledgements for the order with full functionality
+ * Uses OrderAcknowledgement type from orderAcknowledgementsByOrder query
  */
 
 'use client';
 
 import React, { useState } from 'react';
-import type { AcknowledgementLandingPage, AcknowledgementCreationType } from '../../../api/acknowledgementsApi';
+import type { OrderAcknowledgement, AcknowledgementCreationType } from '../../../api/acknowledgementsApi';
 
 // Creation Type Configuration with colors
 const CREATION_TYPE_CONFIG: Record<AcknowledgementCreationType, { label: string; color: string; bgColor: string }> = {
@@ -17,13 +18,13 @@ const CREATION_TYPE_CONFIG: Record<AcknowledgementCreationType, { label: string;
 };
 
 interface AcknowledgementsTabProps {
-  acknowledgements?: AcknowledgementLandingPage[];
+  acknowledgements?: OrderAcknowledgement[];
   isLoading?: boolean;
   error?: Error | null;
   onAddAcknowledgement: () => void;
-  onViewAcknowledgement?: (acknowledgement: AcknowledgementLandingPage) => void;
-  onEditAcknowledgement?: (acknowledgement: AcknowledgementLandingPage) => void;
-  onDeleteAcknowledgement?: (acknowledgement: AcknowledgementLandingPage) => void;
+  onViewAcknowledgement?: (acknowledgement: OrderAcknowledgement) => void;
+  onEditAcknowledgement?: (acknowledgement: OrderAcknowledgement) => void;
+  onDeleteAcknowledgement?: (acknowledgement: OrderAcknowledgement) => void;
 }
 
 export function AcknowledgementsTab({
@@ -46,9 +47,7 @@ export function AcknowledgementsTab({
       if (searchTerm) {
         const search = searchTerm.toLowerCase();
         if (
-          !ack.orderAcknowledgementNumber?.toLowerCase().includes(search) &&
-          !ack.productName?.toLowerCase().includes(search) &&
-          !ack.factoryName?.toLowerCase().includes(search)
+          !ack.orderAcknowledgementNumber?.toLowerCase().includes(search)
         ) {
           return false;
         }
@@ -238,8 +237,6 @@ export function AcknowledgementsTab({
                     )}
                   </div>
                 </th>
-                <th className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Product</th>
-                <th className="text-left px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs">Factory</th>
                 <th
                   className="text-right px-4 py-3 font-semibold text-[var(--muted-foreground)] uppercase text-xs cursor-pointer hover:text-[var(--foreground)] transition-colors"
                   onClick={() => toggleSort('quantity')}
@@ -287,12 +284,6 @@ export function AcknowledgementsTab({
                     </td>
                     <td className="px-4 py-3 text-[var(--muted-foreground)]">
                       {formatDate(ack.entityDate)}
-                    </td>
-                    <td className="px-4 py-3 text-[var(--muted-foreground)] max-w-[200px] truncate" title={ack.productName || ''}>
-                      {ack.productName || '-'}
-                    </td>
-                    <td className="px-4 py-3 text-[var(--muted-foreground)] max-w-[150px] truncate" title={ack.factoryName || ''}>
-                      {ack.factoryName || '-'}
                     </td>
                     <td className="px-4 py-3 text-right font-semibold text-[var(--foreground)]">
                       {ack.quantity || '-'}
@@ -350,7 +341,7 @@ export function AcknowledgementsTab({
             {filteredAcknowledgements.length > 0 && (
               <tfoot className="bg-[var(--muted)]/20 border-t border-[var(--border)]">
                 <tr>
-                  <td colSpan={4} className="px-4 py-3 text-right font-semibold">Total:</td>
+                  <td colSpan={2} className="px-4 py-3 text-right font-semibold">Total:</td>
                   <td className="px-4 py-3 text-right font-bold text-[var(--foreground)]">{totals.totalQty}</td>
                   <td colSpan={3}></td>
                 </tr>

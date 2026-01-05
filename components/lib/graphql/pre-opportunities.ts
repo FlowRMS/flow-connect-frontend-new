@@ -310,10 +310,12 @@ const SEARCH_PRODUCTS = `
     productSearch(searchTerm: $searchTerm, factoryId: $factoryId) {
       id
       factoryPartNumber
-      factory {
-        id
-        title
-      }
+      description
+      unitPrice
+      defaultCommissionRate
+      approvalNeeded
+      published
+      leadTime
     }
   }
 `;

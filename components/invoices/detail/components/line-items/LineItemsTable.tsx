@@ -682,21 +682,13 @@ export function LineItemsTable({
                     {/* Linked Order */}
                     {visibleColumns.has('linkedOrder') && (
                       <td className="px-3 py-2 text-sm text-left min-w-[120px]">
-                        {item.orderLineItemId ? (
-                          <button
-                            onClick={() => {
-                              // Find the linked order from the invoice
-                              const linkedOrder = mockOrders.find(o =>
-                                o.lineItems?.some(li => li.id === item.orderLineItemId)
-                              );
-                              if (linkedOrder) {
-                                window.location.href = `/orders/${linkedOrder.id}`;
-                              }
-                            }}
+                        {invoice.orderId ? (
+                          <a
+                            href={`/orders/${invoice.orderId}`}
                             className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer whitespace-nowrap"
                           >
                             View Order
-                          </button>
+                          </a>
                         ) : (
                           <span className="text-[var(--muted-foreground)]">-</span>
                         )}
@@ -710,17 +702,30 @@ export function LineItemsTable({
                       </td>
                     )}
 
-                    {/* Actions - 3 dots menu */}
-                    <td className="px-2 py-2 w-10">
-                      <button
-                        onClick={() => onOpenAdditionalDetails?.(item)}
-                        className="p-1 hover:bg-[var(--muted)] rounded transition-colors"
-                        title="Additional Details"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" className="text-gray-400">
-                          <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-                        </svg>
-                      </button>
+                    {/* Actions - remove and 3 dots menu */}
+                    <td className="px-2 py-2 w-20">
+                      <div className="flex items-center gap-1">
+                        {isEditable && (
+                          <button
+                            onClick={() => onDeleteLineItem?.(item.id)}
+                            className="p-1 hover:bg-red-100 rounded transition-colors group"
+                            title="Remove line item"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-400 group-hover:text-red-500">
+                              <path d="M6 6l8 8M6 14l8-8" strokeLinecap="round" />
+                            </svg>
+                          </button>
+                        )}
+                        <button
+                          onClick={() => onOpenAdditionalDetails?.(item)}
+                          className="p-1 hover:bg-[var(--muted)] rounded transition-colors"
+                          title="More options"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" className="text-gray-400">
+                            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                          </svg>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

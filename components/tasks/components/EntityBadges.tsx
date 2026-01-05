@@ -8,6 +8,7 @@
 import React from 'react';
 import { useTaskRelatedEntities } from '../api';
 import { convertRelatedEntitiesToUI } from '../utils';
+import { RelatedEntityHoverCard, type EntityUnion } from '../../shared/RelatedEntityHoverCard';
 
 interface EntityBadgesProps {
   taskId: string;
@@ -129,9 +130,9 @@ export function EntityBadges({ taskId, compact = false, maxItems = 6 }: EntityBa
     );
   }
   
-  // Flatten all entities with their types
-  const allEntities: Array<{ id: string; name: string; type: CRMEntityType }> = [];
-  
+  // Flatten all entities with their types and full entity data for hover cards
+  const allEntities: Array<{ id: string; name: string; type: CRMEntityType; entity?: EntityUnion }> = [];
+
   entities.jobs?.forEach(job => allEntities.push({ ...job, type: 'job' }));
   entities.contacts?.forEach(contact => allEntities.push({ ...contact, type: 'contact' }));
   entities.companies?.forEach(company => allEntities.push({ ...company, type: 'company' }));
@@ -180,17 +181,35 @@ export function EntityBadges({ taskId, compact = false, maxItems = 6 }: EntityBa
     }
   };
   
+  const renderBadge = (entityItem: typeof allEntities[0]) => {
+    const badge = (
+      <span
+        className={`px-2 py-0.5 rounded text-xs flex items-center gap-1 ${entityItem.entity ? 'cursor-pointer hover:opacity-80' : ''} transition-opacity ${badgeStyles[entityItem.type]}`}
+      >
+        {getIcon(entityItem.type)}
+        <span className={compact ? 'max-w-[80px] truncate' : ''}>{entityItem.name}</span>
+      </span>
+    );
+
+    // Only wrap with hover card if entity data is available
+    if (entityItem.entity) {
+      return (
+        <RelatedEntityHoverCard
+          key={`${entityItem.type}-${entityItem.id}`}
+          entity={entityItem.entity}
+          type={entityItem.type}
+        >
+          {badge}
+        </RelatedEntityHoverCard>
+      );
+    }
+
+    return <React.Fragment key={`${entityItem.type}-${entityItem.id}`}>{badge}</React.Fragment>;
+  };
+
   return (
     <div className="flex gap-1 flex-wrap">
-      {visibleEntities.map((entity) => (
-        <span 
-          key={`${entity.type}-${entity.id}`}
-          className={`px-2 py-0.5 rounded text-xs flex items-center gap-1 ${badgeStyles[entity.type]}`}
-        >
-          {getIcon(entity.type)}
-          <span className={compact ? 'max-w-[80px] truncate' : ''}>{entity.name}</span>
-        </span>
-      ))}
+      {visibleEntities.map(renderBadge)}
       {remainingCount > 0 && (
         <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">
           +{remainingCount} more
