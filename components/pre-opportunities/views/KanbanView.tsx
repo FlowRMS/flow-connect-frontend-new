@@ -445,11 +445,7 @@ export function KanbanView({
         billToCustomerAddressId: fullPreOpp.billToCustomerAddressId,
         jobId: fullPreOpp.jobId,
         expDate: fullPreOpp.expDate,
-        acceptDate: fullPreOpp.acceptDate,
-        reviseDate: fullPreOpp.reviseDate,
         customerRef: fullPreOpp.customerRef,
-        paymentTerms: fullPreOpp.paymentTerms,
-        freightTerms: fullPreOpp.freightTerms,
         details: fullPreOpp.details?.map(d => ({
           id: d.id,
           itemNumber: d.itemNumber,

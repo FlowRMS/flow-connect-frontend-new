@@ -49,8 +49,6 @@ export function CreatePreOpportunityModal({ isOpen, onClose, onSuccess, initialS
   const [entityDate, setEntityDate] = useState(formatLocalDate(new Date()));
   const [status, setStatus] = useState<PreOpportunityStatus>(initialStatus || 'QUALIFIED');
   const [expDate, setExpDate] = useState('');
-  const [reviseDate, setReviseDate] = useState('');
-  const [acceptDate, setAcceptDate] = useState('');
 
   // Customer State
   const [soldToCustomerId, setSoldToCustomerId] = useState('');
@@ -69,8 +67,6 @@ export function CreatePreOpportunityModal({ isOpen, onClose, onSuccess, initialS
 
   // Additional Details State
   const [customerRef, setCustomerRef] = useState('');
-  const [paymentTerms, setPaymentTerms] = useState('');
-  const [freightTerms, setFreightTerms] = useState('');
 
   // Line Items State
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
@@ -229,11 +225,7 @@ export function CreatePreOpportunityModal({ isOpen, onClose, onSuccess, initialS
       billToCustomerId: billToCustomerId || undefined,
       jobId: jobId || undefined,
       expDate: expDate || undefined,
-      reviseDate: reviseDate || undefined,
-      acceptDate: acceptDate || undefined,
       customerRef: customerRef || undefined,
-      paymentTerms: paymentTerms || undefined,
-      freightTerms: freightTerms || undefined,
       details,
     };
 
@@ -253,8 +245,6 @@ export function CreatePreOpportunityModal({ isOpen, onClose, onSuccess, initialS
     setEntityDate(formatLocalDate(new Date()));
     setStatus(initialStatus || 'QUALIFIED');
     setExpDate('');
-    setReviseDate('');
-    setAcceptDate('');
     setSoldToCustomerId('');
     setSoldToCustomerName('');
     setBillToCustomerId('');
@@ -264,8 +254,6 @@ export function CreatePreOpportunityModal({ isOpen, onClose, onSuccess, initialS
     setFactoryId('');
     setFactoryName('');
     setCustomerRef('');
-    setPaymentTerms('');
-    setFreightTerms('');
     setLineItems([]);
     setSoldToCustomerError('');
   };
@@ -320,10 +308,6 @@ export function CreatePreOpportunityModal({ isOpen, onClose, onSuccess, initialS
               setStatus={setStatus}
               expDate={expDate}
               setExpDate={setExpDate}
-              reviseDate={reviseDate}
-              setReviseDate={setReviseDate}
-              acceptDate={acceptDate}
-              setAcceptDate={setAcceptDate}
             />
 
             {/* Customer Selection */}
@@ -357,10 +341,6 @@ export function CreatePreOpportunityModal({ isOpen, onClose, onSuccess, initialS
             <AdditionalDetailsSection
               customerRef={customerRef}
               setCustomerRef={setCustomerRef}
-              paymentTerms={paymentTerms}
-              setPaymentTerms={setPaymentTerms}
-              freightTerms={freightTerms}
-              setFreightTerms={setFreightTerms}
             />
 
             {/* Factory Filter & Line Items */}
