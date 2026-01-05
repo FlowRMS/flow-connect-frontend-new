@@ -279,3 +279,396 @@
 .flow-ai-scope .border-primary {
   border-color: hsl(var(--primary)) !important;
 }
+
+/* ============================================
+   CRITICAL: Override ALL Tailwind color utilities
+   Because CRM uses var(--color) but Flow-AI needs hsl(var(--color))
+   ============================================ */
+
+/* Background colors */
+.flow-ai-scope .bg-background { background-color: hsl(var(--background)) !important; }
+.flow-ai-scope .bg-foreground { background-color: hsl(var(--foreground)) !important; }
+.flow-ai-scope .bg-primary { background-color: hsl(var(--primary)) !important; }
+.flow-ai-scope .bg-primary-foreground { background-color: hsl(var(--primary-foreground)) !important; }
+.flow-ai-scope .bg-secondary { background-color: hsl(var(--secondary)) !important; }
+.flow-ai-scope .bg-secondary-foreground { background-color: hsl(var(--secondary-foreground)) !important; }
+.flow-ai-scope .bg-muted { background-color: hsl(var(--muted)) !important; }
+.flow-ai-scope .bg-muted-foreground { background-color: hsl(var(--muted-foreground)) !important; }
+.flow-ai-scope .bg-accent { background-color: hsl(var(--accent)) !important; }
+.flow-ai-scope .bg-accent-foreground { background-color: hsl(var(--accent-foreground)) !important; }
+.flow-ai-scope .bg-destructive { background-color: hsl(var(--destructive)) !important; }
+.flow-ai-scope .bg-destructive-foreground { background-color: hsl(var(--destructive-foreground, 0 0% 100%)) !important; }
+.flow-ai-scope .bg-card { background-color: hsl(var(--card)) !important; }
+.flow-ai-scope .bg-card-foreground { background-color: hsl(var(--card-foreground)) !important; }
+.flow-ai-scope .bg-popover { background-color: hsl(var(--popover)) !important; }
+.flow-ai-scope .bg-popover-foreground { background-color: hsl(var(--popover-foreground)) !important; }
+
+/* Text colors */
+.flow-ai-scope .text-background { color: hsl(var(--background)) !important; }
+.flow-ai-scope .text-foreground { color: hsl(var(--foreground)) !important; }
+.flow-ai-scope .text-primary { color: hsl(var(--primary)) !important; }
+.flow-ai-scope .text-primary-foreground { color: hsl(var(--primary-foreground)) !important; }
+.flow-ai-scope .text-secondary { color: hsl(var(--secondary)) !important; }
+.flow-ai-scope .text-secondary-foreground { color: hsl(var(--secondary-foreground)) !important; }
+.flow-ai-scope .text-muted { color: hsl(var(--muted)) !important; }
+.flow-ai-scope .text-muted-foreground { color: hsl(var(--muted-foreground)) !important; }
+.flow-ai-scope .text-accent { color: hsl(var(--accent)) !important; }
+.flow-ai-scope .text-accent-foreground { color: hsl(var(--accent-foreground)) !important; }
+.flow-ai-scope .text-destructive { color: hsl(var(--destructive)) !important; }
+.flow-ai-scope .text-destructive-foreground { color: hsl(var(--destructive-foreground, 0 0% 100%)) !important; }
+.flow-ai-scope .text-card { color: hsl(var(--card)) !important; }
+.flow-ai-scope .text-card-foreground { color: hsl(var(--card-foreground)) !important; }
+.flow-ai-scope .text-popover { color: hsl(var(--popover)) !important; }
+.flow-ai-scope .text-popover-foreground { color: hsl(var(--popover-foreground)) !important; }
+
+/* Border colors */
+.flow-ai-scope .border-background { border-color: hsl(var(--background)) !important; }
+.flow-ai-scope .border-foreground { border-color: hsl(var(--foreground)) !important; }
+.flow-ai-scope .border-secondary { border-color: hsl(var(--secondary)) !important; }
+.flow-ai-scope .border-muted { border-color: hsl(var(--muted)) !important; }
+.flow-ai-scope .border-accent { border-color: hsl(var(--accent)) !important; }
+.flow-ai-scope .border-destructive { border-color: hsl(var(--destructive)) !important; }
+.flow-ai-scope .border-input { border-color: hsl(var(--input)) !important; }
+
+/* Ring colors */
+.flow-ai-scope .ring-ring { --tw-ring-color: hsl(var(--ring)) !important; }
+.flow-ai-scope .ring-primary { --tw-ring-color: hsl(var(--primary)) !important; }
+.flow-ai-scope .ring-destructive { --tw-ring-color: hsl(var(--destructive)) !important; }
+
+/* Ring offset */
+.flow-ai-scope .ring-offset-background { --tw-ring-offset-color: hsl(var(--background)) !important; }
+
+/* Hover states */
+.flow-ai-scope .hover\:bg-primary:hover { background-color: hsl(var(--primary)) !important; }
+.flow-ai-scope .hover\:bg-primary\/90:hover { background-color: hsl(var(--primary) / 0.9) !important; }
+.flow-ai-scope .hover\:bg-secondary:hover { background-color: hsl(var(--secondary)) !important; }
+.flow-ai-scope .hover\:bg-secondary\/80:hover { background-color: hsl(var(--secondary) / 0.8) !important; }
+.flow-ai-scope .hover\:bg-destructive:hover { background-color: hsl(var(--destructive)) !important; }
+.flow-ai-scope .hover\:bg-destructive\/90:hover { background-color: hsl(var(--destructive) / 0.9) !important; }
+.flow-ai-scope .hover\:bg-muted:hover { background-color: hsl(var(--muted)) !important; }
+.flow-ai-scope .hover\:bg-accent:hover { background-color: hsl(var(--accent)) !important; }
+.flow-ai-scope .hover\:text-accent-foreground:hover { color: hsl(var(--accent-foreground)) !important; }
+.flow-ai-scope .hover\:text-primary:hover { color: hsl(var(--primary)) !important; }
+.flow-ai-scope .hover\:text-destructive:hover { color: hsl(var(--destructive)) !important; }
+
+/* Focus states */
+.flow-ai-scope .focus\:ring-ring:focus { --tw-ring-color: hsl(var(--ring)) !important; }
+.flow-ai-scope .focus-visible\:ring-ring:focus-visible { --tw-ring-color: hsl(var(--ring)) !important; }
+
+/* Data state overrides for Radix components */
+.flow-ai-scope [data-state="checked"].bg-primary,
+.flow-ai-scope .data-\[state\=checked\]\:bg-primary[data-state="checked"] {
+  background-color: hsl(var(--primary)) !important;
+}
+.flow-ai-scope [data-state="checked"].text-primary-foreground,
+.flow-ai-scope .data-\[state\=checked\]\:text-primary-foreground[data-state="checked"] {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* ============================================
+   CRITICAL: Override Tailwind's border radius
+   to use Flow AI's 0.75rem (12px) base radius
+   ============================================ */
+
+/* Tailwind border radius overrides for Flow AI scope */
+.flow-ai-scope .rounded-lg {
+  border-radius: 0.75rem !important; /* 12px - matches reference */
+}
+
+.flow-ai-scope .rounded-md {
+  border-radius: calc(0.75rem - 2px) !important; /* 10px */
+}
+
+.flow-ai-scope .rounded-sm {
+  border-radius: calc(0.75rem - 4px) !important; /* 8px */
+}
+
+.flow-ai-scope .rounded-xl {
+  border-radius: 1rem !important; /* 16px */
+}
+
+.flow-ai-scope .rounded-2xl {
+  border-radius: 1.25rem !important; /* 20px */
+}
+
+/* Also handle rounded without suffix (default) */
+.flow-ai-scope .rounded {
+  border-radius: 0.5rem !important; /* 8px */
+}
+
+/* Full rounded (pills) */
+.flow-ai-scope .rounded-full {
+  border-radius: 9999px !important;
+}
+
+/* ============================================
+   Focus ring styling for better interactions
+   ============================================ */
+
+.flow-ai-scope .focus-ring {
+  outline: none;
+  transition: box-shadow 0.2s;
+}
+
+.flow-ai-scope .focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--primary));
+}
+
+/* ============================================
+   Enhanced button hover states
+   ============================================ */
+
+.flow-ai-scope button,
+.flow-ai-scope [role="button"] {
+  transition: all 0.2s ease;
+}
+
+/* Primary button hover */
+.flow-ai-scope .bg-primary:hover {
+  filter: brightness(1.1);
+}
+
+/* Secondary/ghost button hover */
+.flow-ai-scope .hover\:bg-muted:hover {
+  background-color: hsl(var(--muted)) !important;
+}
+
+.flow-ai-scope .hover\:bg-accent:hover {
+  background-color: hsl(var(--accent)) !important;
+}
+
+/* ============================================
+   Table row hover effects (for document queue)
+   ============================================ */
+
+.flow-ai-scope tr {
+  transition: background-color 0.15s ease;
+}
+
+.flow-ai-scope tbody tr:hover {
+  background-color: hsl(var(--muted) / 0.5);
+}
+
+/* ============================================
+   Card and container shadows
+   ============================================ */
+
+.flow-ai-scope .shadow-sm {
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05) !important;
+}
+
+.flow-ai-scope .shadow-md {
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1) !important;
+}
+
+.flow-ai-scope .shadow-lg {
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1) !important;
+}
+
+/* Hover shadow transitions */
+.flow-ai-scope .hover\:shadow-md:hover {
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1) !important;
+}
+
+.flow-ai-scope .hover\:shadow-lg:hover {
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1) !important;
+}
+
+/* ============================================
+   Status badge styling (Completed, Pending, etc.)
+   ============================================ */
+
+.flow-ai-scope [data-status="completed"],
+.flow-ai-scope .status-completed {
+  background-color: hsl(var(--status-completed) / 0.15);
+  color: hsl(var(--status-completed));
+  border-radius: 9999px;
+}
+
+.flow-ai-scope [data-status="pending"],
+.flow-ai-scope .status-pending {
+  background-color: hsl(var(--status-pending) / 0.15);
+  color: hsl(var(--status-pending));
+  border-radius: 9999px;
+}
+
+.flow-ai-scope [data-status="processing"],
+.flow-ai-scope .status-processing {
+  background-color: hsl(var(--status-processing) / 0.15);
+  color: hsl(var(--status-processing));
+  border-radius: 9999px;
+}
+
+.flow-ai-scope [data-status="failed"],
+.flow-ai-scope .status-failed {
+  background-color: hsl(var(--status-failed) / 0.15);
+  color: hsl(var(--status-failed));
+  border-radius: 9999px;
+}
+
+/* ============================================
+   Checkbox styling (Radix UI Checkbox)
+   Radix checkbox is a <button> with data-state, not <input>
+   ============================================ */
+
+/* Base checkbox button styling */
+.flow-ai-scope button[role="checkbox"] {
+  border-radius: 4px !important;
+  border: 1.5px solid hsl(var(--border)) !important;
+  background-color: transparent !important;
+  transition: all 0.15s ease !important;
+}
+
+/* Checked state - THIS IS THE KEY FIX */
+.flow-ai-scope button[role="checkbox"][data-state="checked"] {
+  background-color: hsl(var(--primary)) !important;
+  border-color: hsl(var(--primary)) !important;
+  color: white !important;
+}
+
+/* Hover state */
+.flow-ai-scope button[role="checkbox"]:hover {
+  border-color: hsl(var(--primary) / 0.5) !important;
+}
+
+/* Indeterminate state */
+.flow-ai-scope button[role="checkbox"][data-state="indeterminate"] {
+  background-color: hsl(var(--primary)) !important;
+  border-color: hsl(var(--primary)) !important;
+  color: white !important;
+}
+
+/* Also handle native checkbox inputs just in case */
+.flow-ai-scope input[type="checkbox"] {
+  border-radius: 4px;
+  border: 1.5px solid hsl(var(--border));
+  transition: all 0.15s ease;
+}
+
+.flow-ai-scope input[type="checkbox"]:checked {
+  background-color: hsl(var(--primary));
+  border-color: hsl(var(--primary));
+}
+
+.flow-ai-scope input[type="checkbox"]:hover {
+  border-color: hsl(var(--primary) / 0.5);
+}
+
+/* ============================================
+   Input and select field styling
+   ============================================ */
+
+.flow-ai-scope input:not([type="checkbox"]):not([type="radio"]),
+.flow-ai-scope select,
+.flow-ai-scope textarea {
+  border-radius: calc(0.75rem - 2px);
+  border: 1px solid hsl(var(--border));
+  background-color: hsl(var(--background));
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.flow-ai-scope input:not([type="checkbox"]):not([type="radio"]):focus,
+.flow-ai-scope select:focus,
+.flow-ai-scope textarea:focus {
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.1);
+  outline: none;
+}
+
+/* ============================================
+   Dropdown/Popover styling
+   ============================================ */
+
+.flow-ai-scope [data-radix-popper-content-wrapper] > div,
+.flow-ai-scope [role="listbox"],
+.flow-ai-scope [role="menu"] {
+  border-radius: 0.75rem !important;
+  border: 1px solid hsl(var(--border));
+  background-color: hsl(var(--popover));
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+/* ============================================
+   Badge/Chip styling (Entity Type badges)
+   ============================================ */
+
+.flow-ai-scope .inline-flex.items-center.rounded-full {
+  border-radius: 9999px !important;
+}
+
+/* Orders badge - purple */
+.flow-ai-scope .bg-purple-100 {
+  background-color: hsl(246 75% 95%) !important;
+}
+
+.flow-ai-scope .text-purple-700 {
+  color: hsl(246 75% 45%) !important;
+}
+
+/* Quotes badge - teal/cyan */
+.flow-ai-scope .bg-teal-100,
+.flow-ai-scope .bg-cyan-100 {
+  background-color: hsl(199 85% 93%) !important;
+}
+
+.flow-ai-scope .text-teal-700,
+.flow-ai-scope .text-cyan-700 {
+  color: hsl(199 85% 35%) !important;
+}
+
+/* ============================================
+   Shimmer animation for loading states
+   ============================================ */
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.flow-ai-scope .animate-shimmer {
+  animation: shimmer 2s linear infinite;
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted)) 25%,
+    hsl(var(--muted) / 0.5) 50%,
+    hsl(var(--muted)) 75%
+  );
+  background-size: 200% 100%;
+}
+
+/* ============================================
+   Scrollbar styling
+   ============================================ */
+
+.flow-ai-scope ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.flow-ai-scope ::-webkit-scrollbar-track {
+  background: hsl(var(--muted) / 0.3);
+  border-radius: 4px;
+}
+
+.flow-ai-scope ::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 4px;
+}
+
+.flow-ai-scope ::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* ============================================
+   Selection highlight
+   ============================================ */
+
+.flow-ai-scope ::selection {
+  background-color: hsl(var(--primary) / 0.2);
+  color: hsl(var(--foreground));
+}

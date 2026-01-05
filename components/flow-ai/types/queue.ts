@@ -75,26 +75,31 @@ export const ORDER_DIRECTION_OPTIONS: { value: OrderDirection; label: string }[]
   { value: 'DESC', label: 'Descending' },
 ];
 
-// Pending Document interface
+// Pending Document interface (matches PendingDocumentLandingPage from findLandingPages)
 export interface PendingDocument {
-  pendingDocumentId: string;
-  documentId: string;
-  documentProcessId: string | null;
-  aiStatus: AiStatus | null;
-  clusterId: string | null;
-  clusterName: string | null;
-  createdAt: string;
-  createdBy: string | null;
-  createdById: string | null;
-  documentType: DocumentType | null;
-  entityType: EntityType | null;
-  fileName: string | null;
-  fileStatus: string | null;
-  queueStatus: string | null;
+  id: string;  // This is the pending document ID
+  workflowStatus: string | null;  // Queue/workflow status
+  status: string | null;  // File status
   isNew: boolean;
+  fileName: string | null;
+  fileId: string | null;  // Document/file ID
+  entityType: EntityType | null;
+  documentType: DocumentType | null;
+  createdById: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  clusterName: string | null;
+  clusterId: string | null;
 }
 
-// Filter input interface (matches LandingPageFilterInput in GraphQL schema)
+// Re-export types from CRM's GraphQL types for findLandingPages
+export type {
+  LandingPageFilter,
+  LandingPageOrderBy,
+  FilterOperator
+} from '@/components/lib/graphql/types';
+
+// Legacy filter interface (for internal use before converting to FilterInput[])
 export interface LandingPageFilterInput {
   aiStatuses?: AiStatus;
   clusterId?: string;
@@ -107,13 +112,11 @@ export interface LandingPageFilterInput {
 // Alias for backwards compatibility
 export type PendingDocumentsFilterInput = LandingPageFilterInput;
 
-// Paginated response interface
+// Paginated response interface (matches findLandingPages response)
 export interface PaginatedResponse {
-  pendingDocumentsLandingPage: {
-    items: PendingDocument[];
-    limit: number;
-    offset: number;
-    totalCount: number;
+  findLandingPages: {
+    records: PendingDocument[];
+    total: number;
   };
 }
 

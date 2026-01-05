@@ -84,7 +84,8 @@ import {
   DOCUMENT_TYPE_OPTIONS,
   ENTITY_TYPE_OPTIONS,
   ORDER_BY_OPTIONS,
-  LandingPageFilterInput,
+  LandingPageFilter,
+  LandingPageOrderBy,
 } from '@/components/flow-ai/types/queue';
 
 // Entity type configuration with icons and colors
@@ -522,34 +523,44 @@ function QueuePageContent() {
     }
   }, [searchParams]);
 
-  // Build filter object
-  const buildFilters = useCallback((): LandingPageFilterInput | undefined => {
-    const filters: LandingPageFilterInput = {};
-    let hasFilters = false;
+  // Build filter array for findLandingPages
+  const buildFilters = useCallback((): LandingPageFilter[] | undefined => {
+    const filters: LandingPageFilter[] = [];
 
     if (aiStatusFilter !== 'all') {
-      filters.aiStatuses = aiStatusFilter;
-      hasFilters = true;
+      filters.push({ columnName: 'status', operator: 'EQ', value: aiStatusFilter });
     }
     if (documentTypeFilter !== 'all') {
-      filters.documentTypes = documentTypeFilter;
-      hasFilters = true;
+      filters.push({ columnName: 'documentType', operator: 'EQ', value: documentTypeFilter });
     }
     if (entityTypeFilter !== 'all') {
-      filters.entityTypes = entityTypeFilter;
-      hasFilters = true;
+      filters.push({ columnName: 'entityType', operator: 'EQ', value: entityTypeFilter });
     }
     if (debouncedSearchTerm.trim()) {
-      filters.searchTerm = debouncedSearchTerm.trim();
-      hasFilters = true;
+      filters.push({ columnName: 'fileName', operator: 'ILIKE', value: debouncedSearchTerm.trim() });
     }
     if (createdByIdFilter !== 'all') {
-      filters.createdById = createdByIdFilter;
-      hasFilters = true;
+      filters.push({ columnName: 'createdById', operator: 'EQ', value: createdByIdFilter });
     }
 
-    return hasFilters ? filters : undefined;
+    return filters.length > 0 ? filters : undefined;
   }, [aiStatusFilter, documentTypeFilter, entityTypeFilter, debouncedSearchTerm, createdByIdFilter]);
+
+  // Build orderBy array for findLandingPages (note: it's an array in the schema)
+  const buildOrderBy = useCallback((): LandingPageOrderBy[] | undefined => {
+    // Map the OrderBy enum to column names
+    const columnMap: Record<OrderBy, string> = {
+      'CREATED_AT': 'createdAt',
+      'AI_STATUS': 'status',
+      'ENTITY_TYPE': 'entityType',
+      'CLUSTER_NAME': 'clusterName',
+    };
+
+    return [{
+      columnName: columnMap[orderBy],
+      direction: orderDirection,
+    }];
+  }, [orderBy, orderDirection]);
 
   // Fetch documents
   const fetchDocuments = useCallback(async (showRefreshToast = false) => {
@@ -562,6 +573,7 @@ function QueuePageContent() {
     try {
       const offset = (currentPage - 1) * pageSize;
       const filters = buildFilters();
+      const orderByInput = buildOrderBy();
 
       const { data } = await apolloClient.query<PaginatedResponse>({
         query: Q_PENDING_DOCUMENTS_LANDING,
@@ -569,16 +581,15 @@ function QueuePageContent() {
           limit: pageSize,
           offset,
           filters,
-          orderBy,
-          orderDirection,
+          orderBy: orderByInput,
         },
         fetchPolicy: 'network-only',
       });
 
-      const response = data?.pendingDocumentsLandingPage;
-      const items = response?.items || [];
+      const response = data?.findLandingPages;
+      const items = response?.records || [];
       setDocuments(items);
-      setTotalCount(response?.totalCount || 0);
+      setTotalCount(response?.total || 0);
 
       // Update unique creators list (merge with existing to keep all seen creators)
       setUniqueCreators(prev => {
@@ -602,7 +613,7 @@ function QueuePageContent() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [apolloClient, currentPage, pageSize, buildFilters, orderBy, orderDirection]);
+  }, [apolloClient, currentPage, pageSize, buildFilters, buildOrderBy]);
 
   // Fetch on mount and when dependencies change
   useEffect(() => {
@@ -610,24 +621,27 @@ function QueuePageContent() {
   }, [fetchDocuments]);
 
   // Handle document click - redirect based on file status
-  const handleDocumentClick = (pendingDocumentId: string, queueStatus: string | null, documentProcessId: string | null, fileStatus: string | null, documentType: string | null) => {
+  // Note: Using new field names from findLandingPages:
+  //   - id = pending document ID
+  //   - workflowStatus = queue/workflow status (was queueStatus)
+  //   - status = file status (was fileStatus)
+  const handleDocumentClick = (doc: PendingDocument) => {
     const params = new URLSearchParams();
-    params.set('pendingId', pendingDocumentId);
-    if (documentProcessId) {
-      params.set('fileUploadProcessId', documentProcessId);
-    }
+    params.set('pendingId', doc.id);
+    // Note: documentProcessId is no longer returned by findLandingPages
+    // If needed in the future, we may need to add it to the query
 
     // If file status is 'Exception', redirect to processing-errors page
-    if (fileStatus?.toUpperCase() === 'EXCEPTION') {
+    if (doc.status?.toUpperCase() === 'EXCEPTION') {
       router.push(`/flow-ai/processing-errors?${params.toString()}`);
       return;
     }
 
-    // If queue status is 'Done', redirect to upload-complete page
-    if (queueStatus?.toUpperCase() === 'DONE') {
+    // If workflow status is 'Done', redirect to upload-complete page
+    if (doc.workflowStatus?.toUpperCase() === 'DONE') {
       // For TABULAR (spreadsheet) documents, add source=spreadsheet so upload-complete
       // knows to fetch the actual file ID before calling fileLinkedEntities
-      if (documentType?.toUpperCase() === 'TABULAR') {
+      if (doc.documentType?.toUpperCase() === 'TABULAR') {
         params.set('source', 'spreadsheet');
       }
       router.push(`/flow-ai/upload-complete?${params.toString()}`);
@@ -635,7 +649,7 @@ function QueuePageContent() {
     }
 
     // Otherwise redirect to main page
-    router.push(`/flow-ai?pendingId=${pendingDocumentId}`);
+    router.push(`/flow-ai?pendingId=${doc.id}`);
   };
 
   // Handle refresh
@@ -651,7 +665,7 @@ function QueuePageContent() {
       setSelectedIds(new Set());
     } else {
       // If none are selected, select all
-      setSelectedIds(new Set(documents.map(d => d.pendingDocumentId)));
+      setSelectedIds(new Set(documents.map(d => d.id)));
     }
   };
 
@@ -1001,8 +1015,8 @@ function QueuePageContent() {
                         const entityConfig = getEntityTypeConfig(doc.entityType);
                         const EntityIcon = entityConfig.icon;
                         const DocTypeIcon = getDocumentTypeIcon(doc.documentType);
-                        const uniqueKey = `${doc.pendingDocumentId}-${index}`;
-                        const isSelected = selectedIds.has(doc.pendingDocumentId);
+                        const uniqueKey = `${doc.id}-${index}`;
+                        const isSelected = selectedIds.has(doc.id);
                         const isNewDocument = doc.isNew;
 
                         return (
@@ -1019,10 +1033,10 @@ function QueuePageContent() {
                             <TableCell onClick={(e) => e.stopPropagation()}>
                               <Checkbox
                                 checked={isSelected}
-                                onCheckedChange={() => handleSelect(doc.pendingDocumentId)}
+                                onCheckedChange={() => handleSelect(doc.id)}
                               />
                             </TableCell>
-                            <TableCell onClick={() => handleDocumentClick(doc.pendingDocumentId, doc.queueStatus, doc.documentProcessId, doc.fileStatus, doc.documentType)}>
+                            <TableCell onClick={() => handleDocumentClick(doc)}>
                               <div className="flex items-center gap-3">
                                 <div className={`p-2 rounded-lg ${
                                   isNewDocument
@@ -1050,35 +1064,35 @@ function QueuePageContent() {
                                     )}
                                   </div>
                                   <p className="text-xs text-muted-foreground font-mono">
-                                    {doc.pendingDocumentId.slice(0, 8)}...
+                                    {doc.id.slice(0, 8)}...
                                   </p>
                                 </div>
                               </div>
                             </TableCell>
-                            <TableCell onClick={() => handleDocumentClick(doc.pendingDocumentId, doc.queueStatus, doc.documentProcessId, doc.fileStatus, doc.documentType)}>
+                            <TableCell onClick={() => handleDocumentClick(doc)}>
                               <div className="flex items-center gap-2">
                                 <DocTypeIcon className="w-4 h-4 text-muted-foreground" />
                                 <span className="text-sm">{doc.documentType || 'Unknown'}</span>
                               </div>
                             </TableCell>
-                            <TableCell onClick={() => handleDocumentClick(doc.pendingDocumentId, doc.queueStatus, doc.documentProcessId, doc.fileStatus, doc.documentType)}>
+                            <TableCell onClick={() => handleDocumentClick(doc)}>
                               <EntityTypeBadge entityType={doc.entityType} />
                             </TableCell>
-                            <TableCell onClick={() => handleDocumentClick(doc.pendingDocumentId, doc.queueStatus, doc.documentProcessId, doc.fileStatus, doc.documentType)}>
+                            <TableCell onClick={() => handleDocumentClick(doc)}>
                               {doc.clusterName ? (
                                 <span className="text-sm text-foreground">{doc.clusterName}</span>
                               ) : (
                                 <span className="text-sm text-muted-foreground italic">No template</span>
                               )}
                             </TableCell>
-                            <TableCell onClick={() => handleDocumentClick(doc.pendingDocumentId, doc.queueStatus, doc.documentProcessId, doc.fileStatus, doc.documentType)}>
-                              {doc.fileStatus ? (
-                                <StatusBadge status={doc.fileStatus} type="file" />
+                            <TableCell onClick={() => handleDocumentClick(doc)}>
+                              {doc.status ? (
+                                <StatusBadge status={doc.status} type="file" />
                               ) : (
                                 <span className="text-sm text-muted-foreground">-</span>
                               )}
                             </TableCell>
-                            <TableCell onClick={() => handleDocumentClick(doc.pendingDocumentId, doc.queueStatus, doc.documentProcessId, doc.fileStatus, doc.documentType)}>
+                            <TableCell onClick={() => handleDocumentClick(doc)}>
                               {doc.createdBy ? (
                                 <div className="flex items-center gap-2">
                                   <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium text-primary">
@@ -1092,7 +1106,7 @@ function QueuePageContent() {
                                 <span className="text-sm text-muted-foreground">-</span>
                               )}
                             </TableCell>
-                            <TableCell onClick={() => handleDocumentClick(doc.pendingDocumentId, doc.queueStatus, doc.documentProcessId, doc.fileStatus, doc.documentType)} className="text-right">
+                            <TableCell onClick={() => handleDocumentClick(doc)} className="text-right">
                               <TooltipProvider>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
@@ -1106,7 +1120,7 @@ function QueuePageContent() {
                                 </Tooltip>
                               </TooltipProvider>
                             </TableCell>
-                            <TableCell onClick={() => handleDocumentClick(doc.pendingDocumentId, doc.queueStatus, doc.documentProcessId, doc.fileStatus, doc.documentType)}>
+                            <TableCell onClick={() => handleDocumentClick(doc)}>
                               <ChevronRight className="w-4 h-4 text-muted-foreground/50 group-hover:text-primary group-hover:translate-x-1 transition-all" />
                             </TableCell>
                           </TableRow>

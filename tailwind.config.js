@@ -8,8 +8,9 @@ module.exports = {
     './app/**/*.{js,ts,jsx,tsx,mdx}',
     './lib/**/*.{js,ts,jsx,tsx}',
   ],
-  // Safelist gradient classes used in avatar utility
+  // Safelist classes that might be purged
   safelist: [
+    // Avatar gradient classes (CRM)
     'bg-gradient-to-br',
     'from-violet-500', 'to-purple-600',
     'from-blue-500', 'to-cyan-500',
@@ -25,6 +26,11 @@ module.exports = {
     'from-amber-500', 'to-yellow-500',
     'text-white',
     'bg-gray-400',
+    // Flow-AI: Radix UI data-state attribute selectors (checkbox, select, accordion, etc.)
+    { pattern: /^data-\[state=.+\]:/ },
+    { pattern: /^data-\[side=.+\]:/ },
+    { pattern: /^data-\[orientation=.+\]:/ },
+    { pattern: /^data-\[disabled\]:/ },
   ],
   theme: {
     extend: {
@@ -72,7 +78,7 @@ module.exports = {
         md: 'var(--radius-md)',
         sm: 'var(--radius-sm)',
       },
-      // FlowAI keyframe animations
+      // Keyframe animations (includes Flow-AI animations)
       keyframes: {
         'accordion-down': {
           from: { height: '0' },
@@ -82,10 +88,30 @@ module.exports = {
           from: { height: 'var(--radix-accordion-content-height)' },
           to: { height: '0' },
         },
+        'fade-in': {
+          from: { opacity: '0', transform: 'translateY(10px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
+        'slide-in': {
+          from: { opacity: '0', transform: 'translateX(-20px)' },
+          to: { opacity: '1', transform: 'translateX(0)' },
+        },
+        'pulse-glow': {
+          '0%, 100%': { boxShadow: '0 0 0 0 hsl(var(--primary) / 0.4)' },
+          '50%': { boxShadow: '0 0 0 8px hsl(var(--primary) / 0)' },
+        },
+        'shimmer': {
+          '0%': { backgroundPosition: '-200% 0' },
+          '100%': { backgroundPosition: '200% 0' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
+        'fade-in': 'fade-in 0.3s ease-out',
+        'slide-in': 'slide-in 0.4s ease-out',
+        'pulse-glow': 'pulse-glow 2s ease-in-out infinite',
+        'shimmer': 'shimmer 2s linear infinite',
       },
     },
   },

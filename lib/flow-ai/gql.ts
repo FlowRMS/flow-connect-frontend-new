@@ -1066,42 +1066,39 @@ export const M_TRIGGER_WORKFLOWS = gql`
 
 // File Linked Entities Query - fetches all entities linked to a file
 // Uses NEXT_PUBLIC_FLOWRMS_HTTP_GRAPHQL_URL (staging.hive.flowrms.com)
-// Pending Documents Landing Query - for Queue page
+// Pending Documents Landing Query - for Queue page (using findLandingPages endpoint)
 export const Q_PENDING_DOCUMENTS_LANDING = gql`
-  query PendingDocumentsLandingPage(
+  query FindLandingPages(
     $limit: Int!
     $offset: Int!
-    $filters: LandingPageFilterInput
-    $orderBy: LandingPageOrderBy
-    $orderDirection: OrderDirection
+    $filters: [Filter!]
+    $orderBy: [OrderBy!]
   ) {
-    pendingDocumentsLandingPage(
+    findLandingPages(
+      sourceType: PENDING_DOCUMENTS
       limit: $limit
       offset: $offset
       filters: $filters
       orderBy: $orderBy
-      orderDirection: $orderDirection
     ) {
-      items {
-        aiStatus
-        clusterId
-        clusterName
-        createdAt
-        createdBy
-        createdById
-        documentId
-        documentProcessId
-        documentType
-        entityType
-        fileName
-        fileStatus
-        pendingDocumentId
-        queueStatus
-        isNew
+      records {
+        ... on PendingDocumentLandingPage {
+          id
+          workflowStatus
+          status
+          isNew
+          fileName
+          fileId
+          entityType
+          documentType
+          createdById
+          createdBy
+          createdAt
+          clusterName
+          clusterId
+        }
       }
-      limit
-      offset
-      totalCount
+      total
     }
   }
 `;
