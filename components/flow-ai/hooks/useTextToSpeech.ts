@@ -61,7 +61,7 @@ export function useTextToSpeech(): UseTextToSpeechReturn {
       const cleanText = stripMarkdown(text);
 
       // Call the text-to-speech API with voice settings
-      const response = await fetch('/api/text-to-speech', {
+      const response = await fetch('/api/flow-ai/text-to-speech', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

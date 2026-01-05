@@ -54,14 +54,14 @@ export function WorkflowHeader() {
                 Upload
               </Button>
               <Button variant="ghost" size="sm" asChild>
-                <Link href="/apps/flowrms" className="text-muted-foreground hover:text-foreground">
+                <Link href="/flow-ai" className="text-muted-foreground hover:text-foreground">
                   <ScanText className="w-4 h-4 mr-2" />
                   FlowScan
                 </Link>
               </Button>
               <Button variant="ghost" size="sm" asChild>
                 <Link
-                  href="/apps/flowrms/templates"
+                  href="/flow-ai/templates"
                   className="text-muted-foreground hover:text-foreground"
                 >
                   <FileStack className="w-4 h-4 mr-2" />
@@ -70,7 +70,7 @@ export function WorkflowHeader() {
               </Button>
               <Button variant="ghost" size="sm" asChild>
                 <Link
-                  href="/apps/flowrms/ai-chat"
+                  href="/flow-ai/ai-chat"
                   className="text-muted-foreground hover:text-foreground"
                 >
                   <Bot className="w-4 h-4 mr-2" />
@@ -78,14 +78,14 @@ export function WorkflowHeader() {
                 </Link>
               </Button>
               <Button variant="ghost" size="sm" asChild>
-                <Link href="/apps/flowrms/workflows" className="text-foreground">
+                <Link href="/flow-ai/workflows" className="text-foreground">
                   <Workflow className="w-4 h-4 mr-2" />
                   Workflows
                 </Link>
               </Button>
               <Button variant="ghost" size="sm" asChild>
                 <Link
-                  href="/apps/flowrms/queue"
+                  href="/flow-ai/queue"
                   className="text-muted-foreground hover:text-foreground"
                 >
                   <ListTodo className="w-4 h-4 mr-2" />

@@ -81,7 +81,7 @@ export function removeLegacyParams(searchParams: URLSearchParams): boolean {
   return mutated;
 }
 
-export function buildLegacyRedirectExample(basePath = '/apps/flowrms/templates'): string {
+export function buildLegacyRedirectExample(basePath = '/flow-ai/templates'): string {
   const url = new URL(
     basePath,
     typeof window !== 'undefined' ? window.location.origin : 'https://flowscan.example.com'

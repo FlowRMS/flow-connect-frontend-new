@@ -55,7 +55,7 @@ export const CitationsPane = memo(function CitationsPane({
 
       for (const docId of uniqueDocIds) {
         try {
-          const response = await fetch('/api/presigned-url', {
+          const response = await fetch('/api/flow-ai/presigned-url', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

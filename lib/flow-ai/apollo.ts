@@ -14,8 +14,8 @@ import { getMainDefinition } from '@apollo/client/utilities';
 import { createClient } from 'graphql-ws';
 
 // Use the GraphQL proxy that handles cookie-based authentication
-const GRAPHQL_PROXY = "/api/graphql";
-const GRAPHQL_WS_URL = process.env.NEXT_PUBLIC_FLOWRMS_WS_URL || "wss://development.py.ai.flowrms.com/graphql";
+const GRAPHQL_PROXY = "/api/flow-ai/graphql";
+const GRAPHQL_WS_URL = process.env.NEXT_PUBLIC_FLOWRMS_WS_URL || "wss://staging.v6.api.flowrms.com/graphql";
 
 console.log('🔧 Apollo Client configured with:');
 console.log('   HTTP:', GRAPHQL_PROXY);

@@ -158,7 +158,7 @@ export function ClusterModal({ cluster, isOpen, onClose, onUpdate }: ClusterModa
   const fetchCsvData = useCallback(async (csvUrl: string) => {
     setLoadingCsv(true);
     try {
-      const response = await fetch('/api/csv-fetch', {
+      const response = await fetch('/api/flow-ai/csv-fetch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ csvUrl }),

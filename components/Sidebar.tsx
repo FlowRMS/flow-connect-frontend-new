@@ -575,7 +575,12 @@ export default function Sidebar() {
               {(isCollapsed || !group.collapsed) && (
                 <div className={!isCollapsed ? 'mt-1' : ''}>
                   {enabledItems.map((item) => {
-                    const isActive = pathname === item.href;
+                    // Check if current path matches exactly OR starts with the item href (for nested routes)
+                    // For root paths like "/" or "/flow-ai" we need exact match to avoid over-matching
+                    const isExactMatchOnly = item.href === '/' || item.href === '/flow-ai';
+                    const isActive = isExactMatchOnly
+                      ? pathname === item.href
+                      : pathname === item.href || pathname.startsWith(item.href + '/');
                     return (
                       <Link
                         key={item.id}

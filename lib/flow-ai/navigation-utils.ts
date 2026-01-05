@@ -28,7 +28,7 @@ export function navigateToNewUpload(): void {
   toast.success('Ready for new upload');
 
   // Navigate to the dedicated upload page
-  window.location.href = '/apps/flowrms/upload';
+  window.location.href = '/flow-ai/upload';
 }
 
 

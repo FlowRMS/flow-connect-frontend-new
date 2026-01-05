@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useMutation, useQuery } from '@apollo/client/react';
+import { useMutation } from '@apollo/client/react';
 import { ArrowLeft, ArrowRight, CheckCircle2, AlertCircle, Loader2, FileSpreadsheet, Database, Sparkles, Check, Edit3, X, Copy, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/flow-ai/ui/button';
 import { Input } from '@/components/flow-ai/ui/input';
@@ -11,12 +11,12 @@ import { Badge } from '@/components/flow-ai/ui/badge';
 import { Combobox } from '@/components/flow-ai/ui/combobox';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/flow-ai/ui/tooltip';
 import { toast } from 'sonner';
-import { M_REMAP_TABULAR_COLUMNS, Q_FIND_FACTORIES_BY_PUBLISHED_TRUE } from '@/lib/flow-ai/gql';
-import { flowrmsApiApolloClient } from '@/lib/flow-ai/flowrms-apollo';
+import { M_REMAP_TABULAR_COLUMNS } from '@/lib/flow-ai/gql';
 import { usePendingReview } from '@/components/flow-ai/hooks/usePendingReview';
 import { useProcessExtractedDtos } from '@/components/flow-ai/hooks/useProcessExtractedDtos';
 import type { ParsedMappingData, MappingRow, ColumnDuplicateInput } from '@/components/flow-ai/types/column-mapping';
 import { cn } from '@/lib/flow-ai/cn';
+import { searchFactories } from '@/components/lib/api/search';
 
 // Format action message to show only the part after the last fullstop
 // e.g., "Processed entity type 3. Processed 9 of 12 pending entities." => "Processed 9 of 12 pending entities."
@@ -97,17 +97,33 @@ function ColumnMappingContent() {
     progress: entityProgress,
     startProcessing: startEntityProcessing
   } = useProcessExtractedDtos(pendingId);
-  const { data: factoriesData, loading: loadingFactories } = useQuery<{ findFactoriesByPublishedTrue: { title: string }[] }>(
-    Q_FIND_FACTORIES_BY_PUBLISHED_TRUE,
-    { client: flowrmsApiApolloClient }
-  );
 
-  const factoryOptions = useMemo(() => {
-    return factoriesData?.findFactoriesByPublishedTrue?.map(f => ({
-      value: f.title,
-      label: f.title
-    })) || [];
-  }, [factoriesData]);
+  // Factory search state
+  const [factoryOptions, setFactoryOptions] = useState<{ value: string; label: string }[]>([]);
+  const [loadingFactories, setLoadingFactories] = useState(false);
+
+  // Load factories using searchFactories from CRM API
+  useEffect(() => {
+    async function loadFactories() {
+      setLoadingFactories(true);
+      try {
+        // Search with empty string to get all factories (or use a wildcard search)
+        const factories = await searchFactories('', true, 100);
+        setFactoryOptions(
+          factories.map(f => ({
+            value: f.title,
+            label: f.title
+          }))
+        );
+      } catch (error) {
+        console.error('Error loading factories:', error);
+        toast.error('Failed to load factories');
+      } finally {
+        setLoadingFactories(false);
+      }
+    }
+    loadFactories();
+  }, []);
 
   const [defaultValues, setDefaultValues] = useState<Record<string, string>>({});
 
@@ -254,7 +270,7 @@ function ColumnMappingContent() {
 
       try {
         setIsLoadingPreview(true);
-        const response = await fetch('/api/csv-fetch', {
+        const response = await fetch('/api/flow-ai/csv-fetch', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ csvUrl: mappingData.original_presigned_url }),

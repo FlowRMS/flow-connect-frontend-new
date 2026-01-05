@@ -1297,7 +1297,7 @@ function FlowRMSPageContent() {
       console.log('🔄 Calling continueWorkflow with fileUploadProcessId:', fileUploadProcessId);
 
       // Call the API route that handles continueWorkflow
-      const response = await fetch('/api/continue-workflow', {
+      const response = await fetch('/api/flow-ai/continue-workflow', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

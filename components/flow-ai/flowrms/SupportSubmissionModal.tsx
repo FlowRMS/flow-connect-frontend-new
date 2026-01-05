@@ -52,7 +52,7 @@ export function SupportSubmissionModal({
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('/api/support/submit', {
+      const response = await fetch('/api/flow-ai/support/submit', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

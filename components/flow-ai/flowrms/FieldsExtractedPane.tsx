@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react';
-import { Search, ChevronDown, ChevronRight, Maximize2, Minimize2, HelpCircle, AlertCircle } from 'lucide-react';
+import { Search, ChevronDown, ChevronRight, Maximize2, HelpCircle, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/flow-ai/ui/card';
 import { Input } from '@/components/flow-ai/ui/input';
 import { Button } from '@/components/flow-ai/ui/button';
@@ -157,7 +157,6 @@ export function FieldsExtractedPane({
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [isGridFullscreen, setIsGridFullscreen] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false); // Add fullscreen state for the whole pane
   const lineItemRows = useMemo(() => lineItems ?? [], [lineItems]);
   const lineItemColumns = useMemo(() => deriveLineItemColumns(lineItemRows), [lineItemRows]);
   const { showContextMenu } = useContextMenu();
@@ -370,7 +369,7 @@ export function FieldsExtractedPane({
 
   return (
     <>
-      <Card className={`flow-card ${isFullscreen ? 'fixed inset-0 z-50 rounded-none' : 'h-full'} flex flex-col animated-border`}>
+      <Card className="flow-card h-full flex flex-col animated-border">
         {/* Data Set Tabs - only show if there are multiple sets */}
         {dataSets && dataSets.length > 1 && onDataSetChange && (
           <DataSetTabs
@@ -379,29 +378,13 @@ export function FieldsExtractedPane({
             onTabChange={onDataSetChange}
           />
         )}
-        
+
         <CardHeader className="flex-none border-b space-y-4 pb-4 bg-gradient-to-r from-primary/5 to-secondary/5">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-bold">Fields Extracted</h3>
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="text-xs">
-                {activeTab === 'lineitems' ? `${lineItems.length} items` : `${filteredFields.length} fields`}
-              </Badge>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setIsFullscreen(!isFullscreen);
-                }}
-                title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-                className="h-7 w-7 p-0"
-                type="button"
-              >
-                {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-              </Button>
-            </div>
+            <Badge variant="secondary" className="text-xs">
+              {activeTab === 'lineitems' ? `${lineItems.length} items` : `${filteredFields.length} fields`}
+            </Badge>
           </div>
 
           {/* Custom Tab-like Buttons */}
@@ -453,7 +436,7 @@ export function FieldsExtractedPane({
                     Fullscreen
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-[95vw] max-h-[95vh] w-full h-full flex flex-col">
+                <DialogContent className="max-w-[95vw] max-h-[95vh] w-full h-full">
                   <ContextMenuProvider>
                     <DialogHeader>
                       <DialogTitle>Line Items - Fullscreen View</DialogTitle>
@@ -462,46 +445,48 @@ export function FieldsExtractedPane({
                       </div>
                     </DialogHeader>
                     <div className="flex-1 mt-6 overflow-hidden">
-                      <div className="rounded-2xl shadow bg-white h-full overflow-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-                        {lineItemColumns.length === 0 ? (
-                          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                            No line items available
-                          </div>
-                        ) : (
-                      <ItemsGridWC
-                        columns={lineItemColumns}
-                        rows={lineItemRows}
-                        readonly={isReadOnly}
-                        contextMenuConfig={LINE_ITEM_CONTEXT_MENU}
-                        selectionOrigin="lineItems"
-                        onCellClick={
-                          isReadOnly
-                            ? undefined
-                            : (row, prop, name) => {
-                                onLineItemCellClick?.(
-                                  row as Record<string, unknown>,
-                                  prop,
-                                  name,
-                                  dataSetIdentifier
-                                );
+                      <div className="rounded-2xl shadow p-3 bg-white h-full overflow-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                        <div style={{ minWidth: '1200px' }}>
+                          {lineItemColumns.length === 0 ? (
+                            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                              No line items available
+                            </div>
+                          ) : (
+                            <ItemsGridWC
+                              columns={lineItemColumns}
+                              rows={lineItemRows}
+                              readonly={isReadOnly}
+                              contextMenuConfig={LINE_ITEM_CONTEXT_MENU}
+                              selectionOrigin="lineItems"
+                              onCellClick={
+                                isReadOnly
+                                  ? undefined
+                                  : (row, prop, name) => {
+                                      onLineItemCellClick?.(
+                                        row as Record<string, unknown>,
+                                        prop,
+                                        name,
+                                        dataSetIdentifier
+                                      );
+                                    }
                               }
-                        }
-                        onSelectionChange={
-                          isReadOnly
-                            ? undefined
-                            : (selection) => {
-                                onLineItemSelectionChange?.(
-                                  selection,
-                                  () => setIsGridFullscreen(false),
-                                  dataSetIdentifier,
-                                  activeDataSetIndex,
-                                  'pdf'
-                                );
+                              onSelectionChange={
+                                isReadOnly
+                                  ? undefined
+                                  : (selection) => {
+                                      onLineItemSelectionChange?.(
+                                        selection,
+                                        () => setIsGridFullscreen(false),
+                                        dataSetIdentifier,
+                                        activeDataSetIndex,
+                                        'pdf'
+                                      );
+                                    }
                               }
-                        }
-                        height="100%"
-                          />
-                        )}
+                              height="calc(70vh - 60px)"
+                            />
+                          )}
+                        </div>
                       </div>
                     </div>
                   </ContextMenuProvider>
