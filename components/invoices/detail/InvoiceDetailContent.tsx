@@ -302,18 +302,23 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
           {/* Tabs */}
           <div className="flex items-center justify-between gap-1 mb-6 border-b border-[var(--border)] flex-shrink-0 bg-white -mx-6 px-6 pt-4 -mt-6">
             <div className="flex gap-1">
-              {getTabsConfig(state.invoice.lineItems.length).map((tab) => (
+              {getTabsConfig(state.invoice.lineItems.length, state.isCreateMode).map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => state.setActiveTab(tab.id)}
+                  onClick={() => !tab.disabled && state.setActiveTab(tab.id)}
+                  disabled={tab.disabled}
+                  title={tab.disabled ? tab.disabledReason : undefined}
                   className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                    state.activeTab === tab.id
+                    tab.disabled
+                      ? 'border-transparent text-gray-300 cursor-not-allowed'
+                      : state.activeTab === tab.id
                       ? 'border-[var(--primary)] text-[var(--primary)]'
                       : 'border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
                   }`}
                 >
                   {tab.label}
                   {tab.id === 'credits' &&
+                    !tab.disabled &&
                     Object.keys(state.lineItemCredits).length > 0 && (
                       <span className="ml-2 px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-600">
                         {Object.keys(state.lineItemCredits).length}
@@ -322,12 +327,17 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
                   {tab.id !== 'credits' &&
                     tab.count !== undefined &&
                     tab.count > 0 && (
-                      <span className="ml-2 px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-600">
+                      <span className={`ml-2 px-1.5 py-0.5 rounded text-xs ${tab.disabled ? 'bg-gray-50 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
                         {tab.count}
                       </span>
                     )}
                 </button>
               ))}
+              {state.isCreateMode && (
+                <span className="ml-auto text-xs text-[var(--muted-foreground)] italic pr-2">
+                  Some tabs will unlock after saving
+                </span>
+              )}
             </div>
 
             {/* View Controls - on tab row */}

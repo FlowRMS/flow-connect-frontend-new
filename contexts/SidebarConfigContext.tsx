@@ -46,15 +46,15 @@ const defaultConfig: SidebarConfig = {
     },
     {
       id: 'flow-ai',
-      label: 'FlowAI',
+      label: 'Flow AI',
       collapsed: false,
       items: [
-        { id: 'flow-ai-scan', name: 'Document Scan', href: '/flow-ai', enabled: true },
-        { id: 'flow-ai-queue', name: 'Queue', href: '/flow-ai/queue', enabled: true },
         { id: 'flow-ai-upload', name: 'Upload', href: '/flow-ai/upload', enabled: true },
-        { id: 'flow-ai-templates', name: 'Templates', href: '/flow-ai/templates', enabled: true },
-        { id: 'flow-ai-workflows', name: 'Workflows', href: '/flow-ai/workflows', enabled: true },
-        { id: 'flow-ai-chat', name: 'AI Chat', href: '/flow-ai/ai-chat', enabled: true },
+        { id: 'flow-ai-queue', name: 'Queue', href: '/flow-ai/queue', enabled: true },
+        { id: 'flow-ai-templates', name: 'Upload Templates', href: '/flow-ai/templates', enabled: true },
+        { id: 'flow-ai-workflows', name: 'Data Workflows', href: '/flow-ai/workflows', enabled: true },
+        { id: 'flow-ai-chat', name: 'Flow Chat', href: '/flow-ai/ai-chat', enabled: true },
+        { id: 'flow-ai-scan', name: 'Upload Preview', href: '/flow-ai', enabled: true },
       ]
     },
     {
@@ -155,7 +155,7 @@ const defaultConfig: SidebarConfig = {
 };
 
 const STORAGE_KEY = 'sidebar-config';
-const CONFIG_VERSION = 24; // Increment this to force a reset of cached sidebar config (added FlowAI)
+const CONFIG_VERSION = 25; // Increment this to force a reset of cached sidebar config (updated Flow AI section)
 
 const SidebarConfigContext = createContext<SidebarConfigContextType | undefined>(undefined);
 

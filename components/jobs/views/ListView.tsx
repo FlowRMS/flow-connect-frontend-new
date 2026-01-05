@@ -98,9 +98,15 @@ export function ListView({ jobs, onJobClick, onJobCheckboxChange }: ListViewProp
 
                   {/* Status */}
                   <div className="col-span-1 flex items-center">
-                    <span className={`px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-full text-[10px] md:text-xs font-medium whitespace-nowrap ${getStatusColor(job.status)}`}>
-                      {job.status}
-                    </span>
+                    {(() => {
+                      const statusColor = getStatusColor(job.status);
+                      return (
+                        <span className={`inline-flex items-center gap-1.5 px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-full text-[10px] md:text-xs font-medium whitespace-nowrap ${statusColor.bg} ${statusColor.text}`}>
+                          <span className={`w-1 h-1 md:w-1.5 md:h-1.5 rounded-full ${statusColor.dot} flex-shrink-0`}></span>
+                          {job.status}
+                        </span>
+                      );
+                    })()}
                   </div>
 
                   {/* Type */}

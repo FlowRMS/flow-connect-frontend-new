@@ -114,25 +114,18 @@ export function JobCard({ job, isDragging, isCompleted = false, onClick, onCheck
       </div>
 
       {/* Meta Information */}
-      <div className={`flex items-center gap-2 flex-wrap ${completed ? 'opacity-60' : ''}`}>
-        {(() => {
-          const statusTagColor = getTagColor(job.status);
-          return (
-            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 ${statusTagColor.bg} ${statusTagColor.text} rounded text-xs font-medium`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${statusTagColor.dot}`}></span>
-              {job.status}
-            </span>
-          );
-        })()}
-        {job.type && job.type !== 'General' && job.type !== job.status && (() => {
-          const typeColor = getTagColor(job.type);
-          return (
-            <span className={`inline-flex items-center gap-1 px-2 py-0.5 ${typeColor.bg} ${typeColor.text} rounded text-xs font-medium`}>
-              {job.type}
-            </span>
-          );
-        })()}
-      </div>
+      {job.type && job.type !== 'General' && job.type !== job.status && (
+        <div className={`flex items-center gap-2 flex-wrap ${completed ? 'opacity-60' : ''}`}>
+          {(() => {
+            const typeColor = getTagColor(job.type);
+            return (
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 ${typeColor.bg} ${typeColor.text} rounded text-xs font-medium`}>
+                {job.type}
+              </span>
+            );
+          })()}
+        </div>
+      )}
 
       {/* Tags */}
       {job.tags && job.tags.length > 0 && (

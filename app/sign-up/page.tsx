@@ -11,10 +11,9 @@ export default async function SignUpPage() {
     redirect("/");
   }
 
-  // If user exists but no valid token, there's an auth issue - avoid redirect loop
-  if (user && !accessToken) {
-    redirect("/auth-error");
-  }
+  // If user exists but no valid token, the session needs refresh
+  // Let them proceed to sign-up which will re-authenticate with WorkOS
+  // Don't redirect to auth-error as that's for truly unauthorized users
 
   const signUpUrl = await getSignUpUrl();
 
