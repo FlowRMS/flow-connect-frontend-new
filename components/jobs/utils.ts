@@ -2,7 +2,7 @@
  * Job Utility Functions
  */
 
-import { OWNER_COLORS, STATUS_COLORS, FILTER_COLUMN_MAP } from './constants';
+import { OWNER_COLORS, FILTER_COLUMN_MAP } from './constants';
 import type { Job } from './types';
 import type { ActiveFilter } from '../AdvancedFilters';
 
@@ -21,12 +21,70 @@ export function getOwnerColor(id: string): string {
   return OWNER_COLORS[colorIndex];
 }
 
+// Status color mapping with background, text, and dot colors
+const STATUS_TAG_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
+  'OPEN': { bg: 'bg-blue-100', text: 'text-blue-700', dot: 'bg-blue-500' },
+  'IN PROGRESS': { bg: 'bg-amber-100', text: 'text-amber-700', dot: 'bg-amber-500' },
+  'BID': { bg: 'bg-orange-100', text: 'text-orange-700', dot: 'bg-orange-500' },
+  'BUY': { bg: 'bg-green-100', text: 'text-green-700', dot: 'bg-green-500' },
+  'COMPLETE': { bg: 'bg-purple-100', text: 'text-purple-700', dot: 'bg-purple-500' },
+};
+
 /**
- * Get status badge color
+ * Get status badge color with dynamic keyword matching
+ * Returns an object with bg, text, and dot color classes
  */
-export function getStatusColor(status: string): string {
-  return STATUS_COLORS[status] || 'bg-gray-500 text-white';
+export function getStatusColor(status: string): { bg: string; text: string; dot: string } {
+  if (!status) {
+    return { bg: 'bg-indigo-100', text: 'text-indigo-700', dot: 'bg-indigo-500' };
+  }
+  
+  // Check for exact match first (case-insensitive)
+  const upperStatus = status.toUpperCase().trim();
+  if (STATUS_TAG_COLORS[upperStatus]) {
+    return STATUS_TAG_COLORS[upperStatus];
+  }
+  
+  // Check if status contains these keywords
+  if (upperStatus === 'OPEN' || upperStatus.includes('OPEN')) {
+    return STATUS_TAG_COLORS['OPEN'];
+  }
+  if (upperStatus.includes('IN PROGRESS') || upperStatus.includes('PROGRESS') || upperStatus.includes('ACTIVE')) {
+    return STATUS_TAG_COLORS['IN PROGRESS'];
+  }
+  if (upperStatus.includes('BID') || upperStatus === 'BIDDING') {
+    return STATUS_TAG_COLORS['BID'];
+  }
+  if (upperStatus.includes('BUY') || upperStatus === 'BUYING') {
+    return STATUS_TAG_COLORS['BUY'];
+  }
+  if (upperStatus.includes('COMPLETE') || upperStatus.includes('WON') || upperStatus.includes('DONE')) {
+    return STATUS_TAG_COLORS['COMPLETE'];
+  }
+  
+  // Default color - use indigo for unmatched statuses
+  return { bg: 'bg-indigo-100', text: 'text-indigo-700', dot: 'bg-indigo-500' };
 }
+
+/**
+ * Column status colors for Kanban view headers
+ * Always uses getStatusColor for dynamic keyword matching
+ * This maintains compatibility with other Kanban views
+ */
+export const COLUMN_STATUS_COLORS: Record<string, string> = new Proxy(
+  {} as Record<string, string>,
+  {
+    get(target, prop: string) {
+      // Always use getStatusColor for dynamic keyword matching
+      if (prop in target) {
+        return target[prop];
+      }
+      const color = getStatusColor(prop);
+      target[prop] = color.dot;
+      return color.dot;
+    }
+  }
+);
 
 /**
  * Apply filter to a job
