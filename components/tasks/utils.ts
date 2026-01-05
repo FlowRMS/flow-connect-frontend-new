@@ -16,7 +16,7 @@ import type {
 } from './types';
 import type { CRMTask } from '../lib/crm-graphql';
 import type { ActiveFilter } from '../AdvancedFilters';
-import { formatLocalDate } from '../lib/date-utils';
+import { formatLocalDate, parseLocalDate } from '../lib/date-utils';
 
 // Status mappings
 const apiStatusToUI: Record<TaskStatusAPI, TaskStatus> = {
@@ -55,16 +55,18 @@ const uiPriorityToAPI: Record<TaskPriority, TaskPriorityAPI> = {
 export function convertAPIStatusToUI(apiStatus: TaskStatusAPI, dueDate?: string): TaskStatus {
   // Check if overdue
   if (apiStatus === 'TODO' && dueDate) {
-    const due = new Date(dueDate);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    due.setHours(0, 0, 0, 0);
-    if (due < today) {
-      return 'Overdue';
-    }
-    // Check if today
-    if (due.getTime() === today.getTime()) {
-      return 'Today';
+    const due = parseLocalDate(dueDate);
+    if (due) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      due.setHours(0, 0, 0, 0);
+      if (due < today) {
+        return 'Overdue';
+      }
+      // Check if today
+      if (due.getTime() === today.getTime()) {
+        return 'Today';
+      }
     }
   }
   return apiStatusToUI[apiStatus] || 'Today';
@@ -359,13 +361,15 @@ export function getPriorityIconType(priority: TaskPriority): 'urgent' | 'critica
  */
 export function formatTaskDate(dateString: string): string {
   if (!dateString) return 'No date';
-  const date = new Date(dateString);
+  const date = parseLocalDate(dateString);
+  if (!date) return 'No date';
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  
+
   const taskDate = new Date(date);
   taskDate.setHours(0, 0, 0, 0);
-  
+
   const diffTime = taskDate.getTime() - today.getTime();
   const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
@@ -384,14 +388,16 @@ export type ReminderStatus = 'Waiting' | 'Tomorrow' | 'Today' | 'Passed';
 
 export function getReminderStatus(dateString: string | null | undefined): ReminderStatus | null {
   if (!dateString) return null;
-  
-  const date = new Date(dateString);
+
+  const date = parseLocalDate(dateString);
+  if (!date) return null;
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  
+
   const reminderDate = new Date(date);
   reminderDate.setHours(0, 0, 0, 0);
-  
+
   const diffTime = reminderDate.getTime() - today.getTime();
   const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
@@ -419,9 +425,10 @@ export function getReminderStatusColor(status: ReminderStatus): string {
  */
 export function formatReminderDate(dateString: string | null | undefined): string {
   if (!dateString) return '';
-  const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', { 
-    month: 'short', 
+  const date = parseLocalDate(dateString);
+  if (!date) return '';
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
     day: 'numeric'
   });
 }
@@ -431,11 +438,12 @@ export function formatReminderDate(dateString: string | null | undefined): strin
  */
 export function formatDate(dateString: string): string {
   if (!dateString) return 'No date';
-  const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', { 
-    month: 'short', 
-    day: 'numeric', 
-    year: 'numeric' 
+  const date = parseLocalDate(dateString);
+  if (!date) return 'No date';
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
   });
 }
 
@@ -444,7 +452,9 @@ export function formatDate(dateString: string): string {
  */
 export function getDaysUntilDue(dateString: string): string {
   if (!dateString) return 'No date';
-  const date = new Date(dateString);
+  const date = parseLocalDate(dateString);
+  if (!date) return 'No date';
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const taskDate = new Date(date);
@@ -641,7 +651,8 @@ export function formatDateForAPI(date: Date): string {
  */
 export function isTaskOverdue(dueDate: string): boolean {
   if (!dueDate) return false;
-  const due = new Date(dueDate);
+  const due = parseLocalDate(dueDate);
+  if (!due) return false;
   const today = new Date();
   due.setHours(0, 0, 0, 0);
   today.setHours(0, 0, 0, 0);
@@ -653,7 +664,8 @@ export function isTaskOverdue(dueDate: string): boolean {
  */
 export function isTaskDueToday(dueDate: string): boolean {
   if (!dueDate) return false;
-  const due = new Date(dueDate);
+  const due = parseLocalDate(dueDate);
+  if (!due) return false;
   const today = new Date();
   return due.toDateString() === today.toDateString();
 }

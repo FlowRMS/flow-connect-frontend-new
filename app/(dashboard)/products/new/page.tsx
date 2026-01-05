@@ -176,6 +176,9 @@ export default function CreateProductPage() {
     if (!formData.factoryPartNumber?.trim()) {
       newErrors.factoryPartNumber = 'Part Number is required';
     }
+    if (formData.unitPrice === undefined || formData.unitPrice === null) {
+      newErrors.unitPrice = 'Unit Price is required';
+    }
     if (!formData.productUomId) {
       newErrors.productUomId = 'Unit of Measure is required';
     }
@@ -553,7 +556,7 @@ export default function CreateProductPage() {
             {/* Pricing */}
             <div className="grid grid-cols-2 gap-4 mb-6">
               <div>
-                <label className={labelClass}>Unit Price</label>
+                <label className={labelClass}>Unit Price *</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                   <input
@@ -561,10 +564,13 @@ export default function CreateProductPage() {
                     step="0.01"
                     value={formData.unitPrice ?? ''}
                     onChange={(e) => handleChange('unitPrice', e.target.value ? parseFloat(e.target.value) : undefined)}
-                    className={`${inputClass} pl-7`}
+                    className={`${inputClass} pl-7 ${errors.unitPrice ? 'border-red-500' : ''}`}
                     placeholder="0.00"
                   />
                 </div>
+                {errors.unitPrice && (
+                  <p className="mt-1 text-xs text-red-500">{errors.unitPrice}</p>
+                )}
               </div>
               <div>
                 <label className={labelClass}>Default Commission Rate</label>
