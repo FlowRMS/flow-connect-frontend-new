@@ -1,4 +1,3 @@
-import Link from "next/link";
 import Image from "next/image";
 
 export default function AuthErrorPage() {
@@ -17,45 +16,23 @@ export default function AuthErrorPage() {
           </div>
           <div>
             <h1 className="text-2xl font-semibold text-[var(--foreground)]">
-              Authentication Error
+              Access Denied
             </h1>
             <p className="mt-2 text-[var(--muted-foreground)]">
-              Something went wrong with your session. This can happen if your session expired or there&apos;s a configuration issue.
+              You are not authorized to access FlowRMS.
             </p>
           </div>
         </div>
 
         <div className="space-y-4">
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-            <h3 className="text-sm font-medium text-amber-800 mb-2">Try these steps:</h3>
-            <ol className="text-sm text-amber-700 list-decimal list-inside space-y-1">
-              <li>Clear your browser cookies for this site</li>
-              <li>Close and reopen your browser</li>
-              <li>Try signing in again</li>
-            </ol>
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+            <p className="text-sm text-amber-800 dark:text-amber-200">
+              Please contact the FlowRMS team to get your account set up.
+            </p>
           </div>
 
-          <Link
-            href="/sign-in"
-            className="flex items-center justify-center gap-2 w-full px-4 py-3 text-sm font-medium text-white bg-[var(--primary)] rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
-          >
-            Go to Sign In
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M5 12h14M12 5l7 7-7 7" />
-            </svg>
-          </Link>
-
           <p className="text-center text-xs text-[var(--muted-foreground)]">
-            If this problem persists, please contact support.
+            If you believe this is an error, please reach out to your administrator.
           </p>
         </div>
       </div>
