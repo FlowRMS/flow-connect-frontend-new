@@ -23,8 +23,8 @@ import { WorkflowBreadcrumb } from '@/components/flow-ai/flowrms/WorkflowBreadcr
 import { useEntityMatching, CreateExtraFields } from '@/components/flow-ai/hooks/useEntityMatching';
 import type { PendingEntity, PendingEntityType } from '@/components/flow-ai/types/entity-matching';
 import { getConfidencePercentage, parseExtractedData } from '@/components/flow-ai/types/entity-matching';
-import { flowrmsApolloClient, flowrmsApiApolloClient } from '@/lib/flow-ai/flowrms-apollo';
-import { Q_GET_PENDING, Q_GET_PENDING_DOCUMENT_BY_DOCUMENT_ID, M_TRIGGER_WORKFLOWS } from '@/lib/flow-ai/gql';
+import { flowrmsApolloClient } from '@/lib/flow-ai/flowrms-apollo';
+import { Q_GET_PENDING, M_EXECUTE_DOCUMENT_WORKFLOW } from '@/lib/flow-ai/gql';
 
 export default function EntityMatchingPage() {
   return (
@@ -200,8 +200,8 @@ function EntityMatchingContent() {
     setDisplayLimit(ITEMS_PER_PAGE);
   }, [currentStep]);
 
-  // Auto-skip to entity-resolution if all entity arrays are empty after loading
-  // This triggers the workflow and follows the same subscription flow
+  // Auto-skip to upload-complete if all entity arrays are empty after loading
+  // This triggers the executeDocumentWorkflow and navigates to upload-complete
   useEffect(() => {
     // Wait until initial load is complete before checking
     if (!initialLoadComplete || hasCheckedEmptyRedirect.current || !pendingId) return;
@@ -217,8 +217,8 @@ function EntityMatchingContent() {
 
     if (hasNoEntities) {
       toast.info('No entities to match. Starting document processing...');
-      // Trigger the same flow as handleCompleteMatching - this will trigger workflow
-      // and navigate to entity-resolution page which uses subscription to track status
+      // Trigger the same flow as handleCompleteMatching - this will execute the workflow
+      // and navigate to upload-complete page
       handleCompleteMatching();
     }
   }, [initialLoadComplete, factories, customers, billToCustomers, endUsers, products, pendingId]);
@@ -232,87 +232,34 @@ function EntityMatchingContent() {
     setIsProcessingWorkflow(true);
 
     try {
-      // Step 1: Get the pending document to retrieve fileId and entityType
-      const pendingDocResult = await flowrmsApolloClient.query<{
-        getPendingDocument?: {
-          fileId?: string;
-          entityType?: string;
+      // Call executeDocumentWorkflow mutation
+      console.log('📄 Executing document workflow for pendingId:', pendingId);
+      toast.info('Processing document...');
+
+      const result = await flowrmsApolloClient.mutate<{
+        executeDocumentWorkflow?: {
+          message: string;
+          success: boolean;
+          taskId: string;
         };
       }>({
-        query: Q_GET_PENDING,
-        variables: { pendingId },
-        fetchPolicy: 'network-only',
+        mutation: M_EXECUTE_DOCUMENT_WORKFLOW,
+        variables: { pendingDocumentId: pendingId },
       });
 
-      const pendingDoc = pendingDocResult.data?.getPendingDocument;
-      if (!pendingDoc?.fileId || !pendingDoc?.entityType) {
-        toast.error('Unable to process: missing document information');
+      console.log('📄 ExecuteDocumentWorkflow result:', result.data);
+
+      const workflowResult = result.data?.executeDocumentWorkflow;
+      if (!workflowResult?.success) {
+        toast.error(workflowResult?.message || 'Failed to process document');
         setIsProcessingWorkflow(false);
         return;
       }
 
-      const fileId = pendingDoc.fileId;
-      const entityType = pendingDoc.entityType;
-
-      // Step 2: Check if pending document already has a fileUploadProcessId
-      const checkResult = await flowrmsApolloClient.query<{
-        getPendingDocumentByDocumentId?: {
-          fileUploadProcessId?: string;
-        };
-      }>({
-        query: Q_GET_PENDING_DOCUMENT_BY_DOCUMENT_ID,
-        variables: { documentId: fileId },
-        fetchPolicy: 'network-only',
-      });
-
-      const existingProcessId = checkResult.data?.getPendingDocumentByDocumentId?.fileUploadProcessId;
-
-      if (existingProcessId) {
-        // Already has a process ID - navigate to entity resolution page
-        console.log('📄 Document already has fileUploadProcessId:', existingProcessId);
-        const sourceParam = isFromSpreadsheet ? '&source=spreadsheet' : '';
-        router.push(`/flow-ai/entity-resolution?pendingId=${pendingId}&fileUploadProcessId=${existingProcessId}${sourceParam}`);
-        return;
-      }
-
-      // Step 3: No existing process - call triggerWorkflows and stay on page
-      console.log('📄 No existing process, triggering workflow...');
-      toast.info('Starting document processing...');
-
-      const formattedEntityType = entityType.toLowerCase();
-
-      const triggerResult = await flowrmsApiApolloClient.mutate<{
-        triggerWorkflows?: Array<{
-          fileId: string;
-          fileUploadId: string;
-          status: string;
-        }>;
-      }>({
-        mutation: M_TRIGGER_WORKFLOWS,
-        variables: {
-          fileId,
-          entity: formattedEntityType,
-          subProcessEntities: true,
-          skipPlayground: true,
-        },
-      });
-
-      console.log('📄 TriggerWorkflows result:', triggerResult.data);
-
-      // triggerWorkflows returns an array - get the first item
-      const triggerData = triggerResult.data?.triggerWorkflows?.[0];
-      if (!triggerData?.fileUploadId) {
-        toast.error('Failed to start document processing');
-        setIsProcessingWorkflow(false);
-        return;
-      }
-
-      const fileUploadId = triggerData.fileUploadId;
-
-      // Step 4: Navigate to entity-resolution page with the fileUploadId
-      toast.success('Document processing started! Checking for entity resolution...');
+      // Navigate directly to upload-complete page
+      toast.success('Document processed successfully!');
       const sourceParam = isFromSpreadsheet ? '&source=spreadsheet' : '';
-      router.push(`/flow-ai/entity-resolution?pendingId=${pendingId}&fileUploadProcessId=${fileUploadId}${sourceParam}`);
+      router.push(`/flow-ai/upload-complete?pendingId=${pendingId}${sourceParam}`);
 
     } catch (error) {
       console.error('Error in handleCompleteMatching:', error);

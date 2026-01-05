@@ -1040,32 +1040,6 @@ export const M_CREATE_NEW_ENTITY = gql`
   }
 `;
 
-// Trigger Workflows Mutation - called after entity matching completion
-// Uses NEXT_PUBLIC_FLOWRMS_API_URL (staging2.api.flowrms.com)
-export const M_TRIGGER_WORKFLOWS = gql`
-  mutation TriggerWorkflows(
-    $fileId: String!
-    $entity: String!
-    $subProcessEntities: Boolean!
-    $skipPlayground: Boolean!
-  ) {
-    triggerWorkflows(
-      triggerFileProcessInputs: {
-        fileId: $fileId
-        subProcessEntities: $subProcessEntities
-        entity: $entity
-      }
-      skipPlayground: $skipPlayground
-    ) {
-      fileId
-      fileUploadId
-      status
-    }
-  }
-`;
-
-// File Linked Entities Query - fetches all entities linked to a file
-// Uses NEXT_PUBLIC_FLOWRMS_HTTP_GRAPHQL_URL (staging.hive.flowrms.com)
 // Pending Documents Landing Query - for Queue page (using findLandingPages endpoint)
 export const Q_PENDING_DOCUMENTS_LANDING = gql`
   query FindLandingPages(
@@ -1122,189 +1096,6 @@ export const Q_USER_SEARCH = gql`
   }
 `;
 
-// ============================================
-// ENTITY RESOLUTION / FILE UPLOAD PROCESS OPERATIONS
-// ============================================
-
-// Query to check if a pending document exists by document ID
-// Used on matching page to determine if we need to trigger workflow
-// Endpoint: NEXT_PUBLIC_FLOWRMS_HTTP_GRAPHQL_URL (staging.hive.flowrms.com)
-export const Q_GET_PENDING_DOCUMENT_BY_DOCUMENT_ID = gql`
-  query GetPendingDocumentByDocumentId($documentId: UUID!) {
-    getPendingDocumentByDocumentId(documentId: $documentId) {
-      fileUploadProcessId
-    }
-  }
-`;
-
-// Subscription to monitor file upload process status
-// Used to track workflow processing and receive paused entities
-// Endpoint: NEXT_PUBLIC_FLOWRMS_API_WS_URL (staging2.api.flowrms.com WebSocket)
-export const SUB_FILE_UPLOAD_PROCESS_STATUS = gql`
-  subscription FileUploadProcessStatus($fileUploadProcessId: ID!) {
-    fileUploadProcessStatus(fileUploadProcessId: $fileUploadProcessId) {
-      pausedEntities {
-        dtoId
-        entityType
-        extra
-        originalSearchTerm
-        suggestions {
-          confidenceScore
-          id
-          title
-        }
-      }
-      queueStatus
-      status
-      detailedExceptions {
-        id
-        fileUploadProcessDtoId
-        message
-        data
-      }
-    }
-  }
-`;
-
-// Mutation to continue workflow after entity resolution
-// Called when user completes the second stage of mapping on the entity-resolution page
-// Endpoint: NEXT_PUBLIC_FLOWRMS_API_URL (staging2.api.flowrms.com)
-export const M_CONTINUE_WORKFLOW = gql`
-  mutation ContinueWorkflow(
-    $fileUploadProcessId: ID!
-    $responseEntities: [ResponseEntityInput!]!
-  ) {
-    continueWorkflow(
-      fileUploadProcessId: $fileUploadProcessId
-      payload: {
-        pausedInput: {
-          responseEntities: $responseEntities
-        }
-      }
-    ) {
-      message
-      status
-    }
-  }
-`;
-
-export const Q_FILE_LINKED_ENTITIES = gql`
-  query FileLinkedEntities($fileId: UUID!) {
-    fileLinkedEntities(fileId: $fileId) {
-      checks {
-        checkNumber
-        commission
-        commissionMonth
-        createdBy
-        creationType
-        entityDate
-        entryDate
-        factoryId
-        id
-        postDate
-        status
-        url
-        userOwnerIds
-      }
-      customers {
-        companyName
-        id
-        insideRepId
-        parentId
-        url
-      }
-      factories {
-        id
-        title
-        url
-      }
-      invoices {
-        balanceId
-        createdBy
-        creationType
-        dueDate
-        entityDate
-        entryDate
-        factoryId
-        id
-        invoiceNumber
-        locked
-        orderId
-        published
-        status
-        url
-        userOwnerIds
-      }
-      orders {
-        balanceId
-        billToCustomerId
-        entityDate
-        entryDate
-        dueDate
-        factSoNumber
-        factoryId
-        id
-        jobName
-        orderNumber
-        quoteId
-        shipDate
-        soldToCustomerId
-        status
-        url
-        userOwnerIds
-      }
-      products {
-        defaultCommissionRate
-        description
-        factoryId
-        factoryPartNumber
-        id
-        published
-        unitPrice
-        url
-      }
-      quotes {
-        billToCustomerId
-        entityDate
-        blanket
-        createdBy
-        entryDate
-        expDate
-        id
-        jobName
-        quoteNumber
-        soldToCustomerId
-        url
-        userOwnerIds
-      }
-    }
-  }
-`;
-
-// Query to get the actual file ID from a file upload record
-// This is needed for spreadsheets where the fileId from pending document
-// is the file upload ID, not the actual file ID needed for fileLinkedEntities
-// Endpoint: NEXT_PUBLIC_FLOWRMS_API_URL (staging2.api.flowrms.com)
-export const Q_FIND_FILE_UPLOAD_BY_ID = gql`
-  query FindFileUploadById($id: ID!) {
-    findFileUploadById(id: $id) {
-      fileInfo {
-        id
-      }
-    }
-  }
-`;
-
-// Mutation to send email notification when file upload processing is complete
-export const M_SEND_FUP_STATUS_EMAIL = gql`
-  mutation SendFupWithStatusEmail($fileUploadProcessId: ID!) {
-    sendFupWithStatusEmail(fileUploadProcessId: $fileUploadProcessId) {
-      status
-      message
-    }
-  }
-`;
-
 // Batch Process Documents Mutation - for processing multiple documents at once
 export const M_BATCH_PROCESS_DOCUMENTS = gql`
   mutation BatchProcessDocuments(
@@ -1317,6 +1108,19 @@ export const M_BATCH_PROCESS_DOCUMENTS = gql`
       contextFiles: $contextFiles
       initialInstructions: $initialInstructions
     )
+  }
+`;
+
+// Execute Document Workflow Mutation - called after matching is complete
+// This replaces the old triggerWorkflows + entity-resolution flow
+// Endpoint: NEXT_PUBLIC_FLOWRMS_HTTP_GRAPHQL_URL (staging.hive.flowrms.com)
+export const M_EXECUTE_DOCUMENT_WORKFLOW = gql`
+  mutation ExecuteDocumentWorkflow($pendingDocumentId: UUID!) {
+    executeDocumentWorkflow(pendingDocumentId: $pendingDocumentId) {
+      message
+      success
+      taskId
+    }
   }
 `;
 

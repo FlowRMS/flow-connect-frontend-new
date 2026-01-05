@@ -356,9 +356,15 @@ const StatusBadge = ({ status, type = 'ai' }: { status: string | null; type?: 'a
 
 // Format date for display (converts UTC to local timezone)
 const formatDate = (dateString: string) => {
-  // Parse the UTC date string - if it doesn't have a Z suffix, treat it as UTC
-  const utcDateString = dateString.endsWith('Z') ? dateString : `${dateString}Z`;
-  const date = new Date(utcDateString);
+  // Parse the date string - handles both Z suffix and timezone offset formats (+00:00, -05:00, etc.)
+  // ISO 8601 dates with timezone offsets are valid and don't need modification
+  const date = new Date(dateString);
+
+  // Check for invalid date
+  if (isNaN(date.getTime())) {
+    return 'Invalid date';
+  }
+
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / 60000);
@@ -379,8 +385,13 @@ const formatDate = (dateString: string) => {
 
 // Format exact date and time for tooltip (12-hour format with AM/PM)
 const formatExactDateTime = (dateString: string) => {
-  const utcDateString = dateString.endsWith('Z') ? dateString : `${dateString}Z`;
-  const date = new Date(utcDateString);
+  // Parse the date string - handles both Z suffix and timezone offset formats (+00:00, -05:00, etc.)
+  const date = new Date(dateString);
+
+  // Check for invalid date
+  if (isNaN(date.getTime())) {
+    return 'Invalid date';
+  }
 
   return date.toLocaleString('en-US', {
     month: 'short',
@@ -639,8 +650,7 @@ function QueuePageContent() {
 
     // If workflow status is 'Done', redirect to upload-complete page
     if (doc.workflowStatus?.toUpperCase() === 'DONE') {
-      // For TABULAR (spreadsheet) documents, add source=spreadsheet so upload-complete
-      // knows to fetch the actual file ID before calling fileLinkedEntities
+      // For TABULAR (spreadsheet) documents, add source=spreadsheet
       if (doc.documentType?.toUpperCase() === 'TABULAR') {
         params.set('source', 'spreadsheet');
       }

@@ -9,12 +9,11 @@ import {
 
 // Pages where URL params should NOT be stripped (they need the params in the URL)
 const PAGES_TO_PRESERVE_PARAMS = [
-  '/apps/flowrms/upload-complete',
-  '/apps/flowrms/entity-resolution',
-  '/apps/flowrms/entity-matching',
-  '/apps/flowrms/column-mapping',
-  '/apps/flowrms/processing-errors',
-  '/apps/flowrms/queue',
+  '/flow-ai/upload-complete',
+  '/flow-ai/entity-matching',
+  '/flow-ai/column-mapping',
+  '/flow-ai/processing-errors',
+  '/flow-ai/queue',
 ];
 
 export function useLegacyRedirectParams() {

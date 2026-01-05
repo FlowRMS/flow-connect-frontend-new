@@ -672,3 +672,150 @@
   background-color: hsl(var(--primary) / 0.2);
   color: hsl(var(--foreground));
 }
+
+/* ============================================
+   FIX: FACTORY tag in Select Template modal
+   ============================================ */
+.flow-ai-scope .bg-secondary\/10 {
+  background-color: hsl(var(--secondary) / 0.1) !important;
+}
+.flow-ai-scope .border-secondary\/20 {
+  border-color: hsl(var(--secondary) / 0.2) !important;
+}
+
+/* ============================================
+   FIX: Tabs active state
+   ============================================ */
+.flow-ai-scope [role="tab"][data-state="active"] {
+  background-color: hsl(var(--background)) !important;
+  color: hsl(var(--foreground)) !important;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1) !important;
+}
+.flow-ai-scope [role="tab"][data-state="inactive"] {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+/* ============================================
+   FIX: Placeholder text too dark
+   ============================================ */
+.flow-ai-scope ::placeholder {
+  color: hsl(var(--muted-foreground)) !important;
+  opacity: 0.7 !important;
+}
+
+/* ============================================
+   FIX: Queue page NEW badge and animations
+   ============================================ */
+.flow-ai-scope .bg-primary\/20 {
+  background-color: hsl(var(--primary) / 0.2) !important;
+}
+.flow-ai-scope .bg-primary\/25 {
+  background-color: hsl(var(--primary) / 0.25) !important;
+}
+.flow-ai-scope .bg-primary\/10 {
+  background-color: hsl(var(--primary) / 0.1) !important;
+}
+.flow-ai-scope .from-primary\/25 {
+  --tw-gradient-from: hsl(var(--primary) / 0.25) var(--tw-gradient-from-position);
+  --tw-gradient-to: hsl(var(--primary) / 0) var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+.flow-ai-scope .to-secondary\/20 {
+  --tw-gradient-to: hsl(var(--secondary) / 0.2) var(--tw-gradient-to-position);
+}
+.flow-ai-scope .border-primary\/40 {
+  border-color: hsl(var(--primary) / 0.4) !important;
+}
+.flow-ai-scope .shadow-primary\/20 {
+  --tw-shadow-color: hsl(var(--primary) / 0.2);
+}
+.flow-ai-scope .shadow-primary\/30 {
+  --tw-shadow-color: hsl(var(--primary) / 0.3);
+}
+.flow-ai-scope .from-primary {
+  --tw-gradient-from: hsl(var(--primary)) var(--tw-gradient-from-position);
+  --tw-gradient-to: hsl(var(--primary) / 0) var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+.flow-ai-scope .to-secondary {
+  --tw-gradient-to: hsl(var(--secondary)) var(--tw-gradient-to-position);
+}
+
+/* ============================================
+   FIX: Primary gradient button text visibility
+   Ensures text/icons on primary gradient buttons are white
+   ============================================ */
+.flow-ai-scope button.bg-gradient-to-r.from-primary,
+.flow-ai-scope .bg-gradient-to-r.from-primary.to-primary\/90 {
+  color: white !important;
+}
+.flow-ai-scope button.bg-gradient-to-r.from-primary svg,
+.flow-ai-scope .bg-gradient-to-r.from-primary.to-primary\/90 svg {
+  color: white !important;
+}
+
+/* Also handle primary foreground for buttons */
+.flow-ai-scope .text-primary-foreground {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* ============================================
+   FIX: Loading screen FlowAI gradient text
+   ============================================ */
+.flow-ai-scope .bg-gradient-to-r.from-primary.to-primary\/60.bg-clip-text {
+  --tw-gradient-from: hsl(var(--primary)) var(--tw-gradient-from-position);
+  --tw-gradient-to: hsl(var(--primary) / 0.6) var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+
+/* ============================================
+   FIX: Loading screen purple glow behind icons
+   ============================================ */
+.flow-ai-scope .from-primary\/20 {
+  --tw-gradient-from: hsl(var(--primary) / 0.2) var(--tw-gradient-from-position);
+  --tw-gradient-to: hsl(var(--primary) / 0) var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+.flow-ai-scope .via-primary\/40 {
+  --tw-gradient-to: hsl(var(--primary) / 0) var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), hsl(var(--primary) / 0.4) var(--tw-gradient-via-position), var(--tw-gradient-to);
+}
+.flow-ai-scope .to-primary\/20 {
+  --tw-gradient-to: hsl(var(--primary) / 0.2) var(--tw-gradient-to-position);
+}
+
+/* ============================================
+   FIX: Loading bar animation with via-primary
+   ============================================ */
+.flow-ai-scope .via-primary {
+  --tw-gradient-to: hsl(var(--primary) / 0) var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), hsl(var(--primary)) var(--tw-gradient-via-position), var(--tw-gradient-to);
+}
+
+/* ============================================
+   FIX: "Did you know?" indicator dots - more prominent
+   ============================================ */
+.flow-ai-scope .bg-muted-foreground\/30 {
+  background-color: hsl(var(--muted-foreground) / 0.4) !important;
+}
+
+/* ============================================
+   FIX: CSV Grid sticky header - solid background
+   Prevents rows from showing through when scrolling
+   Note: Dialogs are portaled to body, so we need both
+   scoped and global selectors for the CsvGridWC table
+   ============================================ */
+.flow-ai-scope table thead.sticky,
+[role="dialog"] table thead.sticky {
+  background-color: #f1f5f9 !important; /* slate-100 - solid color */
+}
+.flow-ai-scope table thead.sticky th,
+[role="dialog"] table thead.sticky th {
+  background-color: #f1f5f9 !important; /* slate-100 - solid color */
+}
+.flow-ai-scope table thead th.bg-muted\/80,
+.flow-ai-scope table thead .bg-muted\/80,
+[role="dialog"] table thead th.bg-muted\/80,
+[role="dialog"] table thead .bg-muted\/80 {
+  background-color: #f1f5f9 !important; /* slate-100 - solid color */
+}

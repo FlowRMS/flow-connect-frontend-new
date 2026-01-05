@@ -5,7 +5,7 @@
  */
 export async function fetchCsvDataViaProxy(csvUrl: string): Promise<unknown[][] | null> {
   try {
-    const response = await fetch('/api/csv-fetch', {
+    const response = await fetch('/api/flow-ai/csv-fetch', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
