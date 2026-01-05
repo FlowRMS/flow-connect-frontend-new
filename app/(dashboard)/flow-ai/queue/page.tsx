@@ -2,18 +2,11 @@
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import NextImage from 'next/image';
-import Link from 'next/link';
 import {
-  FileStack,
-  ScanText,
   Loader2,
-  ArrowLeft,
-  Bot,
-  Workflow,
-  Upload,
   ListTodo,
   RefreshCw,
+  Upload,
   FileText,
   Clock,
   CheckCircle2,
@@ -733,77 +726,7 @@ function QueuePageContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex flex-col">
-      {/* Header with Navigation */}
-      <header className="border-b bg-gradient-to-r from-card via-card to-primary/5 sticky top-0 z-50 backdrop-blur-sm">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-6">
-              <Link href="/flow-ai" className="flex items-center gap-3 group">
-                <NextImage src="/flow-logo.png" alt="FlowAI Logo" width={32} height={32} className="w-8 h-8" />
-                <h1 className="text-2xl font-bold">FlowAI</h1>
-              </Link>
-
-              <nav className="hidden md:flex items-center gap-2 ml-8">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={navigateToNewUpload}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  <Upload className="w-4 h-4 mr-2" />
-                  Upload New
-                </Button>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href="/flow-ai" className="text-muted-foreground hover:text-foreground">
-                    <ScanText className="w-4 h-4 mr-2" />
-                    FlowScan
-                  </Link>
-                </Button>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href="/flow-ai/templates" className="text-muted-foreground hover:text-foreground">
-                    <FileStack className="w-4 h-4 mr-2" />
-                    Templates
-                  </Link>
-                </Button>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href="/flow-ai/ai-chat" className="text-muted-foreground hover:text-foreground">
-                    <Bot className="w-4 h-4 mr-2" />
-                    FlowChat
-                  </Link>
-                </Button>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href="/flow-ai/workflows" className="text-muted-foreground hover:text-foreground">
-                    <Workflow className="w-4 h-4 mr-2" />
-                    Workflows
-                  </Link>
-                </Button>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href="/flow-ai/queue" className="text-foreground">
-                    <ListTodo className="w-4 h-4 mr-2" />
-                    Queue
-                  </Link>
-                </Button>
-                <AdminSettingsDialog />
-              </nav>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  window.location.href = process.env.NEXT_PUBLIC_FLOWRMS_APP_URL || 'https://development.app.flowrms.com/';
-                }}
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to FlowRMS
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
-
+    <div className="min-h-full bg-gradient-to-br from-background via-background to-primary/5 flex flex-col">
       {/* Main Content */}
       <main className="flex-1 w-full max-w-[1800px] mx-auto px-6 py-8">
         <div className="space-y-6">

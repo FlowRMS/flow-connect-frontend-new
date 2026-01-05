@@ -1,17 +1,8 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import Link from 'next/link';
-import NextImage from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Button } from '@/components/flow-ai/ui/button';
 import {
-  ScanText,
-  FileStack,
-  Bot,
-  Workflow,
-  ArrowLeft,
-  ListTodo,
   Upload,
   Loader2,
   Sparkles,
@@ -131,83 +122,22 @@ export default function UploadPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <header className="border-b bg-gradient-to-r from-card via-card to-primary/5 sticky top-0 z-50 backdrop-blur-sm">
-        <div className="container mx-auto px-4 py-4 max-w-[90vw]">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-6">
-              <Link href="/" className="flex items-center gap-3 group">
-                <NextImage
-                  src="/flow-logo.png"
-                  alt="FlowAI Logo"
-                  width={32}
-                  height={32}
-                  className="w-8 h-8"
-                />
-                <h1 className="text-2xl font-bold">FlowAI</h1>
-              </Link>
-
-              <nav className="hidden md:flex items-center gap-2 ml-8">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="bg-primary/10 text-primary hover:bg-primary/20"
-                >
-                  <Upload className="w-4 h-4 mr-2" />
-                  Upload
-                </Button>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href="/flow-ai" className="text-muted-foreground hover:text-foreground">
-                    <ScanText className="w-4 h-4 mr-2" />
-                    FlowScan
-                  </Link>
-                </Button>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href="/flow-ai/templates" className="text-muted-foreground hover:text-foreground">
-                    <FileStack className="w-4 h-4 mr-2" />
-                    Templates
-                  </Link>
-                </Button>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href="/flow-ai/ai-chat" className="text-muted-foreground hover:text-foreground">
-                    <Bot className="w-4 h-4 mr-2" />
-                    FlowChat
-                  </Link>
-                </Button>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href="/flow-ai/workflows" className="text-muted-foreground hover:text-foreground">
-                    <Workflow className="w-4 h-4 mr-2" />
-                    Workflows
-                  </Link>
-                </Button>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href="/flow-ai/queue" className="text-muted-foreground hover:text-foreground">
-                    <ListTodo className="w-4 h-4 mr-2" />
-                    Queue
-                  </Link>
-                </Button>
-                <AdminSettingsDialog />
-              </nav>
+    <div className="min-h-full bg-background flex flex-col">
+      {/* Page Header */}
+      <div className="border-b bg-card/50 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <Upload className="w-5 h-5 text-primary" />
             </div>
-
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  window.location.href =
-                    process.env.NEXT_PUBLIC_FLOWRMS_APP_URL ||
-                    'https://development.app.flowrms.com/';
-                }}
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to FlowRMS
-              </Button>
+            <div>
+              <h1 className="text-xl font-bold">Upload Documents</h1>
+              <p className="text-sm text-muted-foreground">Upload documents for AI processing</p>
             </div>
           </div>
+          <AdminSettingsDialog />
         </div>
-      </header>
+      </div>
 
       {/* Main Content */}
       <main className="flex-1 relative">

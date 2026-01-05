@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useQuery, useSubscription, useLazyQuery, useMutation } from '@apollo/client/react';
-import { Send, Loader2, Bot, Mic, Square, Menu, Sparkles, ArrowLeft, ScanText, FileStack, Workflow, Upload, ListTodo } from 'lucide-react';
-import Link from 'next/link';
+import { Send, Loader2, Bot, Mic, Square, Menu, Sparkles } from 'lucide-react';
 import { Button } from '@/components/flow-ai/ui/button';
 import { Textarea } from '@/components/flow-ai/ui/textarea';
 import { ScrollArea } from '@/components/flow-ai/ui/scroll-area';
@@ -43,7 +42,6 @@ import { CitationsPane } from '@/components/flow-ai/flowrms/CitationsPane';
 import { AdminSettingsDialog } from '@/components/flow-ai/flowrms/AdminSettingsDialog';
 import { VoiceSettingsDialog, VoiceSettings, DEFAULT_VOICE_SETTINGS } from '@/components/flow-ai/flowrms/VoiceSettingsDialog';
 import { ApprovalPrompt } from '@/components/flow-ai/flowrms/ApprovalPrompt';
-import { navigateToNewUpload } from '@/lib/flow-ai/navigation-utils';
 
 const ROLE_PRIORITY: Record<MessageRole, number> = {
   USER: 0,
@@ -726,7 +724,7 @@ export default function AIChatPage() {
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col min-w-0 relative">
-        {/* Header */}
+        {/* Header - minimal version with mobile sidebar toggle and settings */}
         <header className="flex-shrink-0 border-b border-border/40 backdrop-blur-sm sticky top-0 z-10 bg-background/80">
           <div className="flex items-center justify-between px-4 md:px-8 py-3 md:py-4">
             <div className="flex items-center gap-2 md:gap-4">
@@ -739,8 +737,8 @@ export default function AIChatPage() {
               >
                 <Menu className="w-5 h-5" />
               </Button>
-              
-              <Link href="/flow-ai" className="flex items-center gap-2 md:gap-3 hover:opacity-80 transition-opacity">
+
+              <div className="flex items-center gap-2 md:gap-3">
                 <div className="w-8 h-8 md:w-10 md:h-10 bg-gradient-to-br from-primary to-secondary rounded-lg flex items-center justify-center">
                   <Bot className="w-4 h-4 md:w-5 md:h-5 text-primary-foreground" />
                 </div>
@@ -748,67 +746,20 @@ export default function AIChatPage() {
                   <h1 className="text-base md:text-lg font-bold text-foreground">FlowChat</h1>
                   <p className="text-xs text-muted-foreground hidden sm:block">Intelligent business insights</p>
                 </div>
-              </Link>
+              </div>
             </div>
 
-            <nav className="flex items-center gap-1 md:gap-2 overflow-x-auto max-w-[60vw] md:max-w-none">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="rounded-lg hidden lg:flex flex-shrink-0"
-                onClick={navigateToNewUpload}
-              >
-                <Upload className="w-4 h-4 mr-1" />
-                Upload
-              </Button>
-              <Button variant="ghost" size="sm" className="rounded-lg hidden lg:flex flex-shrink-0" asChild>
-                <Link href="/flow-ai">
-                  <ScanText className="w-4 h-4 mr-1" />
-                  FlowScan
-                </Link>
-              </Button>
-              <Button variant="ghost" size="sm" className="rounded-lg hidden xl:flex flex-shrink-0" asChild>
-                <Link href="/flow-ai/templates">
-                  <FileStack className="w-4 h-4 mr-1" />
-                  Templates
-                </Link>
-              </Button>
-              <Button variant="ghost" size="sm" className="bg-primary/10 text-primary hover:bg-primary/20 rounded-lg font-semibold text-xs md:text-sm px-2 md:px-4 flex-shrink-0">
-                <Bot className="w-4 h-4 mr-1" />
-                <span className="hidden sm:inline">FlowChat</span>
-              </Button>
-              <Button variant="ghost" size="sm" className="rounded-lg hidden xl:flex flex-shrink-0" asChild>
-                <Link href="/flow-ai/workflows">
-                  <Workflow className="w-4 h-4 mr-1" />
-                  Workflows
-                </Link>
-              </Button>
-              <Button variant="ghost" size="sm" className="rounded-lg hidden xl:flex flex-shrink-0" asChild>
-                <Link href="/flow-ai/queue">
-                  <ListTodo className="w-4 h-4 mr-1" />
-                  Queue
-                </Link>
-              </Button>
-              <div className="hidden md:flex items-center flex-shrink-0">
-                <VoiceSettingsDialog
-                  settings={voiceSettings}
-                  onSettingsChange={handleVoiceSettingsChange}
-                  disableSuggestions={disableSuggestions}
-                  enableVectorSearch={enableVectorSearch}
-                  onDisableSuggestionsChange={handleDisableSuggestionsChange}
-                  onEnableVectorSearchChange={handleEnableVectorSearchChange}
-                />
-              </div>
-              <div className="hidden md:flex items-center flex-shrink-0">
-                <AdminSettingsDialog />
-              </div>
-              <Button variant="ghost" size="sm" className="rounded-lg flex-shrink-0" asChild>
-                <Link href={process.env.NEXT_PUBLIC_FLOWRMS_APP_URL || '/flow-ai'}>
-                  <ArrowLeft className="w-4 h-4 mr-1" />
-                  <span className="hidden sm:inline">Back to FlowRMS</span>
-                </Link>
-              </Button>
-            </nav>
+            <div className="flex items-center gap-2">
+              <VoiceSettingsDialog
+                settings={voiceSettings}
+                onSettingsChange={handleVoiceSettingsChange}
+                disableSuggestions={disableSuggestions}
+                enableVectorSearch={enableVectorSearch}
+                onDisableSuggestionsChange={handleDisableSuggestionsChange}
+                onEnableVectorSearchChange={handleEnableVectorSearchChange}
+              />
+              <AdminSettingsDialog />
+            </div>
           </div>
         </header>
 

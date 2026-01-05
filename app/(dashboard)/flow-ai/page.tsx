@@ -3,12 +3,8 @@
 import { useMemo, useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useMutation } from '@apollo/client/react';
 import dynamic from 'next/dynamic';
-import Link from 'next/link';
-
-import NextImage from 'next/image';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { ScanText, Loader2, Sparkles, Zap, Star, FileStack, ArrowLeft, Bot, Upload, Workflow, ListTodo } from 'lucide-react';
-import { Badge } from '@/components/flow-ai/ui/badge';
+import { Loader2, Sparkles, Zap, Star } from 'lucide-react';
 import { Button } from '@/components/flow-ai/ui/button';
 import { Card, CardContent } from '@/components/flow-ai/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/flow-ai/ui/dialog';
@@ -38,8 +34,6 @@ import { extractUserInfoFromToken } from '@/lib/flow-ai/jwt-utils';
 import { getStoredValue } from '@/lib/flow-ai/token-storage';
 import { isDateField, formatDateForStorage, toDateInputValue, formatDateDisplay } from '@/lib/flow-ai/format-utils';
 import { CombinedUploadPane } from '@/components/flow-ai/flowrms/CombinedUploadPane';
-import { AdminSettingsDialog } from '@/components/flow-ai/flowrms/AdminSettingsDialog';
-import { navigateToNewUpload } from '@/lib/flow-ai/navigation-utils';
 import { RequiredFieldsGate } from '@/components/flow-ai/flowrms/RequiredFieldsGate';
 import type { EntitySearchResult } from '@/components/flow-ai/flowrms/EntitySearchDropdown';
 import { Q_SEARCH_EXISTING_ENTITIES } from '@/lib/flow-ai/gql';
@@ -1385,37 +1379,11 @@ function FlowRMSPageContent() {
     window.location.reload();
   };
 
-  const handleNewUpload = () => {
-    navigateToNewUpload();
-  };
-
   // Show combined upload pane if needed (when in document mode without processing started)
   // This replaces the old separate InitialInstructionsPrompt
   if (needsInitialInstructions) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex flex-col">
-        <header className="border-b bg-gradient-to-r from-card via-card to-primary/5 sticky top-0 z-50 backdrop-blur-sm flex-none">
-          <div className="container mx-auto px-4 py-4 max-w-[90vw]">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-6">
-                <Link href="/" className="flex items-center gap-3 group">
-                  <NextImage src="/flow-logo.png" alt="FlowAI Logo" width={32} height={32} className="w-8 h-8" />
-                  <h1 className="text-2xl font-bold">FlowAI</h1>
-                </Link>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  window.location.href = process.env.NEXT_PUBLIC_FLOWRMS_APP_URL || 'https://development.app.flowrms.com/';
-                }}
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to FlowRMS
-              </Button>
-            </div>
-          </div>
-        </header>
+      <div className="min-h-full bg-gradient-to-br from-background via-background to-primary/5 flex flex-col">
         <main className="flex-1">
           <CombinedUploadPane
             onDocumentUploaded={(docId, docType, instructions, contextFileIds) => {
@@ -1435,87 +1403,24 @@ function FlowRMSPageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex flex-col">
-      <header className="border-b bg-gradient-to-r from-card via-card to-primary/5 sticky top-0 z-50 backdrop-blur-sm flex-none">
-        <div className="container mx-auto px-4 py-4 max-w-[90vw]">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-6">
-              <Link href="/" className="flex items-center gap-3 group">
-                <NextImage src="/flow-logo.png" alt="FlowAI Logo" width={32} height={32} className="w-8 h-8" />
-                <h1 className="text-2xl font-bold">FlowAI</h1>
-              </Link>
-
-              <nav className="hidden md:flex items-center gap-2 ml-8">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleNewUpload}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  <Upload className="w-4 h-4 mr-2" />
-                  Upload
-                </Button>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href="/flow-ai" className="text-foreground">
-                    <ScanText className="w-4 h-4 mr-2" />
-                    FlowScan
-                  </Link>
-                </Button>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href="/flow-ai/templates" className="text-muted-foreground hover:text-foreground">
-                    <FileStack className="w-4 h-4 mr-2" />
-                    Templates
-                  </Link>
-                </Button>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href="/flow-ai/ai-chat" className="text-muted-foreground hover:text-foreground">
-                    <Bot className="w-4 h-4 mr-2" />
-                    FlowChat
-                  </Link>
-                </Button>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href="/flow-ai/workflows" className="text-muted-foreground hover:text-foreground">
-                    <Workflow className="w-4 h-4 mr-2" />
-                    Workflows
-                  </Link>
-                </Button>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href="/flow-ai/queue" className="text-muted-foreground hover:text-foreground">
-                    <ListTodo className="w-4 h-4 mr-2" />
-                    Queue
-                  </Link>
-                </Button>
-                <AdminSettingsDialog />
-              </nav>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {convertedDocumentUrl && (
-                <Button variant="outline" size="sm" asChild>
-                  <a href={isCsv ? convertedDocumentUrl : (presignedPdfUrl || convertedDocumentUrl || '#')} target="_blank" rel="noreferrer">
-                    Download {isCsv ? 'CSV' : 'PDF'}
-                  </a>
-                </Button>
-              )}
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => {
-                  window.location.href = process.env.NEXT_PUBLIC_FLOWRMS_APP_URL || 'https://development.app.flowrms.com/';
-                }}
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to FlowRMS
-              </Button>
-            </div>
-          </div>
-        </div>
-        {documentLabel && (
-          <div className="container mx-auto px-4 pb-3 text-xs text-muted-foreground max-w-[70vw]">
+    <div className="min-h-full bg-gradient-to-br from-background via-background to-primary/5 flex flex-col">
+      {/* Document info bar */}
+      {documentLabel && (
+        <div className="border-b bg-card/50 px-4 py-2 flex items-center justify-between">
+          <div className="text-sm text-muted-foreground">
             Active document: <span className="font-medium text-foreground">{documentLabel}</span>
           </div>
-        )}
-      </header>
+          <div className="flex items-center gap-2">
+            {convertedDocumentUrl && (
+              <Button variant="outline" size="sm" asChild>
+                <a href={isCsv ? convertedDocumentUrl : (presignedPdfUrl || convertedDocumentUrl || '#')} target="_blank" rel="noreferrer">
+                  Download {isCsv ? 'CSV' : 'PDF'}
+                </a>
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
 
       {bannerMessage && (
         <div className="bg-primary/10 border-b border-primary/20 text-primary px-4 py-3 text-sm flex items-center gap-2 justify-center">

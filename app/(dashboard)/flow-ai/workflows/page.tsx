@@ -24,7 +24,6 @@ import {
 } from '@/components/flow-ai/ui/card';
 import { Badge } from '@/components/flow-ai/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/flow-ai/ui/tabs';
-import { WorkflowHeader } from '@/components/flow-ai/workflows/WorkflowHeader';
 import { workflowAPI, type Workflow } from '@/lib/flow-ai/workflow-api';
 import { toast } from 'sonner';
 
@@ -151,9 +150,7 @@ export default function WorkflowsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
-      <WorkflowHeader />
-
+    <div className="min-h-full bg-gradient-to-br from-background via-background to-primary/5">
       <div className="container mx-auto px-6 py-8 space-y-6">
         {/* Hero Section */}
         <div className="flex items-center justify-between">
