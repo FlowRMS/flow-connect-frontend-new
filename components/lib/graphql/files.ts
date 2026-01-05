@@ -41,7 +41,7 @@ export interface FileResponse {
 }
 
 // Document entity types for file uploads
-export type DocumentEntityType = 'QUOTES' | 'ORDERS' | 'INVOICES' | 'CHECKS' | 'UNDEFINED';
+export type DocumentEntityType = 'QUOTES' | 'ORDERS' | 'INVOICES' | 'CHECKS' | 'CUSTOMERS' | 'FACTORIES' | 'PRODUCTS' | 'UNDEFINED';
 
 export interface FileUploadInput {
   file: File;

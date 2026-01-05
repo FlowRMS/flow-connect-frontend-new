@@ -2,7 +2,6 @@
 'use client';
 
 import { apolloClient } from './apollo';
-import { flowrmsApolloClient } from './flowrms-apollo';
 import {
   Q_GET_WORKFLOW,
   Q_GET_WORKFLOWS,
@@ -15,8 +14,8 @@ import {
   M_DELETE_WORKFLOW,
   M_EXECUTE_WORKFLOW,
   M_EXECUTE_PIPELINE,
-  M_UPLOAD_FILE,
 } from './gql';
+import { uploadFile as crmUploadFile } from '@/components/lib/graphql/files';
 
 // Type definitions
 export interface Workflow {
@@ -393,49 +392,24 @@ class WorkflowAPI {
     return data.allExecutions.executions.map(transformExecution);
   }
 
-  // Upload a single file using singleFileUpload mutation (same as DocumentUploadPane)
+  // Upload a single file using CRM's uploadFile function
   private async uploadFile(file: File): Promise<string> {
     console.log('📤 Uploading file for pipeline:', file.name);
 
-    const result = await flowrmsApolloClient.mutate({
-      mutation: M_UPLOAD_FILE,
-      variables: {
-        file: file,
-        tenantLevel: true,
-        public: false,
-      },
-    });
+    try {
+      // Use UNDEFINED for pipeline files since they can be any document type
+      const result = await crmUploadFile({
+        file,
+        fileName: file.name,
+        fileEntityType: 'UNDEFINED',
+      });
 
-    // Check for GraphQL errors in the result
-    const errors = (result as any).errors;
-    if (errors && errors.length > 0) {
-      console.error('❌ Upload error:', errors);
-      throw new Error(`Failed to upload ${file.name}: ${errors[0]?.message || 'Unknown error'}`);
+      console.log('✅ Upload successful:', result);
+      return result.id;
+    } catch (error) {
+      console.error('❌ Upload error:', error);
+      throw new Error(`Failed to upload ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-
-    const data = result.data as {
-      singleFileUpload?: {
-        results?: Array<{
-          id: string;
-          fileName: string;
-          status: { code: string; message: string };
-        }>;
-      };
-    };
-
-    if (data?.singleFileUpload?.results) {
-      const uploadResult = data.singleFileUpload.results[0];
-      console.log('✅ Upload successful:', uploadResult);
-
-      if (uploadResult.status?.code === 'SUCCESS' || uploadResult.id) {
-        return uploadResult.id;
-      } else {
-        console.error('❌ Upload failed with status:', uploadResult.status);
-        throw new Error(`Failed to upload: ${uploadResult.status?.message || 'Unknown error'}`);
-      }
-    }
-
-    throw new Error('Failed to upload file: No results returned');
   }
 
   // Execute pipeline (4-node)

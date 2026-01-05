@@ -26,9 +26,7 @@ import { Button } from '@/components/flow-ai/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/flow-ai/ui/card';
 import { Textarea } from '@/components/flow-ai/ui/textarea';
 import { Badge } from '@/components/flow-ai/ui/badge';
-import { useMutation as useApolloMutation } from '@apollo/client/react';
-import { flowrmsApolloClient } from '@/lib/flow-ai/flowrms-apollo';
-import { M_UPLOAD_FILE } from '@/lib/flow-ai/gql';
+import { uploadFile, type DocumentEntityType } from '@/components/lib/graphql/files';
 import { toast } from 'sonner';
 
 interface UploadedContextFile {
@@ -56,6 +54,29 @@ const DOCUMENT_TYPE_OPTIONS: Array<{ value: DocumentType; label: string; icon: L
   { value: 'customers', label: 'Customers', icon: Users },
 ];
 
+// Map Flow AI document types to CRM DocumentEntityType for file uploads
+const getDocumentEntityType = (documentType: DocumentType): DocumentEntityType => {
+  switch (documentType) {
+    case 'quotes':
+      return 'QUOTES';
+    case 'orders':
+    case 'order_acknowledgements':
+      return 'ORDERS';
+    case 'invoices':
+      return 'INVOICES';
+    case 'checks':
+      return 'CHECKS';
+    case 'products':
+      return 'PRODUCTS';
+    case 'factories':
+      return 'FACTORIES';
+    case 'customers':
+      return 'CUSTOMERS';
+    default:
+      return 'UNDEFINED';
+  }
+};
+
 export function CombinedUploadPane({ onDocumentUploaded, onBatchDocumentsUploaded }: CombinedUploadPaneProps) {
   // Document upload state
   const [selectedDocumentType, setSelectedDocumentType] = useState<DocumentType>('invoices');
@@ -74,10 +95,6 @@ export function CombinedUploadPane({ onDocumentUploaded, onBatchDocumentsUploade
   const [contextSourceMode, setContextSourceMode] = useState<ContextSourceMode>('upload');
   const [localStorageContextIds, setLocalStorageContextIds] = useState<string[]>([]);
   const contextFileInputRef = useRef<HTMLInputElement>(null);
-
-  const [uploadFileMutation] = useApolloMutation(M_UPLOAD_FILE, {
-    client: flowrmsApolloClient,
-  });
 
   // Load reference document IDs from localStorage
   useEffect(() => {
@@ -111,44 +128,20 @@ export function CombinedUploadPane({ onDocumentUploaded, onBatchDocumentsUploade
       console.log('Uploading document:', file.name);
       console.log('Document type:', selectedDocumentType);
 
-      const result = await uploadFileMutation({
-        variables: {
-          file: file,
-          tenantLevel: true,
-          public: false,
-          entityType: selectedDocumentType,
-        },
+      // Get the appropriate fileEntityType for the selected document type
+      const fileEntityType = getDocumentEntityType(selectedDocumentType);
+      console.log('File entity type:', fileEntityType);
+
+      const uploadResult = await uploadFile({
+        file,
+        fileName: file.name,
+        fileEntityType,
       });
 
-      if (result.error) {
-        console.error('Upload error:', result.error);
-        toast.error(`Failed to upload ${file.name}: ${result.error.message}`);
-        return;
-      }
-
-      const data = result.data as {
-        singleFileUpload?: {
-          results?: Array<{
-            id: string;
-            fileName: string;
-            status: { code: string; message: string };
-          }>;
-        };
-      };
-
-      if (data?.singleFileUpload?.results) {
-        const uploadResult = data.singleFileUpload.results[0];
-        console.log('Upload successful:', uploadResult);
-
-        if (uploadResult.status?.code === 'SUCCESS' || uploadResult.id) {
-          toast.success('Document uploaded successfully');
-          // Always add to the documents array for consistency
-          setUploadedDocuments(prev => [...prev, { id: uploadResult.id, fileName: uploadResult.fileName }]);
-        } else {
-          console.error('Upload failed with status:', uploadResult.status);
-          toast.error(`Failed to upload: ${uploadResult.status?.message || 'Unknown error'}`);
-        }
-      }
+      console.log('Upload successful:', uploadResult);
+      toast.success('Document uploaded successfully');
+      // Use the id from uploadFile response as the documentId for processing
+      setUploadedDocuments(prev => [...prev, { id: uploadResult.id, fileName: uploadResult.fileName }]);
     } catch (error) {
       console.error('Upload failed:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to upload document');
@@ -182,42 +175,25 @@ export function CombinedUploadPane({ onDocumentUploaded, onBatchDocumentsUploade
     setIsUploading(true);
     const uploadResults: Array<{ id: string; fileName: string }> = [];
 
+    // Get the appropriate fileEntityType for the selected document type
+    const fileEntityType = getDocumentEntityType(selectedDocumentType);
+
     try {
       for (const file of files) {
         console.log('Uploading document:', file.name);
 
-        const result = await uploadFileMutation({
-          variables: {
-            file: file,
-            tenantLevel: true,
-            public: false,
-            entityType: selectedDocumentType,
-          },
-        });
+        try {
+          const uploadResult = await uploadFile({
+            file,
+            fileName: file.name,
+            fileEntityType,
+          });
 
-        if (result.error) {
-          console.error('Upload error:', result.error);
-          toast.error(`Failed to upload ${file.name}: ${result.error.message}`);
-          continue;
-        }
-
-        const data = result.data as {
-          singleFileUpload?: {
-            results?: Array<{
-              id: string;
-              fileName: string;
-              status: { code: string; message: string };
-            }>;
-          };
-        };
-
-        if (data?.singleFileUpload?.results) {
-          const uploadResult = data.singleFileUpload.results[0];
-          if (uploadResult.status?.code === 'SUCCESS' || uploadResult.id) {
-            uploadResults.push({ id: uploadResult.id, fileName: uploadResult.fileName });
-          } else {
-            toast.error(`Failed to upload ${file.name}: ${uploadResult.status?.message || 'Unknown error'}`);
-          }
+          // Use the id from uploadFile response as the documentId for processing
+          uploadResults.push({ id: uploadResult.id, fileName: uploadResult.fileName });
+        } catch (fileError) {
+          console.error('Upload error:', fileError);
+          toast.error(`Failed to upload ${file.name}: ${fileError instanceof Error ? fileError.message : 'Unknown error'}`);
         }
       }
 
@@ -244,36 +220,26 @@ export function CombinedUploadPane({ onDocumentUploaded, onBatchDocumentsUploade
     setIsUploadingContext(true);
     const fileArray = Array.from(files);
 
+    // Get the appropriate fileEntityType for the selected document type
+    const fileEntityType = getDocumentEntityType(selectedDocumentType);
+
     try {
       const uploadResults: Array<{ id: string; fileName: string }> = [];
 
       for (const file of fileArray) {
-        const result = await uploadFileMutation({
-          variables: {
-            file: file,
-            tenantLevel: true,
-            public: false,
-            entityType: selectedDocumentType,
-          },
-        });
-
-        if (result.error) {
-          toast.error(`Failed to upload ${file.name}: ${result.error.message}`);
-          continue;
-        }
-
-        const data = result.data as { singleFileUpload?: { results?: Array<{ id: string; fileName: string; status: { code: string; message: string } }> } };
-
-        if (data?.singleFileUpload?.results) {
-          const results = data.singleFileUpload.results;
-          results.forEach(uploadResult => {
-            if (uploadResult.status?.code === 'SUCCESS' || uploadResult.id) {
-              uploadResults.push({
-                id: uploadResult.id,
-                fileName: uploadResult.fileName,
-              });
-            }
+        try {
+          const uploadResult = await uploadFile({
+            file,
+            fileName: file.name,
+            fileEntityType,
           });
+
+          uploadResults.push({
+            id: uploadResult.id,
+            fileName: uploadResult.fileName,
+          });
+        } catch (fileError) {
+          toast.error(`Failed to upload ${file.name}: ${fileError instanceof Error ? fileError.message : 'Unknown error'}`);
         }
       }
 

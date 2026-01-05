@@ -131,11 +131,13 @@ export function usePendingReview(onInstructionComplete?: () => void | Promise<vo
   }, []);
 
   // Initialize session on mount to prevent hydration issues
+  // Note: Authentication is now handled by WorkOS middleware, not localStorage tokens
   useEffect(() => {
     const config = getExtractSessionConfig();
 
     // If in document mode, check for cached pendingId first
-    if (config.mode === 'document' && config.documentId && config.accessToken) {
+    // Auth check removed - WorkOS handles authentication via middleware
+    if (config.mode === 'document' && config.documentId) {
       const cachedPendingId = getCachedPendingId(config.documentId);
       if (cachedPendingId) {
         console.log('🔄 Found cached pendingId, switching to pending mode:', cachedPendingId);
@@ -164,9 +166,10 @@ export function usePendingReview(onInstructionComplete?: () => void | Promise<vo
 
     // Set initial loading state based on mode
     // Don't show loading for document mode until prompt is submitted
-    if (config.mode === 'pending' && config.pendingId && config.accessToken) {
+    // Auth check removed - WorkOS handles authentication via middleware
+    if (config.mode === 'pending' && config.pendingId) {
       setState(prev => ({ ...prev, isHydrating: true, loadingAction: 'Loading pending document...' }));
-    } else if (config.mode === 'document' && config.documentId && config.accessToken && shouldSkipInstructionsPrompt) {
+    } else if (config.mode === 'document' && config.documentId && shouldSkipInstructionsPrompt) {
       // Auto-start processing if user provided instructions during upload
       const storedInstructions = localStorage.getItem('flowrms_initial_instructions');
       const storedContextFiles = localStorage.getItem('flowrms_context_files');
@@ -253,11 +256,13 @@ export function usePendingReview(onInstructionComplete?: () => void | Promise<vo
   const [approveMut] = useMutation(M_APPROVE);
   const [rejectMut] = useMutation(M_REJECT);
 
+  // Auth check removed - WorkOS handles authentication via middleware
   const shouldProcessDocument =
-    session.mode === "document" && !!session.documentId && !!session.accessToken && shouldStartProcessing;
+    session.mode === "document" && !!session.documentId && shouldStartProcessing;
 
+  // Auth check removed - WorkOS handles authentication via middleware
   const shouldLoadPending =
-    session.mode === "pending" && !!session.pendingId && !!session.accessToken;
+    session.mode === "pending" && !!session.pendingId;
 
   useSubscription(SUB_UPDATE_INSTR, {
     variables: instructionVariables ?? undefined,

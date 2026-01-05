@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useApolloClient, useMutation as useApolloMutation } from '@apollo/client/react';
-import { Q_GET_CLUSTER, Q_GET_CLUSTER_DOCUMENTS, M_UPDATE_CLUSTER_INSTRUCTIONS, M_ADD_CLUSTER_CONTEXTS, M_REMOVE_CLUSTER_CONTEXTS, M_UPLOAD_FILE, M_UPDATE_CLUSTER_NAME, M_DELETE_CLUSTER } from '@/lib/flow-ai/gql';
-import { flowrmsApolloClient } from '@/lib/flow-ai/flowrms-apollo';
+import { Q_GET_CLUSTER, Q_GET_CLUSTER_DOCUMENTS, M_UPDATE_CLUSTER_INSTRUCTIONS, M_ADD_CLUSTER_CONTEXTS, M_REMOVE_CLUSTER_CONTEXTS, M_UPDATE_CLUSTER_NAME, M_DELETE_CLUSTER } from '@/lib/flow-ai/gql';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/flow-ai/ui/dialog';
 import { Button } from '@/components/flow-ai/ui/button';
 import { Input } from '@/components/flow-ai/ui/input';
@@ -12,6 +11,7 @@ import { Loader2, Plus, X, Save, FileText, ChevronLeft, ChevronRight, File, Uplo
 import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
 import { cn } from '@/lib/flow-ai/cn';
+import { uploadFile } from '@/components/lib/graphql/files';
 
 const PdfPreviewPane = dynamic(
   () => import('@/components/flow-ai/flowrms/PdfPreviewPane').then((mod) => ({ default: mod.PdfPreviewPane })),
@@ -89,10 +89,6 @@ export function ClusterModal({ cluster, isOpen, onClose, onUpdate }: ClusterModa
   const [templateName, setTemplateName] = useState('');
   const [currentClusterName, setCurrentClusterName] = useState<string | null>(null);
   const [nameUpdateLoading, setNameUpdateLoading] = useState(false);
-
-  const [uploadFileMutation] = useApolloMutation(M_UPLOAD_FILE, {
-    client: flowrmsApolloClient,
-  });
 
   const [addContextsMutation] = useApolloMutation(M_ADD_CLUSTER_CONTEXTS, {
     client: apolloClient,
@@ -218,7 +214,7 @@ export function ClusterModal({ cluster, isOpen, onClose, onUpdate }: ClusterModa
 
   const handleUploadContext = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!cluster) return;
-    
+
     const files = event.target.files;
     if (!files || files.length === 0) return;
 
@@ -227,71 +223,36 @@ export function ClusterModal({ cluster, isOpen, onClose, onUpdate }: ClusterModa
 
     try {
       console.log('📤 Uploading context files:', fileArray.map(f => f.name));
-      
-      // Upload files one by one since we're using singleFileUpload
+
+      // Upload files one by one using CRM uploadFile function
       const uploadResults: Array<{ id: string; fileName: string }> = [];
-      
+
       for (const file of fileArray) {
         console.log('📤 Uploading single file:', file.name);
-        
-        const result = await uploadFileMutation({
-          variables: {
-            file: file, // ✅ Single file, not array
-            tenantLevel: true,
-            public: false,
-          },
-        });
 
-        if (result.error) {
-          console.error('❌ Upload error:', result.error);
-          toast.error(`Failed to upload ${file.name}: ${result.error.message}`);
-          continue; // Continue with other files
-        }
-
-        const data = result.data as { 
-          singleFileUpload?: { 
-            results?: Array<{ 
-              id: string; 
-              fileName: string; 
-              status: { 
-                code: number | string; 
-                keyword?: string;
-                message: string;
-              } 
-            }> 
-          } 
-        };
-
-        if (data?.singleFileUpload?.results) {
-          const results = data.singleFileUpload.results;
-          console.log('✅ Upload successful:', results);
-          
-          // Check status of each result
-          results.forEach(uploadResult => {
-            // Status code 1002 means "file_created" - successful upload
-            // Also accept if we have an ID (which indicates success)
-            const statusCode = typeof uploadResult.status?.code === 'number' 
-              ? uploadResult.status.code 
-              : parseInt(String(uploadResult.status?.code), 10);
-            
-            if (uploadResult.id && (statusCode === 1002 || uploadResult.status?.keyword === 'file_created')) {
-              uploadResults.push({
-                id: uploadResult.id,
-                fileName: uploadResult.fileName,
-              });
-              console.log('✅ File uploaded successfully:', uploadResult.fileName, 'ID:', uploadResult.id);
-            } else {
-              console.error('❌ Upload failed with status:', uploadResult.status);
-              toast.error(`Failed to upload ${uploadResult.fileName}: ${uploadResult.status?.message || 'Unknown error'}`);
-            }
+        try {
+          // Use CRM uploadFile - context files use UNDEFINED since they're not specific entity types
+          const result = await uploadFile({
+            file,
+            fileName: file.name,
+            fileEntityType: 'UNDEFINED',
           });
+
+          uploadResults.push({
+            id: result.id,
+            fileName: result.fileName,
+          });
+          console.log('✅ File uploaded successfully:', result.fileName, 'ID:', result.id);
+        } catch (uploadError) {
+          console.error('❌ Upload error:', uploadError);
+          toast.error(`Failed to upload ${file.name}: ${uploadError instanceof Error ? uploadError.message : 'Unknown error'}`);
         }
       }
 
       if (uploadResults.length > 0) {
         const uploadedFileIds = uploadResults.map(r => r.id);
         console.log('✅ All uploads successful, adding to cluster:', uploadedFileIds);
-        
+
         // Add the uploaded files as context to the cluster
         const addResult = await addContextsMutation({
           variables: {
@@ -308,10 +269,10 @@ export function ClusterModal({ cluster, isOpen, onClose, onUpdate }: ClusterModa
         if (updatedCluster?.contexts) {
           setContexts(updatedCluster.contexts);
           toast.success(`${uploadedFileIds.length} context file(s) added successfully`);
-          
+
           // Refresh metadata after adding contexts
           await refreshClusterMetadata(cluster.id);
-          
+
           if (onUpdate) onUpdate();
         }
       }

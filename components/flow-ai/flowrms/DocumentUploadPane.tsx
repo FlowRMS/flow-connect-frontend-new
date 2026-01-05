@@ -5,9 +5,7 @@ import { Upload, FileText, Loader2, Sparkles, Info } from 'lucide-react';
 import { Button } from '@/components/flow-ai/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/flow-ai/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/flow-ai/ui/select';
-import { useMutation as useApolloMutation } from '@apollo/client/react';
-import { flowrmsApolloClient } from '@/lib/flow-ai/flowrms-apollo';
-import { M_UPLOAD_FILE } from '@/lib/flow-ai/gql';
+import { uploadFile, type DocumentEntityType } from '@/components/lib/graphql/files';
 import { toast } from 'sonner';
 
 interface DocumentUploadPaneProps {
@@ -24,15 +22,28 @@ const DOCUMENT_TYPE_OPTIONS: Array<{ value: DocumentType; label: string }> = [
   { value: 'checks', label: 'Checks' },
 ];
 
+// Map Flow AI document types to CRM DocumentEntityType for file uploads
+const getDocumentEntityType = (documentType: DocumentType): DocumentEntityType => {
+  switch (documentType) {
+    case 'quotes':
+      return 'QUOTES';
+    case 'orders':
+    case 'order_acknowledgements':
+      return 'ORDERS';
+    case 'invoices':
+      return 'INVOICES';
+    case 'checks':
+      return 'CHECKS';
+    default:
+      return 'UNDEFINED';
+  }
+};
+
 export function DocumentUploadPane({ onDocumentUploaded }: DocumentUploadPaneProps) {
   const [selectedDocumentType, setSelectedDocumentType] = useState<DocumentType>('invoices');
   const [isUploading, setIsUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const [uploadFileMutation] = useApolloMutation(M_UPLOAD_FILE, {
-    client: flowrmsApolloClient,
-  });
 
   const handleFileSelect = async (file: File) => {
     if (!file) return;
@@ -43,48 +54,24 @@ export function DocumentUploadPane({ onDocumentUploaded }: DocumentUploadPanePro
       console.log('📤 Uploading document:', file.name);
       console.log('📋 Document type:', selectedDocumentType);
 
-      const result = await uploadFileMutation({
-        variables: {
-          file: file,
-          tenantLevel: true,
-          public: false,
-          entityType: selectedDocumentType,
-        },
+      // Get the appropriate fileEntityType for the selected document type
+      const fileEntityType = getDocumentEntityType(selectedDocumentType);
+      console.log('📋 File entity type:', fileEntityType);
+
+      const uploadResult = await uploadFile({
+        file,
+        fileName: file.name,
+        fileEntityType,
       });
 
-      if (result.error) {
-        console.error('❌ Upload error:', result.error);
-        toast.error(`Failed to upload ${file.name}: ${result.error.message}`);
-        return;
-      }
+      console.log('✅ Upload successful:', uploadResult);
+      toast.success('Document uploaded successfully');
 
-      const data = result.data as {
-        singleFileUpload?: {
-          results?: Array<{
-            id: string;
-            fileName: string;
-            status: { code: string; message: string };
-          }>;
-        };
-      };
+      // Store the document ID in localStorage
+      localStorage.setItem('flowrms_document_id', uploadResult.id);
 
-      if (data?.singleFileUpload?.results) {
-        const uploadResult = data.singleFileUpload.results[0];
-        console.log('✅ Upload successful:', uploadResult);
-
-        if (uploadResult.status?.code === 'SUCCESS' || uploadResult.id) {
-          toast.success('Document uploaded successfully');
-          
-          // Store the document ID in localStorage
-          localStorage.setItem('flowrms_document_id', uploadResult.id);
-          
-          // Notify parent component
-          onDocumentUploaded(uploadResult.id, selectedDocumentType);
-        } else {
-          console.error('❌ Upload failed with status:', uploadResult.status);
-          toast.error(`Failed to upload: ${uploadResult.status?.message || 'Unknown error'}`);
-        }
-      }
+      // Notify parent component with the id from uploadFile response
+      onDocumentUploaded(uploadResult.id, selectedDocumentType);
     } catch (error) {
       console.error('❌ Upload failed:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to upload document');

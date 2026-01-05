@@ -7,9 +7,7 @@ import { Textarea } from '@/components/flow-ai/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/flow-ai/ui/card';
 import { Badge } from '@/components/flow-ai/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/flow-ai/ui/select';
-import { useMutation as useApolloMutation } from '@apollo/client/react';
-import { flowrmsApolloClient } from '@/lib/flow-ai/flowrms-apollo';
-import { M_UPLOAD_FILE } from '@/lib/flow-ai/gql';
+import { uploadFile, type DocumentEntityType } from '@/components/lib/graphql/files';
 import { toast } from 'sonner';
 
 interface UploadedFile {
@@ -26,6 +24,22 @@ interface InitialInstructionsPromptProps {
 
 type ContextSourceMode = 'upload' | 'localStorage';
 
+// Map selected entity type to CRM DocumentEntityType for file uploads
+const getDocumentEntityType = (entityType: string): DocumentEntityType => {
+  switch (entityType) {
+    case 'quotes':
+      return 'QUOTES';
+    case 'orders':
+      return 'ORDERS';
+    case 'invoices':
+      return 'INVOICES';
+    case 'checks':
+      return 'CHECKS';
+    default:
+      return 'UNDEFINED';
+  }
+};
+
 export function InitialInstructionsPrompt({
   onSubmit,
   onSkip,
@@ -39,10 +53,6 @@ export function InitialInstructionsPrompt({
   const [localStorageContextIds, setLocalStorageContextIds] = useState<string[]>([]);
   const [selectedEntityType, setSelectedEntityType] = useState<string>('invoices');
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const [uploadFileMutation] = useApolloMutation(M_UPLOAD_FILE, {
-    client: flowrmsApolloClient,
-  });
 
   useEffect(() => {
     // Trigger fade-in animation
@@ -74,48 +84,33 @@ export function InitialInstructionsPrompt({
     setIsUploading(true);
     const fileArray = Array.from(files);
 
+    // Get the appropriate fileEntityType for the selected entity type
+    const fileEntityType = getDocumentEntityType(selectedEntityType);
+
     try {
       console.log('📤 Uploading files:', fileArray.map(f => f.name));
-      
-      // Upload files one by one since we're using singleFileUpload
+
+      // Upload files one by one using CRM uploadFile function
       const uploadResults: Array<{ id: string; fileName: string }> = [];
-      
+
       for (const file of fileArray) {
         console.log('📤 Uploading single file:', file.name);
-        
-        const result = await uploadFileMutation({
-          variables: {
-            file: file,
-            tenantLevel: true,
-            public: false,
-            entityType: selectedEntityType,
-          },
-        });
 
-        if (result.error) {
-          console.error('❌ Upload error:', result.error);
-          toast.error(`Failed to upload ${file.name}: ${result.error.message}`);
-          continue; // Continue with other files
-        }
-
-        const data = result.data as { singleFileUpload?: { results?: Array<{ id: string; fileName: string; status: { code: string; message: string } }> } };
-
-        if (data?.singleFileUpload?.results) {
-          const results = data.singleFileUpload.results;
-          console.log('✅ Upload successful:', results);
-          
-          // Check status of each result
-          results.forEach(uploadResult => {
-            if (uploadResult.status?.code === 'SUCCESS' || uploadResult.id) {
-              uploadResults.push({
-                id: uploadResult.id,
-                fileName: uploadResult.fileName,
-              });
-            } else {
-              console.error('❌ Upload failed with status:', uploadResult.status);
-              toast.error(`Failed to upload ${uploadResult.fileName}: ${uploadResult.status?.message || 'Unknown error'}`);
-            }
+        try {
+          const result = await uploadFile({
+            file,
+            fileName: file.name,
+            fileEntityType,
           });
+
+          uploadResults.push({
+            id: result.id,
+            fileName: result.fileName,
+          });
+          console.log('✅ Upload successful:', result);
+        } catch (uploadError) {
+          console.error('❌ Upload error:', uploadError);
+          toast.error(`Failed to upload ${file.name}: ${uploadError instanceof Error ? uploadError.message : 'Unknown error'}`);
         }
       }
 
