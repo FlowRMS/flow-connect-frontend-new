@@ -214,6 +214,11 @@ export function ProductCrossResultsModal({
       for (const result of results) {
         for (const crossResult of result.crosses) {
           for (const alt of crossResult.alternatives) {
+            // Use attributes from API if available, otherwise parse from description
+            const specifications = alt.attributes && Object.keys(alt.attributes).length > 0
+              ? alt.attributes
+              : parseSpecifications(alt.description || '');
+
             newAlternatives.push({
               id: `ai-${crypto.randomUUID()}`,
               productName: alt.name,
@@ -224,7 +229,7 @@ export function ProductCrossResultsModal({
               source: 'ai',
               reasoning: crossResult.notes || crossResult.promptUsed,
               isSelected: false,
-              specifications: parseSpecifications(alt.description || ''),
+              specifications,
             });
           }
         }
@@ -1038,15 +1043,28 @@ function parseSpecifications(description: string): Record<string, string> {
   const patterns = [
     { key: 'Voltage', pattern: /(\d+V?\s*(?:AC|DC)?)/i },
     { key: 'Wattage', pattern: /(\d+W(?:\s*per\s*zone)?)/i },
-    { key: 'Protocol', pattern: /(DALI|0-10V|DMX|PWM|Bluetooth|WiFi|Zigbee)/i },
+    { key: 'Protocol', pattern: /(DALI|0-10V|DMX|PWM|Bluetooth|WiFi|Zigbee|RS-485|Modbus)/i },
     { key: 'Zones', pattern: /(\d+)\s*zones?/i },
     { key: 'Color Temperature', pattern: /(\d+K(?:\s*\([^)]+\))?)/i },
+    { key: 'Dimming Range', pattern: /(?:dimming\s*(?:range)?:?\s*)?(0?-?\d+%?\s*(?:to|-)\s*100%?)/i },
+    { key: 'Max Load', pattern: /(?:max\s*load:?\s*)?(\d+(?:\.\d+)?\s*(?:A|W|VA))/i },
+    { key: 'Operating Temperature', pattern: /(?:operating\s*temp(?:erature)?:?\s*)?(-?\d+°?[CF]?\s*(?:to|-)\s*-?\d+°?[CF]?)/i },
+    { key: 'Certifications', pattern: /(UL|ETL|CE|FCC|RoHS|Energy\s*Star|DLC|Title\s*24|JA8)/gi },
+    { key: 'Additional Features', pattern: /(?:features?:?\s*)(.+)/i },
   ];
 
   for (const { key, pattern } of patterns) {
-    const match = description.match(pattern);
-    if (match) {
-      specs[key] = match[1];
+    if (key === 'Certifications') {
+      // For certifications, collect all matches
+      const matches = description.match(pattern);
+      if (matches && matches.length > 0) {
+        specs[key] = [...new Set(matches.map(m => m.toUpperCase()))].join(', ');
+      }
+    } else {
+      const match = description.match(pattern);
+      if (match) {
+        specs[key] = match[1];
+      }
     }
   }
 

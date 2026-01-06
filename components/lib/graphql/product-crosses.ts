@@ -18,6 +18,7 @@ export interface ProductAlternative {
   price: number | null;
   source: string | null;
   crossType: ProductCrossTypeEnum;
+  attributes: Record<string, string> | null;
 }
 
 export interface ProductCrossResult {
@@ -58,6 +59,7 @@ const CROSS_PRODUCTS = `
           price
           source
           crossType
+          attributes
         }
         promptUsed
         notes
@@ -89,6 +91,7 @@ const CROSS_PRODUCTS_FROM_DOCUMENT = `
           price
           source
           crossType
+          attributes
         }
         promptUsed
         notes
