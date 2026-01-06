@@ -35,12 +35,13 @@ interface UploadedContextFile {
   file: File;
 }
 
+export type DocumentType = 'quotes' | 'orders' | 'order_acknowledgements' | 'invoices' | 'checks' | 'products' | 'factories' | 'customers';
+
 interface CombinedUploadPaneProps {
   onDocumentUploaded: (documentId: string, documentType: string, instructions?: string, contextFileIds?: string[]) => void;
   onBatchDocumentsUploaded?: (documentIds: string[], documentType: string, instructions?: string, contextFileIds?: string[]) => void;
+  initialDocumentType?: DocumentType;
 }
-
-type DocumentType = 'quotes' | 'orders' | 'order_acknowledgements' | 'invoices' | 'checks' | 'products' | 'factories' | 'customers';
 type ContextSourceMode = 'upload' | 'localStorage';
 
 const DOCUMENT_TYPE_OPTIONS: Array<{ value: DocumentType; label: string; icon: LucideIcon }> = [
@@ -77,9 +78,9 @@ const getDocumentEntityType = (documentType: DocumentType): DocumentEntityType =
   }
 };
 
-export function CombinedUploadPane({ onDocumentUploaded, onBatchDocumentsUploaded }: CombinedUploadPaneProps) {
+export function CombinedUploadPane({ onDocumentUploaded, onBatchDocumentsUploaded, initialDocumentType }: CombinedUploadPaneProps) {
   // Document upload state
-  const [selectedDocumentType, setSelectedDocumentType] = useState<DocumentType>('invoices');
+  const [selectedDocumentType, setSelectedDocumentType] = useState<DocumentType>(initialDocumentType || 'invoices');
   const [isUploading, setIsUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [uploadedDocument, setUploadedDocument] = useState<{ id: string; fileName: string } | null>(null);

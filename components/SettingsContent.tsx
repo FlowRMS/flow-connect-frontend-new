@@ -52,6 +52,29 @@ import {
 } from './lib/graphql/rbac';
 import { showSuccessToast, showErrorToast } from './lib/toast';
 
+// Coming Soon Overlay Component for non-functional tabs
+function ComingSoonOverlay({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="relative overflow-hidden">
+      <div className="opacity-30 pointer-events-none blur-[1px]">
+        {children}
+      </div>
+      <div className="absolute inset-0 flex items-center justify-center z-10">
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl px-8 py-6 shadow-lg text-center">
+          <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-[var(--primary)]/10 flex items-center justify-center">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--primary)]">
+              <path d="M12 8v4l3 3" strokeLinecap="round" strokeLinejoin="round"/>
+              <circle cx="12" cy="12" r="10"/>
+            </svg>
+          </div>
+          <h3 className="text-lg font-semibold text-[var(--foreground)] mb-1">Coming Soon</h3>
+          <p className="text-sm text-[var(--muted-foreground)]">This feature is under development</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 type RepType = {
   id: string;
   name: string;
@@ -245,6 +268,7 @@ export default function SettingsContent() {
       <div className="flex-1 overflow-y-auto p-6">
       {/* Take-Off Settings Tab */}
       {activeTab === 'takeoffs' && (
+        <ComingSoonOverlay>
         <div className="max-w-3xl space-y-6">
           <h2 className="text-xl font-semibold text-[var(--foreground)]">Take-Off Settings</h2>
 
@@ -358,10 +382,12 @@ export default function SettingsContent() {
             </button>
           </div>
         </div>
+        </ComingSoonOverlay>
       )}
 
       {/* Credit for Sale Tab */}
       {activeTab === 'credit-for-sale' && (
+        <ComingSoonOverlay>
         <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6 max-w-4xl">
           <h2 className="text-lg font-semibold text-[var(--foreground)] mb-2">
             Credit for Sale Configuration
@@ -509,6 +535,7 @@ export default function SettingsContent() {
             </button>
           </div>
         </div>
+        </ComingSoonOverlay>
       )}
 
       {/* Sidebar Settings Tab */}
@@ -520,6 +547,7 @@ export default function SettingsContent() {
 
       {/* Default Views Tab */}
       {activeTab === 'default-views' && (
+        <ComingSoonOverlay>
         <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6 max-w-3xl">
           <h2 className="text-lg font-semibold text-[var(--foreground)] mb-2">
             Default View Settings
@@ -644,21 +672,22 @@ export default function SettingsContent() {
             </button>
           </div>
         </div>
+        </ComingSoonOverlay>
       )}
 
       {/* Manufacturer Integrations Tab */}
       {activeTab === 'manufacturer-integrations' && (
-        <ManufacturerIntegrationsTab />
+        <ComingSoonOverlay><ManufacturerIntegrationsTab /></ComingSoonOverlay>
       )}
 
       {/* Admin Settings Tabs */}
-      {activeTab === 'general' && <GeneralSettingsTab />}
-      {activeTab === 'team' && <TeamMembersTab />}
+      {activeTab === 'general' && <ComingSoonOverlay><GeneralSettingsTab /></ComingSoonOverlay>}
+      {activeTab === 'team' && <ComingSoonOverlay><TeamMembersTab /></ComingSoonOverlay>}
       {activeTab === 'permissions' && <PermissionsTab />}
-      {activeTab === 'flowbot' && <FlowBotSettingsTab />}
-      {activeTab === 'categories' && <CategoriesTab />}
+      {activeTab === 'flowbot' && <ComingSoonOverlay><FlowBotSettingsTab /></ComingSoonOverlay>}
+      {activeTab === 'categories' && <ComingSoonOverlay><CategoriesTab /></ComingSoonOverlay>}
       {activeTab === 'sales-reps' && <SalesRepSelectionsTab />}
-      {activeTab === 'product-categories' && <ProductCategoriesTab />}
+      {activeTab === 'product-categories' && <ComingSoonOverlay><ProductCategoriesTab /></ComingSoonOverlay>}
       </div>
     </main>
   );
@@ -2550,7 +2579,7 @@ function SalesRepSelectionsTab() {
       {/* Customer-Factory Sales Rep Link */}
       <a
         href="/settings/sales-rep-assignments"
-        className="block mb-6 p-4 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-xl hover:border-purple-300 hover:shadow-md transition-all group"
+        className="relative z-20 block mb-6 p-4 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-xl hover:border-purple-300 hover:shadow-md transition-all group"
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -2574,6 +2603,9 @@ function SalesRepSelectionsTab() {
         </div>
       </a>
 
+      {/* Coming Soon Overlay for sections below Customer-Factory */}
+      <ComingSoonOverlay>
+      <div>
       {/* Outside Reps Section */}
       <div className="mb-8">
         <h3 className="text-lg font-semibold text-[var(--foreground)] mb-4">Outside Reps</h3>
@@ -3072,6 +3104,8 @@ function SalesRepSelectionsTab() {
           onSave={handleInsideBulkSplit}
         />
       )}
+      </div>
+      </ComingSoonOverlay>
     </div>
   );
 }

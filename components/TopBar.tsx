@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { MobileSidebarContext } from './Sidebar';
 import UniversalSearch from './UniversalSearch';
 import { useUser } from './providers/user-provider';
@@ -12,11 +13,30 @@ import { handleSignOut } from '@/lib/actions';
 // Key used by useWelcomeAnimation hook
 const WELCOME_SHOWN_KEY = 'flowcrm_welcome_animation_shown';
 
+// Map route paths to document types for AI Uploader pre-selection
+const getDocumentTypeFromPath = (pathname: string): string | null => {
+  if (pathname.startsWith('/orders')) return 'orders';
+  if (pathname.startsWith('/quotes')) return 'quotes';
+  if (pathname.startsWith('/invoices')) return 'invoices';
+  if (pathname.startsWith('/checks') || pathname.startsWith('/commissions')) return 'checks';
+  if (pathname.startsWith('/products')) return 'products';
+  if (pathname.startsWith('/customers')) return 'customers';
+  if (pathname.startsWith('/manufacturers') || pathname.startsWith('/factories')) return 'factories';
+  return null;
+};
+
 export default function TopBar() {
   const user = useUser();
+  const pathname = usePathname();
   const { orgName, isLoading: orgLoading } = useOrgName();
   const { setIsOpen, isMobile } = React.useContext(MobileSidebarContext);
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Get the document type for AI Uploader based on current page
+  const documentType = getDocumentTypeFromPath(pathname);
+  const aiUploaderHref = documentType
+    ? `/flow-ai/upload?type=${documentType}`
+    : '/flow-ai/upload';
 
   return (
     <div className="relative">
@@ -179,7 +199,7 @@ export default function TopBar() {
       <div className="flex items-center gap-2 sm:gap-3">
         {/* AI Uploader Button */}
         <Link
-          href="/flow-ai/upload"
+          href={aiUploaderHref}
           className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium bg-gradient-to-r from-violet-500 to-purple-600 text-white rounded-lg hover:from-violet-600 hover:to-purple-700 transition-all shadow-sm"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-4 sm:h-4">
