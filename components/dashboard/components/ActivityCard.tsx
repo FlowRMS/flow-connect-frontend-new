@@ -319,9 +319,11 @@ export function ActivityCard({ activity }: ActivityCardProps) {
               </div>
             )}
           </div>
-          <span className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-xs font-medium flex-shrink-0 self-start ${getStatusBadgeClass(activity.activityStatus)}`}>
-            {capitalize(activity.activityStatus)}
-          </span>
+          {activity.type === 'task' && (
+            <span className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-xs font-medium flex-shrink-0 self-start ${getStatusBadgeClass(activity.activityStatus)}`}>
+              {capitalize(activity.activityStatus)}
+            </span>
+          )}
         </div>
 
         {/* Type-specific metadata */}
