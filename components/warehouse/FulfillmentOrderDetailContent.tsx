@@ -728,11 +728,13 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
     };
 
     // Update the fulfillment order to BACKORDER_REVIEW status
-    updateFulfillmentOrder(fulfillmentOrder.id, {
-      status: 'BACKORDER_REVIEW',
-      holdReason: `Worker reported shortage: ${expectedQty - actualQty} units short on ${lineItem.partNumber}`,
-      backorderReviewData,
-      updatedAt: now,
+    updateOrderMutation.mutate({
+      id: fulfillmentOrder.id,
+      input: {
+        status: 'BACKORDER_REVIEW',
+        holdReason: `Worker reported shortage: ${expectedQty - actualQty} units short on ${lineItem.partNumber}`,
+        backorderReviewData,
+      },
     });
 
     setForceUpdate(prev => prev + 1);
@@ -833,8 +835,9 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
     });
 
     // Update the fulfillment order to show it's pending delivery
-    updateFulfillmentOrder(fulfillmentOrderId, {
-      holdReason: 'Pending inventory delivery request',
+    updateOrderMutation.mutate({
+      id: fulfillmentOrderId,
+      input: { holdReason: 'Pending inventory delivery request' },
     });
 
     setShowRequestInventoryModal(false);

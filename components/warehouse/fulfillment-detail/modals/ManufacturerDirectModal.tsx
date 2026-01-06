@@ -124,15 +124,21 @@ export default function ManufacturerDirectModal({
               Ship To Address
             </h4>
             <div className="text-sm text-gray-900">
-              <div className="font-medium">{fulfillmentOrder.shipTo.name}</div>
-              <div>{fulfillmentOrder.shipTo.addressLine1}</div>
-              {fulfillmentOrder.shipTo.addressLine2 && (
-                <div>{fulfillmentOrder.shipTo.addressLine2}</div>
+              {fulfillmentOrder.shipTo ? (
+                <>
+                  <div className="font-medium">{fulfillmentOrder.shipTo.name || 'N/A'}</div>
+                  <div>{fulfillmentOrder.shipTo.addressLine1 || fulfillmentOrder.shipTo.street || ''}</div>
+                  {fulfillmentOrder.shipTo.addressLine2 && (
+                    <div>{fulfillmentOrder.shipTo.addressLine2}</div>
+                  )}
+                  <div>
+                    {fulfillmentOrder.shipTo.city || ''}, {fulfillmentOrder.shipTo.state || ''}{' '}
+                    {fulfillmentOrder.shipTo.postalCode || ''}
+                  </div>
+                </>
+              ) : (
+                <div className="text-gray-500 italic">No shipping address provided</div>
               )}
-              <div>
-                {fulfillmentOrder.shipTo.city}, {fulfillmentOrder.shipTo.state}{' '}
-                {fulfillmentOrder.shipTo.postalCode}
-              </div>
             </div>
           </div>
 

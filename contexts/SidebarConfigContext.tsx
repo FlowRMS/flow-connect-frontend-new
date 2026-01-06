@@ -127,21 +127,26 @@ const defaultConfig: SidebarConfig = {
       items: [
         // { id: 'warehouse-overview', name: 'Overview', href: '/warehouse', enabled: true },
         {
-          id: "warehouse-fulfillment",
-          name: "Fulfillment",
-          href: "/warehouse/fulfillment",
-          enabled: true,
-        },
-        // { id: 'warehouse-deliveries', name: 'Deliveries', href: '/warehouse/deliveries', enabled: true },
-        // { id: 'warehouse-inventory', name: 'Inventory', href: '/warehouse/inventory', enabled: true },
-        // { id: 'warehouse-cycle-counts', name: 'Cycle Counts', href: '/warehouse/cycle-counts', enabled: true },
-        // { id: 'warehouse-reports', name: 'Reports', href: '/warehouse/reports', enabled: true },
-        {
           id: "warehouse-settings",
           name: "Settings",
           href: "/warehouse/settings",
           enabled: true,
         },
+        {
+          id: "warehouse-fulfillment",
+          name: "Fulfillment",
+          href: "/warehouse/fulfillment",
+          enabled: true,
+        },
+        {
+          id: "warehouse-inventory",
+          name: "Inventory",
+          href: "/warehouse/inventory",
+          enabled: true,
+        },
+        // { id: 'warehouse-deliveries', name: 'Deliveries', href: '/warehouse/deliveries', enabled: true },
+        // { id: 'warehouse-cycle-counts', name: 'Cycle Counts', href: '/warehouse/cycle-counts', enabled: true },
+        // { id: 'warehouse-reports', name: 'Reports', href: '/warehouse/reports', enabled: true },
       ],
     },
     {
@@ -260,7 +265,7 @@ const defaultConfig: SidebarConfig = {
 };
 
 const STORAGE_KEY = "sidebar-config";
-const CONFIG_VERSION = 21; // Increment this to force a reset of cached sidebar config (reordered financial items)
+const CONFIG_VERSION = 22; // Increment this to force a reset of cached sidebar config (added inventory tab)
 
 const SidebarConfigContext = createContext<
   SidebarConfigContextType | undefined
