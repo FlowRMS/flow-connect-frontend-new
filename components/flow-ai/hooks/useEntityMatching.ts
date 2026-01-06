@@ -695,6 +695,108 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
     [handleBulkAction]
   );
 
+  // Handle single entity action (Skip, Set for Creation) - no checkbox selection needed
+  const handleSingleAction = useCallback(
+    async (entityId: string, action: BulkConfirmAction) => {
+      const currentEntities = getCurrentEntities();
+      const entity = currentEntities.find(e => e.id === entityId);
+
+      if (!entity) {
+        toast.error('Entity not found');
+        return;
+      }
+
+      setLoadingEntities((prev) => new Set(prev).add(entityId));
+
+      try {
+        // Build input for the single entity
+        const input: {
+          pendingEntityId: string;
+          action: BulkConfirmAction;
+          existingEntityId?: string;
+          existingEntityName?: string;
+          flowIndex?: number;
+        } = {
+          pendingEntityId: entity.id,
+          action,
+        };
+
+        // Include match info if available
+        if (entity.bestMatchId) {
+          input.existingEntityId = entity.bestMatchId;
+        }
+        if (entity.bestMatchName) {
+          input.existingEntityName = entity.bestMatchName;
+        }
+
+        // Include flowIndex from flowIndexDetail
+        if (entity.flowIndexDetail !== null && entity.flowIndexDetail !== undefined) {
+          const flowIndexNum = parseInt(String(entity.flowIndexDetail), 10);
+          if (!isNaN(flowIndexNum)) {
+            input.flowIndex = flowIndexNum;
+          }
+        }
+
+        const result = await flowrmsApolloClient.mutate<BulkConfirmResponse>({
+          mutation: M_BULK_CONFIRM_ENTITIES,
+          variables: { inputs: [input] },
+        });
+
+        if (result.data?.bulkConfirmEntities && result.data.bulkConfirmEntities.length > 0) {
+          const updatedEntity = result.data.bulkConfirmEntities[0];
+
+          // Preserve originalIndex when updating entity
+          const updateFn = (entities: PendingEntity[]): PendingEntity[] =>
+            entities.map((e): PendingEntity =>
+              e.id === entityId
+                ? { ...updatedEntity, selected: false, originalIndex: e.originalIndex }
+                : e
+            );
+
+          switch (currentStep) {
+            case 'factories':
+              setFactories(updateFn);
+              break;
+            case 'customers':
+              setCustomers(updateFn);
+              break;
+            case 'billtocustomers':
+              setBillToCustomers(updateFn);
+              break;
+            case 'endusers':
+              setEndUsers(updateFn);
+              break;
+            case 'products':
+              setProducts(updateFn);
+              break;
+            case 'orders':
+              setOrders(updateFn);
+              break;
+            case 'invoices':
+              setInvoices(updateFn);
+              break;
+          }
+
+          const actionLabel =
+            action === 'SKIP' ? 'skipped' :
+            action === 'SET_FOR_CREATION' ? 'set for creation' :
+            action === 'REJECT' ? 'rejected' : 'updated';
+          toast.success(`Entity ${actionLabel}`);
+        }
+      } catch (error) {
+        console.error('Error performing action:', error);
+        toast.error('Failed to perform action');
+      } finally {
+        setLoadingEntities((prev) => {
+          const next = new Set(prev);
+          next.delete(entityId);
+          return next;
+        });
+      }
+    },
+    [getCurrentEntities, currentStep]
+  );
+
   // Select a match for an entity (local state only - does NOT call API)
   // Use this for dropdown selection - actual confirmation happens via bulk/approve buttons
   const handleSelectMatch = useCallback(
@@ -1044,6 +1146,7 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
     handleBulkSkip,
     handleBulkSetForCreation,
     handleBulkAction,
+    handleSingleAction,
     handleSelectAlternative,
     handleSearchEntities,
     handleSearchUsers,

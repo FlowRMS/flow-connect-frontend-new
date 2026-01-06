@@ -1130,6 +1130,20 @@ export const M_EXECUTE_DOCUMENT_WORKFLOW = gql`
   }
 `;
 
+// Query to get processing results for a pending document
+export const Q_PENDING_DOCUMENT_PROCESSINGS = gql`
+  query PendingDocumentProcessings($pendingDocumentId: UUID!) {
+    pendingDocumentProcessings(pendingDocumentId: $pendingDocumentId) {
+      dtoJson
+      entityId
+      errorMessage
+      id
+      pendingDocumentId
+      status
+    }
+  }
+`;
+
 
 
 

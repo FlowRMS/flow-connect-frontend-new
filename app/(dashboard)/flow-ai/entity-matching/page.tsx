@@ -194,6 +194,7 @@ function EntityMatchingContent() {
     handleBulkReject,
     handleBulkSkip,
     handleBulkSetForCreation,
+    handleSingleAction,
     handleSearchEntities,
     handleSearchUsers,
     initialLoadComplete,
@@ -837,11 +838,7 @@ function EntityMatchingContent() {
                       disabled={isEntityLoading}
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleToggleSelect(entity.id);
-                        // Select this entity and skip it
-                        setTimeout(() => {
-                          handleBulkSkip();
-                        }, 50);
+                        handleSingleAction(entity.id, 'SKIP');
                       }}
                     >
                       {isEntityLoading ? (
@@ -858,11 +855,7 @@ function EntityMatchingContent() {
                       disabled={isEntityLoading}
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleToggleSelect(entity.id);
-                        // Select this entity and set for creation
-                        setTimeout(() => {
-                          handleBulkSetForCreation();
-                        }, 50);
+                        handleSingleAction(entity.id, 'SET_FOR_CREATION');
                       }}
                     >
                       {isEntityLoading ? (
@@ -906,11 +899,7 @@ function EntityMatchingContent() {
                         disabled={isEntityLoading}
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleToggleSelect(entity.id);
-                          // Select this entity and skip it
-                          setTimeout(() => {
-                            handleBulkSkip();
-                          }, 50);
+                          handleSingleAction(entity.id, 'SKIP');
                         }}
                       >
                         {isEntityLoading ? (
