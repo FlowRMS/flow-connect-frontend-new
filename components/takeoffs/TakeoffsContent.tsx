@@ -7,12 +7,13 @@
 
 'use client';
 
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useState } from 'react';
 import { useTakeoffsState } from './hooks/useTakeoffsState';
 import { TakeoffListView } from './views/TakeoffListView';
 import { TakeoffDetailView } from './views/TakeoffDetailView';
 import { UploadModal } from './modals/UploadModal';
 import { AbridgmentReportModal } from './modals/AbridgmentReportModal';
+import { CreateQuoteFromTakeoffModal } from './modals/CreateQuoteFromTakeoffModal';
 import { TAKEOFF_FILTER_OPTIONS } from './constants';
 import AdvancedFilters from '../AdvancedFilters';
 import { showWarningToast } from '../lib/toast';
@@ -61,6 +62,8 @@ export function TakeoffsContent() {
     // Abridgement state
     abridgementState,
     documentAbridgementProgress,
+    // Per-item crossing state
+    itemCrossingState,
     handleCrossItem,
     handleCrossSelected,
     handleCrossAll,
@@ -89,6 +92,29 @@ export function TakeoffsContent() {
     totalCount,
   } = state;
 
+  // State for Create Quote modal
+  const [showCreateQuoteModal, setShowCreateQuoteModal] = useState(false);
+
+  // Handler to open Create Quote modal (same behavior as detail flow)
+  const handleOpenCreateQuoteModal = useCallback(() => {
+    // Check if takeoff status is Complete
+    if (selectedTakeoff?.status !== 'Complete') {
+      showWarningToast('Cannot Create Quote', {
+        description: 'The takeoff must be completed (all items crossed) before creating a quote.'
+      });
+      return;
+    }
+
+    const crossedItems = parsedItems.filter(item => item.isCrossed);
+    if (crossedItems.length === 0) {
+      showWarningToast('No Items to Quote', {
+        description: 'Please cross some products first to create a quote.'
+      });
+      return;
+    }
+    setShowCreateQuoteModal(true);
+  }, [parsedItems, selectedTakeoff]);
+
   // Extract unique client names from existing takeoffs for autocomplete
   const existingClients = useMemo(() => {
     console.log('[Takeoffs] Extracting clients from takeoffs:', takeoffs.length);
@@ -104,7 +130,7 @@ export function TakeoffsContent() {
     return [...new Set(clientNames)].sort();
   }, [takeoffs]);
 
-  // Handle proceed to parsing - validates that there are documents with URLs
+  // Handle proceed to parsing - validates that there are documents with URLs and triggers parsing
   const handleProceedToParsing = useCallback(() => {
     console.log('🔵 [handleProceedToParsing] Called!');
     console.log('🔵 [handleProceedToParsing] Documents:', documents.length);
@@ -122,7 +148,11 @@ export function TakeoffsContent() {
 
     console.log('🔵 [handleProceedToParsing] Proceeding to parsing step');
     handleStepChange('parsing');
-  }, [documents, handleStepChange]);
+
+    // Trigger parsing automatically after changing to parsing step
+    console.log('🔵 [handleProceedToParsing] Triggering handleParseSchedules');
+    handleParseSchedules();
+  }, [documents, handleStepChange, handleParseSchedules]);
 
   return (
     <main className="flex-1 overflow-y-auto bg-[var(--background)] p-3 sm:p-6">
@@ -281,9 +311,10 @@ export function TakeoffsContent() {
           onCrossItem={handleCrossItem}
           onCrossSelected={handleCrossSelected}
           onCrossAll={handleCrossAll}
+          itemCrossingState={itemCrossingState}
           onToggleSelect={handleToggleSelectItem}
           onSelectAll={handleSelectAllItems}
-          onCreateQuote={handleCreateQuote}
+          onCreateQuote={handleOpenCreateQuoteModal}
           onDownloadDocument={handleDownloadDocument}
           onDownloadAllDocuments={handleDownloadAllDocuments}
           onCrossTypesChange={handleCrossTypesChange}
@@ -313,6 +344,21 @@ export function TakeoffsContent() {
         isOpen={showAbridgmentReportModal}
         document={selectedDocument}
         onClose={handleCloseAbridgmentReport}
+      />
+
+      {/* Create Quote from Takeoff Modal */}
+      <CreateQuoteFromTakeoffModal
+        isOpen={showCreateQuoteModal}
+        takeoffId={selectedTakeoff?.id || ''}
+        takeoffName={selectedTakeoff?.name || selectedTakeoff?.title || 'Takeoff'}
+        clientName={selectedTakeoff?.metadata?.clientName}
+        crossedItems={parsedItems.filter(item => item.isCrossed)}
+        onClose={() => setShowCreateQuoteModal(false)}
+        onSuccess={(quote) => {
+          console.log('Quote created:', quote);
+          // Don't close modal here - let the user see the success step
+          // Modal has its own "Stay Here" and "View Quote" buttons
+        }}
       />
     </main>
   );

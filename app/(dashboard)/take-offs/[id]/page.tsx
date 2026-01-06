@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { TakeoffDetailView } from '@/components/takeoffs/views/TakeoffDetailView';
 import { fetchTakeoff, updateTakeoffDocument, updateTakeoff, abridgeDocument as abridgeDocumentAPI, parseScheduleDocument } from '@/components/lib/graphql/takeoffs';
 import { crossProducts, createKnownProductCross } from '@/components/lib/graphql/product-crosses';
@@ -10,6 +10,7 @@ import { transformTakeoffResponse, stepToApiStatus, transformDocumentResponse } 
 import { getInitialStep } from '@/components/takeoffs/utils';
 import { AbridgmentReportModal } from '@/components/takeoffs/modals/AbridgmentReportModal';
 import { CreateQuoteFromTakeoffModal } from '@/components/takeoffs/modals/CreateQuoteFromTakeoffModal';
+import { showWarningToast } from '@/components/lib/toast';
 import JSZip from 'jszip';
 
 // Abridgement state per document
@@ -25,6 +26,7 @@ export default function TakeoffDetailPage() {
 
   const [takeoff, setTakeoff] = useState<Takeoff | null>(null);
   const [documents, setDocuments] = useState<TakeoffDocument[]>([]);
+  const documentsRef = useRef<TakeoffDocument[]>([]); // Ref to always have latest documents
   const [parsedItems, setParsedItems] = useState<ParsedItem[]>([]);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [currentStep, setCurrentStep] = useState<TakeoffStep>('classification');
@@ -43,8 +45,10 @@ export default function TakeoffDetailPage() {
 
   // Parsing state
   const [isParsingProcessing, setIsParsingProcessing] = useState(false);
+  const isParsingRef = useRef(false); // Ref to track parsing state
   const [parsingProgress, setParsingProgress] = useState(0);
   const [parsingMessage, setParsingMessage] = useState<string | null>(null);
+  const parsedItemsRef = useRef<ParsedItem[]>([]); // Ref to track parsed items
 
   // Per-item crossing state (tracks which items are being crossed)
   const [itemCrossingState, setItemCrossingState] = useState<Record<string, { isProcessing: boolean; error?: string }>>({});
@@ -63,7 +67,17 @@ export default function TakeoffDetailPage() {
         setCurrentStep(getInitialStep(transformed.status));
 
         if (response.documents && response.documents.length > 0) {
+          console.log('[loadTakeoff] Raw documents from backend:', response.documents.length);
+          response.documents.forEach((doc, i) => {
+            console.log(`[loadTakeoff] Doc ${i} (${doc.name}): parsedItems=`, doc.parsedItems, 'type=', typeof doc.parsedItems);
+          });
+
           const docs: TakeoffDocument[] = response.documents.map(transformDocumentResponse);
+
+          console.log('[loadTakeoff] Transformed documents:', docs.length);
+          docs.forEach((doc, i) => {
+            console.log(`[loadTakeoff] Transformed doc ${i} (${doc.name}): parsedItems=`, doc.parsedItems?.length || 0);
+          });
 
           setDocuments(docs);
 
@@ -73,6 +87,7 @@ export default function TakeoffDetailPage() {
               allParsedItems.push(...doc.parsedItems);
             }
           });
+          console.log('[loadTakeoff] Total parsed items loaded:', allParsedItems.length);
           setParsedItems(allParsedItems);
         }
       }
@@ -87,6 +102,19 @@ export default function TakeoffDetailPage() {
   useEffect(() => {
     loadTakeoff();
   }, [loadTakeoff]);
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    documentsRef.current = documents;
+  }, [documents]);
+
+  useEffect(() => {
+    parsedItemsRef.current = parsedItems;
+  }, [parsedItems]);
+
+  useEffect(() => {
+    isParsingRef.current = isParsingProcessing;
+  }, [isParsingProcessing]);
 
   const handleBack = () => {
     router.push('/take-offs');
@@ -108,6 +136,7 @@ export default function TakeoffDetailPage() {
 
   // Handler specifically for "Proceed to Parsing" button - changes step AND triggers parsing
   const handleProceedToParsing = async () => {
+    console.log('[handleProceedToParsing] Called');
     setCurrentStep('parsing');
     if (takeoff) {
       try {
@@ -116,11 +145,15 @@ export default function TakeoffDetailPage() {
         console.warn('Failed to update takeoff status:', err);
       }
     }
-    // Auto-trigger parsing when proceeding from classification
-    if (parsedItems.length === 0 && !isParsingProcessing) {
-      setTimeout(() => {
-        handleParseSchedules();
-      }, 100);
+    // Auto-trigger parsing when proceeding from classification (use refs for latest values)
+    const currentParsedItems = parsedItemsRef.current;
+    const currentIsProcessing = isParsingRef.current;
+    console.log('[handleProceedToParsing] parsedItems:', currentParsedItems.length, 'isProcessing:', currentIsProcessing);
+
+    if (currentParsedItems.length === 0 && !currentIsProcessing) {
+      console.log('[handleProceedToParsing] Triggering handleParseSchedules');
+      // Call directly instead of setTimeout to avoid closure issues
+      handleParseSchedules();
     }
   };
 
@@ -318,6 +351,20 @@ export default function TakeoffDetailPage() {
           ...prev,
           [docId]: { isProcessing: false },
         }));
+
+        // Check if all abridgeable documents are now abridged - update status to Abridgment
+        const docsToAbridge = documents.filter(d => !d.abridged && d.documentUrl);
+        const allAbridged = docsToAbridge.length === 0 || docsToAbridge.every(d => d.id === docId);
+
+        if (allAbridged && takeoff && takeoff.status !== 'Complete') {
+          try {
+            await updateTakeoff(takeoff.id, { status: 'ABRIDGMENT' });
+            setTakeoff(prev => prev ? { ...prev, status: 'Abridgment' } : null);
+            console.log('[page.tsx handleAbridgeDocument] All docs abridged - status updated to Abridgment');
+          } catch (statusErr) {
+            console.error('[page.tsx handleAbridgeDocument] Failed to update status:', statusErr);
+          }
+        }
       } else {
         // Set error state
         setDocumentAbridgeState(prev => ({
@@ -340,6 +387,17 @@ export default function TakeoffDetailPage() {
     for (const doc of unabridgedDocs) {
       await handleAbridgeDocument(doc.id);
     }
+
+    // Update takeoff status to ABRIDGMENT after all documents are abridged
+    if (unabridgedDocs.length > 0 && takeoff && takeoff.status !== 'Complete') {
+      try {
+        await updateTakeoff(takeoff.id, { status: 'ABRIDGMENT' });
+        setTakeoff(prev => prev ? { ...prev, status: 'Abridgment' } : null);
+        console.log('[page.tsx handleAbridgeAll] Status updated to Abridgment');
+      } catch (statusErr) {
+        console.error('[page.tsx handleAbridgeAll] Failed to update status:', statusErr);
+      }
+    }
   };
 
   // View abridgment report for a document
@@ -350,10 +408,15 @@ export default function TakeoffDetailPage() {
 
   // Parse schedule documents to extract product items
   const handleParseSchedules = async () => {
+    // Use ref to get the latest documents (avoid stale closure)
+    const currentDocs = documentsRef.current;
+
     // Get all documents with URLs
-    const scheduleDocs = documents.filter(d =>
+    const scheduleDocs = currentDocs.filter(d =>
       d.abridgedUrl || d.documentUrl
     );
+
+    console.log('[Parsing] Total docs:', currentDocs.length, 'Docs with URLs:', scheduleDocs.length);
 
     if (scheduleDocs.length === 0) {
       console.warn('No documents available for parsing');
@@ -503,6 +566,20 @@ export default function TakeoffDetailPage() {
         ...prev,
         [itemId]: { isProcessing: false },
       }));
+
+      // Check if all crossable items are now crossed - update status to Complete
+      const crossableItems = parsedItems.filter(i => !i.isOurManufacturer);
+      const allCrossed = crossableItems.every(i => i.id === itemId || i.isCrossed);
+
+      if (allCrossed && takeoff) {
+        try {
+          await updateTakeoff(takeoff.id, { status: 'COMPLETE' });
+          setTakeoff(prev => prev ? { ...prev, status: 'Complete' } : null);
+          console.log('[page.tsx handleCrossItem] All items crossed - status updated to Complete');
+        } catch (statusErr) {
+          console.error('[page.tsx handleCrossItem] Failed to update status:', statusErr);
+        }
+      }
     } catch (err) {
       console.error('Failed to cross item:', err);
       setItemCrossingState(prev => ({
@@ -512,10 +589,10 @@ export default function TakeoffDetailPage() {
     }
   };
 
-  // Cross all uncrossed competitor items in a single batch API call
+  // Cross all competitor items in a single batch API call - allows re-crossing
   const handleCrossAll = async () => {
     console.log('🔵 [page.tsx handleCrossAll] Starting batch cross...');
-    const itemsToCross = parsedItems.filter(i => !i.isOurManufacturer && !i.isCrossed);
+    const itemsToCross = parsedItems.filter(i => !i.isOurManufacturer);
 
     if (itemsToCross.length === 0) {
       console.log('🔵 [page.tsx handleCrossAll] No items to cross');
@@ -524,7 +601,7 @@ export default function TakeoffDetailPage() {
 
     console.log(`🔵 [page.tsx handleCrossAll] Crossing ${itemsToCross.length} items in batch`);
 
-    // Set processing state for all items
+    // Set processing state for each individual item (shows spinner per row)
     const processingState: Record<string, { isProcessing: boolean; error?: string }> = {};
     itemsToCross.forEach(item => {
       processingState[item.id] = { isProcessing: true };
@@ -552,7 +629,6 @@ export default function TakeoffDetailPage() {
 
       // Process results and update items
       const updatedItems = [...parsedItems];
-      const clearState: Record<string, { isProcessing: boolean; error?: string }> = {};
 
       for (let i = 0; i < itemsToCross.length; i++) {
         const item = itemsToCross[i];
@@ -590,12 +666,14 @@ export default function TakeoffDetailPage() {
             }
           }
         }
-
-        clearState[item.id] = { isProcessing: false };
       }
 
-      // Update all items at once
+      // Update all items at once and clear individual processing states
       setParsedItems(updatedItems);
+      const clearState: Record<string, { isProcessing: boolean; error?: string }> = {};
+      itemsToCross.forEach(item => {
+        clearState[item.id] = { isProcessing: false };
+      });
       setItemCrossingState(prev => ({ ...prev, ...clearState }));
 
       // Persist updated items to backend for each document
@@ -621,9 +699,20 @@ export default function TakeoffDetailPage() {
 
       console.log('🔵 [page.tsx handleCrossAll] Batch cross complete');
 
+      // Update takeoff status to COMPLETE
+      if (takeoff) {
+        try {
+          await updateTakeoff(takeoff.id, { status: 'COMPLETE' });
+          setTakeoff(prev => prev ? { ...prev, status: 'Complete' } : null);
+          console.log('🔵 [page.tsx handleCrossAll] Status updated to Complete');
+        } catch (statusErr) {
+          console.error('🔴 [page.tsx handleCrossAll] Failed to update status:', statusErr);
+        }
+      }
+
     } catch (err) {
       console.error('🔴 [page.tsx handleCrossAll] Batch cross failed:', err);
-      // Clear processing state on error
+      // Clear processing state on error for each individual item
       const errorState: Record<string, { isProcessing: boolean; error?: string }> = {};
       itemsToCross.forEach(item => {
         errorState[item.id] = { isProcessing: false, error: 'Cross failed' };
@@ -646,6 +735,26 @@ export default function TakeoffDetailPage() {
       // Revert on error
       setTakeoff(prev => prev ? { ...prev, title: takeoff.title } : null);
     }
+  };
+
+  // Handle Create Quote button click with status validation
+  const handleCreateQuote = () => {
+    // Check if takeoff status is Complete
+    if (takeoff?.status !== 'Complete') {
+      showWarningToast('Cannot Create Quote', {
+        description: 'The takeoff must be completed (all items crossed) before creating a quote.'
+      });
+      return;
+    }
+
+    const crossedItems = parsedItems.filter(item => item.isCrossed);
+    if (crossedItems.length === 0) {
+      showWarningToast('No Items to Quote', {
+        description: 'Please cross some products first to create a quote.'
+      });
+      return;
+    }
+    setShowCreateQuoteModal(true);
   };
 
   if (isLoading) {
@@ -702,7 +811,7 @@ export default function TakeoffDetailPage() {
         onCrossSelected={() => {}}
         onCrossAll={handleCrossAll}
         itemCrossingState={itemCrossingState}
-        onCreateQuote={() => setShowCreateQuoteModal(true)}
+        onCreateQuote={handleCreateQuote}
         onDownloadDocument={handleDownloadDocument}
         onDownloadAllDocuments={handleDownloadAllDocuments}
         productCrossResults={[]}
