@@ -1,8 +1,16 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { AssignedUser, AssignedUserRole } from '@/lib/types/warehouse';
-import { WarehouseUser, getWarehouseManagers, getWarehouseWorkers } from '@/lib/data/warehouse-mock';
+import { useWarehouseQuery } from './settings/api/useWarehousesApi';
+import { useUsersQuery } from './settings/api/useUsersApi';
+
+// Type for displaying available users in the dropdown
+interface AvailableUser {
+  id: string;
+  name: string;
+  email: string;
+}
 
 interface AssignmentPanelProps {
   assignedManagers: AssignedUser[];
@@ -26,15 +34,96 @@ export default function AssignmentPanel({
   const [showManagerDropdown, setShowManagerDropdown] = useState(false);
   const [showWorkerDropdown, setShowWorkerDropdown] = useState(false);
 
-  const availableManagers = getWarehouseManagers(warehouseId).filter(
-    m => !assignedManagers.some(am => am.userId === m.id)
-  );
-  const availableWorkers = getWarehouseWorkers(warehouseId).filter(
-    w => !assignedWorkers.some(aw => aw.userId === w.id)
-  );
+  // Refs for dropdown positioning
+  const workerButtonRef = useRef<HTMLButtonElement>(null);
+  const managerButtonRef = useRef<HTMLButtonElement>(null);
+  const [workerDropdownStyle, setWorkerDropdownStyle] = useState<React.CSSProperties>({});
+  const [managerDropdownStyle, setManagerDropdownStyle] = useState<React.CSSProperties>({});
+
+  // Fetch warehouse to get its members
+  const { data: warehouse, isLoading: isLoadingWarehouse } = useWarehouseQuery(warehouseId || '');
+
+  // Fetch all users to get their details
+  const { data: allUsers = [], isLoading: isLoadingUsers } = useUsersQuery(100);
+
+  // Normalize role to string (backend may return number: 1=WORKER, 2=MANAGER or string 'WORKER'/'MANAGER'/'worker'/'manager')
+  const normalizeRole = (role: number | string): 'WORKER' | 'MANAGER' => {
+    if (typeof role === 'number') {
+      return role === 2 ? 'MANAGER' : 'WORKER';
+    }
+    const roleStr = String(role).toUpperCase();
+    return roleStr === 'MANAGER' ? 'MANAGER' : 'WORKER';
+  };
+
+  // Get available workers and managers from warehouse members
+  let availableWorkers: AvailableUser[] = [];
+  let availableManagers: AvailableUser[] = [];
+
+  if (warehouse?.members && warehouse.members.length > 0 && allUsers.length > 0) {
+    warehouse.members.forEach(member => {
+      const memberRole = normalizeRole(member.role);
+      const user = allUsers.find(u => u.id === member.userId);
+      if (!user || !user.enabled) return;
+
+      const availableUser: AvailableUser = {
+        id: user.id,
+        name: user.fullName || `${user.firstName} ${user.lastName}`.trim() || user.username,
+        email: user.email,
+      };
+
+      if (memberRole === 'WORKER') {
+        if (!assignedWorkers.some(aw => aw.userId === user.id)) {
+          availableWorkers.push(availableUser);
+        }
+      } else if (memberRole === 'MANAGER') {
+        if (!assignedManagers.some(am => am.userId === user.id)) {
+          availableManagers.push(availableUser);
+        }
+      }
+    });
+  }
+
+  // Calculate dropdown position when opened
+  const calculateDropdownPosition = (buttonRef: React.RefObject<HTMLButtonElement | null>) => {
+    if (!buttonRef.current) return {};
+
+    const rect = buttonRef.current.getBoundingClientRect();
+    const dropdownHeight = 224; // max-h-56 = 14rem = 224px
+    const viewportHeight = window.innerHeight;
+    const spaceBelow = viewportHeight - rect.bottom;
+    const spaceAbove = rect.top;
+
+    // Prefer showing below, but show above if not enough space
+    const showAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow;
+
+    return {
+      position: 'fixed' as const,
+      left: rect.left,
+      width: rect.width,
+      maxHeight: Math.min(dropdownHeight, showAbove ? spaceAbove - 8 : spaceBelow - 8),
+      ...(showAbove
+        ? { bottom: viewportHeight - rect.top + 8 }
+        : { top: rect.bottom + 8 }
+      ),
+    };
+  };
+
+  // Update dropdown positions when they open
+  useEffect(() => {
+    if (showWorkerDropdown) {
+      setWorkerDropdownStyle(calculateDropdownPosition(workerButtonRef));
+    }
+  }, [showWorkerDropdown]);
+
+  useEffect(() => {
+    if (showManagerDropdown) {
+      setManagerDropdownStyle(calculateDropdownPosition(managerButtonRef));
+    }
+  }, [showManagerDropdown]);
 
   // Check if required roles are missing
   const missingWorker = showRequiredWarnings && assignedWorkers.length === 0;
+  const isLoading = isLoadingWarehouse || isLoadingUsers;
 
   const renderAssignedUser = (user: AssignedUser, role: AssignedUserRole) => (
     <div
@@ -64,55 +153,79 @@ export default function AssignmentPanel({
     </div>
   );
 
+  const renderDropdownContent = (
+    availableUsers: AvailableUser[],
+    role: AssignedUserRole,
+    setShowDropdown: (show: boolean) => void,
+    dropdownStyle: React.CSSProperties
+  ) => (
+    <>
+      <div
+        className="fixed inset-0 z-[100]"
+        onClick={() => setShowDropdown(false)}
+      />
+      <div
+        className="bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-xl z-[101] overflow-y-auto"
+        style={dropdownStyle}
+      >
+        <div className="p-2">
+          {availableUsers.map(user => (
+            <button
+              key={user.id}
+              onClick={() => {
+                onAddAssignment(user.id, role);
+                setShowDropdown(false);
+              }}
+              className="w-full px-3 py-2.5 text-left hover:bg-[var(--muted)] rounded-md transition-colors flex items-center gap-3"
+            >
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--primary)]/80 to-[var(--primary)]/50 flex items-center justify-center flex-shrink-0">
+                <span className="text-xs font-semibold text-white">
+                  {user.name.split(' ').map(n => n[0]).join('')}
+                </span>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-[var(--foreground)]">{user.name}</p>
+                <p className="text-xs text-[var(--muted-foreground)]">{user.email}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+
   const renderAddButton = (
     role: AssignedUserRole,
-    availableUsers: WarehouseUser[],
+    availableUsers: AvailableUser[],
     showDropdown: boolean,
     setShowDropdown: (show: boolean) => void,
-    label: string
+    label: string,
+    buttonRef: React.RefObject<HTMLButtonElement | null>,
+    dropdownStyle: React.CSSProperties
   ) => (
     <div className="relative">
       <button
+        ref={buttonRef}
         onClick={() => setShowDropdown(!showDropdown)}
-        disabled={availableUsers.length === 0}
+        disabled={availableUsers.length === 0 && !isLoading}
         className="w-full px-4 py-3 text-sm text-[var(--muted-foreground)] border-2 border-dashed border-[var(--border)] rounded-lg hover:border-[var(--primary)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/5 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-[var(--border)] disabled:hover:text-[var(--muted-foreground)] disabled:hover:bg-transparent"
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M12 5v14M5 12h14" />
-        </svg>
-        {label}
+        {isLoading ? (
+          <span className="text-xs">Loading...</span>
+        ) : (
+          <>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            {availableUsers.length === 0 ? `No ${role}s available` : label}
+          </>
+        )}
       </button>
-      {showDropdown && availableUsers.length > 0 && (
-        <>
-          <div
-            className="fixed inset-0 z-10"
-            onClick={() => setShowDropdown(false)}
-          />
-          <div className="absolute top-full left-0 right-0 mt-2 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-xl z-20 max-h-56 overflow-y-auto">
-            <div className="p-2">
-              {availableUsers.map(user => (
-                <button
-                  key={user.id}
-                  onClick={() => {
-                    onAddAssignment(user.id, role);
-                    setShowDropdown(false);
-                  }}
-                  className="w-full px-3 py-2.5 text-left hover:bg-[var(--muted)] rounded-md transition-colors flex items-center gap-3"
-                >
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--primary)]/80 to-[var(--primary)]/50 flex items-center justify-center flex-shrink-0">
-                    <span className="text-xs font-semibold text-white">
-                      {user.name.split(' ').map(n => n[0]).join('')}
-                    </span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-[var(--foreground)]">{user.name}</p>
-                    <p className="text-xs text-[var(--muted-foreground)]">{user.email}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        </>
+      {showDropdown && availableUsers.length > 0 && renderDropdownContent(
+        availableUsers,
+        role,
+        setShowDropdown,
+        dropdownStyle
       )}
     </div>
   );
@@ -169,7 +282,9 @@ export default function AssignmentPanel({
               availableWorkers,
               showWorkerDropdown,
               setShowWorkerDropdown,
-              assignedWorkers.length > 0 ? 'Add another worker' : 'Assign worker'
+              assignedWorkers.length > 0 ? 'Add another worker' : 'Assign worker',
+              workerButtonRef,
+              workerDropdownStyle
             )}
           </div>
         </div>
@@ -198,7 +313,9 @@ export default function AssignmentPanel({
               availableManagers,
               showManagerDropdown,
               setShowManagerDropdown,
-              assignedManagers.length > 0 ? 'Change manager' : 'Assign manager'
+              assignedManagers.length > 0 ? 'Change manager' : 'Assign manager',
+              managerButtonRef,
+              managerDropdownStyle
             )}
           </div>
         </div>

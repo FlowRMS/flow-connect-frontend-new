@@ -209,11 +209,24 @@ export const mockWarehouseUsers: WarehouseUser[] = [
 
 // Get warehouse users by role
 export function getWarehouseUsersByRole(role: AssignedUserRole, warehouseId?: string): WarehouseUser[] {
-  return mockWarehouseUsers.filter(user =>
+  // First try to find users for the specific warehouse
+  const warehouseSpecificUsers = mockWarehouseUsers.filter(user =>
     user.role === role &&
     user.isActive &&
-    (!warehouseId || user.warehouseIds.includes(warehouseId))
+    warehouseId &&
+    user.warehouseIds.includes(warehouseId)
   );
+
+  // If no users found for specific warehouse (e.g., real backend warehouse ID),
+  // return all active users of that role as fallback
+  if (warehouseSpecificUsers.length === 0) {
+    return mockWarehouseUsers.filter(user =>
+      user.role === role &&
+      user.isActive
+    );
+  }
+
+  return warehouseSpecificUsers;
 }
 
 // Get all warehouse managers
