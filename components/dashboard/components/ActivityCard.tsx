@@ -246,20 +246,7 @@ function ActivityMetadata({ activity }: { activity: Activity }) {
       return null; // Notes don't need extra metadata display
 
     case 'task':
-      return (
-        <div className="flex items-center gap-2 flex-wrap text-xs text-[var(--muted-foreground)]">
-          {status && (
-            <span className={`px-2 py-0.5 rounded ${getEntityStatusColor(status)}`}>
-              {status.replace('_', ' ')}
-            </span>
-          )}
-          {metadata.priority && (
-            <span className={`px-2 py-0.5 rounded ${getPriorityColor(metadata.priority)}`}>
-              {metadata.priority}
-            </span>
-          )}
-        </div>
-      );
+      return null; // Tasks don't need extra metadata display
 
     case 'customer':
       return (
@@ -307,7 +294,30 @@ export function ActivityCard({ activity }: ActivityCardProps) {
               )}
             </div>
             <h4 className="font-semibold text-[var(--foreground)] text-sm sm:text-base mb-1 line-clamp-2 sm:line-clamp-1">{activity.entity || activity.title}</h4>
-            <p className="text-xs sm:text-sm text-[var(--muted-foreground)] line-clamp-2">{activity.description}</p>
+            {activity.type !== 'task' && (
+              <p className="text-xs sm:text-sm text-[var(--muted-foreground)] line-clamp-2">{activity.description}</p>
+            )}
+            
+            {/* Linked Entities for tasks */}
+            {activity.type === 'task' && activity.linkedEntities && activity.linkedEntities.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap mb-2 mt-1">
+                <div className="flex gap-1.5 flex-wrap">
+                  {activity.linkedEntities.slice(0, 3).map((link, idx) => (
+                    <span
+                      key={idx}
+                      className={`px-2 py-0.5 rounded text-xs font-medium ${getLinkedEntityColor(link.type)}`}
+                    >
+                      {link.name}
+                    </span>
+                  ))}
+                  {activity.linkedEntities.length > 3 && (
+                    <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">
+                      +{activity.linkedEntities.length - 3} more
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
           <span className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-xs font-medium flex-shrink-0 self-start ${getStatusBadgeClass(activity.activityStatus)}`}>
             {capitalize(activity.activityStatus)}
@@ -320,7 +330,7 @@ export function ActivityCard({ activity }: ActivityCardProps) {
         </div>
 
         {/* Tags */}
-        {activity.tags && activity.tags.length > 0 && (
+        {activity.type !== 'task' && activity.tags && activity.tags.length > 0 && (
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap mb-3">
             <div className="flex gap-1 sm:gap-1.5 flex-wrap">
               {activity.tags.slice(0, 3).map((tag, idx) => (
@@ -349,8 +359,8 @@ export function ActivityCard({ activity }: ActivityCardProps) {
           </div>
         )}
 
-        {/* Linked Entities with color-coding */}
-        {activity.linkedEntities && activity.linkedEntities.length > 0 && (
+        {/* Linked Entities with color-coding - not for tasks (moved above) */}
+        {activity.type !== 'task' && activity.linkedEntities && activity.linkedEntities.length > 0 && (
           <div className="flex items-center gap-2 flex-wrap mb-3">
             <div className="flex gap-1.5 flex-wrap">
               {activity.linkedEntities.slice(0, 3).map((link, idx) => (
