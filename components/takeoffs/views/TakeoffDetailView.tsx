@@ -598,6 +598,8 @@ export function TakeoffDetailView({
                 documentAbridgeState={documentAbridgeState}
                 classifyingDocIds={classifyingDocIds}
                 isClassifying={isClassifying}
+                isAbridgementProcessing={isAbridgementProcessing}
+                abridgementCurrentItem={abridgementState?.currentItem}
               />
         )}
 
