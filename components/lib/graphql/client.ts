@@ -189,11 +189,11 @@ export async function crmGraphQLMultipartRequest<T = unknown>(
   const accessToken = await getAccessToken();
 
   if (!accessToken) {
-    // Redirect to auth-error to avoid redirect loops
+    // Redirect to sign-in to re-authenticate (not auth-error which is for unauthorized users)
     if (typeof window !== 'undefined') {
-      window.location.href = '/auth-error';
+      window.location.href = '/sign-in';
     }
-    throw new Error('Authentication failed. Please clear your cookies and try again.');
+    throw new Error('Session expired. Please sign in again.');
   }
 
   // Use the upload proxy endpoint
@@ -254,10 +254,11 @@ export async function crmGraphQLMultipartRequest<T = unknown>(
         body: formData,
       });
     } else {
+      // Token refresh failed, redirect to sign-in to re-authenticate
       if (typeof window !== 'undefined') {
-        window.location.href = '/auth-error';
+        window.location.href = '/sign-in';
       }
-      throw new Error('Authentication expired. Please clear your cookies and try again.');
+      throw new Error('Session expired. Please sign in again.');
     }
   }
 
@@ -273,10 +274,11 @@ export async function crmGraphQLMultipartRequest<T = unknown>(
     error.message?.toLowerCase().includes('unauthorized')
   )) {
     clearTokenCache();
+    // Redirect to sign-in to re-authenticate
     if (typeof window !== 'undefined') {
-      window.location.href = '/auth-error';
+      window.location.href = '/sign-in';
     }
-    throw new Error('Session expired. Please clear your cookies and try again.');
+    throw new Error('Session expired. Please sign in again.');
   }
 
   return result;
@@ -293,11 +295,11 @@ export async function crmGraphQLRequest<T = unknown>(
   const accessToken = await getAccessToken();
 
   if (!accessToken) {
-    // Redirect to auth-error to avoid redirect loops
+    // Redirect to sign-in to re-authenticate (not auth-error which is for unauthorized users)
     if (typeof window !== 'undefined') {
-      window.location.href = '/auth-error';
+      window.location.href = '/sign-in';
     }
-    throw new Error('Authentication failed. Please clear your cookies and try again.');
+    throw new Error('Session expired. Please sign in again.');
   }
 
   const endpoint = getGraphQLEndpoint();
@@ -336,11 +338,11 @@ export async function crmGraphQLRequest<T = unknown>(
         }),
       });
     } else {
-      // Token refresh failed, redirect to auth-error to avoid loops
+      // Token refresh failed, redirect to sign-in to re-authenticate
       if (typeof window !== 'undefined') {
-        window.location.href = '/auth-error';
+        window.location.href = '/sign-in';
       }
-      throw new Error('Authentication expired. Please clear your cookies and try again.');
+      throw new Error('Session expired. Please sign in again.');
     }
   }
 
@@ -358,11 +360,11 @@ export async function crmGraphQLRequest<T = unknown>(
     // Clear the cached token
     clearTokenCache();
 
-    // Redirect to auth-error to avoid loops
+    // Redirect to sign-in to re-authenticate
     if (typeof window !== 'undefined') {
-      window.location.href = '/auth-error';
+      window.location.href = '/sign-in';
     }
-    throw new Error('Session expired. Please clear your cookies and try again.');
+    throw new Error('Session expired. Please sign in again.');
   }
 
   return result;

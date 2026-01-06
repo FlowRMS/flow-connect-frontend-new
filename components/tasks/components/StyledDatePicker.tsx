@@ -235,10 +235,15 @@ export const StyledDatePicker: React.FC<StyledDatePickerProps> = ({
 
 /**
  * Helper function to parse date string to Date object
+ * Appends T00:00:00 to treat the date as local time, preventing timezone offset issues
+ * that cause the date to shift by one day when parsed as UTC
  */
 export function parseDateString(dateStr: string | undefined | null): Date | null {
-  if (!dateStr) return null;
-  const date = new Date(dateStr);
+  if (!dateStr || dateStr === '-' || dateStr === '') return null;
+  // Parse as local time by appending T00:00:00
+  // This prevents the off-by-one day bug when the date string (YYYY-MM-DD)
+  // is interpreted as UTC midnight, which shifts to the previous day in timezones behind UTC
+  const date = new Date(`${dateStr}T00:00:00`);
   return isNaN(date.getTime()) ? null : date;
 }
 
