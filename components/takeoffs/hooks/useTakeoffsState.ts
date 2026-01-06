@@ -506,11 +506,41 @@ export function useTakeoffsState() {
           [doc.id]: { ...prev[doc.id], progress: 40 },
         }));
 
-        const result = await abridgeDocumentAPI(
-          doc.documentUrl!,
-          doc.name,
-          ['Extract relevant product and fixture information']
-        );
+        // Retry logic with exponential backoff
+        const MAX_RETRIES = 3;
+        let result = null;
+        let lastError = null;
+
+        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+          try {
+            result = await abridgeDocumentAPI(
+              doc.documentUrl!,
+              doc.name,
+              ['Extract relevant product and fixture information']
+            );
+            // If we got a result (even with success: false), break out of retry loop
+            if (result) break;
+          } catch (apiError) {
+            lastError = apiError;
+            console.error(`[Abridgement] Attempt ${attempt}/${MAX_RETRIES} failed for ${doc.name}:`, apiError);
+
+            if (attempt < MAX_RETRIES) {
+              const waitTime = attempt * 5000; // 5s, 10s, 15s
+              addDocumentLog(doc.id, `⏳ API busy, retrying in ${waitTime / 1000}s... (attempt ${attempt}/${MAX_RETRIES})`);
+              await new Promise(resolve => setTimeout(resolve, waitTime));
+            }
+          }
+        }
+
+        // If all retries failed and we have no result, throw the last error
+        if (!result && lastError) {
+          throw lastError;
+        }
+
+        // If we still don't have a result, create a failure result
+        if (!result) {
+          result = { success: false, error: 'API unavailable after retries' };
+        }
 
         // Getting fixture pages
         addDocumentLog(doc.id, `[1/${doc.pages}] Getting fixture pages from cache...`);
