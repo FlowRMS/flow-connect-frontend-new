@@ -25,6 +25,7 @@ import {
   deletePackingBox,
   completePacking,
   completeShipping,
+  markCommunicated,
   markDelivered,
   addFulfillmentNote,
   // Assignment functions
@@ -371,6 +372,22 @@ export function useCompleteShipping() {
 
   return useMutation<FulfillmentOrder, Error, { id: string; input: CompleteShippingInput }>({
     mutationFn: ({ id, input }) => completeShipping(id, input),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: fulfillmentQueryKeys.order(data.id) });
+      queryClient.invalidateQueries({ queryKey: fulfillmentQueryKeys.orders() });
+      queryClient.invalidateQueries({ queryKey: fulfillmentQueryKeys.stats() });
+    },
+  });
+}
+
+/**
+ * Mark order as communicated (shipping confirmation sent)
+ */
+export function useMarkCommunicated() {
+  const queryClient = useQueryClient();
+
+  return useMutation<FulfillmentOrder, Error, string>({
+    mutationFn: markCommunicated,
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: fulfillmentQueryKeys.order(data.id) });
       queryClient.invalidateQueries({ queryKey: fulfillmentQueryKeys.orders() });

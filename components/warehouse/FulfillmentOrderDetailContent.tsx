@@ -16,6 +16,7 @@ import {
   useRemoveItemFromBox,
   useCompletePacking,
   useCompleteShipping,
+  useMarkCommunicated,
   useMarkDelivered,
   useAddFulfillmentNote,
   useReportInventoryDiscrepancy,
@@ -107,6 +108,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   const removeItemFromBoxMutation = useRemoveItemFromBox();
   const completePackingMutation = useCompletePacking();
   const completeShippingMutation = useCompleteShipping();
+  const markCommunicatedMutation = useMarkCommunicated();
   const markDeliveredMutation = useMarkDelivered();
   const addNoteMutation = useAddFulfillmentNote();
   const reportDiscrepancyMutation = useReportInventoryDiscrepancy();
@@ -900,14 +902,19 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
     // Log the email (in a real app, this would send via email service)
     console.log('Sending shipment confirmation email:', emailData);
 
-    // Add activity note for email sent
     try {
+      // Mark order as communicated (status transition)
+      await markCommunicatedMutation.mutateAsync(fulfillmentOrder.id);
+
+      // Add activity note for email sent
       await addNoteMutation.mutateAsync({
         fulfillmentOrderId: fulfillmentOrder.id,
         content: `Shipment confirmation email sent to ${emailData.to}`,
       });
     } catch (error) {
-      console.error('Failed to add email note:', error);
+      console.error('Failed to send shipment confirmation:', error);
+      alert('Failed to send shipment confirmation. Please try again.');
+      return;
     }
 
     setShowShipmentConfirmationModal(false);
@@ -996,8 +1003,8 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
           onBackToCurrent={() => setViewingStatus(null)}
         />
 
-        {/* Backorder Notice - Show on PENDING status with backorder items */}
-        {(fulfillmentOrder.status === 'PENDING' || fulfillmentOrder.status === 'RELEASED') && backorderItems.length > 0 && (
+        {/* Backorder Notice - Show on PENDING, RELEASED, or BACKORDER_REVIEW status with backorder items */}
+        {(fulfillmentOrder.status === 'PENDING' || fulfillmentOrder.status === 'RELEASED' || fulfillmentOrder.status === 'BACKORDER_REVIEW') && backorderItems.length > 0 && (
           <BackorderNotice
             fulfillmentOrder={fulfillmentOrder}
             backorderItems={backorderItems}

@@ -116,7 +116,7 @@ export default function ShipmentConfirmationModal({
   );
 
   // Variable definitions for this shipment
-  const shipTo = fulfillmentOrder.shipTo || fulfillmentOrder.shipToAddress;
+  const shipTo = fulfillmentOrder.shipTo;
   const variables: Record<string, string> = {
     orderNumber: fulfillmentOrder.orderNumber,
     customerName: shipTo?.name || fulfillmentOrder.customerName || 'N/A',
@@ -124,7 +124,7 @@ export default function ShipmentConfirmationModal({
       ? `Tracking Number(s): ${trackingNumbers}\nCarrier: ${carrier ? carrier.toUpperCase().replace('_', ' ') : 'N/A'}`
       : 'Tracking information will be provided once available.',
     shippingAddress: shipTo ? [
-      shipTo.addressLine1 || shipTo.street,
+      shipTo.addressLine1,
       shipTo.addressLine2,
       `${shipTo.city || ''}, ${shipTo.state || ''} ${shipTo.postalCode || ''}`.trim(),
     ].filter(Boolean).join('\n') : 'No shipping address provided',
@@ -146,7 +146,7 @@ export default function ShipmentConfirmationModal({
   // Initialize form when modal opens
   useEffect(() => {
     if (isOpen) {
-      setToEmail(fulfillmentOrder.shipTo.contactEmail || '');
+      setToEmail(fulfillmentOrder.shipTo?.contactEmail || '');
 
       // Select appropriate default template
       const defaultTemplate = carrierType === 'freight' ? 'freight' : 'standard';
@@ -188,7 +188,7 @@ export default function ShipmentConfirmationModal({
     const deliveryEstimate = carrierType === 'freight' ? '3-5 business days' : '2-3 business days';
 
     setBody(
-`Dear ${fulfillmentOrder.shipTo.name},
+`Dear ${fulfillmentOrder.shipTo?.name || fulfillmentOrder.customerName || 'Valued Customer'},
 
 Great news! Your order ${fulfillmentOrder.orderNumber} has been shipped via ${carrierName} and is currently en route to your location.
 
@@ -198,8 +198,8 @@ Carrier: ${carrierName}
 Estimated Delivery: ${deliveryEstimate}` : `Estimated Delivery: ${deliveryEstimate}`}
 
 Delivery Address:
-${fulfillmentOrder.shipTo.addressLine1}${fulfillmentOrder.shipTo.addressLine2 ? `\n${fulfillmentOrder.shipTo.addressLine2}` : ''}
-${fulfillmentOrder.shipTo.city}, ${fulfillmentOrder.shipTo.state} ${fulfillmentOrder.shipTo.postalCode}
+${fulfillmentOrder.shipTo?.addressLine1 || 'N/A'}${fulfillmentOrder.shipTo?.addressLine2 ? `\n${fulfillmentOrder.shipTo.addressLine2}` : ''}
+${fulfillmentOrder.shipTo?.city || ''}, ${fulfillmentOrder.shipTo?.state || ''} ${fulfillmentOrder.shipTo?.postalCode || ''}
 
 Items Shipped:
 ${fulfillmentOrder.lineItems.map(item =>
@@ -327,7 +327,7 @@ The Warehouse Team`
             <div>
               <h2 className="text-lg font-semibold text-[var(--foreground)]">Send Shipment Confirmation</h2>
               <p className="text-sm text-[var(--muted-foreground)]">
-                Order {fulfillmentOrder.orderNumber} - {fulfillmentOrder.shipTo.name}
+                Order {fulfillmentOrder.orderNumber} - {fulfillmentOrder.shipTo?.name || fulfillmentOrder.customerName || 'Customer'}
               </p>
             </div>
           </div>
@@ -700,11 +700,11 @@ The Warehouse Team`
               <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-4">
                 <h3 className="text-sm font-semibold text-[var(--foreground)] mb-3">Ship To</h3>
                 <div className="text-sm text-[var(--muted-foreground)]">
-                  <p className="font-medium text-[var(--foreground)]">{fulfillmentOrder.shipTo.name}</p>
-                  <p>{fulfillmentOrder.shipTo.addressLine1}</p>
-                  {fulfillmentOrder.shipTo.addressLine2 && <p>{fulfillmentOrder.shipTo.addressLine2}</p>}
-                  <p>{fulfillmentOrder.shipTo.city}, {fulfillmentOrder.shipTo.state} {fulfillmentOrder.shipTo.postalCode}</p>
-                  {fulfillmentOrder.shipTo.contactPhone && (
+                  <p className="font-medium text-[var(--foreground)]">{fulfillmentOrder.shipTo?.name || fulfillmentOrder.customerName || 'N/A'}</p>
+                  <p>{fulfillmentOrder.shipTo?.addressLine1 || 'N/A'}</p>
+                  {fulfillmentOrder.shipTo?.addressLine2 && <p>{fulfillmentOrder.shipTo.addressLine2}</p>}
+                  <p>{fulfillmentOrder.shipTo?.city || ''}, {fulfillmentOrder.shipTo?.state || ''} {fulfillmentOrder.shipTo?.postalCode || ''}</p>
+                  {fulfillmentOrder.shipTo?.contactPhone && (
                     <p className="mt-1">{fulfillmentOrder.shipTo.contactPhone}</p>
                   )}
                 </div>

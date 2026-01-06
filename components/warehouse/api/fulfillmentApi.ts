@@ -615,6 +615,15 @@ const COMPLETE_SHIPPING = `
   }
 `;
 
+const MARK_COMMUNICATED = `
+  ${FULFILLMENT_ORDER_FRAGMENT}
+  mutation MarkCommunicated($id: UUID!) {
+    markCommunicated(id: $id) {
+      ...FulfillmentOrderFields
+    }
+  }
+`;
+
 const MARK_DELIVERED = `
   ${FULFILLMENT_ORDER_FRAGMENT}
   mutation MarkDelivered($id: UUID!) {
@@ -1017,6 +1026,24 @@ export async function completeShipping(
   }
 
   return response.data!.completeShipping;
+}
+
+/**
+ * Mark order as communicated (shipping confirmation sent)
+ */
+export async function markCommunicated(id: string): Promise<FulfillmentOrder> {
+  const response = await crmGraphQLRequest<{
+    markCommunicated: FulfillmentOrder;
+  }>({
+    query: MARK_COMMUNICATED,
+    variables: { id },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to mark as communicated');
+  }
+
+  return response.data!.markCommunicated;
 }
 
 /**

@@ -211,7 +211,7 @@ export default function ShippingInterface({
           </div>
           <div className="bg-[var(--muted)]/30 rounded-lg p-3 text-center">
             <div className="text-2xl font-bold text-[var(--foreground)]">
-              {fulfillmentOrder.lineItems.reduce((sum, li) => sum + li.allocatedQty, 0)}
+              {fulfillmentOrder.lineItems.reduce((sum, li) => sum + Number(li.allocatedQty), 0)}
             </div>
             <div className="text-xs text-[var(--muted-foreground)]">Items</div>
           </div>

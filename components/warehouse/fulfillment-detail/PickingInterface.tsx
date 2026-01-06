@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { FulfillmentOrder, InventoryLocation, FulfillmentOrderLineItem } from '@/lib/types/warehouse';
 import { getProductLocations, calculatePickingAllocation } from '@/lib/data/warehouse-mock';
 import {
@@ -117,6 +117,43 @@ export default function PickingInterface({
     return initial;
   });
 
+  // Update locations when inventory data becomes available (it loads async)
+  useEffect(() => {
+    if (!inventoryData) return;
+
+    // Reinitialize locations with real inventory data
+    setLocationPicks(prev => {
+      const updated: Record<string, LineItemPickState> = {};
+      fulfillmentOrder.lineItems.forEach(li => {
+        const existingState = prev[li.id];
+        const allocations = getAllocationsForLineItem(li, inventoryData);
+
+        // Only update if we have new allocations and current state has no locations
+        if (allocations.length > 0 && (!existingState || existingState.locations.length === 0)) {
+          updated[li.id] = {
+            lineItemId: li.id,
+            locations: allocations.map(loc => ({
+              locationId: loc.locationId,
+              locationName: loc.locationName,
+              locationType: loc.locationType,
+              expectedQty: loc.quantity,
+              pickedQty: 0,
+              isFinalized: false,
+            })),
+            totalExpected: li.allocatedQty,
+            totalPicked: 0,
+            isShort: false,
+            shortageNotes: '',
+          };
+        } else if (existingState) {
+          // Keep existing state if it has locations or picking progress
+          updated[li.id] = existingState;
+        }
+      });
+      return updated;
+    });
+  }, [inventoryData, fulfillmentOrder.lineItems]);
+
   // Track reported discrepancies for visual feedback
   const [reportedDiscrepancies, setReportedDiscrepancies] = useState<Set<string>>(new Set());
   const [hasReportedBackorders, setHasReportedBackorders] = useState(false);
@@ -129,6 +166,21 @@ export default function PickingInterface({
 
   // Search filter for line items
   const [itemSearchQuery, setItemSearchQuery] = useState('');
+
+  // Track expanded/collapsed state for each line item
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+
+  const toggleItemExpanded = useCallback((lineItemId: string) => {
+    setExpandedItems(prev => {
+      const next = new Set(prev);
+      if (next.has(lineItemId)) {
+        next.delete(lineItemId);
+      } else {
+        next.add(lineItemId);
+      }
+      return next;
+    });
+  }, []);
 
   const totalToPick = fulfillmentOrder.lineItems.reduce((sum, li) => sum + li.allocatedQty, 0);
   const totalPicked = Object.values(locationPicks).reduce((sum, lp) => sum + lp.totalPicked, 0);
@@ -749,14 +801,33 @@ export default function PickingInterface({
           const hasNote = !!pickingNotes[lineItem.id];
           const isNoteExpanded = expandedNoteId === lineItem.id;
           const isShort = lineState.totalPicked > 0 && lineState.totalPicked < lineState.totalExpected;
+          const isExpanded = expandedItems.has(lineItem.id);
 
           return (
             <div
               key={lineItem.id}
               className={`transition-colors ${isPicked ? 'bg-green-50' : isShort ? 'bg-amber-50' : ''}`}
             >
-              {/* Header row */}
-              <div className="p-4 flex items-start gap-4">
+              {/* Header row - clickable to expand/collapse */}
+              <div
+                className="p-4 flex items-start gap-4 cursor-pointer hover:bg-[var(--muted)]/30 transition-colors"
+                onClick={() => toggleItemExpanded(lineItem.id)}
+              >
+                {/* Expand/collapse indicator */}
+                <div className="flex items-center justify-center w-6 flex-shrink-0 mt-3">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    className={`text-[var(--muted-foreground)] transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                  >
+                    <path d="M9 18l6-6-6-6"/>
+                  </svg>
+                </div>
+
                 {/* Status indicator */}
                 <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
                   isPicked ? 'bg-green-500' : isShort ? 'bg-amber-500' : 'bg-[var(--muted)]'
@@ -832,8 +903,9 @@ export default function PickingInterface({
                 </div>
               </div>
 
-              {/* Location rows */}
-              <div className="px-4 pb-4 ml-16 space-y-2">
+              {/* Location rows - only show when expanded */}
+              {isExpanded && (
+              <div className="px-4 pb-4 ml-22 space-y-2">
                 {lineState.locations.map((loc, idx) => {
                   const isLocFinalized = loc.isFinalized;
                   const isLocComplete = isLocFinalized && loc.pickedQty >= loc.expectedQty;
@@ -940,6 +1012,7 @@ export default function PickingInterface({
                 })}
 
               </div>
+              )}
 
               {/* Expandable note input */}
               {isNoteExpanded && (
