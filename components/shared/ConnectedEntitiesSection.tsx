@@ -342,36 +342,40 @@ export function ConnectedEntitiesSection({
     }
   };
 
-  // Handle quote click
+  // Handle quote click - navigate to quote detail page
   const handleQuoteClick = (quote: RelatedEntityQuote) => {
     if (onQuoteClick) {
       onQuoteClick(quote);
+    } else {
+      router.push(`/quotes/${quote.id}`);
     }
-    // Quotes don't have a detail page yet
   };
 
-  // Handle order click
+  // Handle order click - navigate to order detail page
   const handleOrderClick = (order: RelatedEntityOrder) => {
     if (onOrderClick) {
       onOrderClick(order);
+    } else {
+      router.push(`/orders/${order.id}`);
     }
-    // Orders don't have a detail page yet
   };
 
-  // Handle invoice click
+  // Handle invoice click - navigate to invoice detail page
   const handleInvoiceClick = (invoice: RelatedEntityInvoice) => {
     if (onInvoiceClick) {
       onInvoiceClick(invoice);
+    } else {
+      router.push(`/invoices/${invoice.id}`);
     }
-    // Invoices don't have a detail page yet
   };
 
-  // Handle check click
+  // Handle check click - navigate to check detail page
   const handleCheckClick = (check: RelatedEntityCheck) => {
     if (onCheckClick) {
       onCheckClick(check);
+    } else {
+      router.push(`/checks/${check.id}`);
     }
-    // Checks don't have a detail page yet
   };
 
   // Handle job click - navigate to jobs page

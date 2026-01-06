@@ -709,10 +709,10 @@ function ProductsTable({ products }: { products: RelatedEntities['products'] }) 
                   </td>
                   <td className="px-4 py-3">{product.description || '-'}</td>
                   <td className="px-4 py-3 text-right">
-                    {product.unitPrice != null ? `$${product.unitPrice.toFixed(2)}` : '-'}
+                    {product.unitPrice != null ? `$${Number(product.unitPrice).toFixed(2)}` : '-'}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    {product.defaultCommissionRate != null ? `${(product.defaultCommissionRate * 100).toFixed(1)}%` : '-'}
+                    {product.defaultCommissionRate != null ? `${(Number(product.defaultCommissionRate) * 100).toFixed(1)}%` : '-'}
                   </td>
                   <td className="px-4 py-3">
                     {product.published ? <Badge variant="secondary" className="bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400">Yes</Badge> : '-'}
