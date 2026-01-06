@@ -550,16 +550,12 @@ function OrdersTable({ orders }: { orders: RelatedEntities['orders'] }) {
               {orders.map((order) => (
                 <tr key={order.id} className="border-b hover:bg-slate-50 dark:hover:bg-slate-800/30">
                   <td className="px-4 py-3 font-medium">
-                    {order.url ? (
-                      <button
-                        onClick={() => openUrl(order.url)}
-                        className="text-green-600 hover:text-green-800 hover:underline cursor-pointer"
-                      >
-                        {order.orderNumber || order.id}
-                      </button>
-                    ) : (
-                      <span className="text-green-600">{order.orderNumber || order.id}</span>
-                    )}
+                    <a
+                      href={`/orders/${order.id}`}
+                      className="text-green-600 hover:text-green-800 hover:underline cursor-pointer"
+                    >
+                      {order.orderNumber || order.id}
+                    </a>
                   </td>
                   <td className="px-4 py-3">{order.factSoNumber || '-'}</td>
                   <td className="px-4 py-3">{formatDate(order.entityDate)}</td>

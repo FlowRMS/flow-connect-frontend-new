@@ -147,6 +147,20 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
                   manufacturerName: li.manufacturerId ? factoryMap.get(li.manufacturerId) || '' : '',
                 }))
               );
+
+              // When factoryPerLineItem is false, populate header-level factory from first line item
+              // (all line items should have the same factory when this setting is off)
+              if (apiQuote.factoryPerLineItem === false && transformedLineItems.length > 0) {
+                const firstLineItemWithFactory = transformedLineItems.find(li => li.manufacturerId);
+                if (firstLineItemWithFactory?.manufacturerId) {
+                  const factoryName = factoryMap.get(firstLineItemWithFactory.manufacturerId) || '';
+                  setQuote(prev => ({
+                    ...prev,
+                    factoryId: firstLineItemWithFactory.manufacturerId,
+                    factoryName: factoryName,
+                  }));
+                }
+              }
             })
             .catch((err) => console.error('Failed to fetch factory names:', err));
         }
@@ -353,7 +367,9 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
           {
             insideRepAtLineLevel: settings.insideRepAtLineLevel,
             outsideRepAtLineLevel: settings.outsideRepAtLineLevel,
-          }
+            factoryPerLineItem: settings.factoryPerLineItem,
+          },
+          quote.factoryId // Pass header-level factory for when factoryPerLineItem is false
         ),
         itemNumber: li.itemNumber ?? index + 1,
       })),

@@ -579,19 +579,21 @@ function isValidUUID(id: string): boolean {
 /**
  * Transform LineItemV2 back to QuoteDetailInput for API
  *
- * When per-line-item settings are enabled, each line item uses its own split rates.
- * When disabled, all line items use the header-level split rates.
+ * When per-line-item settings are enabled, each line item uses its own split rates/factory.
+ * When disabled, all line items use the header-level split rates/factory.
  *
  * @param lineItem - The line item to transform
  * @param headerInsideReps - Header-level inside reps (only used when insideRepAtLineLevel is false)
  * @param headerOutsideReps - Header-level outside reps (only used when outsideRepAtLineLevel is false)
- * @param settings - Quote settings to determine whether to use header or line-item level reps
+ * @param settings - Quote settings to determine whether to use header or line-item level reps/factory
+ * @param headerFactoryId - Header-level factory ID (used when factoryPerLineItem is false)
  */
 export function transformLineItemV2ToDetailInput(
   lineItem: LineItemV2,
   headerInsideReps?: { id: string; userId?: string; splitRate?: string; position?: number }[],
   headerOutsideReps?: { id: string; userId?: string; splitRate?: string; position?: number }[],
-  settings?: { insideRepAtLineLevel?: boolean; outsideRepAtLineLevel?: boolean }
+  settings?: { insideRepAtLineLevel?: boolean; outsideRepAtLineLevel?: boolean; factoryPerLineItem?: boolean },
+  headerFactoryId?: string
 ): {
   id?: string;
   itemNumber?: number;
@@ -641,6 +643,12 @@ export function transformLineItemV2ToDetailInput(
     position: rep.position,
   }));
 
+  // Determine which factoryId to use:
+  // - If factoryPerLineItem is true (or undefined for backwards compatibility), use line item's manufacturerId
+  // - If factoryPerLineItem is false, use header-level factoryId for all line items
+  const useLineItemFactory = settings?.factoryPerLineItem !== false;
+  const factoryId = useLineItemFactory ? lineItem.manufacturerId : headerFactoryId;
+
   return {
     id,
     itemNumber: lineItem.itemNumber,
@@ -651,7 +659,7 @@ export function transformLineItemV2ToDetailInput(
     discountRate: lineItem.lineDiscountPercent?.toString(),
     // Only include endUserId if it's a valid UUID (not empty string)
     endUserId: lineItem.endUserId && isValidUUID(lineItem.endUserId) ? lineItem.endUserId : undefined,
-    factoryId: lineItem.manufacturerId,
+    factoryId,
     leadTime: lineItem.leadTime,
     note: lineItem.note,
     productDescriptionAdhoc: lineItem.description,
