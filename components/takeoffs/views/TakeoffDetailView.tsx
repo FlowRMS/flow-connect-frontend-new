@@ -394,7 +394,7 @@ export function TakeoffDetailView({
           </div>
         )}
         <p className="text-sm text-gray-500 mt-1">
-          TO-{takeoff.id?.slice(0, 3).toUpperCase() || 'NEW'}
+          {takeoff.takeoffNumber || `TO-${takeoff.id?.slice(0, 3).toUpperCase() || 'NEW'}`}
         </p>
       </div>
 
