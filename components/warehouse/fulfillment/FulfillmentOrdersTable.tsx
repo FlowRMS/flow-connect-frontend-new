@@ -623,7 +623,14 @@ export default function FulfillmentOrdersTable({
                       }}
                       className="px-3 py-1.5 text-sm text-[var(--primary)] hover:bg-[var(--muted)] rounded-lg transition-colors"
                     >
-                      Start Picking
+                      {fo.status === 'PENDING' && 'Release'}
+                      {fo.status === 'RELEASED' && 'Start Picking'}
+                      {fo.status === 'PICKING' && 'Continue Picking'}
+                      {fo.status === 'PACKING' && 'Continue Packing'}
+                      {fo.status === 'SHIPPING' && 'Complete Shipping'}
+                      {fo.status === 'BACKORDER_REVIEW' && 'Review'}
+                      {(fo.status === 'SHIPPED' || fo.status === 'PARTIAL_SHIPPED') && 'Send Confirmation'}
+                      {(fo.status === 'COMMUNICATED' || fo.status === 'DELIVERED' || fo.status === 'CANCELLED') && 'View'}
                     </button>
                   </td>
                 </tr>

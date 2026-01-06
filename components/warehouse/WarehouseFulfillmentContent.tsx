@@ -127,13 +127,13 @@ export default function WarehouseFulfillmentContent() {
       result = result.filter(fo => WORKER_VISIBLE_STATUSES.includes(fo.status));
     }
 
-    // Apply stat card filter
+    // Apply stat card filter - must match backend get_stats grouping
     if (activeStatFilter === 'pending') {
-      result = result.filter(fo => fo.status === 'PENDING' || fo.status === 'RELEASED');
+      result = result.filter(fo => fo.status === 'PENDING');
     } else if (activeStatFilter === 'in_progress') {
-      result = result.filter(fo => fo.status === 'PICKING' || fo.status === 'PACKING' || fo.status === 'SHIPPING');
+      result = result.filter(fo => fo.status === 'RELEASED' || fo.status === 'PICKING' || fo.status === 'PACKING' || fo.status === 'SHIPPING');
     } else if (activeStatFilter === 'completed') {
-      result = result.filter(fo => fo.status === 'SHIPPED' || fo.status === 'PARTIAL_SHIPPED' || fo.status === 'DELIVERED');
+      result = result.filter(fo => fo.status === 'SHIPPED' || fo.status === 'PARTIAL_SHIPPED' || fo.status === 'DELIVERED' || fo.status === 'COMMUNICATED');
     }
 
     // Apply search query
@@ -252,12 +252,13 @@ export default function WarehouseFulfillmentContent() {
   }, [fulfillmentOrders, selectedOrderIds]);
 
   // Calculate stats - prefer API stats if available, otherwise calculate from data
+  // Must match backend get_stats grouping: pending=PENDING, in_progress=RELEASED+PICKING+PACKING+SHIPPING, completed=SHIPPED+DELIVERED+COMMUNICATED
   const baseOrders = isWorkerView
     ? fulfillmentOrders.filter(fo => WORKER_VISIBLE_STATUSES.includes(fo.status))
     : fulfillmentOrders;
-  const pendingCount = stats?.pendingCount ?? baseOrders.filter(fo => fo.status === 'PENDING' || fo.status === 'RELEASED').length;
-  const inProgressCount = stats?.inProgressCount ?? baseOrders.filter(fo => fo.status === 'PICKING' || fo.status === 'PACKING' || fo.status === 'SHIPPING').length;
-  const completedCount = stats?.completedCount ?? baseOrders.filter(fo => fo.status === 'SHIPPED' || fo.status === 'PARTIAL_SHIPPED' || fo.status === 'DELIVERED').length;
+  const pendingCount = stats?.pendingCount ?? baseOrders.filter(fo => fo.status === 'PENDING').length;
+  const inProgressCount = stats?.inProgressCount ?? baseOrders.filter(fo => fo.status === 'RELEASED' || fo.status === 'PICKING' || fo.status === 'PACKING' || fo.status === 'SHIPPING').length;
+  const completedCount = stats?.completedCount ?? baseOrders.filter(fo => fo.status === 'SHIPPED' || fo.status === 'PARTIAL_SHIPPED' || fo.status === 'DELIVERED' || fo.status === 'COMMUNICATED').length;
 
   // Loading state
   if (isLoading) {
