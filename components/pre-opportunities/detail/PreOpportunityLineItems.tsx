@@ -15,7 +15,7 @@ interface EditableLineItem {
   id: string;
   itemNumber: number;
   productId: string;
-  productCpnId?: string;
+  factoryId?: string;
   factoryPartNumber: string;
   description?: string;
   quantity: number;
@@ -90,7 +90,7 @@ export function PreOpportunityLineItems({ preOpp, isEditing = false, onLineItems
         id: d.id,
         itemNumber: d.itemNumber,
         productId: d.productId,
-        productCpnId: d.productCpnId,
+        factoryId: d.factoryId,
         factoryPartNumber: d.product.factoryPartNumber,
         description: d.product.description,
         quantity: d.quantity,
@@ -125,7 +125,7 @@ export function PreOpportunityLineItems({ preOpp, isEditing = false, onLineItems
         id: item.isNew ? undefined : item.id,
         itemNumber: item.itemNumber,
         productId: item.productId,
-        productCpnId: item.productCpnId,
+        factoryId: item.factoryId || '',
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         discountRate: item.discountRate,
