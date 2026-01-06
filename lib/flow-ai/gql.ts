@@ -770,6 +770,12 @@ export const Q_GET_ALL_PENDING_ENTITIES = gql`
     products: pendingEntities(filterInput: { entityType: PRODUCTS, pendingDocumentId: $pendingDocumentId }) {
       ${PENDING_ENTITY_FIELDS}
     }
+    orders: pendingEntities(filterInput: { entityType: ORDERS, pendingDocumentId: $pendingDocumentId }) {
+      ${PENDING_ENTITY_FIELDS}
+    }
+    invoices: pendingEntities(filterInput: { entityType: INVOICES, pendingDocumentId: $pendingDocumentId }) {
+      ${PENDING_ENTITY_FIELDS}
+    }
   }
 `;
 

@@ -369,12 +369,12 @@ export function ConnectedEntitiesSection({
     }
   };
 
-  // Handle check click - navigate to check detail page
+  // Handle check click - navigate to commissions detail page
   const handleCheckClick = (check: RelatedEntityCheck) => {
     if (onCheckClick) {
       onCheckClick(check);
     } else {
-      router.push(`/checks/${check.id}`);
+      router.push(`/commissions/${check.id}`);
     }
   };
 

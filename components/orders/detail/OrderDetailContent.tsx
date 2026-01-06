@@ -35,6 +35,8 @@ import {
   DeleteConfirmModal,
   CreateInvoiceFromOrderModal,
 } from './components/modals';
+import { DuplicateOrderModal } from '../list/components/modals/DuplicateOrderModal';
+import { useDuplicateOrder } from '../api/useOrdersApi';
 import { useCreditsState } from './hooks/useCreditsState';
 import { useAdjustmentsState } from './hooks/useAdjustmentsState';
 import { useAcknowledgementsState } from './hooks/useAcknowledgementsState';
@@ -63,6 +65,10 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
 
   // Create Invoice from Order modal state
   const [showCreateInvoiceModal, setShowCreateInvoiceModal] = useState(false);
+
+  // Duplicate Order modal state
+  const [showDuplicateOrderModal, setShowDuplicateOrderModal] = useState(false);
+  const duplicateOrderMutation = useDuplicateOrder();
 
   // Loading state
   if (state?.isLoading) {
@@ -431,6 +437,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         updateOrderStatus={state.updateOrderStatus}
         setShowQuoteLookupModal={state.setShowQuoteLookupModal}
         onCreateInvoice={() => setShowCreateInvoiceModal(true)}
+        onDuplicateOrder={() => setShowDuplicateOrderModal(true)}
       />
 
       {/* Main Content Area with Tabs */}
@@ -873,6 +880,31 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         onClose={() => setShowCreateInvoiceModal(false)}
         onSuccess={(invoice) => {
           orderToasts.invoiceCreatedFromOrder(invoice.invoiceNumber || invoice.id);
+        }}
+      />
+
+      {/* Duplicate Order Modal */}
+      <DuplicateOrderModal
+        isOpen={showDuplicateOrderModal}
+        orderNumber={order.orderNumber}
+        currentCustomerId={order.customerId}
+        currentCustomerName={order.customerName}
+        isPending={duplicateOrderMutation.isPending}
+        onClose={() => setShowDuplicateOrderModal(false)}
+        onDuplicate={async (newOrderNumber, newSoldToCustomerId) => {
+          try {
+            const duplicatedOrder = await duplicateOrderMutation.mutateAsync({
+              orderId: order.id,
+              newOrderNumber,
+              newSoldToCustomerId,
+            });
+            setShowDuplicateOrderModal(false);
+            orderToasts.duplicateSuccess(duplicatedOrder.orderNumber);
+            // Navigate to the new order
+            router.push(`/orders/${duplicatedOrder.id}`);
+          } catch (error) {
+            orderToasts.duplicateError(error instanceof Error ? error.message : 'Failed to duplicate order');
+          }
         }}
       />
     </main>

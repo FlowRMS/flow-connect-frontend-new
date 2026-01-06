@@ -1,9 +1,9 @@
-import { CheckCircle2, AlertCircle, Search, Loader2, Plus, Sparkles, Ban, PlusCircle } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Search, Loader2, Plus, Sparkles, Ban, SkipForward, FileText } from 'lucide-react';
 import { Button } from '@/components/flow-ai/ui/button';
 import { Checkbox } from '@/components/flow-ai/ui/checkbox';
 import { Label } from '@/components/flow-ai/ui/label';
 import { Switch } from '@/components/flow-ai/ui/switch';
-import type { FilterType } from '@/components/flow-ai/types/entity-matching';
+import type { FilterType, PendingEntityType } from '@/components/flow-ai/types/entity-matching';
 
 interface EntityFilterControlsProps {
   activeFilters: Set<FilterType>;
@@ -17,7 +17,10 @@ interface EntityFilterControlsProps {
   onSelectAll: () => void;
   onBulkApprove: () => void;
   onBulkCreateNew: () => void;
+  onBulkSkip?: () => void;
+  onBulkSetForCreation?: () => void;
   isLoading?: boolean;
+  currentEntityType?: PendingEntityType;
 }
 
 export function EntityFilterControls({
@@ -32,8 +35,16 @@ export function EntityFilterControls({
   onSelectAll,
   onBulkApprove,
   onBulkCreateNew,
-  isLoading = false
+  onBulkSkip,
+  onBulkSetForCreation,
+  isLoading = false,
+  currentEntityType
 }: EntityFilterControlsProps) {
+  // Orders and Invoices have different UI - no approve or create new, only skip and set for creation
+  const isOrdersOrInvoices = currentEntityType === 'ORDERS' || currentEntityType === 'INVOICES';
+  // Products have skip functionality in addition to the regular approve/create new
+  const isProducts = currentEntityType === 'PRODUCTS';
+
   return (
     <div className="p-4 bg-white border rounded-lg space-y-4">
       {/* Top Row: Select All, Filters, Create New Mode */}
@@ -108,23 +119,63 @@ export function EntityFilterControls({
           </div>
         )}
 
-        {/* Create New Mode Toggle */}
-        <div className="flex items-center gap-2 pl-4 border-l ml-auto">
-          <Switch
-            id="create-mode"
-            checked={createNewMode}
-            onCheckedChange={setCreateNewMode}
-          />
-          <Label htmlFor="create-mode" className="text-sm font-medium cursor-pointer whitespace-nowrap">
-            Create New Mode
-          </Label>
-        </div>
+        {/* Create New Mode Toggle - Hide for Orders and Invoices */}
+        {!isOrdersOrInvoices && (
+          <div className="flex items-center gap-2 pl-4 border-l ml-auto">
+            <Switch
+              id="create-mode"
+              checked={createNewMode}
+              onCheckedChange={setCreateNewMode}
+            />
+            <Label htmlFor="create-mode" className="text-sm font-medium cursor-pointer whitespace-nowrap">
+              Create New Mode
+            </Label>
+          </div>
+        )}
       </div>
 
       {/* Bottom Row: Action Buttons */}
       <div className="flex flex-wrap items-center gap-3 pt-3 border-t">
         <Label className="text-sm text-muted-foreground mr-1">Actions:</Label>
-        {!createNewMode ? (
+
+        {/* Orders and Invoices: Only Skip and Set for Creation */}
+        {isOrdersOrInvoices ? (
+          <>
+            {onBulkSkip && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onBulkSkip}
+                disabled={selectedCount === 0 || isLoading}
+                className="h-8 px-4"
+              >
+                {isLoading ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <SkipForward className="w-4 h-4 mr-2" />
+                )}
+                {selectedCount > 1 ? `Bulk Skip (${selectedCount})` : `Skip (${selectedCount})`}
+              </Button>
+            )}
+            {onBulkSetForCreation && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onBulkSetForCreation}
+                disabled={selectedCount === 0 || isLoading}
+                className="h-8 px-4"
+              >
+                {isLoading ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <FileText className="w-4 h-4 mr-2" />
+                )}
+                {selectedCount > 1 ? `Bulk Set for Creation (${selectedCount})` : `Set for Creation (${selectedCount})`}
+              </Button>
+            )}
+          </>
+        ) : !createNewMode ? (
+          /* Standard entity types (Factories, Customers, etc.) */
           <>
             <Button
               variant="outline"
@@ -150,8 +201,26 @@ export function EntityFilterControls({
               <Plus className="w-4 h-4 mr-2" />
               {selectedCount > 1 ? `Bulk Create New (${selectedCount})` : `Create New (${selectedCount})`}
             </Button>
+            {/* Products tab: Add Bulk Skip */}
+            {isProducts && onBulkSkip && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onBulkSkip}
+                disabled={selectedCount === 0 || isLoading}
+                className="h-8 px-4"
+              >
+                {isLoading ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <SkipForward className="w-4 h-4 mr-2" />
+                )}
+                {selectedCount > 1 ? `Bulk Skip (${selectedCount})` : `Skip (${selectedCount})`}
+              </Button>
+            )}
           </>
         ) : (
+          /* Create New Mode */
           <Button
             variant="default"
             size="sm"
@@ -171,12 +240,3 @@ export function EntityFilterControls({
     </div>
   );
 }
-
-
-
-
-
-
-
-
-

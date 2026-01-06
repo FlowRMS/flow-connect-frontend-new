@@ -71,7 +71,8 @@ export default function AIChatPage() {
   const [currentDocumentReferences, setCurrentDocumentReferences] = useState<DocumentReference[]>([]);
   const [streamingDocumentReferences, setStreamingDocumentReferences] = useState<DocumentReference[]>([]);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
   // Voice settings state
   const [voiceSettings, setVoiceSettings] = useState<VoiceSettings>(DEFAULT_VOICE_SETTINGS);
   
@@ -701,10 +702,11 @@ export default function AIChatPage() {
       
       {/* Sidebar */}
       <div className={cn(
-        "w-96 flex-shrink-0 z-50 transition-transform duration-300 ease-in-out",
+        "flex-shrink-0 z-50 transition-all duration-300 ease-in-out",
         "md:block md:relative md:translate-x-0",
         "fixed inset-y-0 left-0 bg-background",
-        isMobileSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+        isMobileSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
+        isSidebarCollapsed ? "w-16" : "w-96"
       )}>
         <ChatSidebar
           chats={userChats}
@@ -719,6 +721,8 @@ export default function AIChatPage() {
           }}
           onDeleteChat={handleDeleteChat}
           isLoading={chatsLoading}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         />
       </div>
 
