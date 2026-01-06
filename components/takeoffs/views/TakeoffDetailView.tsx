@@ -143,6 +143,17 @@ export function TakeoffDetailView({
   // Ref to track if component is mounted for cleanup
   const isMountedRef = useRef(true);
 
+  // Derive current processing document name from documentAbridgementProgress
+  const abridgementCurrentItem = useMemo(() => {
+    const processingDocId = Object.entries(documentAbridgementProgress).find(
+      ([, progress]) => progress.status === 'processing'
+    )?.[0];
+    if (processingDocId) {
+      return documents.find(d => d.id === processingDocId)?.name;
+    }
+    return undefined;
+  }, [documentAbridgementProgress, documents]);
+
   // Cleanup on unmount
   useEffect(() => {
     isMountedRef.current = true;
@@ -599,7 +610,7 @@ export function TakeoffDetailView({
                 classifyingDocIds={classifyingDocIds}
                 isClassifying={isClassifying}
                 isAbridgementProcessing={isAbridgementProcessing}
-                abridgementCurrentItem={abridgementState?.currentItem}
+                abridgementCurrentItem={abridgementCurrentItem}
               />
         )}
 
