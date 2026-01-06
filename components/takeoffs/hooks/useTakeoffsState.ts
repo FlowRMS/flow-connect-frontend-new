@@ -595,9 +595,9 @@ export function useTakeoffsState() {
         }));
       }
 
-      // Add delay between documents to avoid overwhelming the API
+      // Add delay between documents to avoid overwhelming the API (3 seconds)
       if (i < docsToAbridge.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 3000));
       }
     }
 
