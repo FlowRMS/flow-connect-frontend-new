@@ -631,7 +631,7 @@ function QueuePageContent() {
     fetchDocuments(false);
   }, [fetchDocuments]);
 
-  // Handle document click - redirect based on file status
+  // Handle document click - redirect based on workflow status
   // Note: Using new field names from findLandingPages:
   //   - id = pending document ID
   //   - workflowStatus = queue/workflow status (was queueStatus)
@@ -639,8 +639,6 @@ function QueuePageContent() {
   const handleDocumentClick = (doc: PendingDocument) => {
     const params = new URLSearchParams();
     params.set('pendingId', doc.id);
-    // Note: documentProcessId is no longer returned by findLandingPages
-    // If needed in the future, we may need to add it to the query
 
     // If file status is 'Exception', redirect to processing-errors page
     if (doc.status?.toUpperCase() === 'EXCEPTION') {
@@ -648,8 +646,16 @@ function QueuePageContent() {
       return;
     }
 
-    // If workflow status is 'Done', redirect to upload-complete page
-    if (doc.workflowStatus?.toUpperCase() === 'DONE') {
+    const workflowStatus = doc.workflowStatus?.toUpperCase();
+
+    // If workflow status is 'IN_PROGRESS', show toast and do nothing
+    if (workflowStatus === 'IN_PROGRESS') {
+      toast.info('Document is still being processed. Please wait.');
+      return;
+    }
+
+    // If workflow status is 'COMPLETED' or 'DONE', redirect to upload-complete page
+    if (workflowStatus === 'COMPLETED' || workflowStatus === 'DONE') {
       // For TABULAR (spreadsheet) documents, add source=spreadsheet
       if (doc.documentType?.toUpperCase() === 'TABULAR') {
         params.set('source', 'spreadsheet');
@@ -658,8 +664,10 @@ function QueuePageContent() {
       return;
     }
 
-    // Otherwise redirect to main page
-    router.push(`/flow-ai?pendingId=${doc.id}`);
+    // If workflow status is null/undefined, redirect to preview page
+    if (!doc.workflowStatus) {
+      router.push(`/flow-ai?pendingId=${doc.id}`);
+    }
   };
 
   // Handle refresh
@@ -1007,6 +1015,7 @@ function QueuePageContent() {
                           </button>
                         </TableHead>
                         <TableHead className="font-semibold text-foreground">File Status</TableHead>
+                        <TableHead className="font-semibold text-foreground">Workflow Status</TableHead>
                         <TableHead className="font-semibold text-foreground">Created By</TableHead>
                         <TableHead className="font-semibold text-foreground">
                           <button
@@ -1098,6 +1107,13 @@ function QueuePageContent() {
                             <TableCell onClick={() => handleDocumentClick(doc)}>
                               {doc.status ? (
                                 <StatusBadge status={doc.status} type="file" />
+                              ) : (
+                                <span className="text-sm text-muted-foreground">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell onClick={() => handleDocumentClick(doc)}>
+                              {doc.workflowStatus ? (
+                                <StatusBadge status={doc.workflowStatus} type="file" />
                               ) : (
                                 <span className="text-sm text-muted-foreground">-</span>
                               )}
