@@ -790,6 +790,73 @@ const DELETE_ORDER = `
   }
 `;
 
+const DUPLICATE_ORDER = `
+  mutation DuplicateOrder($orderId: UUID!, $newOrderNumber: String!, $newSoldToCustomerId: UUID!) {
+    duplicateOrder(orderId: $orderId, newOrderNumber: $newOrderNumber, newSoldToCustomerId: $newSoldToCustomerId) {
+      id
+      orderNumber
+      status
+      headerStatus
+      soldToCustomerId
+      soldToCustomer {
+        id
+        companyName
+        isParent
+        parentId
+        published
+      }
+      billToCustomerId
+      billToCustomer {
+        id
+        companyName
+        isParent
+        parentId
+        published
+      }
+      factoryId
+      factory {
+        id
+        title
+        accountNumber
+        published
+      }
+      entityDate
+      dueDate
+      createdAt
+      createdById
+      creationType
+      published
+      url
+      balance {
+        id
+        commission
+        commissionRate
+        discount
+        discountRate
+        quantity
+        subtotal
+        total
+      }
+      details {
+        id
+        itemNumber
+        productId
+        product {
+          id
+          factoryPartNumber
+          description
+        }
+        quantity
+        unitPrice
+        total
+        commission
+        commissionRate
+        status
+      }
+    }
+  }
+`;
+
 const CREATE_ORDER_FROM_QUOTE = `
   mutation CreateOrderFromQuote(
     $factoryId: UUID!
@@ -976,6 +1043,30 @@ export async function deleteOrder(id: string): Promise<boolean> {
   }
 
   return true;
+}
+
+/**
+ * Duplicate an order with a new order number and sold-to customer
+ */
+export async function duplicateOrder(
+  orderId: string,
+  newOrderNumber: string,
+  newSoldToCustomerId: string
+): Promise<Order> {
+  const response = await crmGraphQLRequest<{ duplicateOrder: Order }>({
+    query: DUPLICATE_ORDER,
+    variables: { orderId, newOrderNumber, newSoldToCustomerId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to duplicate order');
+  }
+
+  if (!response.data?.duplicateOrder) {
+    throw new Error('No order returned from duplicate mutation');
+  }
+
+  return response.data.duplicateOrder;
 }
 
 // ============================================================================
