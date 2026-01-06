@@ -1,27 +1,22 @@
 'use client';
 
-import { useState, Suspense, useEffect, useCallback, useRef } from 'react';
+import { useState, Suspense, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Loader2,
   CheckCircle2,
   FileText,
-  Package,
-  Building2,
-  Factory,
-  Receipt,
-  ShoppingCart,
-  DollarSign,
+  AlertCircle,
+  XCircle,
+  SkipForward,
 } from 'lucide-react';
 import { Button } from '@/components/flow-ai/ui/button';
 import { Badge } from '@/components/flow-ai/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/flow-ai/ui/card';
 import { toast } from 'sonner';
 import { WorkflowBreadcrumb } from '@/components/flow-ai/flowrms/WorkflowBreadcrumb';
-import { fetchRelatedEntities } from '@/components/lib/graphql/entity-links';
-import type { RelatedEntities } from '@/components/lib/graphql/types';
 import { flowrmsApolloClient } from '@/lib/flow-ai/flowrms-apollo';
-import { Q_GET_PENDING } from '@/lib/flow-ai/gql';
+import { Q_GET_PENDING, Q_PENDING_DOCUMENT_PROCESSINGS } from '@/lib/flow-ai/gql';
 
 // Storage key for URL params persistence
 const UPLOAD_COMPLETE_PARAMS_KEY = 'flowrms_upload_complete_params';
@@ -68,7 +63,27 @@ function getInitialParams(): {
   return { pendingId: null, source: null, needsUrlRestore: false };
 }
 
-type EntityCategory = 'quotes' | 'orders' | 'invoices' | 'customers' | 'products' | 'factories' | 'checks';
+// Types for the pendingDocumentProcessings query
+interface ProcessingResult {
+  id: string;
+  pendingDocumentId: string;
+  dtoJson: string | null;
+  entityId: string | null;
+  errorMessage: string | null;
+  status: 'CREATED' | 'SKIPPED' | 'ERROR' | 'PENDING' | string;
+}
+
+interface ParsedDtoData {
+  [key: string]: unknown;
+  factory_name?: string;
+  customer_name?: string;
+  product_name?: string;
+  order_number?: string;
+  invoice_number?: string;
+  internal_uuid?: string;
+}
+
+type StatusFilter = 'all' | 'CREATED' | 'SKIPPED' | 'ERROR';
 
 export default function UploadCompletePage() {
   return (
@@ -123,32 +138,39 @@ function UploadCompleteContent() {
     }
   }, [effectiveParams?.needsUrlRestore, pendingId, source]);
 
-  // Data state - using RelatedEntities type from the CRM
-  const [relatedData, setRelatedData] = useState<RelatedEntities | null>(null);
+  // Data state
+  const [processingResults, setProcessingResults] = useState<ProcessingResult[]>([]);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   // UI state
-  const [activeFilter, setActiveFilter] = useState<EntityCategory | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // Ref to prevent double execution in React strict mode
   const hasInitialized = useRef(false);
 
-  // Fetch related entities using the CRM relatedEntities endpoint
+  // Fetch processing results
   const fetchData = useCallback(async (documentId: string) => {
     try {
-      console.log('Fetching related entities for documentId:', documentId);
-      const data = await fetchRelatedEntities(documentId, 'FILES');
-      console.log('Related entities data:', data);
-      setRelatedData(data);
+      console.log('Fetching processing results for pendingDocumentId:', documentId);
+      const result = await flowrmsApolloClient.query<{
+        pendingDocumentProcessings: ProcessingResult[];
+      }>({
+        query: Q_PENDING_DOCUMENT_PROCESSINGS,
+        variables: { pendingDocumentId: documentId },
+        fetchPolicy: 'no-cache',
+      });
+
+      console.log('Processing results:', result.data?.pendingDocumentProcessings);
+      setProcessingResults(result.data?.pendingDocumentProcessings || []);
       setLoadError(null);
     } catch (error) {
-      console.error('Error fetching related entities:', error);
-      setLoadError('Failed to load related entities');
+      console.error('Error fetching processing results:', error);
+      setLoadError('Failed to load processing results');
     }
   }, []);
 
-  // Fetch pending document and then related entities
+  // Fetch pending document and then processing results
   useEffect(() => {
     // Wait for params to be initialized on client
     if (effectiveParams === null) return;
@@ -166,38 +188,12 @@ function UploadCompleteContent() {
 
     const initialize = async () => {
       try {
-        // Step 1: Fetch the pending document to get the fileId (the actual document ID)
-        console.log('Fetching pending document:', pendingId);
-        const pendingDocResult = await flowrmsApolloClient.query<{
-          getPendingDocument?: {
-            fileId?: string;
-            entityType?: string;
-          };
-        }>({
-          query: Q_GET_PENDING,
-          variables: { pendingId },
-          fetchPolicy: 'no-cache',
-        });
-
-        const pendingDoc = pendingDocResult.data?.getPendingDocument;
-
-        if (!pendingDoc?.fileId) {
-          console.error('Missing fileId from pending document:', pendingDoc);
-          setLoadError('Unable to process: missing document information');
-          setIsLoading(false);
-          return;
-        }
-
-        const fileId = pendingDoc.fileId;
-        console.log('Got fileId:', fileId);
-
-        // Step 2: Fetch related entities using the fileId
-        await fetchData(fileId);
+        // Fetch processing results directly using pendingId
+        await fetchData(pendingId);
         setIsLoading(false);
-
       } catch (error) {
         console.error('Error initializing upload-complete:', error);
-        setLoadError('An error occurred while loading document data');
+        setLoadError('An error occurred while loading processing data');
         setIsLoading(false);
       }
     };
@@ -205,25 +201,25 @@ function UploadCompleteContent() {
     initialize();
   }, [effectiveParams, pendingId, fetchData]);
 
-  const handleFilterClick = (filter: EntityCategory) => {
-    setActiveFilter(activeFilter === filter ? null : filter);
-  };
-
   const handleDone = () => {
     router.push('/flow-ai/queue');
   };
 
-  // Map relatedData to counts
-  const quotesCount = relatedData?.quotes?.length || 0;
-  const ordersCount = relatedData?.orders?.length || 0;
-  const invoicesCount = relatedData?.invoices?.length || 0;
-  const customersCount = relatedData?.customers?.length || 0;
-  const productsCount = relatedData?.products?.length || 0;
-  const factoriesCount = relatedData?.factories?.length || 0;
-  const checksCount = relatedData?.checks?.length || 0;
+  // Calculate counts by status
+  const counts = useMemo(() => {
+    const created = processingResults.filter(r => r.status === 'CREATED').length;
+    const skipped = processingResults.filter(r => r.status === 'SKIPPED').length;
+    const error = processingResults.filter(r => r.status === 'ERROR').length;
+    return { created, skipped, error, total: processingResults.length };
+  }, [processingResults]);
 
-  const totalEntities = quotesCount + ordersCount + invoicesCount + customersCount + productsCount + factoriesCount + checksCount;
-  const hasAnyEntities = totalEntities > 0;
+  // Filter results based on selected status
+  const filteredResults = useMemo(() => {
+    if (statusFilter === 'all') return processingResults;
+    return processingResults.filter(r => r.status === statusFilter);
+  }, [processingResults, statusFilter]);
+
+  const hasAnyResults = processingResults.length > 0;
 
   // Show full-page loading while waiting for params or initial data load
   if (effectiveParams === null || isLoading) {
@@ -231,7 +227,7 @@ function UploadCompleteContent() {
       <div className="min-h-screen bg-slate-50 dark:bg-background flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading document data...</p>
+          <p className="text-muted-foreground">Loading processing results...</p>
         </div>
       </div>
     );
@@ -255,57 +251,27 @@ function UploadCompleteContent() {
           </div>
         )}
 
-        {/* No data state - shown when loading is complete and no entities exist */}
-        {!loadError && !hasAnyEntities && (
+        {/* No data state - shown when loading is complete and no results exist */}
+        {!loadError && !hasAnyResults && (
           <div className="bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-slate-700 rounded-lg p-6 text-center">
             <FileText className="w-8 h-8 text-slate-400 mx-auto mb-3" />
-            <p className="text-slate-600 dark:text-slate-400 font-medium">No linked entities found</p>
-            <p className="text-slate-500 dark:text-slate-500 text-sm mt-1">The document was processed but no entities were linked.</p>
+            <p className="text-slate-600 dark:text-slate-400 font-medium">No processing results found</p>
+            <p className="text-slate-500 dark:text-slate-500 text-sm mt-1">The document was processed but no entities were created or skipped.</p>
           </div>
         )}
 
         {/* Summary Cards */}
-        {hasAnyEntities && (
+        {hasAnyResults && (
           <SummaryCards
-            activeFilter={activeFilter}
-            onFilterClick={handleFilterClick}
-            quotesCount={quotesCount}
-            ordersCount={ordersCount}
-            invoicesCount={invoicesCount}
-            customersCount={customersCount}
-            productsCount={productsCount}
-            factoriesCount={factoriesCount}
-            checksCount={checksCount}
+            counts={counts}
+            activeFilter={statusFilter}
+            onFilterClick={setStatusFilter}
           />
         )}
 
-        {/* Entity Tables */}
-        {(activeFilter === null || activeFilter === 'quotes') && quotesCount > 0 && relatedData && (
-          <QuotesTable quotes={relatedData.quotes} />
-        )}
-
-        {(activeFilter === null || activeFilter === 'orders') && ordersCount > 0 && relatedData && (
-          <OrdersTable orders={relatedData.orders} />
-        )}
-
-        {(activeFilter === null || activeFilter === 'invoices') && invoicesCount > 0 && relatedData && (
-          <InvoicesTable invoices={relatedData.invoices} />
-        )}
-
-        {(activeFilter === null || activeFilter === 'customers') && customersCount > 0 && relatedData && (
-          <CustomersTable customers={relatedData.customers} />
-        )}
-
-        {(activeFilter === null || activeFilter === 'products') && productsCount > 0 && relatedData && (
-          <ProductsTable products={relatedData.products} />
-        )}
-
-        {(activeFilter === null || activeFilter === 'factories') && factoriesCount > 0 && relatedData && (
-          <FactoriesTable factories={relatedData.factories} />
-        )}
-
-        {(activeFilter === null || activeFilter === 'checks') && checksCount > 0 && relatedData && (
-          <ChecksTable checks={relatedData.checks} />
+        {/* Processing Results Table */}
+        {hasAnyResults && (
+          <ProcessingResultsTable results={filteredResults} />
         )}
 
         {/* Navigation */}
@@ -328,7 +294,7 @@ function Header() {
         <h1 className="text-3xl font-bold">Upload Complete</h1>
       </div>
       <p className="text-muted-foreground">
-        Your document has been processed. Here&apos;s a summary of all entities linked to this file.
+        Your document has been processed. Here&apos;s a summary of all processing results.
       </p>
     </div>
   );
@@ -336,36 +302,50 @@ function Header() {
 
 // Summary Cards Component
 interface SummaryCardsProps {
-  activeFilter: EntityCategory | null;
-  onFilterClick: (filter: EntityCategory) => void;
-  quotesCount: number;
-  ordersCount: number;
-  invoicesCount: number;
-  customersCount: number;
-  productsCount: number;
-  factoriesCount: number;
-  checksCount: number;
+  counts: { created: number; skipped: number; error: number; total: number };
+  activeFilter: StatusFilter;
+  onFilterClick: (filter: StatusFilter) => void;
 }
 
-function SummaryCards({ activeFilter, onFilterClick, quotesCount, ordersCount, invoicesCount, customersCount, productsCount, factoriesCount, checksCount }: SummaryCardsProps) {
-  type CardItem = { key: EntityCategory; label: string; count: number; icon: React.ReactNode; color: string };
-  const allCards: CardItem[] = [
-    { key: 'quotes' as const, label: 'Quotes', count: quotesCount, icon: <FileText className="w-4 h-4 text-blue-600" />, color: 'blue' },
-    { key: 'orders' as const, label: 'Orders', count: ordersCount, icon: <ShoppingCart className="w-4 h-4 text-green-600" />, color: 'green' },
-    { key: 'invoices' as const, label: 'Invoices', count: invoicesCount, icon: <Receipt className="w-4 h-4 text-purple-600" />, color: 'purple' },
-    { key: 'customers' as const, label: 'Customers', count: customersCount, icon: <Building2 className="w-4 h-4 text-orange-600" />, color: 'orange' },
-    { key: 'products' as const, label: 'Products', count: productsCount, icon: <Package className="w-4 h-4 text-cyan-600" />, color: 'cyan' },
-    { key: 'factories' as const, label: 'Factories', count: factoriesCount, icon: <Factory className="w-4 h-4 text-indigo-600" />, color: 'indigo' },
-    { key: 'checks' as const, label: 'Checks', count: checksCount, icon: <DollarSign className="w-4 h-4 text-emerald-600" />, color: 'emerald' },
+function SummaryCards({ counts, activeFilter, onFilterClick }: SummaryCardsProps) {
+  const cards: { key: StatusFilter; label: string; count: number; icon: React.ReactNode; color: string }[] = [
+    {
+      key: 'all',
+      label: 'All',
+      count: counts.total,
+      icon: <FileText className="w-4 h-4 text-blue-600" />,
+      color: 'blue'
+    },
+    {
+      key: 'CREATED',
+      label: 'Created',
+      count: counts.created,
+      icon: <CheckCircle2 className="w-4 h-4 text-green-600" />,
+      color: 'green'
+    },
+    {
+      key: 'SKIPPED',
+      label: 'Skipped',
+      count: counts.skipped,
+      icon: <SkipForward className="w-4 h-4 text-yellow-600" />,
+      color: 'yellow'
+    },
+    {
+      key: 'ERROR',
+      label: 'Errors',
+      count: counts.error,
+      icon: <XCircle className="w-4 h-4 text-red-600" />,
+      color: 'red'
+    },
   ];
-  const cards = allCards.filter(card => card.count > 0);
 
-  if (cards.length === 0) return null;
+  // Only show cards that have counts (except 'all' which is always shown)
+  const visibleCards = cards.filter(card => card.key === 'all' || card.count > 0);
 
   return (
     <div className="border rounded-lg p-6 bg-white dark:bg-card">
       <div className="flex items-center flex-wrap gap-4">
-        {cards.map((card) => (
+        {visibleCards.map((card) => (
           <SummaryCardButton
             key={card.key}
             isActive={activeFilter === card.key}
@@ -394,31 +374,22 @@ function SummaryCardButton({ isActive, onClick, label, count, icon, color }: Sum
   const colorClasses: Record<string, string> = {
     blue: isActive ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300',
     green: isActive ? 'border-green-500 bg-green-50 dark:bg-green-950/30' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300',
-    purple: isActive ? 'border-purple-500 bg-purple-50 dark:bg-purple-950/30' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300',
-    orange: isActive ? 'border-orange-500 bg-orange-50 dark:bg-orange-950/30' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300',
-    cyan: isActive ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-950/30' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300',
-    indigo: isActive ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/30' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300',
-    emerald: isActive ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300',
+    yellow: isActive ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-950/30' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300',
+    red: isActive ? 'border-red-500 bg-red-50 dark:bg-red-950/30' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300',
   };
 
   const textColorClasses: Record<string, string> = {
     blue: isActive ? 'text-blue-600' : 'text-gray-700 dark:text-gray-300',
     green: isActive ? 'text-green-600' : 'text-gray-700 dark:text-gray-300',
-    purple: isActive ? 'text-purple-600' : 'text-gray-700 dark:text-gray-300',
-    orange: isActive ? 'text-orange-600' : 'text-gray-700 dark:text-gray-300',
-    cyan: isActive ? 'text-cyan-600' : 'text-gray-700 dark:text-gray-300',
-    indigo: isActive ? 'text-indigo-600' : 'text-gray-700 dark:text-gray-300',
-    emerald: isActive ? 'text-emerald-600' : 'text-gray-700 dark:text-gray-300',
+    yellow: isActive ? 'text-yellow-600' : 'text-gray-700 dark:text-gray-300',
+    red: isActive ? 'text-red-600' : 'text-gray-700 dark:text-gray-300',
   };
 
   const checkColorClasses: Record<string, string> = {
     blue: 'text-blue-600',
     green: 'text-green-600',
-    purple: 'text-purple-600',
-    orange: 'text-orange-600',
-    cyan: 'text-cyan-600',
-    indigo: 'text-indigo-600',
-    emerald: 'text-emerald-600',
+    yellow: 'text-yellow-600',
+    red: 'text-red-600',
   };
 
   return (
@@ -435,45 +406,104 @@ function SummaryCardButton({ isActive, onClick, label, count, icon, color }: Sum
       </div>
       <div className="flex items-center gap-2">
         <Badge variant="secondary">{count}</Badge>
-        <span className="text-xs text-muted-foreground">linked</span>
+        <span className="text-xs text-muted-foreground">items</span>
       </div>
     </button>
   );
 }
 
-// Helper to format dates
-function formatDate(dateStr: string | null | undefined): string {
-  if (!dateStr) return '-';
+// Parse dtoJson to extract display name
+function getDisplayName(dtoJson: string | null): string {
+  if (!dtoJson) return 'Unknown';
   try {
-    return new Date(dateStr).toLocaleDateString();
+    const data: ParsedDtoData = JSON.parse(dtoJson);
+    // Try different possible name fields
+    return data.factory_name ||
+           data.customer_name ||
+           data.product_name ||
+           data.order_number ||
+           data.invoice_number ||
+           data.internal_uuid?.substring(0, 8) ||
+           'Unknown';
   } catch {
-    return dateStr;
+    return 'Unknown';
   }
 }
 
-// Helper to open URL - prepends NEXT_PUBLIC_FLOWRMS_APP_URL to the relative URL
-function openUrl(url: string | null | undefined) {
-  if (url) {
-    const baseUrl = process.env.NEXT_PUBLIC_FLOWRMS_APP_URL || 'https://staging2.app.flowrms.com';
-    // Remove trailing slash from base URL and leading slash from url if both present
-    const cleanBaseUrl = baseUrl.replace(/\/$/, '');
-    const cleanPath = url.startsWith('/') ? url : `/${url}`;
-    const fullUrl = `${cleanBaseUrl}${cleanPath}`;
-    window.open(fullUrl, '_blank', 'noopener,noreferrer');
+// Parse dtoJson to get a summary of fields
+function getFieldsSummary(dtoJson: string | null): { key: string; value: string }[] {
+  if (!dtoJson) return [];
+  try {
+    const data: ParsedDtoData = JSON.parse(dtoJson);
+    const fields: { key: string; value: string }[] = [];
+
+    // Extract key fields to display
+    const keyFields = [
+      'factory_name', 'customer_name', 'product_name', 'order_number', 'invoice_number',
+      'email', 'phone', 'address', 'contact', 'payment_terms', 'freight_terms',
+      'base_commission', 'inside_sales_rep_name'
+    ];
+
+    for (const key of keyFields) {
+      if (data[key] !== null && data[key] !== undefined) {
+        fields.push({ key: formatFieldName(key), value: String(data[key]) });
+      }
+    }
+
+    return fields;
+  } catch {
+    return [];
   }
 }
 
-// Quotes Table Component
-function QuotesTable({ quotes }: { quotes: RelatedEntities['quotes'] }) {
+// Format field names for display
+function formatFieldName(name: string): string {
+  return name
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, l => l.toUpperCase());
+}
+
+// Get status badge
+function getStatusBadge(status: string) {
+  switch (status) {
+    case 'CREATED':
+      return <Badge className="bg-green-50 text-green-700 border-green-200">Created</Badge>;
+    case 'SKIPPED':
+      return <Badge className="bg-yellow-50 text-yellow-700 border-yellow-200">Skipped</Badge>;
+    case 'ERROR':
+      return <Badge className="bg-red-50 text-red-700 border-red-200">Error</Badge>;
+    case 'PENDING':
+      return <Badge className="bg-blue-50 text-blue-700 border-blue-200">Pending</Badge>;
+    default:
+      return <Badge variant="secondary">{status}</Badge>;
+  }
+}
+
+// Processing Results Table Component
+function ProcessingResultsTable({ results }: { results: ProcessingResult[] }) {
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  const toggleRow = (id: string) => {
+    setExpandedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <FileText className="w-5 h-5 text-blue-600" />
-          Quotes ({quotes.length})
+          Processing Results ({results.length})
         </CardTitle>
         <CardDescription>
-          Quotes linked to this document
+          Details of each entity processed from the document
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -481,347 +511,75 @@ function QuotesTable({ quotes }: { quotes: RelatedEntities['quotes'] }) {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 dark:bg-slate-800/50 border-b">
               <tr>
-                <th className="px-4 py-3 text-left font-semibold">Quote #</th>
-                <th className="px-4 py-3 text-left font-semibold">Entity Date</th>
-                <th className="px-4 py-3 text-left font-semibold">Exp Date</th>
+                <th className="px-4 py-3 text-left font-semibold w-10"></th>
+                <th className="px-4 py-3 text-left font-semibold">Entity Name</th>
                 <th className="px-4 py-3 text-left font-semibold">Status</th>
-                <th className="px-4 py-3 text-left font-semibold">Blanket</th>
+                <th className="px-4 py-3 text-left font-semibold">Entity ID</th>
+                <th className="px-4 py-3 text-left font-semibold">Message</th>
               </tr>
             </thead>
             <tbody>
-              {quotes.map((quote) => (
-                <tr key={quote.id} className="border-b hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                  <td className="px-4 py-3 font-medium">
-                    {quote.url ? (
-                      <button
-                        onClick={() => openUrl(quote.url)}
-                        className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
-                      >
-                        {quote.quoteNumber || quote.id}
-                      </button>
-                    ) : (
-                      <span className="text-blue-600">{quote.quoteNumber || quote.id}</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">{formatDate(quote.entityDate)}</td>
-                  <td className="px-4 py-3">{formatDate(quote.expDate)}</td>
-                  <td className="px-4 py-3">
-                    {quote.status && <Badge variant="secondary">{quote.status}</Badge>}
-                  </td>
-                  <td className="px-4 py-3">
-                    {quote.blanket ? <Badge variant="secondary">Yes</Badge> : '-'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+              {results.map((result) => {
+                const isExpanded = expandedRows.has(result.id);
+                const fields = getFieldsSummary(result.dtoJson);
 
-// Orders Table Component
-function OrdersTable({ orders }: { orders: RelatedEntities['orders'] }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <ShoppingCart className="w-5 h-5 text-green-600" />
-          Orders ({orders.length})
-        </CardTitle>
-        <CardDescription>
-          Orders linked to this document
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800/50 border-b">
-              <tr>
-                <th className="px-4 py-3 text-left font-semibold">Order #</th>
-                <th className="px-4 py-3 text-left font-semibold">Factory SO</th>
-                <th className="px-4 py-3 text-left font-semibold">Entity Date</th>
-                <th className="px-4 py-3 text-left font-semibold">Ship Date</th>
-                <th className="px-4 py-3 text-left font-semibold">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map((order) => (
-                <tr key={order.id} className="border-b hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                  <td className="px-4 py-3 font-medium">
-                    <a
-                      href={`/orders/${order.id}`}
-                      className="text-green-600 hover:text-green-800 hover:underline cursor-pointer"
+                return (
+                  <>
+                    <tr
+                      key={result.id}
+                      className="border-b hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer"
+                      onClick={() => toggleRow(result.id)}
                     >
-                      {order.orderNumber || order.id}
-                    </a>
-                  </td>
-                  <td className="px-4 py-3">{order.factSoNumber || '-'}</td>
-                  <td className="px-4 py-3">{formatDate(order.entityDate)}</td>
-                  <td className="px-4 py-3">{formatDate(order.shipDate)}</td>
-                  <td className="px-4 py-3">
-                    {order.status && <Badge variant="secondary">{order.status}</Badge>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// Invoices Table Component
-function InvoicesTable({ invoices }: { invoices: RelatedEntities['invoices'] }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Receipt className="w-5 h-5 text-purple-600" />
-          Invoices ({invoices.length})
-        </CardTitle>
-        <CardDescription>
-          Invoices linked to this document
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800/50 border-b">
-              <tr>
-                <th className="px-4 py-3 text-left font-semibold">Invoice #</th>
-                <th className="px-4 py-3 text-left font-semibold">Entity Date</th>
-                <th className="px-4 py-3 text-left font-semibold">Due Date</th>
-                <th className="px-4 py-3 text-left font-semibold">Status</th>
-                <th className="px-4 py-3 text-left font-semibold">Locked</th>
-              </tr>
-            </thead>
-            <tbody>
-              {invoices.map((invoice) => (
-                <tr key={invoice.id} className="border-b hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                  <td className="px-4 py-3 font-medium">
-                    {invoice.url ? (
-                      <button
-                        onClick={() => openUrl(invoice.url)}
-                        className="text-purple-600 hover:text-purple-800 hover:underline cursor-pointer"
-                      >
-                        {invoice.invoiceNumber || invoice.id}
-                      </button>
-                    ) : (
-                      <span className="text-purple-600">{invoice.invoiceNumber || invoice.id}</span>
+                      <td className="px-4 py-3">
+                        <button className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded">
+                          <svg
+                            className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                      </td>
+                      <td className="px-4 py-3 font-medium">
+                        {getDisplayName(result.dtoJson)}
+                      </td>
+                      <td className="px-4 py-3">
+                        {getStatusBadge(result.status)}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs">
+                        {result.entityId ? (
+                          <span className="text-green-600">{result.entityId.substring(0, 8)}...</span>
+                        ) : (
+                          <span className="text-slate-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        {result.errorMessage ? (
+                          <span className="text-yellow-600">{result.errorMessage}</span>
+                        ) : (
+                          <span className="text-slate-400">-</span>
+                        )}
+                      </td>
+                    </tr>
+                    {isExpanded && fields.length > 0 && (
+                      <tr key={`${result.id}-details`} className="bg-slate-50 dark:bg-slate-800/30">
+                        <td colSpan={5} className="px-4 py-3">
+                          <div className="ml-10 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                            {fields.map((field, idx) => (
+                              <div key={idx} className="text-sm">
+                                <span className="text-slate-500 font-medium">{field.key}:</span>{' '}
+                                <span className="text-slate-700 dark:text-slate-300">{field.value || '-'}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
                     )}
-                  </td>
-                  <td className="px-4 py-3">{formatDate(invoice.entityDate)}</td>
-                  <td className="px-4 py-3">{formatDate(invoice.dueDate)}</td>
-                  <td className="px-4 py-3">
-                    {invoice.status && <Badge variant="secondary">{invoice.status}</Badge>}
-                  </td>
-                  <td className="px-4 py-3">
-                    {invoice.locked ? <Badge variant="outline">Locked</Badge> : '-'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// Customers Table Component
-function CustomersTable({ customers }: { customers: RelatedEntities['customers'] }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Building2 className="w-5 h-5 text-orange-600" />
-          Customers ({customers.length})
-        </CardTitle>
-        <CardDescription>
-          Customers linked to this document
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800/50 border-b">
-              <tr>
-                <th className="px-4 py-3 text-left font-semibold">Company Name</th>
-                <th className="px-4 py-3 text-left font-semibold">Is Parent</th>
-                <th className="px-4 py-3 text-left font-semibold">Published</th>
-              </tr>
-            </thead>
-            <tbody>
-              {customers.map((customer) => (
-                <tr key={customer.id} className="border-b hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                  <td className="px-4 py-3 font-medium">
-                    <span className="text-orange-600">{customer.companyName || customer.id}</span>
-                  </td>
-                  <td className="px-4 py-3">
-                    {customer.isParent ? <Badge variant="secondary">Yes</Badge> : '-'}
-                  </td>
-                  <td className="px-4 py-3">
-                    {customer.published ? <Badge variant="secondary" className="bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400">Yes</Badge> : '-'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// Products Table Component
-function ProductsTable({ products }: { products: RelatedEntities['products'] }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Package className="w-5 h-5 text-cyan-600" />
-          Products ({products.length})
-        </CardTitle>
-        <CardDescription>
-          Products linked to this document
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800/50 border-b">
-              <tr>
-                <th className="px-4 py-3 text-left font-semibold">Part Number</th>
-                <th className="px-4 py-3 text-left font-semibold">Description</th>
-                <th className="px-4 py-3 text-right font-semibold">Unit Price</th>
-                <th className="px-4 py-3 text-right font-semibold">Commission Rate</th>
-                <th className="px-4 py-3 text-left font-semibold">Published</th>
-              </tr>
-            </thead>
-            <tbody>
-              {products.map((product) => (
-                <tr key={product.id} className="border-b hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                  <td className="px-4 py-3 font-mono text-sm">
-                    <span className="text-cyan-600">{product.factoryPartNumber || product.id}</span>
-                  </td>
-                  <td className="px-4 py-3">{product.description || '-'}</td>
-                  <td className="px-4 py-3 text-right">
-                    {product.unitPrice != null ? `$${Number(product.unitPrice).toFixed(2)}` : '-'}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {product.defaultCommissionRate != null ? `${(Number(product.defaultCommissionRate) * 100).toFixed(1)}%` : '-'}
-                  </td>
-                  <td className="px-4 py-3">
-                    {product.published ? <Badge variant="secondary" className="bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400">Yes</Badge> : '-'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// Factories Table Component
-function FactoriesTable({ factories }: { factories: RelatedEntities['factories'] }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Factory className="w-5 h-5 text-indigo-600" />
-          Factories ({factories.length})
-        </CardTitle>
-        <CardDescription>
-          Factories linked to this document
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800/50 border-b">
-              <tr>
-                <th className="px-4 py-3 text-left font-semibold">Title</th>
-                <th className="px-4 py-3 text-left font-semibold">Account Number</th>
-                <th className="px-4 py-3 text-left font-semibold">Published</th>
-              </tr>
-            </thead>
-            <tbody>
-              {factories.map((factory) => (
-                <tr key={factory.id} className="border-b hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                  <td className="px-4 py-3 font-medium">
-                    <span className="text-indigo-600">{factory.title || factory.id}</span>
-                  </td>
-                  <td className="px-4 py-3">{factory.accountNumber || '-'}</td>
-                  <td className="px-4 py-3">
-                    {factory.published ? <Badge variant="secondary" className="bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400">Yes</Badge> : '-'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// Checks Table Component
-function ChecksTable({ checks }: { checks: RelatedEntities['checks'] }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <DollarSign className="w-5 h-5 text-emerald-600" />
-          Checks ({checks.length})
-        </CardTitle>
-        <CardDescription>
-          Checks linked to this document
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800/50 border-b">
-              <tr>
-                <th className="px-4 py-3 text-left font-semibold">Check #</th>
-                <th className="px-4 py-3 text-right font-semibold">Commission</th>
-                <th className="px-4 py-3 text-left font-semibold">Commission Month</th>
-                <th className="px-4 py-3 text-left font-semibold">Entity Date</th>
-                <th className="px-4 py-3 text-left font-semibold">Post Date</th>
-                <th className="px-4 py-3 text-left font-semibold">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {checks.map((check) => (
-                <tr key={check.id} className="border-b hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                  <td className="px-4 py-3 font-medium">
-                    {check.url ? (
-                      <button
-                        onClick={() => openUrl(check.url)}
-                        className="text-emerald-600 hover:text-emerald-800 hover:underline cursor-pointer"
-                      >
-                        {check.checkNumber || check.id}
-                      </button>
-                    ) : (
-                      <span className="text-emerald-600">{check.checkNumber || check.id}</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {check.enteredCommissionAmount != null ? `$${Number(check.enteredCommissionAmount).toFixed(2)}` : '-'}
-                  </td>
-                  <td className="px-4 py-3">{check.commissionMonth || '-'}</td>
-                  <td className="px-4 py-3">{formatDate(check.entityDate)}</td>
-                  <td className="px-4 py-3">{formatDate(check.postDate)}</td>
-                  <td className="px-4 py-3">
-                    {check.status && <Badge variant="secondary">{check.status}</Badge>}
-                  </td>
-                </tr>
-              ))}
+                  </>
+                );
+              })}
             </tbody>
           </table>
         </div>
