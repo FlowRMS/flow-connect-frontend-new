@@ -183,13 +183,27 @@ export function ClassificationTab({
 
       {/* Category Tabs */}
       <div className="flex items-center gap-6 mb-6 border-b border-gray-200 pb-3">
+        {/* All Documents tab */}
+        <button
+          onClick={() => setActiveTab(null)}
+          className={`text-sm font-medium transition-colors ${
+            activeTab === null
+              ? 'text-blue-600'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          All{' '}
+          <span className={activeTab === null ? 'text-blue-600' : 'text-gray-400'}>
+            {documents.length}
+          </span>
+        </button>
         {CATEGORY_TABS.map(tab => {
           const count = categoryCounts[tab];
           const isActive = activeTab === tab;
           return (
             <button
               key={tab}
-              onClick={() => setActiveTab(isActive ? null : tab)}
+              onClick={() => setActiveTab(tab)}
               className={`text-sm font-medium transition-colors ${
                 isActive
                   ? 'text-blue-600'
