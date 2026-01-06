@@ -134,13 +134,9 @@ export function ClassificationTab({
     return sorted;
   }, [filteredDocuments, sortColumn, sortDirection]);
 
-  // Documents that can be abridged (Fixture Schedules or Specifications, not already abridged)
+  // Documents that can be abridged (not already abridged, has URL)
   const docsToAbridge = useMemo(() => {
-    return documents.filter(d =>
-      !d.abridged &&
-      d.documentUrl &&
-      (d.classification === 'Fixture Schedules' || d.classification === 'Specifications')
-    );
+    return documents.filter(d => !d.abridged && d.documentUrl);
   }, [documents]);
 
   // Handle "Abridge All Large Documents" button click
@@ -150,7 +146,7 @@ export function ClassificationTab({
 
     // Check if there are documents to abridge
     if (docsToAbridge.length === 0) {
-      showInfoToast('No documents to abridge. Documents must be classified as "Fixture Schedules" or "Specifications" and not already abridged.');
+      showInfoToast('No documents to abridge. All documents are already abridged.');
       return;
     }
 

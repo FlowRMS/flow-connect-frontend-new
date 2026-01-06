@@ -452,8 +452,7 @@ export function useTakeoffsState() {
 
     const docsToAbridge = documents.filter(d =>
       !d.abridged &&
-      d.documentUrl &&
-      (d.classification === 'Fixture Schedules' || d.classification === 'Specifications')
+      d.documentUrl
     );
     console.log('[Abridgement] Documents to abridge:', docsToAbridge.length);
 
