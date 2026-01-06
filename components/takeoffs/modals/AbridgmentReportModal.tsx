@@ -19,11 +19,22 @@ export function AbridgmentReportModal({
 }: AbridgmentReportModalProps) {
   if (!isOpen || !document) return null;
 
+  // Parse pageAnalyses - handle both string (from JSONB/GraphQL) and array formats
+  // The backend may return JSONB as a serialized string instead of parsed object
+  let pageAnalysesData = document.pageAnalyses;
+  if (typeof pageAnalysesData === 'string') {
+    try {
+      pageAnalysesData = JSON.parse(pageAnalysesData);
+    } catch {
+      pageAnalysesData = [];
+    }
+  }
+
   // Transform pageAnalyses from document to AbridgmentReportItem format
   // Handle both camelCase (from GraphQL) and snake_case (from JSONB storage) formats
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const reportItems: AbridgmentReportItem[] = Array.isArray(document.pageAnalyses)
-    ? document.pageAnalyses.map((pa: any) => ({
+  const reportItems: AbridgmentReportItem[] = Array.isArray(pageAnalysesData)
+    ? pageAnalysesData.map((pa: any) => ({
         page: pa.pageNumber ?? pa.page_number,
         included: pa.isRelevant ?? pa.is_relevant,
         reason: pa.reasoning || pa.main_topic || pa.mainTopic || 'No reasoning provided',

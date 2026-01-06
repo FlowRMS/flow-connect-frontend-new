@@ -610,9 +610,16 @@ export async function parseScheduleDocument(
   filename: string,
   documentId?: string
 ): Promise<ParsedItem[]> {
+  console.log('[parseScheduleDocument] Starting for:', filename);
+
   // Use the product cross API to parse the document
   // We pass minimal cross types since we only want the parsed items
   const results = await productCrossFromParsedDocument(documentUrl, filename, ['SIMPLE']);
+
+  console.log('[parseScheduleDocument] Raw results count:', results?.length || 0);
+  if (results?.length > 0) {
+    console.log('[parseScheduleDocument] First result:', JSON.stringify(results[0], null, 2));
+  }
 
   // Extract parsed items from the results
   const parsedItems: ParsedItem[] = results.map((result, index) => {
@@ -629,6 +636,7 @@ export async function parseScheduleDocument(
     };
   });
 
+  console.log('[parseScheduleDocument] Parsed items count:', parsedItems.length);
   return parsedItems;
 }
 
