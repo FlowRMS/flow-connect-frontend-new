@@ -56,7 +56,8 @@ export function classifyDocument(
  * Get items that can be selected for crossing
  */
 export function getSelectableItems(items: ParsedItem[]): ParsedItem[] {
-  return items.filter(item => !item.isOurManufacturer && !item.isCrossed);
+  // Allow re-crossing - only exclude items from our manufacturers
+  return items.filter(item => !item.isOurManufacturer);
 }
 
 /**
@@ -66,14 +67,15 @@ export function getSelectableItems(items: ParsedItem[]): ParsedItem[] {
 export function getInitialStep(status: TakeoffStatus): import('./types').TakeoffStep {
   switch (status) {
     case 'Complete':
-      return 'approvals';
     case 'Parsing':
       return 'parsing';
     case 'Abridgment':
-      return 'abridgment';
+      // After abridgment, show classification tab with abridged documents
+      // The user can then click "Proceed to Parsing"
+      return 'classification';
     case 'Classification':
     default:
-      return 'review';
+      return 'classification';
   }
 }
 

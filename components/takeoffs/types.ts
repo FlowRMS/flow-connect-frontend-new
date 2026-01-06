@@ -37,13 +37,10 @@ export const statusApiMap: Record<TakeoffStatus, TakeoffStatusEnum> = {
 };
 
 // Map step to API status (for updating takeoff status when step changes)
+// Simplified to 2-step workflow: classification and parsing
 export const stepToApiStatus: Partial<Record<TakeoffStep, TakeoffStatusEnum>> = {
   classification: 'CLASSIFICATION',
-  abridgment: 'ABRIDGMENT',
   parsing: 'PARSING',
-  productCross: 'COMPLETE',
-  approvals: 'COMPLETE',
-  // 'review' has no corresponding status
 };
 
 // ============================================================================
@@ -72,14 +69,10 @@ export type DocumentDiscipline =
 // View mode types
 export type TakeoffViewMode = 'list' | 'detail';
 
-// Step types for the detail flow (6-step workflow)
+// Step types for the detail flow (simplified 2-tab workflow)
 export type TakeoffStep =
-  | 'review'        // Review Documents
-  | 'classification' // Classification
-  | 'abridgment'    // Create Abridged
-  | 'parsing'       // Schedule Parsing
-  | 'productCross'  // Product Cross
-  | 'approvals';    // Approvals
+  | 'classification' // Classification & Abridgment (Tab 1)
+  | 'parsing';       // Schedule Parsing & Product Cross (Tab 2)
 
 // ============================================================================
 // Main Types (for UI display)
