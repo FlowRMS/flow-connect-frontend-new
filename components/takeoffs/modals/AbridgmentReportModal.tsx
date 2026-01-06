@@ -20,12 +20,13 @@ export function AbridgmentReportModal({
   if (!isOpen || !document) return null;
 
   // Transform pageAnalyses from document to AbridgmentReportItem format
-  // Handle case where pageAnalyses might not be an array
+  // Handle both camelCase (from GraphQL) and snake_case (from JSONB storage) formats
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const reportItems: AbridgmentReportItem[] = Array.isArray(document.pageAnalyses)
-    ? document.pageAnalyses.map(pa => ({
-        page: pa.pageNumber,
-        included: pa.isRelevant,
-        reason: pa.reasoning || pa.mainTopic || 'No reasoning provided',
+    ? document.pageAnalyses.map((pa: any) => ({
+        page: pa.pageNumber ?? pa.page_number,
+        included: pa.isRelevant ?? pa.is_relevant,
+        reason: pa.reasoning || pa.main_topic || pa.mainTopic || 'No reasoning provided',
       }))
     : [];
 

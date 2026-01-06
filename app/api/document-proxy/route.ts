@@ -18,6 +18,7 @@ const ALLOWED_HOSTS = new Set([
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const targetUrl = searchParams.get("url");
+  const requestedFilename = searchParams.get("filename");
 
   if (!targetUrl) {
     return new Response(
@@ -83,10 +84,16 @@ export async function GET(request: Request) {
     // Get the file data as ArrayBuffer
     const fileData = await upstreamResponse.arrayBuffer();
 
+    // Use requested filename, or extract from URL, or use default
+    const urlPath = parsedUrl.pathname;
+    const urlFilename = urlPath.split('/').pop() || 'document';
+    const filename = requestedFilename || urlFilename;
+
     return new Response(fileData, {
       status: 200,
       headers: {
         "Content-Type": contentType,
+        "Content-Disposition": `attachment; filename="${encodeURIComponent(filename)}"`,
         "Cache-Control": "no-store",
       },
     });

@@ -179,7 +179,7 @@ export function ClassificationTab({
               </svg>
             )}
             {isAbridgementProcessing
-              ? `Processing: ${abridgementCurrentItem || 'Starting...'}`
+              ? 'Processing...'
               : 'Abridge All Large Documents'}
           </button>
         </div>
@@ -372,7 +372,8 @@ export function ClassificationTab({
                     {/* Abridge Button / Processing / View Report */}
                     {(() => {
                       const abridgeState = documentAbridgeState[doc.id];
-                      const isProcessing = abridgeState?.isProcessing;
+                      // Show Processing in row for: individual doc processing OR bulk processing of this doc
+                      const isProcessing = abridgeState?.isProcessing || (isAbridgementProcessing && abridgementCurrentItem === doc.name);
                       const hasError = abridgeState?.error;
 
                       // Processing state

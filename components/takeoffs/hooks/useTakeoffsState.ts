@@ -514,6 +514,19 @@ export function useTakeoffsState() {
             )
           );
 
+          // Persist to backend
+          try {
+            await updateTakeoffDocument(doc.id, {
+              pages: actualPages,
+              abridged: true,
+              abridgedPages: abridgedPages,
+              reductionPercentage: result.reductionPercentage,
+              pageAnalyses: result.pageAnalyses as unknown as UpdateTakeoffDocumentInput['pageAnalyses'],
+            });
+          } catch (persistError) {
+            console.error(`Failed to persist abridgement for ${doc.name}:`, persistError);
+          }
+
           // Complete logs - show abridged pages / total pages
           addDocumentLog(doc.id, '✅ Smart abridgment complete!');
           const reduction = result.reductionPercentage?.toFixed(0) || '0';
@@ -1485,18 +1498,45 @@ export function useTakeoffsState() {
   }, []);
 
   // Download a single document
-  const handleDownloadDocument = useCallback((doc: TakeoffDocument) => {
+  const handleDownloadDocument = useCallback(async (doc: TakeoffDocument) => {
     if (!doc.documentUrl) {
       showErrorToast('Download Failed', { description: 'Document URL not available' });
       return;
     }
 
-    // Open the document URL in a new tab (S3 presigned URLs handle the download)
-    window.open(doc.documentUrl, '_blank');
+    try {
+      // Use proxy to avoid CORS issues and force download
+      const proxyUrl = `/api/document-proxy?url=${encodeURIComponent(doc.documentUrl)}&filename=${encodeURIComponent(doc.name)}`;
+      console.log('[Download] Fetching via proxy:', proxyUrl);
+      const response = await fetch(proxyUrl);
+      console.log('[Download] Proxy response status:', response.status, response.ok);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[Download] Proxy failed:', response.status, errorText);
+        // Fallback to opening in new tab
+        window.open(doc.documentUrl, '_blank');
+        return;
+      }
+
+      const blob = await response.blob();
+      console.log('[Download] Got blob, size:', blob.size, 'type:', blob.type);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = doc.name;
+      console.log('[Download] Triggering download:', doc.name);
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('[Download] Exception:', error);
+      // Fallback to opening in new tab
+      window.open(doc.documentUrl, '_blank');
+    }
   }, []);
 
   // Download all documents
-  const handleDownloadAllDocuments = useCallback(() => {
+  const handleDownloadAllDocuments = useCallback(async () => {
     const docsWithUrls = documents.filter(d => d.documentUrl);
 
     if (docsWithUrls.length === 0) {
@@ -1504,20 +1544,35 @@ export function useTakeoffsState() {
       return;
     }
 
-    // Download each document (browsers may block multiple downloads, so we use a delay)
-    docsWithUrls.forEach((doc, index) => {
-      setTimeout(() => {
-        if (doc.documentUrl) {
-          const link = document.createElement('a');
-          link.href = doc.documentUrl;
-          link.download = doc.name;
-          link.target = '_blank';
-          link.click();
-        }
-      }, index * 500); // 500ms delay between downloads
-    });
-
     showInfoToast('Downloading Documents', { description: `Downloading ${docsWithUrls.length} documents...` });
+
+    // Download each document sequentially with proxy
+    for (let i = 0; i < docsWithUrls.length; i++) {
+      const doc = docsWithUrls[i];
+      if (!doc.documentUrl) continue;
+
+      try {
+        const proxyUrl = `/api/document-proxy?url=${encodeURIComponent(doc.documentUrl)}`;
+        const response = await fetch(proxyUrl);
+
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = doc.name;
+          link.click();
+          URL.revokeObjectURL(url);
+        }
+      } catch (error) {
+        console.error(`Error downloading ${doc.name}:`, error);
+      }
+
+      // Small delay between downloads to avoid browser blocking
+      if (i < docsWithUrls.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+    }
   }, [documents]);
 
   // Update takeoff status when workflow step changes
