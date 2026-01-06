@@ -3,10 +3,14 @@
  * Schedule Parsing view matching FlowCRM design
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useState, useMemo } from 'react';
 import type { ParsedItem } from '../types';
 import { getSelectableItems } from '../utils';
 import { showInfoToast } from '../../lib/toast';
+
+// Sort field types
+type SortField = 'manufacturer' | 'partNumber' | 'description' | 'quantity' | 'crossedManufacturer' | 'crossedPartNumber';
+type SortDirection = 'asc' | 'desc';
 
 // Per-item crossing state
 interface ItemCrossingState {
@@ -19,6 +23,7 @@ interface ParsingTabProps {
   selectedItems: Set<string>;
   message?: string | null;
   itemCrossingState?: Record<string, ItemCrossingState>;
+  isProductCrossProcessing?: boolean;
   onCrossItem: (itemId: string) => void;
   onCrossSelected: () => void;
   onCrossAll: () => void;
@@ -32,6 +37,7 @@ export function ParsingTab({
   selectedItems,
   message,
   itemCrossingState = {},
+  isProductCrossProcessing = false,
   onCrossItem,
   onCrossSelected,
   onCrossAll,
@@ -41,6 +47,72 @@ export function ParsingTab({
 }: ParsingTabProps) {
   const selectableItems = getSelectableItems(items);
   const allSelected = selectableItems.length > 0 && selectedItems.size === selectableItems.length;
+
+  // Sorting state
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+
+  // Handle sort click
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  // Sorted items
+  const sortedItems = useMemo(() => {
+    if (!sortField) return items;
+
+    return [...items].sort((a, b) => {
+      let aValue: string | number = '';
+      let bValue: string | number = '';
+
+      switch (sortField) {
+        case 'manufacturer':
+          aValue = a.manufacturer?.toLowerCase() || '';
+          bValue = b.manufacturer?.toLowerCase() || '';
+          break;
+        case 'partNumber':
+          aValue = a.partNumber?.toLowerCase() || '';
+          bValue = b.partNumber?.toLowerCase() || '';
+          break;
+        case 'description':
+          aValue = a.description?.toLowerCase() || '';
+          bValue = b.description?.toLowerCase() || '';
+          break;
+        case 'quantity':
+          aValue = a.quantity || 0;
+          bValue = b.quantity || 0;
+          break;
+        case 'crossedManufacturer':
+          aValue = a.crossedManufacturer?.toLowerCase() || '';
+          bValue = b.crossedManufacturer?.toLowerCase() || '';
+          break;
+        case 'crossedPartNumber':
+          aValue = a.crossedPartNumber?.toLowerCase() || '';
+          bValue = b.crossedPartNumber?.toLowerCase() || '';
+          break;
+      }
+
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [items, sortField, sortDirection]);
+
+  // Sort indicator component
+  const SortIndicator = ({ field }: { field: SortField }) => (
+    <span className="ml-1 inline-flex">
+      {sortField === field ? (
+        sortDirection === 'asc' ? '↑' : '↓'
+      ) : (
+        <span className="text-gray-300">↕</span>
+      )}
+    </span>
+  );
 
   // Handle "Cross All" button click with toast validation
   const handleCrossAllClick = useCallback(() => {
@@ -54,10 +126,10 @@ export function ParsingTab({
       isCrossed: i.isCrossed
     })));
 
-    // Check if there are items to cross
+    // Check if there are items to cross (only our manufacturers are excluded)
     if (selectableItems.length === 0) {
       console.log('🟣 [ParsingTab] No selectable items - showing toast');
-      showInfoToast('No items to cross. Items must be from competitor manufacturers and not already crossed.');
+      showInfoToast('No items to cross', { description: 'All items are from our manufacturers.' });
       return;
     }
 
@@ -78,9 +150,20 @@ export function ParsingTab({
         </div>
         <button
           onClick={handleCrossAllClick}
-          className="px-4 py-2 bg-purple-600 text-white rounded-full text-sm font-medium hover:bg-purple-700 transition-colors"
+          disabled={isProductCrossProcessing}
+          className="px-4 py-2 bg-purple-600 text-white rounded-full text-sm font-medium hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
         >
-          Cross All
+          {isProductCrossProcessing ? (
+            <>
+              <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+              Crossing...
+            </>
+          ) : (
+            'Cross All'
+          )}
         </button>
       </div>
 
@@ -97,23 +180,41 @@ export function ParsingTab({
                   className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
                 />
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Manufacturer
+              <th
+                onClick={() => handleSort('manufacturer')}
+                className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+              >
+                Manufacturer <SortIndicator field="manufacturer" />
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Part Number
+              <th
+                onClick={() => handleSort('partNumber')}
+                className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+              >
+                Part Number <SortIndicator field="partNumber" />
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Description
+              <th
+                onClick={() => handleSort('description')}
+                className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+              >
+                Description <SortIndicator field="description" />
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Quantity
+              <th
+                onClick={() => handleSort('quantity')}
+                className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+              >
+                Quantity <SortIndicator field="quantity" />
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Crossed Manufacturer
+              <th
+                onClick={() => handleSort('crossedManufacturer')}
+                className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+              >
+                Crossed Manufacturer <SortIndicator field="crossedManufacturer" />
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Crossed Part Number
+              <th
+                onClick={() => handleSort('crossedPartNumber')}
+                className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+              >
+                Crossed Part Number <SortIndicator field="crossedPartNumber" />
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                 Crossed Description
@@ -124,7 +225,7 @@ export function ParsingTab({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {items.length === 0 ? (
+            {sortedItems.length === 0 ? (
               <tr>
                 <td colSpan={9} className="px-4 py-12 text-center">
                   <p className="text-sm text-gray-500">
@@ -133,7 +234,7 @@ export function ParsingTab({
                 </td>
               </tr>
             ) : (
-              items.map((item) => (
+              sortedItems.map((item) => (
                 <tr key={item.id} className="hover:bg-gray-50">
                   <td className="px-4 py-4">
                     {!item.isOurManufacturer && !item.isCrossed && (
