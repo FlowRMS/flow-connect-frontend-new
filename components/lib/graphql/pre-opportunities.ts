@@ -119,7 +119,6 @@ const GET_PRE_OPPORTUNITY = `
         preOpportunityId
         itemNumber
         productId
-        productCpnId
         product {
           id
           factoryPartNumber
@@ -225,7 +224,6 @@ const GET_PRE_OPPORTUNITIES_BY_JOB = `
         preOpportunityId
         itemNumber
         productId
-        productCpnId
         product {
           id
           factoryPartNumber
@@ -281,7 +279,6 @@ const GET_PRE_OPPORTUNITIES_BY_CUSTOMER = `
         preOpportunityId
         itemNumber
         productId
-        productCpnId
         product {
           id
           factoryPartNumber
@@ -415,7 +412,6 @@ const CREATE_PRE_OPPORTUNITY = `
         preOpportunityId
         itemNumber
         productId
-        productCpnId
         product {
           id
           factoryPartNumber
@@ -535,7 +531,6 @@ const UPDATE_PRE_OPPORTUNITY = `
         preOpportunityId
         itemNumber
         productId
-        productCpnId
         product {
           id
           factoryPartNumber
