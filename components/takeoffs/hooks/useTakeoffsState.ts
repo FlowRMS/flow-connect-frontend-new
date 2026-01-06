@@ -5,6 +5,7 @@
  */
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
+import JSZip from 'jszip';
 import type {
   Takeoff,
   TakeoffDocument,
@@ -1535,7 +1536,7 @@ export function useTakeoffsState() {
     }
   }, []);
 
-  // Download all documents
+  // Download all documents as a single ZIP file
   const handleDownloadAllDocuments = useCallback(async () => {
     const docsWithUrls = documents.filter(d => d.documentUrl);
 
@@ -1544,11 +1545,13 @@ export function useTakeoffsState() {
       return;
     }
 
-    showInfoToast('Downloading Documents', { description: `Downloading ${docsWithUrls.length} documents...` });
+    showInfoToast('Creating ZIP', { description: `Preparing ${docsWithUrls.length} documents...` });
 
-    // Download each document sequentially with proxy
-    for (let i = 0; i < docsWithUrls.length; i++) {
-      const doc = docsWithUrls[i];
+    const zip = new JSZip();
+    let successCount = 0;
+
+    // Fetch all documents and add to ZIP
+    for (const doc of docsWithUrls) {
       if (!doc.documentUrl) continue;
 
       try {
@@ -1557,23 +1560,38 @@ export function useTakeoffsState() {
 
         if (response.ok) {
           const blob = await response.blob();
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = doc.name;
-          link.click();
-          URL.revokeObjectURL(url);
+          zip.file(doc.name, blob);
+          successCount++;
         }
       } catch (error) {
-        console.error(`Error downloading ${doc.name}:`, error);
-      }
-
-      // Small delay between downloads to avoid browser blocking
-      if (i < docsWithUrls.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 300));
+        console.error(`Error fetching ${doc.name}:`, error);
       }
     }
-  }, [documents]);
+
+    if (successCount === 0) {
+      showErrorToast('Download Failed', { description: 'Could not fetch any documents' });
+      return;
+    }
+
+    // Generate and download the ZIP file
+    try {
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const takeoffName = selectedTakeoff?.name || selectedTakeoff?.title || 'takeoff';
+      const zipFilename = `${takeoffName.replace(/[^a-zA-Z0-9]/g, '_')}_documents.zip`;
+
+      const url = URL.createObjectURL(zipBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = zipFilename;
+      link.click();
+      URL.revokeObjectURL(url);
+
+      showSuccessToast('Download Complete', { description: `Downloaded ${successCount} documents as ZIP` });
+    } catch (error) {
+      console.error('Error creating ZIP:', error);
+      showErrorToast('ZIP Error', { description: 'Failed to create ZIP file' });
+    }
+  }, [documents, selectedTakeoff]);
 
   // Update takeoff status when workflow step changes
   const handleStepChange = useCallback(async (newStep: TakeoffStep) => {

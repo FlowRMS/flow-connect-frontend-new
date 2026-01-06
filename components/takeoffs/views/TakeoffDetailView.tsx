@@ -140,6 +140,8 @@ export function TakeoffDetailView({
   const [classifyingDocIds, setClassifyingDocIds] = useState<Set<string>>(new Set());
   // Ref to prevent double-triggering of auto-classification (React StrictMode or race conditions)
   const autoClassifyTriggeredRef = useRef(false);
+  // Ref to track if classification is in progress (synchronous check for race conditions)
+  const isClassifyingRef = useRef(false);
   // Ref to track if component is mounted for cleanup
   const isMountedRef = useRef(true);
 
@@ -166,12 +168,20 @@ export function TakeoffDetailView({
 
   // Run AI classification on all documents
   const runAutoClassification = useCallback(async (isAutoTriggered = false) => {
+    // Prevent duplicate calls using ref (synchronous check)
+    if (isClassifyingRef.current) {
+      console.log('[Classification] Classification already in progress, skipping duplicate call');
+      return;
+    }
+    isClassifyingRef.current = true;
+
     console.log('[Classification] Starting AI classification...', isAutoTriggered ? '(auto-triggered)' : '(manual)');
     console.log('[Classification] Total documents:', documents.length);
 
     if (documents.length === 0) {
       console.log('[Classification] No documents to classify');
       if (!isAutoTriggered) takeoffToasts.classificationError('No documents to classify. Please upload documents first.');
+      isClassifyingRef.current = false;
       onAutoClassifyComplete?.();
       return;
     }
@@ -190,6 +200,7 @@ export function TakeoffDetailView({
         const irrelevant = documents.filter(d => d.classification === 'Irrelevant').length;
         takeoffToasts.classificationComplete({ total: documents.length, fixtures, specs, blueprints, other, irrelevant });
       }
+      isClassifyingRef.current = false;
       onAutoClassifyComplete?.();
       return;
     }
@@ -200,6 +211,7 @@ export function TakeoffDetailView({
     if (docsWithUrls.length === 0) {
       console.log('[Classification] No documents have URLs for classification');
       if (!isAutoTriggered) takeoffToasts.classificationError('No documents have URLs for classification. This may be a loading issue.');
+      isClassifyingRef.current = false;
       onAutoClassifyComplete?.();
       return;
     }
@@ -217,6 +229,7 @@ export function TakeoffDetailView({
       // Check if component is still mounted
       if (!isMountedRef.current) {
         console.log('[Classification] Component unmounted, stopping classification');
+        isClassifyingRef.current = false;
         return;
       }
 
@@ -230,6 +243,7 @@ export function TakeoffDetailView({
         // Check again after async call
         if (!isMountedRef.current) {
           console.log('[Classification] Component unmounted after API call, stopping');
+          isClassifyingRef.current = false;
           return;
         }
 
@@ -290,6 +304,7 @@ export function TakeoffDetailView({
       });
     }
 
+    isClassifyingRef.current = false;
     onAutoClassifyComplete?.();
   }, [documents, onClassify, onAutoClassifyComplete]);
 

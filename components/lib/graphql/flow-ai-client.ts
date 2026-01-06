@@ -151,7 +151,8 @@ export async function flowAIGraphQLRequest<T = unknown>(
   }
 
   if (!response.ok) {
-    throw new Error(`Flow-AI API request failed: ${response.status} ${response.statusText}`);
+    console.error(`[Flow-AI API] Request failed: ${response.status} ${response.statusText}`);
+    throw new Error('Something went wrong.');
   }
 
   const result = await response.json() as GraphQLResponse<T>;
@@ -288,7 +289,8 @@ export async function flowAIGraphQLMultipartRequest<T = unknown>(
   }
 
   if (!response.ok) {
-    throw new Error(`Flow-AI API request failed: ${response.status} ${response.statusText}`);
+    console.error(`[Flow-AI API] Request failed: ${response.status} ${response.statusText}`);
+    throw new Error('Something went wrong.');
   }
 
   const result = await response.json() as GraphQLResponse<T>;
