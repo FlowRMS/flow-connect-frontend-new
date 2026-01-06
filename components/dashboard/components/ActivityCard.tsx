@@ -258,15 +258,6 @@ function ActivityMetadata({ activity }: { activity: Activity }) {
               {metadata.priority}
             </span>
           )}
-          {metadata.dueDate && (
-            <span className="flex items-center gap-1">
-              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="3" y="4" width="14" height="14" rx="2"/>
-                <path d="M3 8h14M7 2v4M13 2v4"/>
-              </svg>
-              Due: {formatDate(metadata.dueDate)}
-            </span>
-          )}
         </div>
       );
 
@@ -306,6 +297,14 @@ export function ActivityCard({ activity }: ActivityCardProps) {
             <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
               <ActivityTypeBadge type={activity.type} />
               <span className="text-xs sm:text-sm text-[var(--muted-foreground)]">{activity.time}</span>
+              {activity.type === 'task' && activity.metadata?.dueDate && (
+                <>
+                  <span className="text-xs sm:text-sm text-[var(--muted-foreground)]">·</span>
+                  <span className="text-xs sm:text-sm text-[var(--muted-foreground)]">
+                    Due: {formatDate(activity.metadata.dueDate)}
+                  </span>
+                </>
+              )}
             </div>
             <h4 className="font-semibold text-[var(--foreground)] text-sm sm:text-base mb-1 line-clamp-2 sm:line-clamp-1">{activity.entity || activity.title}</h4>
             <p className="text-xs sm:text-sm text-[var(--muted-foreground)] line-clamp-2">{activity.description}</p>
