@@ -325,6 +325,35 @@ export function useTakeoffsState() {
     }
   }, []);
 
+  // Bulk classify documents (used by auto-classification to avoid state update issues)
+  const handleBulkClassifyDocuments = useCallback(async (classifications: Record<string, DocumentClassification>) => {
+    console.log('[Classification] Bulk update:', Object.keys(classifications).length, 'documents');
+
+    // Update all documents in a single state update
+    setDocuments(docs => {
+      const updated = docs.map(doc => {
+        if (classifications[doc.id]) {
+          return { ...doc, classification: classifications[doc.id] };
+        }
+        return doc;
+      });
+      console.log('[Classification] Bulk state update complete');
+      return updated;
+    });
+
+    // Persist each to backend (in parallel)
+    const persistPromises = Object.entries(classifications).map(async ([docId, classification]) => {
+      try {
+        await updateTakeoffDocument(docId, { classification: classification || null });
+      } catch (error) {
+        console.error(`[Classification] Backend update failed for ${docId}:`, error);
+      }
+    });
+
+    await Promise.all(persistPromises);
+    console.log('[Classification] Bulk backend update complete');
+  }, []);
+
   // Change document discipline
   const handleChangeDiscipline = useCallback(async (docId: string, discipline: DocumentDiscipline) => {
     // Update local state immediately for responsive UI
@@ -1696,6 +1725,7 @@ export function useTakeoffsState() {
 
     // Document handlers
     handleClassifyDocument,
+    handleBulkClassifyDocuments,
     handleChangeDiscipline,
     handleAbridgeDocument,
     handleAbridgeAll,

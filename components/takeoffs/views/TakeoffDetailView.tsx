@@ -35,6 +35,7 @@ interface TakeoffDetailViewProps {
   onBack: () => void;
   onStepChange: (step: TakeoffStep) => void;
   onClassify: (docId: string, classification: DocumentClassification) => void;
+  onBulkClassify?: (classifications: Record<string, DocumentClassification>) => Promise<void>;
   onChangeDiscipline?: (docId: string, discipline: DocumentDiscipline) => void;
   onAbridge: (docId: string) => void;
   onAbridgeAll: () => void;
@@ -89,6 +90,7 @@ export function TakeoffDetailView({
   onBack,
   onStepChange,
   onClassify,
+  onBulkClassify,
   onChangeDiscipline,
   onAbridge,
   onAbridgeAll,
@@ -222,8 +224,9 @@ export function TakeoffDetailView({
     // Show toast when classification starts
     takeoffToasts.classificationStarted(docsWithUrls.length);
 
-    // Track classification results
+    // Track classification results and collect all classifications
     const results = { fixtures: 0, specs: 0, blueprints: 0, other: 0, irrelevant: 0 };
+    const classifications: Record<string, DocumentClassification> = {};
 
     for (let i = 0; i < docsWithUrls.length; i++) {
       // Check if component is still mounted
@@ -259,7 +262,8 @@ export function TakeoffDetailView({
             irrelevant: 'Irrelevant',
           };
           const classification = categoryMap[result.category] || 'Other Docs';
-          onClassify(doc.id, classification);
+          // Collect classification instead of updating state immediately
+          classifications[doc.id] = classification;
 
           // Track results
           if (classification === 'Fixture Schedules') results.fixtures++;
@@ -269,19 +273,17 @@ export function TakeoffDetailView({
           else if (classification === 'Irrelevant') results.irrelevant++;
         } else {
           console.error(`[Classification] Failed to classify ${doc.name}:`, result.error);
-          // Set as "Other Docs" when classification fails so it doesn't stay as "Select..."
-          onClassify(doc.id, 'Other Docs');
+          // Set as "Other Docs" when classification fails
+          classifications[doc.id] = 'Other Docs';
           results.other++;
         }
       } catch (error) {
         console.error(`[Classification] Error classifying ${doc.name}:`, error);
-        // Set as "Other Docs" when there's an error so it doesn't stay as "Select..."
-        if (isMountedRef.current) {
-          onClassify(doc.id, 'Other Docs');
-        }
+        // Set as "Other Docs" when there's an error
+        classifications[doc.id] = 'Other Docs';
         results.other++;
       }
-      // Remove from classifying set (only if still mounted)
+      // Remove from classifying set and update progress (only if still mounted)
       if (isMountedRef.current) {
         setClassifyingDocIds(prev => {
           const next = new Set(prev);
@@ -289,6 +291,19 @@ export function TakeoffDetailView({
           return next;
         });
         setClassificationProgress(Math.round(((i + 1) / docsWithUrls.length) * 100));
+      }
+    }
+
+    // Apply all classifications in a single bulk update
+    if (isMountedRef.current && Object.keys(classifications).length > 0) {
+      console.log('[Classification] Applying bulk update for', Object.keys(classifications).length, 'documents');
+      if (onBulkClassify) {
+        await onBulkClassify(classifications);
+      } else {
+        // Fallback to individual updates if bulk handler not available
+        for (const [docId, classification] of Object.entries(classifications)) {
+          onClassify(docId, classification);
+        }
       }
     }
 
@@ -306,7 +321,7 @@ export function TakeoffDetailView({
 
     isClassifyingRef.current = false;
     onAutoClassifyComplete?.();
-  }, [documents, onClassify, onAutoClassifyComplete]);
+  }, [documents, onClassify, onBulkClassify, onAutoClassifyComplete]);
 
   // Auto-run classification when entering classification view with unclassified documents
   useEffect(() => {

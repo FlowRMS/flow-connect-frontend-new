@@ -51,6 +51,7 @@ export function TakeoffsContent() {
     selectedItems,
     parsedItems,
     handleClassifyDocument,
+    handleBulkClassifyDocuments,
     handleChangeDiscipline,
     handleAbridgeDocument,
     handleAbridgeAll,
@@ -270,6 +271,7 @@ export function TakeoffsContent() {
           onStepChange={handleStepChange}
           onProceedToParsing={handleProceedToParsing}
           onClassify={handleClassifyDocument}
+          onBulkClassify={handleBulkClassifyDocuments}
           onChangeDiscipline={handleChangeDiscipline}
           onAbridge={handleAbridgeDocument}
           onAbridgeAll={handleAbridgeAll}
