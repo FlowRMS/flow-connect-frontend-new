@@ -59,6 +59,22 @@ export function ClassificationTab({
 }: ClassificationTabProps) {
   const [activeTab, setActiveTab] = useState<CategoryTab | null>(null);
 
+  // Sorting state
+  type SortColumn = 'name' | 'type' | 'pages' | 'uploadDate' | 'classification';
+  type SortDirection = 'asc' | 'desc';
+  const [sortColumn, setSortColumn] = useState<SortColumn>('name');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+
+  // Handle column header click for sorting
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
   // Count classified documents
   const classifiedCount = documents.filter(d => d.classification).length;
 
@@ -91,6 +107,32 @@ export function ClassificationTab({
     if (!activeTab) return documents;
     return documents.filter(doc => doc.classification === activeTab);
   }, [documents, activeTab]);
+
+  // Sort filtered documents
+  const sortedDocuments = useMemo(() => {
+    const sorted = [...filteredDocuments].sort((a, b) => {
+      let comparison = 0;
+      switch (sortColumn) {
+        case 'name':
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case 'type':
+          comparison = (a.type || '').localeCompare(b.type || '');
+          break;
+        case 'pages':
+          comparison = (a.pages || 0) - (b.pages || 0);
+          break;
+        case 'uploadDate':
+          comparison = new Date(a.uploadDate || 0).getTime() - new Date(b.uploadDate || 0).getTime();
+          break;
+        case 'classification':
+          comparison = (a.classification || '').localeCompare(b.classification || '');
+          break;
+      }
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+    return sorted;
+  }, [filteredDocuments, sortColumn, sortDirection]);
 
   // Documents that can be abridged (Fixture Schedules or Specifications, not already abridged)
   const docsToAbridge = useMemo(() => {
@@ -224,20 +266,60 @@ export function ClassificationTab({
         <table className="w-full">
           <thead>
             <tr className="border-b border-gray-200">
-              <th className="text-left py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Document Name
+              <th
+                className="text-left py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-700 select-none"
+                onClick={() => handleSort('name')}
+              >
+                <div className="flex items-center gap-1">
+                  Document Name
+                  {sortColumn === 'name' && (
+                    <span className="text-blue-600">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                  )}
+                </div>
               </th>
-              <th className="text-left py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Type
+              <th
+                className="text-left py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-700 select-none"
+                onClick={() => handleSort('type')}
+              >
+                <div className="flex items-center gap-1">
+                  Type
+                  {sortColumn === 'type' && (
+                    <span className="text-blue-600">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                  )}
+                </div>
               </th>
-              <th className="text-left py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Pages
+              <th
+                className="text-left py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-700 select-none"
+                onClick={() => handleSort('pages')}
+              >
+                <div className="flex items-center gap-1">
+                  Pages
+                  {sortColumn === 'pages' && (
+                    <span className="text-blue-600">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                  )}
+                </div>
               </th>
-              <th className="text-left py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Upload Date
+              <th
+                className="text-left py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-700 select-none"
+                onClick={() => handleSort('uploadDate')}
+              >
+                <div className="flex items-center gap-1">
+                  Upload Date
+                  {sortColumn === 'uploadDate' && (
+                    <span className="text-blue-600">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                  )}
+                </div>
               </th>
-              <th className="text-left py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Classification
+              <th
+                className="text-left py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-700 select-none"
+                onClick={() => handleSort('classification')}
+              >
+                <div className="flex items-center gap-1">
+                  Classification
+                  {sortColumn === 'classification' && (
+                    <span className="text-blue-600">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                  )}
+                </div>
               </th>
               <th className="text-left py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                 Actions
@@ -245,7 +327,7 @@ export function ClassificationTab({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {filteredDocuments.map((doc) => (
+            {sortedDocuments.map((doc) => (
               <tr key={doc.id} className="hover:bg-gray-50 transition-colors">
                 {/* Document Name */}
                 <td className="py-4">
