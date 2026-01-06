@@ -158,9 +158,6 @@ function ActivityMetadata({ activity }: { activity: Activity }) {
     case 'company':
       return (
         <div className="flex items-center gap-2 flex-wrap text-xs text-[var(--muted-foreground)]">
-          <span className={`px-2 py-0.5 rounded ${metadata.companySourceType === 'CUSTOMER' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
-            {metadata.companySourceType === 'CUSTOMER' ? 'Customer' : 'Manufacturer'}
-          </span>
           {metadata.phone && (
             <span className="flex items-center gap-1">
               <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
@@ -273,10 +270,14 @@ export function ActivityCard({ activity }: ActivityCardProps) {
                 </>
               )}
             </div>
-            <h4 className="font-semibold text-[var(--foreground)] text-sm sm:text-base mb-1 line-clamp-2 sm:line-clamp-1">{activity.entity || activity.title}</h4>
-            {activity.type !== 'task' && activity.type !== 'job' && (
-              <p className="text-xs sm:text-sm text-[var(--muted-foreground)] line-clamp-2">{activity.description}</p>
-            )}
+            <h4 className="font-semibold text-[var(--foreground)] text-sm sm:text-base mb-1 line-clamp-2 sm:line-clamp-1 flex items-center gap-3 flex-wrap">
+              {activity.entity || activity.title}
+              {activity.type === 'company' && activity.metadata?.companySourceType && (
+                <span className={`ml-2 px-2 py-0.5 rounded text-xs font-medium ${activity.metadata.companySourceType === 'CUSTOMER' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+                  {activity.metadata.companySourceType === 'CUSTOMER' ? 'Customer' : 'Manufacturer'}
+                </span>
+              )}
+            </h4>
             
             {/* Linked Entities for tasks */}
             {activity.type === 'task' && activity.linkedEntities && activity.linkedEntities.length > 0 && (
@@ -310,27 +311,6 @@ export function ActivityCard({ activity }: ActivityCardProps) {
         <div className="mb-2">
           <ActivityMetadata activity={activity} />
         </div>
-
-        {/* Tags */}
-        {activity.type !== 'task' && activity.type !== 'job' && activity.tags && activity.tags.length > 0 && (
-          <div className="flex items-center gap-2 sm:gap-3 flex-wrap mb-3">
-            <div className="flex gap-1 sm:gap-1.5 flex-wrap">
-              {activity.tags.slice(0, 3).map((tag, idx) => (
-                <span
-                  key={idx}
-                  className="px-1.5 sm:px-2 py-0.5 sm:py-1 bg-[var(--secondary)] text-[var(--secondary-foreground)] rounded text-xs font-medium"
-                >
-                  {tag}
-                </span>
-              ))}
-              {activity.tags.length > 3 && (
-                <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-xs text-[var(--muted-foreground)]">
-                  +{activity.tags.length - 3} more
-                </span>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* Mentions */}
         {activity.mentions && activity.mentions.length > 0 && (
