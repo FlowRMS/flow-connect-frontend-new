@@ -646,40 +646,28 @@ export function useTakeoffsState() {
       return;
     }
 
-    // Check how many are classified as Fixture Schedules
-    const allFixtureSchedules = documents.filter(d => d.classification === 'Fixture Schedules');
-    console.log('[Parsing] Fixture Schedule documents:', allFixtureSchedules.length);
-
-    if (allFixtureSchedules.length === 0) {
-      console.log('[Parsing] No documents classified as Fixture Schedules');
-      showWarningToast('No Fixture Schedules', {
-        description: 'Please classify your documents first in the Classification step.'
-      });
-      return;
-    }
-
-    // Find fixture schedule documents with URLs
-    const fixtureScheduleDocs = allFixtureSchedules.filter(
+    // Find all documents with URLs (abridged or original)
+    const docsWithUrls = documents.filter(
       d => d.abridgedUrl || d.documentUrl
     );
-    console.log('[Parsing] Fixture Schedules with URLs:', fixtureScheduleDocs.length);
+    console.log('[Parsing] Documents with URLs:', docsWithUrls.length);
 
-    if (fixtureScheduleDocs.length === 0) {
-      console.log('[Parsing] No Fixture Schedule documents have URLs');
-      takeoffToasts.parsingError('Fixture Schedule documents do not have URLs. Try refreshing the page.');
+    if (docsWithUrls.length === 0) {
+      console.log('[Parsing] No documents have URLs');
+      takeoffToasts.parsingError('Documents do not have URLs. Try refreshing the page.');
       return;
     }
 
     setParsingState({ isProcessing: true, progress: 0 });
     const allParsedItems: ParsedItem[] = [];
 
-    for (let i = 0; i < fixtureScheduleDocs.length; i++) {
-      const doc = fixtureScheduleDocs[i];
+    for (let i = 0; i < docsWithUrls.length; i++) {
+      const doc = docsWithUrls[i];
       const urlToUse = doc.abridgedUrl || doc.documentUrl;
 
       setParsingState(prev => ({
         ...prev,
-        progress: Math.round((i / fixtureScheduleDocs.length) * 100),
+        progress: Math.round((i / docsWithUrls.length) * 100),
         currentItem: doc.name,
       }));
 

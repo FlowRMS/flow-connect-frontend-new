@@ -113,7 +113,7 @@ export default function TakeoffDetailPage() {
       try {
         await updateTakeoff(takeoff.id, { status: 'PARSING' });
       } catch (err) {
-        console.error('Failed to update status:', err);
+        console.warn('Failed to update takeoff status:', err);
       }
     }
     // Auto-trigger parsing when proceeding from classification
@@ -331,15 +331,14 @@ export default function TakeoffDetailPage() {
 
   // Parse schedule documents to extract product items
   const handleParseSchedules = async () => {
-    // Get documents that should be parsed (Fixture Schedules with URLs)
+    // Get all documents with URLs
     const scheduleDocs = documents.filter(d =>
-      d.classification === 'Fixture Schedules' &&
-      (d.abridgedUrl || d.documentUrl)
+      d.abridgedUrl || d.documentUrl
     );
 
     if (scheduleDocs.length === 0) {
-      console.warn('No fixture schedule documents available for parsing');
-      setParsingMessage('No documents classified as "Fixture Schedules" found. Please classify your documents first.');
+      console.warn('No documents available for parsing');
+      setParsingMessage('No documents available. Please upload documents first.');
       return;
     }
 

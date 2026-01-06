@@ -104,17 +104,18 @@ export function TakeoffsContent() {
     return [...new Set(clientNames)].sort();
   }, [takeoffs]);
 
-  // Handle proceed to parsing - validates that there are Fixture Schedules
+  // Handle proceed to parsing - validates that there are documents with URLs
   const handleProceedToParsing = useCallback(() => {
     console.log('🔵 [handleProceedToParsing] Called!');
     console.log('🔵 [handleProceedToParsing] Documents:', documents.length);
-    const fixtureSchedules = documents.filter(d => d.classification === 'Fixture Schedules');
-    console.log('🔵 [handleProceedToParsing] Fixture Schedules:', fixtureSchedules.length);
 
-    if (fixtureSchedules.length === 0) {
-      console.log('🔵 [handleProceedToParsing] No Fixture Schedules - showing toast');
-      showWarningToast('No Fixture Schedules', {
-        description: 'Please classify at least one document as "Fixture Schedules" before proceeding to parsing.'
+    const docsWithUrls = documents.filter(d => d.abridgedUrl || d.documentUrl);
+    console.log('🔵 [handleProceedToParsing] Documents with URLs:', docsWithUrls.length);
+
+    if (docsWithUrls.length === 0) {
+      console.log('🔵 [handleProceedToParsing] No documents with URLs - showing toast');
+      showWarningToast('No Documents Available', {
+        description: 'Please upload documents before proceeding to parsing.'
       });
       return;
     }
