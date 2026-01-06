@@ -25,6 +25,8 @@ interface ClassificationTabProps {
   onViewReport: (doc: TakeoffDocument) => void;
   onProceedToParsing: () => void;
   documentAbridgeState?: Record<string, DocumentAbridgeState>;
+  classifyingDocIds?: Set<string>;
+  isClassifying?: boolean;
 }
 
 // Category tabs
@@ -48,6 +50,8 @@ export function ClassificationTab({
   onViewReport,
   onProceedToParsing,
   documentAbridgeState = {},
+  classifyingDocIds = new Set(),
+  isClassifying = false,
 }: ClassificationTabProps) {
   const [activeTab, setActiveTab] = useState<CategoryTab | null>(null);
 
@@ -145,6 +149,7 @@ export function ClassificationTab({
           </h2>
           <p className="text-sm text-gray-500 mt-1">
             {classifiedCount} of {documents.length} documents classified
+            {isClassifying && <span className="ml-2 text-blue-600">(Classifying...)</span>}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -218,22 +223,38 @@ export function ClassificationTab({
                 {/* Document Name */}
                 <td className="py-4">
                   <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1 text-gray-400">
-                      <button className="hover:text-gray-600">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <line x1="12" y1="5" x2="12" y2="19"/>
-                          <line x1="5" y1="12" x2="19" y2="12"/>
-                        </svg>
-                      </button>
-                      <button className="hover:text-gray-600">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <polyline points="18 15 12 9 6 15"/>
-                        </svg>
-                      </button>
-                    </div>
-                    <span className="text-sm text-blue-600 hover:underline cursor-pointer">
+                    <button
+                      onClick={async () => {
+                        if (!doc.documentUrl) return;
+                        try {
+                          // Use proxy to avoid CORS issues
+                          const proxyUrl = `/api/document-proxy?url=${encodeURIComponent(doc.documentUrl)}`;
+                          const response = await fetch(proxyUrl);
+
+                          if (!response.ok) {
+                            console.error('Failed to download document:', response.status);
+                            // Fallback to opening in new tab
+                            window.open(doc.documentUrl, '_blank');
+                            return;
+                          }
+
+                          const blob = await response.blob();
+                          const url = URL.createObjectURL(blob);
+                          const link = window.document.createElement('a');
+                          link.href = url;
+                          link.download = doc.name;
+                          link.click();
+                          URL.revokeObjectURL(url);
+                        } catch (error) {
+                          console.error('Error downloading document:', error);
+                          // Fallback to opening in new tab
+                          window.open(doc.documentUrl, '_blank');
+                        }
+                      }}
+                      className="text-sm text-blue-600 hover:underline cursor-pointer text-left"
+                    >
                       {doc.name}
-                    </span>
+                    </button>
                   </div>
                 </td>
 
@@ -254,38 +275,82 @@ export function ClassificationTab({
 
                 {/* Classification Dropdown */}
                 <td className="py-4">
-                  <select
-                    value={doc.classification || ''}
-                    onChange={(e) => onClassify(doc.id, e.target.value as DocumentClassification)}
-                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[160px]"
-                  >
-                    <option value="">Select...</option>
-                    {CLASSIFICATION_OPTIONS.map(opt => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
+                  {(() => {
+                    const isClassifying = classifyingDocIds.has(doc.id);
+                    return (
+                      <select
+                        value={doc.classification || ''}
+                        onChange={(e) => onClassify(doc.id, e.target.value as DocumentClassification)}
+                        disabled={isClassifying}
+                        className={`px-3 py-1.5 text-sm rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[160px] ${
+                          isClassifying
+                            ? 'border-2 border-blue-500 animate-pulse cursor-not-allowed opacity-75'
+                            : 'border border-gray-300'
+                        }`}
+                      >
+                        <option value="">{isClassifying ? 'Classifying...' : 'Select...'}</option>
+                        {CLASSIFICATION_OPTIONS.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    );
+                  })()}
                 </td>
 
                 {/* Actions */}
                 <td className="py-4">
                   <div className="flex items-center gap-2">
-                    {/* Download with abridged indicator */}
+                    {/* Download icon */}
                     <button
                       onClick={() => onDownload?.(doc)}
-                      className="flex items-center gap-1.5 p-2 text-gray-400 hover:text-gray-600 transition-colors"
-                      title={doc.abridged ? `Download (Abridged to ${doc.abridgedPages} pages)` : "Download"}
+                      className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                      title="Download original"
                     >
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
                         <polyline points="7 10 12 15 17 10"/>
                         <line x1="12" y1="15" x2="12" y2="3"/>
                       </svg>
-                      {doc.abridged && (
+                    </button>
+                    {/* Abridged indicator - clickable to download abridged PDF */}
+                    {doc.abridged && (
+                      doc.abridgedUrl ? (
+                        <button
+                          onClick={async () => {
+                            try {
+                              const proxyUrl = `/api/document-proxy?url=${encodeURIComponent(doc.abridgedUrl!)}`;
+                              const response = await fetch(proxyUrl);
+
+                              if (!response.ok) {
+                                console.error('Failed to download abridged PDF:', response.status);
+                                window.open(doc.abridgedUrl, '_blank');
+                                return;
+                              }
+
+                              const blob = await response.blob();
+                              const url = URL.createObjectURL(blob);
+                              const link = window.document.createElement('a');
+                              link.href = url;
+                              const baseName = doc.name.replace(/\.[^/.]+$/, '');
+                              link.download = `${baseName}_abridged.pdf`;
+                              link.click();
+                              URL.revokeObjectURL(url);
+                            } catch (error) {
+                              console.error('Error downloading abridged PDF:', error);
+                              window.open(doc.abridgedUrl, '_blank');
+                            }
+                          }}
+                          className="text-xs text-green-600 hover:text-green-700 hover:underline cursor-pointer"
+                          title="Download abridged PDF"
+                        >
+                          Abridged to {doc.abridgedPages} pages
+                        </button>
+                      ) : (
                         <span className="text-xs text-green-600">
                           Abridged to {doc.abridgedPages} pages
                         </span>
-                      )}
-                    </button>
+                      )
+                    )}
 
                     {/* Abridge Button / Processing / View Report */}
                     {(() => {

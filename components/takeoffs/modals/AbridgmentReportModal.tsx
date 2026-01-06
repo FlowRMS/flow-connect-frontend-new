@@ -20,11 +20,14 @@ export function AbridgmentReportModal({
   if (!isOpen || !document) return null;
 
   // Transform pageAnalyses from document to AbridgmentReportItem format
-  const reportItems: AbridgmentReportItem[] = document.pageAnalyses?.map(pa => ({
-    page: pa.pageNumber,
-    included: pa.isRelevant,
-    reason: pa.reasoning || pa.mainTopic || 'No reasoning provided',
-  })) || [];
+  // Handle case where pageAnalyses might not be an array
+  const reportItems: AbridgmentReportItem[] = Array.isArray(document.pageAnalyses)
+    ? document.pageAnalyses.map(pa => ({
+        page: pa.pageNumber,
+        included: pa.isRelevant,
+        reason: pa.reasoning || pa.mainTopic || 'No reasoning provided',
+      }))
+    : [];
 
   const hasNoData = reportItems.length === 0;
 
@@ -41,8 +44,33 @@ export function AbridgmentReportModal({
             {/* Download Abridged PDF Button */}
             {document.abridgedUrl && (
               <button
-                onClick={() => {
-                  window.open(document.abridgedUrl, '_blank');
+                onClick={async () => {
+                  try {
+                    // Use proxy to avoid CORS issues
+                    const proxyUrl = `/api/document-proxy?url=${encodeURIComponent(document.abridgedUrl!)}`;
+                    const response = await fetch(proxyUrl);
+
+                    if (!response.ok) {
+                      console.error('Failed to download abridged PDF:', response.status);
+                      // Fallback to opening in new tab
+                      window.open(document.abridgedUrl, '_blank');
+                      return;
+                    }
+
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+                    const link = window.document.createElement('a');
+                    link.href = url;
+                    // Generate filename from document name
+                    const baseName = document.name.replace(/\.[^/.]+$/, '');
+                    link.download = `${baseName}_abridged.pdf`;
+                    link.click();
+                    URL.revokeObjectURL(url);
+                  } catch (error) {
+                    console.error('Error downloading abridged PDF:', error);
+                    // Fallback to opening in new tab
+                    window.open(document.abridgedUrl, '_blank');
+                  }
                 }}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors"
               >

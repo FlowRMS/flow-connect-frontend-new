@@ -4,11 +4,13 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
 import { TakeoffDetailView } from '@/components/takeoffs/views/TakeoffDetailView';
 import { fetchTakeoff, updateTakeoffDocument, updateTakeoff, abridgeDocument as abridgeDocumentAPI, parseScheduleDocument } from '@/components/lib/graphql/takeoffs';
-import { crossProducts } from '@/components/lib/graphql/product-crosses';
+import { crossProducts, createKnownProductCross } from '@/components/lib/graphql/product-crosses';
 import type { Takeoff, TakeoffDocument, ParsedItem, TakeoffStep, PageAnalysis } from '@/components/takeoffs/types';
 import { transformTakeoffResponse, stepToApiStatus, transformDocumentResponse } from '@/components/takeoffs/types';
 import { getInitialStep } from '@/components/takeoffs/utils';
 import { AbridgmentReportModal } from '@/components/takeoffs/modals/AbridgmentReportModal';
+import { CreateQuoteFromTakeoffModal } from '@/components/takeoffs/modals/CreateQuoteFromTakeoffModal';
+import JSZip from 'jszip';
 
 // Abridgement state per document
 interface DocumentAbridgeState {
@@ -35,6 +37,9 @@ export default function TakeoffDetailPage() {
   // Modal state for viewing abridgment report
   const [showAbridgmentReport, setShowAbridgmentReport] = useState(false);
   const [selectedDocumentForReport, setSelectedDocumentForReport] = useState<TakeoffDocument | null>(null);
+
+  // Modal state for creating quote from takeoff
+  const [showCreateQuoteModal, setShowCreateQuoteModal] = useState(false);
 
   // Parsing state
   const [isParsingProcessing, setIsParsingProcessing] = useState(false);
@@ -176,14 +181,67 @@ export default function TakeoffDetailPage() {
       return;
     }
 
-    // Due to CORS restrictions, we cannot fetch external URLs directly
-    // Open each document in a new tab instead
-    docsWithUrls.forEach((doc, index) => {
-      // Stagger the opening to avoid popup blockers
-      setTimeout(() => {
-        window.open(doc.documentUrl!, '_blank');
-      }, index * 200);
+    // Create ZIP file with all documents
+    const zip = new JSZip();
+    const takeoffName = takeoff?.name || 'takeoff';
+
+    console.log(`📦 Starting ZIP download for ${docsWithUrls.length} documents...`);
+
+    // Track progress
+    let downloaded = 0;
+    const total = docsWithUrls.length;
+
+    // Download each document through our proxy API
+    const downloadPromises = docsWithUrls.map(async (doc) => {
+      try {
+        // Use our proxy API to avoid CORS issues
+        const proxyUrl = `/api/document-proxy?url=${encodeURIComponent(doc.documentUrl!)}`;
+        const response = await fetch(proxyUrl);
+
+        if (!response.ok) {
+          console.error(`Failed to download ${doc.name}: ${response.status}`);
+          return;
+        }
+
+        const blob = await response.blob();
+
+        // Get file extension from URL or default to .pdf
+        const urlPath = new URL(doc.documentUrl!).pathname;
+        const extension = urlPath.includes('.') ? urlPath.substring(urlPath.lastIndexOf('.')) : '.pdf';
+        const fileName = doc.name.endsWith(extension) ? doc.name : `${doc.name}${extension}`;
+
+        // Add to ZIP
+        zip.file(fileName, blob);
+        downloaded++;
+        console.log(`📄 Downloaded ${downloaded}/${total}: ${fileName}`);
+      } catch (error) {
+        console.error(`Error downloading ${doc.name}:`, error);
+      }
     });
+
+    // Wait for all downloads to complete
+    await Promise.all(downloadPromises);
+
+    if (downloaded === 0) {
+      console.error('No documents were successfully downloaded');
+      return;
+    }
+
+    // Generate ZIP and trigger download
+    console.log('📦 Generating ZIP file...');
+    const content = await zip.generateAsync({ type: 'blob' });
+
+    // Create download link
+    const url = URL.createObjectURL(content);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${takeoffName.replace(/[^a-zA-Z0-9-_]/g, '_')}_documents.zip`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    console.log(`✅ ZIP download complete: ${downloaded} documents`);
   };
 
   // Abridge a single document using AI
@@ -374,6 +432,22 @@ export default function TakeoffDetailPage() {
             items.map(i => i.id === itemId ? crossedItem : i)
           );
 
+          // Save product cross to database for future reference
+          try {
+            console.log('🟢 [page.tsx handleCrossItem] Saving product cross to database...');
+            await createKnownProductCross({
+              competitorManufacturer: item.manufacturer,
+              competitorPartNumber: item.partNumber,
+              competitorDescription: item.description || '',
+              ourManufacturer: crossedItem.crossedManufacturer || 'Our Company',
+              ourPartNumber: crossedItem.crossedPartNumber || '',
+              ourDescription: crossedItem.crossedDescription || '',
+            });
+            console.log('🟢 [page.tsx handleCrossItem] Product cross saved successfully!');
+          } catch (persistCrossErr) {
+            console.error('🔴 [page.tsx handleCrossItem] Failed to save product cross:', persistCrossErr);
+          }
+
           // Persist to backend if we have a documentId
           if (item.documentId) {
             try {
@@ -420,11 +494,123 @@ export default function TakeoffDetailPage() {
     }
   };
 
-  // Cross all uncrossed competitor items
+  // Cross all uncrossed competitor items in a single batch API call
   const handleCrossAll = async () => {
+    console.log('🔵 [page.tsx handleCrossAll] Starting batch cross...');
     const itemsToCross = parsedItems.filter(i => !i.isOurManufacturer && !i.isCrossed);
-    for (const item of itemsToCross) {
-      await handleCrossItem(item.id);
+
+    if (itemsToCross.length === 0) {
+      console.log('🔵 [page.tsx handleCrossAll] No items to cross');
+      return;
+    }
+
+    console.log(`🔵 [page.tsx handleCrossAll] Crossing ${itemsToCross.length} items in batch`);
+
+    // Set processing state for all items
+    const processingState: Record<string, { isProcessing: boolean; error?: string }> = {};
+    itemsToCross.forEach(item => {
+      processingState[item.id] = { isProcessing: true };
+    });
+    setItemCrossingState(prev => ({ ...prev, ...processingState }));
+
+    try {
+      // Prepare all products for batch API call
+      const productsToMatch = itemsToCross.map(item => ({
+        manufacturer: item.manufacturer,
+        partNumber: item.partNumber,
+        description: item.description,
+        quantity: item.quantity,
+      }));
+
+      console.log('🔵 [page.tsx handleCrossAll] Calling crossProducts API with', productsToMatch.length, 'products');
+
+      // Single batch API call for all products
+      const results = await crossProducts(
+        productsToMatch,
+        ['SIMPLE', 'UPGRADE', 'VALUE']
+      );
+
+      console.log('🔵 [page.tsx handleCrossAll] API returned', results?.length, 'results');
+
+      // Process results and update items
+      const updatedItems = [...parsedItems];
+      const clearState: Record<string, { isProcessing: boolean; error?: string }> = {};
+
+      for (let i = 0; i < itemsToCross.length; i++) {
+        const item = itemsToCross[i];
+        const result = results?.[i];
+
+        if (result?.crosses?.length > 0) {
+          const cross = result.crosses[0];
+          const alternative = cross.alternatives?.[0];
+
+          if (alternative) {
+            // Find and update the item
+            const itemIndex = updatedItems.findIndex(ui => ui.id === item.id);
+            if (itemIndex !== -1) {
+              updatedItems[itemIndex] = {
+                ...updatedItems[itemIndex],
+                isCrossed: true,
+                crossedManufacturer: 'Our Company',
+                crossedPartNumber: alternative.name || '',
+                crossedDescription: alternative.description || `${item.description} (Crossed)`,
+              };
+
+              // Save to database
+              try {
+                await createKnownProductCross({
+                  competitorManufacturer: item.manufacturer,
+                  competitorPartNumber: item.partNumber,
+                  competitorDescription: item.description || '',
+                  ourManufacturer: 'Our Company',
+                  ourPartNumber: alternative.name || '',
+                  ourDescription: alternative.description || '',
+                });
+              } catch (persistErr) {
+                console.error(`Failed to persist cross for ${item.partNumber}:`, persistErr);
+              }
+            }
+          }
+        }
+
+        clearState[item.id] = { isProcessing: false };
+      }
+
+      // Update all items at once
+      setParsedItems(updatedItems);
+      setItemCrossingState(prev => ({ ...prev, ...clearState }));
+
+      // Persist updated items to backend for each document
+      // Items may not have documentId set, so we need to match them by checking document.parsedItems
+      console.log('🔵 [page.tsx handleCrossAll] Persisting to documents...');
+
+      for (const doc of documents) {
+        if (!doc.parsedItems || doc.parsedItems.length === 0) continue;
+
+        // Find updated items that belong to this document by matching IDs
+        const docItemIds = new Set(doc.parsedItems.map(i => i.id));
+        const updatedItemsForDoc = updatedItems.filter(i => docItemIds.has(i.id));
+
+        if (updatedItemsForDoc.length > 0) {
+          try {
+            await updateTakeoffDocument(doc.id, { parsedItems: updatedItemsForDoc });
+            console.log(`🔵 [page.tsx handleCrossAll] Persisted ${updatedItemsForDoc.length} items to document ${doc.id}`);
+          } catch (persistErr) {
+            console.error(`Failed to persist items for document ${doc.id}:`, persistErr);
+          }
+        }
+      }
+
+      console.log('🔵 [page.tsx handleCrossAll] Batch cross complete');
+
+    } catch (err) {
+      console.error('🔴 [page.tsx handleCrossAll] Batch cross failed:', err);
+      // Clear processing state on error
+      const errorState: Record<string, { isProcessing: boolean; error?: string }> = {};
+      itemsToCross.forEach(item => {
+        errorState[item.id] = { isProcessing: false, error: 'Cross failed' };
+      });
+      setItemCrossingState(prev => ({ ...prev, ...errorState }));
     }
   };
 
@@ -498,7 +684,7 @@ export default function TakeoffDetailPage() {
         onCrossSelected={() => {}}
         onCrossAll={handleCrossAll}
         itemCrossingState={itemCrossingState}
-        onCreateQuote={() => {}}
+        onCreateQuote={() => setShowCreateQuoteModal(true)}
         onDownloadDocument={handleDownloadDocument}
         onDownloadAllDocuments={handleDownloadAllDocuments}
         productCrossResults={[]}
@@ -524,6 +710,19 @@ export default function TakeoffDetailPage() {
         onClose={() => {
           setShowAbridgmentReport(false);
           setSelectedDocumentForReport(null);
+        }}
+      />
+
+      {/* Create Quote from Takeoff Modal */}
+      <CreateQuoteFromTakeoffModal
+        isOpen={showCreateQuoteModal}
+        takeoffId={takeoffId}
+        takeoffName={takeoff?.name || takeoff?.title || 'Takeoff'}
+        clientName={takeoff?.clientName}
+        crossedItems={parsedItems.filter(item => item.isCrossed)}
+        onClose={() => setShowCreateQuoteModal(false)}
+        onSuccess={(quote) => {
+          console.log('Quote created:', quote);
         }}
       />
     </main>

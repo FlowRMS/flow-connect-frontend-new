@@ -3,9 +3,10 @@
  * Schedule Parsing view matching FlowCRM design
  */
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import type { ParsedItem } from '../types';
 import { getSelectableItems } from '../utils';
+import { showInfoToast } from '../../lib/toast';
 
 // Per-item crossing state
 interface ItemCrossingState {
@@ -41,6 +42,30 @@ export function ParsingTab({
   const selectableItems = getSelectableItems(items);
   const allSelected = selectableItems.length > 0 && selectedItems.size === selectableItems.length;
 
+  // Handle "Cross All" button click with toast validation
+  const handleCrossAllClick = useCallback(() => {
+    console.log('🟣 [ParsingTab] Cross All button clicked!');
+    console.log('🟣 [ParsingTab] Total items:', items.length);
+    console.log('🟣 [ParsingTab] Selectable items count:', selectableItems.length);
+    console.log('🟣 [ParsingTab] Selectable items:', selectableItems.map(i => ({
+      id: i.id,
+      manufacturer: i.manufacturer,
+      isOurManufacturer: i.isOurManufacturer,
+      isCrossed: i.isCrossed
+    })));
+
+    // Check if there are items to cross
+    if (selectableItems.length === 0) {
+      console.log('🟣 [ParsingTab] No selectable items - showing toast');
+      showInfoToast('No items to cross. Items must be from competitor manufacturers and not already crossed.');
+      return;
+    }
+
+    console.log('🟣 [ParsingTab] Calling onCrossAll()...');
+    // Start crossing
+    onCrossAll();
+  }, [items, selectableItems, onCrossAll]);
+
   return (
     <div className="bg-white rounded-lg border border-gray-200">
       {/* Header */}
@@ -52,9 +77,8 @@ export function ParsingTab({
           </p>
         </div>
         <button
-          onClick={onCrossAll}
-          disabled={selectableItems.length === 0}
-          className="px-4 py-2 bg-purple-600 text-white rounded-full text-sm font-medium hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          onClick={handleCrossAllClick}
+          className="px-4 py-2 bg-purple-600 text-white rounded-full text-sm font-medium hover:bg-purple-700 transition-colors"
         >
           Cross All
         </button>

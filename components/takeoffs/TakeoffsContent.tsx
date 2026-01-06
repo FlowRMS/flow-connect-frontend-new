@@ -7,7 +7,7 @@
 
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { useTakeoffsState } from './hooks/useTakeoffsState';
 import { TakeoffListView } from './views/TakeoffListView';
 import { TakeoffDetailView } from './views/TakeoffDetailView';
@@ -15,6 +15,7 @@ import { UploadModal } from './modals/UploadModal';
 import { AbridgmentReportModal } from './modals/AbridgmentReportModal';
 import { TAKEOFF_FILTER_OPTIONS } from './constants';
 import AdvancedFilters from '../AdvancedFilters';
+import { showWarningToast } from '../lib/toast';
 
 export function TakeoffsContent() {
   const state = useTakeoffsState();
@@ -101,6 +102,25 @@ export function TakeoffsContent() {
 
     return [...new Set(clientNames)].sort();
   }, [takeoffs]);
+
+  // Handle proceed to parsing - validates that there are Fixture Schedules
+  const handleProceedToParsing = useCallback(() => {
+    console.log('🔵 [handleProceedToParsing] Called!');
+    console.log('🔵 [handleProceedToParsing] Documents:', documents.length);
+    const fixtureSchedules = documents.filter(d => d.classification === 'Fixture Schedules');
+    console.log('🔵 [handleProceedToParsing] Fixture Schedules:', fixtureSchedules.length);
+
+    if (fixtureSchedules.length === 0) {
+      console.log('🔵 [handleProceedToParsing] No Fixture Schedules - showing toast');
+      showWarningToast('No Fixture Schedules', {
+        description: 'Please classify at least one document as "Fixture Schedules" before proceeding to parsing.'
+      });
+      return;
+    }
+
+    console.log('🔵 [handleProceedToParsing] Proceeding to parsing step');
+    handleStepChange('parsing');
+  }, [documents, handleStepChange]);
 
   return (
     <main className="flex-1 overflow-y-auto bg-[var(--background)] p-3 sm:p-6">
@@ -222,6 +242,7 @@ export function TakeoffsContent() {
           {!isLoading && takeoffs.length > 0 && (
             <TakeoffListView
               takeoffs={takeoffs}
+              totalCount={totalCount}
               onTakeoffClick={handleSelectTakeoff}
               onDeleteTakeoff={handleDeleteTakeoff}
             />
@@ -247,6 +268,7 @@ export function TakeoffsContent() {
           documentAbridgementProgress={documentAbridgementProgress}
           onBack={handleBackToList}
           onStepChange={handleStepChange}
+          onProceedToParsing={handleProceedToParsing}
           onClassify={handleClassifyDocument}
           onChangeDiscipline={handleChangeDiscipline}
           onAbridge={handleAbridgeDocument}

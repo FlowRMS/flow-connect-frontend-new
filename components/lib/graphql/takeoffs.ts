@@ -35,6 +35,7 @@ export interface TakeoffDocumentResponse {
 
 export interface TakeoffResponse {
   id: string;
+  takeoffNumber: string;
   title: string;
   source: string;
   createdBy: string;
@@ -140,6 +141,7 @@ const GET_USER_TAKEOFFS = `
       createdBy: $createdBy
     ) {
       id
+      takeoffNumber
       title
       source
       createdBy
@@ -192,6 +194,7 @@ const GET_USER_TAKEOFFS_PAGINATED = `
       totalCount
       takeoffs {
         id
+        takeoffNumber
         title
         source
         createdBy
@@ -227,6 +230,7 @@ const GET_TAKEOFF = `
   query GetTakeoff($takeoffId: UUID!) {
     getTakeoff(takeoffId: $takeoffId) {
       id
+      takeoffNumber
       title
       source
       createdBy
@@ -551,6 +555,9 @@ export async function crossProducts(
   crossTypes: ProductCrossType[] = ['SIMPLE'],
   samplePrompts?: string[]
 ): Promise<ParsedProductCross[]> {
+  console.log('🟣 [takeoffs.crossProducts] Called with products:', JSON.stringify(products, null, 2));
+  console.log('🟣 [takeoffs.crossProducts] Stack trace:', new Error().stack);
+
   const response = await flowAIGraphQLRequest<{ crossProducts: ParsedProductCross[] }>({
     query: CROSS_PRODUCTS,
     variables: { products, crossTypes, samplePrompts },
@@ -991,7 +998,7 @@ export async function createTakeoffWithFiles(
   try {
     uploadedFiles = await uploadFilesToStorage(
       input.files,
-      `takeoffs/${input.title.replace(/[^a-zA-Z0-9]/g, '_')}`,
+      input.title.replace(/[^a-zA-Z0-9]/g, '_'),
       onProgress
     );
     console.log('[createTakeoffWithFiles] Uploaded files:', uploadedFiles.length);

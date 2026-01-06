@@ -137,8 +137,21 @@ export function TakeoffDetailView({
   // AI Classification state
   const [isClassifying, setIsClassifying] = useState(false);
   const [classificationProgress, setClassificationProgress] = useState(0);
+  const [classifyingDocIds, setClassifyingDocIds] = useState<Set<string>>(new Set());
   // Ref to prevent double-triggering of auto-classification (React StrictMode or race conditions)
   const autoClassifyTriggeredRef = useRef(false);
+  // Ref to track if component is mounted for cleanup
+  const isMountedRef = useRef(true);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      // Reset auto-classify trigger so it can run again when user comes back
+      autoClassifyTriggeredRef.current = false;
+    };
+  }, []);
 
   // Run AI classification on all documents
   const runAutoClassification = useCallback(async (isAutoTriggered = false) => {
@@ -190,10 +203,25 @@ export function TakeoffDetailView({
     const results = { fixtures: 0, specs: 0, blueprints: 0, other: 0, irrelevant: 0 };
 
     for (let i = 0; i < docsWithUrls.length; i++) {
+      // Check if component is still mounted
+      if (!isMountedRef.current) {
+        console.log('[Classification] Component unmounted, stopping classification');
+        return;
+      }
+
       const doc = docsWithUrls[i];
+      // Mark this document as being classified
+      setClassifyingDocIds(prev => new Set(prev).add(doc.id));
       try {
         console.log(`[Classification] Classifying ${doc.name}...`);
         const result = await classifyDocumentAPI(doc.documentUrl!, doc.name);
+
+        // Check again after async call
+        if (!isMountedRef.current) {
+          console.log('[Classification] Component unmounted after API call, stopping');
+          return;
+        }
+
         console.log(`[Classification] Result for ${doc.name}:`, result);
 
         if (result.success && result.category) {
@@ -216,47 +244,69 @@ export function TakeoffDetailView({
           else if (classification === 'Irrelevant') results.irrelevant++;
         } else {
           console.error(`[Classification] Failed to classify ${doc.name}:`, result.error);
-          results.other++; // Count failed as other
+          // Set as "Other Docs" when classification fails so it doesn't stay as "Select..."
+          onClassify(doc.id, 'Other Docs');
+          results.other++;
         }
       } catch (error) {
         console.error(`[Classification] Error classifying ${doc.name}:`, error);
-        results.other++; // Count errors as other
+        // Set as "Other Docs" when there's an error so it doesn't stay as "Select..."
+        if (isMountedRef.current) {
+          onClassify(doc.id, 'Other Docs');
+        }
+        results.other++;
       }
-      setClassificationProgress(Math.round(((i + 1) / docsWithUrls.length) * 100));
+      // Remove from classifying set (only if still mounted)
+      if (isMountedRef.current) {
+        setClassifyingDocIds(prev => {
+          const next = new Set(prev);
+          next.delete(doc.id);
+          return next;
+        });
+        setClassificationProgress(Math.round(((i + 1) / docsWithUrls.length) * 100));
+      }
     }
 
-    setIsClassifying(false);
-    console.log('[Classification] Classification complete');
+    // Only update state if still mounted
+    if (isMountedRef.current) {
+      setIsClassifying(false);
+      console.log('[Classification] Classification complete');
 
-    // Show completion toast with results
-    takeoffToasts.classificationComplete({
-      total: docsWithUrls.length,
-      ...results,
-    });
+      // Show completion toast with results
+      takeoffToasts.classificationComplete({
+        total: docsWithUrls.length,
+        ...results,
+      });
+    }
 
     onAutoClassifyComplete?.();
   }, [documents, onClassify, onAutoClassifyComplete]);
 
-  // Auto-run classification when shouldAutoClassify is true
+  // Auto-run classification when entering classification view with unclassified documents
   useEffect(() => {
-    if (shouldAutoClassify && documents.length > 0 && !isClassifying && currentStep === 'classification') {
+    const unclassifiedCount = documents.filter(d => !d.classification && d.documentUrl).length;
+
+    if ((currentStep === 'classification' || currentStep === 'review') &&
+        unclassifiedCount > 0 &&
+        !isClassifying &&
+        documents.length > 0) {
       // Prevent double-triggering due to React StrictMode or race conditions
       if (autoClassifyTriggeredRef.current) {
         console.log('[Classification] Auto-classification already triggered, skipping...');
         return;
       }
       autoClassifyTriggeredRef.current = true;
-      console.log('[Classification] Auto-starting classification...');
+      console.log('[Classification] Auto-starting classification for', unclassifiedCount, 'unclassified documents...');
       runAutoClassification(true); // true = auto-triggered, don't show alerts
     }
-  }, [shouldAutoClassify, documents.length, isClassifying, currentStep, runAutoClassification]);
+  }, [currentStep, documents, isClassifying, runAutoClassification]);
 
-  // Reset the auto-classify ref when shouldAutoClassify becomes false
+  // Reset the auto-classify ref when leaving classification step
   useEffect(() => {
-    if (!shouldAutoClassify) {
+    if (currentStep !== 'classification' && currentStep !== 'review') {
       autoClassifyTriggeredRef.current = false;
     }
-  }, [shouldAutoClassify]);
+  }, [currentStep]);
 
   // Navigation helpers
   const canGoBack = currentStepIndex > 0;
@@ -546,6 +596,8 @@ export function TakeoffDetailView({
                 onViewReport={onViewReport}
                 onProceedToParsing={onProceedToParsing || (() => onStepChange('parsing'))}
                 documentAbridgeState={documentAbridgeState}
+                classifyingDocIds={classifyingDocIds}
+                isClassifying={isClassifying}
               />
         )}
 

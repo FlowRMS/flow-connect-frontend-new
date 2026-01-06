@@ -101,6 +101,7 @@ export interface TakeoffMetadata {
 // Main Take-off type (UI display format)
 export interface Takeoff {
   id: string;
+  takeoffNumber: string;
   title: string;
   source: string;
   createdBy: string;
@@ -188,6 +189,7 @@ function transformMetadata(metadata: Record<string, unknown> | null | undefined)
 export function transformTakeoffResponse(response: TakeoffResponse): Takeoff {
   return {
     id: response.id,
+    takeoffNumber: response.takeoffNumber,
     title: response.title,
     source: response.source,
     createdBy: response.createdBy,
@@ -243,6 +245,7 @@ export function transformDocumentResponse(doc: TakeoffDocumentResponse): Takeoff
     abridgedPages: doc.abridgedPages || undefined,
     reductionPercentage: doc.reductionPercentage || undefined,
     documentUrl: doc.documentUrl || undefined,
+    // Note: abridgedUrl is not stored in backend, it's set locally after abridgement
     pageAnalyses: doc.pageAnalyses || undefined,
     products: doc.products,
     parsedItems: safeParseParsedItems(doc.parsedItems),

@@ -19,9 +19,10 @@ import {
   type BulkKnownProductCrossInput,
 } from '../lib/graphql/product-crosses';
 import * as XLSX from 'xlsx';
+import { ProductCrossResultsModal } from './ProductCrossResultsModal';
 
 // Types
-interface ProductCross {
+export interface ProductCross {
   id: string;
   competitorManufacturer: string;
   competitorPartNumber: string;
@@ -71,6 +72,10 @@ export function ProductCrossesContent() {
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Sort state
+  const [sortField, setSortField] = useState<keyof ProductCross>('timesUsed');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   // Debounced search
   const [debouncedSearch, setDebouncedSearch] = useState(searchQuery);
@@ -278,12 +283,63 @@ export function ProductCrossesContent() {
     XLSX.writeFile(workbook, 'product_crosses_template.xlsx');
   };
 
-  // Server-side search is applied via API, so we just use crosses directly
-  const filteredCrosses = crosses;
+  // Server-side search is applied via API, then we sort client-side
+  const filteredCrosses = useMemo(() => {
+    const sorted = [...crosses].sort((a, b) => {
+      const aValue = a[sortField];
+      const bValue = b[sortField];
+
+      // Handle numeric sorting
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+      }
+
+      // Handle string sorting
+      const aStr = String(aValue || '').toLowerCase();
+      const bStr = String(bValue || '').toLowerCase();
+
+      if (sortDirection === 'asc') {
+        return aStr.localeCompare(bStr);
+      } else {
+        return bStr.localeCompare(aStr);
+      }
+    });
+    return sorted;
+  }, [crosses, sortField, sortDirection]);
 
   // Calculate totals
   const totalCrosses = totalCount;
   const totalUses = crosses.reduce((sum, cross) => sum + cross.timesUsed, 0);
+
+  // Handle header sort click
+  const handleSort = (field: keyof ProductCross) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection(field === 'timesUsed' ? 'desc' : 'asc');
+    }
+  };
+
+  // Sort indicator component
+  const SortIndicator = ({ field }: { field: keyof ProductCross }) => {
+    if (sortField !== field) {
+      return (
+        <svg className="w-4 h-4 ml-1 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+        </svg>
+      );
+    }
+    return (
+      <svg className="w-4 h-4 ml-1 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        {sortDirection === 'asc' ? (
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+        ) : (
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        )}
+      </svg>
+    );
+  };
 
   const formatDate = (dateString: string) => {
     if (!dateString) return '-';
@@ -367,18 +423,6 @@ export function ProductCrossesContent() {
           onFiltersChange={setActiveFilters}
         />
 
-        {/* Sort */}
-        <button className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <line x1="4" y1="6" x2="16" y2="6" />
-            <line x1="4" y1="12" x2="12" y2="12" />
-            <line x1="4" y1="18" x2="8" y2="18" />
-            <polyline points="16 12 20 8 24 12" />
-            <line x1="20" y1="8" x2="20" y2="20" />
-          </svg>
-          Sort
-        </button>
-
         {/* Stats */}
         <div className="flex items-center gap-6 pl-4 border-l border-gray-200">
           <div className="text-center">
@@ -398,29 +442,65 @@ export function ProductCrossesContent() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Competitor Manufacturer
+                <th
+                  onClick={() => handleSort('competitorManufacturer')}
+                  className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 group"
+                >
+                  <div className="flex items-center">
+                    Competitor Manufacturer
+                    <SortIndicator field="competitorManufacturer" />
+                  </div>
                 </th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Competitor Part #
+                <th
+                  onClick={() => handleSort('competitorPartNumber')}
+                  className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 group"
+                >
+                  <div className="flex items-center">
+                    Competitor Part #
+                    <SortIndicator field="competitorPartNumber" />
+                  </div>
                 </th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   Competitor Description
                 </th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Our Manufacturer
+                <th
+                  onClick={() => handleSort('ourManufacturer')}
+                  className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 group"
+                >
+                  <div className="flex items-center">
+                    Our Manufacturer
+                    <SortIndicator field="ourManufacturer" />
+                  </div>
                 </th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Our Part #
+                <th
+                  onClick={() => handleSort('ourPartNumber')}
+                  className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 group"
+                >
+                  <div className="flex items-center">
+                    Our Part #
+                    <SortIndicator field="ourPartNumber" />
+                  </div>
                 </th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   Our Description
                 </th>
-                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Times Used
+                <th
+                  onClick={() => handleSort('timesUsed')}
+                  className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 group"
+                >
+                  <div className="flex items-center justify-center">
+                    Times Used
+                    <SortIndicator field="timesUsed" />
+                  </div>
                 </th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Last Used
+                <th
+                  onClick={() => handleSort('lastUsed')}
+                  className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 group"
+                >
+                  <div className="flex items-center">
+                    Last Used
+                    <SortIndicator field="lastUsed" />
+                  </div>
                 </th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   Actions
@@ -561,6 +641,7 @@ export function ProductCrossesContent() {
             <p className="text-xs text-gray-400 mt-1">Upload a template to get started</p>
           </div>
         )}
+
       </div>
 
       {/* Usage Indicator Legend */}
@@ -584,102 +665,25 @@ export function ProductCrossesContent() {
         </div>
       </div>
 
-      {/* Edit Modal */}
-      {isEditModalOpen && editingCross && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">Edit Product Cross</h2>
-              <button onClick={() => setIsEditModalOpen(false)} className="p-1 hover:bg-gray-100 rounded">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round" />
-                </svg>
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Competitor Manufacturer</label>
-                  <input
-                    type="text"
-                    value={editingCross.competitorManufacturer}
-                    onChange={(e) => setEditingCross({ ...editingCross, competitorManufacturer: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Competitor Part #</label>
-                  <input
-                    type="text"
-                    value={editingCross.competitorPartNumber}
-                    onChange={(e) => setEditingCross({ ...editingCross, competitorPartNumber: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Competitor Description</label>
-                <input
-                  type="text"
-                  value={editingCross.competitorDescription}
-                  onChange={(e) => setEditingCross({ ...editingCross, competitorDescription: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Our Manufacturer</label>
-                  <input
-                    type="text"
-                    value={editingCross.ourManufacturer}
-                    onChange={(e) => setEditingCross({ ...editingCross, ourManufacturer: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Our Part #</label>
-                  <input
-                    type="text"
-                    value={editingCross.ourPartNumber}
-                    onChange={(e) => setEditingCross({ ...editingCross, ourPartNumber: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Our Description</label>
-                <input
-                  type="text"
-                  value={editingCross.ourDescription}
-                  onChange={(e) => setEditingCross({ ...editingCross, ourDescription: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-                />
-              </div>
-            </div>
-            <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
-              <button
-                onClick={() => setIsEditModalOpen(false)}
-                disabled={isSaving}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveEdit}
-                disabled={isSaving}
-                className="px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 disabled:opacity-50 flex items-center gap-2"
-              >
-                {isSaving && (
-                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                )}
-                {isSaving ? 'Saving...' : 'Save Changes'}
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Product Cross Results Modal */}
+      {editingCross && (
+        <ProductCrossResultsModal
+          isOpen={isEditModalOpen}
+          cross={editingCross}
+          onClose={() => {
+            setIsEditModalOpen(false);
+            setEditingCross(null);
+          }}
+          onSave={async (updatedCross) => {
+            await handleSaveEdit();
+          }}
+          onDelete={(id) => {
+            setDeletingCross(editingCross);
+            setIsDeleteModalOpen(true);
+            setIsEditModalOpen(false);
+          }}
+          isSaving={isSaving}
+        />
       )}
 
       {/* Delete Confirmation Modal */}

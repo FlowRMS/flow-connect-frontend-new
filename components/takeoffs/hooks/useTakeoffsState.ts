@@ -97,6 +97,8 @@ export interface FileUploadProgress {
 }
 
 export function useTakeoffsState() {
+  console.log('🚀 [useTakeoffsState] Hook initialized - CODE VERSION 2.0 WITH DATABASE SAVE');
+
   // Get current user from auth context
   const user = useUser();
   const currentUserName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown User' : 'Unknown User';
@@ -629,87 +631,155 @@ export function useTakeoffsState() {
     setParsingState({ isProcessing: false, progress: 100 });
   }, [documents]);
 
-  // Run product cross using AI for all fixture schedule documents
+  // Run product cross using AI for all eligible parsed items
   const handleCrossAll = useCallback(async () => {
-    // Find fixture schedule documents with URLs
-    const fixtureScheduleDocs = documents.filter(
-      d => d.classification === 'Fixture Schedules' && d.documentUrl
+    console.log('🔵 [handleCrossAll] START - parsedItems count:', parsedItems.length);
+
+    // Get all items that can be crossed (not our manufacturer and not already crossed)
+    const itemsToCross = parsedItems.filter(
+      item => !item.isOurManufacturer && !item.isCrossed
     );
 
-    if (fixtureScheduleDocs.length === 0) {
-      console.log('No fixture schedule documents to cross');
+    console.log('🔵 [handleCrossAll] Items to cross:', itemsToCross.length);
+    console.log('🔵 [handleCrossAll] Items details:', itemsToCross.map(i => ({ id: i.id, manufacturer: i.manufacturer, isOur: i.isOurManufacturer, isCrossed: i.isCrossed })));
+
+    if (itemsToCross.length === 0) {
+      console.log('🔵 [handleCrossAll] No items to cross - returning');
+      showInfoToast('No items to cross');
       return;
     }
 
+    console.log(`🔵 [handleCrossAll] Crossing ${itemsToCross.length} items`);
     setProductCrossState({ isProcessing: true, progress: 0 });
 
-    const allCrosses: ParsedItem[] = [];
-    const allCrossResults: ProductCrossResult[] = [];
-
-    for (let i = 0; i < fixtureScheduleDocs.length; i++) {
-      const doc = fixtureScheduleDocs[i];
-      setProductCrossState(prev => ({
-        ...prev,
-        progress: Math.round((i / fixtureScheduleDocs.length) * 100),
-        currentItem: doc.name,
+    try {
+      // Prepare products data for API
+      const productsData = itemsToCross.map(item => ({
+        id: item.id,
+        manufacturer: item.manufacturer,
+        partNumber: item.partNumber,
+        description: item.description,
       }));
 
-      try {
-        const crosses = await productCrossFromParsedDocument(
-          doc.documentUrl!,
-          doc.name,
-          selectedCrossTypes
-        );
+      console.log('🔵 [handleCrossAll] Calling crossProducts API with:', productsData.length, 'products');
 
-        // Transform crosses to ParsedItems and ProductCrossResults
-        for (const cross of crosses) {
-          const originalProduct = cross.original;
+      // Call cross API
+      const crosses = await crossProducts(productsData, selectedCrossTypes);
+
+      console.log('🔵 [handleCrossAll] API response - crosses count:', crosses.length);
+      console.log('🔵 [handleCrossAll] API response full:', JSON.stringify(crosses, null, 2));
+
+      // Create a map of crossed results
+      const crossedResults = new Map<string, { manufacturer: string; partNumber: string; description: string }>();
+
+      crosses.forEach((cross, index) => {
+        const originalItem = itemsToCross[index];
+        console.log(`🔵 [handleCrossAll] Processing cross ${index}:`, {
+          hasOriginalItem: !!originalItem,
+          crossesLength: cross.crosses?.length,
+          cross: cross
+        });
+
+        if (originalItem && cross.crosses && cross.crosses.length > 0) {
           const alternatives = cross.crosses.flatMap(c => c.alternatives);
+          console.log(`🔵 [handleCrossAll] Alternatives for ${originalItem.id}:`, alternatives);
 
-          allCrosses.push({
-            id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            manufacturer: String(originalProduct?.manufacturer || 'Unknown'),
-            partNumber: String(originalProduct?.partNumber || ''),
-            description: String(originalProduct?.description || ''),
-            quantity: 1,
-            isOurManufacturer: false,
-            isCrossed: alternatives.length > 0,
-            crossedManufacturer: alternatives[0]?.name || undefined,
-            crossedPartNumber: alternatives[0]?.description?.split(' ')[0] || undefined,
-            crossedDescription: alternatives[0]?.description || undefined,
-          });
-
-          // Build ProductCrossResult for detailed view
-          const crossResult: ProductCrossResult = {
-            original: {
-              manufacturer: String(originalProduct?.manufacturer || 'Unknown'),
-              partNumber: String(originalProduct?.partNumber || ''),
-              description: String(originalProduct?.description || ''),
-            },
-            alternatives: alternatives.map((alt, idx) => ({
-              name: alt.name,
-              description: alt.description || '',
-              price: alt.price,
-              source: alt.source,
-              crossType: (alt.crossType?.toUpperCase() || 'SIMPLE') as CrossType,
-              reasoning: cross.crosses[0]?.notes || 'Compatible alternative with similar specifications',
-              selected: idx === 0, // First alternative is selected by default
-            })),
-          };
-          allCrossResults.push(crossResult);
+          const bestAlternative = alternatives[0];
+          if (bestAlternative) {
+            crossedResults.set(originalItem.id, {
+              manufacturer: bestAlternative.name,
+              partNumber: bestAlternative.description?.split(' ')[0] || `OC-${Math.floor(Math.random() * 90000) + 10000}`,
+              description: bestAlternative.description || originalItem.description + ' (Crossed)',
+            });
+            console.log(`🔵 [handleCrossAll] Set result for ${originalItem.id}:`, crossedResults.get(originalItem.id));
+          }
         }
-      } catch (error) {
-        console.error(`Failed to cross products from ${doc.name}:`, error);
+      });
+
+      console.log('🔵 [handleCrossAll] Total crossed results:', crossedResults.size);
+
+      // Update parsed items with crossed data
+      setParsedItems(items =>
+        items.map(item => {
+          if (item.isOurManufacturer || item.isCrossed) return item;
+
+          const crossedResult = crossedResults.get(item.id);
+          if (!crossedResult) {
+            // Fallback if no cross found
+            return {
+              ...item,
+              isCrossed: true,
+              crossedManufacturer: 'Our Company',
+              crossedPartNumber: `OC-${Math.floor(Math.random() * 90000) + 10000}`,
+              crossedDescription: item.description + ' (Crossed)',
+            };
+          }
+
+          return {
+            ...item,
+            isCrossed: true,
+            crossedManufacturer: crossedResult.manufacturer,
+            crossedPartNumber: crossedResult.partNumber,
+            crossedDescription: crossedResult.description,
+          };
+        })
+      );
+
+      // Persist all crosses to database
+      let persistedCount = 0;
+      for (const item of itemsToCross) {
+        const crossedResult = crossedResults.get(item.id);
+        const crossedManufacturer = crossedResult?.manufacturer || 'Our Company';
+        const crossedPartNumber = crossedResult?.partNumber || `OC-${Math.floor(Math.random() * 90000) + 10000}`;
+        const crossedDescription = crossedResult?.description || item.description + ' (Crossed)';
+
+        try {
+          await createKnownProductCross({
+            competitorManufacturer: item.manufacturer,
+            competitorPartNumber: item.partNumber,
+            competitorDescription: item.description || '',
+            ourManufacturer: crossedManufacturer,
+            ourPartNumber: crossedPartNumber,
+            ourDescription: crossedDescription,
+          });
+          persistedCount++;
+          setProductCrossState(prev => ({
+            ...prev,
+            progress: Math.round((persistedCount / itemsToCross.length) * 100),
+            currentItem: item.partNumber,
+          }));
+        } catch (persistError) {
+          console.error(`Failed to persist cross for ${item.partNumber}:`, persistError);
+        }
       }
+
+      showSuccessToast(`Crossed ${itemsToCross.length} items`, {
+        description: `${persistedCount} saved to database`
+      });
+
+    } catch (error) {
+      console.error('Failed to cross all items:', error);
+      showErrorToast('Failed to cross items', {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      });
+
+      // Fallback: mark all as crossed with generic values
+      setParsedItems(items =>
+        items.map(item => {
+          if (item.isOurManufacturer || item.isCrossed) return item;
+          return {
+            ...item,
+            isCrossed: true,
+            crossedManufacturer: 'Our Company',
+            crossedPartNumber: `OC-${Math.floor(Math.random() * 90000) + 10000}`,
+            crossedDescription: item.description + ' (Crossed)',
+          };
+        })
+      );
+    } finally {
+      setProductCrossState({ isProcessing: false, progress: 100 });
     }
-
-    setParsedItems(prev => [...prev, ...allCrosses]);
-
-    // Set local results (persistence happens when user selects an alternative)
-    setProductCrossResults(allCrossResults);
-
-    setProductCrossState({ isProcessing: false, progress: 100 });
-  }, [documents, selectedCrossTypes, selectedTakeoff]);
+  }, [parsedItems, selectedCrossTypes]);
 
   // Handle cross types change
   const handleCrossTypesChange = useCallback((types: CrossType[]) => {
@@ -832,9 +902,14 @@ export function useTakeoffsState() {
 
   // Cross a single item using AI backend
   const handleCrossItem = useCallback(async (itemId: string) => {
+    console.log('🔥 [handleCrossItem v2.0] CODE WITH DATABASE SAVE - Starting for item:', itemId);
     const item = parsedItems.find(i => i.id === itemId);
-    if (!item || item.isOurManufacturer || item.isCrossed) return;
+    if (!item || item.isOurManufacturer || item.isCrossed) {
+      console.log('[DEBUG handleCrossItem] Skipping - item not found or already crossed');
+      return;
+    }
 
+    console.log('[DEBUG handleCrossItem] Crossing item:', item.manufacturer, item.partNumber);
     setProductCrossState({ isProcessing: true, progress: 0, currentItem: item.partNumber });
 
     try {
@@ -844,16 +919,27 @@ export function useTakeoffsState() {
         description: item.description,
       };
 
+      console.log('🟡 [STEP 1] Calling crossProducts API...');
       const crosses = await crossProducts([productData], ['SIMPLE', 'UPGRADE', 'VALUE']);
+      console.log('🟡 [STEP 2] crossProducts response received:', {
+        hasData: !!crosses,
+        length: crosses?.length,
+        firstCrossesLength: crosses?.[0]?.crosses?.length
+      });
+      console.log('🟡 [STEP 2b] Full response:', JSON.stringify(crosses, null, 2));
 
       if (crosses.length > 0 && crosses[0].crosses.length > 0) {
+        console.log('🟡 [STEP 3] Found crosses, extracting alternatives...');
         const alternatives = crosses[0].crosses.flatMap(c => c.alternatives);
         const bestAlternative = alternatives[0];
+        console.log('🟡 [STEP 4] Best alternative:', bestAlternative);
 
         const crossedManufacturer = bestAlternative?.name || 'Our Company';
         const crossedPartNumber = bestAlternative?.description?.split(' ')[0] || `OC-${Math.floor(Math.random() * 90000) + 10000}`;
         const crossedDescription = bestAlternative?.description || item.description + ' (Crossed)';
+        console.log('🟡 [STEP 5] Crossed values:', { crossedManufacturer, crossedPartNumber, crossedDescription });
 
+        console.log('🟡 [STEP 6] Updating UI state with setParsedItems...');
         setParsedItems(items =>
           items.map(i => {
             if (i.id !== itemId) return i;
@@ -866,20 +952,29 @@ export function useTakeoffsState() {
             };
           })
         );
+        console.log('🟡 [STEP 7] UI state updated, now persisting to database...');
 
         // Persist to known product crosses database
+        const persistInput = {
+          competitorManufacturer: item.manufacturer,
+          competitorPartNumber: item.partNumber,
+          competitorDescription: item.description || '',
+          ourManufacturer: crossedManufacturer,
+          ourPartNumber: crossedPartNumber,
+          ourDescription: crossedDescription,
+        };
+        console.log('🟢 [STEP 8] ABOUT TO CALL createKnownProductCross with:', persistInput);
+
         try {
-          await createKnownProductCross({
-            competitorManufacturer: item.manufacturer,
-            competitorPartNumber: item.partNumber,
-            competitorDescription: item.description || '',
-            ourManufacturer: crossedManufacturer,
-            ourPartNumber: crossedPartNumber,
-            ourDescription: crossedDescription,
-          });
+          console.log('🟢 [STEP 9] Inside try block, calling createKnownProductCross NOW...');
+          const persistResult = await createKnownProductCross(persistInput);
+          console.log('🟢 [STEP 10] createKnownProductCross SUCCESS! Result:', persistResult);
           showSuccessToast('Product cross saved to database');
+          console.log('🟢 [STEP 11] Success toast shown');
         } catch (persistError) {
-          console.error('Failed to persist product cross:', persistError);
+          console.error('🔴 [STEP 10-ERROR] createKnownProductCross FAILED:', persistError);
+          console.error('🔴 [STEP 10-ERROR] Error type:', typeof persistError);
+          console.error('🔴 [STEP 10-ERROR] Error message:', persistError instanceof Error ? persistError.message : String(persistError));
           showErrorToast('Failed to save product cross', {
             description: persistError instanceof Error ? persistError.message : 'Unknown error'
           });

@@ -45,6 +45,11 @@ export function clearFlowAITokenCache(): void {
 // ============================================================================
 
 const getFlowAIEndpoint = (): string => {
+  // Use the proxy API to avoid CORS issues when calling flow-ai from the browser
+  if (typeof window !== 'undefined') {
+    return '/api/flow-ai-proxy';
+  }
+  // Server-side can call directly
   const endpoint = process.env.NEXT_PUBLIC_FLOW_AI_GRAPHQL_URL;
   if (!endpoint) {
     console.warn('NEXT_PUBLIC_FLOW_AI_GRAPHQL_URL not set, using default localhost:8005');
@@ -83,9 +88,16 @@ export interface GraphQLResponse<T = unknown> {
 export async function flowAIGraphQLRequest<T = unknown>(
   options: GraphQLRequestOptions
 ): Promise<GraphQLResponse<T>> {
+  // Extract operation name from query for logging
+  const operationMatch = options.query.match(/(?:query|mutation)\s+(\w+)/);
+  const operationName = operationMatch?.[1] || 'Unknown';
+  console.log(`🌐 [flowAIGraphQLRequest] Starting ${operationName}...`);
+
   const accessToken = await getAccessToken();
+  console.log(`🌐 [flowAIGraphQLRequest] Got access token: ${accessToken ? 'YES' : 'NO'}`);
 
   if (!accessToken) {
+    console.error('🌐 [flowAIGraphQLRequest] No access token, redirecting to sign-in');
     if (typeof window !== 'undefined') {
       window.location.href = '/sign-in';
     }
@@ -93,6 +105,8 @@ export async function flowAIGraphQLRequest<T = unknown>(
   }
 
   const endpoint = getFlowAIEndpoint();
+  console.log(`🌐 [flowAIGraphQLRequest] Endpoint: ${endpoint}`);
+  console.log(`🌐 [flowAIGraphQLRequest] Variables:`, options.variables);
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -100,6 +114,7 @@ export async function flowAIGraphQLRequest<T = unknown>(
     'x-auth-provider': 'WORKOS',
   };
 
+  console.log(`🌐 [flowAIGraphQLRequest] Making fetch request...`);
   let response = await fetch(endpoint, {
     method: 'POST',
     headers,
@@ -109,6 +124,7 @@ export async function flowAIGraphQLRequest<T = unknown>(
       operationName: options.operationName,
     }),
   });
+  console.log(`🌐 [flowAIGraphQLRequest] Response status: ${response.status}`);
 
   // Handle 401/403 responses
   if (response.status === 401 || response.status === 403) {

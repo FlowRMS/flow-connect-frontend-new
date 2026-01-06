@@ -565,21 +565,32 @@ export async function getKnownProductCrossesPaginated(
 export async function createKnownProductCross(
   input: CreateKnownProductCrossInput
 ): Promise<KnownProductCross> {
-  const response = await flowAIGraphQLRequest<{ createProductCross: KnownProductCross }>({
-    query: CREATE_KNOWN_PRODUCT_CROSS,
-    variables: { input },
-  });
+  console.log('🔵 [createKnownProductCross] Function called with input:', input);
 
-  if (response.errors) {
-    console.error('GraphQL errors:', response.errors);
-    throw new Error(response.errors[0]?.message || 'Failed to create product cross');
+  try {
+    console.log('🔵 [createKnownProductCross] Calling flowAIGraphQLRequest...');
+    const response = await flowAIGraphQLRequest<{ createProductCross: KnownProductCross }>({
+      query: CREATE_KNOWN_PRODUCT_CROSS,
+      variables: { input },
+    });
+    console.log('🔵 [createKnownProductCross] Response received:', JSON.stringify(response, null, 2));
+
+    if (response.errors) {
+      console.error('🔵 [createKnownProductCross] GraphQL errors:', response.errors);
+      throw new Error(response.errors[0]?.message || 'Failed to create product cross');
+    }
+
+    if (!response.data?.createProductCross) {
+      console.error('🔵 [createKnownProductCross] No data returned');
+      throw new Error('Failed to create product cross');
+    }
+
+    console.log('🔵 [createKnownProductCross] SUCCESS! Returning:', response.data.createProductCross);
+    return response.data.createProductCross;
+  } catch (error) {
+    console.error('🔵 [createKnownProductCross] EXCEPTION caught:', error);
+    throw error;
   }
-
-  if (!response.data?.createProductCross) {
-    throw new Error('Failed to create product cross');
-  }
-
-  return response.data.createProductCross;
 }
 
 /**
@@ -589,13 +600,17 @@ export async function updateKnownProductCross(
   productCrossId: string,
   input: UpdateKnownProductCrossInput
 ): Promise<KnownProductCross> {
+  console.log('🔵 [updateKnownProductCross] Called with:', { productCrossId, input });
+
   const response = await flowAIGraphQLRequest<{ updateProductCross: KnownProductCross }>({
     query: UPDATE_KNOWN_PRODUCT_CROSS,
     variables: { productCrossId, input },
   });
 
+  console.log('🔵 [updateKnownProductCross] Response:', JSON.stringify(response, null, 2));
+
   if (response.errors) {
-    console.error('GraphQL errors:', response.errors);
+    console.error('🔴 [updateKnownProductCross] GraphQL errors:', JSON.stringify(response.errors, null, 2));
     throw new Error(response.errors[0]?.message || 'Failed to update product cross');
   }
 
@@ -663,4 +678,330 @@ export async function bulkCreateKnownProductCrosses(
   }
 
   return response.data?.bulkCreateProductCrosses || [];
+}
+
+// ============================================================================
+// Cross Prompt Templates Types
+// ============================================================================
+
+export interface CrossPromptTemplate {
+  id: string;
+  userId: string;
+  name: string;
+  prompt: string;
+  description: string | null;
+  timesUsed: number;
+  lastUsed: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CrossPromptTemplateListResult {
+  templates: CrossPromptTemplate[];
+  totalCount: number;
+}
+
+export interface CreateCrossPromptTemplateInput {
+  name: string;
+  prompt: string;
+  description?: string | null;
+}
+
+export interface UpdateCrossPromptTemplateInput {
+  name?: string | null;
+  prompt?: string | null;
+  description?: string | null;
+}
+
+// ============================================================================
+// Cross Prompt Templates GraphQL Queries
+// ============================================================================
+
+const GET_CROSS_PROMPT_TEMPLATE = `
+  query GetCrossPromptTemplate($templateId: UUID!) {
+    getCrossPromptTemplate(templateId: $templateId) {
+      id
+      userId
+      name
+      prompt
+      description
+      timesUsed
+      lastUsed
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
+const GET_CROSS_PROMPT_TEMPLATES = `
+  query GetCrossPromptTemplates(
+    $limit: Int,
+    $offset: Int,
+    $search: String,
+    $sortBy: String,
+    $sortOrder: String
+  ) {
+    getCrossPromptTemplates(
+      limit: $limit,
+      offset: $offset,
+      search: $search,
+      sortBy: $sortBy,
+      sortOrder: $sortOrder
+    ) {
+      id
+      userId
+      name
+      prompt
+      description
+      timesUsed
+      lastUsed
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
+const GET_CROSS_PROMPT_TEMPLATES_PAGINATED = `
+  query GetCrossPromptTemplatesPaginated(
+    $limit: Int,
+    $offset: Int,
+    $search: String,
+    $sortBy: String,
+    $sortOrder: String
+  ) {
+    getCrossPromptTemplatesPaginated(
+      limit: $limit,
+      offset: $offset,
+      search: $search,
+      sortBy: $sortBy,
+      sortOrder: $sortOrder
+    ) {
+      totalCount
+      templates {
+        id
+        userId
+        name
+        prompt
+        description
+        timesUsed
+        lastUsed
+        createdAt
+        updatedAt
+      }
+    }
+  }
+`;
+
+// ============================================================================
+// Cross Prompt Templates GraphQL Mutations
+// ============================================================================
+
+const CREATE_CROSS_PROMPT_TEMPLATE = `
+  mutation CreateCrossPromptTemplate($input: CreateCrossPromptTemplateInput!) {
+    createCrossPromptTemplate(input: $input) {
+      id
+      userId
+      name
+      prompt
+      description
+      timesUsed
+      lastUsed
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
+const UPDATE_CROSS_PROMPT_TEMPLATE = `
+  mutation UpdateCrossPromptTemplate($templateId: UUID!, $input: UpdateCrossPromptTemplateInput!) {
+    updateCrossPromptTemplate(templateId: $templateId, input: $input) {
+      id
+      userId
+      name
+      prompt
+      description
+      timesUsed
+      lastUsed
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
+const DELETE_CROSS_PROMPT_TEMPLATE = `
+  mutation DeleteCrossPromptTemplate($templateId: UUID!) {
+    deleteCrossPromptTemplate(templateId: $templateId)
+  }
+`;
+
+const INCREMENT_CROSS_PROMPT_TEMPLATE_USAGE = `
+  mutation IncrementCrossPromptTemplateUsage($templateId: UUID!) {
+    incrementCrossPromptTemplateUsage(templateId: $templateId) {
+      id
+      timesUsed
+      lastUsed
+    }
+  }
+`;
+
+// ============================================================================
+// Cross Prompt Templates API Functions - Queries
+// ============================================================================
+
+/**
+ * Get a single prompt template by ID
+ */
+export async function getCrossPromptTemplate(templateId: string): Promise<CrossPromptTemplate | null> {
+  const response = await flowAIGraphQLRequest<{ getCrossPromptTemplate: CrossPromptTemplate | null }>({
+    query: GET_CROSS_PROMPT_TEMPLATE,
+    variables: { templateId },
+  });
+
+  if (response.errors) {
+    console.error('GraphQL errors:', response.errors);
+    throw new Error(response.errors[0]?.message || 'Failed to get prompt template');
+  }
+
+  return response.data?.getCrossPromptTemplate || null;
+}
+
+/**
+ * Get prompt templates with filtering and pagination
+ */
+export async function getCrossPromptTemplates(
+  options: {
+    limit?: number;
+    offset?: number;
+    search?: string;
+    sortBy?: string;
+    sortOrder?: string;
+  } = {}
+): Promise<CrossPromptTemplate[]> {
+  const response = await flowAIGraphQLRequest<{ getCrossPromptTemplates: CrossPromptTemplate[] }>({
+    query: GET_CROSS_PROMPT_TEMPLATES,
+    variables: options,
+  });
+
+  if (response.errors) {
+    console.error('GraphQL errors:', response.errors);
+    throw new Error(response.errors[0]?.message || 'Failed to get prompt templates');
+  }
+
+  return response.data?.getCrossPromptTemplates || [];
+}
+
+/**
+ * Get prompt templates with total count for pagination
+ */
+export async function getCrossPromptTemplatesPaginated(
+  options: {
+    limit?: number;
+    offset?: number;
+    search?: string;
+    sortBy?: string;
+    sortOrder?: string;
+  } = {}
+): Promise<CrossPromptTemplateListResult> {
+  const response = await flowAIGraphQLRequest<{ getCrossPromptTemplatesPaginated: CrossPromptTemplateListResult }>({
+    query: GET_CROSS_PROMPT_TEMPLATES_PAGINATED,
+    variables: options,
+  });
+
+  if (response.errors) {
+    console.error('GraphQL errors:', response.errors);
+    throw new Error(response.errors[0]?.message || 'Failed to get prompt templates');
+  }
+
+  return response.data?.getCrossPromptTemplatesPaginated || { templates: [], totalCount: 0 };
+}
+
+// ============================================================================
+// Cross Prompt Templates API Functions - Mutations
+// ============================================================================
+
+/**
+ * Create a new prompt template
+ */
+export async function createCrossPromptTemplate(
+  input: CreateCrossPromptTemplateInput
+): Promise<CrossPromptTemplate> {
+  const response = await flowAIGraphQLRequest<{ createCrossPromptTemplate: CrossPromptTemplate }>({
+    query: CREATE_CROSS_PROMPT_TEMPLATE,
+    variables: { input },
+  });
+
+  if (response.errors) {
+    console.error('GraphQL errors:', response.errors);
+    throw new Error(response.errors[0]?.message || 'Failed to create prompt template');
+  }
+
+  if (!response.data?.createCrossPromptTemplate) {
+    throw new Error('Failed to create prompt template');
+  }
+
+  return response.data.createCrossPromptTemplate;
+}
+
+/**
+ * Update an existing prompt template
+ */
+export async function updateCrossPromptTemplate(
+  templateId: string,
+  input: UpdateCrossPromptTemplateInput
+): Promise<CrossPromptTemplate> {
+  const response = await flowAIGraphQLRequest<{ updateCrossPromptTemplate: CrossPromptTemplate }>({
+    query: UPDATE_CROSS_PROMPT_TEMPLATE,
+    variables: { templateId, input },
+  });
+
+  if (response.errors) {
+    console.error('GraphQL errors:', response.errors);
+    throw new Error(response.errors[0]?.message || 'Failed to update prompt template');
+  }
+
+  if (!response.data?.updateCrossPromptTemplate) {
+    throw new Error('Failed to update prompt template');
+  }
+
+  return response.data.updateCrossPromptTemplate;
+}
+
+/**
+ * Delete a prompt template
+ */
+export async function deleteCrossPromptTemplate(templateId: string): Promise<boolean> {
+  const response = await flowAIGraphQLRequest<{ deleteCrossPromptTemplate: boolean }>({
+    query: DELETE_CROSS_PROMPT_TEMPLATE,
+    variables: { templateId },
+  });
+
+  if (response.errors) {
+    console.error('GraphQL errors:', response.errors);
+    throw new Error(response.errors[0]?.message || 'Failed to delete prompt template');
+  }
+
+  return response.data?.deleteCrossPromptTemplate || false;
+}
+
+/**
+ * Increment usage count for a prompt template
+ */
+export async function incrementCrossPromptTemplateUsage(
+  templateId: string
+): Promise<CrossPromptTemplate> {
+  const response = await flowAIGraphQLRequest<{ incrementCrossPromptTemplateUsage: CrossPromptTemplate }>({
+    query: INCREMENT_CROSS_PROMPT_TEMPLATE_USAGE,
+    variables: { templateId },
+  });
+
+  if (response.errors) {
+    console.error('GraphQL errors:', response.errors);
+    throw new Error(response.errors[0]?.message || 'Failed to increment usage');
+  }
+
+  if (!response.data?.incrementCrossPromptTemplateUsage) {
+    throw new Error('Failed to increment usage');
+  }
+
+  return response.data.incrementCrossPromptTemplateUsage;
 }
