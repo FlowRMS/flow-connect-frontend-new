@@ -594,6 +594,11 @@ export function useTakeoffsState() {
           [doc.id]: { ...prev[doc.id], progress: 0, status: 'error', error: error instanceof Error ? error.message : 'Failed' },
         }));
       }
+
+      // Add delay between documents to avoid overwhelming the API
+      if (i < docsToAbridge.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
     }
 
     setAbridgementState({ isProcessing: false, progress: 100 });
