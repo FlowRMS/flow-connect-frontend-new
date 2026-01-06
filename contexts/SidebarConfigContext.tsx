@@ -122,6 +122,9 @@ const defaultConfig: SidebarConfig = {
         { id: 'analytics-orders-pivot', name: 'Order Pivot', href: '/analytics/orders-pivot', enabled: true },
         { id: 'analytics-check-pivot', name: 'Check Pivot', href: '/analytics/check-pivot', enabled: true },
         { id: 'analytics-quote-pivot', name: 'Quote Pivot', href: '/analytics/quote-pivot', enabled: true },
+        { id: 'analytics-pre-opportunity-detail', name: 'Pre-Opportunity Detail', href: '/analytics/pre-opportunity-detail', enabled: true },
+        { id: 'analytics-pre-opportunity-pivot', name: 'Pre-Opportunity Pivot', href: '/analytics/pre-opportunity-pivot', enabled: true },
+        { id: 'analytics-job-pivot', name: 'Job Pivot', href: '/analytics/job-pivot', enabled: true },
         { id: 'analytics-commission-state-pivot', name: 'Commission by State', href: '/analytics/commission-by-state-pivot', enabled: true },
       ]
     },
@@ -155,7 +158,7 @@ const defaultConfig: SidebarConfig = {
 };
 
 const STORAGE_KEY = 'sidebar-config';
-const CONFIG_VERSION = 25; // Increment this to force a reset of cached sidebar config (updated Flow AI section)
+const CONFIG_VERSION = 27; // Increment this to force a reset of cached sidebar config (added Pre-Opportunity and Job Pivot)
 
 const SidebarConfigContext = createContext<SidebarConfigContextType | undefined>(undefined);
 
