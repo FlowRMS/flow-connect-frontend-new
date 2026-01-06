@@ -30,11 +30,15 @@ export interface ContactData {
   notes?: string;
 }
 
+// Carrier type - matches backend enum
+export type CarrierType = 'PARCEL' | 'FREIGHT';
+
 // Shipping carrier interface with comprehensive warehouse fields
 export interface ShippingCarrier {
   id: string;
   name: string;
   code?: string; // SCAC code or carrier abbreviation
+  carrierType?: CarrierType | null; // PARCEL or FREIGHT
   isActive: boolean;
   // Account & Billing
   accountNumber?: string;

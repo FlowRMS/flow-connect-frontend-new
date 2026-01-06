@@ -9,10 +9,12 @@ import {
   fetchShippingCarriers,
   fetchShippingCarrierById,
   searchShippingCarriers,
+  fetchShippingCarriersByType,
   createShippingCarrier,
   updateShippingCarrier,
   deleteShippingCarrier,
   type ShippingCarrier,
+  type CarrierType,
   type CreateShippingCarrierInput,
   type UpdateShippingCarrierInput,
 } from './shippingCarriersApi';
@@ -24,6 +26,8 @@ import {
 export const shippingCarriersQueryKeys = {
   all: ['shippingCarriers'] as const,
   list: (activeOnly?: boolean) => [...shippingCarriersQueryKeys.all, 'list', { activeOnly }] as const,
+  byType: (carrierType: CarrierType, activeOnly?: boolean) =>
+    [...shippingCarriersQueryKeys.all, 'byType', carrierType, { activeOnly }] as const,
   detail: (id: string) => [...shippingCarriersQueryKeys.all, 'detail', id] as const,
   search: (term: string) => [...shippingCarriersQueryKeys.all, 'search', term] as const,
 };
@@ -64,6 +68,17 @@ export function useShippingCarrierSearch(searchTerm: string, limit = 20) {
     queryFn: () => searchShippingCarriers(searchTerm, limit),
     enabled: searchTerm.length >= 2,
     staleTime: 60 * 1000, // 1 minute for search results
+  });
+}
+
+/**
+ * Fetch shipping carriers by type (PARCEL or FREIGHT)
+ */
+export function useShippingCarriersByType(carrierType: CarrierType, activeOnly = true) {
+  return useQuery<ShippingCarrier[], Error>({
+    queryKey: shippingCarriersQueryKeys.byType(carrierType, activeOnly),
+    queryFn: () => fetchShippingCarriersByType(carrierType, activeOnly),
+    staleTime: 30 * 1000, // 30 seconds
   });
 }
 
@@ -164,4 +179,4 @@ export function useDeleteShippingCarrier() {
 }
 
 // Re-export types
-export type { ShippingCarrier, CreateShippingCarrierInput, UpdateShippingCarrierInput };
+export type { ShippingCarrier, CarrierType, CreateShippingCarrierInput, UpdateShippingCarrierInput };

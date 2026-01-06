@@ -3,6 +3,7 @@
 import React from 'react';
 import { FulfillmentOrder, shipStatusColors, shipStatusLabels } from '@/lib/types/warehouse';
 import { mockWarehouses } from '@/lib/data/warehouse-mock';
+import { useShippingCarriersByType } from '@/components/warehouse/settings/api/useShippingCarriersApi';
 
 interface FulfillmentDetailsFormProps {
   fulfillmentOrder: FulfillmentOrder;
@@ -74,6 +75,13 @@ export default function FulfillmentDetailsForm({
   onFreightClassChange,
   onShipToDifferentFromPOChange,
 }: FulfillmentDetailsFormProps) {
+  // Fetch carriers from database based on selected type
+  const carrierTypeForQuery = carrierType === 'parcel' ? 'PARCEL' : 'FREIGHT';
+  const { data: carriers = [], isLoading: carriersLoading } = useShippingCarriersByType(
+    carrierTypeForQuery,
+    true // active only
+  );
+
   const formatDateTime = (dateStr?: string) => {
     if (!dateStr) return '-';
     const date = new Date(dateStr);
@@ -364,31 +372,47 @@ export default function FulfillmentDetailsForm({
             <select
               value={carrier}
               onChange={(e) => onCarrierChange(e.target.value)}
-              disabled={isReleased}
+              disabled={isReleased || carriersLoading}
               className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <option value="">Select carrier...</option>
-              {carrierType === 'parcel' ? (
-                <>
-                  <option value="ups">UPS</option>
-                  <option value="fedex">FedEx</option>
-                  <option value="usps">USPS</option>
-                  <option value="dhl">DHL</option>
-                  <option value="other_parcel">Other</option>
-                </>
-              ) : (
-                <>
-                  <option value="estes">Estes Express</option>
-                  <option value="xpo">XPO Logistics</option>
-                  <option value="saia">SAIA</option>
-                  <option value="old_dominion">Old Dominion</option>
-                  <option value="yrc">YRC Freight</option>
-                  <option value="abf">ABF Freight</option>
-                  <option value="r+l">R+L Carriers</option>
-                  <option value="other_freight">Other</option>
-                </>
-              )}
+              <option value="">{carriersLoading ? 'Loading carriers...' : 'Select carrier...'}</option>
+              {carriers.length > 0 ? (
+                // Use carriers from database
+                carriers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}{c.code ? ` (${c.code})` : ''}
+                  </option>
+                ))
+              ) : !carriersLoading ? (
+                // Fallback to hardcoded options if no carriers configured
+                carrierType === 'parcel' ? (
+                  <>
+                    <option value="ups">UPS</option>
+                    <option value="fedex">FedEx</option>
+                    <option value="usps">USPS</option>
+                    <option value="dhl">DHL</option>
+                    <option value="other_parcel">Other</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="estes">Estes Express</option>
+                    <option value="xpo">XPO Logistics</option>
+                    <option value="saia">SAIA</option>
+                    <option value="old_dominion">Old Dominion</option>
+                    <option value="yrc">YRC Freight</option>
+                    <option value="abf">ABF Freight</option>
+                    <option value="r+l">R+L Carriers</option>
+                    <option value="other_freight">Other</option>
+                  </>
+                )
+              ) : null}
             </select>
+            {carriers.length === 0 && !carriersLoading && (
+              <p className="text-xs text-amber-600 mt-1">
+                No {carrierType === 'parcel' ? 'parcel' : 'freight'} carriers configured. Using defaults.
+                <a href="/warehouse/settings" className="underline ml-1">Configure in Settings</a>
+              </p>
+            )}
           </div>
         )}
 

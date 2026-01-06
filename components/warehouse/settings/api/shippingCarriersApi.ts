@@ -33,9 +33,12 @@ export interface Contact {
   role?: string | null;
 }
 
+export type CarrierType = 'PARCEL' | 'FREIGHT';
+
 export interface ShippingCarrier {
   id: string;
   name: string;
+  carrierType?: CarrierType | null;
   code?: string | null; // SCAC code
   accountNumber?: string | null;
   isActive?: boolean | null;
@@ -69,6 +72,7 @@ export interface ShippingCarrier {
 
 export interface CreateShippingCarrierInput {
   name: string;
+  carrierType?: CarrierType | null;
   code?: string | null;
   accountNumber?: string | null;
   isActive?: boolean;
@@ -99,6 +103,7 @@ const GET_SHIPPING_CARRIERS = `
     shippingCarriers(activeOnly: $activeOnly) {
       id
       name
+      carrierType
       code
       accountNumber
       isActive
@@ -126,6 +131,7 @@ const GET_SHIPPING_CARRIER = `
     shippingCarrier(id: $id) {
       id
       name
+      carrierType
       code
       accountNumber
       isActive
@@ -153,9 +159,25 @@ const SEARCH_SHIPPING_CARRIERS = `
     shippingCarrierSearch(searchTerm: $searchTerm, limit: $limit) {
       id
       name
+      carrierType
       code
       accountNumber
       isActive
+    }
+  }
+`;
+
+const GET_SHIPPING_CARRIERS_BY_TYPE = `
+  query GetShippingCarriersByType($carrierType: CarrierTypeEnum!, $activeOnly: Boolean) {
+    shippingCarriersByType(carrierType: $carrierType, activeOnly: $activeOnly) {
+      id
+      name
+      carrierType
+      code
+      accountNumber
+      isActive
+      trackingUrlTemplate
+      defaultServiceType
     }
   }
 `;
@@ -165,6 +187,7 @@ const CREATE_SHIPPING_CARRIER = `
     createShippingCarrier(input: $input) {
       id
       name
+      carrierType
       code
       accountNumber
       isActive
@@ -192,6 +215,7 @@ const UPDATE_SHIPPING_CARRIER = `
     updateShippingCarrier(id: $id, input: $input) {
       id
       name
+      carrierType
       code
       accountNumber
       isActive
@@ -273,6 +297,25 @@ export async function searchShippingCarriers(
   }
 
   return response.data?.shippingCarrierSearch || [];
+}
+
+/**
+ * Fetch shipping carriers by type (PARCEL or FREIGHT)
+ */
+export async function fetchShippingCarriersByType(
+  carrierType: CarrierType,
+  activeOnly = true
+): Promise<ShippingCarrier[]> {
+  const response = await crmGraphQLRequest<{ shippingCarriersByType: ShippingCarrier[] }>({
+    query: GET_SHIPPING_CARRIERS_BY_TYPE,
+    variables: { carrierType, activeOnly },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to fetch shipping carriers by type');
+  }
+
+  return response.data?.shippingCarriersByType || [];
 }
 
 /**

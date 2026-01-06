@@ -48,6 +48,15 @@ export default function ShippingCarrierAccordionItem({
                   {carrier.code}
                 </span>
               )}
+              {carrier.carrierType && (
+                <span className={`px-1.5 py-0.5 text-xs rounded ${
+                  carrier.carrierType === 'PARCEL'
+                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                    : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                }`}>
+                  {carrier.carrierType === 'PARCEL' ? 'Parcel' : 'Freight'}
+                </span>
+              )}
               {carrier.isActive ? (
                 <span className="px-1.5 py-0.5 text-xs rounded bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
                   Active

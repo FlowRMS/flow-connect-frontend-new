@@ -11,11 +11,15 @@ import {
 } from '../api';
 import { createCarrierAddress, updateCarrierAddress } from '../api/shippingCarriersApi';
 
+// Carrier type - matches backend enum
+export type CarrierType = 'PARCEL' | 'FREIGHT';
+
 // Local shipping carrier type for backward compatibility with UI
 export interface ShippingCarrier {
   id: string;
   name: string;
   code?: string;
+  carrierType?: CarrierType | null;
   isActive: boolean;
   accountNumber?: string;
   // Billing address - stored as linked Address entity
@@ -97,6 +101,7 @@ const toLocalFormat = (carrier: ApiShippingCarrier): ShippingCarrier => ({
   id: carrier.id,
   name: carrier.name,
   code: carrier.code ?? undefined,
+  carrierType: carrier.carrierType ?? undefined,
   isActive: carrier.isActive ?? true,
   accountNumber: carrier.accountNumber ?? undefined,
   // Billing address from linked entity
@@ -142,6 +147,7 @@ const arrayToObject = (arr: string[] | undefined | null): Record<string, boolean
 const toApiInput = (carrier: ShippingCarrier) => ({
   name: carrier.name,
   code: carrier.code ?? null,
+  carrierType: carrier.carrierType ?? null,
   accountNumber: carrier.accountNumber ?? null,
   isActive: carrier.isActive ?? true,
   paymentTerms: carrier.paymentTerms ?? null,
