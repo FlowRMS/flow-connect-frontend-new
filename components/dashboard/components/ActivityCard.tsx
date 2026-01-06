@@ -175,19 +175,6 @@ function ActivityMetadata({ activity }: { activity: Activity }) {
     case 'contact':
       return (
         <div className="flex items-center gap-2 flex-wrap text-xs text-[var(--muted-foreground)]">
-          {metadata.role && (
-            <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded">
-              {metadata.role}
-            </span>
-          )}
-          {metadata.companyName && (
-            <span className="flex items-center gap-1">
-              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="3" y="2" width="14" height="16" rx="1"/>
-              </svg>
-              {metadata.companyName}
-            </span>
-          )}
           {metadata.email && (
             <span className="flex items-center gap-1 text-blue-600">
               <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
@@ -275,6 +262,11 @@ export function ActivityCard({ activity }: ActivityCardProps) {
               {activity.type === 'company' && activity.metadata?.companySourceType && (
                 <span className={`ml-2 px-2 py-0.5 rounded text-xs font-medium ${activity.metadata.companySourceType === 'CUSTOMER' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
                   {activity.metadata.companySourceType === 'CUSTOMER' ? 'Customer' : 'Manufacturer'}
+                </span>
+              )}
+              {activity.type === 'contact' && (activity.metadata?.role || activity.metadata?.companyName) && (
+                <span className="ml-2 font-normal text-[var(--muted-foreground)] text-xs sm:text-sm">
+                  ({[activity.metadata.role, activity.metadata.companyName].filter(Boolean).join(' at ')})
                 </span>
               )}
             </h4>
