@@ -157,6 +157,9 @@ export function useTakeoffsState() {
   }
   const [documentAbridgementProgress, setDocumentAbridgementProgress] = useState<Record<string, DocumentProgress>>({});
 
+  // Per-item crossing state (tracks which items are being crossed) - same as detail flow
+  const [itemCrossingState, setItemCrossingState] = useState<Record<string, { isProcessing: boolean; error?: string }>>({});
+
   // Product cross results state
   type CrossType = 'SIMPLE' | 'UPGRADE' | 'VALUE';
   interface ProductAlternative {
@@ -411,6 +414,12 @@ export function useTakeoffsState() {
         );
 
         // Persist to backend (always update pages from backend response)
+        console.log('[Abridgement] Saving to backend:', {
+          docId,
+          abridgedUrl: result.abridgedUrl,
+          pageAnalysesCount: result.pageAnalyses?.length || 0,
+          pageAnalyses: result.pageAnalyses,
+        });
         await updateTakeoffDocument(docId, {
           pages: result.originalPages || undefined,
           abridged: true,
@@ -419,6 +428,7 @@ export function useTakeoffsState() {
           reductionPercentage: result.reductionPercentage,
           pageAnalyses: result.pageAnalyses as unknown as UpdateTakeoffDocumentInput['pageAnalyses'],
         });
+        console.log('[Abridgement] Saved to backend successfully');
       } else {
         setAbridgementState(prev => ({ ...prev, error: result.error || 'Abridgement failed' }));
       }
@@ -430,8 +440,27 @@ export function useTakeoffsState() {
       }));
     } finally {
       setAbridgementState({ isProcessing: false, progress: 100 });
+
+      // Check if all abridgeable documents are now abridged - update status to Abridgment
+      const docsToAbridge = documents.filter(d => !d.abridged && d.documentUrl);
+      const allAbridged = docsToAbridge.length === 0 || docsToAbridge.every(d => d.id === docId);
+
+      if (allAbridged && selectedTakeoff && selectedTakeoff.status !== 'Complete') {
+        try {
+          await apiUpdateTakeoff(selectedTakeoff.id, { status: 'ABRIDGMENT' as TakeoffStatusEnum });
+          setTakeoffsData(prev =>
+            prev.map(t =>
+              t.id === selectedTakeoff.id ? { ...t, status: 'Abridgment' as const } : t
+            )
+          );
+          setSelectedTakeoff(prev => prev ? { ...prev, status: 'Abridgment' as const } : null);
+          console.log('[handleAbridgeDocument] All docs abridged - status updated to Abridgment');
+        } catch (error) {
+          console.error('[handleAbridgeDocument] Failed to update status:', error);
+        }
+      }
     }
-  }, [documents]);
+  }, [documents, selectedTakeoff]);
 
   // Helper to add a log message to a document's progress
   const addDocumentLog = useCallback((docId: string, message: string) => {
@@ -460,6 +489,22 @@ export function useTakeoffsState() {
     if (docsToAbridge.length === 0) {
       console.log('[Abridgement] No documents to abridge');
       return;
+    }
+
+    // Update takeoff status to ABRIDGMENT
+    if (selectedTakeoff) {
+      try {
+        await apiUpdateTakeoff(selectedTakeoff.id, { status: 'ABRIDGMENT' as TakeoffStatusEnum });
+        // Update local state
+        setTakeoffsData(prev =>
+          prev.map(t =>
+            t.id === selectedTakeoff.id ? { ...t, status: 'Abridgment' as const } : t
+          )
+        );
+        setSelectedTakeoff(prev => prev ? { ...prev, status: 'Abridgment' as const } : null);
+      } catch (error) {
+        console.error('[Abridgement] Failed to update takeoff status:', error);
+      }
     }
 
     setAbridgementState({ isProcessing: true, progress: 0 });
@@ -587,6 +632,12 @@ export function useTakeoffsState() {
 
           // Persist to backend
           try {
+            console.log('[Abridgement ALL] Saving to backend:', {
+              docId: doc.id,
+              abridgedUrl: result.abridgedUrl,
+              pageAnalysesCount: result.pageAnalyses?.length || 0,
+              pageAnalyses: result.pageAnalyses,
+            });
             await updateTakeoffDocument(doc.id, {
               pages: actualPages,
               abridged: true,
@@ -595,6 +646,7 @@ export function useTakeoffsState() {
               reductionPercentage: result.reductionPercentage,
               pageAnalyses: result.pageAnalyses as unknown as UpdateTakeoffDocumentInput['pageAnalyses'],
             });
+            console.log('[Abridgement ALL] Saved to backend successfully');
           } catch (persistError) {
             console.error(`Failed to persist abridgement for ${doc.name}:`, persistError);
           }
@@ -634,7 +686,7 @@ export function useTakeoffsState() {
     }
 
     setAbridgementState({ isProcessing: false, progress: 100 });
-  }, [documents, addDocumentLog]);
+  }, [documents, addDocumentLog, selectedTakeoff]);
 
   // Parse schedule documents to extract product items
   const handleParseSchedules = useCallback(async () => {
@@ -658,6 +710,22 @@ export function useTakeoffsState() {
       console.log('[Parsing] No documents have URLs');
       takeoffToasts.parsingError('Documents do not have URLs. Try refreshing the page.');
       return;
+    }
+
+    // Update takeoff status to PARSING
+    if (selectedTakeoff) {
+      try {
+        await apiUpdateTakeoff(selectedTakeoff.id, { status: 'PARSING' as TakeoffStatusEnum });
+        // Update local state
+        setTakeoffsData(prev =>
+          prev.map(t =>
+            t.id === selectedTakeoff.id ? { ...t, status: 'Parsing' as const } : t
+          )
+        );
+        setSelectedTakeoff(prev => prev ? { ...prev, status: 'Parsing' as const } : null);
+      } catch (error) {
+        console.error('[Parsing] Failed to update takeoff status:', error);
+      }
     }
 
     setParsingState({ isProcessing: true, progress: 0 });
@@ -687,7 +755,7 @@ export function useTakeoffsState() {
 
         allParsedItems.push(...itemsWithDocRef);
 
-        // Update document with parsed items
+        // Update document with parsed items in local state
         setDocuments(docs =>
           docs.map(d =>
             d.id === doc.id
@@ -695,6 +763,16 @@ export function useTakeoffsState() {
               : d
           )
         );
+
+        // Persist parsed items to database
+        try {
+          console.log(`[Parsing] Persisting ${itemsWithDocRef.length} items to database for doc ${doc.id}`);
+          await updateTakeoffDocument(doc.id, { parsedItems: itemsWithDocRef });
+          console.log(`[Parsing] Successfully persisted items for ${doc.name}`);
+        } catch (persistErr) {
+          console.error(`[Parsing] Failed to persist parsed items for ${doc.name}:`, persistErr);
+          // Continue even if persistence fails - items are still in local state
+        }
       } catch (error) {
         console.error(`Failed to parse ${doc.name}:`, error);
         setParsingState(prev => ({
@@ -707,28 +785,33 @@ export function useTakeoffsState() {
     // Update global parsed items state
     setParsedItems(allParsedItems);
     setParsingState({ isProcessing: false, progress: 100 });
-  }, [documents]);
+  }, [documents, selectedTakeoff]);
 
   // Run product cross using AI for all eligible parsed items
   const handleCrossAll = useCallback(async () => {
     console.log('🔵 [handleCrossAll] START - parsedItems count:', parsedItems.length);
 
-    // Get all items that can be crossed (not our manufacturer and not already crossed)
-    const itemsToCross = parsedItems.filter(
-      item => !item.isOurManufacturer && !item.isCrossed
-    );
+    // Get all items that can be crossed (not our manufacturer) - allows re-crossing
+    const itemsToCross = parsedItems.filter(item => !item.isOurManufacturer);
 
     console.log('🔵 [handleCrossAll] Items to cross:', itemsToCross.length);
     console.log('🔵 [handleCrossAll] Items details:', itemsToCross.map(i => ({ id: i.id, manufacturer: i.manufacturer, isOur: i.isOurManufacturer, isCrossed: i.isCrossed })));
 
     if (itemsToCross.length === 0) {
       console.log('🔵 [handleCrossAll] No items to cross - returning');
-      showInfoToast('No items to cross');
+      showInfoToast('No items to cross', { description: 'All items are from our manufacturers.' });
       return;
     }
 
     console.log(`🔵 [handleCrossAll] Crossing ${itemsToCross.length} items`);
     setProductCrossState({ isProcessing: true, progress: 0 });
+
+    // Set processing state for each individual item (shows spinner per row)
+    const processingState: Record<string, { isProcessing: boolean; error?: string }> = {};
+    itemsToCross.forEach(item => {
+      processingState[item.id] = { isProcessing: true };
+    });
+    setItemCrossingState(prev => ({ ...prev, ...processingState }));
 
     try {
       // Prepare products data for API
@@ -835,6 +918,39 @@ export function useTakeoffsState() {
         description: `${persistedCount} saved to database`
       });
 
+      // Persist crossed items to takeoff_documents for each document
+      // First, build the updated items map
+      const updatedItemsMap = new Map<string, ParsedItem>();
+      itemsToCross.forEach(item => {
+        const crossedResult = crossedResults.get(item.id);
+        updatedItemsMap.set(item.id, {
+          ...item,
+          isCrossed: true,
+          crossedManufacturer: crossedResult?.manufacturer || 'Our Company',
+          crossedPartNumber: crossedResult?.partNumber || `OC-${Math.floor(Math.random() * 90000) + 10000}`,
+          crossedDescription: crossedResult?.description || item.description + ' (Crossed)',
+        });
+      });
+
+      // Update documents with crossed items and persist to database
+      for (const doc of documents) {
+        if (!doc.parsedItems || doc.parsedItems.length === 0) continue;
+
+        // Update items that belong to this document
+        const updatedDocItems = doc.parsedItems.map(item => {
+          const updated = updatedItemsMap.get(item.id);
+          return updated || item;
+        });
+
+        // Persist to database
+        try {
+          console.log(`[handleCrossAll] Persisting ${updatedDocItems.length} items to document ${doc.id}`);
+          await updateTakeoffDocument(doc.id, { parsedItems: updatedDocItems });
+        } catch (persistErr) {
+          console.error(`[handleCrossAll] Failed to persist items to document ${doc.id}:`, persistErr);
+        }
+      }
+
     } catch (error) {
       console.error('Failed to cross all items:', error);
       showErrorToast('Failed to cross items', {
@@ -856,8 +972,30 @@ export function useTakeoffsState() {
       );
     } finally {
       setProductCrossState({ isProcessing: false, progress: 100 });
+      // Clear individual item processing states
+      const clearState: Record<string, { isProcessing: boolean; error?: string }> = {};
+      itemsToCross.forEach(item => {
+        clearState[item.id] = { isProcessing: false };
+      });
+      setItemCrossingState(prev => ({ ...prev, ...clearState }));
+
+      // Update takeoff status to COMPLETE after crossing is done
+      if (selectedTakeoff) {
+        try {
+          await apiUpdateTakeoff(selectedTakeoff.id, { status: 'COMPLETE' as TakeoffStatusEnum });
+          // Update local state
+          setTakeoffsData(prev =>
+            prev.map(t =>
+              t.id === selectedTakeoff.id ? { ...t, status: 'Complete' as const } : t
+            )
+          );
+          setSelectedTakeoff(prev => prev ? { ...prev, status: 'Complete' as const } : null);
+        } catch (error) {
+          console.error('[handleCrossAll] Failed to update takeoff status to Complete:', error);
+        }
+      }
     }
-  }, [parsedItems, selectedCrossTypes]);
+  }, [parsedItems, selectedCrossTypes, documents, selectedTakeoff]);
 
   // Handle cross types change
   const handleCrossTypesChange = useCallback((types: CrossType[]) => {
@@ -1133,8 +1271,28 @@ export function useTakeoffsState() {
       }
     } finally {
       setProductCrossState({ isProcessing: false, progress: 100 });
+
+      // Check if all crossable items are now crossed - update status to Complete
+      // Need to check after the state update, so we check the original parsedItems plus this one
+      const crossableItems = parsedItems.filter(i => !i.isOurManufacturer);
+      const allCrossed = crossableItems.every(i => i.id === itemId || i.isCrossed);
+
+      if (allCrossed && selectedTakeoff) {
+        try {
+          await apiUpdateTakeoff(selectedTakeoff.id, { status: 'COMPLETE' as TakeoffStatusEnum });
+          setTakeoffsData(prev =>
+            prev.map(t =>
+              t.id === selectedTakeoff.id ? { ...t, status: 'Complete' as const } : t
+            )
+          );
+          setSelectedTakeoff(prev => prev ? { ...prev, status: 'Complete' as const } : null);
+          console.log('[handleCrossItem] All items crossed - status updated to Complete');
+        } catch (error) {
+          console.error('[handleCrossItem] Failed to update status to Complete:', error);
+        }
+      }
     }
-  }, [parsedItems]);
+  }, [parsedItems, selectedTakeoff]);
 
   // Cross selected items using AI backend
   const handleCrossSelected = useCallback(async () => {
@@ -1389,6 +1547,10 @@ export function useTakeoffsState() {
         const fullTakeoff = await fetchTakeoff(takeoff.id);
         if (fullTakeoff?.documents && fullTakeoff.documents.length > 0) {
           console.log('[handleSelectTakeoff] Got documents from backend:', fullTakeoff.documents.length);
+          // Debug: log pageAnalyses for each document
+          fullTakeoff.documents.forEach(doc => {
+            console.log(`[handleSelectTakeoff] Document ${doc.name}: pageAnalyses=`, doc.pageAnalyses, 'abridged=', doc.abridged);
+          });
           docs = fullTakeoff.documents.map(doc => ({
             id: doc.id,
             name: doc.name,
@@ -1553,6 +1715,9 @@ export function useTakeoffsState() {
   }, []);
 
   const handleOpenAbridgmentReport = useCallback((doc: TakeoffDocument) => {
+    console.log('[handleOpenAbridgmentReport] Opening modal for document:', doc.name);
+    console.log('[handleOpenAbridgmentReport] pageAnalyses:', doc.pageAnalyses);
+    console.log('[handleOpenAbridgmentReport] abridged:', doc.abridged, 'abridgedUrl:', doc.abridgedUrl);
     setSelectedDocument(doc);
     setShowAbridgmentReportModal(true);
   }, []);
@@ -1663,14 +1828,10 @@ export function useTakeoffsState() {
 
     if (!selectedTakeoff) return;
 
-    // Map workflow step to takeoff status
+    // Map workflow step to takeoff status (simplified 2-tab workflow)
     const stepStatusMap: Record<TakeoffStep, TakeoffStatusEnum | null> = {
-      review: null, // Don't update status for review
       classification: 'CLASSIFICATION',
-      abridgment: 'ABRIDGMENT',
       parsing: 'PARSING',
-      productCross: 'PARSING', // Product Cross is part of Parsing phase
-      approvals: 'COMPLETE',
     };
 
     const newStatus = stepStatusMap[newStep];
@@ -1732,6 +1893,7 @@ export function useTakeoffsState() {
     abridgementState,
     productCrossState,
     documentAbridgementProgress,
+    itemCrossingState,
 
     // Product cross detail data
     productCrossResults,
