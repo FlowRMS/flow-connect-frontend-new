@@ -103,8 +103,8 @@ export function ClassificationTab({
 
   // Handle "Abridge All Large Documents" button click
   const handleAbridgeAllClick = useCallback(() => {
-    // Always switch to Fixture Schedules tab first
-    setActiveTab('Fixture Schedules');
+    // Switch to All tab to show all documents being processed
+    setActiveTab(null);
 
     // Check if there are documents to abridge
     if (docsToAbridge.length === 0) {
