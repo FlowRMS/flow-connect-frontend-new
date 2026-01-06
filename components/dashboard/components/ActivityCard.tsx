@@ -153,26 +153,7 @@ function ActivityMetadata({ activity }: { activity: Activity }) {
 
   switch (type) {
     case 'job':
-      return (
-        <div className="flex items-center gap-2 flex-wrap text-xs text-[var(--muted-foreground)]">
-          {metadata.statusName && (
-            <span className={`px-2 py-0.5 rounded ${getEntityStatusColor(metadata.statusName)}`}>
-              {metadata.statusName}
-            </span>
-          )}
-          {metadata.jobType && (
-            <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded">
-              {metadata.jobType}
-            </span>
-          )}
-          {metadata.startDate && (
-            <span>Start: {formatDate(metadata.startDate)}</span>
-          )}
-          {metadata.endDate && (
-            <span>End: {formatDate(metadata.endDate)}</span>
-          )}
-        </div>
-      );
+      return null; // Jobs don't need extra metadata display
 
     case 'company':
       return (
@@ -283,7 +264,6 @@ export function ActivityCard({ activity }: ActivityCardProps) {
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
               <ActivityTypeBadge type={activity.type} />
-              <span className="text-xs sm:text-sm text-[var(--muted-foreground)]">{activity.time}</span>
               {activity.type === 'task' && activity.metadata?.dueDate && (
                 <>
                   <span className="text-xs sm:text-sm text-[var(--muted-foreground)]">·</span>
@@ -294,7 +274,7 @@ export function ActivityCard({ activity }: ActivityCardProps) {
               )}
             </div>
             <h4 className="font-semibold text-[var(--foreground)] text-sm sm:text-base mb-1 line-clamp-2 sm:line-clamp-1">{activity.entity || activity.title}</h4>
-            {activity.type !== 'task' && (
+            {activity.type !== 'task' && activity.type !== 'job' && (
               <p className="text-xs sm:text-sm text-[var(--muted-foreground)] line-clamp-2">{activity.description}</p>
             )}
             
@@ -332,7 +312,7 @@ export function ActivityCard({ activity }: ActivityCardProps) {
         </div>
 
         {/* Tags */}
-        {activity.type !== 'task' && activity.tags && activity.tags.length > 0 && (
+        {activity.type !== 'task' && activity.type !== 'job' && activity.tags && activity.tags.length > 0 && (
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap mb-3">
             <div className="flex gap-1 sm:gap-1.5 flex-wrap">
               {activity.tags.slice(0, 3).map((tag, idx) => (
@@ -392,7 +372,7 @@ export function ActivityCard({ activity }: ActivityCardProps) {
             <span className="truncate max-w-[120px] sm:max-w-none">{activity.assignedTo}</span>
           </div>
           <span className="hidden sm:inline">·</span>
-          <span>{activity.date}</span>
+          <span>{activity.time}</span>
         </div>
       </div>
     </Link>
