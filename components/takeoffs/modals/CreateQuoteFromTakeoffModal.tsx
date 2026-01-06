@@ -1,14 +1,16 @@
 /**
  * Create Quote from Takeoff Modal Component
- * Creates a quote from crossed items in a takeoff
+ *
+ * BLOCKED: This feature cannot work because:
+ * 1. The GraphQL gateway doesn't expose quote mutations (createQuote doesn't exist)
+ * 2. Customer search is broken due to WorkOS/Keycloak incompatibility
+ *
+ * See blockers.md for details.
  */
 
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { createQuote, searchCustomers } from '../../quotes/api/quotesApi';
-import type { Quote, CreateQuoteInput, QuoteDetailInput, CustomerSearchResult } from '../../quotes/api/quotesApi';
+import React, { useState, useMemo } from 'react';
 import type { ParsedItem } from '../types';
 
 interface CreateQuoteFromTakeoffModalProps {
@@ -18,82 +20,26 @@ interface CreateQuoteFromTakeoffModalProps {
   clientName?: string;
   crossedItems: ParsedItem[];
   onClose: () => void;
-  onSuccess?: (quote: Quote) => void;
+  onSuccess?: () => void;
 }
 
-type ModalStep = 'select-items' | 'input' | 'success';
+type ModalStep = 'select-items' | 'input';
 
 export function CreateQuoteFromTakeoffModal({
   isOpen,
-  takeoffId,
   takeoffName,
   clientName,
   crossedItems,
   onClose,
-  onSuccess,
 }: CreateQuoteFromTakeoffModalProps) {
-  const router = useRouter();
-
   const [step, setStep] = useState<ModalStep>(crossedItems.length > 0 ? 'select-items' : 'input');
   const [quoteNumber, setQuoteNumber] = useState('');
-  const [createdQuote, setCreatedQuote] = useState<Quote | null>(null);
+  const [manualClientName, setManualClientName] = useState(clientName || '');
   const [error, setError] = useState<string | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set(crossedItems.map(item => item.id)));
-
-  // Customer search state
-  const [customerSearchTerm, setCustomerSearchTerm] = useState(clientName || '');
-  const [customers, setCustomers] = useState<CustomerSearchResult[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<CustomerSearchResult | null>(null);
-  const [isSearching, setIsSearching] = useState(false);
-  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
-
-  // Calculate totals for selected items
-  const selectedItems = useMemo(() => {
-    return crossedItems.filter(item => selectedItemIds.has(item.id));
-  }, [crossedItems, selectedItemIds]);
 
   const allSelected = selectedItemIds.size === crossedItems.length && crossedItems.length > 0;
   const noneSelected = selectedItemIds.size === 0;
-
-  // Search customers
-  const handleCustomerSearch = useCallback(async (term: string) => {
-    if (term.length < 2) {
-      setCustomers([]);
-      return;
-    }
-
-    setIsSearching(true);
-    try {
-      const results = await searchCustomers(term, true);
-      setCustomers(results);
-      setShowCustomerDropdown(true);
-    } catch (err) {
-      console.error('Failed to search customers:', err);
-    } finally {
-      setIsSearching(false);
-    }
-  }, []);
-
-  // Debounced search
-  const handleCustomerInputChange = useCallback((value: string) => {
-    setCustomerSearchTerm(value);
-    setSelectedCustomer(null);
-
-    // Simple debounce
-    const timeoutId = setTimeout(() => {
-      handleCustomerSearch(value);
-    }, 300);
-
-    return () => clearTimeout(timeoutId);
-  }, [handleCustomerSearch]);
-
-  const handleSelectCustomer = (customer: CustomerSearchResult) => {
-    setSelectedCustomer(customer);
-    setCustomerSearchTerm(customer.companyName);
-    setShowCustomerDropdown(false);
-    setError(null);
-  };
 
   if (!isOpen) return null;
 
@@ -126,79 +72,12 @@ export function CreateQuoteFromTakeoffModal({
     setStep('input');
   };
 
-  const handleCreate = async () => {
-    if (!quoteNumber.trim()) {
-      setError('Quote number is required');
-      return;
-    }
-
-    if (!selectedCustomer) {
-      setError('Please select a customer');
-      return;
-    }
-
-    setError(null);
-    setIsCreating(true);
-
-    try {
-      // Convert crossed items to quote detail inputs
-      const details: QuoteDetailInput[] = selectedItems.map((item, index) => ({
-        itemNumber: index + 1,
-        quantity: item.quantity || 1,
-        unitPrice: '0', // Price to be set later
-        productNameAdhoc: item.crossedManufacturer || item.manufacturer,
-        productDescriptionAdhoc: item.crossedDescription || item.description,
-        note: `Original: ${item.manufacturer} - ${item.partNumber}`,
-        discountRate: '0',
-        commissionRate: '0',
-        commissionDiscountRate: '0',
-      }));
-
-      const input: CreateQuoteInput = {
-        quoteNumber: quoteNumber.trim(),
-        entityDate: new Date().toISOString().split('T')[0],
-        soldToCustomerId: selectedCustomer.id,
-        status: 'OPEN',
-        pipelineStage: 'PROSPECT',
-        creationType: 'API',
-        details,
-        insidePerLineItem: true,
-        outsidePerLineItem: true,
-        endUserPerLineItem: false,
-        factoryPerLineItem: false,
-      };
-
-      const quote = await createQuote(input);
-
-      setCreatedQuote(quote);
-      setStep('success');
-      onSuccess?.(quote);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create quote');
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
-  const handleRedirectToQuote = () => {
-    if (createdQuote) {
-      router.push(`/quotes/${createdQuote.id}/edit`);
-    }
-    handleCloseAndReset();
-  };
-
-  const handleStayHere = () => {
-    handleCloseAndReset();
-  };
-
   const handleCloseAndReset = () => {
     setStep(crossedItems.length > 0 ? 'select-items' : 'input');
     setQuoteNumber('');
-    setCreatedQuote(null);
+    setManualClientName(clientName || '');
     setError(null);
     setSelectedItemIds(new Set(crossedItems.map(item => item.id)));
-    setSelectedCustomer(null);
-    setCustomerSearchTerm(clientName || '');
     onClose();
   };
 
@@ -269,7 +148,6 @@ export function CreateQuoteFromTakeoffModal({
                         }`}
                       >
                         <div className="flex items-start gap-3">
-                          {/* Checkbox */}
                           <div className={`mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${
                             isSelected ? 'bg-green-600 border-green-600' : 'border-gray-300'
                           }`}>
@@ -279,15 +157,11 @@ export function CreateQuoteFromTakeoffModal({
                               </svg>
                             )}
                           </div>
-
-                          {/* Item Number Badge */}
                           <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
                             isSelected ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600'
                           }`}>
                             {index + 1}
                           </div>
-
-                          {/* Item Details */}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
                               <span className="font-semibold text-gray-900 truncate">
@@ -304,8 +178,6 @@ export function CreateQuoteFromTakeoffModal({
                               Original: {item.manufacturer} - {item.partNumber}
                             </div>
                           </div>
-
-                          {/* Quantity */}
                           <div className="text-right flex-shrink-0">
                             <span className={`text-sm font-bold ${isSelected ? 'text-green-600' : 'text-gray-900'}`}>
                               Qty: {item.quantity || 1}
@@ -355,7 +227,7 @@ export function CreateQuoteFromTakeoffModal({
               </div>
             </div>
           </>
-        ) : step === 'input' ? (
+        ) : (
           <>
             {/* Header */}
             <div className="px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-green-50 to-teal-50 flex-shrink-0">
@@ -392,51 +264,23 @@ export function CreateQuoteFromTakeoffModal({
                 </div>
               </div>
 
-              {/* Customer Search */}
-              <div className="relative">
+              {/* Client Name (Manual Entry) */}
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Customer <span className="text-red-500">*</span>
+                  Client Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
-                  value={customerSearchTerm}
-                  onChange={(e) => handleCustomerInputChange(e.target.value)}
-                  onFocus={() => customers.length > 0 && setShowCustomerDropdown(true)}
-                  placeholder="Search for a customer..."
+                  value={manualClientName}
+                  onChange={(e) => {
+                    setManualClientName(e.target.value);
+                    setError(null);
+                  }}
+                  placeholder="Enter client name..."
                   className={`w-full px-4 py-3 border rounded-xl text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all placeholder:text-gray-400 ${
-                    error && !selectedCustomer ? 'border-red-300' : 'border-gray-200'
+                    error && !manualClientName.trim() ? 'border-red-300' : 'border-gray-200'
                   }`}
                 />
-                {isSearching && (
-                  <div className="absolute right-3 top-10">
-                    <svg className="animate-spin h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                    </svg>
-                  </div>
-                )}
-                {selectedCustomer && (
-                  <div className="absolute right-3 top-10">
-                    <svg className="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
-                )}
-
-                {/* Customer Dropdown */}
-                {showCustomerDropdown && customers.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                    {customers.map((customer) => (
-                      <button
-                        key={customer.id}
-                        onClick={() => handleSelectCustomer(customer)}
-                        className="w-full px-4 py-3 text-left hover:bg-gray-50 text-sm text-gray-900 border-b border-gray-100 last:border-b-0"
-                      >
-                        {customer.companyName}
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
 
               {/* Quote Number */}
@@ -451,11 +295,6 @@ export function CreateQuoteFromTakeoffModal({
                     setQuoteNumber(e.target.value);
                     setError(null);
                   }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !isCreating) {
-                      handleCreate();
-                    }
-                  }}
                   placeholder="Enter quote number..."
                   className={`w-full px-4 py-3 border rounded-xl text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all placeholder:text-gray-400 ${
                     error && !quoteNumber.trim() ? 'border-red-300' : 'border-gray-200'
@@ -463,19 +302,33 @@ export function CreateQuoteFromTakeoffModal({
                 />
               </div>
 
-              {error && (
-                <p className="text-sm text-red-600 flex items-center gap-1.5">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              {/* Feature Blocked Warning */}
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                <div className="flex items-start gap-3">
+                  <svg className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                   </svg>
-                  {error}
-                </p>
-              )}
+                  <div>
+                    <p className="text-sm font-medium text-amber-800">
+                      Feature temporarily unavailable
+                    </p>
+                    <p className="text-sm text-amber-700 mt-1">
+                      Quote creation from takeoffs requires backend updates. Please create the quote manually in the Quotes section using the information above.
+                    </p>
+                  </div>
+                </div>
+              </div>
 
-              <p className="text-xs text-gray-500">
-                A new quote will be created with {selectedItemIds.size} line items from the crossed products.
-                Prices can be adjusted after creation.
-              </p>
+              {error && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl">
+                  <p className="text-sm text-red-700 flex items-start gap-2">
+                    <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    {error}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Footer */}
@@ -489,94 +342,11 @@ export function CreateQuoteFromTakeoffModal({
                 </svg>
                 Back
               </button>
-              <div className="flex gap-3">
-                <button
-                  onClick={handleCloseAndReset}
-                  className="px-4 py-2.5 border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-100 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCreate}
-                  disabled={isCreating || !quoteNumber.trim() || !selectedCustomer}
-                  className="px-4 py-2.5 bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-xl text-sm font-medium hover:from-green-700 hover:to-teal-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {isCreating ? (
-                    <>
-                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                      </svg>
-                      Creating...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                      Create Quote
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </>
-        ) : (
-          <>
-            {/* Success Header */}
-            <div className="px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-green-50 to-emerald-50 flex-shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center">
-                  <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Quote Created!</h3>
-                  <p className="text-sm text-gray-500">Quote #{createdQuote?.quoteNumber}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Success Body */}
-            <div className="px-6 py-6 flex-shrink-0">
-              <p className="text-sm text-gray-600 mb-4">
-                Your quote has been successfully created from the takeoff. Would you like to view and edit the new quote now?
-              </p>
-
-              <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                    <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{createdQuote?.quoteNumber}</p>
-                    <p className="text-xs text-gray-500">
-                      Status: {createdQuote?.status} • {createdQuote?.details?.length || 0} line items
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Success Footer */}
-            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3 flex-shrink-0">
               <button
-                onClick={handleStayHere}
-                className="px-4 py-2.5 border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-100 transition-colors"
+                onClick={handleCloseAndReset}
+                className="px-4 py-2.5 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-xl text-sm font-medium hover:from-gray-700 hover:to-gray-800 transition-all"
               >
-                Stay Here
-              </button>
-              <button
-                onClick={handleRedirectToQuote}
-                className="px-4 py-2.5 bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-xl text-sm font-medium hover:from-green-700 hover:to-teal-700 transition-all flex items-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                </svg>
-                View Quote
+                Close
               </button>
             </div>
           </>
