@@ -300,17 +300,28 @@ export function useTakeoffsState() {
 
   // Document handlers
   const handleClassifyDocument = useCallback(async (docId: string, classification: DocumentClassification) => {
+    console.log('[Classification] Manual change:', { docId, classification });
+
     // Update local state immediately for responsive UI
-    setDocuments(docs => classifyDocumentLocal(docs, docId, classification));
+    setDocuments(docs => {
+      const updated = classifyDocumentLocal(docs, docId, classification);
+      console.log('[Classification] State update:', {
+        docId,
+        classification,
+        before: docs.find(d => d.id === docId)?.classification,
+        after: updated.find(d => d.id === docId)?.classification
+      });
+      return updated;
+    });
 
     // Persist to backend
     try {
       await updateTakeoffDocument(docId, {
         classification: classification || null,
       });
+      console.log('[Classification] Backend update success:', { docId, classification });
     } catch (error) {
-      console.error('Failed to persist classification:', error);
-      // Optionally revert local state on error
+      console.error('[Classification] Backend update failed:', error);
     }
   }, []);
 
