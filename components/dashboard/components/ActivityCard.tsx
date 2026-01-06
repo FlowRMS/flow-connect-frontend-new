@@ -198,12 +198,6 @@ function ActivityMetadata({ activity }: { activity: Activity }) {
               {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(metadata.total)}
             </span>
           )}
-          {metadata.expDate && (
-            <span>Expires: {formatDate(metadata.expDate)}</span>
-          )}
-          {metadata.entityDate && (
-            <span>Created: {formatDate(metadata.entityDate)}</span>
-          )}
         </div>
       );
 
