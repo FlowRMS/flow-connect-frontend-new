@@ -415,6 +415,7 @@ export function useTakeoffsState() {
           pages: result.originalPages || undefined,
           abridged: true,
           abridgedPages: result.abridgedPages,
+          abridgedUrl: result.abridgedUrl,
           reductionPercentage: result.reductionPercentage,
           pageAnalyses: result.pageAnalyses as unknown as UpdateTakeoffDocumentInput['pageAnalyses'],
         });
@@ -590,6 +591,7 @@ export function useTakeoffsState() {
               pages: actualPages,
               abridged: true,
               abridgedPages: abridgedPages,
+              abridgedUrl: result.abridgedUrl,
               reductionPercentage: result.reductionPercentage,
               pageAnalyses: result.pageAnalyses as unknown as UpdateTakeoffDocumentInput['pageAnalyses'],
             });

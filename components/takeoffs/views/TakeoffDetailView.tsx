@@ -972,7 +972,25 @@ export function TakeoffDetailView({
                       <div className="flex items-center gap-2">
                         {isComplete && doc.abridgedUrl && (
                           <button
-                            onClick={() => window.open(doc.abridgedUrl, '_blank')}
+                            onClick={async () => {
+                              try {
+                                const proxyUrl = `/api/document-proxy?url=${encodeURIComponent(doc.abridgedUrl!)}&filename=${encodeURIComponent(doc.name.replace(/\.[^/.]+$/, '') + '_abridged.pdf')}`;
+                                const response = await fetch(proxyUrl);
+                                if (!response.ok) {
+                                  window.open(doc.abridgedUrl, '_blank');
+                                  return;
+                                }
+                                const blob = await response.blob();
+                                const url = URL.createObjectURL(blob);
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.download = doc.name.replace(/\.[^/.]+$/, '') + '_abridged.pdf';
+                                link.click();
+                                URL.revokeObjectURL(url);
+                              } catch (error) {
+                                window.open(doc.abridgedUrl, '_blank');
+                              }
+                            }}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white rounded-md text-xs font-medium hover:bg-purple-700 transition-colors"
                           >
                             <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">

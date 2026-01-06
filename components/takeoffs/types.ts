@@ -245,7 +245,7 @@ export function transformDocumentResponse(doc: TakeoffDocumentResponse): Takeoff
     abridgedPages: doc.abridgedPages || undefined,
     reductionPercentage: doc.reductionPercentage || undefined,
     documentUrl: doc.documentUrl || undefined,
-    // Note: abridgedUrl is not stored in backend, it's set locally after abridgement
+    abridgedUrl: doc.abridgedUrl || undefined,
     pageAnalyses: doc.pageAnalyses || undefined,
     products: doc.products,
     parsedItems: safeParseParsedItems(doc.parsedItems),

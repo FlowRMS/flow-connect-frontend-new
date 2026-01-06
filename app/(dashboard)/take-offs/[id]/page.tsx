@@ -166,12 +166,30 @@ export default function TakeoffDetailPage() {
     }
   };
 
-  const handleDownloadDocument = (doc: TakeoffDocument) => {
+  const handleDownloadDocument = async (doc: TakeoffDocument) => {
     if (!doc.documentUrl) {
       console.error('Document URL not available');
       return;
     }
-    window.open(doc.documentUrl, '_blank');
+    try {
+      const proxyUrl = `/api/document-proxy?url=${encodeURIComponent(doc.documentUrl)}&filename=${encodeURIComponent(doc.name)}`;
+      const response = await fetch(proxyUrl);
+      if (!response.ok) {
+        console.error('Proxy failed, opening in new tab');
+        window.open(doc.documentUrl, '_blank');
+        return;
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = doc.name;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Download failed:', error);
+      window.open(doc.documentUrl, '_blank');
+    }
   };
 
   const handleDownloadAllDocuments = async () => {
@@ -290,6 +308,7 @@ export default function TakeoffDetailPage() {
           pages: result.originalPages || undefined,
           abridged: true,
           abridgedPages: result.abridgedPages,
+          abridgedUrl: result.abridgedUrl,
           reductionPercentage: result.reductionPercentage,
           pageAnalyses: result.pageAnalyses,
         });

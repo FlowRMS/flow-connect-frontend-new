@@ -26,6 +26,7 @@ export interface TakeoffDocumentResponse {
   pages: number;
   abridged: boolean;
   abridgedPages: number | null;
+  abridgedUrl: string | null;
   reductionPercentage: number | null;
   pageAnalyses: PageAnalysis[] | null;
   products: unknown;
@@ -111,6 +112,7 @@ export interface UpdateTakeoffDocumentInput {
   pages?: number | null;
   abridged?: boolean | null;
   abridgedPages?: number | null;
+  abridgedUrl?: string | null;
   reductionPercentage?: number | null;
   pageAnalyses?: PageAnalysis[] | null;
   products?: unknown;
@@ -162,6 +164,7 @@ const GET_USER_TAKEOFFS = `
         pages
         abridged
         abridgedPages
+        abridgedUrl
         reductionPercentage
         pageAnalyses
         products
@@ -215,6 +218,7 @@ const GET_USER_TAKEOFFS_PAGINATED = `
           pages
           abridged
           abridgedPages
+          abridgedUrl
           reductionPercentage
           pageAnalyses
           products
@@ -251,6 +255,7 @@ const GET_TAKEOFF = `
         pages
         abridged
         abridgedPages
+        abridgedUrl
         reductionPercentage
         pageAnalyses
         products
@@ -289,6 +294,7 @@ const CREATE_TAKEOFF = `
         pages
         abridged
         abridgedPages
+        abridgedUrl
         reductionPercentage
         createdAt
       }
@@ -332,6 +338,7 @@ const UPDATE_TAKEOFF_DOCUMENT = `
       pages
       abridged
       abridgedPages
+      abridgedUrl
       reductionPercentage
       pageAnalyses
       products
