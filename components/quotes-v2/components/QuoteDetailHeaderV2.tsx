@@ -528,7 +528,7 @@ export function QuoteDetailHeaderV2({
   return (
     <div className="flex-shrink-0">
       {/* Top Header Row */}
-      <div className="flex items-center justify-between py-4 px-6 border-b border-gray-200">
+      <div className="flex items-center justify-between pt-6 pb-4 px-6 border-b border-gray-200">
         <div className="flex items-center gap-4">
           {/* Back Button */}
           <button
@@ -634,6 +634,7 @@ export function QuoteDetailHeaderV2({
 
           {/* Status Dropdown */}
           <div className="relative">
+            <span className="absolute -top-5 left-0 text-[10px] text-gray-500 uppercase tracking-wide">Status</span>
             <button
               onClick={() => setShowStatusMenu(!showStatusMenu)}
               className={`flex items-center gap-1 px-3 py-1.5 text-sm text-white rounded-lg transition-colors ${getQuoteStatusBadgeClass(quote.status)}`}
@@ -671,6 +672,7 @@ export function QuoteDetailHeaderV2({
 
           {/* Pipeline Stage Dropdown */}
           <div className="relative">
+            <span className="absolute -top-5 left-0 text-[10px] text-gray-500 uppercase tracking-wide whitespace-nowrap">Pipeline Stage</span>
             <button
               onClick={() => setShowPipelineStageMenu(!showPipelineStageMenu)}
               className={`flex items-center gap-1 px-3 py-1.5 text-sm text-white rounded-lg transition-colors ${getPipelineStageBadgeClass(quote.pipelineStage)}`}
