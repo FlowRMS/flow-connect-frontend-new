@@ -12,7 +12,7 @@ import type { CompanySourceType } from '../../../../components/lib/crm-graphql';
 // Types
 // ============================================================================
 
-type TabId = 'overview' | 'contact-info' | 'commission' | 'settings';
+type TabId = 'overview' | 'contact-info' | 'settings';
 
 // ============================================================================
 // Helper Components
@@ -391,19 +391,16 @@ export default function CreateCompanyPage() {
   const sectionRefs = useRef<Record<TabId, HTMLDivElement | null>>({
     'overview': null,
     'contact-info': null,
-    'commission': null,
     'settings': null,
   });
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-
-  const isManufacturer = companyType === 'MANUFACTURER';
 
   // Scroll spy effect
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    const tabIds: TabId[] = ['overview', 'contact-info', 'commission', 'settings'];
+    const tabIds: TabId[] = ['overview', 'contact-info', 'settings'];
 
     const handleScroll = () => {
       const scrollTop = container.scrollTop;
@@ -482,17 +479,16 @@ export default function CreateCompanyPage() {
     }
   };
 
+  // Only Customer type available - Manufacturers are managed in /manufacturers
   const companyTypeOptions = [
     { value: 'CUSTOMER', label: 'Customer', description: 'A customer account for sales and orders' },
-    { value: 'MANUFACTURER', label: 'Manufacturer', description: 'A factory or supplier that produces products' },
   ];
 
   const tabs = [
     { id: 'overview' as TabId, label: 'Overview' },
     { id: 'contact-info' as TabId, label: 'Contact Info' },
-    { id: 'commission' as TabId, label: 'Commission Rates', hidden: !isManufacturer },
     { id: 'settings' as TabId, label: 'Settings' },
-  ].filter(tab => !tab.hidden);
+  ];
 
   const inputClass = "w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400";
   const labelClass = "block text-sm font-medium text-gray-700 mb-1.5";
@@ -512,10 +508,8 @@ export default function CreateCompanyPage() {
               </svg>
             </button>
             <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                isManufacturer ? 'bg-purple-100' : 'bg-green-100'
-              }`}>
-                <svg className={`w-5 h-5 ${isManufacturer ? 'text-purple-600' : 'text-green-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-green-100">
+                <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                 </svg>
               </div>
@@ -524,7 +518,7 @@ export default function CreateCompanyPage() {
                   {name || 'New Company'}
                 </h1>
                 <p className="text-sm text-gray-500">
-                  Create a new {isManufacturer ? 'manufacturer' : 'customer'} company
+                  Create a new customer company
                 </p>
               </div>
             </div>
@@ -534,10 +528,8 @@ export default function CreateCompanyPage() {
             <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
               Unsaved
             </span>
-            <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-              isManufacturer ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'
-            }`}>
-              {isManufacturer ? 'Manufacturer' : 'Customer'}
+            <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+              Customer
             </span>
 
             <button
@@ -712,81 +704,6 @@ export default function CreateCompanyPage() {
             </div>
           </div>
         </div>
-
-        {/* ============ COMMISSION SECTION (Manufacturers Only) ============ */}
-        {isManufacturer && (
-          <div ref={el => { sectionRefs.current['commission'] = el; }} id="section-commission">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-purple-500"></div>
-              Commission Rates
-            </h2>
-
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <div className="flex items-start gap-3 mb-6 p-4 bg-purple-50 rounded-lg border border-purple-100">
-                <svg className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <div>
-                  <p className="text-sm text-purple-900 font-medium">Manufacturer Commission Settings</p>
-                  <p className="text-sm text-purple-700 mt-1">
-                    Set default commission rates for this manufacturer. These rates will be used
-                    when creating orders unless overridden.
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-6">
-                {/* Standard Commission Rate */}
-                <div>
-                  <label className={labelClass}>Standard Commission Rate (%)</label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.1"
-                      value={standardCommissionRate}
-                      onChange={(e) => {
-                        setStandardCommissionRate(e.target.value);
-                        if (errors.standardCommissionRate) setErrors(prev => ({ ...prev, standardCommissionRate: '' }));
-                      }}
-                      className={`${inputClass} pr-8 ${errors.standardCommissionRate ? 'border-red-500 focus:ring-red-500' : ''}`}
-                      placeholder="0.00"
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
-                  </div>
-                  {errors.standardCommissionRate && (
-                    <p className="mt-1 text-xs text-red-500">{errors.standardCommissionRate}</p>
-                  )}
-                </div>
-
-                {/* Warehouse Commission Rate */}
-                <div>
-                  <label className={labelClass}>Warehouse Commission Rate (%)</label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.1"
-                      value={warehouseCommissionRate}
-                      onChange={(e) => {
-                        setWarehouseCommissionRate(e.target.value);
-                        if (errors.warehouseCommissionRate) setErrors(prev => ({ ...prev, warehouseCommissionRate: '' }));
-                      }}
-                      className={`${inputClass} pr-8 ${errors.warehouseCommissionRate ? 'border-red-500 focus:ring-red-500' : ''}`}
-                      placeholder="0.00"
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
-                  </div>
-                  {errors.warehouseCommissionRate && (
-                    <p className="mt-1 text-xs text-red-500">{errors.warehouseCommissionRate}</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* ============ SETTINGS SECTION ============ */}
         <div ref={el => { sectionRefs.current['settings'] = el; }} id="section-settings">

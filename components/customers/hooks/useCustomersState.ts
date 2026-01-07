@@ -4,7 +4,7 @@
  */
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { useCustomersInfinite, type CustomerLandingPage, type CustomerLandingPageFilter, type CustomerLandingPageOrderBy } from '../api/useCustomersApi';
+import { useCustomersInfinite, useCustomerSearch, type CustomerLandingPage, type CustomerLandingPageFilter, type CustomerLandingPageOrderBy, type CustomerSearchResult } from '../api/useCustomersApi';
 import type { ActiveFilter } from '../../AdvancedFilters';
 
 export type ViewMode = 'list' | 'grid';
@@ -94,23 +94,45 @@ export function useCustomersState() {
     isFetchingNextPage,
   } = useCustomersInfinite(serverFilters, serverOrderBy);
 
+  // Search customers using server-side search
+  const { data: searchResults, isLoading: isSearching } = useCustomerSearch(searchQuery, 100);
+
   // Flatten paginated data
   const customers: CustomerLandingPage[] = useMemo(() => {
     if (!data?.pages) return [];
     return data.pages.flatMap(page => page.records);
   }, [data]);
 
-  // Apply client-side search filtering
-  const filteredCustomers = useMemo(() => {
-    let result = customers;
+  // Transform search results to CustomerLandingPage format
+  const transformSearchResultToLandingPage = (result: CustomerSearchResult): CustomerLandingPage => ({
+    id: result.id,
+    companyName: result.companyName,
+    isParent: result.isParent ?? false,
+    published: result.published ?? true,
+    createdAt: undefined,
+    createdBy: undefined,
+    insideReps: undefined,
+    outsideReps: undefined,
+  });
 
-    // Apply search query
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(customer =>
-        customer.companyName?.toLowerCase().includes(query)
-      );
+  // Apply filtering - use server search results when searching, otherwise use paginated data
+  const filteredCustomers = useMemo(() => {
+    // If searching and we have results, use search results
+    if (searchQuery.length >= 2 && searchResults) {
+      let result = searchResults.map(transformSearchResultToLandingPage);
+
+      // Apply type filter to search results
+      if (selectedType === 'Parent') {
+        result = result.filter(c => c.isParent);
+      } else if (selectedType === 'Child') {
+        result = result.filter(c => !c.isParent);
+      }
+
+      return result;
     }
+
+    // Otherwise use paginated data with type filter only
+    let result = customers;
 
     // Apply type filter
     if (selectedType === 'Parent') {
@@ -120,7 +142,7 @@ export function useCustomersState() {
     }
 
     return result;
-  }, [customers, searchQuery, selectedType]);
+  }, [customers, searchQuery, searchResults, selectedType]);
 
   // Unique values for filter dropdowns
   const uniqueCompanyNames = useMemo(() => getUniqueValues(customers, 'companyName'), [customers]);
@@ -155,6 +177,7 @@ export function useCustomersState() {
 
     // Loading state
     isLoading,
+    isSearching,
     error,
     refetch,
     isMounted,

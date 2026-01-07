@@ -7,6 +7,7 @@ import { useCustomerSearch, useUserSearch, useJobSearch, useFactorySearch } from
 import { searchUsers } from '../../quotes/api/quotesApi';
 import { CreateOrderFromQuoteModal } from '../modals/CreateOrderFromQuoteModal';
 import { CreatedByBadge } from '@/components/ui/CreatedByBadge';
+import { PDFBuilder } from '@/components/shared/pdf-builder';
 
 // Quote status options using API enum values
 const quoteStatusOptions: QuoteV2Status[] = [
@@ -143,6 +144,7 @@ export function QuoteDetailHeaderV2({
   const [viewMode, setViewMode] = useState<'simple' | 'overage'>('simple');
   const [showCreateOrderModal, setShowCreateOrderModal] = useState(false);
   const [showQuoteDetails, setShowQuoteDetails] = useState(true);
+  const [showPDFBuilder, setShowPDFBuilder] = useState(false);
 
   // Customer search state
   const [soldToSearchTerm, setSoldToSearchTerm] = useState('');
@@ -528,7 +530,7 @@ export function QuoteDetailHeaderV2({
   return (
     <div className="flex-shrink-0">
       {/* Top Header Row */}
-      <div className="flex items-center justify-between py-4 px-6 border-b border-gray-200">
+      <div className="flex items-center justify-between pt-6 pb-4 px-6 border-b border-gray-200">
         <div className="flex items-center gap-4">
           {/* Back Button */}
           <button
@@ -634,6 +636,7 @@ export function QuoteDetailHeaderV2({
 
           {/* Status Dropdown */}
           <div className="relative">
+            <span className="absolute -top-5 left-0 text-[10px] text-gray-500 uppercase tracking-wide">Status</span>
             <button
               onClick={() => setShowStatusMenu(!showStatusMenu)}
               className={`flex items-center gap-1 px-3 py-1.5 text-sm text-white rounded-lg transition-colors ${getQuoteStatusBadgeClass(quote.status)}`}
@@ -671,6 +674,7 @@ export function QuoteDetailHeaderV2({
 
           {/* Pipeline Stage Dropdown */}
           <div className="relative">
+            <span className="absolute -top-5 left-0 text-[10px] text-gray-500 uppercase tracking-wide whitespace-nowrap">Pipeline Stage</span>
             <button
               onClick={() => setShowPipelineStageMenu(!showPipelineStageMenu)}
               className={`flex items-center gap-1 px-3 py-1.5 text-sm text-white rounded-lg transition-colors ${getPipelineStageBadgeClass(quote.pipelineStage)}`}
@@ -732,17 +736,22 @@ export function QuoteDetailHeaderV2({
             </button>
           </div>
 
-          {/* PDF Button - Coming Soon */}
+          {/* PDF Button */}
           <button
-            disabled
-            className="flex items-center gap-1 px-4 py-1.5 text-sm text-gray-400 bg-gray-100 cursor-not-allowed rounded-lg"
+            onClick={() => setShowPDFBuilder(true)}
+            disabled={isNew || !quote.id}
+            className={`flex items-center gap-1 px-4 py-1.5 text-sm rounded-lg transition-colors ${
+              isNew || !quote.id
+                ? 'text-gray-400 bg-gray-100 cursor-not-allowed'
+                : 'text-white bg-red-600 hover:bg-red-700'
+            }`}
           >
             <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="3" width="14" height="14" rx="2" />
-              <path d="M7 7h6M7 10h6M7 13h4" strokeLinecap="round" />
+              <path d="M6 2h8l4 4v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2z" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M14 2v4h4" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M8 12h4M8 16h4M8 8h1" strokeLinecap="round"/>
             </svg>
             PDF
-            <ComingSoonBadge inline />
           </button>
 
           {/* Save Button with Dropdown */}
@@ -1498,6 +1507,14 @@ export function QuoteDetailHeaderV2({
         factoryName={lineItems[0]?.manufacturerName}
         lineItems={lineItems}
         onClose={() => setShowCreateOrderModal(false)}
+      />
+
+      {/* PDF Builder */}
+      <PDFBuilder
+        entityId={quote.id}
+        entityType="QUOTES"
+        isOpen={showPDFBuilder}
+        onClose={() => setShowPDFBuilder(false)}
       />
     </div>
   );

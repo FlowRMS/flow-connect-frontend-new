@@ -10,7 +10,7 @@
 
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -75,6 +75,8 @@ export interface ConnectedEntitiesSectionProps {
   title?: string;
   /** Whether to show the "Add Link" button */
   showAddLinkButton?: boolean;
+  /** Key to trigger a refetch of linked entities when changed */
+  refreshKey?: number;
   /** Click handlers for different entity types */
   onCompanyClick?: (company: RelatedEntityCompany) => void;
   onContactClick?: (contact: RelatedEntityContact) => void;
@@ -158,6 +160,7 @@ export function ConnectedEntitiesSection({
   enabledCategories,
   title = 'Connected Entities',
   showAddLinkButton = true,
+  refreshKey,
   onCompanyClick,
   onContactClick,
   onPreOpportunityClick,
@@ -194,6 +197,13 @@ export function ConnectedEntitiesSection({
     error,
     refetch
   } = useRelatedEntities(entityId, SOURCE_TYPE_TO_API_TYPE[sourceEntityType]);
+
+  // Refetch when refreshKey changes (e.g., after save)
+  useEffect(() => {
+    if (refreshKey !== undefined && refreshKey > 0) {
+      refetch();
+    }
+  }, [refreshKey, refetch]);
 
   // Fetch linked files separately (uses different API endpoint)
   const {

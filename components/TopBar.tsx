@@ -8,6 +8,7 @@ import { MobileSidebarContext } from './Sidebar';
 import UniversalSearch from './UniversalSearch';
 import { useUser } from './providers/user-provider';
 import { useOrgName } from './hooks/useOrgName';
+import { useOrganization } from './hooks/useOrganization';
 import { handleSignOut } from '@/lib/actions';
 
 // Key used by useWelcomeAnimation hook
@@ -29,6 +30,7 @@ export default function TopBar() {
   const user = useUser();
   const pathname = usePathname();
   const { orgName, isLoading: orgLoading } = useOrgName();
+  const { logoUrl } = useOrganization();
   const { setIsOpen, isMobile } = React.useContext(MobileSidebarContext);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -94,27 +96,37 @@ export default function TopBar() {
         {!orgLoading && orgName && (
           <div className="hidden md:flex items-center ml-4">
             <div className="group relative cursor-default flex items-center gap-3">
-              
-              {/* Premium icon with gentle pulse */}
+
+              {/* Organization Logo or Premium icon with gentle pulse */}
               <div className="relative flex-shrink-0">
-                <div 
-                  className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600 flex items-center justify-center shadow-md shadow-blue-500/25"
-                  style={{ animation: 'gentlePulse 3s ease-in-out infinite' }}
-                >
-                  <svg 
-                    width="18" 
-                    height="18" 
-                    viewBox="0 0 24 24" 
-                    fill="none" 
-                    className="text-white"
+                {logoUrl ? (
+                  <div className="w-9 h-9 rounded-xl overflow-hidden bg-white flex items-center justify-center shadow-md">
+                    <img
+                      src={logoUrl}
+                      alt={`${orgName} logo`}
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                ) : (
+                  <div
+                    className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600 flex items-center justify-center shadow-md shadow-blue-500/25"
+                    style={{ animation: 'gentlePulse 3s ease-in-out infinite' }}
                   >
-                    <path d="M12 2L2 7l10 5 10-5-10-5z" fill="currentColor" opacity="0.95"/>
-                    <path d="M2 17l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </div>
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      className="text-white"
+                    >
+                      <path d="M12 2L2 7l10 5 10-5-10-5z" fill="currentColor" opacity="0.95"/>
+                      <path d="M2 17l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
+                )}
                 {/* Soft ambient glow */}
-                <div 
+                <div
                   className="absolute inset-0 rounded-xl bg-blue-400/20 blur-lg -z-10"
                   style={{ animation: 'gentleGlow 3s ease-in-out infinite' }}
                 ></div>
