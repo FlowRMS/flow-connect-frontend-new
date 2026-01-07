@@ -2,6 +2,7 @@ import { withAuth } from "@workos-inc/authkit-nextjs";
 import { redirect } from "next/navigation";
 import DashboardShell from "@/components/DashboardShell";
 import { UserProvider } from "@/components/providers/user-provider";
+import { LogRocketProvider } from "@/components/providers/logrocket-provider";
 
 /**
  * Decode JWT token payload to extract org_name
@@ -46,8 +47,10 @@ export default async function DashboardLayout({
   }
 
   return (
-    <UserProvider user={user}>
-      <DashboardShell>{children}</DashboardShell>
-    </UserProvider>
+    <LogRocketProvider user={user}>
+      <UserProvider user={user}>
+        <DashboardShell>{children}</DashboardShell>
+      </UserProvider>
+    </LogRocketProvider>
   );
 }
