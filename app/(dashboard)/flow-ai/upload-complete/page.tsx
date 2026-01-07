@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Suspense, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, Suspense, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Loader2,
@@ -9,6 +9,8 @@ import {
   AlertCircle,
   XCircle,
   SkipForward,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import { Button } from '@/components/flow-ai/ui/button';
 import { Badge } from '@/components/flow-ai/ui/badge';
@@ -71,16 +73,6 @@ interface ProcessingResult {
   entityId: string | null;
   errorMessage: string | null;
   status: 'CREATED' | 'SKIPPED' | 'ERROR' | 'PENDING' | string;
-}
-
-interface ParsedDtoData {
-  [key: string]: unknown;
-  factory_name?: string;
-  customer_name?: string;
-  product_name?: string;
-  order_number?: string;
-  invoice_number?: string;
-  internal_uuid?: string;
 }
 
 type StatusFilter = 'all' | 'CREATED' | 'SKIPPED' | 'ERROR';
@@ -412,42 +404,92 @@ function SummaryCardButton({ isActive, onClick, label, count, icon, color }: Sum
   );
 }
 
+// Detect entity type from dtoJson
+function getEntityType(dtoJson: string | null): string {
+  if (!dtoJson) return 'Entity';
+  try {
+    const data = JSON.parse(dtoJson);
+    // Check for entity type indicators
+    if (data.factory_name || data.factory) return 'Factory';
+    if (data.customer_name || data.customer || data.sold_to_customer) return 'Customer';
+    if (data.bill_to_customer_name || data.bill_to_customer) return 'Bill To Customer';
+    if (data.end_user_name || data.end_user) return 'End User';
+    if (data.product_name || data.product || data.sku) return 'Product';
+    if (data.order_number || data.po_number) return 'Order';
+    if (data.invoice_number || data.invoice) return 'Invoice';
+    return 'Entity';
+  } catch {
+    return 'Entity';
+  }
+}
+
 // Parse dtoJson to extract display name
 function getDisplayName(dtoJson: string | null): string {
   if (!dtoJson) return 'Unknown';
   try {
-    const data: ParsedDtoData = JSON.parse(dtoJson);
-    // Try different possible name fields
-    return data.factory_name ||
-           data.customer_name ||
-           data.product_name ||
-           data.order_number ||
-           data.invoice_number ||
-           data.internal_uuid?.substring(0, 8) ||
-           'Unknown';
+    const data = JSON.parse(dtoJson);
+    // Try different possible name fields in priority order
+    const nameFields = [
+      'factory_name', 'customer_name', 'bill_to_customer_name', 'end_user_name',
+      'product_name', 'name', 'title', 'order_number', 'invoice_number',
+      'po_number', 'sku', 'description'
+    ];
+
+    for (const field of nameFields) {
+      if (data[field] && typeof data[field] === 'string' && data[field].trim()) {
+        return data[field];
+      }
+    }
+
+    // Check nested objects
+    if (data.factory?.name) return data.factory.name;
+    if (data.customer?.name) return data.customer.name;
+    if (data.product?.name) return data.product.name;
+
+    return 'Unknown';
   } catch {
     return 'Unknown';
   }
 }
 
-// Parse dtoJson to get a summary of fields
-function getFieldsSummary(dtoJson: string | null): { key: string; value: string }[] {
+// Parse dtoJson to get all displayable fields
+function getAllFields(dtoJson: string | null): { key: string; value: string }[] {
   if (!dtoJson) return [];
   try {
-    const data: ParsedDtoData = JSON.parse(dtoJson);
+    const data = JSON.parse(dtoJson);
     const fields: { key: string; value: string }[] = [];
 
-    // Extract key fields to display
-    const keyFields = [
-      'factory_name', 'customer_name', 'product_name', 'order_number', 'invoice_number',
-      'email', 'phone', 'address', 'contact', 'payment_terms', 'freight_terms',
-      'base_commission', 'inside_sales_rep_name'
-    ];
+    // Skip these internal/technical fields
+    const skipFields = new Set([
+      'internal_uuid', 'id', 'uuid', 'created_at', 'updated_at',
+      'tenant_id', 'pending_document_id', 'dto_id'
+    ]);
 
-    for (const key of keyFields) {
-      if (data[key] !== null && data[key] !== undefined) {
-        fields.push({ key: formatFieldName(key), value: String(data[key]) });
+    const processValue = (key: string, value: unknown): void => {
+      if (skipFields.has(key.toLowerCase())) return;
+
+      if (value === null || value === undefined || value === '') return;
+
+      if (typeof value === 'object' && !Array.isArray(value)) {
+        // For nested objects, try to get a meaningful representation
+        const obj = value as Record<string, unknown>;
+        if (obj.name) {
+          fields.push({ key: formatFieldName(key), value: String(obj.name) });
+        } else if (obj.id && typeof obj.id === 'string') {
+          // Skip showing just IDs for nested objects
+          return;
+        }
+      } else if (Array.isArray(value)) {
+        if (value.length > 0) {
+          fields.push({ key: formatFieldName(key), value: `${value.length} items` });
+        }
+      } else {
+        fields.push({ key: formatFieldName(key), value: String(value) });
       }
+    };
+
+    for (const [key, value] of Object.entries(data)) {
+      processValue(key, value);
     }
 
     return fields;
@@ -503,7 +545,7 @@ function ProcessingResultsTable({ results }: { results: ProcessingResult[] }) {
           Processing Results ({results.length})
         </CardTitle>
         <CardDescription>
-          Details of each entity processed from the document
+          Click on a row to expand and see more details
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -512,48 +554,44 @@ function ProcessingResultsTable({ results }: { results: ProcessingResult[] }) {
             <thead className="bg-slate-50 dark:bg-slate-800/50 border-b">
               <tr>
                 <th className="px-4 py-3 text-left font-semibold w-10"></th>
-                <th className="px-4 py-3 text-left font-semibold">Entity Name</th>
+                <th className="px-4 py-3 text-left font-semibold">Type</th>
+                <th className="px-4 py-3 text-left font-semibold">Name</th>
                 <th className="px-4 py-3 text-left font-semibold">Status</th>
-                <th className="px-4 py-3 text-left font-semibold">Entity ID</th>
                 <th className="px-4 py-3 text-left font-semibold">Message</th>
               </tr>
             </thead>
             <tbody>
               {results.map((result) => {
                 const isExpanded = expandedRows.has(result.id);
-                const fields = getFieldsSummary(result.dtoJson);
+                const fields = getAllFields(result.dtoJson);
+                const entityType = getEntityType(result.dtoJson);
+                const displayName = getDisplayName(result.dtoJson);
 
                 return (
-                  <>
+                  <React.Fragment key={result.id}>
                     <tr
-                      key={result.id}
-                      className="border-b hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer"
+                      className={`border-b hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer ${isExpanded ? 'bg-slate-50 dark:bg-slate-800/20' : ''}`}
                       onClick={() => toggleRow(result.id)}
                     >
                       <td className="px-4 py-3">
                         <button className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded">
-                          <svg
-                            className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
+                          {isExpanded ? (
+                            <ChevronDown className="w-4 h-4 text-slate-600" />
+                          ) : (
+                            <ChevronRight className="w-4 h-4 text-slate-400" />
+                          )}
                         </button>
                       </td>
+                      <td className="px-4 py-3">
+                        <Badge variant="outline" className="text-xs">
+                          {entityType}
+                        </Badge>
+                      </td>
                       <td className="px-4 py-3 font-medium">
-                        {getDisplayName(result.dtoJson)}
+                        {displayName}
                       </td>
                       <td className="px-4 py-3">
                         {getStatusBadge(result.status)}
-                      </td>
-                      <td className="px-4 py-3 font-mono text-xs">
-                        {result.entityId ? (
-                          <span className="text-green-600">{result.entityId.substring(0, 8)}...</span>
-                        ) : (
-                          <span className="text-slate-400">-</span>
-                        )}
                       </td>
                       <td className="px-4 py-3 text-sm">
                         {result.errorMessage ? (
@@ -563,21 +601,27 @@ function ProcessingResultsTable({ results }: { results: ProcessingResult[] }) {
                         )}
                       </td>
                     </tr>
-                    {isExpanded && fields.length > 0 && (
-                      <tr key={`${result.id}-details`} className="bg-slate-50 dark:bg-slate-800/30">
-                        <td colSpan={5} className="px-4 py-3">
-                          <div className="ml-10 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                            {fields.map((field, idx) => (
-                              <div key={idx} className="text-sm">
-                                <span className="text-slate-500 font-medium">{field.key}:</span>{' '}
-                                <span className="text-slate-700 dark:text-slate-300">{field.value || '-'}</span>
+                    {isExpanded && (
+                      <tr className="bg-slate-50 dark:bg-slate-800/30 border-b">
+                        <td colSpan={5} className="px-4 py-4">
+                          <div className="ml-8">
+                            {fields.length > 0 ? (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-2">
+                                {fields.map((field: { key: string; value: string }, idx: number) => (
+                                  <div key={idx} className="text-sm py-1">
+                                    <span className="text-slate-500 font-medium">{field.key}:</span>{' '}
+                                    <span className="text-slate-700 dark:text-slate-300">{field.value || '-'}</span>
+                                  </div>
+                                ))}
                               </div>
-                            ))}
+                            ) : (
+                              <p className="text-sm text-slate-500 italic">No additional details available</p>
+                            )}
                           </div>
                         </td>
                       </tr>
                     )}
-                  </>
+                  </React.Fragment>
                 );
               })}
             </tbody>
