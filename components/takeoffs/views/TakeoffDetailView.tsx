@@ -250,12 +250,20 @@ export function TakeoffDetailView({
 
         if (result.success && result.category) {
           // Map API category to our classification type
+          // API may return either snake_case or Title Case format
           const categoryMap: Record<string, DocumentClassification> = {
+            // snake_case format
             fixture_schedules: 'Fixture Schedules',
             specifications: 'Specifications',
             blueprints: 'Blueprints',
             other: 'Other Docs',
             irrelevant: 'Irrelevant',
+            // Title Case format (actual API response)
+            'Fixture Schedules': 'Fixture Schedules',
+            'Specifications': 'Specifications',
+            'Blueprints': 'Blueprints',
+            'Other Docs': 'Other Docs',
+            'Irrelevant': 'Irrelevant',
           };
           const classification = categoryMap[result.category] || 'Other Docs';
           // Collect classification instead of updating state immediately
