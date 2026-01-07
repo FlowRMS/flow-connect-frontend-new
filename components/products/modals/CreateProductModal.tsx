@@ -155,6 +155,9 @@ export function CreateProductModal({ isOpen, onClose, onSuccess }: CreateProduct
     if (formData.unitPrice === undefined || formData.unitPrice === null) {
       newErrors.unitPrice = 'Unit Price is required';
     }
+    if (formData.defaultCommissionRate === undefined || formData.defaultCommissionRate === null) {
+      newErrors.defaultCommissionRate = 'Default Commission Rate is required';
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -412,7 +415,7 @@ export function CreateProductModal({ isOpen, onClose, onSuccess }: CreateProduct
               </div>
               <div>
                 <label className="block text-sm font-medium text-[var(--foreground)] mb-1.5">
-                  Default Commission Rate
+                  Default Commission Rate <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <input
@@ -423,10 +426,15 @@ export function CreateProductModal({ isOpen, onClose, onSuccess }: CreateProduct
                     value={formData.defaultCommissionRate !== undefined ? formData.defaultCommissionRate * 100 : ''}
                     onChange={(e) => handleChange('defaultCommissionRate', e.target.value ? parseFloat(e.target.value) / 100 : undefined)}
                     placeholder="0"
-                    className="w-full pl-3 pr-8 py-2.5 border border-[var(--border)] rounded-lg text-sm bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                    className={`w-full pl-3 pr-8 py-2.5 border rounded-lg text-sm bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 ${
+                      errors.defaultCommissionRate ? 'border-red-500' : 'border-[var(--border)]'
+                    }`}
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]">%</span>
                 </div>
+                {errors.defaultCommissionRate && (
+                  <p className="mt-1 text-xs text-red-500">{errors.defaultCommissionRate}</p>
+                )}
               </div>
             </div>
 

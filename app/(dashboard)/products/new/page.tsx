@@ -182,6 +182,9 @@ export default function CreateProductPage() {
     if (!formData.productUomId) {
       newErrors.productUomId = 'Unit of Measure is required';
     }
+    if (formData.defaultCommissionRate === undefined || formData.defaultCommissionRate === null) {
+      newErrors.defaultCommissionRate = 'Default Commission Rate is required';
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -573,18 +576,21 @@ export default function CreateProductPage() {
                 )}
               </div>
               <div>
-                <label className={labelClass}>Default Commission Rate</label>
+                <label className={labelClass}>Default Commission Rate *</label>
                 <div className="relative">
                   <input
                     type="number"
                     step="0.1"
                     value={formData.defaultCommissionRate !== undefined ? formData.defaultCommissionRate * 100 : ''}
                     onChange={(e) => handleChange('defaultCommissionRate', e.target.value ? parseFloat(e.target.value) / 100 : undefined)}
-                    className={`${inputClass} pr-8`}
+                    className={`${inputClass} pr-8 ${errors.defaultCommissionRate ? 'border-red-500' : ''}`}
                     placeholder="0"
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
                 </div>
+                {errors.defaultCommissionRate && (
+                  <p className="mt-1 text-xs text-red-500">{errors.defaultCommissionRate}</p>
+                )}
               </div>
             </div>
 

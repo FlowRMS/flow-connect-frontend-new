@@ -26,7 +26,7 @@ function transformLandingPageToOrder(landing: OrderLandingPage): Order {
     customerId: '',
     customerName: landing.soldToCustomerName || '-',
     jobName: landing.jobName || '',
-    status: mapApiStatusToUiStatus(landing.status),
+    status: mapApiStatusToOrderStatus(landing.status),
     fulfillmentStatus: 'not_started',
     billingStatus: 'not_invoiced',
     commissionStatus: 'pending',
@@ -48,25 +48,28 @@ function transformLandingPageToOrder(landing: OrderLandingPage): Order {
 }
 
 /**
- * Map API status to UI status
+ * Map API status to OrderStatus type
+ * Valid statuses: OPEN, PARTIAL_SHIPPED, SHIPPED_COMPLETE, CANCELLED, OVER_SHIPPED, PARTIAL_CANCELLED, OVER_CANCELLED
  */
-function mapApiStatusToUiStatus(status?: string): 'draft' | 'open' | 'partial_shipped' | 'shipped' | 'cancelled' | 'dormant' {
+function mapApiStatusToOrderStatus(status?: string): 'OPEN' | 'PARTIAL_SHIPPED' | 'SHIPPED_COMPLETE' | 'CANCELLED' | 'OVER_SHIPPED' | 'PARTIAL_CANCELLED' | 'OVER_CANCELLED' {
   const s = status?.toUpperCase();
   switch (s) {
-    case 'DRAFT':
-      return 'draft';
     case 'OPEN':
-      return 'open';
+      return 'OPEN';
     case 'PARTIAL_SHIPPED':
-      return 'partial_shipped';
-    case 'SHIPPED':
-      return 'shipped';
+      return 'PARTIAL_SHIPPED';
+    case 'SHIPPED_COMPLETE':
+      return 'SHIPPED_COMPLETE';
     case 'CANCELLED':
-      return 'cancelled';
-    case 'DORMANT':
-      return 'dormant';
+      return 'CANCELLED';
+    case 'OVER_SHIPPED':
+      return 'OVER_SHIPPED';
+    case 'PARTIAL_CANCELLED':
+      return 'PARTIAL_CANCELLED';
+    case 'OVER_CANCELLED':
+      return 'OVER_CANCELLED';
     default:
-      return 'open';
+      return 'OPEN';
   }
 }
 
@@ -81,7 +84,7 @@ function transformSearchResultToOrder(result: OrderSearchResult): Order {
     manufacturerName: '',
     customerId: result.soldToCustomerId || '',
     customerName: '',
-    status: mapApiStatusToUiStatus(result.status),
+    status: mapApiStatusToOrderStatus(result.status),
     fulfillmentStatus: 'not_started',
     billingStatus: 'not_invoiced',
     commissionStatus: 'pending',
