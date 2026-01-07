@@ -18,6 +18,7 @@ import {
   getCrossPromptTemplates,
   createCrossPromptTemplate,
   incrementCrossPromptTemplateUsage,
+  deleteCrossPromptTemplate,
 } from '../lib/graphql/product-crosses';
 
 // Cross result with additional metadata
@@ -63,6 +64,20 @@ function mapCrossTypeFromApi(apiType: ProductCrossTypeEnum): 'direct' | 'upgrade
     default: return 'direct';
   }
 }
+
+// Fixed specification rows to always display (matching ProductCrossDetailView)
+const SPEC_ROWS = [
+  'Voltage',
+  'Wattage',
+  'Protocol',
+  'Zones',
+  'Color Temperature',
+  'Dimming Range',
+  'Max Load',
+  'Operating Temperature',
+  'Certifications',
+  'Additional Features',
+];
 
 export function ProductCrossResultsModal({
   isOpen,
@@ -111,6 +126,7 @@ export function ProductCrossResultsModal({
   const [templates, setTemplates] = useState<CrossPromptTemplate[]>([]);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [templateSearchQuery, setTemplateSearchQuery] = useState('');
+  const [deletingTemplateId, setDeletingTemplateId] = useState<string | null>(null);
 
   // Build cross results from the current cross + AI alternatives
   const crossResults: CrossResult[] = useMemo(() => {
@@ -153,23 +169,8 @@ export function ProductCrossResultsModal({
     specifications: parseSpecifications(cross.competitorDescription),
   };
 
-  // Get all specification keys from all products
-  const specKeys = useMemo(() => {
-    const allKeys = new Set<string>();
-    if (originalProduct.specifications) {
-      Object.keys(originalProduct.specifications).forEach(k => allKeys.add(k));
-    }
-    crossResults.forEach(r => {
-      if (r.specifications) {
-        Object.keys(r.specifications).forEach(k => allKeys.add(k));
-      }
-    });
-    // Default specs if none found
-    if (allKeys.size === 0) {
-      return ['Part Number', 'Description'];
-    }
-    return Array.from(allKeys);
-  }, [originalProduct.specifications, crossResults]);
+  // Use fixed specification rows to always show all attributes
+  const specKeys = SPEC_ROWS;
 
   // Handle cross type toggle
   const handleToggleCrossType = (type: string) => {
@@ -333,6 +334,26 @@ export function ProductCrossResultsModal({
       await incrementCrossPromptTemplateUsage(template.id);
     } catch (error) {
       console.error('Error incrementing template usage:', error);
+    }
+  }, []);
+
+  // Handle deleting a template
+  const handleDeleteTemplate = useCallback(async (e: React.MouseEvent, templateId: string) => {
+    e.stopPropagation(); // Prevent selecting the template
+    setDeletingTemplateId(templateId);
+    try {
+      const success = await deleteCrossPromptTemplate(templateId);
+      if (success) {
+        // Remove from local state
+        setTemplates(prev => prev.filter(t => t.id !== templateId));
+      } else {
+        setSearchError('Failed to delete template');
+      }
+    } catch (error) {
+      console.error('Error deleting template:', error);
+      setSearchError(error instanceof Error ? error.message : 'Failed to delete template');
+    } finally {
+      setDeletingTemplateId(null);
     }
   }, []);
 
@@ -1104,28 +1125,35 @@ export function ProductCrossResultsModal({
                             )}
                             <div className="text-xs text-gray-400 mt-2 line-clamp-2">{template.prompt}</div>
                           </div>
-                          <div className="text-xs text-gray-400 ml-4 flex-shrink-0">
-                            Used {template.timesUsed} times
+                          <div className="flex items-center gap-3 ml-4 flex-shrink-0">
+                            <div className="text-xs text-gray-400">
+                              Used {template.timesUsed} times
+                            </div>
+                            <button
+                              onClick={(e) => handleDeleteTemplate(e, template.id)}
+                              disabled={deletingTemplateId === template.id}
+                              className="p-1 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50"
+                              title="Delete template"
+                            >
+                              {deletingTemplateId === template.id ? (
+                                <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                </svg>
+                              ) : (
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                                  <line x1="10" y1="11" x2="10" y2="17" />
+                                  <line x1="14" y1="11" x2="14" y2="17" />
+                                </svg>
+                              )}
+                            </button>
                           </div>
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
-              </div>
-              <div className="px-6 py-4 border-t border-gray-200 flex-shrink-0">
-                <button
-                  onClick={() => {
-                    setShowTemplatesModal(false);
-                    setShowSavePromptModal(true);
-                  }}
-                  className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M12 5v14M5 12h14" />
-                  </svg>
-                  Create New Template
-                </button>
               </div>
             </div>
           </div>

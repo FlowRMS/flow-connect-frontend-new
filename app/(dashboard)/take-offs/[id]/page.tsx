@@ -4,7 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { TakeoffDetailView } from '@/components/takeoffs/views/TakeoffDetailView';
 import { fetchTakeoff, updateTakeoffDocument, updateTakeoff, abridgeDocument as abridgeDocumentAPI, parseScheduleDocument } from '@/components/lib/graphql/takeoffs';
-import { crossProducts, createKnownProductCross } from '@/components/lib/graphql/product-crosses';
+import { crossProducts } from '@/components/lib/graphql/product-crosses';
 import type { Takeoff, TakeoffDocument, ParsedItem, TakeoffStep, PageAnalysis } from '@/components/takeoffs/types';
 import { transformTakeoffResponse, stepToApiStatus, transformDocumentResponse } from '@/components/takeoffs/types';
 import { getInitialStep } from '@/components/takeoffs/utils';
@@ -514,21 +514,9 @@ export default function TakeoffDetailPage() {
             items.map(i => i.id === itemId ? crossedItem : i)
           );
 
-          // Save product cross to database for future reference
-          try {
-            console.log('🟢 [page.tsx handleCrossItem] Saving product cross to database...');
-            await createKnownProductCross({
-              competitorManufacturer: item.manufacturer,
-              competitorPartNumber: item.partNumber,
-              competitorDescription: item.description || '',
-              ourManufacturer: crossedItem.crossedManufacturer || 'Our Company',
-              ourPartNumber: crossedItem.crossedPartNumber || '',
-              ourDescription: crossedItem.crossedDescription || '',
-            });
-            console.log('🟢 [page.tsx handleCrossItem] Product cross saved successfully!');
-          } catch (persistCrossErr) {
-            console.error('🔴 [page.tsx handleCrossItem] Failed to save product cross:', persistCrossErr);
-          }
+          // NOTE: No auto-save to known_product_crosses here
+          // User must explicitly save crosses via "Save Selected" flow
+          console.log('🟢 [page.tsx handleCrossItem] Cross applied locally (no auto-save to known crosses)');
 
           // Persist to backend if we have a documentId
           if (item.documentId) {
@@ -651,20 +639,8 @@ export default function TakeoffDetailPage() {
                 crossedPartNumber: alternative.name || '',
                 crossedDescription: alternative.description || `${item.description} (Crossed)`,
               };
-
-              // Save to database
-              try {
-                await createKnownProductCross({
-                  competitorManufacturer: item.manufacturer,
-                  competitorPartNumber: item.partNumber,
-                  competitorDescription: item.description || '',
-                  ourManufacturer: 'Our Company',
-                  ourPartNumber: alternative.name || '',
-                  ourDescription: alternative.description || '',
-                });
-              } catch (persistErr) {
-                console.error(`Failed to persist cross for ${item.partNumber}:`, persistErr);
-              }
+              // NOTE: No auto-save to known_product_crosses here
+              // User must explicitly save crosses via "Save Selected" flow
             }
           }
         }
