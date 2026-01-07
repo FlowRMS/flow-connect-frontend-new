@@ -8,9 +8,15 @@
  * - Clicking "Abridged to X pages" link downloaded the original PDF instead of abridged
  * - Fix: handleDownloadDocument and handleDownloadAllDocuments now use abridgedUrl || documentUrl
  *
+ * Bug #2 (wasAbridged fix):
+ * - Backend returns success=true but same URL when reduction < 30% threshold
+ * - Frontend was storing abridgedUrl even when no new PDF was generated
+ * - Fix: Only use abridgedUrl when wasAbridged=true from API response
+ *
  * Expected behavior:
  * - If doc.abridgedUrl exists, download that
  * - Otherwise, download doc.documentUrl
+ * - abridgedUrl should only be set when wasAbridged=true (new PDF actually generated)
  */
 
 import * as fs from 'fs';
@@ -138,6 +144,65 @@ describe('Download Abridged PDF - Regression Tests', () => {
         // Should not have doc.documentUrl in proxy URL or window.open
         expect(afterUrlDefinition).not.toContain('encodeURIComponent(doc.documentUrl)');
         expect(afterUrlDefinition).not.toMatch(/window\.open\(doc\.documentUrl/);
+      }
+    });
+  });
+
+  describe('wasAbridged flag handling (Bug #2 fix)', () => {
+    it('handleAbridgeDocument should use effectiveAbridgedUrl based on wasAbridged', () => {
+      // Extract handleAbridgeDocument function
+      const funcMatch = pageSource.match(
+        /const handleAbridgeDocument = async[\s\S]*?(?=\n  \/\/ Cross a single|const handleCrossItem)/
+      );
+
+      expect(funcMatch).toBeTruthy();
+      const funcBody = funcMatch![0];
+
+      // Should define effectiveAbridgedUrl based on wasAbridged
+      expect(funcBody).toContain('const effectiveAbridgedUrl = result.wasAbridged ? result.abridgedUrl : undefined');
+    });
+
+    it('handleAbridgeDocument should use effectiveAbridgedUrl when updating state', () => {
+      const funcMatch = pageSource.match(
+        /const handleAbridgeDocument = async[\s\S]*?(?=\n  \/\/ Cross a single|const handleCrossItem)/
+      );
+
+      expect(funcMatch).toBeTruthy();
+      const funcBody = funcMatch![0];
+
+      // Should use effectiveAbridgedUrl in setDocuments
+      expect(funcBody).toContain('abridgedUrl: effectiveAbridgedUrl');
+    });
+
+    it('handleAbridgeDocument should use effectiveAbridgedUrl when persisting to backend', () => {
+      const funcMatch = pageSource.match(
+        /const handleAbridgeDocument = async[\s\S]*?(?=\n  \/\/ Cross a single|const handleCrossItem)/
+      );
+
+      expect(funcMatch).toBeTruthy();
+      const funcBody = funcMatch![0];
+
+      // Should use effectiveAbridgedUrl in updateTakeoffDocument call
+      expect(funcBody).toContain('abridgedUrl: effectiveAbridgedUrl || null');
+    });
+
+    it('handleAbridgeDocument should NOT use result.abridgedUrl directly for state/persist', () => {
+      const funcMatch = pageSource.match(
+        /const handleAbridgeDocument = async[\s\S]*?(?=\n  \/\/ Cross a single|const handleCrossItem)/
+      );
+
+      expect(funcMatch).toBeTruthy();
+      const funcBody = funcMatch![0];
+
+      // After defining effectiveAbridgedUrl, should NOT use result.abridgedUrl directly
+      const afterEffectiveDefinition = funcBody.split('const effectiveAbridgedUrl')[1];
+      if (afterEffectiveDefinition) {
+        // Should not have result.abridgedUrl in setDocuments or updateTakeoffDocument
+        // (it's ok to have it in logging)
+        const stateUpdateSection = afterEffectiveDefinition.match(/setDocuments[\s\S]*?(?=\n\s*\/\/ Persist|await updateTakeoffDocument)/);
+        if (stateUpdateSection) {
+          expect(stateUpdateSection[0]).not.toMatch(/abridgedUrl:\s*result\.abridgedUrl/);
+        }
       }
     });
   });
