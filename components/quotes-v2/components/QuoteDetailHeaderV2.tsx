@@ -1,12 +1,51 @@
 'use client';
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import type { QuoteV2, QuotePipelineStage, LineItemV2, QuoteSettingsV2 } from '../types';
+import type { QuoteV2, QuotePipelineStage, LineItemV2, QuoteSettingsV2, QuoteV2Status } from '../types';
 import { SearchableDropdownV2 } from './SearchableDropdownV2';
 import { useCustomerSearch, useUserSearch, useJobSearch, useFactorySearch } from '../../quotes/api/useQuotesApi';
 import { searchUsers } from '../../quotes/api/quotesApi';
 import { CreateOrderFromQuoteModal } from '../modals/CreateOrderFromQuoteModal';
 import { CreatedByBadge } from '@/components/ui/CreatedByBadge';
+
+// Quote status options using API enum values
+const quoteStatusOptions: QuoteV2Status[] = [
+  'OPEN',
+  'ORDERED',
+  'EXPIRED',
+  'LOST',
+];
+
+// Format quote status for display
+function formatQuoteStatus(status: QuoteV2Status): string {
+  switch (status) {
+    case 'OPEN':
+      return 'Open';
+    case 'ORDERED':
+      return 'Ordered';
+    case 'EXPIRED':
+      return 'Expired';
+    case 'LOST':
+      return 'Lost';
+    default:
+      return status;
+  }
+}
+
+function getQuoteStatusBadgeClass(status?: QuoteV2Status): string {
+  switch (status) {
+    case 'OPEN':
+      return 'bg-blue-500';
+    case 'ORDERED':
+      return 'bg-green-500';
+    case 'EXPIRED':
+      return 'bg-gray-500';
+    case 'LOST':
+      return 'bg-red-500';
+    default:
+      return 'bg-blue-500';
+  }
+}
 
 interface QuoteDetailHeaderV2Props {
   quote: QuoteV2;
@@ -23,7 +62,7 @@ interface QuoteDetailHeaderV2Props {
   onClearLineItemProducts?: () => void;
 }
 
-// Pipeline stage options using API enum values
+// Pipeline stage options - kept for potential future use
 const pipelineStageOptions: QuotePipelineStage[] = [
   'DISCOVERY',
   'PROSPECT',
@@ -96,7 +135,8 @@ export function QuoteDetailHeaderV2({
   onClearLineItemProducts,
 }: QuoteDetailHeaderV2Props) {
   const [showActionsMenu, setShowActionsMenu] = useState(false);
-  const [showStageMenu, setShowStageMenu] = useState(false);
+  const [showStatusMenu, setShowStatusMenu] = useState(false);
+  const [showPipelineStageMenu, setShowPipelineStageMenu] = useState(false);
   const [showVersionMenu, setShowVersionMenu] = useState(false);
   const [showViewModeMenu, setShowViewModeMenu] = useState(false);
   const [showSaveMenu, setShowSaveMenu] = useState(false);
@@ -592,10 +632,47 @@ export function QuoteDetailHeaderV2({
             )}
           </div>
 
+          {/* Status Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowStatusMenu(!showStatusMenu)}
+              className={`flex items-center gap-1 px-3 py-1.5 text-sm text-white rounded-lg transition-colors ${getQuoteStatusBadgeClass(quote.status)}`}
+            >
+              {formatQuoteStatus(quote.status || 'OPEN')}
+              <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+              </svg>
+            </button>
+            {showStatusMenu && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowStatusMenu(false)} />
+                <div className="absolute top-full right-0 mt-1 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1">
+                  {quoteStatusOptions.map((status) => (
+                    <button
+                      key={status}
+                      onClick={() => {
+                        onQuoteChange({ status: status });
+                        setShowStatusMenu(false);
+                      }}
+                      className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${quote.status === status ? 'bg-gray-50' : ''}`}
+                    >
+                      <span>{formatQuoteStatus(status)}</span>
+                      {quote.status === status && (
+                        <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" className="text-indigo-600">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
           {/* Pipeline Stage Dropdown */}
           <div className="relative">
             <button
-              onClick={() => setShowStageMenu(!showStageMenu)}
+              onClick={() => setShowPipelineStageMenu(!showPipelineStageMenu)}
               className={`flex items-center gap-1 px-3 py-1.5 text-sm text-white rounded-lg transition-colors ${getPipelineStageBadgeClass(quote.pipelineStage)}`}
             >
               {formatPipelineStage(quote.pipelineStage || 'DISCOVERY')}
@@ -603,16 +680,16 @@ export function QuoteDetailHeaderV2({
                 <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
               </svg>
             </button>
-            {showStageMenu && (
+            {showPipelineStageMenu && (
               <>
-                <div className="fixed inset-0 z-10" onClick={() => setShowStageMenu(false)} />
+                <div className="fixed inset-0 z-10" onClick={() => setShowPipelineStageMenu(false)} />
                 <div className="absolute top-full right-0 mt-1 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1">
                   {pipelineStageOptions.map((stage) => (
                     <button
                       key={stage}
                       onClick={() => {
                         onQuoteChange({ pipelineStage: stage });
-                        setShowStageMenu(false);
+                        setShowPipelineStageMenu(false);
                       }}
                       className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${quote.pipelineStage === stage ? 'bg-gray-50' : ''}`}
                     >

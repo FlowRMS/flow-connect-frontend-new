@@ -45,14 +45,15 @@ interface HeaderTopBarProps {
 
 const getStatusColor = (status: Order['status']) => {
   const colors: Record<Order['status'], string> = {
-    draft: 'bg-gray-100 text-gray-700',
-    open: 'bg-blue-100 text-blue-700',
-    partial_shipped: 'bg-yellow-100 text-yellow-700',
-    shipped: 'bg-green-100 text-green-700',
-    cancelled: 'bg-red-100 text-red-700',
-    dormant: 'bg-gray-100 text-gray-600',
+    OPEN: 'bg-blue-100 text-blue-700',
+    PARTIAL_SHIPPED: 'bg-yellow-100 text-yellow-700',
+    SHIPPED_COMPLETE: 'bg-green-100 text-green-700',
+    CANCELLED: 'bg-red-100 text-red-700',
+    OVER_SHIPPED: 'bg-orange-100 text-orange-700',
+    PARTIAL_CANCELLED: 'bg-red-100 text-red-600',
+    OVER_CANCELLED: 'bg-red-100 text-red-800',
   };
-  return colors[status] || colors.draft;
+  return colors[status] || colors.OPEN;
 };
 
 export function HeaderTopBar({
@@ -210,8 +211,8 @@ export function HeaderTopBar({
               </svg>
             </button>
             {showStatusDropdown && (
-              <div className="absolute top-full left-0 mt-1 w-40 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
-                {(['draft', 'open', 'partial_shipped', 'shipped', 'cancelled', 'dormant'] as Order['status'][]).map((status) => (
+              <div className="absolute top-full left-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                {(['OPEN', 'PARTIAL_SHIPPED', 'SHIPPED_COMPLETE', 'CANCELLED', 'OVER_SHIPPED', 'PARTIAL_CANCELLED', 'OVER_CANCELLED'] as Order['status'][]).map((status) => (
                   <button
                     key={status}
                     onClick={() => {
