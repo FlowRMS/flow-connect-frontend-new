@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { FulfillmentOrder, AttachedDocument } from '@/lib/types/warehouse';
+import { useShippingCarriersByType } from '@/components/warehouse/settings/api/useShippingCarriersApi';
 
 interface ShipmentConfirmationModalProps {
   isOpen: boolean;
@@ -110,6 +111,32 @@ export default function ShipmentConfirmationModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Fetch carriers to look up names
+  const carrierTypeForQuery = carrierType === 'parcel' ? 'PARCEL' : 'FREIGHT';
+  const { data: carriers = [] } = useShippingCarriersByType(carrierTypeForQuery, true);
+
+  // Check if string is a UUID
+  const isUUID = (str: string) => {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+  };
+
+  // Format carrier name for display
+  const formatCarrier = (carrierValue: string | undefined | null) => {
+    if (!carrierValue) return 'N/A';
+    // If it's a UUID, look up the carrier name
+    if (isUUID(carrierValue)) {
+      const foundCarrier = carriers.find(c => c.id === carrierValue);
+      if (foundCarrier) {
+        return foundCarrier.name + (foundCarrier.code ? ` (${foundCarrier.code})` : '');
+      }
+      return 'Carrier Selected';
+    }
+    return carrierValue.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
+
+  // Get formatted carrier name
+  const carrierDisplayName = formatCarrier(carrier);
+
   // Get BOL document if exists
   const bolDocument = attachedDocuments.find(d =>
     d.type === 'BILL_OF_LADING' || d.name.toLowerCase().includes('bill of lading') || d.name.toLowerCase().includes('bol')
@@ -121,7 +148,7 @@ export default function ShipmentConfirmationModal({
     orderNumber: fulfillmentOrder.orderNumber,
     customerName: shipTo?.name || fulfillmentOrder.customerName || 'N/A',
     trackingInfo: trackingNumbers
-      ? `Tracking Number(s): ${trackingNumbers}\nCarrier: ${carrier ? carrier.toUpperCase().replace('_', ' ') : 'N/A'}`
+      ? `Tracking Number(s): ${trackingNumbers}\nCarrier: ${carrierDisplayName}`
       : 'Tracking information will be provided once available.',
     shippingAddress: shipTo ? [
       shipTo.addressLine1,
@@ -129,7 +156,7 @@ export default function ShipmentConfirmationModal({
       `${shipTo.city || ''}, ${shipTo.state || ''} ${shipTo.postalCode || ''}`.trim(),
     ].filter(Boolean).join('\n') : 'No shipping address provided',
     orderItems: fulfillmentOrder.lineItems.map(item =>
-      `• ${item.productName} (${item.partNumber}) x ${item.allocatedQty}`
+      `• ${item.productName} (${item.partNumber}) x ${Math.round(Number(item.allocatedQty))}`
     ).join('\n'),
     warehouseAddress: 'Atlanta Distribution Center\n1234 Industrial Parkway\nAtlanta, GA 30301',
   };
@@ -184,17 +211,16 @@ export default function ShipmentConfirmationModal({
     setIsGenerating(true);
     await new Promise(resolve => setTimeout(resolve, 1500));
 
-    const carrierName = carrier ? carrier.toUpperCase().replace('_', ' ') : 'our carrier partner';
     const deliveryEstimate = carrierType === 'freight' ? '3-5 business days' : '2-3 business days';
 
     setBody(
 `Dear ${fulfillmentOrder.shipTo?.name || fulfillmentOrder.customerName || 'Valued Customer'},
 
-Great news! Your order ${fulfillmentOrder.orderNumber} has been shipped via ${carrierName} and is currently en route to your location.
+Great news! Your order ${fulfillmentOrder.orderNumber} has been shipped via ${carrierDisplayName} and is currently en route to your location.
 
 ${trackingNumbers ? `You can track your shipment using the following information:
 Tracking Number(s): ${trackingNumbers}
-Carrier: ${carrierName}
+Carrier: ${carrierDisplayName}
 Estimated Delivery: ${deliveryEstimate}` : `Estimated Delivery: ${deliveryEstimate}`}
 
 Delivery Address:
@@ -203,7 +229,7 @@ ${fulfillmentOrder.shipTo?.city || ''}, ${fulfillmentOrder.shipTo?.state || ''} 
 
 Items Shipped:
 ${fulfillmentOrder.lineItems.map(item =>
-  `• ${item.productName} (Part #${item.partNumber}) - Qty: ${item.allocatedQty}`
+  `• ${item.productName} (Part #${item.partNumber}) - Qty: ${Math.round(Number(item.allocatedQty))}`
 ).join('\n')}
 
 ${carrierType === 'freight' ? `Please note: This is a freight shipment. You will be contacted by the carrier to schedule a delivery appointment. Please ensure someone is available to receive and sign for the delivery.\n` : ''}${bolDocument ? '\nWe have attached the Bill of Lading for your records.' : ''}
@@ -557,7 +583,7 @@ The Warehouse Team`
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-[var(--muted-foreground)]">Carrier:</span>
-                    <span className="font-medium capitalize">{carrier?.replace('_', ' ') || '-'}</span>
+                    <span className="font-medium">{carrierDisplayName}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-[var(--muted-foreground)]">Type:</span>

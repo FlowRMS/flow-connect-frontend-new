@@ -202,7 +202,7 @@ export default function PackingBox({
                   <div className="text-xs text-[var(--muted-foreground)] truncate">{lineItem.productName}</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-bold">{lineItem.allocatedQty}</div>
+                  <div className="text-sm font-bold">{Math.round(Number(lineItem.allocatedQty))}</div>
                   <div className="text-xs text-[var(--muted-foreground)]">{lineItem.uom}</div>
                 </div>
                 <button

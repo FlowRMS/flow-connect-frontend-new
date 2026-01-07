@@ -62,7 +62,7 @@ export default function UnassignedItems({
             }`}
           >
             <span className="w-6 h-6 rounded bg-[var(--muted)] flex items-center justify-center text-xs font-bold">
-              {lineItem.allocatedQty}
+              {Math.round(Number(lineItem.allocatedQty))}
             </span>
             <div>
               <div className="text-sm font-medium">{lineItem.partNumber}</div>

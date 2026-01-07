@@ -3,6 +3,7 @@
 import React from 'react';
 import { FulfillmentOrder } from '@/lib/types/warehouse';
 import { PackingBoxType } from './packing/PackingBox';
+import { useShippingCarriersByType } from '@/components/warehouse/settings/api/useShippingCarriersApi';
 
 interface ShippedInterfaceProps {
   fulfillmentOrder: FulfillmentOrder;
@@ -36,6 +37,29 @@ export default function ShippedInterface({
   onShowShippingLabelsModal,
   onShowBOLModal,
 }: ShippedInterfaceProps) {
+  // Fetch carriers to look up names
+  const carrierTypeForQuery = shippedData.carrierType === 'parcel' ? 'PARCEL' : 'FREIGHT';
+  const { data: carriers = [] } = useShippingCarriersByType(carrierTypeForQuery, true);
+
+  // Check if string is a UUID
+  const isUUID = (str: string) => {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+  };
+
+  // Format carrier name for display
+  const formatCarrier = (carrier: string | undefined | null) => {
+    if (!carrier) return 'N/A';
+    // If it's a UUID, look up the carrier name
+    if (isUUID(carrier)) {
+      const foundCarrier = carriers.find(c => c.id === carrier);
+      if (foundCarrier) {
+        return foundCarrier.name + (foundCarrier.code ? ` (${foundCarrier.code})` : '');
+      }
+      return 'Carrier Selected';
+    }
+    return carrier.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
+
   return (
     <div className="bg-[var(--card)] rounded-lg border-2 border-green-400 overflow-hidden">
       {/* Header */}
@@ -71,7 +95,7 @@ export default function ShippedInterface({
           <div className="bg-[var(--muted)]/20 rounded-lg p-3">
             <div className="text-xs font-medium text-[var(--muted-foreground)] uppercase mb-1">Carrier</div>
             <div className="text-sm font-semibold text-[var(--foreground)] capitalize">
-              {shippedData.carrier?.replace(/_/g, ' ') || 'N/A'}
+              {formatCarrier(shippedData.carrier)}
             </div>
           </div>
           <div className="bg-[var(--muted)]/20 rounded-lg p-3">
@@ -207,7 +231,7 @@ export default function ShippedInterface({
               <div className="w-2 h-2 rounded-full bg-purple-500 mt-1.5 flex-shrink-0"/>
               <div>
                 <div className="text-sm font-medium text-[var(--foreground)]">Shipping Started</div>
-                <div className="text-xs text-[var(--muted-foreground)]">Carrier: {shippedData.carrier?.replace(/_/g, ' ') || 'N/A'}</div>
+                <div className="text-xs text-[var(--muted-foreground)]">Carrier: {formatCarrier(shippedData.carrier)}</div>
               </div>
             </div>
             <div className="flex items-start gap-3">

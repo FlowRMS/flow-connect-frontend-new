@@ -182,8 +182,8 @@ export default function PickingInterface({
     });
   }, []);
 
-  const totalToPick = fulfillmentOrder.lineItems.reduce((sum, li) => sum + li.allocatedQty, 0);
-  const totalPicked = Object.values(locationPicks).reduce((sum, lp) => sum + lp.totalPicked, 0);
+  const totalToPick = fulfillmentOrder.lineItems.reduce((sum, li) => sum + Number(li.allocatedQty), 0);
+  const totalPicked = Object.values(locationPicks).reduce((sum, lp) => sum + Number(lp.totalPicked), 0);
   const allItemsPicked = fulfillmentOrder.lineItems.every(li => {
     const state = locationPicks[li.id];
     return state && state.totalPicked >= state.totalExpected;
@@ -830,14 +830,14 @@ export default function PickingInterface({
 
                 {/* Status indicator */}
                 <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
-                  isPicked ? 'bg-green-500' : isShort ? 'bg-amber-500' : 'bg-[var(--muted)]'
+                  isPicked ? 'bg-green-500' : isShort ? 'bg-amber-500' : 'bg-gray-300'
                 }`}>
                   {isPicked ? (
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
                       <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                   ) : (
-                    <span className="text-lg font-bold text-white">{lineState.totalExpected}</span>
+                    <span className="text-lg font-bold text-gray-700">{Math.round(lineState.totalExpected)}</span>
                   )}
                 </div>
 
@@ -861,7 +861,7 @@ export default function PickingInterface({
                 {/* Quantity display */}
                 <div className="text-right">
                   <div className={`text-2xl font-bold ${isShort ? 'text-amber-600' : 'text-[var(--foreground)]'}`}>
-                    {lineState.totalPicked} / {lineState.totalExpected}
+                    {Math.round(lineState.totalPicked)} / {Math.round(lineState.totalExpected)}
                   </div>
                   <div className="text-xs text-[var(--muted-foreground)]">picked</div>
                 </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useShippingCarriersByType } from '@/components/warehouse/settings/api/useShippingCarriersApi';
 
 interface ShippingConfigPanelProps {
   shippingMethod: 'SHIP' | 'WILL_CALL';
@@ -36,8 +37,25 @@ export default function ShippingConfigPanel({
   onBolNumberChange,
   onFreightClassChange,
 }: ShippingConfigPanelProps) {
+  // Fetch carriers to look up names
+  const carrierTypeForQuery = carrierType === 'parcel' ? 'PARCEL' : 'FREIGHT';
+  const { data: carriers = [] } = useShippingCarriersByType(carrierTypeForQuery, true);
+
+  // Check if string is a UUID
+  const isUUID = (str: string) => {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+  };
+
   // Format carrier name for display
   const formatCarrier = (carrier: string) => {
+    // If it's a UUID, look up the carrier name
+    if (isUUID(carrier)) {
+      const foundCarrier = carriers.find(c => c.id === carrier);
+      if (foundCarrier) {
+        return foundCarrier.name + (foundCarrier.code ? ` (${foundCarrier.code})` : '');
+      }
+      return 'Carrier Selected';
+    }
     return carrier.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
