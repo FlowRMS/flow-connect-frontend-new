@@ -56,7 +56,6 @@ interface TakeoffDetailViewProps {
   onRerunCross?: (prompt: string, crossTypes: CrossType[]) => void;
   shouldAutoClassify?: boolean;
   onAutoClassifyComplete?: () => void;
-  onUpdateTitle?: (title: string) => void;
 }
 
 // Simplified 2-tab workflow configuration
@@ -107,30 +106,8 @@ export function TakeoffDetailView({
   onRerunCross,
   shouldAutoClassify = false,
   onAutoClassifyComplete,
-  onUpdateTitle,
 }: TakeoffDetailViewProps) {
   const currentStepIndex = WORKFLOW_STEPS.findIndex(s => s.id === currentStep);
-
-  // Title editing state
-  const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [editedTitle, setEditedTitle] = useState(takeoff.title || '');
-
-  // Handle title save
-  const handleTitleSave = () => {
-    if (editedTitle.trim() && editedTitle !== takeoff.title) {
-      onUpdateTitle?.(editedTitle.trim());
-    }
-    setIsEditingTitle(false);
-  };
-
-  const handleTitleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleTitleSave();
-    } else if (e.key === 'Escape') {
-      setEditedTitle(takeoff.title || '');
-      setIsEditingTitle(false);
-    }
-  };
 
   // AI Classification state
   const [isClassifying, setIsClassifying] = useState(false);
@@ -394,39 +371,11 @@ export function TakeoffDetailView({
         Back to Takeoffs
       </button>
 
-      {/* Header with editable title and ID */}
+      {/* Header with title and ID */}
       <div className="mb-6">
-        {isEditingTitle ? (
-          <input
-            type="text"
-            value={editedTitle}
-            onChange={(e) => setEditedTitle(e.target.value)}
-            onBlur={handleTitleSave}
-            onKeyDown={handleTitleKeyDown}
-            autoFocus
-            className="text-2xl font-bold text-gray-900 bg-transparent border-b-2 border-purple-500 outline-none w-full max-w-md"
-            placeholder="Enter takeoff title..."
-          />
-        ) : (
-          <div className="flex items-center gap-2 group">
-            <h1 className="text-2xl font-bold text-gray-900">
-              {takeoff.title || 'New Takeoff Project'}
-            </h1>
-            <button
-              onClick={() => {
-                setEditedTitle(takeoff.title || '');
-                setIsEditingTitle(true);
-              }}
-              className="p-1 text-gray-400 hover:text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity"
-              title="Edit title"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-              </svg>
-            </button>
-          </div>
-        )}
+        <h1 className="text-2xl font-bold text-gray-900">
+          {takeoff.title || 'New Takeoff Project'}
+        </h1>
         <p className="text-sm text-gray-500 mt-1">
           {takeoff.takeoffNumber || `TO-${takeoff.id?.slice(0, 3).toUpperCase() || 'NEW'}`}
         </p>

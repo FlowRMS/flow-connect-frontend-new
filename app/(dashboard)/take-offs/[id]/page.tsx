@@ -723,22 +723,6 @@ export default function TakeoffDetailPage() {
     }
   };
 
-  // Update takeoff title
-  const handleUpdateTitle = async (newTitle: string) => {
-    if (!takeoff) return;
-
-    // Update local state immediately for responsive UI
-    setTakeoff(prev => prev ? { ...prev, title: newTitle } : null);
-
-    try {
-      await updateTakeoff(takeoff.id, { title: newTitle });
-    } catch (err) {
-      console.error('Failed to update title:', err);
-      // Revert on error
-      setTakeoff(prev => prev ? { ...prev, title: takeoff.title } : null);
-    }
-  };
-
   // Handle Create Quote button click with status validation
   const handleCreateQuote = () => {
     // Check if takeoff status is Complete
@@ -829,7 +813,6 @@ export default function TakeoffDetailPage() {
         onSelectAlternative={() => {}}
         onDeleteCrossAlternative={() => {}}
         onRerunCross={() => {}}
-        onUpdateTitle={handleUpdateTitle}
       />
 
       {/* Abridgment Report Modal */}
