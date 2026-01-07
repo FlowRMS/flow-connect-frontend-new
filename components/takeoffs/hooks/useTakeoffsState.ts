@@ -887,37 +887,7 @@ export function useTakeoffsState() {
         })
       );
 
-      // Persist all crosses to database
-      let persistedCount = 0;
-      for (const item of itemsToCross) {
-        const crossedResult = crossedResults.get(item.id);
-        const crossedManufacturer = crossedResult?.manufacturer || 'Our Company';
-        const crossedPartNumber = crossedResult?.partNumber || `OC-${Math.floor(Math.random() * 90000) + 10000}`;
-        const crossedDescription = crossedResult?.description || item.description + ' (Crossed)';
-
-        try {
-          await createKnownProductCross({
-            competitorManufacturer: item.manufacturer,
-            competitorPartNumber: item.partNumber,
-            competitorDescription: item.description || '',
-            ourManufacturer: crossedManufacturer,
-            ourPartNumber: crossedPartNumber,
-            ourDescription: crossedDescription,
-          });
-          persistedCount++;
-          setProductCrossState(prev => ({
-            ...prev,
-            progress: Math.round((persistedCount / itemsToCross.length) * 100),
-            currentItem: item.partNumber,
-          }));
-        } catch (persistError) {
-          console.error(`Failed to persist cross for ${item.partNumber}:`, persistError);
-        }
-      }
-
-      showSuccessToast(`Crossed ${itemsToCross.length} items`, {
-        description: `${persistedCount} saved to database`
-      });
+      showSuccessToast(`Crossed ${itemsToCross.length} items`);
 
       // Persist crossed items to takeoff_documents for each document
       // First, build the updated items map
@@ -1219,33 +1189,7 @@ export function useTakeoffsState() {
             };
           })
         );
-        console.log('🟡 [STEP 7] UI state updated, now persisting to database...');
-
-        // Persist to known product crosses database
-        const persistInput = {
-          competitorManufacturer: item.manufacturer,
-          competitorPartNumber: item.partNumber,
-          competitorDescription: item.description || '',
-          ourManufacturer: crossedManufacturer,
-          ourPartNumber: crossedPartNumber,
-          ourDescription: crossedDescription,
-        };
-        console.log('🟢 [STEP 8] ABOUT TO CALL createKnownProductCross with:', persistInput);
-
-        try {
-          console.log('🟢 [STEP 9] Inside try block, calling createKnownProductCross NOW...');
-          const persistResult = await createKnownProductCross(persistInput);
-          console.log('🟢 [STEP 10] createKnownProductCross SUCCESS! Result:', persistResult);
-          showSuccessToast('Product cross saved to database');
-          console.log('🟢 [STEP 11] Success toast shown');
-        } catch (persistError) {
-          console.error('🔴 [STEP 10-ERROR] createKnownProductCross FAILED:', persistError);
-          console.error('🔴 [STEP 10-ERROR] Error type:', typeof persistError);
-          console.error('🔴 [STEP 10-ERROR] Error message:', persistError instanceof Error ? persistError.message : String(persistError));
-          showErrorToast('Failed to save product cross', {
-            description: persistError instanceof Error ? persistError.message : 'Unknown error'
-          });
-        }
+        console.log('🟡 [STEP 7] UI state updated (no auto-save to database)');
       } else {
         // Fallback if no crosses found
         const crossedManufacturer = 'Our Company';
@@ -1264,24 +1208,6 @@ export function useTakeoffsState() {
             };
           })
         );
-
-        // Persist fallback cross to database
-        try {
-          await createKnownProductCross({
-            competitorManufacturer: item.manufacturer,
-            competitorPartNumber: item.partNumber,
-            competitorDescription: item.description || '',
-            ourManufacturer: crossedManufacturer,
-            ourPartNumber: crossedPartNumber,
-            ourDescription: crossedDescription,
-          });
-          showSuccessToast('Product cross saved to database');
-        } catch (persistError) {
-          console.error('Failed to persist product cross:', persistError);
-          showErrorToast('Failed to save product cross', {
-            description: persistError instanceof Error ? persistError.message : 'Unknown error'
-          });
-        }
       }
     } catch (error) {
       console.error('Failed to cross item:', error);
@@ -1302,24 +1228,6 @@ export function useTakeoffsState() {
           };
         })
       );
-
-      // Try to persist even on AI error
-      try {
-        await createKnownProductCross({
-          competitorManufacturer: item.manufacturer,
-          competitorPartNumber: item.partNumber,
-          competitorDescription: item.description || '',
-          ourManufacturer: crossedManufacturer,
-          ourPartNumber: crossedPartNumber,
-          ourDescription: crossedDescription,
-        });
-        showSuccessToast('Product cross saved to database');
-      } catch (persistError) {
-        console.error('Failed to persist product cross:', persistError);
-        showErrorToast('Failed to save product cross', {
-          description: persistError instanceof Error ? persistError.message : 'Unknown error'
-        });
-      }
     } finally {
       setProductCrossState({ isProcessing: false, progress: 100 });
 
