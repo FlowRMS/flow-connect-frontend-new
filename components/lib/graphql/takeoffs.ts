@@ -1099,6 +1099,7 @@ export async function createTakeoffWithFiles(
         fileType: doc.fileType || '',
         fileSize: doc.fileSize,
         documentUrl: doc.documentUrl ?? null,
+        abridgedUrl: null,
         pages: doc.pages || 0,
         abridged: doc.abridged || false,
         abridgedPages: null,

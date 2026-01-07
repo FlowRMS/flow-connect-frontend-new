@@ -87,6 +87,7 @@ export function TakeoffsContent() {
     productCrossState,
     handleCrossTypesChange,
     handleSelectAlternative,
+    handleSaveSelectedCrosses,
     handleDeleteCrossAlternative,
     handleRerunCross,
     totalCount,
@@ -319,6 +320,7 @@ export function TakeoffsContent() {
           onDownloadAllDocuments={handleDownloadAllDocuments}
           onCrossTypesChange={handleCrossTypesChange}
           onSelectAlternative={handleSelectAlternative}
+          onSaveSelectedCrosses={handleSaveSelectedCrosses}
           onDeleteCrossAlternative={handleDeleteCrossAlternative}
           onRerunCross={handleRerunCross}
           shouldAutoClassify={shouldAutoClassify}
@@ -350,7 +352,7 @@ export function TakeoffsContent() {
       <CreateQuoteFromTakeoffModal
         isOpen={showCreateQuoteModal}
         takeoffId={selectedTakeoff?.id || ''}
-        takeoffName={selectedTakeoff?.name || selectedTakeoff?.title || 'Takeoff'}
+        takeoffName={selectedTakeoff?.title || 'Takeoff'}
         clientName={selectedTakeoff?.metadata?.clientName}
         crossedItems={parsedItems.filter(item => item.isCrossed)}
         onClose={() => setShowCreateQuoteModal(false)}

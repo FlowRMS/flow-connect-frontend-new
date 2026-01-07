@@ -234,7 +234,7 @@ export default function TakeoffDetailPage() {
 
     // Create ZIP file with all documents
     const zip = new JSZip();
-    const takeoffName = takeoff?.name || 'takeoff';
+    const takeoffName = takeoff?.title || 'takeoff';
 
     console.log(`📦 Starting ZIP download for ${docsWithUrls.length} documents...`);
 
@@ -829,8 +829,8 @@ export default function TakeoffDetailPage() {
       <CreateQuoteFromTakeoffModal
         isOpen={showCreateQuoteModal}
         takeoffId={takeoffId}
-        takeoffName={takeoff?.name || takeoff?.title || 'Takeoff'}
-        clientName={takeoff?.clientName}
+        takeoffName={takeoff?.title || 'Takeoff'}
+        clientName={takeoff?.metadata?.clientName}
         crossedItems={parsedItems.filter(item => item.isCrossed)}
         onClose={() => setShowCreateQuoteModal(false)}
         onSuccess={(quote) => {

@@ -85,6 +85,7 @@ interface ProductCrossDetailViewProps {
   selectedCrossTypes: CrossType[];
   onCrossTypesChange: (types: CrossType[]) => void;
   onSelectAlternative: (originalIndex: number, altIndex: number) => void;
+  onSaveSelectedCrosses: () => void;
   onDeleteCross: (originalIndex: number, altIndex: number) => void;
   onRerunCross: (prompt: string, crossTypes: CrossType[]) => void;
   onContinue: () => void;
@@ -96,6 +97,7 @@ export function ProductCrossDetailView({
   selectedCrossTypes,
   onCrossTypesChange,
   onSelectAlternative,
+  onSaveSelectedCrosses,
   onDeleteCross,
   onRerunCross,
   onContinue,
@@ -107,6 +109,11 @@ export function ProductCrossDetailView({
   const [copiedProduct, setCopiedProduct] = useState<string | null>(null);
   const [promptTemplates, setPromptTemplates] = useState<Array<{ id: string; name: string; prompt: string }>>(DEFAULT_PROMPT_TEMPLATES);
   const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+
+  // Calculate the number of selected alternatives
+  const selectedCount = crosses.reduce((count, cross) => {
+    return count + cross.alternatives.filter(alt => alt.selected).length;
+  }, 0);
 
   // Load prompt templates from DB on mount
   useEffect(() => {
@@ -463,8 +470,23 @@ export function ProductCrossDetailView({
         </div>
       ))}
 
-      {/* Continue Button */}
-      <div className="flex justify-end">
+      {/* Action Buttons */}
+      <div className="flex justify-end items-center gap-3">
+        {/* Save Selected Button */}
+        <button
+          onClick={onSaveSelectedCrosses}
+          disabled={isProcessing || selectedCount === 0}
+          className="px-6 py-2.5 bg-green-600 text-white rounded-lg font-medium text-sm hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+            <polyline points="17 21 17 13 7 13 7 21"/>
+            <polyline points="7 3 7 8 15 8"/>
+          </svg>
+          Save Selected {selectedCount > 0 && `(${selectedCount})`}
+        </button>
+
+        {/* Continue Button */}
         <button
           onClick={onContinue}
           disabled={isProcessing}

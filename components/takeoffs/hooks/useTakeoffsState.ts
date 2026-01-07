@@ -1003,40 +1003,76 @@ export function useTakeoffsState() {
     setSelectedCrossTypes(types);
   }, []);
 
-  // Handle selecting a cross alternative
-  // Saves to product_crosses table for future use
-  const handleSelectAlternative = useCallback(async (originalIndex: number, altIndex: number) => {
-    const result = productCrossResults[originalIndex];
-    const selectedAlt = result?.alternatives[altIndex];
-
-    // Update local state immediately for responsive UI
+  // Handle selecting a cross alternative (visual only - no save)
+  // User must click "Save Selected" to persist to database
+  const handleSelectAlternative = useCallback((originalIndex: number, altIndex: number) => {
+    // Update local state only - toggle selection
     setProductCrossResults(prev => prev.map((r, i) => {
       if (i !== originalIndex) return r;
       return {
         ...r,
         alternatives: r.alternatives.map((alt, j) => ({
           ...alt,
-          selected: j === altIndex,
+          selected: j === altIndex ? !alt.selected : alt.selected,
         })),
       };
     }));
+  }, []);
 
-    // Save to known product crosses for future use
-    if (result && selectedAlt) {
+  // Handle saving all selected cross alternatives to database
+  const handleSaveSelectedCrosses = useCallback(async () => {
+    // Collect all selected alternatives
+    const selectedCrosses: Array<{
+      original: ProductCrossResult['original'];
+      alternative: ProductCrossResult['alternatives'][0];
+    }> = [];
+
+    for (const result of productCrossResults) {
+      for (const alt of result.alternatives) {
+        if (alt.selected) {
+          selectedCrosses.push({
+            original: result.original,
+            alternative: alt,
+          });
+        }
+      }
+    }
+
+    if (selectedCrosses.length === 0) {
+      showWarningToast('No crosses selected', {
+        description: 'Please select at least one alternative to save.',
+      });
+      return;
+    }
+
+    // Save each selected cross to the database
+    let savedCount = 0;
+    let failedCount = 0;
+
+    for (const cross of selectedCrosses) {
       try {
         await createKnownProductCross({
-          competitorManufacturer: result.original.manufacturer,
-          competitorPartNumber: result.original.partNumber,
-          competitorDescription: result.original.description || '',
-          ourManufacturer: selectedAlt.name || 'Our Company',
-          ourPartNumber: selectedAlt.description?.split(' ')[0] || '',
-          ourDescription: selectedAlt.description || '',
+          competitorManufacturer: cross.original.manufacturer,
+          competitorPartNumber: cross.original.partNumber,
+          competitorDescription: cross.original.description || '',
+          ourManufacturer: cross.alternative.name || 'Our Company',
+          ourPartNumber: cross.alternative.description?.split(' ')[0] || '',
+          ourDescription: cross.alternative.description || '',
         });
-        showSuccessToast('Product cross saved');
+        savedCount++;
       } catch (error) {
-        console.error('Failed to save to known product crosses:', error);
-        showErrorToast('Failed to save product cross');
+        console.error('Failed to save product cross:', error);
+        failedCount++;
       }
+    }
+
+    // Show result toast
+    if (failedCount === 0) {
+      showSuccessToast(`${savedCount} product cross${savedCount !== 1 ? 'es' : ''} saved`);
+    } else if (savedCount > 0) {
+      showWarningToast(`${savedCount} saved, ${failedCount} failed`);
+    } else {
+      showErrorToast('Failed to save product crosses');
     }
   }, [productCrossResults]);
 
@@ -1822,7 +1858,7 @@ export function useTakeoffsState() {
     // Generate and download the ZIP file
     try {
       const zipBlob = await zip.generateAsync({ type: 'blob' });
-      const takeoffName = selectedTakeoff?.name || selectedTakeoff?.title || 'takeoff';
+      const takeoffName = selectedTakeoff?.title || 'takeoff';
       const zipFilename = `${takeoffName.replace(/[^a-zA-Z0-9]/g, '_')}_documents.zip`;
 
       const url = URL.createObjectURL(zipBlob);
@@ -1973,6 +2009,7 @@ export function useTakeoffsState() {
     // Product cross detail handlers
     handleCrossTypesChange,
     handleSelectAlternative,
+    handleSaveSelectedCrosses,
     handleDeleteCrossAlternative,
     handleRerunCross,
   };

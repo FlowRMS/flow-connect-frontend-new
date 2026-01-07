@@ -52,6 +52,7 @@ interface TakeoffDetailViewProps {
   onDownloadAllDocuments?: () => void;
   onCrossTypesChange?: (types: CrossType[]) => void;
   onSelectAlternative?: (originalIndex: number, altIndex: number) => void;
+  onSaveSelectedCrosses?: () => void;
   onDeleteCrossAlternative?: (originalIndex: number, altIndex: number) => void;
   onRerunCross?: (prompt: string, crossTypes: CrossType[]) => void;
   shouldAutoClassify?: boolean;
@@ -102,6 +103,7 @@ export function TakeoffDetailView({
   onDownloadAllDocuments,
   onCrossTypesChange,
   onSelectAlternative,
+  onSaveSelectedCrosses,
   onDeleteCrossAlternative,
   onRerunCross,
   shouldAutoClassify = false,
