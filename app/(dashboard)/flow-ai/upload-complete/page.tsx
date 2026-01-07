@@ -18,6 +18,7 @@ import {
   ChevronDown,
   ChevronRight,
   Download,
+  RotateCcw,
 } from 'lucide-react';
 import { Button } from '@/components/flow-ai/ui/button';
 import { Badge } from '@/components/flow-ai/ui/badge';
@@ -27,9 +28,8 @@ import { WorkflowBreadcrumb } from '@/components/flow-ai/flowrms/WorkflowBreadcr
 import { fetchRelatedEntities } from '@/components/lib/graphql/entity-links';
 import type { RelatedEntities } from '@/components/lib/graphql/types';
 import { flowrmsApolloClient } from '@/lib/flow-ai/flowrms-apollo';
-import { Q_GET_PENDING, Q_PENDING_DOCUMENT_PROCESSINGS } from '@/lib/flow-ai/gql';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import { Q_GET_PENDING, Q_PENDING_DOCUMENT_PROCESSINGS, M_EXECUTE_DOCUMENT_WORKFLOW } from '@/lib/flow-ai/gql';
+import * as XLSX from 'xlsx';
 
 // Constants for pagination
 const DETAILS_PAGE_SIZE = 50; // Show 50 items at a time in detail tables
@@ -153,6 +153,10 @@ function UploadCompleteContent() {
   // Processing results for SKIPPED/ERROR tabs
   const [processingResults, setProcessingResults] = useState<ProcessingResult[]>([]);
 
+  // Workflow status for retry functionality
+  const [workflowStatus, setWorkflowStatus] = useState<string | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
+
   // UI state
   const [activeFilter, setActiveFilter] = useState<FilterType>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -218,6 +222,7 @@ function UploadCompleteContent() {
           getPendingDocument?: {
             fileId?: string;
             entityType?: string;
+            workflowStatus?: string;
           };
         }>({
           query: Q_GET_PENDING,
@@ -226,6 +231,11 @@ function UploadCompleteContent() {
         });
 
         const pendingDoc = pendingDocResult.data?.getPendingDocument;
+
+        // Store workflow status for retry functionality
+        if (pendingDoc?.workflowStatus) {
+          setWorkflowStatus(pendingDoc.workflowStatus);
+        }
 
         // Fetch both data sources in parallel
         const promises: Promise<void>[] = [];
@@ -274,25 +284,64 @@ function UploadCompleteContent() {
   const skippedCount = skippedResults.length;
   const errorCount = errorResults.length;
 
-  // PDF Export state and handler
+  // Excel Export state and handler
   const [isExporting, setIsExporting] = useState(false);
 
-  const handleExportPDF = useCallback(async () => {
+  const handleExportExcel = useCallback(async () => {
     setIsExporting(true);
     try {
-      await exportToPDF({
+      await exportToExcel({
         relatedData,
         skippedResults,
         errorResults,
       });
-      toast.success('PDF exported successfully');
+      toast.success('Excel file exported successfully');
     } catch (error) {
-      console.error('Failed to export PDF:', error);
-      toast.error('Failed to export PDF');
+      console.error('Failed to export Excel:', error);
+      toast.error('Failed to export Excel file');
     } finally {
       setIsExporting(false);
     }
   }, [relatedData, skippedResults, errorResults]);
+
+  // Retry handler for failed documents
+  const handleRetry = useCallback(async () => {
+    if (!pendingId) {
+      toast.error('Cannot retry: No pending document ID available');
+      return;
+    }
+
+    setIsRetrying(true);
+    try {
+      // Call the executeDocumentWorkflow mutation to re-process the document
+      const result = await flowrmsApolloClient.mutate<{
+        executeDocumentWorkflow: {
+          success: boolean;
+          message: string | null;
+          taskId: string | null;
+        };
+      }>({
+        mutation: M_EXECUTE_DOCUMENT_WORKFLOW,
+        variables: {
+          pendingDocumentId: pendingId,
+        },
+      });
+
+      if (result.data?.executeDocumentWorkflow?.success) {
+        toast.success('Document queued for reprocessing');
+        // Navigate to queue page
+        router.push('/flow-ai/queue');
+      } else {
+        const errorMsg = result.data?.executeDocumentWorkflow?.message || 'Unknown error occurred';
+        toast.error(`Retry failed: ${errorMsg}`);
+      }
+    } catch (error) {
+      console.error('Retry failed:', error);
+      toast.error('Failed to retry document processing');
+    } finally {
+      setIsRetrying(false);
+    }
+  }, [pendingId, router]);
 
   const totalEntities = quotesCount + ordersCount + invoicesCount + customersCount + productsCount + factoriesCount + checksCount;
   const hasAnyEntities = totalEntities > 0;
@@ -319,9 +368,12 @@ function UploadCompleteContent() {
 
         {/* Header */}
         <Header
-          onExportPDF={handleExportPDF}
+          onExportExcel={handleExportExcel}
           isExporting={isExporting}
           hasData={hasAnything}
+          workflowStatus={workflowStatus}
+          isRetrying={isRetrying}
+          onRetry={handleRetry}
         />
 
         {/* Error message */}
@@ -411,39 +463,71 @@ function UploadCompleteContent() {
 
 // Header Component
 interface HeaderProps {
-  onExportPDF?: () => void;
+  onExportExcel?: () => void;
   isExporting?: boolean;
   hasData?: boolean;
+  workflowStatus?: string | null;
+  isRetrying?: boolean;
+  onRetry?: () => void;
 }
 
-function Header({ onExportPDF, isExporting, hasData }: HeaderProps) {
+function Header({ onExportExcel, isExporting, hasData, workflowStatus, isRetrying, onRetry }: HeaderProps) {
+  const isFailed = workflowStatus === 'FAILED';
+
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Upload Complete</h1>
-        {hasData && onExportPDF && (
-          <Button
-            variant="outline"
-            onClick={onExportPDF}
-            disabled={isExporting}
-            className="gap-2"
-          >
-            {isExporting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Exporting...
-              </>
-            ) : (
-              <>
-                <Download className="w-4 h-4" />
-                Export PDF
-              </>
-            )}
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Retry button - only shown for FAILED workflow status */}
+          {isFailed && onRetry && (
+            <Button
+              variant="destructive"
+              onClick={onRetry}
+              disabled={isRetrying}
+              className="gap-2"
+            >
+              {isRetrying ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Retrying...
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="w-4 h-4" />
+                  Retry Processing
+                </>
+              )}
+            </Button>
+          )}
+          {hasData && onExportExcel && (
+            <Button
+              variant="outline"
+              onClick={onExportExcel}
+              disabled={isExporting}
+              className="gap-2"
+            >
+              {isExporting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Exporting...
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  Export Excel
+                </>
+              )}
+            </Button>
+          )}
+        </div>
       </div>
       <p className="text-muted-foreground">
-        Your document has been processed. Here&apos;s a summary of all entities linked to this file.
+        {isFailed ? (
+          <>This document failed to process. You can retry processing or review the details below.</>
+        ) : (
+          <>Your document has been processed. Here&apos;s a summary of all entities linked to this file.</>
+        )}
       </p>
     </div>
   );
@@ -1346,107 +1430,62 @@ function getStatusBadge(status: string) {
   }
 }
 
-// PDF Export Function
-interface PDFExportData {
+// Excel Export Function
+interface ExcelExportData {
   relatedData: RelatedEntities | null;
   skippedResults: ProcessingResult[];
   errorResults: ProcessingResult[];
 }
 
-async function exportToPDF(data: PDFExportData): Promise<void> {
+async function exportToExcel(data: ExcelExportData): Promise<void> {
   const { relatedData, skippedResults, errorResults } = data;
 
-  const doc = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: 'a4',
-  });
+  // Create a new workbook
+  const workbook = XLSX.utils.book_new();
 
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 15;
-  let yPos = margin;
-
-  // Colors
-  const primaryColor: [number, number, number] = [37, 99, 235];
-  const darkColor: [number, number, number] = [31, 41, 55];
-  const lightGray: [number, number, number] = [107, 114, 128];
-
-  // Title
-  doc.setFontSize(20);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...darkColor);
-  doc.text('Upload Complete Report', margin, yPos);
-  yPos += 8;
-
-  // Date
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(...lightGray);
-  doc.text(`Generated: ${new Date().toLocaleString()}`, margin, yPos);
-  yPos += 15;
-
-  // Summary section
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...primaryColor);
-  doc.text('Summary', margin, yPos);
-  yPos += 8;
-
-  const summaryItems = [
-    { label: 'Quotes', count: relatedData?.quotes?.length || 0 },
-    { label: 'Orders', count: relatedData?.orders?.length || 0 },
-    { label: 'Invoices', count: relatedData?.invoices?.length || 0 },
-    { label: 'Customers', count: relatedData?.customers?.length || 0 },
-    { label: 'Products', count: relatedData?.products?.length || 0 },
-    { label: 'Factories', count: relatedData?.factories?.length || 0 },
-    { label: 'Checks', count: relatedData?.checks?.length || 0 },
-    { label: 'Skipped', count: skippedResults.length },
-    { label: 'Errors', count: errorResults.length },
-  ].filter(item => item.count > 0);
-
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(...darkColor);
-  summaryItems.forEach((item, idx) => {
-    const xOffset = margin + (idx % 3) * 60;
-    const yOffset = yPos + Math.floor(idx / 3) * 6;
-    doc.text(`${item.label}: ${item.count}`, xOffset, yOffset);
-  });
-  yPos += Math.ceil(summaryItems.length / 3) * 6 + 10;
-
-  // Helper to add section with table
-  const addSection = (title: string, headers: string[], rows: string[][]) => {
+  // Helper to add a sheet with data
+  const addSheet = (name: string, headers: string[], rows: (string | number | boolean | null | undefined)[][]) => {
     if (rows.length === 0) return;
+    const sheetData = [headers, ...rows];
+    const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
 
-    // Check if we need a new page
-    if (yPos > 250) {
-      doc.addPage();
-      yPos = margin;
-    }
-
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...primaryColor);
-    doc.text(`${title} (${rows.length})`, margin, yPos);
-    yPos += 6;
-
-    autoTable(doc, {
-      startY: yPos,
-      head: [headers],
-      body: rows,
-      theme: 'striped',
-      styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: darkColor, textColor: [255, 255, 255], fontStyle: 'bold' },
-      margin: { left: margin, right: margin },
-      tableWidth: 'auto',
+    // Set column widths
+    const colWidths = headers.map((header, idx) => {
+      const maxDataLen = Math.max(
+        header.length,
+        ...rows.map(row => String(row[idx] || '').length)
+      );
+      return { wch: Math.min(Math.max(maxDataLen, 10), 50) };
     });
+    worksheet['!cols'] = colWidths;
 
-    yPos = (doc as any).lastAutoTable?.finalY + 10 || yPos + 20;
+    XLSX.utils.book_append_sheet(workbook, worksheet, name.slice(0, 31)); // Sheet names max 31 chars
   };
 
-  // Add entity tables
+  // Summary Sheet
+  const summaryData = [
+    ['Upload Complete Report'],
+    ['Generated', new Date().toLocaleString()],
+    [''],
+    ['Summary'],
+    ['Entity Type', 'Count'],
+    ['Quotes', relatedData?.quotes?.length || 0],
+    ['Orders', relatedData?.orders?.length || 0],
+    ['Invoices', relatedData?.invoices?.length || 0],
+    ['Customers', relatedData?.customers?.length || 0],
+    ['Products', relatedData?.products?.length || 0],
+    ['Factories', relatedData?.factories?.length || 0],
+    ['Checks', relatedData?.checks?.length || 0],
+    ['Skipped', skippedResults.length],
+    ['Errors', errorResults.length],
+  ];
+  const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+  summarySheet['!cols'] = [{ wch: 20 }, { wch: 30 }];
+  XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
+
+  // Quotes Sheet
   if (relatedData?.quotes && relatedData.quotes.length > 0) {
-    addSection('Quotes',
+    addSheet('Quotes',
       ['Quote #', 'Entity Date', 'Exp Date', 'Status', 'Blanket'],
       relatedData.quotes.map(q => [
         q.quoteNumber || q.id,
@@ -1458,8 +1497,9 @@ async function exportToPDF(data: PDFExportData): Promise<void> {
     );
   }
 
+  // Orders Sheet
   if (relatedData?.orders && relatedData.orders.length > 0) {
-    addSection('Orders',
+    addSheet('Orders',
       ['Order #', 'Factory SO', 'Entity Date', 'Ship Date', 'Status'],
       relatedData.orders.map(o => [
         o.orderNumber || o.id,
@@ -1471,8 +1511,9 @@ async function exportToPDF(data: PDFExportData): Promise<void> {
     );
   }
 
+  // Invoices Sheet
   if (relatedData?.invoices && relatedData.invoices.length > 0) {
-    addSection('Invoices',
+    addSheet('Invoices',
       ['Invoice #', 'Entity Date', 'Due Date', 'Status', 'Locked'],
       relatedData.invoices.map(i => [
         i.invoiceNumber || i.id,
@@ -1484,8 +1525,9 @@ async function exportToPDF(data: PDFExportData): Promise<void> {
     );
   }
 
+  // Customers Sheet
   if (relatedData?.customers && relatedData.customers.length > 0) {
-    addSection('Customers',
+    addSheet('Customers',
       ['Company Name', 'Is Parent', 'Published'],
       relatedData.customers.map(c => [
         c.companyName || c.id,
@@ -1495,21 +1537,23 @@ async function exportToPDF(data: PDFExportData): Promise<void> {
     );
   }
 
+  // Products Sheet
   if (relatedData?.products && relatedData.products.length > 0) {
-    addSection('Products',
+    addSheet('Products',
       ['Part Number', 'Description', 'Unit Price', 'Commission Rate', 'Published'],
       relatedData.products.map(p => [
         p.factoryPartNumber || p.id,
         p.description || '-',
-        p.unitPrice != null ? `$${p.unitPrice.toFixed(2)}` : '-',
-        p.defaultCommissionRate != null ? `${(p.defaultCommissionRate * 100).toFixed(1)}%` : '-',
+        p.unitPrice != null ? p.unitPrice : '-',
+        p.defaultCommissionRate != null ? p.defaultCommissionRate * 100 : '-',
         p.published ? 'Yes' : '-'
       ])
     );
   }
 
+  // Factories Sheet
   if (relatedData?.factories && relatedData.factories.length > 0) {
-    addSection('Factories',
+    addSheet('Factories',
       ['Title', 'Account Number', 'Published'],
       relatedData.factories.map(f => [
         f.title || f.id,
@@ -1519,12 +1563,13 @@ async function exportToPDF(data: PDFExportData): Promise<void> {
     );
   }
 
+  // Checks Sheet
   if (relatedData?.checks && relatedData.checks.length > 0) {
-    addSection('Checks',
+    addSheet('Checks',
       ['Check #', 'Commission', 'Commission Month', 'Entity Date', 'Post Date', 'Status'],
       relatedData.checks.map(c => [
         c.checkNumber || c.id,
-        c.enteredCommissionAmount != null ? `$${Number(c.enteredCommissionAmount).toFixed(2)}` : '-',
+        c.enteredCommissionAmount != null ? Number(c.enteredCommissionAmount) : '-',
         c.commissionMonth || '-',
         formatDate(c.entityDate),
         formatDate(c.postDate),
@@ -1533,199 +1578,187 @@ async function exportToPDF(data: PDFExportData): Promise<void> {
     );
   }
 
-  // Add Skipped Items with full details
-  if (skippedResults.length > 0) {
-    if (yPos > 250) {
-      doc.addPage();
-      yPos = margin;
-    }
+  // Helper to get all fields from dtoJson including nested values
+  const getAllFieldsForExport = (dtoJson: string | null): Record<string, unknown> => {
+    if (!dtoJson) return {};
+    try {
+      const data = JSON.parse(dtoJson);
+      const result: Record<string, unknown> = {};
 
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(202, 138, 4); // Yellow color
-    doc.text(`Skipped Items (${skippedResults.length})`, margin, yPos);
-    yPos += 8;
+      const skipFields = new Set([
+        'internal_uuid', 'id', 'uuid', 'created_at', 'updated_at',
+        'tenant_id', 'pending_document_id', 'dto_id'
+      ]);
+
+      for (const [key, value] of Object.entries(data)) {
+        if (skipFields.has(key.toLowerCase())) continue;
+        if (Array.isArray(value)) continue; // Skip arrays, handled separately
+
+        if (value === null || value === undefined || value === '') continue;
+
+        if (typeof value === 'object') {
+          const obj = value as Record<string, unknown>;
+          if (obj.name) {
+            result[formatFieldName(key)] = String(obj.name);
+          }
+        } else {
+          result[formatFieldName(key)] = value;
+        }
+      }
+      return result;
+    } catch {
+      return {};
+    }
+  };
+
+  // Helper to get array fields from dtoJson
+  const getArrayFieldsForExport = (dtoJson: string | null): { key: string; items: Record<string, unknown>[] }[] => {
+    if (!dtoJson) return [];
+    try {
+      const data = JSON.parse(dtoJson);
+      const arrayFields: { key: string; items: Record<string, unknown>[] }[] = [];
+
+      for (const [key, value] of Object.entries(data)) {
+        if (Array.isArray(value) && value.length > 0) {
+          if (typeof value[0] === 'object' && value[0] !== null) {
+            arrayFields.push({ key: formatFieldName(key), items: value as Record<string, unknown>[] });
+          }
+        }
+      }
+      return arrayFields;
+    } catch {
+      return [];
+    }
+  };
+
+  // Skipped Items Sheet - with full details including all line items
+  if (skippedResults.length > 0) {
+    const allSkippedRows: Record<string, unknown>[] = [];
 
     for (const result of skippedResults) {
-      if (yPos > 260) {
-        doc.addPage();
-        yPos = margin;
-      }
-
       const entityType = getEntityType(result.dtoJson);
       const displayName = getDisplayName(result.dtoJson);
-      const fields = getAllFields(result.dtoJson);
-      const arrayFields = getArrayFields(result.dtoJson);
+      const entityFields = getAllFieldsForExport(result.dtoJson);
+      const arrayFields = getArrayFieldsForExport(result.dtoJson);
 
-      // Item header
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...darkColor);
-      doc.text(`${entityType}: ${displayName}`, margin, yPos);
-      yPos += 5;
+      // Base info for every row
+      const baseInfo: Record<string, unknown> = {
+        'Entity Type': entityType,
+        'Name': displayName,
+        'Status': 'SKIPPED',
+        'Message': result.errorMessage || '-',
+        ...entityFields,
+      };
 
-      if (result.errorMessage) {
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'italic');
-        doc.setTextColor(202, 138, 4);
-        doc.text(`Message: ${result.errorMessage}`, margin, yPos);
-        yPos += 5;
-      }
+      // If there are detail arrays (line items), create a row for each detail item
+      if (arrayFields.length > 0) {
+        for (const arrayField of arrayFields) {
+          for (const item of arrayField.items) {
+            const detailRow: Record<string, unknown> = {
+              ...baseInfo,
+              'Detail Type': arrayField.key
+            };
 
-      // Basic fields
-      if (fields.length > 0) {
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(...lightGray);
-        fields.forEach((field, idx) => {
-          if (yPos > 280) {
-            doc.addPage();
-            yPos = margin;
+            // Add all fields from the detail item
+            for (const [key, value] of Object.entries(item)) {
+              if (key === 'id' || key === 'uuid' || key === 'internal_uuid') continue;
+              const formattedKey = formatFieldName(key);
+              if (value === null || value === undefined) {
+                detailRow[formattedKey] = '-';
+              } else if (typeof value === 'object') {
+                const obj = value as Record<string, unknown>;
+                detailRow[formattedKey] = obj.name ? String(obj.name) : '-';
+              } else {
+                detailRow[formattedKey] = value;
+              }
+            }
+            allSkippedRows.push(detailRow);
           }
-          const xOffset = margin + (idx % 2) * 90;
-          if (idx % 2 === 0 && idx > 0) yPos += 4;
-          doc.text(`${field.key}: ${field.value}`, xOffset, yPos);
-        });
-        yPos += 6;
-      }
-
-      // Array fields (details)
-      for (const arrayField of arrayFields) {
-        if (arrayField.items.length === 0) continue;
-
-        const columns = getArrayItemColumns(arrayField.items);
-        if (columns.length === 0) continue;
-
-        if (yPos > 250) {
-          doc.addPage();
-          yPos = margin;
         }
-
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(...darkColor);
-        doc.text(`${arrayField.key} (${arrayField.items.length} items)`, margin + 5, yPos);
-        yPos += 4;
-
-        autoTable(doc, {
-          startY: yPos,
-          head: [columns.map(formatFieldName)],
-          body: arrayField.items.map(item => columns.map(col => formatCellValue(item[col]))),
-          theme: 'grid',
-          styles: { fontSize: 7, cellPadding: 1.5 },
-          headStyles: { fillColor: [100, 100, 100], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7 },
-          margin: { left: margin + 5, right: margin },
-        });
-
-        yPos = (doc as any).lastAutoTable?.finalY + 6 || yPos + 20;
+      } else {
+        // No details, just add the base row
+        allSkippedRows.push(baseInfo);
       }
+    }
 
-      yPos += 4;
+    if (allSkippedRows.length > 0) {
+      // Get all unique headers from all rows
+      const allHeaders = Array.from(new Set(allSkippedRows.flatMap(row => Object.keys(row))));
+      // Prioritize common columns first
+      const priorityHeaders = ['Entity Type', 'Name', 'Status', 'Message', 'Detail Type'];
+      const sortedHeaders = [
+        ...priorityHeaders.filter(h => allHeaders.includes(h)),
+        ...allHeaders.filter(h => !priorityHeaders.includes(h)).sort()
+      ];
+
+      const skippedSheet = XLSX.utils.json_to_sheet(allSkippedRows, { header: sortedHeaders });
+      // Set column widths based on content
+      skippedSheet['!cols'] = sortedHeaders.map(h => ({ wch: Math.min(Math.max(h.length, 12), 50) }));
+      XLSX.utils.book_append_sheet(workbook, skippedSheet, 'Skipped Items');
     }
   }
 
-  // Add Error Items with full details
+  // Error Items Sheet - with full details including all line items
   if (errorResults.length > 0) {
-    if (yPos > 250) {
-      doc.addPage();
-      yPos = margin;
-    }
-
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(220, 38, 38); // Red color
-    doc.text(`Errors (${errorResults.length})`, margin, yPos);
-    yPos += 8;
+    const allErrorRows: Record<string, unknown>[] = [];
 
     for (const result of errorResults) {
-      if (yPos > 260) {
-        doc.addPage();
-        yPos = margin;
-      }
-
       const entityType = getEntityType(result.dtoJson);
       const displayName = getDisplayName(result.dtoJson);
-      const fields = getAllFields(result.dtoJson);
-      const arrayFields = getArrayFields(result.dtoJson);
+      const entityFields = getAllFieldsForExport(result.dtoJson);
+      const arrayFields = getArrayFieldsForExport(result.dtoJson);
 
-      // Item header
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...darkColor);
-      doc.text(`${entityType}: ${displayName}`, margin, yPos);
-      yPos += 5;
+      const baseInfo: Record<string, unknown> = {
+        'Entity Type': entityType,
+        'Name': displayName,
+        'Status': 'ERROR',
+        'Error Message': result.errorMessage || '-',
+        ...entityFields,
+      };
 
-      if (result.errorMessage) {
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'italic');
-        doc.setTextColor(220, 38, 38);
-        doc.text(`Error: ${result.errorMessage}`, margin, yPos);
-        yPos += 5;
-      }
+      if (arrayFields.length > 0) {
+        for (const arrayField of arrayFields) {
+          for (const item of arrayField.items) {
+            const detailRow: Record<string, unknown> = {
+              ...baseInfo,
+              'Detail Type': arrayField.key
+            };
 
-      // Basic fields
-      if (fields.length > 0) {
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(...lightGray);
-        fields.forEach((field, idx) => {
-          if (yPos > 280) {
-            doc.addPage();
-            yPos = margin;
+            for (const [key, value] of Object.entries(item)) {
+              if (key === 'id' || key === 'uuid' || key === 'internal_uuid') continue;
+              const formattedKey = formatFieldName(key);
+              if (value === null || value === undefined) {
+                detailRow[formattedKey] = '-';
+              } else if (typeof value === 'object') {
+                const obj = value as Record<string, unknown>;
+                detailRow[formattedKey] = obj.name ? String(obj.name) : '-';
+              } else {
+                detailRow[formattedKey] = value;
+              }
+            }
+            allErrorRows.push(detailRow);
           }
-          const xOffset = margin + (idx % 2) * 90;
-          if (idx % 2 === 0 && idx > 0) yPos += 4;
-          doc.text(`${field.key}: ${field.value}`, xOffset, yPos);
-        });
-        yPos += 6;
-      }
-
-      // Array fields (details)
-      for (const arrayField of arrayFields) {
-        if (arrayField.items.length === 0) continue;
-
-        const columns = getArrayItemColumns(arrayField.items);
-        if (columns.length === 0) continue;
-
-        if (yPos > 250) {
-          doc.addPage();
-          yPos = margin;
         }
-
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(...darkColor);
-        doc.text(`${arrayField.key} (${arrayField.items.length} items)`, margin + 5, yPos);
-        yPos += 4;
-
-        autoTable(doc, {
-          startY: yPos,
-          head: [columns.map(formatFieldName)],
-          body: arrayField.items.map(item => columns.map(col => formatCellValue(item[col]))),
-          theme: 'grid',
-          styles: { fontSize: 7, cellPadding: 1.5 },
-          headStyles: { fillColor: [100, 100, 100], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7 },
-          margin: { left: margin + 5, right: margin },
-        });
-
-        yPos = (doc as any).lastAutoTable?.finalY + 6 || yPos + 20;
+      } else {
+        allErrorRows.push(baseInfo);
       }
+    }
 
-      yPos += 4;
+    if (allErrorRows.length > 0) {
+      const allHeaders = Array.from(new Set(allErrorRows.flatMap(row => Object.keys(row))));
+      const priorityHeaders = ['Entity Type', 'Name', 'Status', 'Error Message', 'Detail Type'];
+      const sortedHeaders = [
+        ...priorityHeaders.filter(h => allHeaders.includes(h)),
+        ...allHeaders.filter(h => !priorityHeaders.includes(h)).sort()
+      ];
+
+      const errorSheet = XLSX.utils.json_to_sheet(allErrorRows, { header: sortedHeaders });
+      errorSheet['!cols'] = sortedHeaders.map(h => ({ wch: Math.min(Math.max(h.length, 12), 50) }));
+      XLSX.utils.book_append_sheet(workbook, errorSheet, 'Errors');
     }
   }
 
-  // Footer on all pages
-  const totalPages = doc.getNumberOfPages();
-  for (let i = 1; i <= totalPages; i++) {
-    doc.setPage(i);
-    doc.setFontSize(8);
-    doc.setTextColor(...lightGray);
-    doc.text(`Page ${i} of ${totalPages}`, pageWidth - margin, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
-    doc.text('Generated by FlowRMS', margin, doc.internal.pageSize.getHeight() - 10);
-  }
-
-  // Save
+  // Save the workbook
   const timestamp = new Date().toISOString().split('T')[0];
-  doc.save(`upload-complete-report-${timestamp}.pdf`);
+  XLSX.writeFile(workbook, `upload-complete-report-${timestamp}.xlsx`);
 }
