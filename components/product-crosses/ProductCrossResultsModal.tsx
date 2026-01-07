@@ -85,9 +85,13 @@ export function ProductCrossResultsModal({
   // Deleted AI result IDs (to filter them out)
   const [deletedAiIds, setDeletedAiIds] = useState<Set<string>>(new Set());
 
-  // Loading state for AI search
-  const [isSearching, setIsSearching] = useState(false);
+  // Loading state for AI search (separate states for each rerun button)
+  const [isSearchingByPrompt, setIsSearchingByPrompt] = useState(false);
+  const [isSearchingByFilters, setIsSearchingByFilters] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+
+  // Combined searching state for disabling other buttons
+  const isSearching = isSearchingByPrompt || isSearchingByFilters;
 
   // AI-generated alternatives
   const [aiAlternatives, setAiAlternatives] = useState<CrossResult[]>([]);
@@ -189,9 +193,15 @@ export function ProductCrossResultsModal({
   // Search for crosses using the backend API
   const searchForCrosses = useCallback(async (
     types: string[],
+    source: 'prompt' | 'filters',
     customPrompts?: string[]
   ) => {
-    setIsSearching(true);
+    // Set loading state for the specific button
+    if (source === 'prompt') {
+      setIsSearchingByPrompt(true);
+    } else {
+      setIsSearchingByFilters(true);
+    }
     setSearchError(null);
 
     try {
@@ -241,20 +251,25 @@ export function ProductCrossResultsModal({
       console.error('Error searching for crosses:', error);
       setSearchError(error instanceof Error ? error.message : 'Failed to search for crosses');
     } finally {
-      setIsSearching(false);
+      // Clear loading state for the specific button
+      if (source === 'prompt') {
+        setIsSearchingByPrompt(false);
+      } else {
+        setIsSearchingByFilters(false);
+      }
     }
   }, [cross]);
 
   // Handle rerun with prompt
   const handleRerunWithPrompt = useCallback(() => {
     if (!promptInstructions.trim()) return;
-    searchForCrosses(crossTypes, [promptInstructions]);
+    searchForCrosses(crossTypes, 'prompt', [promptInstructions]);
   }, [promptInstructions, crossTypes, searchForCrosses]);
 
   // Handle rerun with filters
   const handleRerunWithFilters = useCallback(() => {
     if (crossTypes.length === 0) return;
-    searchForCrosses(crossTypes);
+    searchForCrosses(crossTypes, 'filters');
   }, [crossTypes, searchForCrosses]);
 
   // Load prompt templates
@@ -783,13 +798,13 @@ export function ProductCrossResultsModal({
                     disabled={!promptInstructions.trim() || isSearching}
                     className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                   >
-                    {isSearching && (
+                    {isSearchingByPrompt && (
                       <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                       </svg>
                     )}
-                    {isSearching ? 'Searching...' : 'Rerun'}
+                    {isSearchingByPrompt ? 'Searching...' : 'Rerun'}
                   </button>
                   <button
                     type="button"
@@ -855,7 +870,7 @@ export function ProductCrossResultsModal({
                   disabled={crossTypes.length === 0 || isSearching}
                   className="w-full px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                 >
-                  {isSearching ? (
+                  {isSearchingByFilters ? (
                     <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
@@ -866,7 +881,7 @@ export function ProductCrossResultsModal({
                       <path d="M3 3v5h5" />
                     </svg>
                   )}
-                  {isSearching ? 'Searching...' : 'Rerun'}
+                  {isSearchingByFilters ? 'Searching...' : 'Rerun'}
                 </button>
               </div>
             </div>
