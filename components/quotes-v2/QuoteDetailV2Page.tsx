@@ -6,7 +6,6 @@ import {
   transformQuoteToQuoteV2,
   transformQuoteDetailToLineItemV2,
   createEmptyQuoteV2,
-  mapUIStageToAPIFields,
   transformLineItemV2ToDetailInput,
 } from './types';
 import { QuoteDetailHeaderV2 } from './components/QuoteDetailHeaderV2';
@@ -332,7 +331,8 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
 
   // Build API input from current state
   const buildQuoteInput = useCallback(() => {
-    const stageMapping = mapUIStageToAPIFields(quote.stage);
+    // Use direct status and pipelineStage values from quote state
+    // These are set directly via the dropdowns in the header
 
     return {
       id: quote.id || undefined,
@@ -340,8 +340,8 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       entityDate: quote.quoteDate,
       soldToCustomerId: quote.soldToCustomerId,
       billToCustomerId: quote.billToCustomerId || undefined,
-      status: stageMapping.status || 'OPEN' as const,
-      pipelineStage: stageMapping.pipelineStage,
+      status: quote.status || 'OPEN' as const,
+      pipelineStage: quote.pipelineStage || 'DISCOVERY' as const,
       published: quote.published ?? false,
       creationType: quote.creationType || 'MANUAL' as const,
       blanket: quote.blanket ?? false,
