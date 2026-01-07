@@ -95,7 +95,9 @@ function ColumnMappingContent() {
   const {
     isComplete: processingComplete,
     progress: entityProgress,
-    startProcessing: startEntityProcessing
+    error: entityProcessingError,
+    startProcessing: startEntityProcessing,
+    reset: resetEntityProcessing,
   } = useProcessExtractedDtos(pendingId);
 
   // Factory search state
@@ -164,6 +166,31 @@ function ColumnMappingContent() {
       router.push(`/flow-ai/entity-matching?pendingId=${encodeURIComponent(pendingId)}&saveToTemplate=${saveToTemplate}&source=spreadsheet`);
     }
   }, [processingComplete, isRedirecting, pendingId, saveToTemplate, router]);
+
+  // Handle entity processing errors - show toast and reset state
+  useEffect(() => {
+    if (entityProcessingError) {
+      console.error('❌ Entity processing error:', entityProcessingError);
+      // Extract a user-friendly message from the error
+      const errorMsg = entityProcessingError.includes('validation error')
+        ? 'Processing failed due to a data validation error.'
+        : 'Processing failed. Please try again.';
+
+      // Build description with error details and pending ID for support
+      const errorDetails = entityProcessingError.length > 150
+        ? entityProcessingError.substring(0, 150) + '...'
+        : entityProcessingError;
+      const pendingIdInfo = pendingId ? `\n\nDocument ID for support: ${pendingId}` : '';
+
+      toast.error(errorMsg, {
+        description: `${errorDetails}${pendingIdInfo}`,
+        duration: 15000, // Keep visible longer so user can copy the ID
+      });
+      // Reset the processing state so the user isn't stuck on the overlay
+      setIsRedirecting(false);
+      resetEntityProcessing();
+    }
+  }, [entityProcessingError, resetEntityProcessing, pendingId]);
 
   // Fetch the pending document and parse extractedDataJson
   useEffect(() => {
