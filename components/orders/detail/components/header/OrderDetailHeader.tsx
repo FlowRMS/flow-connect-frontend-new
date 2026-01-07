@@ -66,6 +66,7 @@ interface OrderDetailHeaderProps {
   handleMakeWarehouseOrder?: () => void;
   handleGenerateFulfillmentRequest?: () => void;
   onCreateInvoice?: () => void;
+  onDuplicateOrder?: () => void;
 }
 
 export function OrderDetailHeader(props: OrderDetailHeaderProps) {
@@ -120,6 +121,7 @@ export function OrderDetailHeader(props: OrderDetailHeaderProps) {
     handleMakeWarehouseOrder = () => { alert('Warehouse conversion - coming soon'); },
     handleGenerateFulfillmentRequest = () => { alert('Fulfillment request - coming soon'); },
     onCreateInvoice,
+    onDuplicateOrder,
   } = props;
 
   // Calculate totals
@@ -171,6 +173,7 @@ export function OrderDetailHeader(props: OrderDetailHeaderProps) {
         handleMakeWarehouseOrder={handleMakeWarehouseOrder}
         handleGenerateFulfillmentRequest={handleGenerateFulfillmentRequest}
         onCreateInvoice={onCreateInvoice}
+        onDuplicateOrder={onDuplicateOrder}
       />
 
       <PricingSummaryBar

@@ -51,6 +51,39 @@ import {
   type RoleCommissionSetting,
 } from './lib/graphql/rbac';
 import { showSuccessToast, showErrorToast } from './lib/toast';
+import {
+  useTeamMembers,
+  useCreateTeamMember,
+  useUpdateTeamMember,
+  useDeleteTeamMember,
+  User,
+  UserInput,
+  UserRole,
+} from './admin/api/useTeamApi';
+import { USER_ROLES, getRoleDisplayLabel } from './lib/graphql/users';
+
+// Coming Soon Overlay Component for non-functional tabs
+function ComingSoonOverlay({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="relative overflow-hidden">
+      <div className="opacity-30 pointer-events-none blur-[1px]">
+        {children}
+      </div>
+      <div className="absolute inset-0 flex items-center justify-center z-10">
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl px-8 py-6 shadow-lg text-center">
+          <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-[var(--primary)]/10 flex items-center justify-center">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--primary)]">
+              <path d="M12 8v4l3 3" strokeLinecap="round" strokeLinejoin="round"/>
+              <circle cx="12" cy="12" r="10"/>
+            </svg>
+          </div>
+          <h3 className="text-lg font-semibold text-[var(--foreground)] mb-1">Coming Soon</h3>
+          <p className="text-sm text-[var(--muted-foreground)]">This feature is under development</p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 type RepType = {
   id: string;
@@ -245,6 +278,7 @@ export default function SettingsContent() {
       <div className="flex-1 overflow-y-auto p-6">
       {/* Take-Off Settings Tab */}
       {activeTab === 'takeoffs' && (
+        <ComingSoonOverlay>
         <div className="max-w-3xl space-y-6">
           <h2 className="text-xl font-semibold text-[var(--foreground)]">Take-Off Settings</h2>
 
@@ -358,10 +392,12 @@ export default function SettingsContent() {
             </button>
           </div>
         </div>
+        </ComingSoonOverlay>
       )}
 
       {/* Credit for Sale Tab */}
       {activeTab === 'credit-for-sale' && (
+        <ComingSoonOverlay>
         <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6 max-w-4xl">
           <h2 className="text-lg font-semibold text-[var(--foreground)] mb-2">
             Credit for Sale Configuration
@@ -509,6 +545,7 @@ export default function SettingsContent() {
             </button>
           </div>
         </div>
+        </ComingSoonOverlay>
       )}
 
       {/* Sidebar Settings Tab */}
@@ -520,6 +557,7 @@ export default function SettingsContent() {
 
       {/* Default Views Tab */}
       {activeTab === 'default-views' && (
+        <ComingSoonOverlay>
         <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6 max-w-3xl">
           <h2 className="text-lg font-semibold text-[var(--foreground)] mb-2">
             Default View Settings
@@ -644,21 +682,22 @@ export default function SettingsContent() {
             </button>
           </div>
         </div>
+        </ComingSoonOverlay>
       )}
 
       {/* Manufacturer Integrations Tab */}
       {activeTab === 'manufacturer-integrations' && (
-        <ManufacturerIntegrationsTab />
+        <ComingSoonOverlay><ManufacturerIntegrationsTab /></ComingSoonOverlay>
       )}
 
       {/* Admin Settings Tabs */}
-      {activeTab === 'general' && <GeneralSettingsTab />}
+      {activeTab === 'general' && <ComingSoonOverlay><GeneralSettingsTab /></ComingSoonOverlay>}
       {activeTab === 'team' && <TeamMembersTab />}
       {activeTab === 'permissions' && <PermissionsTab />}
-      {activeTab === 'flowbot' && <FlowBotSettingsTab />}
-      {activeTab === 'categories' && <CategoriesTab />}
+      {activeTab === 'flowbot' && <ComingSoonOverlay><FlowBotSettingsTab /></ComingSoonOverlay>}
+      {activeTab === 'categories' && <ComingSoonOverlay><CategoriesTab /></ComingSoonOverlay>}
       {activeTab === 'sales-reps' && <SalesRepSelectionsTab />}
-      {activeTab === 'product-categories' && <ProductCategoriesTab />}
+      {activeTab === 'product-categories' && <ComingSoonOverlay><ProductCategoriesTab /></ComingSoonOverlay>}
       </div>
     </main>
   );
@@ -1267,23 +1306,37 @@ function GeneralSettingsTab() {
 
 // Team Members Tab
 function TeamMembersTab() {
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>(mockTeamMembers);
+  const { data: users = [], isLoading, error } = useTeamMembers();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'active' | 'inactive'>('active');
-  const [expandedGroups, setExpandedGroups] = useState<string[]>(['outside_reps', 'inside_reps', 'administrators', 'owners', 'warehouse_managers', 'warehouse_employees', 'drivers']);
+  const [expandedGroups, setExpandedGroups] = useState<string[]>(['outside_rep', 'inside_rep', 'administrator', 'owner', 'warehouse_manager', 'warehouse_employee', 'driver']);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
+  const [editingMember, setEditingMember] = useState<User | null>(null);
+  const [deletingMember, setDeletingMember] = useState<User | null>(null);
 
   const filteredMembers = useMemo(() => {
-    return teamMembers.filter(member => {
-      const matchesSearch = member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        member.email.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesStatus = member.status === statusFilter;
+    return users.filter(user => {
+      const fullName = user.fullName || `${user.firstName} ${user.lastName}`;
+      const matchesSearch = fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.username.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesStatus = statusFilter === 'active' ? user.enabled : !user.enabled;
       return matchesSearch && matchesStatus;
     });
-  }, [teamMembers, searchQuery, statusFilter]);
+  }, [users, searchQuery, statusFilter]);
 
-  const counts = useMemo(() => getTeamCounts(filteredMembers), [filteredMembers]);
+  const counts = useMemo(() => {
+    const active = users.filter(u => u.enabled);
+    return {
+      outsideReps: active.filter(u => u.role === 'OUTSIDE_REP').length,
+      insideReps: active.filter(u => u.role === 'INSIDE_REP').length,
+      administrators: active.filter(u => u.role === 'ADMINISTRATOR').length,
+      owners: active.filter(u => u.role === 'OWNER').length,
+      warehouseManagers: active.filter(u => u.role === 'WAREHOUSE_MANAGER').length,
+      warehouseEmployees: active.filter(u => u.role === 'WAREHOUSE_EMPLOYEE').length,
+      drivers: active.filter(u => u.role === 'DRIVER').length,
+    };
+  }, [users]);
 
   const toggleGroup = (groupId: string) => {
     setExpandedGroups(prev =>
@@ -1291,19 +1344,52 @@ function TeamMembersTab() {
     );
   };
 
-  const getInitials = (name: string) => {
+  const getInitials = (user: User) => {
+    const name = user.fullName || `${user.firstName} ${user.lastName}`;
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
   const groups = [
-    { id: 'outside_reps', label: 'Outside reps', count: counts.outsideReps, roles: ['outside_rep'] },
-    { id: 'inside_reps', label: 'Inside reps', count: counts.insideReps, roles: ['inside_rep'] },
-    { id: 'administrators', label: 'Administrators', count: counts.administrators, roles: ['administrator'] },
-    { id: 'owners', label: 'Owners', count: counts.owners, roles: ['owner'] },
-    { id: 'warehouse_managers', label: 'Warehouse managers', count: counts.warehouseManagers, roles: ['warehouse_manager'] },
-    { id: 'warehouse_employees', label: 'Warehouse employees', count: counts.warehouseEmployees, roles: ['warehouse_employee'] },
-    { id: 'drivers', label: 'Drivers', count: counts.drivers, roles: ['driver'] },
+    { id: 'outside_rep', label: 'Outside Reps', count: statusFilter === 'active' ? counts.outsideReps : filteredMembers.filter(u => u.role === 'OUTSIDE_REP').length, role: 'OUTSIDE_REP' as UserRole },
+    { id: 'inside_rep', label: 'Inside Reps', count: statusFilter === 'active' ? counts.insideReps : filteredMembers.filter(u => u.role === 'INSIDE_REP').length, role: 'INSIDE_REP' as UserRole },
+    { id: 'administrator', label: 'Administrators', count: statusFilter === 'active' ? counts.administrators : filteredMembers.filter(u => u.role === 'ADMINISTRATOR').length, role: 'ADMINISTRATOR' as UserRole },
+    { id: 'owner', label: 'Owners', count: statusFilter === 'active' ? counts.owners : filteredMembers.filter(u => u.role === 'OWNER').length, role: 'OWNER' as UserRole },
+    { id: 'warehouse_manager', label: 'Warehouse Managers', count: statusFilter === 'active' ? counts.warehouseManagers : filteredMembers.filter(u => u.role === 'WAREHOUSE_MANAGER').length, role: 'WAREHOUSE_MANAGER' as UserRole },
+    { id: 'warehouse_employee', label: 'Warehouse Employees', count: statusFilter === 'active' ? counts.warehouseEmployees : filteredMembers.filter(u => u.role === 'WAREHOUSE_EMPLOYEE').length, role: 'WAREHOUSE_EMPLOYEE' as UserRole },
+    { id: 'driver', label: 'Drivers', count: statusFilter === 'active' ? counts.drivers : filteredMembers.filter(u => u.role === 'DRIVER').length, role: 'DRIVER' as UserRole },
   ];
+
+  if (isLoading) {
+    return (
+      <div className="max-w-4xl">
+        <div className="flex items-center justify-center py-12">
+          <div className="flex items-center gap-3">
+            <svg className="animate-spin h-5 w-5 text-[var(--primary)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span className="text-[var(--muted-foreground)]">Loading team members...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-4xl">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center gap-2 text-red-700">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M15 9l-6 6M9 9l6 6"/>
+            </svg>
+            <span>Failed to load team members: {error.message}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl">
@@ -1313,6 +1399,9 @@ function TeamMembersTab() {
           onClick={() => setShowAddModal(true)}
           className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"
         >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M12 5v14M5 12h14" strokeLinecap="round"/>
+          </svg>
           Add New User
         </button>
       </div>
@@ -1367,7 +1456,7 @@ function TeamMembersTab() {
       {/* Team Groups */}
       <div className="space-y-2">
         {groups.map((group) => {
-          const groupMembers = filteredMembers.filter(m => group.roles.includes(m.role));
+          const groupMembers = filteredMembers.filter(u => u.role === group.role);
           const isExpanded = expandedGroups.includes(group.id);
 
           return (
@@ -1379,7 +1468,7 @@ function TeamMembersTab() {
                 <div className="flex items-center gap-3">
                   <span className="font-medium text-[var(--foreground)]">{group.label}</span>
                   <span className="px-2 py-0.5 bg-[var(--primary)]/10 text-[var(--primary)] text-xs font-medium rounded-full">
-                    {group.count}
+                    {groupMembers.length}
                   </span>
                 </div>
                 <svg
@@ -1397,39 +1486,53 @@ function TeamMembersTab() {
 
               {isExpanded && groupMembers.length > 0 && (
                 <div className="border-t border-[var(--border)]">
-                  {groupMembers.map((member) => (
+                  {groupMembers.map((user) => (
                     <div
-                      key={member.id}
+                      key={user.id}
                       className="flex items-center justify-between px-4 py-3 hover:bg-[var(--muted)]/20 transition-colors"
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-[var(--muted)] flex items-center justify-center text-sm font-medium text-[var(--muted-foreground)]">
-                          {getInitials(member.name)}
+                          {getInitials(user)}
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="font-medium text-[var(--foreground)]">{member.name}</span>
+                            <span className="font-medium text-[var(--foreground)]">
+                              {user.fullName || `${user.firstName} ${user.lastName}`}
+                            </span>
                             <span className="text-[var(--muted-foreground)]">|</span>
-                            <span className="text-sm text-[var(--muted-foreground)]">{member.roleDisplay}</span>
+                            <span className="text-sm text-[var(--muted-foreground)]">{getRoleDisplayLabel(user.role)}</span>
                           </div>
-                          <span className="text-sm text-[var(--muted-foreground)]">{member.email}</span>
+                          <span className="text-sm text-[var(--muted-foreground)]">{user.email}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
                         <span className={`px-2 py-0.5 text-xs rounded ${
-                          member.status === 'active'
+                          user.enabled
                             ? 'bg-green-100 text-green-700'
                             : 'bg-gray-100 text-gray-700'
                         }`}>
-                          {member.status === 'active' ? 'ACTIVE' : 'INACTIVE'}
+                          {user.enabled ? 'ACTIVE' : 'INACTIVE'}
                         </span>
                         <button
-                          onClick={() => setEditingMember(member)}
+                          onClick={() => setEditingMember(user)}
                           className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
+                          title="Edit user"
                         >
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--primary)]">
                             <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
                             <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => setDeletingMember(user)}
+                          className="p-2 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Delete user"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-500">
+                            <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                            <line x1="10" y1="11" x2="10" y2="17"/>
+                            <line x1="14" y1="11" x2="14" y2="17"/>
                           </svg>
                         </button>
                       </div>
@@ -1442,23 +1545,30 @@ function TeamMembersTab() {
         })}
       </div>
 
+      {filteredMembers.length === 0 && !isLoading && (
+        <div className="text-center py-8 text-[var(--muted-foreground)]">
+          {searchQuery ? 'No users match your search.' : `No ${statusFilter} users found.`}
+        </div>
+      )}
+
       {/* Add User Modal */}
       {showAddModal && (
-        <AddUserModal onClose={() => setShowAddModal(false)} onSave={(member) => {
-          setTeamMembers(prev => [...prev, member]);
-          setShowAddModal(false);
-        }} />
+        <AddUserModalWithApi onClose={() => setShowAddModal(false)} />
       )}
 
       {/* Edit User Modal */}
       {editingMember && (
-        <EditUserModal
-          member={editingMember}
+        <EditUserModalWithApi
+          user={editingMember}
           onClose={() => setEditingMember(null)}
-          onSave={(updated) => {
-            setTeamMembers(prev => prev.map(m => m.id === updated.id ? updated : m));
-            setEditingMember(null);
-          }}
+        />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingMember && (
+        <DeleteUserModalWithApi
+          user={deletingMember}
+          onClose={() => setDeletingMember(null)}
         />
       )}
     </div>
@@ -2550,7 +2660,7 @@ function SalesRepSelectionsTab() {
       {/* Customer-Factory Sales Rep Link */}
       <a
         href="/settings/sales-rep-assignments"
-        className="block mb-6 p-4 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-xl hover:border-purple-300 hover:shadow-md transition-all group"
+        className="relative z-20 block mb-6 p-4 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-xl hover:border-purple-300 hover:shadow-md transition-all group"
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -2574,6 +2684,9 @@ function SalesRepSelectionsTab() {
         </div>
       </a>
 
+      {/* Coming Soon Overlay for sections below Customer-Factory */}
+      <ComingSoonOverlay>
+      <div>
       {/* Outside Reps Section */}
       <div className="mb-8">
         <h3 className="text-lg font-semibold text-[var(--foreground)] mb-4">Outside Reps</h3>
@@ -3072,6 +3185,8 @@ function SalesRepSelectionsTab() {
           onSave={handleInsideBulkSplit}
         />
       )}
+      </div>
+      </ComingSoonOverlay>
     </div>
   );
 }
@@ -5948,6 +6063,454 @@ function EditUserModal({ member, onClose, onSave }: { member: TeamMember; onClos
             className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-medium"
           >
             Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Add User Modal with API Integration
+function AddUserModalWithApi({ onClose }: { onClose: () => void }) {
+  const createMutation = useCreateTeamMember();
+  const [formData, setFormData] = useState({
+    username: '',
+    firstName: '',
+    lastName: '',
+    email: '',
+    role: 'OUTSIDE_REP' as UserRole,
+    enabled: true,
+    inside: false,
+    outside: false,
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+    if (!formData.username.trim()) newErrors.username = 'Username is required';
+    if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
+    if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required';
+    if (!formData.email.trim()) newErrors.email = 'Email is required';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = 'Invalid email format';
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async () => {
+    if (!validate()) return;
+
+    const input: UserInput = {
+      ...formData,
+      inside: formData.role === 'INSIDE_REP',
+      outside: formData.role === 'OUTSIDE_REP',
+    };
+
+    try {
+      await createMutation.mutateAsync(input);
+      onClose();
+    } catch {
+      // Error handled by mutation
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-[var(--card)] rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-[var(--foreground)]">Add New User</h2>
+          <button onClick={onClose} className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+            </svg>
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                First Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.firstName}
+                onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                className={`w-full px-3 py-2 border rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 transition-all ${
+                  errors.firstName
+                    ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+                    : 'border-[var(--border)] focus:border-[var(--primary)] focus:ring-[var(--primary)]/20'
+                }`}
+                placeholder="Enter first name"
+              />
+              {errors.firstName && <p className="text-red-500 text-xs mt-1">{errors.firstName}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                Last Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.lastName}
+                onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                className={`w-full px-3 py-2 border rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 transition-all ${
+                  errors.lastName
+                    ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+                    : 'border-[var(--border)] focus:border-[var(--primary)] focus:ring-[var(--primary)]/20'
+                }`}
+                placeholder="Enter last name"
+              />
+              {errors.lastName && <p className="text-red-500 text-xs mt-1">{errors.lastName}</p>}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+              Username <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={formData.username}
+              onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+              className={`w-full px-3 py-2 border rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 transition-all ${
+                errors.username
+                  ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+                  : 'border-[var(--border)] focus:border-[var(--primary)] focus:ring-[var(--primary)]/20'
+              }`}
+              placeholder="Enter username"
+            />
+            {errors.username && <p className="text-red-500 text-xs mt-1">{errors.username}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+              Email <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              className={`w-full px-3 py-2 border rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 transition-all ${
+                errors.email
+                  ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+                  : 'border-[var(--border)] focus:border-[var(--primary)] focus:ring-[var(--primary)]/20'
+              }`}
+              placeholder="Enter email"
+            />
+            {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+              Role <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={formData.role}
+              onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
+              className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:border-[var(--primary)] focus:ring-[var(--primary)]/20"
+            >
+              {USER_ROLES.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.enabled}
+                onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[var(--primary)]/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary)]"></div>
+            </label>
+            <span className="text-sm text-[var(--foreground)]">Active</span>
+          </div>
+        </div>
+
+        <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3 bg-gray-50">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+            disabled={createMutation.isPending}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={createMutation.isPending}
+            className="px-6 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-medium hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 flex items-center gap-2"
+          >
+            {createMutation.isPending && (
+              <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            )}
+            Add User
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Edit User Modal with API Integration
+function EditUserModalWithApi({ user, onClose }: { user: User; onClose: () => void }) {
+  const updateMutation = useUpdateTeamMember();
+  const [formData, setFormData] = useState({
+    username: user.username,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    email: user.email,
+    role: user.role,
+    enabled: user.enabled,
+    inside: user.inside,
+    outside: user.outside,
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+    if (!formData.username.trim()) newErrors.username = 'Username is required';
+    if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
+    if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required';
+    if (!formData.email.trim()) newErrors.email = 'Email is required';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = 'Invalid email format';
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async () => {
+    if (!validate()) return;
+
+    const input: Partial<UserInput> = {
+      ...formData,
+      inside: formData.role === 'INSIDE_REP',
+      outside: formData.role === 'OUTSIDE_REP',
+    };
+
+    try {
+      await updateMutation.mutateAsync({ id: user.id, input });
+      onClose();
+    } catch {
+      // Error handled by mutation
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-[var(--card)] rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-[var(--foreground)]">Edit User</h2>
+          <button onClick={onClose} className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+            </svg>
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                First Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.firstName}
+                onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                className={`w-full px-3 py-2 border rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 transition-all ${
+                  errors.firstName
+                    ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+                    : 'border-[var(--border)] focus:border-[var(--primary)] focus:ring-[var(--primary)]/20'
+                }`}
+                placeholder="Enter first name"
+              />
+              {errors.firstName && <p className="text-red-500 text-xs mt-1">{errors.firstName}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                Last Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.lastName}
+                onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                className={`w-full px-3 py-2 border rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 transition-all ${
+                  errors.lastName
+                    ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+                    : 'border-[var(--border)] focus:border-[var(--primary)] focus:ring-[var(--primary)]/20'
+                }`}
+                placeholder="Enter last name"
+              />
+              {errors.lastName && <p className="text-red-500 text-xs mt-1">{errors.lastName}</p>}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+              Username <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={formData.username}
+              onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+              className={`w-full px-3 py-2 border rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 transition-all ${
+                errors.username
+                  ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+                  : 'border-[var(--border)] focus:border-[var(--primary)] focus:ring-[var(--primary)]/20'
+              }`}
+              placeholder="Enter username"
+            />
+            {errors.username && <p className="text-red-500 text-xs mt-1">{errors.username}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+              Email <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              className={`w-full px-3 py-2 border rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 transition-all ${
+                errors.email
+                  ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+                  : 'border-[var(--border)] focus:border-[var(--primary)] focus:ring-[var(--primary)]/20'
+              }`}
+              placeholder="Enter email"
+            />
+            {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+              Role <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={formData.role}
+              onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
+              className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:border-[var(--primary)] focus:ring-[var(--primary)]/20"
+            >
+              {USER_ROLES.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.enabled}
+                onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[var(--primary)]/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary)]"></div>
+            </label>
+            <span className="text-sm text-[var(--foreground)]">Active</span>
+          </div>
+        </div>
+
+        <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3 bg-gray-50">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+            disabled={updateMutation.isPending}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={updateMutation.isPending}
+            className="px-6 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-medium hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 flex items-center gap-2"
+          >
+            {updateMutation.isPending && (
+              <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            )}
+            Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Delete User Modal with API Integration
+function DeleteUserModalWithApi({ user, onClose }: { user: User; onClose: () => void }) {
+  const deleteMutation = useDeleteTeamMember();
+
+  const handleDelete = async () => {
+    try {
+      await deleteMutation.mutateAsync(user.id);
+      onClose();
+    } catch {
+      // Error handled by mutation
+    }
+  };
+
+  const userName = user.fullName || `${user.firstName} ${user.lastName}`;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-[var(--card)] rounded-xl shadow-xl w-full max-w-md">
+        <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-[var(--foreground)]">Delete User</h2>
+          <button onClick={onClose} className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
+            </svg>
+          </button>
+        </div>
+
+        <div className="p-6">
+          <div className="flex items-center gap-4 mb-4">
+            <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-600">
+                <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                <line x1="10" y1="11" x2="10" y2="17"/>
+                <line x1="14" y1="11" x2="14" y2="17"/>
+              </svg>
+            </div>
+            <div>
+              <h3 className="font-medium text-[var(--foreground)]">Are you sure?</h3>
+              <p className="text-sm text-[var(--muted-foreground)]">
+                This action cannot be undone.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-gray-50 rounded-lg p-3 mb-4">
+            <p className="text-sm text-[var(--foreground)]">
+              You are about to delete <span className="font-medium">{userName}</span> ({user.email}).
+            </p>
+          </div>
+        </div>
+
+        <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3 bg-gray-50">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+            disabled={deleteMutation.isPending}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleDelete}
+            disabled={deleteMutation.isPending}
+            className="px-6 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+          >
+            {deleteMutation.isPending && (
+              <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            )}
+            Delete User
           </button>
         </div>
       </div>

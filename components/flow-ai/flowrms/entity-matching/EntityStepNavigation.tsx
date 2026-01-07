@@ -10,6 +10,8 @@ interface EntityStepNavigationProps {
   billToCustomersCount: number;
   endUsersCount: number;
   productsCount: number;
+  ordersCount: number;
+  invoicesCount: number;
   getStepStatus: (step: EntityStep) => StepStatus;
 }
 
@@ -21,6 +23,8 @@ export function EntityStepNavigation({
   billToCustomersCount,
   endUsersCount,
   productsCount,
+  ordersCount,
+  invoicesCount,
   getStepStatus
 }: EntityStepNavigationProps) {
   const steps = [
@@ -28,7 +32,9 @@ export function EntityStepNavigation({
     { key: 'customers' as EntityStep, label: 'Sold to Customers', count: customersCount },
     { key: 'billtocustomers' as EntityStep, label: 'Bill to Customers', count: billToCustomersCount },
     { key: 'endusers' as EntityStep, label: 'End Users', count: endUsersCount },
-    { key: 'products' as EntityStep, label: 'Products', count: productsCount }
+    { key: 'products' as EntityStep, label: 'Products', count: productsCount },
+    { key: 'orders' as EntityStep, label: 'Orders', count: ordersCount },
+    { key: 'invoices' as EntityStep, label: 'Invoices', count: invoicesCount }
   ];
 
   return (

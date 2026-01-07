@@ -40,6 +40,7 @@ interface HeaderTopBarProps {
   handleMakeWarehouseOrder: () => void;
   handleGenerateFulfillmentRequest: () => void;
   onCreateInvoice?: () => void;
+  onDuplicateOrder?: () => void;
 }
 
 const getStatusColor = (status: Order['status']) => {
@@ -81,6 +82,7 @@ export function HeaderTopBar({
   handleMakeWarehouseOrder,
   handleGenerateFulfillmentRequest,
   onCreateInvoice,
+  onDuplicateOrder,
 }: HeaderTopBarProps) {
   const router = useRouter();
 
@@ -139,10 +141,11 @@ export function HeaderTopBar({
                 </button>
                 <button
                   onClick={() => {
-                    alert('Duplicate order');
                     setShowActionsDropdown(false);
+                    onDuplicateOrder?.();
                   }}
-                  className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
+                  disabled={isCreateMode || !order.id}
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                     <rect x="6" y="6" width="12" height="12" rx="2"/>
