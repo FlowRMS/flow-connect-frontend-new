@@ -814,11 +814,12 @@ export function useTakeoffsState() {
     setItemCrossingState(prev => ({ ...prev, ...processingState }));
 
     try {
-      // Prepare products data for API
+      // Prepare products data for API (using snake_case as expected by backend)
       const productsData = itemsToCross.map(item => ({
         id: item.id,
+        name: `${item.manufacturer} ${item.partNumber}`.trim(),
         manufacturer: item.manufacturer,
-        partNumber: item.partNumber,
+        part_number: item.partNumber,
         description: item.description,
       }));
 
@@ -1084,14 +1085,26 @@ export function useTakeoffsState() {
         );
 
         for (const cross of crosses) {
-          const originalProduct = cross.original;
+          // Parse original if it's a JSON string (API returns it as string)
+          let originalProduct: Record<string, unknown>;
+          if (typeof cross.original === 'string') {
+            try {
+              originalProduct = JSON.parse(cross.original);
+            } catch {
+              console.warn('[handleRerunCross] Failed to parse cross.original:', cross.original);
+              originalProduct = {};
+            }
+          } else {
+            originalProduct = (cross.original as Record<string, unknown>) || {};
+          }
           const alternatives = cross.crosses.flatMap(c => c.alternatives);
 
           const crossResult: ProductCrossResult = {
             original: {
-              manufacturer: String(originalProduct?.manufacturer || 'Unknown'),
-              partNumber: String(originalProduct?.partNumber || ''),
-              description: String(originalProduct?.description || ''),
+              // Handle different field names: manufacturer/mark, part_number/mark, description/type
+              manufacturer: String(originalProduct?.manufacturer || originalProduct?.mark || originalProduct?.name || 'Unknown'),
+              partNumber: String(originalProduct?.part_number || originalProduct?.partNumber || originalProduct?.mark || ''),
+              description: String(originalProduct?.description || originalProduct?.type || ''),
             },
             alternatives: alternatives.map((alt, idx) => ({
               name: alt.name,
@@ -1116,12 +1129,12 @@ export function useTakeoffsState() {
     setProductCrossState({ isProcessing: false, progress: 100 });
   }, [documents, selectedTakeoff]);
 
-  // Cross a single item using AI backend
+  // Cross a single item using AI backend (allows re-crossing)
   const handleCrossItem = useCallback(async (itemId: string) => {
     console.log('🔥 [handleCrossItem v2.0] CODE WITH DATABASE SAVE - Starting for item:', itemId);
     const item = parsedItems.find(i => i.id === itemId);
-    if (!item || item.isOurManufacturer || item.isCrossed) {
-      console.log('[DEBUG handleCrossItem] Skipping - item not found or already crossed');
+    if (!item || item.isOurManufacturer) {
+      console.log('[DEBUG handleCrossItem] Skipping - item not found or is our manufacturer');
       return;
     }
 
@@ -1129,9 +1142,11 @@ export function useTakeoffsState() {
     setProductCrossState({ isProcessing: true, progress: 0, currentItem: item.partNumber });
 
     try {
+      // Build product object (using snake_case as expected by backend)
       const productData = {
+        name: `${item.manufacturer} ${item.partNumber}`.trim(),
         manufacturer: item.manufacturer,
-        partNumber: item.partNumber,
+        part_number: item.partNumber,
         description: item.description,
       };
 
@@ -1308,10 +1323,12 @@ export function useTakeoffsState() {
     setProductCrossState({ isProcessing: true, progress: 0 });
 
     try {
+      // Prepare products data (using snake_case as expected by backend)
       const productsData = itemsToCross.map(item => ({
         id: item.id,
+        name: `${item.manufacturer} ${item.partNumber}`.trim(),
         manufacturer: item.manufacturer,
-        partNumber: item.partNumber,
+        part_number: item.partNumber,
         description: item.description,
       }));
 

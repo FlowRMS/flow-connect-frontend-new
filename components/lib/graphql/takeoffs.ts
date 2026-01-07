@@ -623,13 +623,46 @@ export async function parseScheduleDocument(
 
   // Extract parsed items from the results
   const parsedItems: ParsedItem[] = results.map((result, index) => {
-    const original = result.original as Record<string, unknown>;
+    // Parse the original field - it may come as a JSON string from the API
+    let original: Record<string, unknown>;
+    if (typeof result.original === 'string') {
+      try {
+        original = JSON.parse(result.original);
+      } catch {
+        console.warn('[parseScheduleDocument] Failed to parse original:', result.original);
+        original = {};
+      }
+    } else {
+      original = result.original as Record<string, unknown>;
+    }
+
+    // Extract fields - API returns different field names depending on document type:
+    // - Product lists: manufacturer, part_number, description
+    // - Fixture/Mechanical schedules: mark, type
+    const manufacturer = (original.manufacturer as string)
+      || (original.Manufacturer as string)
+      || (original.mark as string)  // Mechanical schedules use "mark" as identifier
+      || (original.name as string)
+      || 'Unknown';
+
+    const partNumber = (original.part_number as string)
+      || (original.partNumber as string)
+      || (original.PartNumber as string)
+      || (original.model as string)
+      || (original.mark as string)  // Use mark as part number if available
+      || '';
+
+    const description = (original.description as string)
+      || (original.Description as string)
+      || (original.type as string)  // Mechanical schedules use "type" as description
+      || '';
+
     return {
       id: `parsed-${index}-${Date.now()}`,
       documentId, // Track source document for backend persistence
-      manufacturer: (original.manufacturer as string) || (original.Manufacturer as string) || 'Unknown',
-      partNumber: (original.partNumber as string) || (original.PartNumber as string) || (original.model as string) || '',
-      description: (original.description as string) || (original.Description as string) || '',
+      manufacturer,
+      partNumber,
+      description,
       quantity: (original.quantity as number) || (original.Quantity as number) || 1,
       isOurManufacturer: false,
       isCrossed: false,

@@ -195,10 +195,11 @@ export function ProductCrossResultsModal({
     setSearchError(null);
 
     try {
-      // Build the product object for the API
+      // Build the product object for the API (using snake_case as expected by backend)
       const productToSearch = {
+        name: `${cross.competitorManufacturer} ${cross.competitorPartNumber}`.trim(),
         manufacturer: cross.competitorManufacturer,
-        partNumber: cross.competitorPartNumber,
+        part_number: cross.competitorPartNumber,
         description: cross.competitorDescription,
       };
 
@@ -777,6 +778,7 @@ export function ProductCrossResultsModal({
                 />
                 <div className="flex gap-2">
                   <button
+                    type="button"
                     onClick={handleRerunWithPrompt}
                     disabled={!promptInstructions.trim() || isSearching}
                     className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
@@ -790,6 +792,7 @@ export function ProductCrossResultsModal({
                     {isSearching ? 'Searching...' : 'Rerun'}
                   </button>
                   <button
+                    type="button"
                     onClick={handleOpenSavePrompt}
                     disabled={!promptInstructions.trim() || isSearching}
                     className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
@@ -802,6 +805,7 @@ export function ProductCrossResultsModal({
                     Save as Prompt
                   </button>
                   <button
+                    type="button"
                     onClick={handleOpenTemplates}
                     disabled={isSearching}
                     className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors flex items-center gap-2"
@@ -831,6 +835,7 @@ export function ProductCrossResultsModal({
                     { value: 'value', label: 'Value', bgActive: 'bg-purple-100', textActive: 'text-purple-800', borderActive: 'border-purple-400' },
                   ].map((type) => (
                     <button
+                      type="button"
                       key={type.value}
                       onClick={() => handleToggleCrossType(type.value)}
                       disabled={isSearching}
@@ -845,6 +850,7 @@ export function ProductCrossResultsModal({
                   ))}
                 </div>
                 <button
+                  type="button"
                   onClick={handleRerunWithFilters}
                   disabled={crossTypes.length === 0 || isSearching}
                   className="w-full px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"

@@ -183,6 +183,21 @@ export interface ProductCrossDisplayItem {
 }
 
 /**
+ * Parse the original field which may come as a JSON string from the API
+ */
+function parseOriginal(original: unknown): Record<string, unknown> {
+  if (typeof original === 'string') {
+    try {
+      return JSON.parse(original);
+    } catch {
+      console.warn('[product-crosses] Failed to parse original:', original);
+      return {};
+    }
+  }
+  return (original as Record<string, unknown>) || {};
+}
+
+/**
  * Transform API results to display format for the Product Crosses table
  */
 export function transformResultsToDisplayItems(
@@ -191,15 +206,17 @@ export function transformResultsToDisplayItems(
   const displayItems: ProductCrossDisplayItem[] = [];
 
   for (const result of results) {
-    const original = result.original;
+    // Parse the original field - it may come as a JSON string from the API
+    const original = parseOriginal(result.original);
 
     for (const cross of result.crosses) {
       for (const alt of cross.alternatives) {
         displayItems.push({
           id: crypto.randomUUID(),
-          competitorManufacturer: extractValue(original, ['manufacturer', 'brand', 'vendor']),
-          competitorPartNumber: extractValue(original, ['partNumber', 'part_number', 'model', 'sku']),
-          competitorDescription: cross.originalProduct,
+          // API returns different fields: manufacturer/mark for name, part_number/mark for part, description/type for desc
+          competitorManufacturer: extractValue(original, ['manufacturer', 'brand', 'vendor', 'mark', 'name']),
+          competitorPartNumber: extractValue(original, ['partNumber', 'part_number', 'model', 'sku', 'mark']),
+          competitorDescription: cross.originalProduct || extractValue(original, ['description', 'type']),
           ourManufacturer: alt.source || 'FlowRMS',
           ourPartNumber: extractPartNumber(alt.name),
           ourDescription: alt.description || alt.name,

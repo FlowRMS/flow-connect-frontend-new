@@ -464,11 +464,11 @@ export default function TakeoffDetailPage() {
     }
   };
 
-  // Cross a single parsed item using AI
+  // Cross a single parsed item using AI (allows re-crossing)
   const handleCrossItem = async (itemId: string) => {
     const item = parsedItems.find(i => i.id === itemId);
-    if (!item) {
-      console.error('Item not found:', itemId);
+    if (!item || item.isOurManufacturer) {
+      console.log('[DEBUG handleCrossItem] Skipping - item not found or is our manufacturer');
       return;
     }
 
@@ -479,10 +479,11 @@ export default function TakeoffDetailPage() {
     }));
 
     try {
-      // Prepare product data for crossing
+      // Prepare product data for crossing (using snake_case as expected by backend)
       const productToMatch = {
+        name: `${item.manufacturer} ${item.partNumber}`.trim(),
         manufacturer: item.manufacturer,
-        partNumber: item.partNumber,
+        part_number: item.partNumber,
         description: item.description,
         quantity: item.quantity,
       };
@@ -609,10 +610,11 @@ export default function TakeoffDetailPage() {
     setItemCrossingState(prev => ({ ...prev, ...processingState }));
 
     try {
-      // Prepare all products for batch API call
+      // Prepare all products for batch API call (using snake_case as expected by backend)
       const productsToMatch = itemsToCross.map(item => ({
+        name: `${item.manufacturer} ${item.partNumber}`.trim(),
         manufacturer: item.manufacturer,
-        partNumber: item.partNumber,
+        part_number: item.partNumber,
         description: item.description,
         quantity: item.quantity,
       }));
