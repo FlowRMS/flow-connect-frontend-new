@@ -654,8 +654,9 @@ function QueuePageContent() {
       return;
     }
 
-    // If workflow status is 'COMPLETED' or 'DONE', redirect to upload-complete page
-    if (workflowStatus === 'COMPLETED' || workflowStatus === 'DONE') {
+    // If workflow status is 'COMPLETED', 'DONE', or 'FAILED', redirect to upload-complete page
+    // FAILED status allows users to view the errors and details
+    if (workflowStatus === 'COMPLETED' || workflowStatus === 'DONE' || workflowStatus === 'FAILED') {
       // For TABULAR (spreadsheet) documents, add source=spreadsheet
       if (doc.documentType?.toUpperCase() === 'TABULAR') {
         params.set('source', 'spreadsheet');
