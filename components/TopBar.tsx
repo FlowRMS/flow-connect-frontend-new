@@ -10,6 +10,7 @@ import { useUser } from './providers/user-provider';
 import { useOrgName } from './hooks/useOrgName';
 import { useOrganization } from './hooks/useOrganization';
 import { handleSignOut } from '@/lib/actions';
+import UserGuideModal from './UserGuideModal';
 
 // Key used by useWelcomeAnimation hook
 const WELCOME_SHOWN_KEY = 'flowcrm_welcome_animation_shown';
@@ -33,6 +34,7 @@ export default function TopBar() {
   const { logoUrl } = useOrganization();
   const { setIsOpen, isMobile } = React.useContext(MobileSidebarContext);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [showUserGuide, setShowUserGuide] = useState(false);
 
   // Get the document type for AI Uploader based on current page
   const documentType = getDocumentTypeFromPath(pathname);
@@ -207,8 +209,22 @@ export default function TopBar() {
         <UniversalSearch />
       </div>
 
-      {/* Right: AI Uploader, DISC Analytics, Back to FlowRMS & Notifications */}
+      {/* Right: User Guide, AI Uploader, DISC Analytics, Back to FlowRMS & Notifications */}
       <div className="flex items-center gap-2 sm:gap-3">
+        {/* User Guide Button */}
+        <button
+          onClick={() => setShowUserGuide(true)}
+          className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium bg-gradient-to-r from-indigo-500 to-blue-600 text-white rounded-lg hover:from-indigo-600 hover:to-blue-700 transition-all shadow-sm"
+          title="User Guide"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-4 sm:h-4">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M12 17h.01" strokeLinecap="round"/>
+          </svg>
+          <span className="hidden sm:inline">Guide</span>
+        </button>
+
         {/* AI Uploader Button */}
         <Link
           href={aiUploaderHref}
@@ -283,6 +299,8 @@ export default function TopBar() {
         </button>
       )}
 
+      {/* User Guide Modal */}
+      <UserGuideModal isOpen={showUserGuide} onClose={() => setShowUserGuide(false)} />
     </div>
   );
 }
