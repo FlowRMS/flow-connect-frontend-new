@@ -384,3 +384,12 @@ export {
   type UpdateAcknowledgementInput,
   type FindAcknowledgementsLandingPagesResponse,
 } from './acknowledgements';
+
+// Organization module
+export {
+  fetchOrganization,
+  createOrganization,
+  updateOrganization,
+  type Organization,
+  type OrganizationInput,
+} from './organization';
