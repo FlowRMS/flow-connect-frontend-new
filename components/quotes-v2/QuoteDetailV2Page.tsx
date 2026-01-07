@@ -36,6 +36,7 @@ import {
 } from './api/quotesV2Api';
 import { searchUsers, searchFactories, searchCustomers, getProductCpnByCustomer } from '../quotes/api/quotesApi';
 import { quoteToasts } from '../lib/toast';
+import { createLink, deleteLinkByEntities } from '../lib/graphql/entity-links';
 
 // Helper function to fetch CPNs for line items with products
 async function fetchCpnsForLineItems(
@@ -114,11 +115,18 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // Counter to trigger linked entities refresh after save
+  const [linkedEntitiesRefreshKey, setLinkedEntitiesRefreshKey] = useState(0);
+
   // Transform API data to UI format when it loads
   useEffect(() => {
     if (apiQuote && !isNew) {
       const transformedQuote = transformQuoteToQuoteV2(apiQuote);
       setQuote(transformedQuote);
+
+      // Store the original job ID for link management
+      originalJobIdRef.current = transformedQuote.jobId;
+      prevJobIdRef.current = transformedQuote.jobId;
 
       // Transform line items
       if (apiQuote.details) {
@@ -280,6 +288,13 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
   // Track previous soldToCustomerId to detect changes
   const prevSoldToCustomerIdRef = React.useRef<string | undefined>(undefined);
 
+  // Track previous jobId to manage quote-job links
+  const prevJobIdRef = React.useRef<string | undefined>(undefined);
+  // Track if job link is being managed to prevent duplicate operations
+  const isManagingJobLinkRef = React.useRef<boolean>(false);
+  // Track the original job ID from API for editing scenarios
+  const originalJobIdRef = React.useRef<string | undefined>(undefined);
+
   // Re-fetch CPNs when sold-to customer changes
   useEffect(() => {
     // Only re-fetch if customer actually changed (not on initial load)
@@ -376,6 +391,50 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
     };
   }, [quote, lineItems, settings]);
 
+  // Manage quote-job links when job selection changes
+  const manageJobLink = useCallback(async (quoteId: string, oldJobId: string | undefined, newJobId: string | undefined) => {
+    // Skip if already managing or if there's no change
+    if (isManagingJobLinkRef.current) return;
+    if (oldJobId === newJobId) return;
+
+    isManagingJobLinkRef.current = true;
+
+    try {
+      // Delete old link if there was a previous job
+      if (oldJobId) {
+        try {
+          await deleteLinkByEntities({
+            sourceEntityType: 'QUOTE',
+            sourceEntityId: quoteId,
+            targetEntityType: 'JOB',
+            targetEntityId: oldJobId,
+          });
+          console.log('Deleted quote-job link:', quoteId, '->', oldJobId);
+        } catch (err) {
+          // Link might not exist, which is fine
+          console.log('No existing link to delete or error:', err);
+        }
+      }
+
+      // Create new link if there's a new job
+      if (newJobId) {
+        try {
+          await createLink({
+            sourceEntityType: 'QUOTE',
+            sourceEntityId: quoteId,
+            targetEntityType: 'JOB',
+            targetEntityId: newJobId,
+          });
+          console.log('Created quote-job link:', quoteId, '->', newJobId);
+        } catch (err) {
+          console.error('Failed to create quote-job link:', err);
+        }
+      }
+    } finally {
+      isManagingJobLinkRef.current = false;
+    }
+  }, []);
+
   const handleSave = useCallback(async () => {
     if (!quote.quoteNumber || !quote.soldToCustomerId) {
       setSaveError('Quote Number and Sold To Customer are required');
@@ -392,11 +451,29 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       if (isNew || !quote.id) {
         const result = await createQuoteMutation.mutateAsync(input);
         quoteToasts.createSuccess(quote.quoteNumber);
+
+        // Create job link if a job was selected for the new quote
+        if (quote.jobId && result.id) {
+          await manageJobLink(result.id, undefined, quote.jobId);
+        }
+
         // Navigate to the new quote
         window.location.href = `/quotes-v2/${result.id}`;
       } else {
         await updateQuoteMutation.mutateAsync(input);
+
+        // Manage job link if job selection changed during edit
+        const currentJobId = quote.jobId;
+        const previousJobId = originalJobIdRef.current;
+        if (currentJobId !== previousJobId) {
+          await manageJobLink(quote.id, previousJobId, currentJobId);
+          // Update the original job ID ref to the new value
+          originalJobIdRef.current = currentJobId;
+        }
+
         setHasChanges(false);
+        // Trigger refresh of linked entities section
+        setLinkedEntitiesRefreshKey(prev => prev + 1);
         quoteToasts.updateSuccess(quote.quoteNumber);
       }
     } catch (err) {
@@ -410,7 +487,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
     } finally {
       setIsSaving(false);
     }
-  }, [quote, isNew, buildQuoteInput, createQuoteMutation, updateQuoteMutation]);
+  }, [quote, isNew, buildQuoteInput, createQuoteMutation, updateQuoteMutation, manageJobLink]);
 
   const handleDelete = useCallback(async () => {
     if (!quote.id) return;
@@ -643,6 +720,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
                   sourceEntityType="QUOTE"
                   title="Linked Objects"
                   showAddLinkButton={true}
+                  refreshKey={linkedEntitiesRefreshKey}
                 />
               ) : (
                 <div className="text-center py-8 text-[var(--muted-foreground)]">

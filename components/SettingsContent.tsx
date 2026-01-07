@@ -6,7 +6,6 @@ import { ComposableMap, Geographies, Geography, ZoomableGroup } from 'react-simp
 import TagSearchSelect from './TagSearchSelect';
 import SidebarSettings from './SidebarSettings';
 import {
-  mockCompanySettings,
   mockTeamMembers,
   mockFlowBotSettings,
   mockLostReasons,
@@ -30,7 +29,6 @@ import {
   getTeamCounts,
   type TeamMember,
   type Permission,
-  type CompanySettings,
   type FlowBotSettings,
   type SalesRepSelection,
   type RepAssignment,
@@ -61,6 +59,13 @@ import {
   UserRole,
 } from './admin/api/useTeamApi';
 import { USER_ROLES, getRoleDisplayLabel } from './lib/graphql/users';
+import {
+  fetchOrganization,
+  createOrganization,
+  updateOrganization,
+  type Organization,
+} from './lib/graphql/organization';
+import { uploadFile, getFilePresignedUrl } from './lib/graphql/files';
 
 // Coming Soon Overlay Component for non-functional tabs
 function ComingSoonOverlay({ children }: { children: React.ReactNode }) {
@@ -691,7 +696,7 @@ export default function SettingsContent() {
       )}
 
       {/* Admin Settings Tabs */}
-      {activeTab === 'general' && <ComingSoonOverlay><GeneralSettingsTab /></ComingSoonOverlay>}
+      {activeTab === 'general' && <GeneralSettingsTab />}
       {activeTab === 'team' && <TeamMembersTab />}
       {activeTab === 'permissions' && <PermissionsTab />}
       {activeTab === 'flowbot' && <ComingSoonOverlay><FlowBotSettingsTab /></ComingSoonOverlay>}
@@ -1145,25 +1150,307 @@ function IntegrationCard({ integration, onActivate, onDeactivate, onUpvote, isAc
 
 // General Settings Tab
 function GeneralSettingsTab() {
-  const [settings, setSettings] = useState<CompanySettings>(mockCompanySettings);
+  const [organization, setOrganization] = useState<Organization | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [hasChanges, setHasChanges] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleChange = (field: keyof CompanySettings, value: string | number) => {
-    setSettings(prev => ({ ...prev, [field]: value }));
+  // Form state
+  const [formData, setFormData] = useState({
+    companyName: '',
+    streetAddress: '',
+    addressLine2: '',
+    city: '',
+    state: '',
+    zipCode: '',
+    emailAddress: '',
+    phoneNumber: '',
+    logoFileId: '',
+    logoWidth: 100,
+    logoHeight: 100,
+  });
+
+  // Load organization data on mount
+  useEffect(() => {
+    loadOrganization();
+  }, []);
+
+  // Load logo URL when logoFileId changes
+  useEffect(() => {
+    if (formData.logoFileId) {
+      loadLogoUrl(formData.logoFileId);
+    } else {
+      setLogoUrl(null);
+    }
+  }, [formData.logoFileId]);
+
+  const loadOrganization = async () => {
+    setIsLoading(true);
+    try {
+      const org = await fetchOrganization();
+      setOrganization(org);
+      if (org) {
+        setFormData({
+          companyName: org.companyName || '',
+          streetAddress: org.streetAddress || '',
+          addressLine2: org.addressLine2 || '',
+          city: org.city || '',
+          state: org.state || '',
+          zipCode: org.zipCode || '',
+          emailAddress: org.emailAddress || '',
+          phoneNumber: org.phoneNumber || '',
+          logoFileId: org.logoFileId || '',
+          logoWidth: org.logoWidth || 100,
+          logoHeight: org.logoHeight || 100,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load organization:', error);
+      showErrorToast('Failed to load organization settings');
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  const loadLogoUrl = async (fileId: string) => {
+    try {
+      const url = await getFilePresignedUrl(fileId);
+      setLogoUrl(url);
+    } catch (error) {
+      console.error('Failed to load logo URL:', error);
+      setLogoUrl(null);
+    }
+  };
+
+  const handleChange = (field: keyof typeof formData, value: string | number) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    setHasChanges(true);
+  };
+
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      showErrorToast('Please select an image file');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      showErrorToast('File size must be less than 5MB');
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const uploadedFile = await uploadFile({
+        file,
+        fileName: file.name,
+      });
+
+      setFormData(prev => ({
+        ...prev,
+        logoFileId: uploadedFile.id,
+      }));
+      setHasChanges(true);
+      showSuccessToast('Logo uploaded successfully');
+    } catch (error) {
+      console.error('Failed to upload logo:', error);
+      showErrorToast('Failed to upload logo');
+    } finally {
+      setIsUploading(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleRemoveLogo = () => {
+    setFormData(prev => ({
+      ...prev,
+      logoFileId: '',
+    }));
+    setLogoUrl(null);
+    setHasChanges(true);
+  };
+
+  const handleSave = async () => {
+    // Validate required fields
+    if (!formData.companyName.trim()) {
+      showErrorToast('Company name is required');
+      return;
+    }
+    if (!formData.streetAddress.trim()) {
+      showErrorToast('Street address is required');
+      return;
+    }
+    if (!formData.city.trim()) {
+      showErrorToast('City is required');
+      return;
+    }
+    if (!formData.state.trim()) {
+      showErrorToast('State is required');
+      return;
+    }
+    if (!formData.zipCode.trim()) {
+      showErrorToast('Zip code is required');
+      return;
+    }
+    if (!formData.emailAddress.trim()) {
+      showErrorToast('Email address is required');
+      return;
+    }
+    if (!formData.phoneNumber.trim()) {
+      showErrorToast('Phone number is required');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const input = {
+        companyName: formData.companyName.trim(),
+        streetAddress: formData.streetAddress.trim(),
+        addressLine2: formData.addressLine2.trim(),
+        city: formData.city.trim(),
+        state: formData.state.trim(),
+        zipCode: formData.zipCode.trim(),
+        emailAddress: formData.emailAddress.trim(),
+        phoneNumber: formData.phoneNumber.trim(),
+        logoFileId: formData.logoFileId || undefined,
+        logoWidth: formData.logoWidth || undefined,
+        logoHeight: formData.logoHeight || undefined,
+      };
+
+      let updatedOrg: Organization;
+      if (organization?.id) {
+        // Update existing organization
+        updatedOrg = await updateOrganization(input);
+      } else {
+        // Create new organization
+        updatedOrg = await createOrganization(input);
+      }
+
+      setOrganization(updatedOrg);
+      setHasChanges(false);
+      showSuccessToast('Organization settings saved successfully');
+    } catch (error) {
+      console.error('Failed to save organization:', error);
+      showErrorToast('Failed to save organization settings');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="max-w-3xl">
+        <h2 className="text-xl font-semibold text-[var(--foreground)] mb-6">General Settings</h2>
+        <div className="flex items-center justify-center py-12">
+          <div className="flex items-center gap-3">
+            <svg className="animate-spin h-5 w-5 text-[var(--primary)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span className="text-[var(--muted-foreground)]">Loading organization settings...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-3xl">
-      <h2 className="text-xl font-semibold text-[var(--foreground)] mb-6">General Settings</h2>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-semibold text-[var(--foreground)]">General Settings</h2>
+        <button
+          onClick={handleSave}
+          disabled={isSaving || !hasChanges}
+          className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors flex items-center gap-2 ${
+            hasChanges
+              ? 'bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)]'
+              : 'bg-[var(--muted)] text-[var(--muted-foreground)] cursor-not-allowed'
+          }`}
+        >
+          {isSaving ? (
+            <>
+              <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Saving...
+            </>
+          ) : (
+            'Save Changes'
+          )}
+        </button>
+      </div>
 
       <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] p-6 space-y-6">
         {/* Company Logo */}
         <div>
           <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Company Logo</label>
-          <div className="flex items-center gap-4">
-            <div className="w-24 h-24 border-2 border-dashed border-[var(--border)] rounded-lg flex items-center justify-center cursor-pointer hover:border-[var(--primary)] transition-colors">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted-foreground)]">
-                <path d="M12 5v14M5 12h14" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+          <div className="flex items-start gap-4">
+            <div
+              onClick={() => !isUploading && fileInputRef.current?.click()}
+              className={`relative w-24 h-24 border-2 border-dashed rounded-lg flex items-center justify-center cursor-pointer transition-colors overflow-hidden ${
+                isUploading
+                  ? 'border-[var(--primary)] bg-[var(--primary)]/5'
+                  : 'border-[var(--border)] hover:border-[var(--primary)]'
+              }`}
+            >
+              {isUploading ? (
+                <svg className="animate-spin h-6 w-6 text-[var(--primary)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              ) : logoUrl ? (
+                <img
+                  src={logoUrl}
+                  alt="Company Logo"
+                  className="w-full h-full object-contain"
+                  style={{
+                    maxWidth: formData.logoWidth ? `${formData.logoWidth}px` : '100%',
+                    maxHeight: formData.logoHeight ? `${formData.logoHeight}px` : '100%'
+                  }}
+                />
+              ) : (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted-foreground)]">
+                  <path d="M12 5v14M5 12h14" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              )}
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleLogoUpload}
+              className="hidden"
+            />
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                className="px-3 py-1.5 text-sm font-medium text-[var(--primary)] bg-[var(--primary)]/10 rounded-lg hover:bg-[var(--primary)]/20 transition-colors disabled:opacity-50"
+              >
+                {logoUrl ? 'Change Logo' : 'Upload Logo'}
+              </button>
+              {logoUrl && (
+                <button
+                  onClick={handleRemoveLogo}
+                  className="px-3 py-1.5 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                >
+                  Remove Logo
+                </button>
+              )}
+              <p className="text-xs text-[var(--muted-foreground)]">
+                Supported formats: JPG, PNG, GIF. Max size: 5MB
+              </p>
             </div>
           </div>
         </div>
@@ -1172,12 +1459,12 @@ function GeneralSettingsTab() {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-              Logo Width<span className="text-red-500">*</span>
+              Logo Width
             </label>
             <div className="relative">
               <input
                 type="number"
-                value={settings.logoWidth}
+                value={formData.logoWidth}
                 onChange={(e) => handleChange('logoWidth', parseInt(e.target.value) || 0)}
                 className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
               />
@@ -1186,12 +1473,12 @@ function GeneralSettingsTab() {
           </div>
           <div>
             <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-              Logo Height<span className="text-red-500">*</span>
+              Logo Height
             </label>
             <div className="relative">
               <input
                 type="number"
-                value={settings.logoHeight}
+                value={formData.logoHeight}
                 onChange={(e) => handleChange('logoHeight', parseInt(e.target.value) || 0)}
                 className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
               />
@@ -1207,8 +1494,8 @@ function GeneralSettingsTab() {
           </label>
           <input
             type="text"
-            value={settings.name}
-            onChange={(e) => handleChange('name', e.target.value)}
+            value={formData.companyName}
+            onChange={(e) => handleChange('companyName', e.target.value)}
             className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
           />
         </div>
@@ -1220,7 +1507,7 @@ function GeneralSettingsTab() {
           </label>
           <input
             type="text"
-            value={settings.streetAddress}
+            value={formData.streetAddress}
             onChange={(e) => handleChange('streetAddress', e.target.value)}
             className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
           />
@@ -1231,7 +1518,7 @@ function GeneralSettingsTab() {
           <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Address Line 2</label>
           <input
             type="text"
-            value={settings.addressLine2}
+            value={formData.addressLine2}
             onChange={(e) => handleChange('addressLine2', e.target.value)}
             className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
           />
@@ -1245,7 +1532,7 @@ function GeneralSettingsTab() {
             </label>
             <input
               type="text"
-              value={settings.city}
+              value={formData.city}
               onChange={(e) => handleChange('city', e.target.value)}
               className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
             />
@@ -1256,7 +1543,7 @@ function GeneralSettingsTab() {
             </label>
             <input
               type="text"
-              value={settings.state}
+              value={formData.state}
               onChange={(e) => handleChange('state', e.target.value)}
               className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
             />
@@ -1267,7 +1554,7 @@ function GeneralSettingsTab() {
             </label>
             <input
               type="text"
-              value={settings.zipCode}
+              value={formData.zipCode}
               onChange={(e) => handleChange('zipCode', e.target.value)}
               className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
             />
@@ -1281,8 +1568,8 @@ function GeneralSettingsTab() {
           </label>
           <input
             type="email"
-            value={settings.email}
-            onChange={(e) => handleChange('email', e.target.value)}
+            value={formData.emailAddress}
+            onChange={(e) => handleChange('emailAddress', e.target.value)}
             className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
           />
         </div>
@@ -1294,8 +1581,8 @@ function GeneralSettingsTab() {
           </label>
           <input
             type="tel"
-            value={settings.phone}
-            onChange={(e) => handleChange('phone', e.target.value)}
+            value={formData.phoneNumber}
+            onChange={(e) => handleChange('phoneNumber', e.target.value)}
             className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
           />
         </div>
