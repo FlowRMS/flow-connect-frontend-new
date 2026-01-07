@@ -4,7 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { TakeoffDetailView } from '@/components/takeoffs/views/TakeoffDetailView';
 import { fetchTakeoff, updateTakeoffDocument, updateTakeoff, abridgeDocument as abridgeDocumentAPI, parseScheduleDocument } from '@/components/lib/graphql/takeoffs';
-import { crossProducts } from '@/components/lib/graphql/product-crosses';
+import { crossProducts, createKnownProductCross } from '@/components/lib/graphql/product-crosses';
 import type { Takeoff, TakeoffDocument, ParsedItem, TakeoffStep, PageAnalysis } from '@/components/takeoffs/types';
 import { transformTakeoffResponse, stepToApiStatus, transformDocumentResponse } from '@/components/takeoffs/types';
 import { getInitialStep } from '@/components/takeoffs/utils';
@@ -72,14 +72,23 @@ export default function TakeoffDetailPage() {
         if (response.documents && response.documents.length > 0) {
           console.log('[loadTakeoff] Raw documents from backend:', response.documents.length);
           response.documents.forEach((doc, i) => {
-            console.log(`[loadTakeoff] Doc ${i} (${doc.name}): parsedItems=`, doc.parsedItems, 'type=', typeof doc.parsedItems);
+            console.log(`[loadTakeoff] Raw doc ${i} (${doc.name}):`, {
+              abridged: doc.abridged,
+              documentUrl: doc.documentUrl?.substring(0, 80) + '...',
+              abridgedUrl: doc.abridgedUrl?.substring(0, 80) + '...' || null,
+              parsedItems: doc.parsedItems?.length || 0,
+            });
           });
 
           const docs: TakeoffDocument[] = response.documents.map(transformDocumentResponse);
 
           console.log('[loadTakeoff] Transformed documents:', docs.length);
           docs.forEach((doc, i) => {
-            console.log(`[loadTakeoff] Transformed doc ${i} (${doc.name}): parsedItems=`, doc.parsedItems?.length || 0);
+            console.log(`[loadTakeoff] Transformed doc ${i} (${doc.name}):`, {
+              abridged: doc.abridged,
+              documentUrl: doc.documentUrl?.substring(0, 80) + '...',
+              abridgedUrl: doc.abridgedUrl?.substring(0, 80) + '...' || null,
+            });
           });
 
           setDocuments(docs);
@@ -203,16 +212,18 @@ export default function TakeoffDetailPage() {
   };
 
   const handleDownloadDocument = async (doc: TakeoffDocument) => {
-    if (!doc.documentUrl) {
+    // Use abridged URL if available, otherwise use original
+    const urlToDownload = doc.abridgedUrl || doc.documentUrl;
+    if (!urlToDownload) {
       console.error('Document URL not available');
       return;
     }
     try {
-      const proxyUrl = `/api/document-proxy?url=${encodeURIComponent(doc.documentUrl)}&filename=${encodeURIComponent(doc.name)}`;
+      const proxyUrl = `/api/document-proxy?url=${encodeURIComponent(urlToDownload)}&filename=${encodeURIComponent(doc.name)}`;
       const response = await fetch(proxyUrl);
       if (!response.ok) {
         console.error('Proxy failed, opening in new tab');
-        window.open(doc.documentUrl, '_blank');
+        window.open(urlToDownload, '_blank');
         return;
       }
       const blob = await response.blob();
@@ -224,12 +235,12 @@ export default function TakeoffDetailPage() {
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Download failed:', error);
-      window.open(doc.documentUrl, '_blank');
+      window.open(urlToDownload, '_blank');
     }
   };
 
   const handleDownloadAllDocuments = async () => {
-    const docsWithUrls = documents.filter(d => d.documentUrl);
+    const docsWithUrls = documents.filter(d => d.documentUrl || d.abridgedUrl);
     if (docsWithUrls.length === 0) {
       console.warn('No documents available for download');
       return;
@@ -248,8 +259,10 @@ export default function TakeoffDetailPage() {
     // Download each document through our proxy API
     const downloadPromises = docsWithUrls.map(async (doc) => {
       try {
+        // Use abridged URL if available, otherwise use original
+        const urlToDownload = doc.abridgedUrl || doc.documentUrl!;
         // Use our proxy API to avoid CORS issues
-        const proxyUrl = `/api/document-proxy?url=${encodeURIComponent(doc.documentUrl!)}`;
+        const proxyUrl = `/api/document-proxy?url=${encodeURIComponent(urlToDownload)}`;
         const response = await fetch(proxyUrl);
 
         if (!response.ok) {
@@ -260,7 +273,7 @@ export default function TakeoffDetailPage() {
         const blob = await response.blob();
 
         // Get file extension from URL or default to .pdf
-        const urlPath = new URL(doc.documentUrl!).pathname;
+        const urlPath = new URL(urlToDownload).pathname;
         const extension = urlPath.includes('.') ? urlPath.substring(urlPath.lastIndexOf('.')) : '.pdf';
         const fileName = doc.name.endsWith(extension) ? doc.name : `${doc.name}${extension}`;
 
@@ -306,6 +319,9 @@ export default function TakeoffDetailPage() {
       return;
     }
 
+    console.log('[page.tsx Abridge] Starting for doc:', doc.name);
+    console.log('[page.tsx Abridge] Original documentUrl:', doc.documentUrl);
+
     // Set processing state
     setDocumentAbridgeState(prev => ({
       ...prev,
@@ -319,10 +335,23 @@ export default function TakeoffDetailPage() {
         ['Extract relevant product and fixture information', 'Keep pages with specifications and schedules']
       );
 
+      console.log('[page.tsx Abridge] API Result:', {
+        success: result.success,
+        abridgedUrl: result.abridgedUrl,
+        wasAbridged: result.wasAbridged,
+        originalPages: result.originalPages,
+        abridgedPages: result.abridgedPages,
+        error: result.error,
+      });
+
       if (result.success) {
         const actualPages = result.originalPages || doc.pages;
+        // Only use abridgedUrl if a new PDF was actually generated
+        const effectiveAbridgedUrl = result.wasAbridged ? result.abridgedUrl : undefined;
 
         // Update document with abridgement results
+        console.log('[page.tsx Abridge] wasAbridged:', result.wasAbridged);
+        console.log('[page.tsx Abridge] Updating state with abridgedUrl:', effectiveAbridgedUrl);
         setDocuments(docs =>
           docs.map(d =>
             d.id === docId
@@ -332,19 +361,20 @@ export default function TakeoffDetailPage() {
                   abridged: true,
                   abridgedPages: result.abridgedPages || actualPages,
                   reductionPercentage: result.reductionPercentage || 0,
-                  abridgedUrl: result.abridgedUrl || undefined,
+                  abridgedUrl: effectiveAbridgedUrl || undefined,
                   pageAnalyses: result.pageAnalyses as PageAnalysis[] || undefined,
                 }
               : d
           )
         );
 
-        // Persist to backend
+        // Persist to backend - only save abridgedUrl if a new PDF was generated
+        console.log('[page.tsx Abridge] Persisting to backend with abridgedUrl:', effectiveAbridgedUrl);
         await updateTakeoffDocument(docId, {
           pages: result.originalPages || undefined,
           abridged: true,
           abridgedPages: result.abridgedPages,
-          abridgedUrl: result.abridgedUrl,
+          abridgedUrl: effectiveAbridgedUrl || null,
           reductionPercentage: result.reductionPercentage,
           pageAnalyses: result.pageAnalyses,
         });
@@ -517,9 +547,15 @@ export default function TakeoffDetailPage() {
             items.map(i => i.id === itemId ? crossedItem : i)
           );
 
-          // NOTE: No auto-save to known_product_crosses here
-          // User must explicitly save crosses via "Save Selected" flow
-          console.log('🟢 [page.tsx handleCrossItem] Cross applied locally (no auto-save to known crosses)');
+          // Persist to known_product_crosses silently (no toast)
+          createKnownProductCross({
+            competitorManufacturer: item.manufacturer,
+            competitorPartNumber: item.partNumber,
+            competitorDescription: item.description || '',
+            ourManufacturer: crossedItem.crossedManufacturer || 'Our Company',
+            ourPartNumber: crossedItem.crossedPartNumber || '',
+            ourDescription: crossedItem.crossedDescription || '',
+          }).catch(err => console.error('Failed to persist cross:', err));
 
           // Persist to backend if we have a documentId
           if (item.documentId) {
@@ -645,8 +681,15 @@ export default function TakeoffDetailPage() {
                 crossedPartNumber: alternative.name || '',
                 crossedDescription: alternative.description || `${item.description} (Crossed)`,
               };
-              // NOTE: No auto-save to known_product_crosses here
-              // User must explicitly save crosses via "Save Selected" flow
+              // Persist to known_product_crosses silently (no toast)
+              createKnownProductCross({
+                competitorManufacturer: item.manufacturer,
+                competitorPartNumber: item.partNumber,
+                competitorDescription: item.description || '',
+                ourManufacturer: 'Our Company',
+                ourPartNumber: alternative.name || '',
+                ourDescription: alternative.description || '',
+              }).catch(err => console.error('Failed to persist cross:', err));
             }
           }
         }

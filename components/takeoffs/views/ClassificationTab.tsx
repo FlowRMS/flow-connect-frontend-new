@@ -451,8 +451,11 @@ export function ClassificationTab({
                           Abridged to {doc.abridgedPages} pages
                         </button>
                       ) : (
-                        <span className="text-xs text-green-600">
-                          Abridged to {doc.abridgedPages} pages
+                        <span
+                          className="text-xs text-amber-600"
+                          title="Reduction below 30% threshold - using original document"
+                        >
+                          {doc.abridgedPages}/{doc.pages} pages kept ({doc.reductionPercentage?.toFixed(0) || 0}% - below threshold)
                         </span>
                       )
                     )}

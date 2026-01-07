@@ -395,8 +395,11 @@ export function useTakeoffsState() {
       if (result.success) {
         // Always use originalPages from backend if available (more reliable than client-side pdf.js)
         const actualPages = result.originalPages || doc.pages;
+        // Only use abridgedUrl if a new PDF was actually generated
+        const effectiveAbridgedUrl = result.wasAbridged ? result.abridgedUrl : undefined;
 
         // Update document with abridgement results including abridgedUrl
+        console.log('[Abridgement] wasAbridged:', result.wasAbridged);
         setDocuments(docs =>
           docs.map(d =>
             d.id === docId
@@ -406,7 +409,7 @@ export function useTakeoffsState() {
                   abridged: true,
                   abridgedPages: result.abridgedPages || actualPages,
                   reductionPercentage: result.reductionPercentage || 0,
-                  abridgedUrl: result.abridgedUrl || undefined,
+                  abridgedUrl: effectiveAbridgedUrl || undefined,
                   pageAnalyses: result.pageAnalyses || undefined,
                 }
               : d
@@ -416,7 +419,8 @@ export function useTakeoffsState() {
         // Persist to backend (always update pages from backend response)
         console.log('[Abridgement] Saving to backend:', {
           docId,
-          abridgedUrl: result.abridgedUrl,
+          wasAbridged: result.wasAbridged,
+          abridgedUrl: effectiveAbridgedUrl,
           pageAnalysesCount: result.pageAnalyses?.length || 0,
           pageAnalyses: result.pageAnalyses,
         });
@@ -424,7 +428,7 @@ export function useTakeoffsState() {
           pages: result.originalPages || undefined,
           abridged: true,
           abridgedPages: result.abridgedPages,
-          abridgedUrl: result.abridgedUrl,
+          abridgedUrl: effectiveAbridgedUrl || null,
           reductionPercentage: result.reductionPercentage,
           pageAnalyses: result.pageAnalyses as unknown as UpdateTakeoffDocumentInput['pageAnalyses'],
         });
@@ -562,7 +566,7 @@ export function useTakeoffsState() {
             result = await abridgeDocumentAPI(
               doc.documentUrl!,
               doc.name,
-              ['Extract relevant product and fixture information']
+              ['Extract relevant product and fixture information', 'Keep pages with specifications and schedules']
             );
             // If we got a result (even with success: false), break out of retry loop
             if (result) break;
@@ -588,6 +592,17 @@ export function useTakeoffsState() {
           result = { success: false, error: 'API unavailable after retries' };
         }
 
+        // DEBUG: Log API result to compare with flow 2
+        console.log('[useTakeoffsState Abridge] API Result for', doc.name, ':', {
+          success: result.success,
+          abridgedUrl: result.abridgedUrl,
+          originalPages: result.originalPages,
+          abridgedPages: result.abridgedPages,
+          error: result.error,
+        });
+        console.log('[useTakeoffsState Abridge] Original documentUrl:', doc.documentUrl);
+        console.log('[useTakeoffsState Abridge] URLs match?', result.abridgedUrl === doc.documentUrl);
+
         // Getting fixture pages
         addDocumentLog(doc.id, `[1/${doc.pages}] Getting fixture pages from cache...`);
         setDocumentAbridgementProgress(prev => ({
@@ -599,6 +614,8 @@ export function useTakeoffsState() {
           // Always use originalPages from backend (more reliable than client-side pdf.js)
           const actualPages = result.originalPages || doc.pages;
           const abridgedPages = result.abridgedPages || actualPages;
+          // Only use abridgedUrl if a new PDF was actually generated
+          const effectiveAbridgedUrl = result.wasAbridged ? result.abridgedUrl : undefined;
 
           // Combining results
           addDocumentLog(doc.id, `[${Math.ceil(actualPages * 0.75)}/${actualPages}] Combining results...`);
@@ -608,7 +625,11 @@ export function useTakeoffsState() {
           }));
 
           // Creating abridged PDF
-          addDocumentLog(doc.id, `[${actualPages}/${actualPages}] Creating abridged PDF...`);
+          if (result.wasAbridged) {
+            addDocumentLog(doc.id, `[${actualPages}/${actualPages}] Creating abridged PDF...`);
+          } else {
+            addDocumentLog(doc.id, `[${actualPages}/${actualPages}] Reduction below threshold, keeping original...`);
+          }
           setDocumentAbridgementProgress(prev => ({
             ...prev,
             [doc.id]: { ...prev[doc.id], progress: 90 },
@@ -623,7 +644,7 @@ export function useTakeoffsState() {
                     abridged: true,
                     abridgedPages: abridgedPages,
                     reductionPercentage: result.reductionPercentage || 0,
-                    abridgedUrl: result.abridgedUrl || undefined,
+                    abridgedUrl: effectiveAbridgedUrl || undefined,
                     pageAnalyses: result.pageAnalyses || undefined,
                   }
                 : d
@@ -634,7 +655,8 @@ export function useTakeoffsState() {
           try {
             console.log('[Abridgement ALL] Saving to backend:', {
               docId: doc.id,
-              abridgedUrl: result.abridgedUrl,
+              wasAbridged: result.wasAbridged,
+              abridgedUrl: effectiveAbridgedUrl,
               pageAnalysesCount: result.pageAnalyses?.length || 0,
               pageAnalyses: result.pageAnalyses,
             });
@@ -642,7 +664,7 @@ export function useTakeoffsState() {
               pages: actualPages,
               abridged: true,
               abridgedPages: abridgedPages,
-              abridgedUrl: result.abridgedUrl,
+              abridgedUrl: effectiveAbridgedUrl || null,
               reductionPercentage: result.reductionPercentage,
               pageAnalyses: result.pageAnalyses as unknown as UpdateTakeoffDocumentInput['pageAnalyses'],
             });
@@ -655,7 +677,11 @@ export function useTakeoffsState() {
           addDocumentLog(doc.id, '✅ Smart abridgment complete!');
           const reduction = result.reductionPercentage?.toFixed(0) || '0';
           addDocumentLog(doc.id, `📊 ${abridgedPages}/${actualPages} pages (${reduction}% reduction)`);
-          addDocumentLog(doc.id, '✅ Ready for download!');
+          if (result.wasAbridged) {
+            addDocumentLog(doc.id, '✅ Ready for download!');
+          } else {
+            addDocumentLog(doc.id, '📄 Original document will be used (reduction below 30%)');
+          }
 
           // Mark document as complete
           setDocumentAbridgementProgress(prev => ({
@@ -919,6 +945,21 @@ export function useTakeoffsState() {
           await updateTakeoffDocument(doc.id, { parsedItems: updatedDocItems });
         } catch (persistErr) {
           console.error(`[handleCrossAll] Failed to persist items to document ${doc.id}:`, persistErr);
+        }
+      }
+
+      // Persist each cross to known_product_crosses silently (no toast)
+      for (const item of itemsToCross) {
+        const crossedResult = crossedResults.get(item.id);
+        if (crossedResult) {
+          createKnownProductCross({
+            competitorManufacturer: item.manufacturer,
+            competitorPartNumber: item.partNumber,
+            competitorDescription: item.description || '',
+            ourManufacturer: crossedResult.manufacturer,
+            ourPartNumber: crossedResult.partNumber,
+            ourDescription: crossedResult.description,
+          }).catch(err => console.error('Failed to persist cross:', err));
         }
       }
 
@@ -1190,7 +1231,17 @@ export function useTakeoffsState() {
             };
           })
         );
-        console.log('🟡 [STEP 7] UI state updated (no auto-save to database)');
+        console.log('🟡 [STEP 7] UI state updated');
+
+        // Persist to database silently (no toast)
+        createKnownProductCross({
+          competitorManufacturer: item.manufacturer,
+          competitorPartNumber: item.partNumber,
+          competitorDescription: item.description || '',
+          ourManufacturer: crossedManufacturer,
+          ourPartNumber: crossedPartNumber,
+          ourDescription: crossedDescription,
+        }).catch(err => console.error('Failed to persist cross:', err));
       } else {
         // Fallback if no crosses found
         const crossedManufacturer = 'Our Company';

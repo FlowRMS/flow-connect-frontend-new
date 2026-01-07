@@ -373,6 +373,7 @@ const ABRIDGE_DOCUMENT = `
       originalPages
       abridgedPages
       reductionPercentage
+      wasAbridged
       pageAnalyses {
         pageNumber
         isRelevant
@@ -456,6 +457,9 @@ export interface AbridgementResult {
   reductionPercentage: number | null;
   pageAnalyses: AbridgementPageAnalysis[] | null;
   error: string | null;
+  // Indicates if a new abridged PDF was actually generated
+  // False when: all pages relevant, no pages relevant, or reduction < 30% threshold
+  wasAbridged: boolean;
 }
 
 export type ProductCrossType = 'SIMPLE' | 'VALUE' | 'UPGRADE';
