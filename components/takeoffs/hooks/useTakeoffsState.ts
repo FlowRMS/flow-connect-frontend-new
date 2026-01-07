@@ -1145,7 +1145,8 @@ export function useTakeoffsState() {
     }
 
     console.log('[DEBUG handleCrossItem] Crossing item:', item.manufacturer, item.partNumber);
-    setProductCrossState({ isProcessing: true, progress: 0, currentItem: item.partNumber });
+    // Use itemCrossingState for individual item (not productCrossState which is for Cross All)
+    setItemCrossingState(prev => ({ ...prev, [itemId]: { isProcessing: true } }));
 
     try {
       // Build product object (using snake_case as expected by backend)
@@ -1229,7 +1230,8 @@ export function useTakeoffsState() {
         })
       );
     } finally {
-      setProductCrossState({ isProcessing: false, progress: 100 });
+      // Clear individual item crossing state (not productCrossState which is for Cross All)
+      setItemCrossingState(prev => ({ ...prev, [itemId]: { isProcessing: false } }));
 
       // Check if all crossable items are now crossed - update status to Complete
       // Need to check after the state update, so we check the original parsedItems plus this one

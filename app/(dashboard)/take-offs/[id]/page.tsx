@@ -53,6 +53,9 @@ export default function TakeoffDetailPage() {
   // Per-item crossing state (tracks which items are being crossed)
   const [itemCrossingState, setItemCrossingState] = useState<Record<string, { isProcessing: boolean; error?: string }>>({});
 
+  // Cross All processing state (separate from individual item states)
+  const [isCrossAllProcessing, setIsCrossAllProcessing] = useState(false);
+
   const loadTakeoff = useCallback(async () => {
     if (!takeoffId) return;
 
@@ -590,6 +593,9 @@ export default function TakeoffDetailPage() {
 
     console.log(`🔵 [page.tsx handleCrossAll] Crossing ${itemsToCross.length} items in batch`);
 
+    // Set Cross All button processing state (separate from individual item states)
+    setIsCrossAllProcessing(true);
+
     // Set processing state for each individual item (shows spinner per row)
     const processingState: Record<string, { isProcessing: boolean; error?: string }> = {};
     itemsToCross.forEach(item => {
@@ -688,6 +694,9 @@ export default function TakeoffDetailPage() {
         }
       }
 
+      // Clear Cross All button processing state
+      setIsCrossAllProcessing(false);
+
     } catch (err) {
       console.error('🔴 [page.tsx handleCrossAll] Batch cross failed:', err);
       // Clear processing state on error for each individual item
@@ -696,6 +705,8 @@ export default function TakeoffDetailPage() {
         errorState[item.id] = { isProcessing: false, error: 'Cross failed' };
       });
       setItemCrossingState(prev => ({ ...prev, ...errorState }));
+      // Clear Cross All button processing state on error
+      setIsCrossAllProcessing(false);
     }
   };
 
@@ -778,7 +789,7 @@ export default function TakeoffDetailPage() {
         onDownloadAllDocuments={handleDownloadAllDocuments}
         productCrossResults={[]}
         selectedCrossTypes={['SIMPLE', 'UPGRADE', 'VALUE']}
-        isProductCrossProcessing={false}
+        isProductCrossProcessing={isCrossAllProcessing}
         isParsingProcessing={isParsingProcessing}
         parsingProgress={parsingProgress}
         parsingMessage={parsingMessage}
