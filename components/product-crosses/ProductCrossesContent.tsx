@@ -682,6 +682,7 @@ export function ProductCrossesContent() {
             setIsDeleteModalOpen(true);
             setIsEditModalOpen(false);
           }}
+          onRefresh={loadData}
           isSaving={isSaving}
         />
       )}

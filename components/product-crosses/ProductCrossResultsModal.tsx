@@ -11,6 +11,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import type { ProductCross } from './ProductCrossesContent';
 import {
   crossProducts,
+  createKnownProductCross,
   type ProductCrossTypeEnum,
   type ParsedProductCross,
   type CrossPromptTemplate,
@@ -39,6 +40,7 @@ interface ProductCrossResultsModalProps {
   onClose: () => void;
   onSave: (cross: ProductCross) => void;
   onDelete?: (id: string) => void;
+  onRefresh?: () => void;
   isSaving?: boolean;
 }
 
@@ -68,6 +70,7 @@ export function ProductCrossResultsModal({
   onClose,
   onSave,
   onDelete,
+  onRefresh,
   isSaving = false,
 }: ProductCrossResultsModalProps) {
   // View state
@@ -79,11 +82,14 @@ export function ProductCrossResultsModal({
   // Prompt refinement
   const [promptInstructions, setPromptInstructions] = useState('');
 
-  // Selected cross result
-  const [selectedResultId, setSelectedResultId] = useState<string | null>(null);
+  // Selected cross results (multiple selection)
+  const [selectedResultIds, setSelectedResultIds] = useState<Set<string>>(new Set());
 
   // Deleted AI result IDs (to filter them out)
   const [deletedAiIds, setDeletedAiIds] = useState<Set<string>>(new Set());
+
+  // Loading state for saving
+  const [isSavingSelected, setIsSavingSelected] = useState(false);
 
   // Loading state for AI search (separate states for each rerun button)
   const [isSearchingByPrompt, setIsSearchingByPrompt] = useState(false);
@@ -119,7 +125,7 @@ export function ProductCrossResultsModal({
         crossType: 'direct', // Default to direct for known crosses
         source: 'known',
         reasoning: `Known cross from database. Used ${cross.timesUsed} times.`,
-        isSelected: selectedResultId === cross.id,
+        isSelected: selectedResultIds.has(cross.id),
         specifications: parseSpecifications(cross.ourDescription),
       },
     ];
@@ -129,11 +135,14 @@ export function ProductCrossResultsModal({
       .filter(alt => !deletedAiIds.has(alt.id))
       .map(alt => ({
         ...alt,
-        isSelected: selectedResultId === alt.id,
+        isSelected: selectedResultIds.has(alt.id),
       })));
 
     return results;
-  }, [cross, selectedResultId, aiAlternatives, deletedAiIds]);
+  }, [cross, selectedResultIds, aiAlternatives, deletedAiIds]);
+
+  // Count of selected items
+  const selectedCount = selectedResultIds.size;
 
   // Original product (competitor)
   const originalProduct = {
@@ -169,9 +178,17 @@ export function ProductCrossResultsModal({
     );
   };
 
-  // Handle select result
+  // Handle select result (toggle selection)
   const handleSelectResult = (resultId: string) => {
-    setSelectedResultId(prev => (prev === resultId ? null : resultId));
+    setSelectedResultIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(resultId)) {
+        newSet.delete(resultId);
+      } else {
+        newSet.add(resultId);
+      }
+      return newSet;
+    });
   };
 
   // Handle delete result
@@ -181,8 +198,12 @@ export function ProductCrossResultsModal({
       // Add to deleted set to filter it out
       setDeletedAiIds(prev => new Set([...prev, resultId]));
       // Clear selection if this was selected
-      if (selectedResultId === resultId) {
-        setSelectedResultId(null);
+      if (selectedResultIds.has(resultId)) {
+        setSelectedResultIds(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(resultId);
+          return newSet;
+        });
       }
     } else {
       // It's a known cross - call the onDelete prop
@@ -348,18 +369,56 @@ export function ProductCrossResultsModal({
     }
   }, [savePromptName, savePromptDescription, promptInstructions]);
 
-  // Handle continue (save selected cross)
-  const handleContinue = () => {
-    const selectedResult = crossResults.find(r => r.id === selectedResultId);
-    if (selectedResult) {
-      onSave({
-        ...cross,
-        ourManufacturer: selectedResult.manufacturer,
-        ourPartNumber: selectedResult.partNumber,
-        ourDescription: selectedResult.description,
-      });
+  // Handle save selected (save all selected crosses to database)
+  const handleSaveSelected = async () => {
+    if (selectedCount === 0) return;
+
+    setIsSavingSelected(true);
+    let savedCount = 0;
+    let failedCount = 0;
+
+    // Get all selected results
+    const selectedResults = crossResults.filter(r => selectedResultIds.has(r.id));
+
+    for (const result of selectedResults) {
+      try {
+        // For AI-generated results, save as new known cross
+        if (result.source === 'ai') {
+          await createKnownProductCross({
+            competitorManufacturer: cross.competitorManufacturer,
+            competitorPartNumber: cross.competitorPartNumber,
+            competitorDescription: cross.competitorDescription,
+            ourManufacturer: result.manufacturer,
+            ourPartNumber: result.partNumber,
+            ourDescription: result.description,
+          });
+          savedCount++;
+        } else {
+          // For existing known cross, just update via onSave
+          onSave({
+            ...cross,
+            ourManufacturer: result.manufacturer,
+            ourPartNumber: result.partNumber,
+            ourDescription: result.description,
+          });
+          savedCount++;
+        }
+      } catch (error) {
+        console.error('Error saving cross:', error);
+        failedCount++;
+      }
     }
-    onClose();
+
+    setIsSavingSelected(false);
+
+    // Show result and close
+    if (failedCount === 0) {
+      // Refresh the parent data before closing
+      onRefresh?.();
+      onClose();
+    } else {
+      setSearchError(`Saved ${savedCount}, failed ${failedCount}`);
+    }
   };
 
   // Extract part number from product name
@@ -589,26 +648,30 @@ export function ProductCrossResultsModal({
                       <td className="p-4 text-sm text-gray-400">-</td>
                       {crossResults.map((result) => (
                         <td key={result.id} className="p-4">
-                          <button
-                            onClick={() => handleSelectResult(result.id)}
-                            className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                              selectedResultId === result.id
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                            }`}
-                          >
-                            {selectedResultId === result.id ? (
-                              <span className="flex items-center gap-1.5">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                                  <circle cx="12" cy="12" r="10" />
-                                  <path d="M9 12l2 2 4-4" stroke="white" strokeWidth="2" fill="none" />
-                                </svg>
-                                Selected
-                              </span>
-                            ) : (
-                              'Select'
-                            )}
-                          </button>
+                          {result.source === 'ai' ? (
+                            <button
+                              onClick={() => handleSelectResult(result.id)}
+                              className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                                selectedResultIds.has(result.id)
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                              }`}
+                            >
+                              {selectedResultIds.has(result.id) ? (
+                                <span className="flex items-center gap-1.5">
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                    <circle cx="12" cy="12" r="10" />
+                                    <path d="M9 12l2 2 4-4" stroke="white" strokeWidth="2" fill="none" />
+                                  </svg>
+                                  Selected
+                                </span>
+                              ) : (
+                                'Select'
+                              )}
+                            </button>
+                          ) : (
+                            <span className="text-sm text-gray-400">-</span>
+                          )}
                         </td>
                       ))}
                     </tr>
@@ -618,16 +681,20 @@ export function ProductCrossResultsModal({
                       <td className="p-4 text-sm text-gray-400">-</td>
                       {crossResults.map((result) => (
                         <td key={result.id} className="p-4">
-                          <button
-                            onClick={() => handleDeleteResult(result.id)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 transition-colors"
-                            title="Remove from results"
-                          >
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <circle cx="12" cy="12" r="10" />
-                              <path d="M15 9l-6 6M9 9l6 6" />
-                            </svg>
-                          </button>
+                          {result.source === 'ai' ? (
+                            <button
+                              onClick={() => handleDeleteResult(result.id)}
+                              className="p-1.5 text-gray-400 hover:text-red-600 transition-colors"
+                              title="Remove from results"
+                            >
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <circle cx="12" cy="12" r="10" />
+                                <path d="M15 9l-6 6M9 9l6 6" />
+                              </svg>
+                            </button>
+                          ) : (
+                            <span className="text-sm text-gray-400">-</span>
+                          )}
                         </td>
                       ))}
                     </tr>
@@ -669,7 +736,7 @@ export function ProductCrossResultsModal({
                     </tr>
                     {/* Cross Result Rows */}
                     {crossResults.map((result) => (
-                      <tr key={result.id} className={`hover:bg-gray-50 ${selectedResultId === result.id ? 'bg-blue-50' : ''}`}>
+                      <tr key={result.id} className={`hover:bg-gray-50 ${selectedResultIds.has(result.id) ? 'bg-blue-50' : ''}`}>
                         <td className="p-4">
                           <div className="text-sm font-medium text-gray-900">{result.partNumber}</div>
                           <div className="text-xs text-gray-500">{result.manufacturer}</div>
@@ -717,28 +784,32 @@ export function ProductCrossResultsModal({
                         ))}
                         <td className="p-4 text-sm text-gray-500 max-w-xs">{result.reasoning || '-'}</td>
                         <td className="p-4">
-                          <div className="flex items-center justify-center gap-2">
-                            <button
-                              onClick={() => handleSelectResult(result.id)}
-                              className={`px-3 py-1 text-sm font-medium rounded-lg transition-colors ${
-                                selectedResultId === result.id
-                                  ? 'bg-blue-600 text-white'
-                                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                              }`}
-                            >
-                              {selectedResultId === result.id ? 'Selected' : 'Select'}
-                            </button>
-                            <button
-                              onClick={() => handleDeleteResult(result.id)}
-                              className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                              title="Remove from results"
-                            >
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <circle cx="12" cy="12" r="10" />
-                                <path d="M15 9l-6 6M9 9l6 6" />
-                              </svg>
-                            </button>
-                          </div>
+                          {result.source === 'ai' ? (
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => handleSelectResult(result.id)}
+                                className={`px-3 py-1 text-sm font-medium rounded-lg transition-colors ${
+                                  selectedResultIds.has(result.id)
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                                }`}
+                              >
+                                {selectedResultIds.has(result.id) ? 'Selected' : 'Select'}
+                              </button>
+                              <button
+                                onClick={() => handleDeleteResult(result.id)}
+                                className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                                title="Remove from results"
+                              >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <circle cx="12" cy="12" r="10" />
+                                  <path d="M15 9l-6 6M9 9l6 6" />
+                                </svg>
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-gray-400">-</span>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -747,18 +818,28 @@ export function ProductCrossResultsModal({
               )}
             </div>
 
-            {/* Continue Button */}
-            {selectedResultId && (
-              <div className="px-6 py-4 border-t border-gray-200 flex justify-end bg-gray-50">
-                <button
-                  onClick={handleContinue}
-                  disabled={isSaving}
-                  className="px-6 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                >
-                  Continue
-                </button>
-              </div>
-            )}
+            {/* Save Selected Button */}
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end bg-gray-50">
+              <button
+                onClick={handleSaveSelected}
+                disabled={isSaving || isSavingSelected || selectedCount === 0}
+                className="px-6 py-2.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              >
+                {isSavingSelected ? (
+                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                    <polyline points="17 21 17 13 7 13 7 21"/>
+                    <polyline points="7 3 7 8 15 8"/>
+                  </svg>
+                )}
+                {isSavingSelected ? 'Saving...' : `Save Selected${selectedCount > 0 ? ` (${selectedCount})` : ''}`}
+              </button>
+            </div>
           </div>
 
           {/* Error Message */}
