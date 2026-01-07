@@ -179,7 +179,6 @@ function extractCheckFields(data: PDFCheck): PDFFieldConfig[] {
     { id: 'postDate', label: 'Post Date', visible: true, editable: true, value: data.postDate, type: 'date', category: 'dates' },
     { id: 'commissionMonth', label: 'Commission Month', visible: true, editable: true, value: data.commissionMonth, type: 'text', category: 'dates' },
     { id: 'factory', label: 'Manufacturer', visible: true, editable: false, value: data.factory?.title, type: 'text', category: 'other' },
-    { id: 'createdBy', label: 'Created By', visible: true, editable: false, value: data.createdBy?.fullName, type: 'text', category: 'other' },
     { id: 'enteredCommissionAmount', label: 'Commission Amount', visible: true, editable: false, value: data.enteredCommissionAmount, type: 'currency', category: 'summary' },
   ];
 }
@@ -297,20 +296,30 @@ export function extractLineItems(
   entityType: PDFEntityType,
   data: PDFPreOpportunity | PDFQuote | PDFOrder | PDFInvoice | PDFCheck
 ): PDFLineItemConfig[] {
+  let items: PDFLineItemConfig[] = [];
+
   switch (entityType) {
     case 'PRE_OPPORTUNITIES':
-      return extractPreOpportunityLineItems((data as PDFPreOpportunity).details || []);
+      items = extractPreOpportunityLineItems((data as PDFPreOpportunity).details || []);
+      break;
     case 'QUOTES':
-      return extractQuoteLineItems((data as PDFQuote).details || []);
+      items = extractQuoteLineItems((data as PDFQuote).details || []);
+      break;
     case 'ORDERS':
-      return extractOrderLineItems((data as PDFOrder).details || []);
+      items = extractOrderLineItems((data as PDFOrder).details || []);
+      break;
     case 'INVOICES':
-      return extractInvoiceLineItems((data as PDFInvoice).details || []);
+      items = extractInvoiceLineItems((data as PDFInvoice).details || []);
+      break;
     case 'CHECKS':
-      return extractCheckLineItems((data as PDFCheck).details || []);
+      items = extractCheckLineItems((data as PDFCheck).details || []);
+      break;
     default:
       return [];
   }
+
+  // Sort by itemNumber
+  return items.sort((a, b) => a.itemNumber - b.itemNumber);
 }
 
 // Get status color class

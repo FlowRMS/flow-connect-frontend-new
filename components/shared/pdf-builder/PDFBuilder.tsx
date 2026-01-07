@@ -204,21 +204,52 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
       // Get entity number
       const entityNumber = getEntityNumber(entityType, state.entityData);
 
+      // Helper function to load image and convert to base64
+      const loadImageAsBase64 = async (url: string): Promise<string | null> => {
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => {
+            try {
+              const canvas = document.createElement('canvas');
+              canvas.width = img.width;
+              canvas.height = img.height;
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                ctx.drawImage(img, 0, 0);
+                resolve(canvas.toDataURL('image/png'));
+              } else {
+                resolve(null);
+              }
+            } catch {
+              resolve(null);
+            }
+          };
+          img.onerror = () => resolve(null);
+          img.src = url;
+        });
+      };
+
       // Header - Logo and Company Info
+      let logoAdded = false;
       if (state.showLogo && state.organizationLogo) {
         try {
-          // Add logo
-          doc.addImage(state.organizationLogo, 'PNG', margin, yPos, 20, 20);
+          // Load image and convert to base64 for jsPDF
+          const logoBase64 = await loadImageAsBase64(state.organizationLogo);
+          if (logoBase64) {
+            doc.addImage(logoBase64, 'PNG', margin, yPos, 20, 20);
+            logoAdded = true;
+          }
         } catch {
           // If logo fails, just skip it
         }
       }
 
-      // Company name
+      // Company name - position based on whether logo was actually added
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...darkColor);
-      doc.text(state.organizationName || 'Company', state.showLogo ? margin + 25 : margin, yPos + 5);
+      doc.text(state.organizationName || 'Company', logoAdded ? margin + 25 : margin, yPos + 5);
 
       // Company address
       if (state.organizationAddress) {
@@ -227,24 +258,47 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
         doc.setTextColor(...lightGray);
         const addressLines = state.organizationAddress.split('\n');
         addressLines.forEach((line, idx) => {
-          doc.text(line, state.showLogo ? margin + 25 : margin, yPos + 10 + idx * 4);
+          doc.text(line, logoAdded ? margin + 25 : margin, yPos + 10 + idx * 4);
         });
       }
 
-      // Document type and number (right side)
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...lightGray);
-      doc.text(`${ENTITY_TYPE_LABELS[entityType]} #`, pageWidth - margin, yPos + 2, { align: 'right' });
+      // Document type and number (right side) - only if visible
+      // Map entity type to its primary number field
+      const primaryNumberFieldMap: Record<string, string> = {
+        'PRE_OPPORTUNITIES': 'entityNumber',
+        'QUOTES': 'quoteNumber',
+        'ORDERS': 'orderNumber',
+        'INVOICES': 'invoiceNumber',
+        'CHECKS': 'checkNumber',
+      };
+      const primaryNumberFieldId = primaryNumberFieldMap[entityType];
+      const numberField = state.fields.find(f => f.visible && f.id === primaryNumberFieldId);
+      if (numberField) {
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...lightGray);
+        doc.text(`${ENTITY_TYPE_LABELS[entityType]} #`, pageWidth - margin, yPos + 2, { align: 'right' });
 
-      doc.setFontSize(16);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...darkColor);
-      doc.text(entityNumber, pageWidth - margin, yPos + 8, { align: 'right' });
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...darkColor);
+        const numberValue = numberField.editedValue ?? numberField.value ?? entityNumber;
+        doc.text(String(numberValue), pageWidth - margin, yPos + 8, { align: 'right' });
+      }
+
+      // Status - if visible
+      const statusField = state.fields.find(f => f.visible && f.id === 'status');
+      if (statusField) {
+        const statusValue = statusField.editedValue ?? statusField.value;
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(100, 100, 100);
+        doc.text(`Status: ${String(statusValue || '-')}`, pageWidth - margin, numberField ? yPos + 14 : yPos + 8, { align: 'right' });
+      }
 
       // Date fields on right
       const visibleDateFields = state.fields.filter((f) => f.visible && f.category === 'dates');
-      let dateYPos = yPos + 14;
+      let dateYPos = yPos + (numberField ? 14 : 8) + (statusField ? 6 : 0);
       doc.setFontSize(8);
       visibleDateFields.forEach((field) => {
         doc.setFont('helvetica', 'normal');
@@ -271,7 +325,8 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
       // Info sections
       const visibleCustomerFields = state.fields.filter((f) => f.visible && f.category === 'customer');
       const visibleTermsFields = state.fields.filter((f) => f.visible && f.category === 'terms');
-      const visibleOtherFields = state.fields.filter((f) => f.visible && (f.category === 'other' || (f.category === 'header' && f.id !== 'status' && !f.id.includes('Number'))));
+      // Only filter out the primary entity number field, NOT reference fields like orderNumber on invoices
+      const visibleOtherFields = state.fields.filter((f) => f.visible && (f.category === 'other' || (f.category === 'header' && f.id !== 'status' && f.id !== primaryNumberFieldId)));
 
       const colWidth = (pageWidth - margin * 2) / 3;
       let maxSectionHeight = 0;
@@ -413,45 +468,66 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
       const finalY = (doc as any).lastAutoTable?.finalY || yPos + 50;
       yPos = finalY + 10;
 
-      // Summary - calculate totals based on edited values
-      const subtotal = visibleLineItems.reduce((sum, item) => {
-        const qty = item.editedValues?.quantity ?? item.quantity;
-        const price = item.editedValues?.unitPrice ?? item.unitPrice;
-        return sum + (qty * price);
-      }, 0);
-      const discountField = state.fields.find((f) => f.id === 'discount' && f.visible);
-      const discount = discountField ? Number(discountField.editedValue ?? discountField.value ?? 0) : 0;
-      const total = subtotal - discount;
+      // Summary - check field visibility and calculate totals based on edited values
+      const subtotalFieldPDF = state.fields.find((f) => f.id === 'subtotal' && f.visible);
+      const totalFieldPDF = state.fields.find((f) => f.id === 'total' && f.visible);
+      const discountFieldPDF = state.fields.find((f) => f.id === 'discount' && f.visible);
 
-      const summaryX = pageWidth - margin - 60;
+      // Only render summary section if at least one field is visible
+      if (subtotalFieldPDF || totalFieldPDF || discountFieldPDF) {
+        const calculatedSubtotal = visibleLineItems.reduce((sum, item) => {
+          const qty = item.editedValues?.quantity ?? item.quantity;
+          const price = item.editedValues?.unitPrice ?? item.unitPrice;
+          return sum + (qty * price);
+        }, 0);
+        const discount = discountFieldPDF ? Number(discountFieldPDF.editedValue ?? discountFieldPDF.value ?? 0) : 0;
 
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...lightGray);
-      doc.text('Subtotal', summaryX, yPos);
-      doc.setTextColor(...darkColor);
-      doc.text(formatCurrency(subtotal), pageWidth - margin, yPos, { align: 'right' });
+        // Use edited value if available, otherwise calculated
+        const subtotalValue = subtotalFieldPDF?.editedValue !== undefined
+          ? Number(subtotalFieldPDF.editedValue)
+          : calculatedSubtotal;
+        const totalValue = totalFieldPDF?.editedValue !== undefined
+          ? Number(totalFieldPDF.editedValue)
+          : calculatedSubtotal - discount;
 
-      if (discount > 0) {
+        const summaryX = pageWidth - margin - 60;
+
+        if (subtotalFieldPDF) {
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(...lightGray);
+          doc.text('Subtotal', summaryX, yPos);
+          doc.setTextColor(...darkColor);
+          doc.text(formatCurrency(subtotalValue), pageWidth - margin, yPos, { align: 'right' });
+          yPos += 5;
+        }
+
+        if (discountFieldPDF && discount > 0) {
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(...lightGray);
+          doc.text('Discount', summaryX, yPos);
+          doc.setTextColor(220, 38, 38); // Red
+          doc.text(`-${formatCurrency(discount)}`, pageWidth - margin, yPos, { align: 'right' });
+          yPos += 5;
+        }
+
+        if (totalFieldPDF) {
+          yPos += 2;
+          doc.setDrawColor(229, 231, 235);
+          doc.line(summaryX, yPos - 2, pageWidth - margin, yPos - 2);
+
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(...darkColor);
+          doc.text('Total', summaryX, yPos + 3);
+          doc.setFontSize(12);
+          doc.text(formatCurrency(totalValue), pageWidth - margin, yPos + 3, { align: 'right' });
+          yPos += 10;
+        }
+
         yPos += 5;
-        doc.setTextColor(...lightGray);
-        doc.text('Discount', summaryX, yPos);
-        doc.setTextColor(220, 38, 38); // Red
-        doc.text(`-${formatCurrency(discount)}`, pageWidth - margin, yPos, { align: 'right' });
       }
-
-      yPos += 7;
-      doc.setDrawColor(229, 231, 235);
-      doc.line(summaryX, yPos - 2, pageWidth - margin, yPos - 2);
-
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...darkColor);
-      doc.text('Total', summaryX, yPos + 3);
-      doc.setFontSize(12);
-      doc.text(formatCurrency(total), pageWidth - margin, yPos + 3, { align: 'right' });
-
-      yPos += 15;
 
       // Footer note
       if (state.footerNote) {
@@ -477,20 +553,74 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
         doc.text(noteLines, margin, yPos);
       }
 
-      // Page footer
-      doc.setFontSize(7);
-      doc.setTextColor(...lightGray);
-      doc.text(
-        `Generated on ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`,
-        margin,
-        pageHeight - 14
-      );
-      doc.text('Page 1 of 1', pageWidth - margin, pageHeight - 14, { align: 'right' });
+      // Load FlowRMS logo for footer
+      let flowLogoBase64: string | null = null;
+      try {
+        flowLogoBase64 = await loadImageAsBase64('/flow-logo copy.png');
+      } catch {
+        // Logo failed to load, continue without it
+      }
 
-      // Powered by FlowRMS
-      doc.setFontSize(7);
-      doc.setTextColor(180, 180, 180);
-      doc.text('Powered by FlowRMS', pageWidth / 2, pageHeight - 8, { align: 'center' });
+      // Add footer to all pages
+      const totalPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+
+        // Page footer line
+        doc.setDrawColor(229, 231, 235);
+        doc.line(margin, pageHeight - 20, pageWidth - margin, pageHeight - 20);
+
+        // Generated date and page number
+        doc.setFontSize(8);
+        doc.setTextColor(...lightGray);
+        doc.text(
+          `Generated on ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`,
+          margin,
+          pageHeight - 15
+        );
+        doc.text(`Page ${i} of ${totalPages}`, pageWidth - margin, pageHeight - 15, { align: 'right' });
+
+        // Powered by FlowRMS - centered with proper alignment
+        const footerY = pageHeight - 8;
+        const logoSize = 5;
+        const centerX = pageWidth / 2;
+
+        // Calculate total width for centering: "Powered by" + gap + logo + gap + "FlowRMS"
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        const poweredByWidth = doc.getTextWidth('Powered by');
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        const flowRMSWidth = doc.getTextWidth('FlowRMS');
+
+        const gap = 2;
+        const totalWidth = poweredByWidth + gap + (flowLogoBase64 ? logoSize + gap : 0) + flowRMSWidth;
+        const startX = centerX - totalWidth / 2;
+
+        // Draw "Powered by"
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(120, 120, 120);
+        doc.text('Powered by', startX, footerY);
+
+        let currentX = startX + poweredByWidth + gap;
+
+        // Add FlowRMS logo if loaded
+        if (flowLogoBase64) {
+          try {
+            doc.addImage(flowLogoBase64, 'PNG', currentX, footerY - logoSize + 1, logoSize, logoSize);
+            currentX += logoSize + gap;
+          } catch {
+            // Skip logo if it fails
+          }
+        }
+
+        // Draw "FlowRMS"
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(80, 80, 80);
+        doc.text('FlowRMS', currentX, footerY);
+      }
 
       // Save the PDF
       const fileName = `${ENTITY_TYPE_LABELS[entityType]}_${entityNumber}.pdf`;
@@ -558,6 +688,16 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
             </div>
 
             <div className="flex items-center gap-3">
+              {/* X Close Button */}
+              <button
+                onClick={onClose}
+                className="w-10 h-10 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
+                aria-label="Close"
+              >
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
               <button
                 onClick={onClose}
                 className="px-5 py-2.5 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-all"

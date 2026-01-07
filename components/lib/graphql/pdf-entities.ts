@@ -941,16 +941,6 @@ const CHECK_PDF_QUERY = `
         creationType
         createdAt
         createdById
-        createdBy {
-          id
-          email
-          firstName
-          lastName
-          fullName
-          role
-          inside
-          outside
-        }
         factoryId
         factory {
           id

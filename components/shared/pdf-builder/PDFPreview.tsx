@@ -131,11 +131,44 @@ export function PDFPreview({
 
             {/* Document Info */}
             <div className="text-right">
-              <div className="inline-flex items-center gap-2 mb-2">
-                <span className="text-xs text-gray-500 uppercase tracking-wider">{ENTITY_TYPE_LABELS[entityType]} #</span>
-                <span className="text-xl font-bold text-gray-900">{entityNumber}</span>
-              </div>
-              {/* Header fields on the right */}
+              {/* Entity Number - only show if visible */}
+              {(() => {
+                // Map entity type to its primary number field
+                const primaryNumberFieldMap: Record<string, string> = {
+                  'PRE_OPPORTUNITIES': 'entityNumber',
+                  'QUOTES': 'quoteNumber',
+                  'ORDERS': 'orderNumber',
+                  'INVOICES': 'invoiceNumber',
+                  'CHECKS': 'checkNumber',
+                };
+                const primaryNumberFieldId = primaryNumberFieldMap[entityType];
+                const numberField = visibleFields.find(f => f.id === primaryNumberFieldId);
+                if (numberField) {
+                  return (
+                    <div className="inline-flex items-center gap-2 mb-2">
+                      <span className="text-xs text-gray-500 uppercase tracking-wider">{ENTITY_TYPE_LABELS[entityType]} #</span>
+                      <span className="text-xl font-bold text-gray-900">{formatFieldValue(numberField)}</span>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+              {/* Status - show if visible */}
+              {(() => {
+                const statusField = visibleFields.find(f => f.id === 'status');
+                if (statusField) {
+                  const statusValue = statusField.editedValue ?? statusField.value;
+                  return (
+                    <div className="mb-2">
+                      <span className={`inline-block px-2.5 py-1 text-xs font-semibold rounded-full ${getStatusColor(String(statusValue))}`}>
+                        {formatStatus(String(statusValue))}
+                      </span>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+              {/* Date fields on the right */}
               <div className="space-y-1">
                 {dateFields.map((field) => (
                   <div key={field.id} className="flex items-center justify-end gap-2 text-xs">
@@ -182,24 +215,39 @@ export function PDFPreview({
               </div>
             )}
 
-            {/* Other Info */}
-            {(otherFields.length > 0 || headerFields.filter(f => f.id !== 'status').length > 0) && (
-              <div className="space-y-3">
-                <h3 className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Details</h3>
-                {headerFields.filter(f => f.id !== 'status' && !f.id.includes('Number')).map((field) => (
-                  <div key={field.id}>
-                    <div className="text-[10px] text-gray-500">{field.label}</div>
-                    <div className="text-sm font-medium text-gray-900">{formatFieldValue(field)}</div>
+            {/* Other Info - filter out status and the primary entity number field (shown in header) */}
+            {(() => {
+              // Only filter out the PRIMARY entity number field for this type, not reference fields like orderNumber on invoices
+              const primaryNumberFieldMap: Record<string, string> = {
+                'PRE_OPPORTUNITIES': 'entityNumber',
+                'QUOTES': 'quoteNumber',
+                'ORDERS': 'orderNumber',
+                'INVOICES': 'invoiceNumber',
+                'CHECKS': 'checkNumber',
+              };
+              const primaryNumberFieldId = primaryNumberFieldMap[entityType];
+              const detailHeaderFields = headerFields.filter(f => f.id !== 'status' && f.id !== primaryNumberFieldId);
+              if (otherFields.length > 0 || detailHeaderFields.length > 0) {
+                return (
+                  <div className="space-y-3">
+                    <h3 className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Details</h3>
+                    {detailHeaderFields.map((field) => (
+                      <div key={field.id}>
+                        <div className="text-[10px] text-gray-500">{field.label}</div>
+                        <div className="text-sm font-medium text-gray-900">{formatFieldValue(field)}</div>
+                      </div>
+                    ))}
+                    {otherFields.map((field) => (
+                      <div key={field.id}>
+                        <div className="text-[10px] text-gray-500">{field.label}</div>
+                        <div className="text-sm font-medium text-gray-900">{formatFieldValue(field)}</div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-                {otherFields.map((field) => (
-                  <div key={field.id}>
-                    <div className="text-[10px] text-gray-500">{field.label}</div>
-                    <div className="text-sm font-medium text-gray-900">{formatFieldValue(field)}</div>
-                  </div>
-                ))}
-              </div>
-            )}
+                );
+              }
+              return null;
+            })()}
           </div>
 
           {/* Line Items Table */}
@@ -283,27 +331,52 @@ export function PDFPreview({
             </table>
           </div>
 
-          {/* Summary Section */}
-          <div className="flex justify-end mb-8">
-            <div className="w-72">
-              <div className="space-y-2 pb-3 border-b border-gray-200">
-                <div className="flex justify-between text-xs">
-                  <span className="text-gray-500">Subtotal</span>
-                  <span className="font-medium text-gray-900">{formatCurrency(subtotal)}</span>
-                </div>
-                {summaryFields.filter(f => f.id === 'discount' && (f.editedValue ?? f.value)).map((field) => (
-                  <div key={field.id} className="flex justify-between text-xs">
-                    <span className="text-gray-500">{field.label}</span>
-                    <span className="font-medium text-red-600">-{formatFieldValue(field)}</span>
+          {/* Summary Section - only show if at least one summary field is visible */}
+          {(() => {
+            const subtotalField = visibleFields.find(f => f.id === 'subtotal');
+            const totalField = visibleFields.find(f => f.id === 'total');
+            const discountFieldVisible = visibleFields.find(f => f.id === 'discount');
+
+            // If no summary fields are visible, don't show this section
+            if (!subtotalField && !totalField && !discountFieldVisible) {
+              return null;
+            }
+
+            // Get edited/original values
+            const subtotalValue = subtotalField
+              ? (subtotalField.editedValue !== undefined ? Number(subtotalField.editedValue) : subtotal)
+              : subtotal;
+            const totalValue = totalField
+              ? (totalField.editedValue !== undefined ? Number(totalField.editedValue) : total)
+              : total;
+
+            return (
+              <div className="flex justify-end mb-8">
+                <div className="w-72">
+                  <div className="space-y-2 pb-3 border-b border-gray-200">
+                    {subtotalField && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-500">Subtotal</span>
+                        <span className="font-medium text-gray-900">{formatCurrency(subtotalValue)}</span>
+                      </div>
+                    )}
+                    {discountFieldVisible && (discountFieldVisible.editedValue ?? discountFieldVisible.value) ? (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-500">{discountFieldVisible.label}</span>
+                        <span className="font-medium text-red-600">-{formatFieldValue(discountFieldVisible)}</span>
+                      </div>
+                    ) : null}
                   </div>
-                ))}
+                  {totalField && (
+                    <div className="flex justify-between pt-3">
+                      <span className="text-sm font-semibold text-gray-900">Total</span>
+                      <span className="text-lg font-bold text-gray-900">{formatCurrency(totalValue)}</span>
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="flex justify-between pt-3">
-                <span className="text-sm font-semibold text-gray-900">Total</span>
-                <span className="text-lg font-bold text-gray-900">{formatCurrency(total)}</span>
-              </div>
-            </div>
-          </div>
+            );
+          })()}
 
           {/* Footer Note */}
           {footerNote && (
@@ -320,14 +393,18 @@ export function PDFPreview({
               <span>Page 1 of 1</span>
             </div>
             {/* Powered by FlowRMS */}
-            <div className="flex items-center justify-center gap-1.5 pt-3 border-t border-gray-50">
-              <span className="text-[9px] text-gray-400">Powered by</span>
+            <div className="flex items-center justify-center gap-1.5 pt-4 border-t border-gray-100">
+              <span className="text-xs text-gray-400 leading-none">Powered by</span>
               <img
                 src="/flow-logo copy.png"
                 alt="FlowRMS"
-                className="h-4 w-auto opacity-60"
+                className="h-5 w-5 object-contain"
+                onError={(e) => {
+                  // Hide broken image
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
               />
-              <span className="text-[9px] font-medium text-gray-500">FlowRMS</span>
+              <span className="text-sm font-semibold text-gray-600 leading-none">FlowRMS</span>
             </div>
           </div>
         </div>
