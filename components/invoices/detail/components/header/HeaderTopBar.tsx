@@ -3,12 +3,14 @@
  * Top bar with back button, invoice number, and all action buttons/dropdowns
  */
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { InvoiceStatus } from '@/lib/types/rms';
 import type { ViewMode, VersionInfo, ColumnKey, EditableInvoice } from '../../types';
 import { invoiceStatusLabels } from '../../constants';
 import { isOverdue } from '../../utils';
 import { CreatedByBadge } from '@/components/ui/CreatedByBadge';
+import { PDFBuilder } from '@/components/shared/pdf-builder';
 
 interface HeaderTopBarProps {
   invoice: EditableInvoice;
@@ -76,6 +78,7 @@ export function HeaderTopBar({
 }: HeaderTopBarProps) {
   const router = useRouter();
   const overdue = isOverdue(invoice);
+  const [showPDFBuilder, setShowPDFBuilder] = useState(false);
 
   // Simple view columns (default)
   const defaultVisibleColumns: ColumnKey[] = [
@@ -565,8 +568,13 @@ export function HeaderTopBar({
 
           {/* Generate PDF Button */}
           <button
-            onClick={() => handleGeneratePDF?.() || alert('Generate PDF')}
-            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+            onClick={() => setShowPDFBuilder(true)}
+            disabled={!invoice.id}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              !invoice.id
+                ? 'bg-red-600 text-white opacity-50 cursor-not-allowed'
+                : 'bg-red-600 text-white hover:bg-red-700'
+            }`}
           >
             <svg
               width="16"
@@ -668,6 +676,14 @@ export function HeaderTopBar({
           </div>
         </div>
       </div>
+
+      {/* PDF Builder */}
+      <PDFBuilder
+        entityId={invoice.id}
+        entityType="INVOICES"
+        isOpen={showPDFBuilder}
+        onClose={() => setShowPDFBuilder(false)}
+      />
     </div>
   );
 }

@@ -3,11 +3,13 @@
  * Top bar with back button, order number, and all action buttons/dropdowns
  */
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Order } from '@/lib/types/rms';
 import type { ViewMode, VersionInfo } from '../../types';
 import { orderStatusLabels } from '../../constants';
 import { CreatedByBadge } from '@/components/ui/CreatedByBadge';
+import { PDFBuilder } from '@/components/shared/pdf-builder';
 
 interface HeaderTopBarProps {
   order: Order;
@@ -86,6 +88,7 @@ export function HeaderTopBar({
   onDuplicateOrder,
 }: HeaderTopBarProps) {
   const router = useRouter();
+  const [showPDFBuilder, setShowPDFBuilder] = useState(false);
 
   return (
     <div className="border-b border-[var(--border)] bg-[var(--card)] px-6 py-4 flex-shrink-0">
@@ -263,8 +266,13 @@ export function HeaderTopBar({
 
           {/* Generate PDF Button */}
           <button
-            disabled
-            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium transition-colors opacity-50 cursor-not-allowed"
+            onClick={() => setShowPDFBuilder(true)}
+            disabled={isCreateMode || !order.id}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              isCreateMode || !order.id
+                ? 'bg-red-600 text-white opacity-50 cursor-not-allowed'
+                : 'bg-red-600 text-white hover:bg-red-700'
+            }`}
           >
             <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M6 2h8l4 4v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2z" strokeLinecap="round" strokeLinejoin="round"/>
@@ -272,7 +280,6 @@ export function HeaderTopBar({
               <path d="M8 12h4M8 16h4M8 8h1" strokeLinecap="round"/>
             </svg>
             PDF
-            <span className="px-1.5 py-0.5 bg-red-400 text-white rounded text-xs">Soon</span>
           </button>
 
           {/* Save/Create Button with Dropdown */}
@@ -323,6 +330,14 @@ export function HeaderTopBar({
           </div>
         </div>
       </div>
+
+      {/* PDF Builder */}
+      <PDFBuilder
+        entityId={order.id}
+        entityType="ORDERS"
+        isOpen={showPDFBuilder}
+        onClose={() => setShowPDFBuilder(false)}
+      />
     </div>
   );
 }
