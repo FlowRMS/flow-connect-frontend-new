@@ -609,7 +609,7 @@ export default function PickingInterface({
           <div>
             <h3 className="text-lg font-semibold text-[var(--foreground)]">Picking Mode</h3>
             <p className="text-sm text-[var(--muted-foreground)]">
-              {totalPicked} of {totalToPick} items picked
+              {Math.round(totalPicked)} of {Math.round(totalToPick)} items picked
             </p>
           </div>
         </div>
@@ -677,7 +677,7 @@ export default function PickingInterface({
                     <p className="text-xs text-[var(--muted-foreground)] truncate">{lineItem.productName}</p>
                   </div>
                   <div className="text-sm text-[var(--muted-foreground)]">
-                    Pick <span className="font-semibold text-[var(--foreground)]">{location.expectedQty}</span>
+                    Pick <span className="font-semibold text-[var(--foreground)]">{Math.round(location.expectedQty)}</span>
                   </div>
                   <button
                     onClick={() => handlePickAllFromLocation(lineItemId, scannedLocationId)}
@@ -958,7 +958,7 @@ export default function PickingInterface({
 
                       {/* Expected qty */}
                       <div className="text-sm text-[var(--muted-foreground)]">
-                        of <span className="font-semibold text-[var(--foreground)]">{loc.expectedQty}</span>
+                        of <span className="font-semibold text-[var(--foreground)]">{Math.round(loc.expectedQty)}</span>
                       </div>
 
                       {/* Editable picked qty - simple input without +/- buttons */}
@@ -966,7 +966,7 @@ export default function PickingInterface({
                         <div className={`w-16 h-8 flex items-center justify-center text-sm font-semibold rounded ${
                           loc.pickedQty >= loc.expectedQty ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
                         }`}>
-                          {loc.pickedQty}
+                          {Math.round(loc.pickedQty)}
                         </div>
                       ) : (
                         <input

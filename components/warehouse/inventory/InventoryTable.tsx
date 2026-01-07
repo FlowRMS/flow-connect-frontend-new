@@ -263,16 +263,16 @@ export default function InventoryTable({
                                             </span>
                                         </td>
                                         <td className="px-4 py-3 text-right">
-                                            <span className="text-sm font-semibold text-[var(--foreground)]">{item.quantity}</span>
+                                            <span className="text-sm font-semibold text-[var(--foreground)]">{Math.round(Number(item.quantity))}</span>
                                         </td>
                                         <td className="px-4 py-3 text-right">
                                             <span className={`text-sm font-semibold ${item.status === 'AVAILABLE' ? 'text-green-600' : 'text-[var(--muted-foreground)]'}`}>
-                                                {item.status === 'AVAILABLE' ? item.quantity : '-'}
+                                                {item.status === 'AVAILABLE' ? Math.round(Number(item.quantity)) : '-'}
                                             </span>
                                         </td>
                                         <td className="px-4 py-3 text-right">
                                             <span className={`text-sm font-semibold ${item.status === 'RESERVED' ? 'text-blue-600' : 'text-[var(--muted-foreground)]'}`}>
-                                                {item.status === 'RESERVED' ? item.quantity : '-'}
+                                                {item.status === 'RESERVED' ? Math.round(Number(item.quantity)) : '-'}
                                             </span>
                                         </td>
                                         <td className="px-4 py-3">
