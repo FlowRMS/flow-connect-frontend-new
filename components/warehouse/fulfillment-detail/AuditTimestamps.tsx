@@ -1,18 +1,21 @@
 'use client';
 
-import React from 'react';
-import { FulfillmentOrder } from '@/lib/types/warehouse';
+import React, { useMemo } from 'react';
+import type { FulfillmentOrder } from '../api/fulfillmentApi';
+import type { User } from '../settings/api/usersApi';
 
 interface AuditTimestampsProps {
   fulfillmentOrder: FulfillmentOrder;
   isReleased: boolean;
   onReleaseToWarehouse: () => void;
+  userMap: Map<string, User>;
 }
 
 export default function AuditTimestamps({
   fulfillmentOrder,
   isReleased,
   onReleaseToWarehouse,
+  userMap,
 }: AuditTimestampsProps) {
   const formatDateTime = (dateStr?: string) => {
     if (!dateStr) return '-';
@@ -26,6 +29,29 @@ export default function AuditTimestamps({
       hour12: true,
     });
   };
+
+  // Extract "who" information from activity feed and resolve user names
+  const auditInfo = useMemo(() => {
+    const activities = fulfillmentOrder.activities || [];
+
+    const releasedActivity = activities.find(a => a.activityType === 'RELEASED');
+    const pickStartedActivity = activities.find(a => a.activityType === 'PICK_STARTED');
+    const pickCompletedActivity = activities.find(a => a.activityType === 'PICK_COMPLETED');
+
+    const getUserName = (userId?: string | null) => {
+      if (!userId) return '-';
+      const user = userMap.get(userId);
+      return user
+        ? user.fullName || `${user.firstName} ${user.lastName}`.trim() || user.username
+        : userId; // Fallback to userId if user not found
+    };
+
+    return {
+      releasedBy: getUserName(releasedActivity?.createdById),
+      pickStartedBy: getUserName(pickStartedActivity?.createdById),
+      pickCompletedBy: getUserName(pickCompletedActivity?.createdById),
+    };
+  }, [fulfillmentOrder.activities, userMap]);
 
   return (
     <div className="space-y-4">
@@ -41,7 +67,7 @@ export default function AuditTimestamps({
           <div className="space-y-2">
             <div>
               <label className="text-xs text-[var(--muted-foreground)]">Released By</label>
-              <p className="text-sm font-medium">{fulfillmentOrder.releasedBy || '-'}</p>
+              <p className="text-sm font-medium">{auditInfo.releasedBy}</p>
             </div>
             <div>
               <label className="text-xs text-[var(--muted-foreground)]">Released At</label>
@@ -76,7 +102,7 @@ export default function AuditTimestamps({
         <div className="space-y-2">
           <div>
             <label className="text-xs text-[var(--muted-foreground)]">Started By</label>
-            <p className="text-sm font-medium">{fulfillmentOrder.pickStartedBy || '-'}</p>
+            <p className="text-sm font-medium">{auditInfo.pickStartedBy}</p>
           </div>
           <div>
             <label className="text-xs text-[var(--muted-foreground)]">Started At</label>
@@ -84,7 +110,7 @@ export default function AuditTimestamps({
           </div>
           <div className="border-t border-[var(--border)] pt-2 mt-2">
             <label className="text-xs text-[var(--muted-foreground)]">Completed By</label>
-            <p className="text-sm font-medium">{fulfillmentOrder.pickCompletedBy || '-'}</p>
+            <p className="text-sm font-medium">{auditInfo.pickCompletedBy}</p>
           </div>
           <div>
             <label className="text-xs text-[var(--muted-foreground)]">Completed At</label>

@@ -3,7 +3,7 @@
  * GraphQL API for fulfillment order operations
  */
 
-import { crmGraphQLRequest } from '../../lib/graphql/client';
+import { crmGraphQLRequest, crmGraphQLMultipartRequest } from '../../lib/graphql/client';
 
 // ============================================================================
 // Types
@@ -47,11 +47,14 @@ export type FulfillmentActivityType =
   | 'TRACKING_ADDED';
 
 export interface ShipToAddress {
+  name: string | null;
   street: string | null;
+  streetLine2: string | null;
   city: string | null;
   state: string | null;
   postalCode: string | null;
   country: string | null;
+  phone: string | null;
 }
 
 export interface FulfillmentActivity {
@@ -70,6 +73,21 @@ export interface FulfillmentAssignment {
   userName: string;
   userEmail: string;
   createdAt: string;
+}
+
+export interface FulfillmentDocument {
+  id: string;
+  documentType: string; // BOL, PACKING_SLIP, SHIPPING_LABEL, INVOICE, PHOTO, OTHER
+  fileName: string;
+  fileUrl: string;
+  fileSize: number | null;
+  mimeType: string | null;
+  notes: string | null;
+  uploadedAt: string;
+  createdAt: string;
+  createdById: string;
+  uploadedByName: string;
+  fileId: string | null;
 }
 
 export interface PackingBoxItem {
@@ -111,6 +129,8 @@ export interface FulfillmentOrderLineItem {
   linkedShipmentRequestId: string | null;
   shortReason: string | null;
   notes: string | null;
+  factoryId: string | null;
+  factoryName: string | null;
   packingBoxItems: PackingBoxItem[];
 }
 
@@ -149,6 +169,7 @@ export interface FulfillmentOrder {
   packingBoxes: PackingBox[];
   assignments: FulfillmentAssignment[];
   activities: FulfillmentActivity[];
+  documents: FulfillmentDocument[];
 }
 
 export interface FulfillmentStats {
@@ -160,11 +181,14 @@ export interface FulfillmentStats {
 
 // Input Types
 export interface ShipToAddressInput {
+  name?: string | null;
   street?: string | null;
+  streetLine2?: string | null;
   city?: string | null;
   state?: string | null;
   postalCode?: string | null;
   country?: string | null;
+  phone?: string | null;
 }
 
 export interface CreateFulfillmentOrderInput {
@@ -179,6 +203,7 @@ export interface CreateFulfillmentOrderInput {
 
 export interface UpdateFulfillmentOrderInput {
   warehouseId?: string | null;
+  fulfillmentMethod?: FulfillmentMethod | null;
   carrierId?: string | null;
   carrierType?: CarrierType | null;
   shipToAddress?: ShipToAddressInput | null;
@@ -274,11 +299,14 @@ const FULFILLMENT_ORDER_FRAGMENT = `
     pickupCustomerName
     driverName
     shipToAddress {
+      name
       street
+      streetLine2
       city
       state
       postalCode
       country
+      phone
     }
     lineItems {
       id
@@ -298,6 +326,8 @@ const FULFILLMENT_ORDER_FRAGMENT = `
       linkedShipmentRequestId
       shortReason
       notes
+      factoryId
+      factoryName
       packingBoxItems {
         id
         fulfillmentLineItemId
@@ -329,6 +359,20 @@ const FULFILLMENT_ORDER_FRAGMENT = `
       userName
       userEmail
       createdAt
+    }
+    documents {
+      id
+      documentType
+      fileName
+      fileUrl
+      fileSize
+      mimeType
+      notes
+      uploadedAt
+      createdAt
+      createdById
+      uploadedByName
+      fileId
     }
     activities {
       id
@@ -1352,4 +1396,134 @@ export async function resolveBackorder(
   }
 
   return response.data!.resolveBackorder;
+}
+
+
+const ADD_DOCUMENT = `
+  mutation AddDocument($input: AddDocumentInput!) {
+    addDocument(input: $input) {
+      id
+      documentType
+      fileName
+      fileUrl
+      fileSize
+      mimeType
+      notes
+      uploadedAt
+      createdAt
+      createdById
+      uploadedByName
+    }
+  }
+`;
+
+const DELETE_DOCUMENT = `
+  mutation DeleteDocument($documentId: UUID!) {
+    deleteDocument(documentId: $documentId)
+  }
+`;
+
+const UPLOAD_DOCUMENT = `
+  mutation UploadDocument($input: UploadDocumentInput!) {
+    uploadDocument(input: $input) {
+      id
+      documentType
+      fileName
+      fileUrl
+      fileSize
+      mimeType
+      notes
+      uploadedAt
+      createdAt
+      createdById
+      uploadedByName
+    }
+  }
+`;
+
+export interface AddDocumentInput {
+  fulfillmentOrderId: string;
+  documentType: string; // BOL, PACKING_SLIP, SHIPPING_LABEL, INVOICE, PHOTO, OTHER
+  fileName: string;
+  fileUrl: string;
+  fileSize?: number | null;
+  mimeType?: string | null;
+  notes?: string | null;
+}
+
+export interface UploadDocumentInput {
+  fulfillmentOrderId: string;
+  documentType: string;
+  file: File;
+  notes?: string | null;
+}
+
+/**
+ * Add a document to a fulfillment order
+ */
+export async function addDocument(
+  input: AddDocumentInput
+): Promise<FulfillmentDocument> {
+  const response = await crmGraphQLRequest<{
+    addDocument: FulfillmentDocument;
+  }>({
+    query: ADD_DOCUMENT,
+    variables: { input },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to add document');
+  }
+
+  return response.data!.addDocument;
+}
+
+/**
+ * Upload a document file to a fulfillment order
+ * Uses crmGraphQLMultipartRequest which handles auth and multipart uploads
+ */
+export async function uploadDocument(
+  input: UploadDocumentInput
+): Promise<FulfillmentDocument> {
+  const response = await crmGraphQLMultipartRequest<{
+    uploadDocument: FulfillmentDocument;
+  }>({
+    query: UPLOAD_DOCUMENT,
+    variables: {
+      input: {
+        fulfillmentOrderId: input.fulfillmentOrderId,
+        documentType: input.documentType,
+        file: input.file,
+        notes: input.notes || null,
+      },
+    },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to upload document');
+  }
+
+  if (!response.data?.uploadDocument) {
+    throw new Error('No document returned from upload mutation');
+  }
+
+  return response.data.uploadDocument;
+}
+
+/**
+ * Delete a document from a fulfillment order
+ */
+export async function deleteDocument(documentId: string): Promise<boolean> {
+  const response = await crmGraphQLRequest<{
+    deleteDocument: boolean;
+  }>({
+    query: DELETE_DOCUMENT,
+    variables: { documentId },
+  });
+
+  if (response.errors) {
+    throw new Error(response.errors[0]?.message || 'Failed to delete document');
+  }
+
+  return response.data!.deleteDocument;
 }
