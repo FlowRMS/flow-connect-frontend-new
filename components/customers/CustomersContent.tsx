@@ -15,6 +15,7 @@ import { getCustomerFilterOptions, getCustomerSortOptions } from './config/filte
 import { ListView } from './views/ListView';
 import { GridView } from './views/GridView';
 import { DeleteCustomerModal } from './modals/DeleteCustomerModal';
+import { BulkDeleteCustomersModal } from './modals/BulkDeleteCustomersModal';
 
 export default function CustomersContent() {
   const router = useRouter();
@@ -41,6 +42,16 @@ export default function CustomersContent() {
     clientSortColumns,
     handleMultiSortChange,
     handleCustomerDeleted,
+    // Selection state
+    selectedIds,
+    setSelectedIds,
+    showBulkDeleteModal,
+    setShowBulkDeleteModal,
+    handleSelectAll,
+    handleSelectOne,
+    handleBulkDeleteSuccess,
+    isAllSelected,
+    isPartiallySelected,
   } = useCustomersState();
 
   // Navigate to customer edit page
@@ -166,6 +177,32 @@ export default function CustomersContent() {
         </div>
       </div>
 
+      {/* Bulk Actions Toolbar */}
+      {selectedIds.size > 0 && (
+        <div className="mb-4 p-3 bg-[var(--primary)]/5 border border-[var(--primary)]/20 rounded-lg flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-[var(--foreground)]">
+              {selectedIds.size} customer{selectedIds.size > 1 ? 's' : ''} selected
+            </span>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+            >
+              Clear selection
+            </button>
+          </div>
+          <button
+            onClick={() => setShowBulkDeleteModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            Delete Selected
+          </button>
+        </div>
+      )}
+
       {/* Loading State */}
       {(!isMounted || isLoading) && (
         <div className="flex items-center justify-center py-20">
@@ -203,6 +240,8 @@ export default function CustomersContent() {
           onCustomerClick={handleCustomerClick}
           onEditClick={handleEditCustomer}
           onDeleteClick={(customer) => setDeleteConfirmId(customer.id)}
+          selectedIds={selectedIds}
+          onSelectOne={handleSelectOne}
         />
       )}
 
@@ -212,6 +251,11 @@ export default function CustomersContent() {
           onCustomerClick={handleCustomerClick}
           onEditClick={handleEditCustomer}
           onDeleteClick={(customer) => setDeleteConfirmId(customer.id)}
+          selectedIds={selectedIds}
+          onSelectAll={handleSelectAll}
+          onSelectOne={handleSelectOne}
+          isAllSelected={isAllSelected}
+          isPartiallySelected={isPartiallySelected}
         />
       )}
 
@@ -242,6 +286,14 @@ export default function CustomersContent() {
           onSuccess={handleCustomerDeleted}
         />
       )}
+
+      {/* Bulk Delete Modal */}
+      <BulkDeleteCustomersModal
+        isOpen={showBulkDeleteModal}
+        selectedIds={selectedIds}
+        onClose={() => setShowBulkDeleteModal(false)}
+        onSuccess={handleBulkDeleteSuccess}
+      />
     </main>
   );
 }

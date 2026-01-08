@@ -442,6 +442,55 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       return;
     }
 
+    // Validate End User based on settings (REQUIRED field)
+    console.log('🔍 END USER VALIDATION CHECK:', {
+      specifyEndUserPerLine: settings.specifyEndUserPerLine,
+      quoteEndUserId: quote.endUserId,
+      lineItemsCount: lineItems?.length,
+      lineItems: lineItems?.map(li => ({
+        id: li.id,
+        itemNumber: li.itemNumber,
+        partNumber: li.partNumber,
+        endUserId: li.endUserId,
+        endUserName: li.endUserName,
+      }))
+    });
+
+    if (!settings.specifyEndUserPerLine) {
+      // When toggle is OFF, header End User is REQUIRED
+      if (!quote.endUserId || quote.endUserId.trim() === '') {
+        console.error('❌ VALIDATION FAILED: Header End User is missing');
+        setSaveError('End User is required. Please select an End User at the header level.');
+        quoteToasts.updateError('End User is required. Please select an End User at the header level.');
+        return;
+      }
+    } else {
+      // When toggle is ON, EACH line item MUST have End User
+      if (!lineItems || lineItems.length === 0) {
+        console.error('❌ VALIDATION FAILED: No line items');
+        setSaveError('Please add at least one line item.');
+        quoteToasts.updateError('Please add at least one line item.');
+        return;
+      }
+
+      const lineItemsWithoutEndUser = lineItems.filter(li => !li.endUserId || li.endUserId.trim() === '');
+
+      console.log('🔍 Line items without end user:', lineItemsWithoutEndUser.length, lineItemsWithoutEndUser.map(li => ({
+        id: li.id,
+        itemNumber: li.itemNumber,
+        partNumber: li.partNumber,
+      })));
+
+      if (lineItemsWithoutEndUser.length > 0) {
+        console.error('❌ VALIDATION FAILED: Line items missing End User');
+        setSaveError(`End User is required for all line items. ${lineItemsWithoutEndUser.length} line item(s) are missing End User. Please set End User in Additional Details for each line item.`);
+        quoteToasts.updateError(`End User is required for all line items. ${lineItemsWithoutEndUser.length} line item(s) are missing End User. Please set End User in Additional Details for each line item.`);
+        return;
+      }
+    }
+
+    console.log('✅ END USER VALIDATION PASSED');
+
     setIsSaving(true);
     setSaveError(null);
 

@@ -580,6 +580,7 @@ export interface UserLite {
   enabled?: boolean;
   inside?: boolean;
   outside?: boolean;
+  visible?: boolean;
   role?: string;
   username?: string;
 }

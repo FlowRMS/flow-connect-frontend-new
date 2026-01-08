@@ -60,6 +60,10 @@ export function useCustomersState() {
   // Delete modal state (other modals replaced by dedicated pages)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
+  // Selection state for bulk operations
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+
   // Filter & sort state
   const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
   const [clientSortColumns, setClientSortColumns] = useState<ActiveSort[]>([]);
@@ -160,6 +164,35 @@ export function useCustomersState() {
     setDeleteConfirmId(null);
   }, []);
 
+  // Selection handlers
+  const handleSelectAll = useCallback((checked: boolean) => {
+    if (checked) {
+      setSelectedIds(new Set(filteredCustomers.map(c => c.id)));
+    } else {
+      setSelectedIds(new Set());
+    }
+  }, [filteredCustomers]);
+
+  const handleSelectOne = useCallback((id: string, checked: boolean) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev);
+      if (checked) {
+        newSet.add(id);
+      } else {
+        newSet.delete(id);
+      }
+      return newSet;
+    });
+  }, []);
+
+  const handleBulkDeleteSuccess = useCallback(() => {
+    setSelectedIds(new Set());
+    setShowBulkDeleteModal(false);
+  }, []);
+
+  const isAllSelected = filteredCustomers.length > 0 && selectedIds.size === filteredCustomers.length;
+  const isPartiallySelected = selectedIds.size > 0 && selectedIds.size < filteredCustomers.length;
+
   return {
     // State
     viewMode,
@@ -174,6 +207,17 @@ export function useCustomersState() {
     // Delete modal state
     deleteConfirmId,
     setDeleteConfirmId,
+
+    // Selection state for bulk operations
+    selectedIds,
+    setSelectedIds,
+    showBulkDeleteModal,
+    setShowBulkDeleteModal,
+    handleSelectAll,
+    handleSelectOne,
+    handleBulkDeleteSuccess,
+    isAllSelected,
+    isPartiallySelected,
 
     // Loading state
     isLoading,
