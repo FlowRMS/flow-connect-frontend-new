@@ -80,3 +80,13 @@ export type BulkAction =
   | 'delete'
   | 'create_credit'
   | 'add_acknowledgement';
+
+
+export type OrderStatus =
+  | 'OPEN'
+  | 'PARTIAL_SHIPPED'
+  | 'SHIPPED_COMPLETE'
+  | 'CANCELLED'
+  | 'OVER_SHIPPED'
+  | 'PARTIAL_CANCELLED'
+  | 'OVER_CANCELLED';

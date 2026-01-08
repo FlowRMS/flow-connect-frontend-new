@@ -7,10 +7,14 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import type { Order, OrderSplitRate } from '@/lib/types/rms';
 import { mockSalesReps } from '@/lib/data/rms-mock';
-import { useOrdersInfinite, useOrderSearch, type OrderLandingPage, type OrderSearchResult } from '../../api';
+import { useOrdersInfinite, useOrderSearch, type OrderLandingPage, type OrderSearchResult, type OrderLandingPageFilter, type OrderLandingPageOrderBy } from '../../api';
 import { useOrderFilters } from './useOrderFilters';
 import { useOrderSelection } from './useOrderSelection';
 import { useOrderBulkActions } from './useOrderBulkActions';
+import type { ActiveFilter } from '../../../advancedFilters/AdvancedFilters';
+import type { QuickDatePreset, QuickDateField, SortField, SortDirection } from '../types';
+import { getQuickDateRange } from '../utils';
+import { formatDateToISO } from '../../../advancedFilters/utils';
 
 /**
  * Transform OrderLandingPage from API to UI Order type
@@ -74,6 +78,22 @@ function mapApiStatusToOrderStatus(status?: string): 'OPEN' | 'PARTIAL_SHIPPED' 
 }
 
 /**
+ * Map SortField (UI) to columnName (API)
+ */
+function mapSortFieldToColumnName(sortField: SortField): string {
+  const fieldMap: Record<SortField, string> = {
+    orderNumber: 'orderNumber',
+    customerName: 'soldToCustomerName',
+    manufacturerName: 'factoryName',
+    orderDate: 'entityDate',
+    total: 'total',
+    totalCommission: 'commission',
+    status: 'status',
+  };
+  return fieldMap[sortField];
+}
+
+/**
  * Transform OrderSearchResult to UI Order type
  */
 function transformSearchResultToOrder(result: OrderSearchResult): Order {
@@ -106,6 +126,135 @@ export function useOrdersListState() {
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Quick date filter state - defined BEFORE API hook
+  const [quickDatePreset, setQuickDatePreset] = useState<QuickDatePreset>('all');
+  const [quickDateField, setQuickDateField] = useState<QuickDateField>('createdAt');
+  const [showQuickDateFieldDropdown, setShowQuickDateFieldDropdown] = useState(false);
+
+  // Server-side filters - defined BEFORE API hook so they can be passed to the query
+  const [serverFilters, setServerFilters] = useState<OrderLandingPageFilter[]>([]);
+  const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
+  
+  // Sort state - defined BEFORE API hook
+  const [sortField, setSortField] = useState<SortField>('orderDate');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  
+  // Server-side sorting - defined BEFORE API hook
+  // Initialize with default sort
+  const [serverOrderBy, setServerOrderBy] = useState<OrderLandingPageOrderBy[]>(() => {
+    return [{
+      columnName: mapSortFieldToColumnName('orderDate'),
+      direction: 'DESC',
+    }];
+  });
+  
+  // Handler for server-side filter changes
+  const handleServerFiltersChange = useCallback((filters: ActiveFilter[]) => {
+    setActiveFilters(filters);
+    
+    // Convert ActiveFilter to OrderLandingPageFilter
+    // Only include value OR values, not both - check which one exists
+    const apiFilters: OrderLandingPageFilter[] = filters.map(f => {
+      if (f.values && f.values.length > 0) {
+        return {
+          operator: f.operator,
+          columnName: f.columnName,
+          values: f.values,
+        };
+      }
+      return {
+        operator: f.operator,
+        columnName: f.columnName,
+        value: f.value,
+      };
+    });
+    setServerFilters(apiFilters);
+  }, []);
+
+  // Handler for server-side sort changes (from SortButton - ActiveSort format)
+  const handleSortChange = useCallback((sort: { columnName: string; direction: 'ASC' | 'DESC' } | undefined) => {
+    if (sort) {
+      // Update server-side sort
+      setServerOrderBy([{
+        columnName: sort.columnName,
+        direction: sort.direction,
+      }]);
+      
+      // Also update local sort state for backwards compatibility
+      // Map API columnName back to SortField if possible
+      const fieldMap: Record<string, SortField> = {
+        'orderNumber': 'orderNumber',
+        'soldToCustomerName': 'customerName',
+        'factoryName': 'manufacturerName',
+        'entityDate': 'orderDate',
+        'total': 'total',
+        'commission': 'totalCommission',
+        'status': 'status',
+      };
+      
+      const mappedField = fieldMap[sort.columnName];
+      if (mappedField) {
+        setSortField(mappedField);
+        setSortDirection(sort.direction.toLowerCase() as SortDirection);
+      }
+    } else {
+      // Clear sort
+      setServerOrderBy([{
+        columnName: mapSortFieldToColumnName('orderDate'),
+        direction: 'DESC',
+      }]);
+      setSortField('orderDate');
+      setSortDirection('desc');
+    }
+  }, []);
+
+  // Build quick filters based on quick date filter selection
+  const quickFilters = useMemo<OrderLandingPageFilter[]>(() => {
+    const result: OrderLandingPageFilter[] = [];
+
+    if (quickDatePreset !== 'all') {
+      const { start, end } = getQuickDateRange(quickDatePreset);
+      if (start && end) {
+        // Use quickDateField to determine which column to filter (createdAt or entityDate)
+        const columnName = quickDateField === 'createdAt' ? 'createdAt' : 'entityDate';
+        
+        // Format date based on column type:
+        // - entityDate (Order Date): YYYY-MM-DD format (date only)
+        // - createdAt: ISO string format (datetime with time)
+        const formatDate = (date: Date): string => {
+          if (columnName === 'entityDate') {
+            return formatDateToISO(date); // Returns YYYY-MM-DD
+          }
+          return date.toISOString(); // Returns full ISO datetime
+        };
+        
+        result.push({
+          columnName,
+          operator: 'GTE',
+          value: formatDate(start),
+        });
+
+        result.push({
+          columnName,
+          operator: 'LTE',
+          value: formatDate(end),
+        });
+      }
+    }
+
+    return result;
+  }, [quickDatePreset, quickDateField]);
+
+  // Combine quick filters with advanced filters
+  const filters = useMemo<OrderLandingPageFilter[]>(() => {
+    return [...quickFilters, ...serverFilters];
+  }, [quickFilters, serverFilters]);
+
+  // Build orderBy from sort state
+  const orderBy = useMemo<OrderLandingPageOrderBy[]>(() => {
+    return serverOrderBy;
+  }, [serverOrderBy]);
+
   // Fetch orders from API with infinite scroll
   const {
     data: ordersData,
@@ -115,7 +264,7 @@ export function useOrdersListState() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useOrdersInfinite();
+  } = useOrdersInfinite(filters, orderBy);
 
   // Search orders
   const { data: searchResults, isLoading: isSearching } = useOrderSearch(searchQuery, 100);
@@ -187,8 +336,23 @@ export function useOrdersListState() {
   const [editingSplits, setEditingSplits] = useState(false);
   const [editedSplits, setEditedSplits] = useState<OrderSplitRate[]>([]);
 
-  // Integrate filter hook
+  // Integrate filter hook (for client-side filtering and other filter state)
+  // Note: quickDatePreset, quickDateField, and sorting are now managed at this level for server-side
   const filterState = useOrderFilters(orders);
+  
+  // Extract filter state, excluding quick date filters and sorting (we manage those at this level)
+  const {
+    quickDatePreset: _quickDatePreset,
+    setQuickDatePreset: _setQuickDatePreset,
+    quickDateField: _quickDateField,
+    setQuickDateField: _setQuickDateField,
+    showQuickDateFieldDropdown: _showQuickDateFieldDropdown,
+    setShowQuickDateFieldDropdown: _setShowQuickDateFieldDropdown,
+    sortField: _sortField,
+    sortDirection: _sortDirection,
+    handleSort: _handleSort,
+    ...otherFilterState
+  } = filterState;
 
   // Integrate selection hook
   const selectionState = useOrderSelection();
@@ -304,6 +468,21 @@ export function useOrdersListState() {
     // Search
     searchQuery,
     setSearchQuery,
+    // Advanced filters
+    activeFilters,
+    handleServerFiltersChange,
+    serverFilters,
+    // Quick date filters
+    quickDatePreset,
+    setQuickDatePreset,
+    quickDateField,
+    setQuickDateField,
+    showQuickDateFieldDropdown,
+    setShowQuickDateFieldDropdown,
+    // Sorting
+    sortField,
+    sortDirection,
+    handleSortChange,
     // Selected order
     selectedOrder,
     setSelectedOrder,
@@ -324,8 +503,8 @@ export function useOrdersListState() {
     updateSplitRep,
     saveSplits,
     splitPercentageTotal,
-    // Filter state and actions
-    ...filterState,
+    // Filter state and actions (excluding quick date filters managed above)
+    ...otherFilterState,
     // Selection state and actions
     ...selectionState,
     // Bulk actions state and actions

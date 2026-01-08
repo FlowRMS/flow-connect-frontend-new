@@ -4,32 +4,12 @@
  */
 
 import type { Order } from '@/lib/types/rms';
-import type { SortField, SortDirection, ColumnFilters } from '../../types';
-import { SortIcon } from './SortIcon';
-import { ColumnFilterDropdown } from './ColumnFilterDropdown';
-import { orderStatusLabels } from '../../constants';
-import { formatCurrency } from '../../utils';
 
 interface OrdersTableHeaderProps {
   // Selection
   filteredOrders: Order[];
   areAllEligibleSelected: boolean;
   onSelectAll: () => void;
-  // Sorting
-  sortField: SortField;
-  sortDirection: SortDirection;
-  onSort: (field: SortField) => void;
-  // Filters
-  columnFilters: ColumnFilters;
-  setColumnFilters: (filters: ColumnFilters | ((prev: ColumnFilters) => ColumnFilters)) => void;
-  openFilter: string | null;
-  setOpenFilter: (filterId: string | null) => void;
-  // Unique values for dropdowns
-  uniqueCustomers: string[];
-  uniqueManufacturers: string[];
-  uniqueStatuses: string[];
-  uniqueTotals: number[];
-  uniqueCommissions: number[];
   // Grid columns
   gridColumns: string;
 }
@@ -38,18 +18,6 @@ export function OrdersTableHeader({
   filteredOrders,
   areAllEligibleSelected,
   onSelectAll,
-  sortField,
-  sortDirection,
-  onSort,
-  columnFilters,
-  setColumnFilters,
-  openFilter,
-  setOpenFilter,
-  uniqueCustomers,
-  uniqueManufacturers,
-  uniqueStatuses,
-  uniqueTotals,
-  uniqueCommissions,
   gridColumns,
 }: OrdersTableHeaderProps) {
   return (
@@ -72,153 +40,37 @@ export function OrdersTableHeader({
 
       {/* Order # */}
       <div className="flex items-center">
-        <button
-          onClick={() => onSort('orderNumber')}
-          className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
-        >
+        <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
           Order #
-          <SortIcon
-            field="orderNumber"
-            currentSortField={sortField}
-            currentSortDirection={sortDirection}
-          />
-        </button>
-        <ColumnFilterDropdown
-          type="text"
-          filterId="orderNumber"
-          value={columnFilters.orderNumber}
-          onChange={(value) =>
-            setColumnFilters((prev) => ({ ...prev, orderNumber: value }))
-          }
-          placeholder="Search orders..."
-          isOpen={openFilter === 'orderNumber'}
-          onToggle={() =>
-            setOpenFilter(openFilter === 'orderNumber' ? null : 'orderNumber')
-          }
-        />
+        </span>
       </div>
 
       {/* Commission */}
       <div className="flex items-center justify-end">
-        <button
-          onClick={() => onSort('totalCommission')}
-          className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
-        >
+        <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
           Commission
-          <SortIcon
-            field="totalCommission"
-            currentSortField={sortField}
-            currentSortDirection={sortDirection}
-          />
-        </button>
-        <ColumnFilterDropdown
-          type="multiselect"
-          filterId="totalCommission"
-          options={uniqueCommissions.map((c) => ({
-            value: c.toString(),
-            label: formatCurrency(c),
-          }))}
-          value={columnFilters.totalCommission}
-          onChange={(value) =>
-            setColumnFilters((prev) => ({ ...prev, totalCommission: value }))
-          }
-          placeholder="All Commissions"
-          isOpen={openFilter === 'totalCommission'}
-          onToggle={() =>
-            setOpenFilter(
-              openFilter === 'totalCommission' ? null : 'totalCommission'
-            )
-          }
-        />
+        </span>
       </div>
 
       {/* Status */}
       <div className="flex items-center">
-        <button
-          onClick={() => onSort('status')}
-          className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
-        >
+        <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
           Status
-          <SortIcon
-            field="status"
-            currentSortField={sortField}
-            currentSortDirection={sortDirection}
-          />
-        </button>
-        <ColumnFilterDropdown
-          type="multiselect"
-          filterId="status"
-          options={uniqueStatuses.map((s) => ({
-            value: s,
-            label: orderStatusLabels[s as keyof typeof orderStatusLabels],
-          }))}
-          value={columnFilters.status}
-          onChange={(value) =>
-            setColumnFilters((prev) => ({ ...prev, status: value }))
-          }
-          placeholder="All Statuses"
-          isOpen={openFilter === 'status'}
-          onToggle={() =>
-            setOpenFilter(openFilter === 'status' ? null : 'status')
-          }
-        />
+        </span>
       </div>
 
       {/* Amount */}
       <div className="flex items-center justify-end">
-        <button
-          onClick={() => onSort('total')}
-          className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
-        >
+        <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
           Amount
-          <SortIcon
-            field="total"
-            currentSortField={sortField}
-            currentSortDirection={sortDirection}
-          />
-        </button>
-        <ColumnFilterDropdown
-          type="multiselect"
-          filterId="total"
-          options={uniqueTotals.map((t) => ({
-            value: t.toString(),
-            label: formatCurrency(t),
-          }))}
-          value={columnFilters.total}
-          onChange={(value) =>
-            setColumnFilters((prev) => ({ ...prev, total: value }))
-          }
-          placeholder="All Totals"
-          isOpen={openFilter === 'total'}
-          onToggle={() => setOpenFilter(openFilter === 'total' ? null : 'total')}
-        />
+        </span>
       </div>
 
       {/* Order Date */}
       <div className="flex items-center">
-        <button
-          onClick={() => onSort('orderDate')}
-          className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
-        >
+        <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
           Order Date
-          <SortIcon
-            field="orderDate"
-            currentSortField={sortField}
-            currentSortDirection={sortDirection}
-          />
-        </button>
-        <ColumnFilterDropdown
-          type="daterange"
-          filterId="orderDate"
-          value={columnFilters.orderDate}
-          onChange={(value) =>
-            setColumnFilters((prev) => ({ ...prev, orderDate: value }))
-          }
-          isOpen={openFilter === 'orderDate'}
-          onToggle={() =>
-            setOpenFilter(openFilter === 'orderDate' ? null : 'orderDate')
-          }
-        />
+        </span>
       </div>
 
       {/* Entry Date */}
@@ -251,62 +103,16 @@ export function OrdersTableHeader({
 
       {/* Factory */}
       <div className="flex items-center">
-        <button
-          onClick={() => onSort('manufacturerName')}
-          className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
-        >
+        <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
           Factory
-          <SortIcon
-            field="manufacturerName"
-            currentSortField={sortField}
-            currentSortDirection={sortDirection}
-          />
-        </button>
-        <ColumnFilterDropdown
-          type="multiselect"
-          filterId="manufacturerName"
-          options={uniqueManufacturers.map((m) => ({ value: m, label: m }))}
-          value={columnFilters.manufacturerName}
-          onChange={(value) =>
-            setColumnFilters((prev) => ({ ...prev, manufacturerName: value }))
-          }
-          placeholder="All Factories"
-          isOpen={openFilter === 'manufacturerName'}
-          onToggle={() =>
-            setOpenFilter(
-              openFilter === 'manufacturerName' ? null : 'manufacturerName'
-            )
-          }
-        />
+        </span>
       </div>
 
       {/* Customer */}
       <div className="flex items-center">
-        <button
-          onClick={() => onSort('customerName')}
-          className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors"
-        >
+        <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
           Customer
-          <SortIcon
-            field="customerName"
-            currentSortField={sortField}
-            currentSortDirection={sortDirection}
-          />
-        </button>
-        <ColumnFilterDropdown
-          type="multiselect"
-          filterId="customerName"
-          options={uniqueCustomers.map((c) => ({ value: c, label: c }))}
-          value={columnFilters.customerName}
-          onChange={(value) =>
-            setColumnFilters((prev) => ({ ...prev, customerName: value }))
-          }
-          placeholder="All Customers"
-          isOpen={openFilter === 'customerName'}
-          onToggle={() =>
-            setOpenFilter(openFilter === 'customerName' ? null : 'customerName')
-          }
-        />
+        </span>
       </div>
 
       {/* Job Name */}

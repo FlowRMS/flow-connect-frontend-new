@@ -4,7 +4,6 @@
  */
 
 import type { Order } from '@/lib/types/rms';
-import type { SortField, SortDirection, ColumnFilters } from '../../types';
 import { getGridTemplateColumns } from '../../config/columnConfig';
 import { isOrderLinked, getOrderLinkedReason } from '../../utils';
 import { BulkActionsBar } from './BulkActionsBar';
@@ -21,20 +20,6 @@ interface OrdersTableProps {
   selectAllOrders: (orders: Order[]) => void;
   clearSelection: () => void;
   areAllEligibleSelected: (orders: Order[]) => boolean;
-  // Sorting
-  sortField: SortField;
-  sortDirection: SortDirection;
-  handleSort: (field: SortField) => void;
-  // Filters
-  columnFilters: ColumnFilters;
-  setColumnFilters: (filters: ColumnFilters | ((prev: ColumnFilters) => ColumnFilters)) => void;
-  openFilter: string | null;
-  setOpenFilter: (filterId: string | null) => void;
-  uniqueCustomers: string[];
-  uniqueManufacturers: string[];
-  uniqueStatuses: string[];
-  uniqueTotals: number[];
-  uniqueCommissions: number[];
   // Bulk actions
   showBulkActionsMenu: boolean;
   setShowBulkActionsMenu: (show: boolean) => void;
@@ -51,18 +36,6 @@ export function OrdersTable({
   selectAllOrders,
   clearSelection,
   areAllEligibleSelected,
-  sortField,
-  sortDirection,
-  handleSort,
-  columnFilters,
-  setColumnFilters,
-  openFilter,
-  setOpenFilter,
-  uniqueCustomers,
-  uniqueManufacturers,
-  uniqueStatuses,
-  uniqueTotals,
-  uniqueCommissions,
   showBulkActionsMenu,
   setShowBulkActionsMenu,
   bulkSetStatus,
@@ -92,18 +65,6 @@ export function OrdersTable({
             filteredOrders={filteredOrders}
             areAllEligibleSelected={areAllEligibleSelected(filteredOrders)}
             onSelectAll={() => selectAllOrders(filteredOrders)}
-            sortField={sortField}
-            sortDirection={sortDirection}
-            onSort={handleSort}
-            columnFilters={columnFilters}
-            setColumnFilters={setColumnFilters}
-            openFilter={openFilter}
-            setOpenFilter={setOpenFilter}
-            uniqueCustomers={uniqueCustomers}
-            uniqueManufacturers={uniqueManufacturers}
-            uniqueStatuses={uniqueStatuses}
-            uniqueTotals={uniqueTotals}
-            uniqueCommissions={uniqueCommissions}
             gridColumns={gridColumns}
           />
 

@@ -10,8 +10,9 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import AdvancedFilters from '@/components/advancedFilters/AdvancedFilters';
+import SortButton from '@/components/SortButton';
 import { useOrdersListState } from './hooks/useOrdersListState';
-import { getOrderFilterOptions } from './config/filterConfig';
+import { getOrderFilterOptions, getOrderSortOptions } from './config/filterConfig';
 import { OrdersTable } from './components/table/OrdersTable';
 import { QuickDateFilter } from './components/QuickDateFilter';
 import { OrderDetailPanel } from './components/sidebar/OrderDetailPanel';
@@ -25,6 +26,27 @@ export default function OrdersListContent() {
   const state = useOrdersListState();
 
   const filterOptions = getOrderFilterOptions();
+  const sortOptions = getOrderSortOptions();
+  
+  // Map sortField and sortDirection to ActiveSort format for SortButton
+  // The columnName should match API field names directly
+  const activeSort = state.sortField && state.sortDirection
+    ? {
+        columnName: (() => {
+          const fieldMap: Record<string, string> = {
+            orderNumber: 'orderNumber',
+            customerName: 'soldToCustomerName',
+            manufacturerName: 'factoryName',
+            orderDate: 'entityDate',
+            total: 'total',
+            totalCommission: 'commission',
+            status: 'status',
+          };
+          return fieldMap[state.sortField] || 'entityDate';
+        })(),
+        direction: state.sortDirection.toUpperCase() as 'ASC' | 'DESC',
+      }
+    : undefined;
 
   // Loading state
   if (state.isLoading) {
@@ -119,7 +141,18 @@ export default function OrdersListContent() {
                 )}
               </div>
 
-              <AdvancedFilters filterOptions={filterOptions} />
+              <AdvancedFilters
+                filterOptions={filterOptions}
+                onFiltersChange={state.handleServerFiltersChange}
+                activeFilters={state.activeFilters}
+              />
+              
+              <SortButton
+                sortOptions={sortOptions}
+                onSortChange={state.handleSortChange}
+                activeSort={activeSort}
+              />
+              
               <button
                 onClick={() => router.push('/orders/new')}
                 className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium text-sm hover:bg-[var(--primary-hover)] transition-colors"
@@ -160,18 +193,6 @@ export default function OrdersListContent() {
             selectAllOrders={state.selectAllOrders}
             clearSelection={state.clearSelection}
             areAllEligibleSelected={state.areAllEligibleSelected}
-            sortField={state.sortField}
-            sortDirection={state.sortDirection}
-            handleSort={state.handleSort}
-            columnFilters={state.columnFilters}
-            setColumnFilters={state.setColumnFilters}
-            openFilter={state.openFilter}
-            setOpenFilter={state.setOpenFilter}
-            uniqueCustomers={state.uniqueCustomers}
-            uniqueManufacturers={state.uniqueManufacturers}
-            uniqueStatuses={state.uniqueStatuses}
-            uniqueTotals={state.uniqueTotals}
-            uniqueCommissions={state.uniqueCommissions}
             showBulkActionsMenu={state.showBulkActionsMenu}
             setShowBulkActionsMenu={state.setShowBulkActionsMenu}
             bulkSetStatus={state.bulkSetStatus}
