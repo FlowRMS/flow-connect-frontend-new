@@ -31,9 +31,9 @@ function CompanyTypeSelect({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Only Customer type available - Manufacturers are managed in /manufacturers
   const options: { value: CompanySourceType; label: string; description: string }[] = [
     { value: 'CUSTOMER', label: 'Customer', description: 'End customers and buyers' },
-    { value: 'MANUFACTURER', label: 'Manufacturer', description: 'Product manufacturers and suppliers' },
   ];
 
   useEffect(() => {

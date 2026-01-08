@@ -11,6 +11,7 @@ export {
   createOrder,
   updateOrder,
   deleteOrder,
+  duplicateOrder,
   createOrderFromQuote,
   type Order,
   type OrderLandingPage,

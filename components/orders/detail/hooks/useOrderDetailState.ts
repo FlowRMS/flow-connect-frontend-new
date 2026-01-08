@@ -36,7 +36,7 @@ function createEmptyOrder(): Order {
     customerName: '',
     jobId: undefined,
     jobName: undefined,
-    status: 'draft',
+    status: 'OPEN',
     fulfillmentStatus: 'not_started',
     billingStatus: 'not_invoiced',
     commissionStatus: 'pending',
@@ -120,7 +120,7 @@ function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
     customerName: apiOrder.soldToCustomer?.companyName || '',
     jobId: apiOrder.job?.id,
     jobName: apiOrder.job?.jobName,
-    status: mapApiStatusToUiStatus(apiOrder.headerStatus),
+    status: mapApiStatusToOrderStatus(apiOrder.status),
     fulfillmentStatus: 'not_started', // API doesn't provide this directly
     billingStatus: 'not_invoiced', // API doesn't provide this directly
     commissionStatus: 'pending', // API doesn't provide this directly
@@ -200,25 +200,28 @@ function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
 }
 
 /**
- * Map API status/headerStatus to UI status
+ * Map API status to OrderStatus type
+ * Valid statuses: OPEN, PARTIAL_SHIPPED, SHIPPED_COMPLETE, CANCELLED, OVER_SHIPPED, PARTIAL_CANCELLED, OVER_CANCELLED
  */
-function mapApiStatusToUiStatus(headerStatus?: string): 'draft' | 'open' | 'partial_shipped' | 'shipped' | 'cancelled' | 'dormant' {
-  const hs = headerStatus?.toUpperCase();
-  switch (hs) {
-    case 'DRAFT':
-      return 'draft';
+function mapApiStatusToOrderStatus(status?: string): 'OPEN' | 'PARTIAL_SHIPPED' | 'SHIPPED_COMPLETE' | 'CANCELLED' | 'OVER_SHIPPED' | 'PARTIAL_CANCELLED' | 'OVER_CANCELLED' {
+  const s = status?.toUpperCase();
+  switch (s) {
     case 'OPEN':
-      return 'open';
+      return 'OPEN';
     case 'PARTIAL_SHIPPED':
-      return 'partial_shipped';
-    case 'SHIPPED':
-      return 'shipped';
+      return 'PARTIAL_SHIPPED';
+    case 'SHIPPED_COMPLETE':
+      return 'SHIPPED_COMPLETE';
     case 'CANCELLED':
-      return 'cancelled';
-    case 'DORMANT':
-      return 'dormant';
+      return 'CANCELLED';
+    case 'OVER_SHIPPED':
+      return 'OVER_SHIPPED';
+    case 'PARTIAL_CANCELLED':
+      return 'PARTIAL_CANCELLED';
+    case 'OVER_CANCELLED':
+      return 'OVER_CANCELLED';
     default:
-      return 'open';
+      return 'OPEN';
   }
 }
 

@@ -277,11 +277,11 @@ export async function emailGraphQLRequest<T = unknown>(
         }),
       });
     } else {
-      // Token refresh failed, redirect to auth-error to avoid loops
+      // Token refresh failed, redirect to sign-in to re-authenticate
       if (typeof window !== 'undefined') {
-        window.location.href = '/auth-error';
+        window.location.href = '/sign-in';
       }
-      throw new Error('Authentication expired. Please clear your cookies and try again.');
+      throw new Error('Session expired. Please sign in again.');
     }
   }
 

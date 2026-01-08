@@ -348,13 +348,19 @@ export interface PreOpportunityDetailQuote {
   paymentTerms?: string;
 }
 
+export interface PreOpportunityDetailFactory {
+  id: string;
+  title: string;
+}
+
 export interface PreOpportunityDetail {
   id: string;
   preOpportunityId: string;
   itemNumber: number;
   productId: string;
-  productCpnId?: string;
+  factoryId?: string;
   product: PreOpportunityProduct;
+  factory?: PreOpportunityDetailFactory;
   quantity: number;
   unitPrice: number;
   subtotal: number;
@@ -406,7 +412,7 @@ export interface PreOpportunityDetailInput {
   id?: string;
   itemNumber: number;
   productId: string;
-  productCpnId?: string;
+  factoryId: string;
   quantity: number;
   unitPrice: number;
   discountRate?: number;

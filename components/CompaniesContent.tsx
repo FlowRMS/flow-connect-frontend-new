@@ -33,12 +33,18 @@ export default function CompaniesContent() {
   const [isMounted, setIsMounted] = useState(false);
 
   // Server-side filters - defined BEFORE API hook so they can be passed to the query
-  const [serverFilters, setServerFilters] = useState<LandingPageFilter[]>([]);
+  // Default filter: Only show CUSTOMER companies (manufacturers are managed in /manufacturers)
+  const [serverFilters, setServerFilters] = useState<LandingPageFilter[]>([
+    { operator: 'EQ', columnName: 'companySourceType', value: 'CUSTOMER' }
+  ]);
   const [serverOrderBy, setServerOrderBy] = useState<LandingPageOrderBy[]>([]);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Default filter to only show CUSTOMER companies (manufacturers are managed separately)
+  const customerOnlyFilter: LandingPageFilter = { operator: 'EQ', columnName: 'companySourceType', value: 'CUSTOMER' };
 
   // Handler for server-side filter changes
   const handleServerFiltersChange = useCallback((filters: ActiveFilter[]) => {
@@ -57,7 +63,8 @@ export default function CompaniesContent() {
         value: f.value,
       };
     });
-    setServerFilters(apiFilters);
+    // Always include the CUSTOMER-only filter
+    setServerFilters([customerOnlyFilter, ...apiFilters]);
   }, []);
 
   // Handler for server-side sort changes

@@ -139,13 +139,15 @@ export interface ProductActivity {
 // Order Types
 // -----------------------------------------------------------------------------
 
+// API Order Status values (uppercase for API compatibility)
 export type OrderStatus =
-  | 'draft'
-  | 'open'
-  | 'partial_shipped'
-  | 'shipped'
-  | 'cancelled'
-  | 'dormant';
+  | 'OPEN'
+  | 'PARTIAL_SHIPPED'
+  | 'SHIPPED_COMPLETE'
+  | 'CANCELLED'
+  | 'OVER_SHIPPED'
+  | 'PARTIAL_CANCELLED'
+  | 'OVER_CANCELLED';
 
 export type FulfillmentStatus =
   | 'not_started'
@@ -575,21 +577,23 @@ export interface CommissionFilters {
 // -----------------------------------------------------------------------------
 
 export const orderStatusLabels: Record<OrderStatus, string> = {
-  draft: 'Draft',
-  open: 'Open',
-  partial_shipped: 'Partial Shipped',
-  shipped: 'Shipped',
-  cancelled: 'Cancelled',
-  dormant: 'Dormant',
+  OPEN: 'Open',
+  PARTIAL_SHIPPED: 'Partial Shipped',
+  SHIPPED_COMPLETE: 'Shipped Complete',
+  CANCELLED: 'Cancelled',
+  OVER_SHIPPED: 'Over Shipped',
+  PARTIAL_CANCELLED: 'Partial Cancelled',
+  OVER_CANCELLED: 'Over Cancelled',
 };
 
 export const orderStatusColors: Record<OrderStatus, string> = {
-  draft: 'bg-gray-100 text-gray-700',
-  open: 'bg-blue-100 text-blue-700',
-  partial_shipped: 'bg-yellow-100 text-yellow-700',
-  shipped: 'bg-green-100 text-green-700',
-  cancelled: 'bg-red-100 text-red-700',
-  dormant: 'bg-purple-100 text-purple-700',
+  OPEN: 'bg-blue-100 text-blue-700',
+  PARTIAL_SHIPPED: 'bg-yellow-100 text-yellow-700',
+  SHIPPED_COMPLETE: 'bg-green-100 text-green-700',
+  CANCELLED: 'bg-red-100 text-red-700',
+  OVER_SHIPPED: 'bg-orange-100 text-orange-700',
+  PARTIAL_CANCELLED: 'bg-red-100 text-red-600',
+  OVER_CANCELLED: 'bg-red-100 text-red-800',
 };
 
 export const fulfillmentStatusLabels: Record<FulfillmentStatus, string> = {

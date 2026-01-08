@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Upload,
   Loader2,
   Sparkles,
 } from 'lucide-react';
-import { CombinedUploadPane } from '@/components/flow-ai/flowrms/CombinedUploadPane';
+import { CombinedUploadPane, type DocumentType } from '@/components/flow-ai/flowrms/CombinedUploadPane';
 import { AdminSettingsDialog } from '@/components/flow-ai/flowrms/AdminSettingsDialog';
 import { useMutation } from '@apollo/client/react';
 import { M_BATCH_PROCESS_DOCUMENTS } from '@/lib/flow-ai/gql';
@@ -28,11 +28,21 @@ const FLOWAI_FACTS = [
   { title: "Data Validation", fact: "Built-in validation rules catch errors before they reach your system, ensuring data quality." },
 ];
 
+// Valid document types that can be passed via URL
+const VALID_DOCUMENT_TYPES: DocumentType[] = ['quotes', 'orders', 'order_acknowledgements', 'invoices', 'checks', 'products', 'factories', 'customers'];
+
 export default function UploadPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
   const [currentFactIndex, setCurrentFactIndex] = useState(() => Math.floor(Math.random() * FLOWAI_FACTS.length));
   const [isFactVisible, setIsFactVisible] = useState(true);
+
+  // Get initial document type from URL query parameter
+  const typeParam = searchParams.get('type');
+  const initialDocumentType: DocumentType | undefined = typeParam && VALID_DOCUMENT_TYPES.includes(typeParam as DocumentType)
+    ? (typeParam as DocumentType)
+    : undefined;
 
   // Rotate facts every 5 seconds with fade animation when batch processing
   useEffect(() => {
@@ -172,6 +182,7 @@ export default function UploadPage() {
         <CombinedUploadPane
           onDocumentUploaded={handleDocumentUploaded}
           onBatchDocumentsUploaded={handleBatchDocumentsUploaded}
+          initialDocumentType={initialDocumentType}
         />
       </main>
     </div>

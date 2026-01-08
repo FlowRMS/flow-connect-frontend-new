@@ -70,8 +70,9 @@ import {
 import { AdminSettingsDialog } from '@/components/flow-ai/flowrms/AdminSettingsDialog';
 import { navigateToNewUpload } from '@/lib/flow-ai/navigation-utils';
 import { useApolloClient, useMutation } from '@apollo/client/react';
-import { Q_PENDING_DOCUMENTS_LANDING, M_ARCHIVE_PENDING_DOCUMENTS } from '@/lib/flow-ai/gql';
+import { Q_PENDING_DOCUMENTS_LANDING, M_ARCHIVE_PENDING_DOCUMENTS, M_SEND_PENDING_DOCUMENT_STATUS_EMAIL } from '@/lib/flow-ai/gql';
 import { toast } from 'sonner';
+import { Mail, Bell, Clock as ClockIcon, CheckCircle, Loader2 as Spinner } from 'lucide-react';
 import {
   PendingDocument,
   PaginatedResponse,
@@ -458,6 +459,14 @@ function QueuePageContent() {
   // Archive mutation
   const [archiveMutation, { loading: archiving }] = useMutation(M_ARCHIVE_PENDING_DOCUMENTS);
 
+  // Email notification mutation
+  const [sendEmailMutation, { loading: sendingEmail }] = useMutation(M_SEND_PENDING_DOCUMENT_STATUS_EMAIL);
+
+  // Email notification dialog state
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [emailDialogDocument, setEmailDialogDocument] = useState<PendingDocument | null>(null);
+  const [emailSent, setEmailSent] = useState(false);
+
   // localStorage key for saved filters
   const QUEUE_FILTERS_KEY = 'flowrms_queue_filters';
 
@@ -631,7 +640,55 @@ function QueuePageContent() {
     fetchDocuments(false);
   }, [fetchDocuments]);
 
-  // Handle document click - redirect based on file status
+  // Silent auto-refresh every 10 seconds
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      // Silent refresh - don't show loading state or toast
+      const silentRefresh = async () => {
+        try {
+          const offset = (currentPage - 1) * pageSize;
+          const filters = buildFilters();
+          const orderByInput = buildOrderBy();
+
+          const { data } = await apolloClient.query<PaginatedResponse>({
+            query: Q_PENDING_DOCUMENTS_LANDING,
+            variables: {
+              limit: pageSize,
+              offset,
+              filters,
+              orderBy: orderByInput,
+            },
+            fetchPolicy: 'network-only',
+          });
+
+          const response = data?.findLandingPages;
+          const items = response?.records || [];
+          setDocuments(items);
+          setTotalCount(response?.total || 0);
+
+          // Update unique creators list
+          setUniqueCreators(prev => {
+            const existingMap = new Map(prev.map(c => [c.id, c]));
+            items.forEach(doc => {
+              if (doc.createdById && doc.createdBy && !existingMap.has(doc.createdById)) {
+                existingMap.set(doc.createdById, { id: doc.createdById, name: doc.createdBy });
+              }
+            });
+            return Array.from(existingMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+          });
+        } catch (error) {
+          // Silent fail - don't show error to user for background refresh
+          console.error('Silent refresh failed:', error);
+        }
+      };
+
+      silentRefresh();
+    }, 10000); // 10 seconds
+
+    return () => clearInterval(intervalId);
+  }, [apolloClient, currentPage, pageSize, buildFilters, buildOrderBy]);
+
+  // Handle document click - redirect based on workflow status
   // Note: Using new field names from findLandingPages:
   //   - id = pending document ID
   //   - workflowStatus = queue/workflow status (was queueStatus)
@@ -639,8 +696,6 @@ function QueuePageContent() {
   const handleDocumentClick = (doc: PendingDocument) => {
     const params = new URLSearchParams();
     params.set('pendingId', doc.id);
-    // Note: documentProcessId is no longer returned by findLandingPages
-    // If needed in the future, we may need to add it to the query
 
     // If file status is 'Exception', redirect to processing-errors page
     if (doc.status?.toUpperCase() === 'EXCEPTION') {
@@ -648,8 +703,19 @@ function QueuePageContent() {
       return;
     }
 
-    // If workflow status is 'Done', redirect to upload-complete page
-    if (doc.workflowStatus?.toUpperCase() === 'DONE') {
+    const workflowStatus = doc.workflowStatus?.toUpperCase();
+
+    // If workflow status is 'IN_PROGRESS', show email notification dialog
+    if (workflowStatus === 'IN_PROGRESS') {
+      setEmailDialogDocument(doc);
+      setEmailSent(false);
+      setShowEmailDialog(true);
+      return;
+    }
+
+    // If workflow status is 'COMPLETED', 'DONE', or 'FAILED', redirect to upload-complete page
+    // FAILED status allows users to view the errors and details
+    if (workflowStatus === 'COMPLETED' || workflowStatus === 'DONE' || workflowStatus === 'FAILED') {
       // For TABULAR (spreadsheet) documents, add source=spreadsheet
       if (doc.documentType?.toUpperCase() === 'TABULAR') {
         params.set('source', 'spreadsheet');
@@ -658,8 +724,10 @@ function QueuePageContent() {
       return;
     }
 
-    // Otherwise redirect to main page
-    router.push(`/flow-ai?pendingId=${doc.id}`);
+    // If workflow status is null/undefined, redirect to preview page
+    if (!doc.workflowStatus) {
+      router.push(`/flow-ai?pendingId=${doc.id}`);
+    }
   };
 
   // Handle refresh
@@ -707,6 +775,34 @@ function QueuePageContent() {
       fetchDocuments(false);
     } catch (error) {
       toast.error('Failed to archive documents', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  };
+
+  // Handle email notification request
+  const handleSendEmailNotification = async () => {
+    if (!emailDialogDocument) return;
+
+    try {
+      const result = await sendEmailMutation({
+        variables: {
+          pendingDocumentId: emailDialogDocument.id,
+        },
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const response = (result.data as any)?.sendPendingDocumentStatusEmail as { success?: boolean; message?: string } | undefined;
+      if (response?.success) {
+        setEmailSent(true);
+        toast.success('Email notification set up successfully!', {
+          description: "We'll email you when the document processing is complete.",
+        });
+      } else {
+        throw new Error(response?.message || 'Failed to set up notification');
+      }
+    } catch (error) {
+      toast.error('Failed to set up email notification', {
         description: error instanceof Error ? error.message : 'Unknown error',
       });
     }
@@ -1007,6 +1103,7 @@ function QueuePageContent() {
                           </button>
                         </TableHead>
                         <TableHead className="font-semibold text-foreground">File Status</TableHead>
+                        <TableHead className="font-semibold text-foreground">Workflow Status</TableHead>
                         <TableHead className="font-semibold text-foreground">Created By</TableHead>
                         <TableHead className="font-semibold text-foreground">
                           <button
@@ -1098,6 +1195,13 @@ function QueuePageContent() {
                             <TableCell onClick={() => handleDocumentClick(doc)}>
                               {doc.status ? (
                                 <StatusBadge status={doc.status} type="file" />
+                              ) : (
+                                <span className="text-sm text-muted-foreground">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell onClick={() => handleDocumentClick(doc)}>
+                              {doc.workflowStatus ? (
+                                <StatusBadge status={doc.workflowStatus} type="file" />
                               ) : (
                                 <span className="text-sm text-muted-foreground">-</span>
                               )}
@@ -1230,6 +1334,122 @@ function QueuePageContent() {
               )}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Email Notification Dialog for In-Progress Documents */}
+      <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
+        <DialogContent className="sm:max-w-[425px] max-w-[90vw] overflow-hidden">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Document Processing Status</DialogTitle>
+            <DialogDescription>Get notified when your document is ready</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center text-center space-y-5 py-2">
+            {/* Animated Icon */}
+            <div className="relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-full blur-xl animate-pulse" />
+              <div className="relative p-4 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full shadow-lg shadow-blue-500/25">
+                {emailSent ? (
+                  <CheckCircle className="w-8 h-8 text-white" />
+                ) : (
+                  <ClockIcon className="w-8 h-8 text-white animate-pulse" />
+                )}
+              </div>
+            </div>
+
+            {/* Content */}
+            {emailSent ? (
+              <>
+                <div className="space-y-2">
+                  <h3 className="text-lg font-bold text-foreground">
+                    You&apos;re All Set!
+                  </h3>
+                  <p className="text-muted-foreground text-sm">
+                    We&apos;ll send you an email as soon as your document is ready for review.
+                  </p>
+                </div>
+                <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg p-3 w-full">
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                    <p className="text-sm text-green-700 dark:text-green-300 text-left truncate">
+                      Email notification confirmed
+                    </p>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <h3 className="text-lg font-bold text-foreground">
+                    Document Still Processing
+                  </h3>
+                  <p className="text-muted-foreground text-sm">
+                    This document is currently being processed. You can safely leave this page and come back later.
+                  </p>
+                </div>
+
+                {/* Document info card */}
+                <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg p-3 w-full">
+                  <div className="flex items-center gap-3 max-w-full">
+                    <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg flex-shrink-0">
+                      <Loader2 className="w-4 h-4 text-amber-600 dark:text-amber-400 animate-spin" />
+                    </div>
+                    <div className="text-left min-w-0 flex-1">
+                      <p className="font-medium text-sm text-foreground truncate max-w-[280px]" title={emailDialogDocument?.fileName || 'Document'}>
+                        {emailDialogDocument?.fileName || 'Document'}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Status: Processing...
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Email notification offer */}
+                <div className="bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30 border border-blue-200 dark:border-blue-800 rounded-xl p-4 w-full space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white dark:bg-slate-800 rounded-lg shadow-sm flex-shrink-0">
+                      <Bell className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div className="text-left">
+                      <p className="font-semibold text-sm text-foreground">
+                        Want to be notified?
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Get an email when processing is complete
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleSendEmailNotification}
+                    disabled={sendingEmail}
+                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg shadow-blue-500/25"
+                  >
+                    {sendingEmail ? (
+                      <>
+                        <Spinner className="w-4 h-4 mr-2 animate-spin" />
+                        Setting up...
+                      </>
+                    ) : (
+                      <>
+                        <Mail className="w-4 h-4 mr-2" />
+                        Notify Me When Ready
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </>
+            )}
+
+            {/* Close button */}
+            <Button
+              variant="outline"
+              onClick={() => setShowEmailDialog(false)}
+              className="w-full"
+            >
+              {emailSent ? 'Done' : 'Maybe Later'}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

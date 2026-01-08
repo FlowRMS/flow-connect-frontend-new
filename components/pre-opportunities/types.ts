@@ -62,13 +62,19 @@ export interface PreOpportunityDetailQuote {
   paymentTerms?: string;
 }
 
+export interface PreOpportunityDetailFactory {
+  id: string;
+  title: string;
+}
+
 export interface PreOpportunityDetail {
   id: string;
   preOpportunityId: string;
   itemNumber: number;
   productId: string;
-  productCpnId?: string;
+  factoryId?: string;
   product: PreOpportunityProduct;
+  factory?: PreOpportunityDetailFactory;
   quantity: number;
   unitPrice: number;
   subtotal: number;
@@ -122,7 +128,7 @@ export interface PreOpportunityDetailInput {
   id?: string;
   itemNumber: number;
   productId: string;
-  productCpnId?: string;
+  factoryId: string;
   quantity: number;
   unitPrice: number;
   discountRate?: number;
@@ -256,4 +262,43 @@ export interface PreOppStage {
   name: PreOpportunityStatus;
   displayName: string;
   color: string;
+}
+
+// ============================================================================
+// Factory-Grouped Line Items Types (UI)
+// ============================================================================
+
+// A line item within a factory group (for UI state)
+export interface FactoryLineItem {
+  id: string;
+  itemNumber: number;
+  productId: string;
+  factoryId: string;
+  factoryPartNumber: string;
+  description?: string;
+  quantity: number;
+  unitPrice: number;
+  discountRate: number;
+  leadTime: string;
+  endUserId: string;
+  endUserName: string;
+  isNew?: boolean;
+}
+
+// A factory group containing its line items
+export interface FactoryGroup {
+  id: string;
+  factoryId: string;
+  factoryName: string;
+  isExpanded: boolean;
+  lineItems: FactoryLineItem[];
+}
+
+// Props for the factory-grouped line items editor
+export interface FactoryGroupedLineItemsProps {
+  groups: FactoryGroup[];
+  onGroupsChange: (groups: FactoryGroup[]) => void;
+  defaultEndUserId?: string;
+  defaultEndUserName?: string;
+  isEditing?: boolean;
 }

@@ -176,8 +176,14 @@ export default function CreateProductPage() {
     if (!formData.factoryPartNumber?.trim()) {
       newErrors.factoryPartNumber = 'Part Number is required';
     }
+    if (formData.unitPrice === undefined || formData.unitPrice === null) {
+      newErrors.unitPrice = 'Unit Price is required';
+    }
     if (!formData.productUomId) {
       newErrors.productUomId = 'Unit of Measure is required';
+    }
+    if (formData.defaultCommissionRate === undefined || formData.defaultCommissionRate === null) {
+      newErrors.defaultCommissionRate = 'Default Commission Rate is required';
     }
 
     setErrors(newErrors);
@@ -553,7 +559,7 @@ export default function CreateProductPage() {
             {/* Pricing */}
             <div className="grid grid-cols-2 gap-4 mb-6">
               <div>
-                <label className={labelClass}>Unit Price</label>
+                <label className={labelClass}>Unit Price *</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                   <input
@@ -561,24 +567,30 @@ export default function CreateProductPage() {
                     step="0.01"
                     value={formData.unitPrice ?? ''}
                     onChange={(e) => handleChange('unitPrice', e.target.value ? parseFloat(e.target.value) : undefined)}
-                    className={`${inputClass} pl-7`}
+                    className={`${inputClass} pl-7 ${errors.unitPrice ? 'border-red-500' : ''}`}
                     placeholder="0.00"
                   />
                 </div>
+                {errors.unitPrice && (
+                  <p className="mt-1 text-xs text-red-500">{errors.unitPrice}</p>
+                )}
               </div>
               <div>
-                <label className={labelClass}>Default Commission Rate</label>
+                <label className={labelClass}>Default Commission Rate *</label>
                 <div className="relative">
                   <input
                     type="number"
                     step="0.1"
                     value={formData.defaultCommissionRate !== undefined ? formData.defaultCommissionRate * 100 : ''}
                     onChange={(e) => handleChange('defaultCommissionRate', e.target.value ? parseFloat(e.target.value) / 100 : undefined)}
-                    className={`${inputClass} pr-8`}
+                    className={`${inputClass} pr-8 ${errors.defaultCommissionRate ? 'border-red-500' : ''}`}
                     placeholder="0"
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
                 </div>
+                {errors.defaultCommissionRate && (
+                  <p className="mt-1 text-xs text-red-500">{errors.defaultCommissionRate}</p>
+                )}
               </div>
             </div>
 

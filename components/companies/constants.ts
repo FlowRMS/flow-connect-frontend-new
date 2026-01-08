@@ -2,8 +2,8 @@
  * Company Constants and Configurations
  */
 
-// Company types
-export const COMPANY_TYPES = ['All', 'Customer', 'Manufacturer'] as const;
+// Company types - Companies page only shows Customers (Manufacturers are managed separately)
+export const COMPANY_TYPES = ['All', 'Customer'] as const;
 
 // Logo color palette
 export const LOGO_COLORS = [
