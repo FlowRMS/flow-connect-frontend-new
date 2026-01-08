@@ -777,6 +777,12 @@ export const Q_GET_ALL_PENDING_ENTITIES = gql`
     invoices: pendingEntities(filterInput: { entityType: INVOICES, pendingDocumentId: $pendingDocumentId }) {
       ${PENDING_ENTITY_FIELDS}
     }
+    credits: pendingEntities(filterInput: { entityType: CREDITS, pendingDocumentId: $pendingDocumentId }) {
+      ${PENDING_ENTITY_FIELDS}
+    }
+    adjustments: pendingEntities(filterInput: { entityType: ADJUSTMENTS, pendingDocumentId: $pendingDocumentId }) {
+      ${PENDING_ENTITY_FIELDS}
+    }
   }
 `;
 

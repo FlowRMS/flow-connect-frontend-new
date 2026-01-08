@@ -170,6 +170,8 @@ function EntityMatchingContent() {
     products,
     orders,
     invoices,
+    credits,
+    adjustments,
     currentStep,
     setCurrentStep,
     activeFilters,
@@ -220,7 +222,9 @@ function EntityMatchingContent() {
                           endUsers.length === 0 &&
                           products.length === 0 &&
                           orders.length === 0 &&
-                          invoices.length === 0;
+                          invoices.length === 0 &&
+                          credits.length === 0 &&
+                          adjustments.length === 0;
 
     if (hasNoEntities) {
       toast.info('No entities to match. Starting document processing...');
@@ -228,7 +232,7 @@ function EntityMatchingContent() {
       // and navigate to queue page
       handleCompleteMatching();
     }
-  }, [initialLoadComplete, factories, customers, billToCustomers, endUsers, products, orders, invoices, pendingId]);
+  }, [initialLoadComplete, factories, customers, billToCustomers, endUsers, products, orders, invoices, credits, adjustments, pendingId]);
 
   const handleCompleteMatching = async () => {
     if (!pendingId) {
@@ -317,6 +321,8 @@ function EntityMatchingContent() {
       case 'PRODUCTS': return 'Product';
       case 'ORDERS': return 'Order';
       case 'INVOICES': return 'Invoice';
+      case 'CREDITS': return 'Credit';
+      case 'ADJUSTMENTS': return 'Adjustment';
       default: return 'Entity';
     }
   };
@@ -825,11 +831,11 @@ function EntityMatchingContent() {
                 <span>Confirmed {confirmationCount} times by users</span>
               </div>
             )}
-            {/* Action buttons row - Different for Orders/Invoices vs other entity types */}
+            {/* Action buttons row - Different for Orders/Invoices/Credits/Adjustments vs other entity types */}
             {!isLocked && (
               <div className="flex gap-2">
-                {/* Orders and Invoices: Skip and Set for Creation buttons */}
-                {(getCurrentEntityType() === 'ORDERS' || getCurrentEntityType() === 'INVOICES') ? (
+                {/* Orders, Invoices, Credits, and Adjustments: Skip and Set for Creation buttons */}
+                {(getCurrentEntityType() === 'ORDERS' || getCurrentEntityType() === 'INVOICES' || getCurrentEntityType() === 'CREDITS' || getCurrentEntityType() === 'ADJUSTMENTS') ? (
                   <>
                     <Button
                       variant="outline"
@@ -914,8 +920,8 @@ function EntityMatchingContent() {
                 )}
               </div>
             )}
-            {/* Create New button - hidden for locked entities and for Orders/Invoices */}
-            {!isLocked && getCurrentEntityType() !== 'ORDERS' && getCurrentEntityType() !== 'INVOICES' && (
+            {/* Create New button - hidden for locked entities and for Orders/Invoices/Credits/Adjustments */}
+            {!isLocked && getCurrentEntityType() !== 'ORDERS' && getCurrentEntityType() !== 'INVOICES' && getCurrentEntityType() !== 'CREDITS' && getCurrentEntityType() !== 'ADJUSTMENTS' && (
               <Popover
                 open={createNewPopoverOpen === entity.id}
                 onOpenChange={(open) => {
@@ -1173,6 +1179,8 @@ function EntityMatchingContent() {
           productsCount={products.length}
           ordersCount={orders.length}
           invoicesCount={invoices.length}
+          creditsCount={credits.length}
+          adjustmentsCount={adjustments.length}
           getStepStatus={getStepStatus}
         />
 
