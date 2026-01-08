@@ -424,10 +424,12 @@ export function useTakeoffsState() {
           pageAnalysesCount: result.pageAnalyses?.length || 0,
           pageAnalyses: result.pageAnalyses,
         });
+        // Use same fallback values as state update to ensure DB consistency
+        const persistAbridgedPages = result.abridgedPages || actualPages;
         await updateTakeoffDocument(docId, {
-          pages: result.originalPages || undefined,
+          pages: actualPages,
           abridged: true,
-          abridgedPages: result.abridgedPages,
+          abridgedPages: persistAbridgedPages,
           abridgedUrl: effectiveAbridgedUrl || null,
           reductionPercentage: result.reductionPercentage,
           pageAnalyses: result.pageAnalyses as unknown as UpdateTakeoffDocumentInput['pageAnalyses'],

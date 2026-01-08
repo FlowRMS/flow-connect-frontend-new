@@ -369,11 +369,13 @@ export default function TakeoffDetailPage() {
         );
 
         // Persist to backend - only save abridgedUrl if a new PDF was generated
+        // Use same fallback values as state update to ensure DB consistency
+        const persistAbridgedPages = result.abridgedPages || actualPages;
         console.log('[page.tsx Abridge] Persisting to backend with abridgedUrl:', effectiveAbridgedUrl);
         await updateTakeoffDocument(docId, {
-          pages: result.originalPages || undefined,
+          pages: actualPages,
           abridged: true,
-          abridgedPages: result.abridgedPages,
+          abridgedPages: persistAbridgedPages,
           abridgedUrl: effectiveAbridgedUrl || null,
           reductionPercentage: result.reductionPercentage,
           pageAnalyses: result.pageAnalyses,
