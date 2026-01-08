@@ -24,6 +24,8 @@ interface PDFPreviewProps {
   organizationName: string;
   organizationLogo: string | null;
   organizationAddress: string;
+  centerLogo: string | null;
+  showCenterLogo: boolean;
 }
 
 export function PDFPreview({
@@ -39,6 +41,8 @@ export function PDFPreview({
   organizationName,
   organizationLogo,
   organizationAddress,
+  centerLogo,
+  showCenterLogo,
 }: PDFPreviewProps) {
   const visibleFields = fields.filter((f) => f.visible);
   const visibleLineItems = lineItems.filter((item) => item.visible);
@@ -104,33 +108,47 @@ export function PDFPreview({
         {/* PDF Content */}
         <div className="p-10">
           {/* Header Section */}
-          <div className="flex justify-between items-start mb-8 pb-6 border-b-2 border-gray-200">
-            {/* Company Info & Logo */}
-            <div className="flex items-start gap-4">
-              {showLogo && organizationLogo && (
-                <div className="w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-gray-50 flex items-center justify-center border border-gray-100">
+          <div className="relative mb-8 pb-6 border-b-2 border-gray-200">
+            {/* Center Logo (Second Company) - Absolutely positioned in center */}
+            {showCenterLogo && centerLogo && (
+              <div className="absolute left-1/2 top-0 -translate-x-1/2">
+                <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-50 flex items-center justify-center border border-gray-100">
                   <img
-                    src={organizationLogo}
-                    alt={organizationName}
+                    src={centerLogo}
+                    alt="Partner Logo"
                     className="max-w-full max-h-full object-contain"
                   />
                 </div>
-              )}
-              {showLogo && !organizationLogo && (
-                <div className="w-16 h-16 flex-shrink-0 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold text-xl">
-                  {organizationName?.charAt(0) || 'C'}
-                </div>
-              )}
-              <div>
-                <h2 className="text-lg font-bold text-gray-900">{organizationName || 'Company Name'}</h2>
-                {organizationAddress && (
-                  <p className="text-xs text-gray-500 mt-1 whitespace-pre-line">{organizationAddress}</p>
-                )}
               </div>
-            </div>
+            )}
 
-            {/* Document Info */}
-            <div className="text-right">
+            <div className="flex justify-between items-start">
+              {/* Company Info & Logo (Left) */}
+              <div className="flex items-start gap-4">
+                {showLogo && organizationLogo && (
+                  <div className="w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-gray-50 flex items-center justify-center border border-gray-100">
+                    <img
+                      src={organizationLogo}
+                      alt={organizationName}
+                      className="max-w-full max-h-full object-contain"
+                    />
+                  </div>
+                )}
+                {showLogo && !organizationLogo && (
+                  <div className="w-16 h-16 flex-shrink-0 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold text-xl">
+                    {organizationName?.charAt(0) || 'C'}
+                  </div>
+                )}
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">{organizationName || 'Company Name'}</h2>
+                  {organizationAddress && (
+                    <p className="text-xs text-gray-500 mt-1 whitespace-pre-line">{organizationAddress}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Document Info */}
+              <div className="text-right">
               {/* Entity Number - only show if visible */}
               {(() => {
                 // Map entity type to its primary number field
@@ -177,6 +195,7 @@ export function PDFPreview({
                   </div>
                 ))}
               </div>
+            </div>
             </div>
           </div>
 

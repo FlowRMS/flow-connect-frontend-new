@@ -20,6 +20,8 @@ interface PDFControlsProps {
   footerNote: string;
   showLogo: boolean;
   showLineNumbers: boolean;
+  centerLogo: string | null;
+  showCenterLogo: boolean;
   onFieldToggle: (fieldId: string) => void;
   onFieldEdit: (fieldId: string, value: string) => void;
   onLineItemToggle: (itemId: string) => void;
@@ -29,6 +31,10 @@ interface PDFControlsProps {
   onFooterNoteChange: (note: string) => void;
   onShowLogoToggle: () => void;
   onShowLineNumbersToggle: () => void;
+  onCenterLogoUpload: (file: File) => void;
+  onCenterLogoRemove: () => void;
+  onShowCenterLogoToggle: () => void;
+  isUploadingCenterLogo?: boolean;
 }
 
 type SectionType = 'fields' | 'lineItems' | 'columns' | 'notes' | 'settings';
@@ -41,6 +47,8 @@ export function PDFControls({
   footerNote,
   showLogo,
   showLineNumbers,
+  centerLogo,
+  showCenterLogo,
   onFieldToggle,
   onFieldEdit,
   onLineItemToggle,
@@ -50,6 +58,10 @@ export function PDFControls({
   onFooterNoteChange,
   onShowLogoToggle,
   onShowLineNumbersToggle,
+  onCenterLogoUpload,
+  onCenterLogoRemove,
+  onShowCenterLogoToggle,
+  isUploadingCenterLogo,
 }: PDFControlsProps) {
   const [activeSection, setActiveSection] = useState<SectionType>('fields');
   const [editingField, setEditingField] = useState<string | null>(null);
@@ -640,13 +652,94 @@ export function PDFControls({
                 <Toggle checked={showLogo} onChange={onShowLogoToggle} />
                 <div className="flex-1">
                   <div className="text-sm font-semibold text-gray-900">Company Logo</div>
-                  <div className="text-xs text-gray-500 mt-0.5">Display your organization logo in the PDF header</div>
+                  <div className="text-xs text-gray-500 mt-0.5">Display your organization logo in the PDF header (left side)</div>
                 </div>
                 <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
                   <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
                   </svg>
                 </div>
+              </div>
+
+              {/* Center Logo Setting */}
+              <div className="border-b border-gray-100">
+                <div
+                  onClick={onShowCenterLogoToggle}
+                  className="flex items-center gap-4 px-5 py-5 cursor-pointer hover:bg-gray-50 transition-colors"
+                >
+                  <Toggle checked={showCenterLogo} onChange={onShowCenterLogoToggle} />
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-gray-900">Center Logo (Second Company)</div>
+                    <div className="text-xs text-gray-500 mt-0.5">Display a second logo in the center of the PDF header</div>
+                  </div>
+                  <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
+                    <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                    </svg>
+                  </div>
+                </div>
+
+                {/* Center Logo Upload Area - Only show when enabled */}
+                {showCenterLogo && (
+                  <div className="px-5 pb-5">
+                    {centerLogo ? (
+                      <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                        <div className="w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-white flex items-center justify-center border border-gray-100">
+                          <img
+                            src={centerLogo}
+                            alt="Center Logo"
+                            className="max-w-full max-h-full object-contain"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-gray-900">Center Logo Uploaded</div>
+                          <div className="text-xs text-gray-500 mt-0.5">This logo will appear in the center of the PDF header</div>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onCenterLogoRemove();
+                          }}
+                          className="px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="block cursor-pointer">
+                        <div className="flex flex-col items-center justify-center p-6 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50/50 transition-colors">
+                          {isUploadingCenterLogo ? (
+                            <>
+                              <div className="w-8 h-8 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-3" />
+                              <div className="text-sm font-medium text-gray-700">Uploading...</div>
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-10 h-10 text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                              </svg>
+                              <div className="text-sm font-medium text-gray-700">Upload Center Logo</div>
+                              <div className="text-xs text-gray-500 mt-1">PNG, JPG up to 5MB</div>
+                            </>
+                          )}
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/jpg"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              onCenterLogoUpload(file);
+                            }
+                            e.target.value = '';
+                          }}
+                          disabled={isUploadingCenterLogo}
+                        />
+                      </label>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Show Line Numbers Setting */}
