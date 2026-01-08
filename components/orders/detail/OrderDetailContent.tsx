@@ -151,6 +151,56 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
       // Helper to check if ID is a valid UUID (from API)
       const isValidUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
+      // Validate End User based on settings (REQUIRED field)
+      const orderEndUserId = (order as any).endUserId;
+
+      console.log('🔍 END USER VALIDATION CHECK:', {
+        showEndUserPerLine: state.showEndUserPerLine,
+        orderEndUserId: orderEndUserId,
+        lineItemsCount: order.lineItems?.length,
+        lineItems: order.lineItems?.map(item => ({
+          id: item.id,
+          lineNumber: item.lineNumber,
+          partNumber: item.partNumber,
+          endUserId: (item as any).endUserId,
+        }))
+      });
+
+      if (!state.showEndUserPerLine) {
+        // When toggle is OFF, header End User is REQUIRED
+        if (!orderEndUserId || orderEndUserId.trim() === '' || !isValidUUID(orderEndUserId)) {
+          console.error('❌ VALIDATION FAILED: Header End User is missing or invalid');
+          orderToasts.updateError('End User is required at the header level. Please select an End User.');
+          return;
+        }
+      } else {
+        // When toggle is ON, EACH line item MUST have End User
+        if (!order.lineItems || order.lineItems.length === 0) {
+          console.error('❌ VALIDATION FAILED: No line items');
+          orderToasts.updateError('Please add at least one line item.');
+          return;
+        }
+
+        const lineItemsWithoutEndUser = order.lineItems.filter(item => {
+          const lineEndUserId = (item as any).endUserId;
+          return !lineEndUserId || lineEndUserId.trim() === '' || !isValidUUID(lineEndUserId);
+        });
+
+        console.log('🔍 Line items without end user:', lineItemsWithoutEndUser.length, lineItemsWithoutEndUser.map(item => ({
+          id: item.id,
+          lineNumber: item.lineNumber,
+          partNumber: item.partNumber,
+        })));
+
+        if (lineItemsWithoutEndUser.length > 0) {
+          console.error('❌ VALIDATION FAILED: Line items missing End User');
+          orderToasts.updateError(`End User is required for all line items. ${lineItemsWithoutEndUser.length} line item(s) are missing End User. Please set End User in Additional Details for each line item.`);
+          return;
+        }
+      }
+
+      console.log('✅ END USER VALIDATION PASSED');
+
       // Build inside reps array from insideRepSplits (supports multiple reps with split commission)
       // If split commission is enabled, use all reps from insideRepSplits; otherwise use primary insideRepId
       let insideSplitRates: { userId: string; splitRate: number; position: number }[] | undefined;
@@ -188,9 +238,6 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           position: 0,
         }];
       }
-
-      // Get order-level endUserId (used when not in per-line mode)
-      const orderEndUserId = (order as any).endUserId;
 
       // Build details with insideSplitRates and outsideSplitRates at detail level
       const buildDetails = (includeId: boolean) => (order.lineItems || []).map((item, index) => {

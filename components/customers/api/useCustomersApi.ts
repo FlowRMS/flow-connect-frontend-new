@@ -23,6 +23,7 @@ import {
 } from './customersApi';
 
 import { searchCustomers, type CustomerSearchResult } from '@/components/lib/api/search';
+import { bulkDelete, type BulkDeleteResult } from '@/components/lib/graphql/bulk-operations';
 
 // ============================================================================
 // Query Keys
@@ -189,6 +190,20 @@ export function useDeleteCustomer() {
     mutationFn: deleteCustomer,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: customersQueryKeys.list() });
+    },
+  });
+}
+
+/**
+ * Bulk delete customers
+ */
+export function useBulkDeleteCustomers() {
+  const queryClient = useQueryClient();
+
+  return useMutation<BulkDeleteResult, Error, string[]>({
+    mutationFn: (entityIds) => bulkDelete(entityIds, 'CUSTOMERS'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: customersQueryKeys.all });
     },
   });
 }

@@ -147,9 +147,6 @@ function EntityMatchingContent() {
   // State for workflow triggering (new flow)
   const [isProcessingWorkflow, setIsProcessingWorkflow] = useState(false);
 
-  // Ref to track if we've already checked for empty entities redirect
-  const hasCheckedEmptyRedirect = useRef(false);
-
   // Pagination for performance - only render a limited number of items initially
   const ITEMS_PER_PAGE = 50;
   const [displayLimit, setDisplayLimit] = useState(ITEMS_PER_PAGE);
@@ -207,32 +204,8 @@ function EntityMatchingContent() {
     setDisplayLimit(ITEMS_PER_PAGE);
   }, [currentStep]);
 
-  // Auto-skip to upload-complete if all entity arrays are empty after loading
-  // This triggers the executeDocumentWorkflow and navigates to upload-complete
-  useEffect(() => {
-    // Wait until initial load is complete before checking
-    if (!initialLoadComplete || hasCheckedEmptyRedirect.current || !pendingId) return;
-
-    hasCheckedEmptyRedirect.current = true;
-
-    // Check if all entity arrays are empty
-    const hasNoEntities = factories.length === 0 &&
-                          customers.length === 0 &&
-                          billToCustomers.length === 0 &&
-                          endUsers.length === 0 &&
-                          products.length === 0 &&
-                          orders.length === 0 &&
-                          invoices.length === 0 &&
-                          credits.length === 0 &&
-                          adjustments.length === 0;
-
-    if (hasNoEntities) {
-      toast.info('No entities to match. Starting document processing...');
-      // Trigger the same flow as handleCompleteMatching - this will execute the workflow
-      // and navigate to queue page
-      handleCompleteMatching();
-    }
-  }, [initialLoadComplete, factories, customers, billToCustomers, endUsers, products, orders, invoices, credits, adjustments, pendingId]);
+  // Removed auto-skip logic - user must manually click "Complete & Continue" button
+  // even when all entities are automatically matched or no entities exist
 
   const handleCompleteMatching = async () => {
     if (!pendingId) {
