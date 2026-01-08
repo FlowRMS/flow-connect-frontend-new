@@ -44,9 +44,13 @@ export function AbridgmentReportModal({
   const hasNoData = reportItems.length === 0;
 
   // Calculate stats for threshold message
-  const totalPages = reportItems.length;
-  const includedPages = reportItems.filter(i => i.included).length;
-  const reductionPercent = document.reductionPercentage ?? (totalPages > 0 ? ((totalPages - includedPages) / totalPages) * 100 : 0);
+  // Use pageAnalyses data if available (more reliable), otherwise fallback to document fields
+  const totalPages = reportItems.length || document.pages || 0;
+  const includedPages = reportItems.length > 0
+    ? reportItems.filter(i => i.included).length
+    : (document.abridgedPages || 0);
+  // Always calculate reduction from actual page counts to avoid stale/incorrect reductionPercentage values
+  const reductionPercent = totalPages > 0 ? ((totalPages - includedPages) / totalPages) * 100 : 0;
   const REDUCTION_THRESHOLD = 30;
   const isBelowThreshold = reductionPercent < REDUCTION_THRESHOLD;
 
