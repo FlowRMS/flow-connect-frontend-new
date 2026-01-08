@@ -66,6 +66,9 @@ export interface PDFBuilderState {
   organizationName: string;
   organizationLogo: string | null;
   organizationAddress: string;
+  // Center logo (second company logo)
+  centerLogo: string | null;
+  showCenterLogo: boolean;
   // Notes
   headerNote: string;
   footerNote: string;

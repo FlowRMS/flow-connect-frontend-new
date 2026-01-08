@@ -6,16 +6,17 @@
 
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { PDFEntityType } from '@/components/lib/graphql/pdf-entities';
 import { fetchEntityForPDF } from '@/components/lib/graphql/pdf-entities';
 import { useOrganization } from '@/components/hooks/useOrganization';
+import { uploadFile, getFilePresignedUrl } from '@/components/lib/graphql/files';
 import { PDFControls } from './PDFControls';
 import { PDFPreview } from './PDFPreview';
-import type { PDFFieldConfig, PDFLineItemConfig, PDFColumnConfig, PDFBuilderState } from './types';
+import type { PDFBuilderState } from './types';
 import { DEFAULT_COLUMNS, ENTITY_TYPE_LABELS } from './types';
 import { extractFields, extractLineItems, getEntityNumber, formatCurrency, formatDate, formatNumber } from './utils';
 
@@ -42,6 +43,8 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
     organizationName: '',
     organizationLogo: null,
     organizationAddress: '',
+    centerLogo: null,
+    showCenterLogo: false,
     headerNote: '',
     footerNote: 'Thank you for your business.',
     showLogo: true,
@@ -52,6 +55,7 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
   });
 
   const [isExporting, setIsExporting] = useState(false);
+  const [isUploadingCenterLogo, setIsUploadingCenterLogo] = useState(false);
 
   // Load entity data
   useEffect(() => {
@@ -178,6 +182,38 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
     setState((prev) => ({ ...prev, showLineNumbers: !prev.showLineNumbers }));
   }, []);
 
+  const handleShowCenterLogoToggle = useCallback(() => {
+    setState((prev) => ({ ...prev, showCenterLogo: !prev.showCenterLogo }));
+  }, []);
+
+  const handleCenterLogoUpload = useCallback(async (file: File) => {
+    setIsUploadingCenterLogo(true);
+    try {
+      // Upload the file
+      const uploadedFile = await uploadFile({
+        file,
+        fileName: file.name,
+        folderPath: 'pdf-builder/center-logos',
+      });
+
+      // Get presigned URL for the uploaded file
+      const presignedUrl = await getFilePresignedUrl(uploadedFile.id);
+
+      if (presignedUrl) {
+        setState((prev) => ({ ...prev, centerLogo: presignedUrl }));
+      }
+    } catch (error) {
+      console.error('Failed to upload center logo:', error);
+      alert('Failed to upload logo. Please try again.');
+    } finally {
+      setIsUploadingCenterLogo(false);
+    }
+  }, []);
+
+  const handleCenterLogoRemove = useCallback(() => {
+    setState((prev) => ({ ...prev, centerLogo: null }));
+  }, []);
+
   // Export to PDF
   const handleExport = useCallback(async () => {
     if (!state.entityData) return;
@@ -197,7 +233,6 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
       let yPos = margin;
 
       // Colors
-      const primaryColor: [number, number, number] = [37, 99, 235]; // Blue
       const darkColor: [number, number, number] = [31, 41, 55]; // Dark gray
       const lightGray: [number, number, number] = [156, 163, 175];
 
@@ -242,6 +277,20 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
           }
         } catch {
           // If logo fails, just skip it
+        }
+      }
+
+      // Center Logo (Second Company) - positioned in the center at the same height as left logo
+      if (state.showCenterLogo && state.centerLogo) {
+        try {
+          const centerLogoBase64 = await loadImageAsBase64(state.centerLogo);
+          if (centerLogoBase64) {
+            // Position the center logo in the middle of the page, same size as the left logo (20x20mm)
+            const centerX = (pageWidth / 2) - 10; // Center the 20mm wide logo
+            doc.addImage(centerLogoBase64, 'PNG', centerX, yPos, 20, 20);
+          }
+        } catch {
+          // If center logo fails, just skip it
         }
       }
 
@@ -776,6 +825,8 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
                     footerNote={state.footerNote}
                     showLogo={state.showLogo}
                     showLineNumbers={state.showLineNumbers}
+                    centerLogo={state.centerLogo}
+                    showCenterLogo={state.showCenterLogo}
                     onFieldToggle={handleFieldToggle}
                     onFieldEdit={handleFieldEdit}
                     onLineItemToggle={handleLineItemToggle}
@@ -785,6 +836,10 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
                     onFooterNoteChange={handleFooterNoteChange}
                     onShowLogoToggle={handleShowLogoToggle}
                     onShowLineNumbersToggle={handleShowLineNumbersToggle}
+                    onCenterLogoUpload={handleCenterLogoUpload}
+                    onCenterLogoRemove={handleCenterLogoRemove}
+                    onShowCenterLogoToggle={handleShowCenterLogoToggle}
+                    isUploadingCenterLogo={isUploadingCenterLogo}
                   />
                 </div>
 
@@ -803,6 +858,8 @@ export function PDFBuilder({ entityId, entityType, isOpen, onClose }: PDFBuilder
                     organizationName={state.organizationName}
                     organizationLogo={state.organizationLogo}
                     organizationAddress={state.organizationAddress}
+                    centerLogo={state.centerLogo}
+                    showCenterLogo={state.showCenterLogo}
                   />
                 </div>
               </>
