@@ -147,6 +147,7 @@ export interface FulfillmentOrder {
   status: FulfillmentOrderStatus;
   fulfillmentMethod: FulfillmentMethod;
   carrierType: CarrierType | null;
+  freightClass: string | null;
   needByDate: string | null;
   hasBackorderItems: boolean;
   holdReason: string | null;
@@ -206,6 +207,7 @@ export interface UpdateFulfillmentOrderInput {
   fulfillmentMethod?: FulfillmentMethod | null;
   carrierId?: string | null;
   carrierType?: CarrierType | null;
+  freightClass?: string | null;
   shipToAddress?: ShipToAddressInput | null;
   needByDate?: string | null;
   holdReason?: string | null;
@@ -281,6 +283,7 @@ const FULFILLMENT_ORDER_FRAGMENT = `
     status
     fulfillmentMethod
     carrierType
+    freightClass
     needByDate
     hasBackorderItems
     holdReason

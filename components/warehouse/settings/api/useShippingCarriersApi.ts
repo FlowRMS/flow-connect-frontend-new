@@ -124,6 +124,7 @@ export function useUpdateShippingCarrier() {
               ? {
                   ...carrier,
                   name: input.name ?? carrier.name,
+                  carrierType: input.carrierType ?? carrier.carrierType,
                   code: input.code ?? carrier.code,
                   accountNumber: input.accountNumber ?? carrier.accountNumber,
                   isActive: input.isActive ?? carrier.isActive,

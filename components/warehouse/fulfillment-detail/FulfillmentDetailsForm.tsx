@@ -419,8 +419,7 @@ export default function FulfillmentDetailsForm({
         )}
 
         {/* Freight Class Selection - only show if Ship method and Freight type */}
-        {/* TODO: Uncomment when freight class functionality is needed */}
-        {/* {deliveryMethod === 'SHIP' && carrierType === 'freight' && (
+        {deliveryMethod === 'SHIP' && carrierType === 'freight' && (
           <div className="mb-4">
             <label className="block text-xs text-[var(--muted-foreground)] mb-2">Freight Class</label>
             <select
@@ -450,7 +449,7 @@ export default function FulfillmentDetailsForm({
               <option value="500">Class 500</option>
             </select>
           </div>
-        )} */}
+        )}
 
         {/* Ship Status & Tracking - only show after release */}
         {isReleased && (

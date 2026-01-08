@@ -163,19 +163,24 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
       setShipToPhone(fulfillmentOrder.shipToAddress?.phone || '');
       setNeedByDate(fulfillmentOrder.needByDate || '');
       setTrackingNumbers(fulfillmentOrder.trackingNumbers?.join(', ') || '');
-      
+
       // Update shipping method state
       const method = fulfillmentOrder.fulfillmentMethod === 'JOBSITE' ? 'SHIP' : (fulfillmentOrder.fulfillmentMethod || 'SHIP');
       setShippingMethod(method as 'SHIP' | 'WILL_CALL');
-      
+
       // Update carrier type if available
       if (fulfillmentOrder.carrierType) {
         setCarrierType(fulfillmentOrder.carrierType.toLowerCase() as 'parcel' | 'freight');
       }
-      
+
       // Update carrier ID if available
       if (fulfillmentOrder.carrierId) {
         setSelectedCarrier(fulfillmentOrder.carrierId);
+      }
+
+      // Update freight class if available
+      if (fulfillmentOrder.freightClass) {
+        setFreightClass(fulfillmentOrder.freightClass);
       }
     }
   }, [fulfillmentOrder]);
@@ -237,7 +242,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   const [shippingMethod, setShippingMethod] = useState<'SHIP' | 'WILL_CALL'>(fulfillmentOrder?.fulfillmentMethod === 'JOBSITE' ? 'SHIP' : (fulfillmentOrder?.fulfillmentMethod || 'SHIP'));
   const [carrierType, setCarrierType] = useState<'parcel' | 'freight'>((fulfillmentOrder as any)?.carrierType || 'parcel');
   const [selectedCarrier, setSelectedCarrier] = useState(fulfillmentOrder?.carrier || '');
-  const [freightClass, setFreightClass] = useState((fulfillmentOrder as any)?.freightClass || '');
+  const [freightClass, setFreightClass] = useState(fulfillmentOrder?.freightClass || '');
   const [bolNumber, setBolNumber] = useState((fulfillmentOrder as any)?.bolNumber || '');
   const [proNumber, setProNumber] = useState((fulfillmentOrder as any)?.proNumber || '');
   const [shippingNotes, setShippingNotes] = useState((fulfillmentOrder as any)?.shippingNotes || '');
@@ -880,6 +885,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
           fulfillmentMethod: shippingMethod,
           carrierId: selectedCarrier || null,
           carrierType: shippingMethod === 'SHIP' ? carrierType.toUpperCase() as 'PARCEL' | 'FREIGHT' : null,
+          freightClass: freightClass || null,
           needByDate: needByDate || null,
           shipToAddress: {
             name: shipToName || null,
