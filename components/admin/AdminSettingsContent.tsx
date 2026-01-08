@@ -1224,6 +1224,7 @@ function AddUserModalNew({ onClose }: { onClose: () => void }) {
     enabled: true,
     inside: false,
     outside: false,
+    visible: true,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -1369,6 +1370,19 @@ function AddUserModalNew({ onClose }: { onClose: () => void }) {
             </label>
             <span className="text-sm text-[var(--foreground)]">Active</span>
           </div>
+
+          <div className="flex items-center gap-3">
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.visible}
+                onChange={(e) => setFormData({ ...formData, visible: e.target.checked })}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[var(--primary)]/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary)]"></div>
+            </label>
+            <span className="text-sm text-[var(--foreground)]">Visible</span>
+          </div>
         </div>
 
         <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3 bg-gray-50">
@@ -1410,6 +1424,7 @@ function EditUserModalNew({ user, onClose }: { user: User; onClose: () => void }
     enabled: user.enabled,
     inside: user.inside,
     outside: user.outside,
+    visible: user.visible,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -1554,6 +1569,19 @@ function EditUserModalNew({ user, onClose }: { user: User; onClose: () => void }
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[var(--primary)]/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary)]"></div>
             </label>
             <span className="text-sm text-[var(--foreground)]">Active</span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.visible}
+                onChange={(e) => setFormData({ ...formData, visible: e.target.checked })}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[var(--primary)]/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary)]"></div>
+            </label>
+            <span className="text-sm text-[var(--foreground)]">Visible</span>
           </div>
         </div>
 

@@ -271,7 +271,11 @@ export function AdditionalDetailsModal({
   // Validate split totals - only check if per-line-item is enabled AND reps are added
   const isInsideSplitValid = !showInsideRepPerLine || insideSplitReps.length === 0 || insideSplitTotal === 100;
   const isOutsideSplitValid = !showOutsideRepPerLine || outsideSplitReps.length === 0 || outsideSplitTotal === 100;
-  const canSave = isInsideSplitValid && isOutsideSplitValid;
+
+  // Validate End User - only check if per-line-item is enabled
+  const isEndUserValid = !showEndUserPerLine || (formData.endUserId && formData.endUserId.trim() !== '');
+
+  const canSave = isInsideSplitValid && isOutsideSplitValid && isEndUserValid;
 
   return (
     <>
@@ -570,9 +574,11 @@ export function AdditionalDetailsModal({
           {/* Footer */}
           <div className="px-6 py-4 border-t border-gray-200 flex-shrink-0">
             {!canSave && (
-              <p className="text-xs text-red-500 mb-2 text-center">
-                Split percentages must total 100%
-              </p>
+              <div className="text-xs text-red-500 mb-2 text-center space-y-1">
+                {!isInsideSplitValid && <p>Inside rep split percentages must total 100%</p>}
+                {!isOutsideSplitValid && <p>Outside rep split percentages must total 100%</p>}
+                {!isEndUserValid && <p>End User is required for this line item</p>}
+              </div>
             )}
             <button
               onClick={handleSave}

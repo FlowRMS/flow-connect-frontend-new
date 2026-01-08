@@ -30,6 +30,7 @@ export interface User {
   role: UserRole;
   inside: boolean;
   outside: boolean;
+  visible: boolean;
 }
 
 export interface UserInput {
@@ -41,6 +42,7 @@ export interface UserInput {
   enabled: boolean;
   inside: boolean;
   outside: boolean;
+  visible: boolean;
 }
 
 // ============================================================================
@@ -61,6 +63,7 @@ const GET_USER = `
       outside
       role
       username
+      visible
     }
   }
 `;
@@ -79,6 +82,7 @@ const GET_USERS = `
       outside
       role
       username
+      visible
     }
   }
 `;
@@ -97,6 +101,7 @@ const CREATE_USER = `
     $enabled: Boolean!
     $inside: Boolean!
     $outside: Boolean!
+    $visible: Boolean = true
   ) {
     createUser(
       input: {
@@ -108,6 +113,7 @@ const CREATE_USER = `
         enabled: $enabled
         inside: $inside
         outside: $outside
+        visible: $visible
       }
     ) {
       authProviderId
@@ -121,6 +127,7 @@ const CREATE_USER = `
       outside
       role
       username
+      visible
     }
   }
 `;
@@ -136,6 +143,7 @@ const UPDATE_USER = `
     $enabled: Boolean!
     $inside: Boolean!
     $outside: Boolean!
+    $visible: Boolean = true
   ) {
     updateUser(
       id: $id
@@ -148,6 +156,7 @@ const UPDATE_USER = `
         enabled: $enabled
         inside: $inside
         outside: $outside
+        visible: $visible
       }
     ) {
       authProviderId
@@ -161,6 +170,7 @@ const UPDATE_USER = `
       outside
       role
       username
+      visible
     }
   }
 `;
@@ -222,6 +232,7 @@ export async function createUser(input: UserInput): Promise<User> {
       enabled: input.enabled,
       inside: input.inside,
       outside: input.outside,
+      visible: input.visible,
     },
   });
 
@@ -252,6 +263,7 @@ export async function updateUser(id: string, input: Partial<UserInput>): Promise
       enabled: input.enabled,
       inside: input.inside,
       outside: input.outside,
+      visible: input.visible,
     },
   });
 
