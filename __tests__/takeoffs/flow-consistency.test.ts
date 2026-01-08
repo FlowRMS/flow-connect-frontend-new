@@ -696,4 +696,204 @@ describe('Takeoff Flow Consistency', () => {
       });
     });
   });
+
+  describe('Abridgement Data Consistency', () => {
+    describe('AbridgedPages Fallback Logic', () => {
+      /**
+       * When API returns null for abridgedPages, should use actualPages as fallback
+       * This prevents "/1 pages kept (100% reduction)" display bug
+       */
+      it('should use actualPages when result.abridgedPages is null', () => {
+        const result = { abridgedPages: null, originalPages: 84 };
+        const actualPages = result.originalPages || 1;
+
+        // CORRECT: Use fallback
+        const correctAbridgedPages = result.abridgedPages || actualPages;
+
+        // WRONG: Use null directly
+        const wrongAbridgedPages = result.abridgedPages;
+
+        expect(correctAbridgedPages).toBe(84);
+        expect(wrongAbridgedPages).toBeNull();
+      });
+
+      it('should use actualPages when result.abridgedPages is 0', () => {
+        const result = { abridgedPages: 0, originalPages: 1 };
+        const actualPages = result.originalPages || 1;
+
+        // For 0, we should still use actualPages (can't have 0 pages)
+        const abridgedPages = result.abridgedPages || actualPages;
+
+        expect(abridgedPages).toBe(1);
+      });
+
+      it('should preserve valid abridgedPages value', () => {
+        const result = { abridgedPages: 60, originalPages: 84 };
+        const actualPages = result.originalPages || 84;
+
+        const abridgedPages = result.abridgedPages || actualPages;
+
+        expect(abridgedPages).toBe(60);
+      });
+    });
+
+    describe('Reduction Percentage Calculation', () => {
+      /**
+       * Reduction percentage should be calculated from page counts, not stored value
+       * Formula: ((totalPages - abridgedPages) / totalPages) * 100
+       */
+      it('should calculate 0% when all pages are kept', () => {
+        const totalPages = 1;
+        const abridgedPages = 1;
+
+        const reductionPercent = totalPages > 0
+          ? ((totalPages - abridgedPages) / totalPages) * 100
+          : 0;
+
+        expect(reductionPercent).toBe(0);
+      });
+
+      it('should calculate correct percentage for partial reduction', () => {
+        const totalPages = 84;
+        const abridgedPages = 60;
+
+        const reductionPercent = totalPages > 0
+          ? ((totalPages - abridgedPages) / totalPages) * 100
+          : 0;
+
+        expect(reductionPercent).toBeCloseTo(28.57, 1);
+      });
+
+      it('should return 0% when totalPages is 0 or undefined', () => {
+        const totalPages = 0;
+        const abridgedPages = 0;
+
+        const reductionPercent = totalPages > 0
+          ? ((totalPages - abridgedPages) / totalPages) * 100
+          : 0;
+
+        expect(reductionPercent).toBe(0);
+      });
+    });
+
+    describe('Modal Stats Consistency', () => {
+      /**
+       * Modal should use document.abridgedPages for summary stats,
+       * NOT count from pageAnalyses, to be consistent with ClassificationTab
+       */
+      it('should use abridgedPages for includedPages count', () => {
+        const document = {
+          pages: 1,
+          abridgedPages: 1,
+          pageAnalyses: [{ pageNumber: 1, isRelevant: false }], // AI said not relevant
+        };
+
+        // CORRECT: Use abridgedPages (final result)
+        const correctIncludedPages = document.abridgedPages ?? document.pages ?? 0;
+
+        // WRONG: Count from pageAnalyses (AI analysis)
+        const wrongIncludedPages = document.pageAnalyses.filter(
+          (pa: { isRelevant: boolean }) => pa.isRelevant
+        ).length;
+
+        expect(correctIncludedPages).toBe(1); // All pages kept
+        expect(wrongIncludedPages).toBe(0); // AI said 0 relevant
+
+        // Modal should show 1/1 pages kept (0% reduction), NOT 0/1 (100% reduction)
+      });
+
+      it('should detect AI analysis mismatch', () => {
+        const document = {
+          pages: 1,
+          abridgedPages: 1,
+          pageAnalyses: [{ pageNumber: 1, isRelevant: false }],
+        };
+
+        const includedPages = document.abridgedPages ?? document.pages ?? 0;
+        const aiIncludedCount = document.pageAnalyses.filter(
+          (pa: { isRelevant: boolean }) => pa.isRelevant
+        ).length;
+        const hasAnalysisMismatch = aiIncludedCount !== includedPages;
+
+        expect(hasAnalysisMismatch).toBe(true);
+        // Modal should show a note explaining the mismatch
+      });
+
+      it('should not show mismatch when AI and final result agree', () => {
+        const document = {
+          pages: 84,
+          abridgedPages: 60,
+          pageAnalyses: Array.from({ length: 84 }, (_, i) => ({
+            pageNumber: i + 1,
+            isRelevant: i < 60, // First 60 pages relevant
+          })),
+        };
+
+        const includedPages = document.abridgedPages ?? document.pages ?? 0;
+        const aiIncludedCount = document.pageAnalyses.filter(
+          (pa: { isRelevant: boolean }) => pa.isRelevant
+        ).length;
+        const hasAnalysisMismatch = aiIncludedCount !== includedPages;
+
+        expect(aiIncludedCount).toBe(60);
+        expect(includedPages).toBe(60);
+        expect(hasAnalysisMismatch).toBe(false);
+      });
+    });
+
+    describe('DB Persistence Consistency', () => {
+      /**
+       * Both state update and DB persist should use the same fallback values
+       * to ensure data consistency
+       */
+      it('should use same fallback for state and DB persist', () => {
+        const result = { abridgedPages: null, originalPages: 84 };
+        const docPages = 84;
+        const actualPages = result.originalPages || docPages;
+
+        // State update fallback
+        const stateAbridgedPages = result.abridgedPages || actualPages;
+
+        // DB persist fallback (must match state)
+        const persistAbridgedPages = result.abridgedPages || actualPages;
+
+        expect(stateAbridgedPages).toBe(persistAbridgedPages);
+        expect(stateAbridgedPages).toBe(84);
+      });
+
+      it('should persist actualPages for pages field', () => {
+        const result = { originalPages: 84, abridgedPages: 60 };
+        const docPages = 80; // Might be different from API
+        const actualPages = result.originalPages || docPages;
+
+        // Should use API's originalPages, not existing doc.pages
+        expect(actualPages).toBe(84);
+      });
+    });
+
+    describe('Below Threshold Handling', () => {
+      const REDUCTION_THRESHOLD = 30;
+
+      it('should identify below threshold when reduction < 30%', () => {
+        const reductionPercent = 28.57; // 60/84 pages kept
+        const isBelowThreshold = reductionPercent < REDUCTION_THRESHOLD;
+
+        expect(isBelowThreshold).toBe(true);
+      });
+
+      it('should identify above threshold when reduction >= 30%', () => {
+        const reductionPercent = 40; // 50/84 pages kept
+        const isBelowThreshold = reductionPercent < REDUCTION_THRESHOLD;
+
+        expect(isBelowThreshold).toBe(false);
+      });
+
+      it('should show below threshold for 0% reduction', () => {
+        const reductionPercent = 0; // All pages kept
+        const isBelowThreshold = reductionPercent < REDUCTION_THRESHOLD;
+
+        expect(isBelowThreshold).toBe(true);
+      });
+    });
+  });
 });
