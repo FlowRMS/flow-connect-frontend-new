@@ -10,7 +10,7 @@ import { transformTakeoffResponse, stepToApiStatus, transformDocumentResponse } 
 import { getInitialStep } from '@/components/takeoffs/utils';
 import { AbridgmentReportModal } from '@/components/takeoffs/modals/AbridgmentReportModal';
 import { CreateQuoteFromTakeoffModal } from '@/components/takeoffs/modals/CreateQuoteFromTakeoffModal';
-import { showWarningToast } from '@/components/lib/toast';
+import { showWarningToast, showInfoToast } from '@/components/lib/toast';
 import JSZip from 'jszip';
 
 // Abridgement state per document
@@ -624,6 +624,7 @@ export default function TakeoffDetailPage() {
 
     if (itemsToCross.length === 0) {
       console.log('🔵 [page.tsx handleCrossAll] No items to cross');
+      showInfoToast('No items to cross', { description: 'All items are from our manufacturers.' });
       return;
     }
 

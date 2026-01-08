@@ -886,14 +886,20 @@ export function useTakeoffsState() {
 
       console.log('🔵 [handleCrossAll] Total crossed results:', crossedResults.size);
 
-      // Update parsed items with crossed data
+      // Update parsed items with crossed data (allow re-crossing)
       setParsedItems(items =>
         items.map(item => {
-          if (item.isOurManufacturer || item.isCrossed) return item;
+          // Skip our manufacturer items - they should never be crossed
+          if (item.isOurManufacturer) return item;
 
           const crossedResult = crossedResults.get(item.id);
+          // Only update items that were sent to the API (have a result or were in itemsToCross)
+          if (!crossedResult && !itemsToCross.some(i => i.id === item.id)) {
+            return item;
+          }
+
           if (!crossedResult) {
-            // Fallback if no cross found
+            // Fallback if no cross found from API
             return {
               ...item,
               isCrossed: true,
