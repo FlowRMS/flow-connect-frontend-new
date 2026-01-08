@@ -134,9 +134,11 @@ export function ClassificationTab({
     return sorted;
   }, [filteredDocuments, sortColumn, sortDirection]);
 
-  // Documents that can be abridged (not already abridged, has URL)
+  // Documents that can be abridged:
+  // - Not abridged yet, OR
+  // - Abridged but no abridgedUrl (below threshold - allow retry)
   const docsToAbridge = useMemo(() => {
-    return documents.filter(d => !d.abridged && d.documentUrl);
+    return documents.filter(d => d.documentUrl && (!d.abridged || !d.abridgedUrl));
   }, [documents]);
 
   // Handle "Abridge All Large Documents" button click
@@ -146,7 +148,7 @@ export function ClassificationTab({
 
     // Check if there are documents to abridge
     if (docsToAbridge.length === 0) {
-      showInfoToast('No documents to abridge. All documents are already abridged.');
+      showInfoToast('No documents to abridge. All documents have been successfully abridged.');
       return;
     }
 

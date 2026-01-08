@@ -386,7 +386,8 @@ export default function TakeoffDetailPage() {
         }));
 
         // Check if all abridgeable documents are now abridged - update status to Abridgment
-        const docsToAbridge = documents.filter(d => !d.abridged && d.documentUrl);
+        // Include docs that are abridged but have no abridgedUrl (below threshold)
+        const docsToAbridge = documents.filter(d => d.documentUrl && (!d.abridged || !d.abridgedUrl));
         const allAbridged = docsToAbridge.length === 0 || docsToAbridge.every(d => d.id === docId);
 
         if (allAbridged && takeoff && takeoff.status !== 'Complete') {
@@ -414,9 +415,10 @@ export default function TakeoffDetailPage() {
     }
   };
 
-  // Abridge all documents that haven't been abridged yet
+  // Abridge all documents that haven't been abridged yet or are below threshold
   const handleAbridgeAll = async () => {
-    const unabridgedDocs = documents.filter(d => !d.abridged && d.documentUrl && d.pages > 0);
+    // Include docs that are abridged but have no abridgedUrl (below threshold - allow retry)
+    const unabridgedDocs = documents.filter(d => d.documentUrl && d.pages > 0 && (!d.abridged || !d.abridgedUrl));
     for (const doc of unabridgedDocs) {
       await handleAbridgeDocument(doc.id);
     }

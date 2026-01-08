@@ -484,9 +484,11 @@ export function useTakeoffsState() {
     console.log('[Abridgement] Total documents:', documents.length);
     console.log('[Abridgement] Documents by classification:', documents.map(d => ({ name: d.name, classification: d.classification, abridged: d.abridged, hasUrl: !!d.documentUrl })));
 
+    // Documents that can be abridged:
+    // - Not abridged yet, OR
+    // - Abridged but no abridgedUrl (below threshold - allow retry)
     const docsToAbridge = documents.filter(d =>
-      !d.abridged &&
-      d.documentUrl
+      d.documentUrl && (!d.abridged || !d.abridgedUrl)
     );
     console.log('[Abridgement] Documents to abridge:', docsToAbridge.length);
 
