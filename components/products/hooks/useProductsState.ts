@@ -12,7 +12,7 @@ import {
   type ProductLandingPageOrderBy,
   type ProductSearchResult,
 } from '../api/useProductsApi';
-import type { ActiveFilter } from '../../AdvancedFilters';
+import type { ActiveFilter } from '../../advancedFilters/AdvancedFilters';
 
 export type ViewMode = 'list' | 'grid';
 

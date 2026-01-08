@@ -12,7 +12,7 @@ import { TakeoffDetailView } from './views/TakeoffDetailView';
 import { UploadModal } from './modals/UploadModal';
 import { AbridgmentReportModal } from './modals/AbridgmentReportModal';
 import { TAKEOFF_FILTER_OPTIONS } from './constants';
-import AdvancedFilters from '../AdvancedFilters';
+import AdvancedFilters from '../advancedFilters/AdvancedFilters';
 
 export function TakeoffsContent() {
   const state = useTakeoffsState();

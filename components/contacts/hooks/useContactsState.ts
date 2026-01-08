@@ -15,7 +15,7 @@ import { mapLandingPageToUIContact } from '../types';
 import { contactToasts } from '../../lib/toast';
 import { applyFilter } from '../../lib/filter-utils';
 import type { Contact, ViewMode } from '../types';
-import type { ActiveFilter, ActiveSort } from '../../AdvancedFilters';
+import type { ActiveFilter, ActiveSort } from '../../advancedFilters/AdvancedFilters';
 import type { LandingPageFilter, LandingPageOrderBy } from '../../lib/crm-graphql';
 
 export function useContactsState() {

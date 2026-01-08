@@ -1,0 +1,120 @@
+import React, { useState } from 'react';
+import * as PopoverPrimitive from '@radix-ui/react-popover';
+import type { FilterOption, FilterOperator } from '../../types';
+
+type NumberFilterProps = {
+  option: FilterOption;
+  filterValue: string;
+  numberOperator: FilterOperator;
+  onFilterValueChange: (value: string) => void;
+  onOperatorChange: (operator: FilterOperator) => void;
+  onApply: (option: FilterOption, value: string) => void;
+};
+
+export function NumberFilter({ 
+  option, 
+  filterValue, 
+  numberOperator, 
+  onFilterValueChange, 
+  onOperatorChange,
+  onApply 
+}: NumberFilterProps) {
+  const [isOperatorDropdownOpen, setIsOperatorDropdownOpen] = useState(false);
+
+  const getOperatorLabel = (op: FilterOperator): string => {
+    const labels: Record<'EQ' | 'GT' | 'GTE' | 'LT' | 'LTE', string> = {
+      EQ: 'Equal to',
+      GT: 'Greater than',
+      GTE: 'Greater than or equal to',
+      LT: 'Less than',
+      LTE: 'Less than or equal to',
+    };
+    return labels[op as keyof typeof labels] || op;
+  };
+
+  return (
+    <div className="flex flex-col">
+      <div className="p-3 space-y-2 border-b border-gray-100">
+        {/* Operator Dropdown - Using Popover */}
+        <PopoverPrimitive.Root
+          open={isOperatorDropdownOpen}
+          onOpenChange={setIsOperatorDropdownOpen}
+        >
+          <PopoverPrimitive.Trigger asChild>
+            <button
+              type="button"
+              className={`
+                w-full px-3 py-2 text-sm border rounded-lg text-left flex items-center justify-between
+                transition-all bg-white text-gray-900
+                ${isOperatorDropdownOpen 
+                  ? 'border-blue-500 ring-2 ring-blue-500 ring-opacity-20' 
+                  : 'border-gray-300 hover:border-gray-400'
+                }
+              `}
+            >
+              <span>{getOperatorLabel(numberOperator)}</span>
+              <svg 
+                className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isOperatorDropdownOpen ? 'rotate-180' : ''}`}
+                fill="none" 
+                viewBox="0 0 24 24" 
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          </PopoverPrimitive.Trigger>
+          <PopoverPrimitive.Portal>
+            <PopoverPrimitive.Content
+              side="bottom"
+              align="start"
+              sideOffset={4}
+              className="z-[101] bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden"
+              style={{ width: 'var(--radix-popover-trigger-width)' }}
+              onOpenAutoFocus={(e) => e.preventDefault()}
+            >
+              {(['EQ', 'GT', 'GTE', 'LT', 'LTE'] as FilterOperator[]).map((op) => (
+                <button
+                  key={op}
+                  type="button"
+                  onClick={() => {
+                    onOperatorChange(op);
+                    setIsOperatorDropdownOpen(false);
+                  }}
+                  className={`
+                    w-full px-3 py-2 text-sm text-left hover:bg-gray-50 flex items-center justify-between
+                    ${numberOperator === op ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'}
+                  `}
+                >
+                  <span>{getOperatorLabel(op)}</span>
+                  {numberOperator === op && (
+                    <svg className="w-4 h-4 text-blue-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+              ))}
+            </PopoverPrimitive.Content>
+          </PopoverPrimitive.Portal>
+        </PopoverPrimitive.Root>
+        <input
+          type="number"
+          value={filterValue}
+          onChange={(e) => onFilterValueChange(e.target.value)}
+          placeholder={`Enter ${option.label.toLowerCase()}...`}
+          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          autoFocus
+        />
+      </div>
+      <div className="p-3 border-t border-gray-100 bg-gray-50 flex justify-end">
+        <button
+          onClick={() => onApply(option, filterValue)}
+          disabled={!filterValue.trim()}
+          className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+        >
+          Apply
+        </button>
+      </div>
+    </div>
+  );
+}
+
