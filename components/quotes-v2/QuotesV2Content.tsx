@@ -9,6 +9,8 @@ import { KanbanViewV2 } from './views/KanbanViewV2';
 import { ListViewV2 } from './views/ListViewV2';
 import { useQuotesV2Infinite, useUpdateQuoteStageV2, useQuoteSearchV2, type QuoteSearchResult } from './api/quotesV2Api';
 import { quoteToasts } from '../lib/toast';
+import AdvancedFilters, { type ActiveFilter } from '../AdvancedFilters';
+import { getQuoteFilterOptions } from './config/filterConfig';
 
 type ViewMode = 'kanban' | 'list';
 type QuickFilter = 'all' | 'today' | 'this_week' | 'last_week';
@@ -20,7 +22,6 @@ export function QuotesV2Content() {
   // View state
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>('createdAt');
   const [sortDirection, setSortDirection] = useState<'ASC' | 'DESC'>('DESC');
@@ -29,8 +30,35 @@ export function QuotesV2Content() {
   const [searchQuery, setSearchQuery] = useState('');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Build filters based on quick filter selection
-  const filters = useMemo<QuoteLandingPageFilter[]>(() => {
+  // Server-side filters - defined BEFORE API hook so they can be passed to the query
+  const [serverFilters, setServerFilters] = useState<QuoteLandingPageFilter[]>([]);
+  const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
+  
+  // Handler for server-side filter changes
+  const handleServerFiltersChange = useCallback((filters: ActiveFilter[]) => {
+    setActiveFilters(filters);
+    
+    // Convert ActiveFilter to QuoteLandingPageFilter
+    // Only include value OR values, not both - check which one exists
+    const apiFilters: QuoteLandingPageFilter[] = filters.map(f => {
+      if (f.values && f.values.length > 0) {
+        return {
+          operator: f.operator,
+          columnName: f.columnName,
+          values: f.values,
+        };
+      }
+      return {
+        operator: f.operator,
+        columnName: f.columnName,
+        value: f.value,
+      };
+    });
+    setServerFilters(apiFilters);
+  }, []);
+
+  // Build quick filters based on quick filter selection
+  const quickFilters = useMemo<QuoteLandingPageFilter[]>(() => {
     const result: QuoteLandingPageFilter[] = [];
 
     if (quickFilter !== 'all') {
@@ -73,6 +101,11 @@ export function QuotesV2Content() {
     return result;
   }, [quickFilter]);
 
+  // Combine quick filters with advanced filters
+  const filters = useMemo<QuoteLandingPageFilter[]>(() => {
+    return [...quickFilters, ...serverFilters];
+  }, [quickFilters, serverFilters]);
+
   // Build order by
   const orderBy = useMemo<QuoteLandingPageOrderBy[]>(() => {
     return [{ columnName: sortBy, direction: sortDirection }];
@@ -99,6 +132,53 @@ export function QuotesV2Content() {
     if (!quotesData?.pages) return [];
     return quotesData.pages.flatMap(page => page.records);
   }, [quotesData]);
+
+  // Extract unique values for filters from landing page data
+  const uniqueStatuses = useMemo(() => {
+    if (!allQuotesData.length) return [];
+    const statuses = new Set<string>();
+    allQuotesData.forEach(quote => {
+      if (quote.status) statuses.add(quote.status);
+    });
+    return Array.from(statuses).sort();
+  }, [allQuotesData]);
+
+  const uniquePipelineStages = useMemo(() => {
+    if (!allQuotesData.length) return [];
+    const stages = new Set<string>();
+    allQuotesData.forEach(quote => {
+      if (quote.pipelineStage) stages.add(quote.pipelineStage);
+    });
+    return Array.from(stages).sort();
+  }, [allQuotesData]);
+
+  const uniqueQuoteNumbers = useMemo(() => {
+    if (!allQuotesData.length) return [];
+    const numbers = new Set<string>();
+    allQuotesData.forEach(quote => {
+      if (quote.quoteNumber) numbers.add(quote.quoteNumber);
+    });
+    return Array.from(numbers).sort();
+  }, [allQuotesData]);
+
+  const uniqueCreators = useMemo(() => {
+    if (!allQuotesData.length) return [];
+    const creators = new Set<string>();
+    allQuotesData.forEach(quote => {
+      if (quote.createdBy) creators.add(quote.createdBy);
+    });
+    return Array.from(creators).sort();
+  }, [allQuotesData]);
+
+  // Get filter options
+  const quoteFilterOptions = useMemo(() => {
+    return getQuoteFilterOptions(
+      uniqueStatuses,
+      uniquePipelineStages,
+      uniqueQuoteNumbers,
+      uniqueCreators
+    );
+  }, [uniqueStatuses, uniquePipelineStages, uniqueQuoteNumbers, uniqueCreators]);
 
   // Transform API data to UI format, using search results when searching
   const quotes = useMemo<QuoteV2[]>(() => {
@@ -311,23 +391,12 @@ export function QuotesV2Content() {
               </button>
             </div>
 
-            {/* Advanced Filters - Coming Soon */}
-            <button
-              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-              className={`flex items-center gap-2 px-3 py-2 text-sm border rounded-lg transition-colors ${
-                showAdvancedFilters
-                  ? 'border-indigo-500 text-indigo-600 bg-indigo-50'
-                  : 'border-gray-300 text-gray-400 bg-gray-50 cursor-not-allowed'
-              }`}
-              disabled
-              title="Coming Soon"
-            >
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M3 4h14M5 8h10M7 12h6M9 16h2" strokeLinecap="round" />
-              </svg>
-              Advanced Filters
-              <span className="text-[10px] bg-gray-200 text-gray-500 px-1 py-0.5 rounded uppercase">Soon</span>
-            </button>
+            {/* Advanced Filters */}
+            <AdvancedFilters
+              filterOptions={quoteFilterOptions}
+              onFiltersChange={handleServerFiltersChange}
+              activeFilters={activeFilters}
+            />
 
             {/* Sort */}
             <div className="relative">
