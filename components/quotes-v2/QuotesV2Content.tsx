@@ -11,9 +11,11 @@ import { useQuotesV2Infinite, useUpdateQuoteStageV2, useQuoteSearchV2, type Quot
 import { quoteToasts } from '../lib/toast';
 import AdvancedFilters, { type ActiveFilter } from '../advancedFilters/AdvancedFilters';
 import { getQuoteFilterOptions } from './config/filterConfig';
+import { formatDateToISO } from '../advancedFilters/utils';
 
 type ViewMode = 'kanban' | 'list';
 type QuickFilter = 'all' | 'today' | 'this_week' | 'last_week';
+type QuickDateField = 'createdAt' | 'entityDate';
 type SortOption = 'createdAt' | 'entityDate' | 'total' | 'quoteNumber';
 
 export function QuotesV2Content() {
@@ -22,6 +24,8 @@ export function QuotesV2Content() {
   // View state
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
+  const [quickDateField, setQuickDateField] = useState<QuickDateField>('createdAt');
+  const [showQuickDateFieldDropdown, setShowQuickDateFieldDropdown] = useState(false);
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>('createdAt');
   const [sortDirection, setSortDirection] = useState<'ASC' | 'DESC'>('DESC');
@@ -64,42 +68,71 @@ export function QuotesV2Content() {
     if (quickFilter !== 'all') {
       const now = new Date();
       let startDate: Date;
-      let endDate: Date = now;
+      let endDate: Date;
 
       switch (quickFilter) {
-        case 'today':
-          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        case 'today': {
+          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          startDate = today;
+          // End of today (23:59:59.999)
+          endDate = new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1);
           break;
-        case 'this_week':
+        }
+        case 'this_week': {
           const dayOfWeek = now.getDay();
-          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek);
+          const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek);
+          startDate = startOfWeek;
+          // End of this week (Saturday 23:59:59.999)
+          endDate = new Date(startOfWeek);
+          endDate.setDate(startOfWeek.getDate() + 6);
+          endDate.setHours(23, 59, 59, 999);
           break;
-        case 'last_week':
-          const lastWeekDay = now.getDay();
-          endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - lastWeekDay - 1);
-          startDate = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate() - 6);
+        }
+        case 'last_week': {
+          const dayOfWeek = now.getDay();
+          const startOfThisWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek);
+          const startOfLastWeek = new Date(startOfThisWeek);
+          startOfLastWeek.setDate(startOfThisWeek.getDate() - 7);
+          startDate = startOfLastWeek;
+          // End of last week (Saturday 23:59:59.999)
+          endDate = new Date(startOfLastWeek);
+          endDate.setDate(startOfLastWeek.getDate() + 6);
+          endDate.setHours(23, 59, 59, 999);
           break;
+        }
         default:
           startDate = new Date(0);
+          endDate = now;
       }
+
+      // Use quickDateField to determine which column to filter (createdAt or entityDate)
+      const columnName = quickDateField;
+      
+      // Format date based on column type:
+      // - entityDate (Quote Date): YYYY-MM-DD format (date only)
+      // - createdAt: ISO string format (datetime with time)
+      const formatDate = (date: Date): string => {
+        if (columnName === 'entityDate') {
+          return formatDateToISO(date); // Returns YYYY-MM-DD
+        }
+        return date.toISOString(); // Returns full ISO datetime
+      };
 
       result.push({
-        columnName: 'createdAt',
+        columnName,
         operator: 'GTE',
-        value: startDate.toISOString(),
+        value: formatDate(startDate),
       });
 
-      if (quickFilter === 'last_week') {
-        result.push({
-          columnName: 'createdAt',
-          operator: 'LTE',
-          value: endDate.toISOString(),
-        });
-      }
+      result.push({
+        columnName,
+        operator: 'LTE',
+        value: formatDate(endDate),
+      });
     }
 
     return result;
-  }, [quickFilter]);
+  }, [quickFilter, quickDateField]);
 
   // Combine quick filters with advanced filters
   const filters = useMemo<QuoteLandingPageFilter[]>(() => {
@@ -481,18 +514,67 @@ export function QuotesV2Content() {
             ))}
           </div>
 
-          {/* Entry Date Filter - Coming Soon */}
-          <button
-            disabled
-            className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-400 cursor-not-allowed rounded-md ml-2"
-            title="Coming Soon"
-          >
-            Entry Date
-            <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-            </svg>
-            <span className="text-[10px] bg-gray-100 px-1 py-0.5 rounded uppercase ml-1">Soon</span>
-          </button>
+          {/* Date Field Selector */}
+          <div className="relative ml-2">
+            <button
+              onClick={() => setShowQuickDateFieldDropdown(!showQuickDateFieldDropdown)}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 border border-gray-300 rounded-md transition-colors"
+            >
+              <span>
+                {quickDateField === 'createdAt' ? 'Entry Date' : 'Quote Date'}
+              </span>
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path
+                  d="M6 8l4 4 4-4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+            {showQuickDateFieldDropdown && (
+              <>
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setShowQuickDateFieldDropdown(false)}
+                />
+                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1 min-w-[140px]">
+                  <button
+                    onClick={() => {
+                      setQuickDateField('createdAt');
+                      setShowQuickDateFieldDropdown(false);
+                    }}
+                    className={`w-full text-left px-3 py-1.5 text-sm hover:bg-gray-100 transition-colors ${
+                      quickDateField === 'createdAt'
+                        ? 'text-indigo-600 font-medium bg-indigo-50'
+                        : 'text-gray-700'
+                    }`}
+                  >
+                    Entry Date
+                  </button>
+                  <button
+                    onClick={() => {
+                      setQuickDateField('entityDate');
+                      setShowQuickDateFieldDropdown(false);
+                    }}
+                    className={`w-full text-left px-3 py-1.5 text-sm hover:bg-gray-100 transition-colors ${
+                      quickDateField === 'entityDate'
+                        ? 'text-indigo-600 font-medium bg-indigo-50'
+                        : 'text-gray-700'
+                    }`}
+                  >
+                    Quote Date
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
