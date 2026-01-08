@@ -4,7 +4,7 @@
 
 import { LOGO_COLORS } from './constants';
 import type { Company } from './types';
-import type { ActiveFilter } from '../AdvancedFilters';
+import type { ActiveFilter } from '../advancedFilters/AdvancedFilters';
 
 /**
  * Get initials from company name

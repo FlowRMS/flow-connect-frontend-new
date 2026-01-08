@@ -5,7 +5,7 @@
  */
 
 import { useState, useMemo, useCallback } from 'react';
-import type { ActiveFilter, ActiveSort } from '../../AdvancedFilters';
+import type { ActiveFilter, ActiveSort } from '../../advancedFilters/AdvancedFilters';
 import type { LandingPageFilter, LandingPageOrderBy } from '../../lib/crm-graphql';
 import { useCampaignsInfinite } from '../api';
 import type { CampaignLandingPage } from '../api';

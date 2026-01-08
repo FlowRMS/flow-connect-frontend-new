@@ -15,7 +15,7 @@ import type {
   TaskStatus,
   TaskPriority
 } from '../types';
-import type { ActiveFilter, ActiveSort } from '../../AdvancedFilters';
+import type { ActiveFilter, ActiveSort } from '../../advancedFilters/AdvancedFilters';
 import { applyFilter } from '../../lib/filter-utils';
 import {
   useTasksInfinite,

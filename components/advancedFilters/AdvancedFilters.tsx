@@ -1,38 +1,18 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
+import './AdvancedFilters.css';
+import type { FilterOperator, ActiveFilter, ActiveSort, FilterOption, AdvancedFiltersProps } from './types';
+import { parseDateString, formatDateToISO } from './utils';
+import { ActiveFilters } from './components/ActiveFilters';
+import { TextFilter } from './components/filter-types/TextFilter';
+import { NumberFilter } from './components/filter-types/NumberFilter';
+import { DropdownFilter } from './components/filter-types/DropdownFilter';
+import { DateRangeFilter } from './components/filter-types/DateRangeFilter';
 
-export type FilterOperator = 'EQ' | 'NE' | 'ILIKE' | 'LIKE' | 'BEGINS_WITH' | 'ENDS_WITH' | 'IS_NULL' | 'IS_NOT_NULL' | 'GT' | 'GTE' | 'LT' | 'LTE' | 'IN';
-
-export type ActiveFilter = {
-  columnName: string;
-  operator: FilterOperator;
-  value?: string;
-  values?: string[];
-};
-
-export type ActiveSort = {
-  columnName: string;
-  direction: 'ASC' | 'DESC';
-};
-
-type FilterOption = {
-  id: string;
-  label: string;
-  type: 'dropdown' | 'date' | 'text' | 'number';
-  columnName?: string; // API column name for filtering
-  available?: boolean; // Whether this filter is available in the API
-  options?: string[]; // Available options for dropdown filters
-};
-
-type AdvancedFiltersProps = {
-  filterOptions: FilterOption[];
-  onFilterChange?: (filter: ActiveFilter | undefined) => void;
-  onFiltersChange?: (filters: ActiveFilter[]) => void; // Support multiple filters
-  activeFilter?: ActiveFilter;
-  activeFilters?: ActiveFilter[]; // Support multiple active filters
-};
+// Re-export types for backward compatibility
+export type { FilterOperator, ActiveFilter, ActiveSort, FilterOption };
 
 // Stable empty array to prevent unnecessary re-renders
 const EMPTY_FILTERS: ActiveFilter[] = [];
@@ -52,8 +32,9 @@ export default function AdvancedFilters({
   const [filterValue, setFilterValue] = useState('');
   const [selectedValues, setSelectedValues] = useState<string[]>([]);
   const [numberOperator, setNumberOperator] = useState<FilterOperator>('EQ');
-  const [isOperatorDropdownOpen, setIsOperatorDropdownOpen] = useState(false);
   const [localFilters, setLocalFilters] = useState<ActiveFilter[]>([]);
+  const [dateRangeStart, setDateRangeStart] = useState<Date | null>(null);
+  const [dateRangeEnd, setDateRangeEnd] = useState<Date | null>(null);
 
   // Create a stable key for the filters to compare
   const filtersKey = useMemo(() => {
@@ -83,7 +64,6 @@ export default function AdvancedFilters({
       if (event.key === 'Escape' && isExpanded) {
         setIsExpanded(false);
         setExpandedFilterId(null);
-        setIsOperatorDropdownOpen(false);
       }
     };
 
@@ -100,9 +80,30 @@ export default function AdvancedFilters({
     if (expandedFilterId) {
       const option = filterOptions.find(o => o.id === expandedFilterId);
       if (option && option.columnName) {
-        // Find existing filter for this column
-        const existingFilter = localFilters.find(f => f.columnName === option.columnName);
-        if (existingFilter) {
+        // Find existing filters for this column (date filters use two: GTE and LTE)
+        const existingFilters = localFilters.filter(f => f.columnName === option.columnName);
+        
+        if (option.type === 'date') {
+          // For date filters, look for GTE (start) and LTE (end) filters
+          const startFilter = existingFilters.find(f => f.operator === 'GTE');
+          const endFilter = existingFilters.find(f => f.operator === 'LTE');
+          
+          if (startFilter?.value) {
+            setDateRangeStart(parseDateString(startFilter.value));
+          } else {
+            setDateRangeStart(null);
+          }
+          
+          if (endFilter?.value) {
+            setDateRangeEnd(parseDateString(endFilter.value));
+          } else {
+            setDateRangeEnd(null);
+          }
+          
+          setFilterValue('');
+          setSelectedValues([]);
+        } else if (existingFilters.length > 0) {
+          const existingFilter = existingFilters[0];
           if (existingFilter.operator === 'IN' && existingFilter.values) {
             setSelectedValues(existingFilter.values);
             setFilterValue('');
@@ -126,6 +127,8 @@ export default function AdvancedFilters({
         } else {
           setSelectedValues([]);
           setFilterValue('');
+          setDateRangeStart(null);
+          setDateRangeEnd(null);
           // Reset to default operator for number filters
           if (option.type === 'number') {
             setNumberOperator('EQ');
@@ -134,11 +137,15 @@ export default function AdvancedFilters({
       } else {
         setSelectedValues([]);
         setFilterValue('');
+        setDateRangeStart(null);
+        setDateRangeEnd(null);
       }
     } else {
       setSelectedValues([]);
       setFilterValue('');
       setNumberOperator('EQ');
+      setDateRangeStart(null);
+      setDateRangeEnd(null);
     }
   }, [expandedFilterId, localFilters, filterOptions]);
 
@@ -153,6 +160,11 @@ export default function AdvancedFilters({
       // Reset number operator to default when opening a number filter
       if (option.type === 'number') {
         setNumberOperator('EQ');
+      }
+      // Reset date range when opening a date filter
+      if (option.type === 'date') {
+        setDateRangeStart(null);
+        setDateRangeEnd(null);
       }
     }
   };
@@ -246,9 +258,49 @@ export default function AdvancedFilters({
     setFilterValue('');
   };
 
+  const handleApplyDateRangeFilter = (option: FilterOption) => {
+    if (!option.columnName) return;
+    
+    // Remove existing date filters for this column
+    const newFilters = localFilters.filter(f => 
+      f.columnName !== option.columnName || (f.operator !== 'GTE' && f.operator !== 'LTE')
+    );
+    
+    // Add GTE filter for start date
+    if (dateRangeStart) {
+      newFilters.push({
+        columnName: option.columnName,
+        operator: 'GTE',
+        value: formatDateToISO(dateRangeStart),
+      });
+    }
+    
+    // Add LTE filter for end date
+    if (dateRangeEnd) {
+      newFilters.push({
+        columnName: option.columnName,
+        operator: 'LTE',
+        value: formatDateToISO(dateRangeEnd),
+      });
+    }
+    
+    setLocalFilters(newFilters);
+    
+    // Notify parent
+    if (onFiltersChange) {
+      onFiltersChange(newFilters);
+    } else if (onFilterChange) {
+      // Backward compatibility - use the first filter
+      onFilterChange(newFilters.length > 0 ? newFilters[0] : undefined);
+    }
+    setExpandedFilterId(null);
+    setDateRangeStart(null);
+    setDateRangeEnd(null);
+  };
+
   const handleClearFilter = (columnName?: string) => {
     if (columnName) {
-      // Clear specific filter
+      // Clear specific filter (for date filters, this removes both GTE and LTE)
       const newFilters = localFilters.filter(f => f.columnName !== columnName);
       setLocalFilters(newFilters);
       if (onFiltersChange) {
@@ -267,6 +319,8 @@ export default function AdvancedFilters({
     }
     setFilterValue('');
     setExpandedFilterId(null);
+    setDateRangeStart(null);
+    setDateRangeEnd(null);
   };
 
   const activeFilterCount = localFilters.length;
@@ -332,49 +386,11 @@ export default function AdvancedFilters({
             {/* Content Area - Scrollable */}
             <div className="flex-1 overflow-y-auto p-3 sm:p-6 pt-4 sm:pt-6 pb-8">
               {/* Active Filters Display */}
-              {localFilters.length > 0 && (
-                <div className="mb-4 sm:mb-6 bg-blue-50 rounded-lg p-3 sm:p-4 border border-blue-100">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs sm:text-sm font-medium text-blue-700">Active:</span>
-                    {localFilters.map((filter, index) => {
-                      const option = filterOptions.find(o => o.columnName === filter.columnName);
-                      const label = option?.label || filter.columnName;
-                      
-                      // Format operator text for display
-                      const operatorText = 
-                        filter.operator === 'EQ' ? 'Equal to' :
-                        filter.operator === 'GT' ? 'Greater than' :
-                        filter.operator === 'GTE' ? 'Greater than or equal to' :
-                        filter.operator === 'LT' ? 'Less than' :
-                        filter.operator === 'LTE' ? 'Less than or equal to' :
-                        '';
-                      
-                      const displayValue = filter.operator === 'IN' && filter.values
-                        ? filter.values.join(', ')
-                        : option?.type === 'number' && operatorText
-                          ? `${operatorText} ${filter.value}`
-                          : filter.value;
-                      
-                      return (
-                        <span key={index} className="px-2 sm:px-3 py-1 sm:py-1.5 bg-white text-gray-700 rounded-lg text-xs sm:text-sm flex items-center gap-1 sm:gap-2 border border-gray-200 shadow-sm">
-                          <span className="font-medium text-gray-900">{label}:</span>
-                          <span className="text-gray-600 truncate max-w-[100px] sm:max-w-none">
-                            {displayValue}
-                          </span>
-                          <button
-                            onClick={() => handleClearFilter(filter.columnName)}
-                            className="ml-1 p-0.5 hover:bg-gray-100 rounded transition-colors text-gray-400 hover:text-red-500"
-                          >
-                            <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="sm:w-3.5 sm:h-3.5">
-                              <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round"/>
-                            </svg>
-                          </button>
-                        </span>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+              <ActiveFilters 
+                localFilters={localFilters}
+                filterOptions={filterOptions}
+                onClearFilter={handleClearFilter}
+              />
 
               {/* Filter By Field - With inline dropdowns */}
               <div className="bg-gray-50 rounded-lg p-3 sm:p-4 border border-gray-100">
@@ -441,172 +457,47 @@ export default function AdvancedFilters({
                           align="start"
                           sideOffset={4}
                           className="z-[100] bg-white rounded-lg shadow-xl overflow-hidden"
-                          style={{ width: 'var(--radix-popover-trigger-width)' }}
+                          style={{ 
+                            width: option.type === 'date' ? '320px' : 'var(--radix-popover-trigger-width)' 
+                          }}
                           onOpenAutoFocus={(e) => e.preventDefault()}
                         >
-                        {/* Number Filter - with operator selector */}
                         {option.type === 'number' ? (
-                          <div className="flex flex-col">
-                            <div className="p-3 space-y-2 border-b border-gray-100">
-                              {/* Operator Dropdown - Using Popover */}
-                              <PopoverPrimitive.Root
-                                open={isOperatorDropdownOpen}
-                                onOpenChange={setIsOperatorDropdownOpen}
-                              >
-                                <PopoverPrimitive.Trigger asChild>
-                                  <button
-                                    type="button"
-                                    className={`
-                                      w-full px-3 py-2 text-sm border rounded-lg text-left flex items-center justify-between
-                                      transition-all bg-white text-gray-900
-                                      ${isOperatorDropdownOpen 
-                                        ? 'border-blue-500 ring-2 ring-blue-500 ring-opacity-20' 
-                                        : 'border-gray-300 hover:border-gray-400'
-                                      }
-                                    `}
-                                  >
-                                    <span>
-                                      {numberOperator === 'EQ' && 'Equal to'}
-                                      {numberOperator === 'GT' && 'Greater than'}
-                                      {numberOperator === 'GTE' && 'Greater than or equal to'}
-                                      {numberOperator === 'LT' && 'Less than'}
-                                      {numberOperator === 'LTE' && 'Less than or equal to'}
-                                    </span>
-                                    <svg 
-                                      className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isOperatorDropdownOpen ? 'rotate-180' : ''}`}
-                                      fill="none" 
-                                      viewBox="0 0 24 24" 
-                                      stroke="currentColor"
-                                    >
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                  </button>
-                                </PopoverPrimitive.Trigger>
-                                <PopoverPrimitive.Portal>
-                                  <PopoverPrimitive.Content
-                                    side="bottom"
-                                    align="start"
-                                    sideOffset={4}
-                                    className="z-[101] bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden"
-                                    style={{ width: 'var(--radix-popover-trigger-width)' }}
-                                    onOpenAutoFocus={(e) => e.preventDefault()}
-                                  >
-                                    {(['EQ', 'GT', 'GTE', 'LT', 'LTE'] as FilterOperator[]).map((op) => (
-                                      <button
-                                        key={op}
-                                        type="button"
-                                        onClick={() => {
-                                          setNumberOperator(op);
-                                          setIsOperatorDropdownOpen(false);
-                                        }}
-                                        className={`
-                                          w-full px-3 py-2 text-sm text-left hover:bg-gray-50 flex items-center justify-between
-                                          ${numberOperator === op ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'}
-                                        `}
-                                      >
-                                        <span>
-                                          {op === 'EQ' && 'Equal to'}
-                                          {op === 'GT' && 'Greater than'}
-                                          {op === 'GTE' && 'Greater than or equal to'}
-                                          {op === 'LT' && 'Less than'}
-                                          {op === 'LTE' && 'Less than or equal to'}
-                                        </span>
-                                        {numberOperator === op && (
-                                          <svg className="w-4 h-4 text-blue-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                          </svg>
-                                        )}
-                                      </button>
-                                    ))}
-                                  </PopoverPrimitive.Content>
-                                </PopoverPrimitive.Portal>
-                              </PopoverPrimitive.Root>
-                              <input
-                                type="number"
-                                value={filterValue}
-                                onChange={(e) => setFilterValue(e.target.value)}
-                                placeholder={`Enter ${option.label.toLowerCase()}...`}
-                                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                autoFocus
-                              />
-                            </div>
-                            <div className="p-3 border-t border-gray-100 bg-gray-50 flex justify-end">
-                              <button
-                                onClick={() => handleApplyNumberFilter(option, filterValue)}
-                                disabled={!filterValue.trim()}
-                                className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
-                              >
-                                Apply
-                              </button>
-                            </div>
-                          </div>
+                          <NumberFilter
+                            option={option}
+                            filterValue={filterValue}
+                            numberOperator={numberOperator}
+                            onFilterValueChange={setFilterValue}
+                            onOperatorChange={setNumberOperator}
+                            onApply={handleApplyNumberFilter}
+                          />
+                        ) : option.type === 'date' ? (
+                          <DateRangeFilter
+                            option={option}
+                            dateRangeStart={dateRangeStart}
+                            dateRangeEnd={dateRangeEnd}
+                            onDateRangeChange={(start, end) => {
+                              setDateRangeStart(start);
+                              setDateRangeEnd(end);
+                            }}
+                            onApply={handleApplyDateRangeFilter}
+                          />
                         ) : option.type === 'dropdown' ? (
-                          /* Multi-select Dropdown - Show all options without scrolling */
-                          <div className="flex flex-col">
-                            <div className="p-3 border-b border-gray-100">
-                              <input
-                                type="text"
-                                value={filterValue}
-                                onChange={(e) => setFilterValue(e.target.value)}
-                                placeholder={`Search ${option.label.toLowerCase()}...`}
-                                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                autoFocus
-                              />
-                            </div>
-                            <div className="p-2 max-h-80 overflow-y-auto">
-                              {(option.options || [])
-                                .filter(opt => opt.toLowerCase().includes(filterValue.toLowerCase()))
-                                .map((opt) => (
-                                  <label key={opt} className="flex items-center gap-2 px-2 py-2 hover:bg-gray-50 rounded cursor-pointer">
-                                    <input
-                                      type="checkbox"
-                                      checked={selectedValues.includes(opt)}
-                                      onChange={() => toggleValue(opt)}
-                                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                    />
-                                    <span className="text-sm text-gray-700">{opt}</span>
-                                  </label>
-                                ))}
-                                {(!option.options || option.options.length === 0) && (
-                                  <div className="px-2 py-2 text-sm text-gray-500 text-center">No options available</div>
-                                )}
-                                {option.options && option.options.filter(opt => opt.toLowerCase().includes(filterValue.toLowerCase())).length === 0 && option.options.length > 0 && (
-                                  <div className="px-2 py-2 text-sm text-gray-500 text-center">No options found</div>
-                                )}
-                            </div>
-                            <div className="p-3 border-t border-gray-100 bg-gray-50 flex justify-between items-center">
-                              <span className="text-xs text-gray-500">{selectedValues.length} selected</span>
-                              <button
-                                onClick={() => handleApplyMultiSelect(option)}
-                                className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 transition-colors"
-                              >
-                                Apply
-                              </button>
-                            </div>
-                          </div>
+                          <DropdownFilter
+                            option={option}
+                            filterValue={filterValue}
+                            selectedValues={selectedValues}
+                            onFilterValueChange={setFilterValue}
+                            onToggleValue={toggleValue}
+                            onApply={handleApplyMultiSelect}
+                          />
                         ) : (
-                          /* Text Filter - simple input */
-                          <div className="flex flex-col">
-                            <div className="p-3 border-b border-gray-100">
-                              <input
-                                type="text"
-                                value={filterValue}
-                                onChange={(e) => setFilterValue(e.target.value)}
-                                placeholder={`Search ${option.label.toLowerCase()}...`}
-                                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                autoFocus
-                              />
-                            </div>
-                            <div className="p-3 border-t border-gray-100 bg-gray-50 flex justify-end">
-                              <button
-                                onClick={() => handleApplyFilter(option, filterValue)}
-                                disabled={!filterValue.trim()}
-                                className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
-                              >
-                                Apply
-                              </button>
-                            </div>
-                          </div>
+                          <TextFilter
+                            option={option}
+                            filterValue={filterValue}
+                            onFilterValueChange={setFilterValue}
+                            onApply={handleApplyFilter}
+                          />
                         )}
                         </PopoverPrimitive.Content>
                       </PopoverPrimitive.Portal>

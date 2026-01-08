@@ -3,7 +3,7 @@
  * Reusable functions for filtering and sorting across all CRM pages
  */
 
-import type { ActiveFilter } from '../AdvancedFilters';
+import type { ActiveFilter } from '../advancedFilters/AdvancedFilters';
 
 /**
  * Apply a filter to a single entity

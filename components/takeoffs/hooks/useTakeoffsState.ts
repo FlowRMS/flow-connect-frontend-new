@@ -11,7 +11,7 @@ import type {
   TakeoffStep,
   DocumentClassification 
 } from '../types';
-import type { ActiveFilter } from '../../AdvancedFilters';
+import type { ActiveFilter } from '../../advancedFilters/AdvancedFilters';
 import { mockTakeoffs, mockDocuments, mockParsedItems } from '../mockData';
 import { 
   abridgeDocument, 

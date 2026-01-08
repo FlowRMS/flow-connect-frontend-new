@@ -4,7 +4,7 @@
 
 import { AVATAR_COLORS } from './constants';
 import type { Note, ParsedNote, NoteConversation, NoteLandingPage, LinkedTitle } from './types';
-import type { ActiveFilter } from '../AdvancedFilters';
+import type { ActiveFilter } from '../advancedFilters/AdvancedFilters';
 
 /**
  * Convert mentions array to string for API
