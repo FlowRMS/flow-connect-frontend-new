@@ -446,7 +446,8 @@ export function useTakeoffsState() {
       setAbridgementState({ isProcessing: false, progress: 100 });
 
       // Check if all abridgeable documents are now abridged - update status to Abridgment
-      const docsToAbridge = documents.filter(d => !d.abridged && d.documentUrl);
+      // Include docs that are abridged but have no abridgedUrl (below threshold)
+      const docsToAbridge = documents.filter(d => d.documentUrl && (!d.abridged || !d.abridgedUrl));
       const allAbridged = docsToAbridge.length === 0 || docsToAbridge.every(d => d.id === docId);
 
       if (allAbridged && selectedTakeoff && selectedTakeoff.status !== 'Complete') {
