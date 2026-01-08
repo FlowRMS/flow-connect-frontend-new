@@ -48,9 +48,8 @@ export function AbridgmentReportModal({
   const includedPages = reportItems.length > 0
     ? reportItems.filter(i => i.included).length
     : (document.abridgedPages || 0);
-  // Use backend reductionPercentage if available, otherwise calculate from page counts
-  const reductionPercent = document.reductionPercentage ??
-    (totalPages > 0 ? ((totalPages - includedPages) / totalPages) * 100 : 0);
+  // Always calculate from page counts to avoid corrupted data in database
+  const reductionPercent = totalPages > 0 ? ((totalPages - includedPages) / totalPages) * 100 : 0;
   const REDUCTION_THRESHOLD = 30;
   const isBelowThreshold = reductionPercent < REDUCTION_THRESHOLD;
 
