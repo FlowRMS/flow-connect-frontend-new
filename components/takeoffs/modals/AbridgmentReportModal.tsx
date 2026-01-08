@@ -43,15 +43,19 @@ export function AbridgmentReportModal({
 
   const hasNoData = reportItems.length === 0;
 
-  // Calculate stats for threshold message
-  const totalPages = reportItems.length || document.pages || 0;
-  const includedPages = reportItems.length > 0
-    ? reportItems.filter(i => i.included).length
-    : (document.abridgedPages ?? document.pages ?? 0);
-  // Always calculate from page counts to avoid corrupted data in database
+  // Calculate stats from document.abridgedPages (final result) for consistency with ClassificationTab
+  // Use document.pages as the source of truth for total pages
+  const totalPages = document.pages || reportItems.length || 0;
+  // Always use abridgedPages for included count (this is the final result after business rules)
+  const includedPages = document.abridgedPages ?? document.pages ?? 0;
+  // Calculate reduction from the final page counts
   const reductionPercent = totalPages > 0 ? ((totalPages - includedPages) / totalPages) * 100 : 0;
   const REDUCTION_THRESHOLD = 30;
   const isBelowThreshold = reductionPercent < REDUCTION_THRESHOLD;
+
+  // Check if AI analysis differs from final result (e.g., AI said 0 relevant but all pages kept)
+  const aiIncludedCount = reportItems.length > 0 ? reportItems.filter(i => i.included).length : includedPages;
+  const hasAnalysisMismatch = reportItems.length > 0 && aiIncludedCount !== includedPages;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -105,15 +109,26 @@ export function AbridgmentReportModal({
             </button>
             <button
               onClick={() => {
-                // Generate CSV content for Excel
+                // Generate CSV content for Excel with summary header
                 const csvContent = [
-                  ['Page', 'Included', 'Reason'].join(','),
+                  // Summary section
+                  ['Abridgment Report Summary'],
+                  [`Document: ${document.name}`],
+                  [`Total Pages: ${totalPages}`],
+                  [`Pages Kept: ${includedPages}`],
+                  [`Pages Excluded: ${totalPages - includedPages}`],
+                  [`Reduction: ${reductionPercent.toFixed(1)}%`],
+                  hasAnalysisMismatch ? [`Note: AI analysis marked ${aiIncludedCount} pages as relevant`] : [],
+                  [],
+                  // Detail section header
+                  ['Page', 'AI Marked Relevant', 'Reason'].join(','),
+                  // Page details
                   ...reportItems.map(item => [
                     item.page,
                     item.included ? 'Yes' : 'No',
                     `"${item.reason.replace(/"/g, '""')}"`,
                   ].join(',')),
-                ].join('\n');
+                ].filter(row => row.length > 0).join('\n');
 
                 // Create and trigger download
                 const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -171,6 +186,20 @@ export function AbridgmentReportModal({
                 </div>
               )}
 
+              {/* AI Analysis Mismatch Note */}
+              {hasAnalysisMismatch && (
+                <div className="flex items-center gap-3 mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className="text-blue-500 flex-shrink-0">
+                    <path d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" fill="currentColor"/>
+                  </svg>
+                  <span className="text-sm text-blue-800">
+                    <span className="font-medium">Note:</span> AI analysis marked {aiIncludedCount} page{aiIncludedCount !== 1 ? 's' : ''} as relevant,
+                    but {includedPages} page{includedPages !== 1 ? 's' : ''} {includedPages !== 1 ? 'are' : 'is'} kept in the final result
+                    {aiIncludedCount === 0 ? ' (documents must have at least 1 page)' : ''}.
+                  </span>
+                </div>
+              )}
+
               {/* Summary Stats */}
               <div className="flex items-center gap-6 mb-4 p-3 bg-gray-50 rounded-lg">
                 <div className="text-sm">
@@ -193,6 +222,8 @@ export function AbridgmentReportModal({
                 </div>
               </div>
 
+              {/* AI Analysis Details */}
+              <h3 className="text-sm font-medium text-[var(--muted-foreground)] mb-2">AI Page Analysis</h3>
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-[var(--muted)]/30 border-b border-[var(--border)]">
@@ -201,7 +232,7 @@ export function AbridgmentReportModal({
                         Page
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-                        Included
+                        AI Marked Relevant
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
                         Reason
