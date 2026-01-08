@@ -40,8 +40,8 @@ export function EntityFilterControls({
   isLoading = false,
   currentEntityType
 }: EntityFilterControlsProps) {
-  // Orders and Invoices have different UI - no approve or create new, only skip and set for creation
-  const isOrdersOrInvoices = currentEntityType === 'ORDERS' || currentEntityType === 'INVOICES';
+  // Orders, Invoices, Credits, and Adjustments have different UI - no approve or create new, only skip and set for creation
+  const isOrdersOrInvoices = currentEntityType === 'ORDERS' || currentEntityType === 'INVOICES' || currentEntityType === 'CREDITS' || currentEntityType === 'ADJUSTMENTS';
   // Products have skip functionality in addition to the regular approve/create new
   const isProducts = currentEntityType === 'PRODUCTS';
 

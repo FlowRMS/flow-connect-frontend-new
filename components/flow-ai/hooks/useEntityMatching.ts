@@ -40,6 +40,8 @@ interface AllPendingEntitiesResponse {
   products: PendingEntity[];
   orders: PendingEntity[];
   invoices: PendingEntity[];
+  credits: PendingEntity[];
+  adjustments: PendingEntity[];
 }
 
 // Type for search response
@@ -99,6 +101,8 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
   const [products, setProducts] = useState<PendingEntity[]>([]);
   const [orders, setOrders] = useState<PendingEntity[]>([]);
   const [invoices, setInvoices] = useState<PendingEntity[]>([]);
+  const [credits, setCredits] = useState<PendingEntity[]>([]);
+  const [adjustments, setAdjustments] = useState<PendingEntity[]>([]);
 
   // Track which steps have been loaded
   const [loadedSteps, setLoadedSteps] = useState<Set<EntityStep>>(new Set());
@@ -182,6 +186,8 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
       const productsData = addOriginalIndex(result.data?.products || []);
       const ordersData = addOriginalIndex(result.data?.orders || []);
       const invoicesData = addOriginalIndex(result.data?.invoices || []);
+      const creditsData = addOriginalIndex(result.data?.credits || []);
+      const adjustmentsData = addOriginalIndex(result.data?.adjustments || []);
 
       console.log('Loaded entities:', {
         factories: factoriesData.length,
@@ -191,6 +197,8 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
         products: productsData.length,
         orders: ordersData.length,
         invoices: invoicesData.length,
+        credits: creditsData.length,
+        adjustments: adjustmentsData.length,
       });
 
       setFactories(factoriesData);
@@ -200,9 +208,11 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
       setProducts(productsData);
       setOrders(ordersData);
       setInvoices(invoicesData);
+      setCredits(creditsData);
+      setAdjustments(adjustmentsData);
 
       // Mark all steps as loaded
-      setLoadedSteps(new Set(['factories', 'customers', 'billtocustomers', 'endusers', 'products', 'orders', 'invoices']));
+      setLoadedSteps(new Set(['factories', 'customers', 'billtocustomers', 'endusers', 'products', 'orders', 'invoices', 'credits', 'adjustments']));
       setInitialLoadComplete(true);
     } catch (error) {
       if (!mountedRef.current) return;
@@ -238,6 +248,8 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
     setProducts([]);
     setOrders([]);
     setInvoices([]);
+    setCredits([]);
+    setAdjustments([]);
     setInitialLoadComplete(false);
   }, [pendingDocumentId]);
 
@@ -259,9 +271,13 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
           return orders;
         case 'invoices':
           return invoices;
+        case 'credits':
+          return credits;
+        case 'adjustments':
+          return adjustments;
       }
     },
-    [factories, customers, billToCustomers, endUsers, products, orders, invoices]
+    [factories, customers, billToCustomers, endUsers, products, orders, invoices, credits, adjustments]
   );
 
   // Set entities by step
@@ -288,6 +304,12 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
           break;
         case 'invoices':
           setInvoices(entities as PendingEntity[]);
+          break;
+        case 'credits':
+          setCredits(entities as PendingEntity[]);
+          break;
+        case 'adjustments':
+          setAdjustments(entities as PendingEntity[]);
           break;
       }
     },
@@ -395,6 +417,12 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
         case 'invoices':
           setInvoices(updateFn);
           break;
+        case 'credits':
+          setCredits(updateFn);
+          break;
+        case 'adjustments':
+          setAdjustments(updateFn);
+          break;
       }
     },
     [currentStep]
@@ -444,6 +472,12 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
       case 'invoices':
         setInvoices(updateFn);
         break;
+      case 'credits':
+        setCredits(updateFn);
+        break;
+      case 'adjustments':
+        setAdjustments(updateFn);
+        break;
     }
   }, [currentStep, getCurrentEntities, isEntityLocked]);
 
@@ -489,6 +523,12 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
               break;
             case 'invoices':
               setInvoices(updateFn);
+              break;
+            case 'credits':
+              setCredits(updateFn);
+              break;
+            case 'adjustments':
+              setAdjustments(updateFn);
               break;
           }
           toast.success('Match confirmed');
@@ -633,6 +673,12 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
             case 'invoices':
               setInvoices(updateFn);
               break;
+            case 'credits':
+              setCredits(updateFn);
+              break;
+            case 'adjustments':
+              setAdjustments(updateFn);
+              break;
           }
 
           const actionLabel =
@@ -775,6 +821,12 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
             case 'invoices':
               setInvoices(updateFn);
               break;
+            case 'credits':
+              setCredits(updateFn);
+              break;
+            case 'adjustments':
+              setAdjustments(updateFn);
+              break;
           }
 
           const actionLabel =
@@ -836,6 +888,12 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
         case 'invoices':
           setInvoices(updateFn);
           break;
+        case 'credits':
+          setCredits(updateFn);
+          break;
+        case 'adjustments':
+          setAdjustments(updateFn);
+          break;
       }
     },
     [currentStep]
@@ -895,6 +953,12 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
           break;
         case 'invoices':
           setInvoices(updateFn);
+          break;
+        case 'credits':
+          setCredits(updateFn);
+          break;
+        case 'adjustments':
+          setAdjustments(updateFn);
           break;
       }
     },
@@ -975,6 +1039,12 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
               break;
             case 'invoices':
               setInvoices(updateFn);
+              break;
+            case 'credits':
+              setCredits(updateFn);
+              break;
+            case 'adjustments':
+              setAdjustments(updateFn);
               break;
           }
           toast.success('New entity created');
@@ -1074,16 +1144,16 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
 
   // Check if all entities are validated (only for loaded steps)
   const allValidated = useMemo(() => {
-    const allSteps: EntityStep[] = ['factories', 'customers', 'billtocustomers', 'endusers', 'products', 'orders', 'invoices'];
+    const allSteps: EntityStep[] = ['factories', 'customers', 'billtocustomers', 'endusers', 'products', 'orders', 'invoices', 'credits', 'adjustments'];
 
     // Check if all steps are loaded
     if (!allSteps.every(step => loadedSteps.has(step))) {
       return false;
     }
 
-    const allEntities = [...factories, ...customers, ...billToCustomers, ...endUsers, ...products, ...orders, ...invoices];
+    const allEntities = [...factories, ...customers, ...billToCustomers, ...endUsers, ...products, ...orders, ...invoices, ...credits, ...adjustments];
     return allEntities.length === 0 || allEntities.every((e) => isResolved(e.confirmationStatus));
-  }, [factories, customers, billToCustomers, endUsers, products, orders, invoices, loadedSteps]);
+  }, [factories, customers, billToCustomers, endUsers, products, orders, invoices, credits, adjustments, loadedSteps]);
 
   // Refresh entities for current step
   const refreshCurrentStep = useCallback(async () => {
@@ -1112,6 +1182,8 @@ export function useEntityMatching({ pendingDocumentId }: UseEntityMatchingOption
     products,
     orders,
     invoices,
+    credits,
+    adjustments,
 
     // UI state
     currentStep,
