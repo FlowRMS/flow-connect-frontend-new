@@ -9,7 +9,7 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import AdvancedFilters from '@/components/AdvancedFilters';
+import AdvancedFilters from '@/components/advancedFilters/AdvancedFilters';
 import { useOrdersListState } from './hooks/useOrdersListState';
 import { getOrderFilterOptions } from './config/filterConfig';
 import { OrdersTable } from './components/table/OrdersTable';

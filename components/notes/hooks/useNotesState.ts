@@ -5,7 +5,7 @@
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import type { ParsedNote, ViewMode } from '../types';
-import type { ActiveFilter, ActiveSort } from '../../AdvancedFilters';
+import type { ActiveFilter, ActiveSort } from '../../advancedFilters/AdvancedFilters';
 import { useCRMNoteLandingPagesInfinite } from '../../hooks/useCRMApi';
 
 import type { NoteLandingPage, LandingPageFilter, LandingPageOrderBy } from '../../lib/crm-graphql';
