@@ -27,6 +27,30 @@ export type SortDirection = 'ASC' | 'DESC';
 
 export type SourceType = 'JOBS' | 'COMPANIES' | 'CONTACTS';
 
+// Landing Source Types - used for findLandingPages query
+export enum LandingSourceType {
+  JOBS = 'JOBS',
+  COMPANIES = 'COMPANIES',
+  CONTACTS = 'CONTACTS',
+  TASKS = 'TASKS',
+  NOTES = 'NOTES',
+  PRE_OPPORTUNITIES = 'PRE_OPPORTUNITIES',
+  CAMPAIGNS = 'CAMPAIGNS',
+  CUSTOMERS = 'CUSTOMERS',
+  FACTORIES = 'FACTORIES',
+  PRODUCTS = 'PRODUCTS',
+  QUOTES = 'QUOTES',
+  ORDERS = 'ORDERS',
+  FILES = 'FILES',
+  FOLDERS = 'FOLDERS',
+  INVOICES = 'INVOICES',
+  CREDITS = 'CREDITS',
+  ADJUSTMENTS = 'ADJUSTMENTS',
+  CHECKS = 'CHECKS',
+  ORDER_ACKNOWLEDGEMENTS = 'ORDER_ACKNOWLEDGEMENTS',
+  PENDING_DOCUMENTS = 'PENDING_DOCUMENTS',
+}
+
 // Related Entities Source Types - used for the generic relatedEntities endpoint
 export type RelatedEntitiesSourceType =
   | 'JOBS'

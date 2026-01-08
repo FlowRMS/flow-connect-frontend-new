@@ -3,9 +3,21 @@
  * Note: columnName should match the API QuoteLandingPage field names
  */
 
+import type { QuoteV2Status, QuotePipelineStage } from '../types';
+
+export const QUOTE_STATUSES: QuoteV2Status[] = ['OPEN', 'ORDERED', 'EXPIRED', 'LOST'];
+
+export const QUOTE_PIPELINE_STAGES: string[] = [
+  'DISCOVERY',
+  'PROSPECT',
+  'QUALIFICATION',
+  'PROPOSAL',
+  'NEGOTIATION',
+  'CLOSED_WON',
+  'CLOSED_LOST',
+] as QuotePipelineStage[];
+
 export function getQuoteFilterOptions(
-  uniqueStatuses: string[],
-  uniquePipelineStages: string[],
   uniqueQuoteNumbers: string[],
   uniqueCreators: string[]
 ) {
@@ -14,10 +26,9 @@ export function getQuoteFilterOptions(
     { 
       id: 'quote-number', 
       label: 'Quote Number', 
-      type: 'dropdown' as const, 
+      type: 'text' as const, 
       columnName: 'quoteNumber', 
-      available: true,
-      options: uniqueQuoteNumbers 
+      available: true 
     },
     { 
       id: 'status', 
@@ -25,7 +36,7 @@ export function getQuoteFilterOptions(
       type: 'dropdown' as const, 
       columnName: 'status', 
       available: true, 
-      options: uniqueStatuses 
+      options: QUOTE_STATUSES 
     },
     { 
       id: 'pipeline-stage', 
@@ -33,7 +44,7 @@ export function getQuoteFilterOptions(
       type: 'dropdown' as const, 
       columnName: 'pipelineStage', 
       available: true, 
-      options: uniquePipelineStages 
+      options: QUOTE_PIPELINE_STAGES 
     },
     { 
       id: 'total-amount', 

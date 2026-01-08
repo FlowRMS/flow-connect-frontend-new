@@ -133,24 +133,8 @@ export function QuotesV2Content() {
     return quotesData.pages.flatMap(page => page.records);
   }, [quotesData]);
 
-  // Extract unique values for filters from landing page data
-  const uniqueStatuses = useMemo(() => {
-    if (!allQuotesData.length) return [];
-    const statuses = new Set<string>();
-    allQuotesData.forEach(quote => {
-      if (quote.status) statuses.add(quote.status);
-    });
-    return Array.from(statuses).sort();
-  }, [allQuotesData]);
-
-  const uniquePipelineStages = useMemo(() => {
-    if (!allQuotesData.length) return [];
-    const stages = new Set<string>();
-    allQuotesData.forEach(quote => {
-      if (quote.pipelineStage) stages.add(quote.pipelineStage);
-    });
-    return Array.from(stages).sort();
-  }, [allQuotesData]);
+  // Note: uniqueStatuses and uniquePipelineStages are now constants
+  // defined in filterConfig.ts, no longer calculated from data
 
   const uniqueQuoteNumbers = useMemo(() => {
     if (!allQuotesData.length) return [];
@@ -173,12 +157,10 @@ export function QuotesV2Content() {
   // Get filter options
   const quoteFilterOptions = useMemo(() => {
     return getQuoteFilterOptions(
-      uniqueStatuses,
-      uniquePipelineStages,
       uniqueQuoteNumbers,
       uniqueCreators
     );
-  }, [uniqueStatuses, uniquePipelineStages, uniqueQuoteNumbers, uniqueCreators]);
+  }, [uniqueQuoteNumbers, uniqueCreators]);
 
   // Transform API data to UI format, using search results when searching
   const quotes = useMemo<QuoteV2[]>(() => {

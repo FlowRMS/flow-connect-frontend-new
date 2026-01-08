@@ -4,6 +4,7 @@
  */
 
 import { crmGraphQLRequest } from '../../lib/crm-graphql';
+import { LandingSourceType } from '../../lib/graphql/types';
 
 // ============================================================================
 // Enums
@@ -289,9 +290,9 @@ export interface PaginatedQuotesResult {
 // ============================================================================
 
 const QUOTE_LANDING_PAGES = `
-  query QuoteLandingPages($filters: [Filter!], $limit: Int, $offset: Int, $orderBy: [OrderBy!]) {
+  query QuoteLandingPages($sourceType: LandingSourceType!, $filters: [Filter!], $limit: Int, $offset: Int, $orderBy: [OrderBy!]) {
     findLandingPages(
-      sourceType: QUOTES
+      sourceType: $sourceType
       filters: $filters
       limit: $limit
       offset: $offset
@@ -1076,6 +1077,7 @@ export async function fetchQuotesWithPagination(
   }>({
     query: QUOTE_LANDING_PAGES,
     variables: {
+      sourceType: LandingSourceType.QUOTES,
       filters,
       orderBy,
       limit: pagination?.limit ?? 50,
