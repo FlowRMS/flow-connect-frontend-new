@@ -68,6 +68,7 @@ export const Q_GET_PENDING = gql`
       sourceName
       sourceType
       status
+      workflowStatus
       updatedAt
     }
   }
@@ -1140,6 +1141,17 @@ export const Q_PENDING_DOCUMENT_PROCESSINGS = gql`
       id
       pendingDocumentId
       status
+    }
+  }
+`;
+
+// Mutation to send email notification when pending document status changes
+export const M_SEND_PENDING_DOCUMENT_STATUS_EMAIL = gql`
+  mutation SendPendingDocumentStatusEmail($pendingDocumentId: UUID!) {
+    sendPendingDocumentStatusEmail(pendingDocumentId: $pendingDocumentId) {
+      message
+      success
+      taskId
     }
   }
 `;
