@@ -155,7 +155,7 @@ export default function CompaniesContent() {
 
   // Fetch full company details when navigating via URL
   const targetCompanyId = (!isIntentionalClearRef.current && companyIdFromUrl) ? companyIdFromUrl : (selectedCompany?.id || '');
-  const { data: fullCompanyData, isLoading: companyDetailLoading } = useCRMCompany(targetCompanyId);
+  const { data: fullCompanyData, isLoading: companyDetailLoading, error: companyDetailError } = useCRMCompany(targetCompanyId);
 
   // When we get company data from API (navigating via URL), set it as selected
   useEffect(() => {
@@ -319,6 +319,40 @@ export default function CompaniesContent() {
             </svg>
             <span>Fetching company details...</span>
           </div>
+        </div>
+      </main>
+    );
+  }
+
+  // Show error state if company fetch failed or company not found
+  if (companyIdFromUrl && !companyDetailLoading && !selectedCompany && (companyDetailError || !fullCompanyData)) {
+    return (
+      <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
+        <div className="mb-6">
+          <button
+            onClick={handleBack}
+            className="flex items-center gap-2 text-[var(--muted-foreground)] hover:text-[var(--foreground)] mb-4"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M15 10H5M5 10l4-4M5 10l4 4" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Back to Companies
+          </button>
+        </div>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+          <svg className="mx-auto mb-4 w-12 h-12 text-red-500" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <h3 className="text-lg font-medium text-red-800 mb-2">Company Not Found</h3>
+          <p className="text-sm text-red-600 mb-4">
+            {companyDetailError instanceof Error ? companyDetailError.message : 'The requested company could not be found or you do not have permission to view it.'}
+          </p>
+          <button
+            onClick={handleBack}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+          >
+            Back to Companies
+          </button>
         </div>
       </main>
     );
