@@ -14,9 +14,10 @@ export function getQuoteFilterOptions(
     { 
       id: 'quote-number', 
       label: 'Quote Number', 
-      type: 'text' as const, 
+      type: 'dropdown' as const, 
       columnName: 'quoteNumber', 
-      available: true 
+      available: true,
+      options: uniqueQuoteNumbers 
     },
     { 
       id: 'status', 
@@ -53,14 +54,7 @@ export function getQuoteFilterOptions(
       label: 'Created Date', 
       type: 'date' as const, 
       columnName: 'createdAt', 
-      available: false 
-    },
-    { 
-      id: 'expiration-date', 
-      label: 'Expiration Date', 
-      type: 'date' as const, 
-      columnName: 'expDate', 
-      available: false 
+      available: true 
     },
     { 
       id: 'published', 
@@ -70,8 +64,21 @@ export function getQuoteFilterOptions(
       available: true, 
       options: ['true', 'false'] 
     },
-    
+    { 
+      id: 'quote-date', 
+      label: 'Quote Date', 
+      type: 'date' as const, 
+      columnName: 'entityDate', 
+      available: true
+    },
     // Soon filters
+    { 
+      id: 'expiration-date', 
+      label: 'Expiration Date', 
+      type: 'date' as const, 
+      columnName: 'expDate', 
+      available: false 
+    },
     { 
       id: 'created-by', 
       label: 'Created By', 
@@ -79,13 +86,6 @@ export function getQuoteFilterOptions(
       columnName: 'createdBy', 
       available: false,
       options: uniqueCreators 
-    },
-    { 
-      id: 'quote-date', 
-      label: 'Quote Date', 
-      type: 'date' as const, 
-      columnName: 'entityDate', 
-      available: false 
     },
   ];
 }

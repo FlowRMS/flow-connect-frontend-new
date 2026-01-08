@@ -9,7 +9,7 @@ import { KanbanViewV2 } from './views/KanbanViewV2';
 import { ListViewV2 } from './views/ListViewV2';
 import { useQuotesV2Infinite, useUpdateQuoteStageV2, useQuoteSearchV2, type QuoteSearchResult } from './api/quotesV2Api';
 import { quoteToasts } from '../lib/toast';
-import AdvancedFilters, { type ActiveFilter } from '../AdvancedFilters';
+import AdvancedFilters, { type ActiveFilter } from '../advancedFilters/AdvancedFilters';
 import { getQuoteFilterOptions } from './config/filterConfig';
 
 type ViewMode = 'kanban' | 'list';
