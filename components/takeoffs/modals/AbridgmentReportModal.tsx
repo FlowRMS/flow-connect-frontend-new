@@ -43,6 +43,13 @@ export function AbridgmentReportModal({
 
   const hasNoData = reportItems.length === 0;
 
+  // Calculate stats for threshold message
+  const totalPages = reportItems.length;
+  const includedPages = reportItems.filter(i => i.included).length;
+  const reductionPercent = document.reductionPercentage ?? (totalPages > 0 ? ((totalPages - includedPages) / totalPages) * 100 : 0);
+  const REDUCTION_THRESHOLD = 30;
+  const isBelowThreshold = reductionPercent < REDUCTION_THRESHOLD;
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
@@ -53,45 +60,46 @@ export function AbridgmentReportModal({
             <p className="text-sm text-[var(--muted-foreground)] mt-1">{document.name}</p>
           </div>
           <div className="flex items-center gap-2">
-            {/* Download Abridged PDF Button */}
-            {document.abridgedUrl && (
-              <button
-                onClick={async () => {
-                  try {
-                    // Use proxy to avoid CORS issues
-                    const proxyUrl = `/api/document-proxy?url=${encodeURIComponent(document.abridgedUrl!)}`;
-                    const response = await fetch(proxyUrl);
+            {/* Download Abridged PDF Button - disabled if below threshold */}
+            <button
+              onClick={async () => {
+                if (!document.abridgedUrl || isBelowThreshold) return;
+                try {
+                  // Use proxy to avoid CORS issues
+                  const proxyUrl = `/api/document-proxy?url=${encodeURIComponent(document.abridgedUrl)}`;
+                  const response = await fetch(proxyUrl);
 
-                    if (!response.ok) {
-                      console.error('Failed to download abridged PDF:', response.status);
-                      // Fallback to opening in new tab
-                      window.open(document.abridgedUrl, '_blank');
-                      return;
-                    }
-
-                    const blob = await response.blob();
-                    const url = URL.createObjectURL(blob);
-                    const link = window.document.createElement('a');
-                    link.href = url;
-                    // Generate filename from document name
-                    const baseName = document.name.replace(/\.[^/.]+$/, '');
-                    link.download = `${baseName}_abridged.pdf`;
-                    link.click();
-                    URL.revokeObjectURL(url);
-                  } catch (error) {
-                    console.error('Error downloading abridged PDF:', error);
+                  if (!response.ok) {
+                    console.error('Failed to download abridged PDF:', response.status);
                     // Fallback to opening in new tab
                     window.open(document.abridgedUrl, '_blank');
+                    return;
                   }
-                }}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors"
-              >
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M10 3v10m0 0l-3-3m3 3l3-3M3 17h14" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                Abridged PDF
-              </button>
-            )}
+
+                  const blob = await response.blob();
+                  const url = URL.createObjectURL(blob);
+                  const link = window.document.createElement('a');
+                  link.href = url;
+                  // Generate filename from document name
+                  const baseName = document.name.replace(/\.[^/.]+$/, '');
+                  link.download = `${baseName}_abridged.pdf`;
+                  link.click();
+                  URL.revokeObjectURL(url);
+                } catch (error) {
+                  console.error('Error downloading abridged PDF:', error);
+                  // Fallback to opening in new tab
+                  window.open(document.abridgedUrl, '_blank');
+                }
+              }}
+              disabled={!document.abridgedUrl || isBelowThreshold}
+              title={isBelowThreshold ? `Reduction ${reductionPercent.toFixed(0)}% is below ${REDUCTION_THRESHOLD}% threshold` : 'Download abridged PDF'}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-purple-600"
+            >
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M10 3v10m0 0l-3-3m3 3l3-3M3 17h14" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Abridged PDF
+            </button>
             <button
               onClick={() => {
                 // Generate CSV content for Excel
@@ -147,26 +155,39 @@ export function AbridgmentReportModal({
             </div>
           ) : (
             <>
+              {/* Below Threshold Warning */}
+              {isBelowThreshold && (
+                <div className="flex items-center gap-3 mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className="text-amber-500 flex-shrink-0">
+                    <path d="M10 6v4m0 4h.01M19 10a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <span className="text-sm text-amber-800">
+                    <span className="font-semibold">{includedPages}/{totalPages} pages kept</span>
+                    <span className="text-amber-600"> ({reductionPercent.toFixed(0)}% reduction - below {REDUCTION_THRESHOLD}% threshold)</span>
+                  </span>
+                </div>
+              )}
+
               {/* Summary Stats */}
               <div className="flex items-center gap-6 mb-4 p-3 bg-gray-50 rounded-lg">
                 <div className="text-sm">
                   <span className="text-[var(--muted-foreground)]">Total Pages: </span>
-                  <span className="font-medium text-[var(--foreground)]">{reportItems.length}</span>
+                  <span className="font-medium text-[var(--foreground)]">{totalPages}</span>
                 </div>
                 <div className="text-sm">
                   <span className="text-[var(--muted-foreground)]">Included: </span>
-                  <span className="font-medium text-green-600">{reportItems.filter(i => i.included).length}</span>
+                  <span className="font-medium text-green-600">{includedPages}</span>
                 </div>
                 <div className="text-sm">
                   <span className="text-[var(--muted-foreground)]">Excluded: </span>
-                  <span className="font-medium text-red-600">{reportItems.filter(i => !i.included).length}</span>
+                  <span className="font-medium text-red-600">{totalPages - includedPages}</span>
                 </div>
-                {document.reductionPercentage && (
-                  <div className="text-sm">
-                    <span className="text-[var(--muted-foreground)]">Reduction: </span>
-                    <span className="font-medium text-purple-600">{document.reductionPercentage.toFixed(1)}%</span>
-                  </div>
-                )}
+                <div className="text-sm">
+                  <span className="text-[var(--muted-foreground)]">Reduction: </span>
+                  <span className={`font-medium ${isBelowThreshold ? 'text-amber-600' : 'text-purple-600'}`}>
+                    {reductionPercent.toFixed(1)}%
+                  </span>
+                </div>
               </div>
 
               <div className="overflow-x-auto">
