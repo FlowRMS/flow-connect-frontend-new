@@ -1,7 +1,14 @@
-import { CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, ChevronRight, Lock } from 'lucide-react';
 import { Badge } from '@/components/flow-ai/ui/badge';
-import { useRef, useState, useEffect } from 'react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/flow-ai/ui/tooltip';
+import { useRef, useState, useEffect, useMemo } from 'react';
 import type { EntityStep, StepStatus } from '@/components/flow-ai/types/entity-matching';
+
+// Document type from pending document entity type
+export type DocumentType = 'ORDERS' | 'QUOTES' | 'INVOICES' | 'CHECKS' | 'ORDER_ACKNOWLEDGEMENTS' | string | null;
+
+// Tabs that require factory to be matched first (only for CHECKS and INVOICES document types)
+const FACTORY_DEPENDENT_TABS: EntityStep[] = ['orders', 'invoices', 'credits', 'adjustments'];
 
 interface EntityStepNavigationProps {
   currentStep: EntityStep;
@@ -16,6 +23,9 @@ interface EntityStepNavigationProps {
   creditsCount: number;
   adjustmentsCount: number;
   getStepStatus: (step: EntityStep) => StepStatus;
+  // New props for document type-based tab visibility
+  documentType?: DocumentType;
+  isFactoryMatched?: boolean;
 }
 
 export function EntityStepNavigation({
@@ -30,13 +40,15 @@ export function EntityStepNavigation({
   invoicesCount,
   creditsCount,
   adjustmentsCount,
-  getStepStatus
+  getStepStatus,
+  documentType,
+  isFactoryMatched = false
 }: EntityStepNavigationProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
 
-  const steps = [
+  const allSteps = [
     { key: 'factories' as EntityStep, label: 'Factories', count: factoriesCount },
     { key: 'customers' as EntityStep, label: 'Sold to Customers', count: customersCount },
     { key: 'billtocustomers' as EntityStep, label: 'Bill to Customers', count: billToCustomersCount },
@@ -47,6 +59,51 @@ export function EntityStepNavigation({
     { key: 'credits' as EntityStep, label: 'Credits', count: creditsCount },
     { key: 'adjustments' as EntityStep, label: 'Adjustments', count: adjustmentsCount }
   ];
+
+  // Determine which tabs to show based on document type
+  const steps = useMemo(() => {
+    const normalizedDocType = documentType?.toUpperCase();
+
+    // For CHECKS: Show all tabs (orders, invoices, credits, adjustments all visible)
+    if (normalizedDocType === 'CHECKS') {
+      return allSteps;
+    }
+
+    // For INVOICES: Hide invoices, credits, adjustments tabs - only show orders
+    if (normalizedDocType === 'INVOICES') {
+      return allSteps.filter(step =>
+        !['invoices', 'credits', 'adjustments'].includes(step.key)
+      );
+    }
+
+    // For other document types (ORDERS, QUOTES, ORDER_ACKNOWLEDGEMENTS, etc.):
+    // Hide orders, invoices, credits, adjustments tabs entirely
+    return allSteps.filter(step =>
+      !FACTORY_DEPENDENT_TABS.includes(step.key)
+    );
+  }, [documentType, factoriesCount, customersCount, billToCustomersCount, endUsersCount, productsCount, ordersCount, invoicesCount, creditsCount, adjustmentsCount]);
+
+  // Determine if a tab should be disabled (waiting for factory match)
+  const isTabDisabled = (stepKey: EntityStep): boolean => {
+    const normalizedDocType = documentType?.toUpperCase();
+
+    // Only apply factory-dependent logic for CHECKS and INVOICES
+    if (normalizedDocType !== 'CHECKS' && normalizedDocType !== 'INVOICES') {
+      return false;
+    }
+
+    // For CHECKS: orders, invoices, credits, adjustments are disabled until factory matched
+    if (normalizedDocType === 'CHECKS') {
+      return FACTORY_DEPENDENT_TABS.includes(stepKey) && !isFactoryMatched;
+    }
+
+    // For INVOICES: only orders tab needs factory match
+    if (normalizedDocType === 'INVOICES') {
+      return stepKey === 'orders' && !isFactoryMatched;
+    }
+
+    return false;
+  };
 
   const checkScrollability = () => {
     const container = scrollContainerRef.current;
@@ -94,44 +151,81 @@ export function EntityStepNavigation({
           className="flex items-stretch gap-2 p-3 overflow-x-auto scrollbar-hide"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
-          {steps.map(step => {
-            const status = getStepStatus(step.key);
-            const isActive = currentStep === step.key;
+          <TooltipProvider>
+            {steps.map(step => {
+              const status = getStepStatus(step.key);
+              const isActive = currentStep === step.key;
+              const disabled = isTabDisabled(step.key);
 
-            return (
-              <button
-                key={step.key}
-                onClick={() => onStepChange(step.key)}
-                className={`flex-shrink-0 min-w-[120px] px-4 py-3 rounded-lg border-2 transition-all ${
-                  isActive
-                    ? 'border-primary bg-primary/5'
-                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-                <div className="flex items-center justify-center gap-1.5 mb-1.5">
-                  <span className={`text-sm font-semibold whitespace-nowrap ${isActive ? 'text-primary' : 'text-gray-700'}`}>
-                    {step.label}
-                  </span>
-                  {status.validated && (
-                    <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
+              const buttonContent = (
+                <button
+                  key={step.key}
+                  onClick={() => !disabled && onStepChange(step.key)}
+                  disabled={disabled}
+                  className={`flex-shrink-0 min-w-[120px] px-4 py-3 rounded-lg border-2 transition-all ${
+                    disabled
+                      ? 'border-gray-200 bg-gray-100 cursor-not-allowed opacity-60'
+                      : isActive
+                        ? 'border-primary bg-primary/5'
+                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-center justify-center gap-1.5 mb-1.5">
+                    {disabled && (
+                      <Lock className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                    )}
+                    <span className={`text-sm font-semibold whitespace-nowrap ${
+                      disabled
+                        ? 'text-gray-400'
+                        : isActive
+                          ? 'text-primary'
+                          : 'text-gray-700'
+                    }`}>
+                      {step.label}
+                    </span>
+                    {!disabled && status.validated && (
+                      <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
+                    )}
+                  </div>
+                  {disabled ? (
+                    <div className="text-xs text-gray-400 whitespace-nowrap">
+                      Match a factory first
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center gap-1.5">
+                      <Badge
+                        variant="secondary"
+                        className={`text-xs ${isActive ? 'bg-primary/10 text-primary' : ''}`}
+                      >
+                        {step.count}
+                      </Badge>
+                      {status.needsReview > 0 && (
+                        <Badge variant="secondary" className="bg-yellow-50 text-yellow-700 text-xs whitespace-nowrap">
+                          {status.needsReview} Review
+                        </Badge>
+                      )}
+                    </div>
                   )}
-                </div>
-                <div className="flex items-center justify-center gap-1.5">
-                  <Badge
-                    variant="secondary"
-                    className={`text-xs ${isActive ? 'bg-primary/10 text-primary' : ''}`}
-                  >
-                    {step.count}
-                  </Badge>
-                  {status.needsReview > 0 && (
-                    <Badge variant="secondary" className="bg-yellow-50 text-yellow-700 text-xs whitespace-nowrap">
-                      {status.needsReview} Review
-                    </Badge>
-                  )}
-                </div>
-              </button>
-            );
-          })}
+                </button>
+              );
+
+              // Wrap disabled tabs with tooltip for better UX
+              if (disabled) {
+                return (
+                  <Tooltip key={step.key}>
+                    <TooltipTrigger asChild>
+                      {buttonContent}
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Match and confirm a factory first to enable this tab</p>
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              }
+
+              return buttonContent;
+            })}
+          </TooltipProvider>
         </div>
 
         {/* Right scroll button */}

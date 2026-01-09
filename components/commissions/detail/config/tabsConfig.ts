@@ -49,6 +49,7 @@ export const getTabsConfig = (
     {
       id: 'activity',
       label: 'Activity',
+      comingSoon: true,
       disabled: isCreateMode,
       disabledReason: 'Save check first',
     },
