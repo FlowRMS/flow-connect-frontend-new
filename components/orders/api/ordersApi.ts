@@ -13,6 +13,7 @@ export {
   deleteOrder,
   duplicateOrder,
   createOrderFromQuote,
+  fetchAllOrderIds,
   type Order,
   type OrderLandingPage,
   type OrderBalance,

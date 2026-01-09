@@ -7,6 +7,7 @@ import { CreateProductModal } from './modals/CreateProductModal';
 import { DeleteProductModal } from './modals/DeleteProductModal';
 import { ManageCategoriesModal } from './modals/ManageCategoriesModal';
 import { ManageUomsModal } from './modals/ManageUomsModal';
+import { BulkDeleteModal, BulkActionsToolbar } from '../shared';
 import type { ProductLandingPage } from './api/useProductsApi';
 
 // Sort direction type
@@ -203,6 +204,20 @@ export default function ProductsContent() {
     uniqueCategories,
     // Handlers
     handleProductDeleted,
+    // Bulk selection
+    selectAllMode,
+    selectedCount,
+    isAllSelected,
+    isPartiallySelected,
+    isItemSelected,
+    handleSelectAll,
+    handleSelectOne,
+    clearSelection,
+    getAllSelectedIds,
+    // Bulk delete modal
+    showBulkDeleteModal,
+    setShowBulkDeleteModal,
+    handleBulkDeleteSuccess,
   } = useProductsState();
 
   // Product to delete
@@ -368,6 +383,17 @@ export default function ProductsContent() {
           <div className="text-sm text-[var(--muted-foreground)] mb-4">
             Showing {filteredProducts.length} of {totalCount} products
           </div>
+
+          {/* Bulk Actions Toolbar */}
+          <BulkActionsToolbar
+            entityType="PRODUCTS"
+            selectedCount={selectedCount}
+            totalCount={totalCount}
+            loadedCount={filteredProducts.length}
+            selectAllMode={selectAllMode}
+            onClearSelection={clearSelection}
+            onDelete={() => setShowBulkDeleteModal(true)}
+          />
         </div>
 
         {/* Products Table */}
@@ -408,6 +434,17 @@ export default function ProductsContent() {
                 <table className="w-full min-w-[1200px]">
                   <thead>
                     <tr className="border-b border-[var(--border)] bg-[var(--muted)]/30">
+                      <th className="px-4 py-3 text-left w-12">
+                        <input
+                          type="checkbox"
+                          checked={isAllSelected}
+                          ref={(el) => {
+                            if (el) el.indeterminate = isPartiallySelected;
+                          }}
+                          onChange={(e) => handleSelectAll(e.target.checked)}
+                          className="w-4 h-4 text-[var(--primary)] border-[var(--border)] rounded focus:ring-[var(--primary)] cursor-pointer"
+                        />
+                      </th>
                       <th className="px-4 py-3 text-left">
                         <ColumnHeader
                           label="Part Number"
@@ -516,8 +553,18 @@ export default function ProductsContent() {
                       <tr
                         key={product.id}
                         onClick={() => handleProductClick(product)}
-                        className="hover:bg-[var(--muted)]/20 transition-colors cursor-pointer"
+                        className={`hover:bg-[var(--muted)]/20 transition-colors cursor-pointer ${
+                          isItemSelected(product.id) ? 'bg-[var(--primary)]/5' : ''
+                        }`}
                       >
+                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={isItemSelected(product.id)}
+                            onChange={(e) => handleSelectOne(product.id, e.target.checked)}
+                            className="w-4 h-4 text-[var(--primary)] border-[var(--border)] rounded focus:ring-[var(--primary)] cursor-pointer"
+                          />
+                        </td>
                         <td className="px-4 py-3">
                           <div className="font-medium text-[var(--foreground)]">
                             {product.factoryPartNumber}
@@ -629,6 +676,17 @@ export default function ProductsContent() {
       <ManageUomsModal
         isOpen={showUomsModal}
         onClose={() => setShowUomsModal(false)}
+      />
+
+      {/* Bulk Delete Modal */}
+      <BulkDeleteModal
+        isOpen={showBulkDeleteModal}
+        entityType="PRODUCTS"
+        selectedCount={selectedCount}
+        getAllSelectedIds={getAllSelectedIds}
+        onClose={() => setShowBulkDeleteModal(false)}
+        onSuccess={handleBulkDeleteSuccess}
+        queryKeysToInvalidate={[['products']]}
       />
     </main>
   );

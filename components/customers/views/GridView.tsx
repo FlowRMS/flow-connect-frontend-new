@@ -14,6 +14,9 @@ interface GridViewProps {
   onEditClick: (customer: CustomerLandingPage) => void;
   onDeleteClick: (customer: CustomerLandingPage) => void;
   selectedIds: Set<string>;
+  excludedIds: Set<string>;
+  selectAllMode: boolean;
+  isItemSelected: (id: string) => boolean;
   onSelectOne: (id: string, checked: boolean) => void;
 }
 
@@ -22,7 +25,7 @@ export function GridView({
   onCustomerClick,
   onEditClick,
   onDeleteClick,
-  selectedIds,
+  isItemSelected,
   onSelectOne,
 }: GridViewProps) {
   const formatDate = (dateString?: string) => {
@@ -56,7 +59,7 @@ export function GridView({
         <div
           key={customer.id}
           className={`bg-[var(--card)] border rounded-lg p-4 hover:shadow-md transition-all cursor-pointer group ${
-            selectedIds.has(customer.id)
+            isItemSelected(customer.id)
               ? 'border-[var(--primary)] ring-2 ring-[var(--primary)]/20'
               : 'border-[var(--border)]'
           }`}
@@ -68,13 +71,13 @@ export function GridView({
               <div className="relative" onClick={(e) => e.stopPropagation()}>
                 <input
                   type="checkbox"
-                  checked={selectedIds.has(customer.id)}
+                  checked={isItemSelected(customer.id)}
                   onChange={(e) => onSelectOne(customer.id, e.target.checked)}
                   className="absolute top-0 left-0 w-4 h-4 text-[var(--primary)] border-[var(--border)] rounded focus:ring-[var(--primary)] cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
-                  style={{ opacity: selectedIds.has(customer.id) ? 1 : undefined }}
+                  style={{ opacity: isItemSelected(customer.id) ? 1 : undefined }}
                 />
                 <div className={`w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 ${
-                  selectedIds.has(customer.id) ? 'ring-2 ring-[var(--primary)]' : ''
+                  isItemSelected(customer.id) ? 'ring-2 ring-[var(--primary)]' : ''
                 }`}>
                   <span className="text-lg font-semibold text-blue-600">
                     {customer.companyName?.charAt(0).toUpperCase() || '?'}

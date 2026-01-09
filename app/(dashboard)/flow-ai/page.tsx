@@ -430,6 +430,7 @@ function FlowRMSPageContent() {
   const [manualEditInitialValue, setManualEditInitialValue] = useState('');
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
   const [isSelectTemplateOpen, setIsSelectTemplateOpen] = useState(false);
+  const hasShownTemplateModalRef = useRef<string | null>(null);
 
   // Dummy quick prompts to replace additionalInstructions
   const dummyQuickPrompts = [
@@ -769,6 +770,40 @@ function FlowRMSPageContent() {
   }, [pendingId, isInstructionRunning, refreshHistory]);
 
   const shouldShowWorkspace = Boolean(pendingId);
+
+  // Auto-show Select Template modal when reaching prompting step without a template applied
+  useEffect(() => {
+    if (
+      shouldShowWorkspace &&
+      !isHydrating &&
+      !isApplyingTemplate &&
+      !isInstructionRunning &&
+      !isSelectTemplateOpen &&
+      pendingId &&
+      hasShownTemplateModalRef.current !== pendingId &&
+      (!suggestedPrompts || suggestedPrompts.length === 0)
+    ) {
+      setIsSelectTemplateOpen(true);
+      hasShownTemplateModalRef.current = pendingId;
+    }
+  }, [
+    shouldShowWorkspace,
+    isHydrating,
+    isApplyingTemplate,
+    isInstructionRunning,
+    isSelectTemplateOpen,
+    pendingId,
+    suggestedPrompts,
+  ]);
+
+  // Reset the ref when pendingId changes (new document)
+  useEffect(() => {
+    if (pendingId && hasShownTemplateModalRef.current !== pendingId) {
+      // Reset when we get a new pendingId
+      hasShownTemplateModalRef.current = null;
+    }
+  }, [pendingId]);
+
   // Use entity processing action message when available, otherwise fall back to loadingAction
   const entityProcessingMessage = isEntityProcessing && entityProgress?.action ? entityProgress.action : null;
   const loadingMessage = isHydrating
@@ -1653,6 +1688,7 @@ function FlowRMSPageContent() {
         onOpenChange={setIsSelectTemplateOpen}
         onApplyTemplate={handleApplyTemplate}
         isApplyingTemplate={isApplyingTemplate}
+        entityType={entityType}
       />
 
       <SupportSubmissionModal
