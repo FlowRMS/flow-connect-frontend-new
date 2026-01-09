@@ -12,6 +12,7 @@ import { onError } from "@apollo/client/link/error";
 import { GraphQLWsLink } from '@apollo/client/link/subscriptions';
 import { getMainDefinition } from '@apollo/client/utilities';
 import { createClient } from 'graphql-ws';
+import { isUserNotFoundError, triggerGlobalUnauthorized } from "@/components/lib/unauthorized-handler";
 
 // Use the GraphQL proxy that handles cookie-based authentication
 const GRAPHQL_PROXY = "/api/flow-ai/graphql";
@@ -30,8 +31,16 @@ const RETRY_DELAY = 1000; // 1 second
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const errorLink = onError(({ graphQLErrors, networkError, operation, forward }: any) => {
   const operationName = operation.operationName || 'unnamed';
-  
+
   if (graphQLErrors) {
+    // Check for UserNotFoundError first - user not authorized on tenancy
+    if (isUserNotFoundError(graphQLErrors)) {
+      if (typeof window !== 'undefined') {
+        triggerGlobalUnauthorized();
+      }
+      return;
+    }
+
     for (const err of graphQLErrors) {
       // Check for authentication errors
       if (
