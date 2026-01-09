@@ -545,7 +545,7 @@ export function CheckDetailsFields({
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-[var(--muted-foreground)]">
-                        Deductions
+                        Adjustments
                       </span>
                       <span
                         className={`text-sm font-medium ${
