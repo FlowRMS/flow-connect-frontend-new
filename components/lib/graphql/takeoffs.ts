@@ -544,6 +544,7 @@ export async function abridgeDocument(
       reductionPercentage: null,
       pageAnalyses: null,
       error: response.errors[0]?.message || 'Failed to abridge document',
+      wasAbridged: false,
     };
   }
 
@@ -555,6 +556,7 @@ export async function abridgeDocument(
     reductionPercentage: null,
     pageAnalyses: null,
     error: 'No response from server',
+    wasAbridged: false,
   };
 }
 

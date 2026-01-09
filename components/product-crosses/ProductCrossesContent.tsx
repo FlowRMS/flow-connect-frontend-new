@@ -6,7 +6,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import AdvancedFilters, { type ActiveFilter } from '../AdvancedFilters';
+import AdvancedFilters, { type ActiveFilter } from '../advancedFilters/AdvancedFilters';
 import { PRODUCT_CROSS_FILTER_OPTIONS } from './constants';
 import {
   getKnownProductCrossesPaginated,
