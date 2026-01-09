@@ -109,26 +109,32 @@ export function AbridgmentReportModal({
             </button>
             <button
               onClick={() => {
-                // Generate CSV content for Excel with summary header
-                const csvContent = [
-                  // Summary section
-                  ['Abridgment Report Summary'],
-                  [`Document: ${document.name}`],
-                  [`Total Pages: ${totalPages}`],
-                  [`Pages Kept: ${includedPages}`],
-                  [`Pages Excluded: ${totalPages - includedPages}`],
-                  [`Reduction: ${reductionPercent.toFixed(1)}%`],
-                  hasAnalysisMismatch ? [`Note: AI analysis marked ${aiIncludedCount} pages as relevant`] : [],
-                  [],
-                  // Detail section header
-                  ['Page', 'AI Marked Relevant', 'Reason'].join(','),
-                  // Page details
+                // Helper to escape CSV cell values
+                const escapeCSV = (value: string | number): string => {
+                  const str = String(value);
+                  // Wrap in quotes if contains comma, quote, or newline
+                  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                    return `"${str.replace(/"/g, '""')}"`;
+                  }
+                  return str;
+                };
+
+                // Build CSV rows as arrays, then format properly
+                const rows: (string | number)[][] = [
+                  // Header row
+                  ['Page', 'AI Marked Relevant', 'Reason'],
+                  // Data rows
                   ...reportItems.map(item => [
-                    item.page,
+                    `Page ${item.page}`,
                     item.included ? 'Yes' : 'No',
-                    `"${item.reason.replace(/"/g, '""')}"`,
-                  ].join(',')),
-                ].filter(row => row.length > 0).join('\n');
+                    item.reason,
+                  ]),
+                ];
+
+                // Convert to CSV with proper escaping
+                const csvContent = rows.map(row =>
+                  row.map(cell => escapeCSV(cell)).join(',')
+                ).join('\n');
 
                 // Create and trigger download
                 const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
