@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+// API Hooks
 import {
-  mockSpecSheets,
-  mockHighlightDefinitions,
-  getManufacturersWithSpecSheets,
-  getAllSpecSheetTags,
-  getRootFoldersForManufacturer,
-  getChildFolders,
+  useManufacturersWithSpecSheets,
+  useSpecSheetsByFactory,
+  useHighlightVersions,
+} from './api/useSpecSheetsApi';
+// Mock data for folders (TODO: replace with API when available)
+import {
   mockSpecSheetFolders,
 } from '../../lib/data/submittals-mock';
 import type { SpecSheet, SpecSheetFolder } from '../../lib/types/submittals';
@@ -84,8 +85,8 @@ export default function SpecSheetsContent() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
-  // Filter state
-  const [selectedManufacturer, setSelectedManufacturer] = useState<string>('');
+  // Filter state - selectedManufacturerId is the factory UUID
+  const [selectedManufacturerId, setSelectedManufacturerId] = useState<string | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [highlightFilter, setHighlightFilter] = useState<HighlightFilter>('all');
 
@@ -106,11 +107,78 @@ export default function SpecSheetsContent() {
 
   // Manufacturer management modal
   const [showManufacturerModal, setShowManufacturerModal] = useState(false);
-  const [manufacturerList, setManufacturerList] = useState<string[]>(() => getManufacturersWithSpecSheets());
   const [editingManufacturerIndex, setEditingManufacturerIndex] = useState<number | null>(null);
   const [editingManufacturerName, setEditingManufacturerName] = useState('');
   const [draggedManufacturerIndex, setDraggedManufacturerIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  // ============================================================================
+  // API Hooks
+  // ============================================================================
+
+  // Fetch manufacturers (factories)
+  const {
+    data: manufacturers = [],
+    isLoading: isLoadingManufacturers
+  } = useManufacturersWithSpecSheets();
+
+  // Fetch spec sheets for selected manufacturer
+  const {
+    data: specSheetsData,
+    isLoading: isLoadingSpecSheets
+  } = useSpecSheetsByFactory(selectedManufacturerId, false);
+
+  // Transform API response to frontend SpecSheet type
+  const specSheets: SpecSheet[] = useMemo(() => {
+    if (!specSheetsData) return [];
+
+    // Find the manufacturer name for the selected ID
+    const manufacturer = manufacturers.find(m => m.id === selectedManufacturerId);
+    const manufacturerName = manufacturer?.name || 'Unknown';
+
+    return specSheetsData.map(sheet => ({
+      id: sheet.id,
+      manufacturer: manufacturerName,
+      fileName: sheet.fileName,
+      displayName: sheet.displayName,
+      categories: sheet.categories as SpecSheet['categories'],
+      tags: sheet.tags || [],
+      folderId: undefined,
+      uploadSource: sheet.uploadSource as SpecSheet['uploadSource'],
+      sourceUrl: sheet.sourceUrl || undefined,
+      fileUrl: sheet.fileUrl,
+      fileSize: sheet.fileSize,
+      pageCount: sheet.pageCount,
+      uploadedAt: sheet.createdAt,
+      uploadedBy: sheet.createdBy.fullName,
+      needsReview: sheet.needsReview,
+      usageCount: sheet.usageCount,
+      highlightCount: sheet.highlightCount,
+    }));
+  }, [specSheetsData, selectedManufacturerId, manufacturers]);
+
+  // Get the selected manufacturer name for display
+  const selectedManufacturer = useMemo(() => {
+    if (!selectedManufacturerId) return '';
+    return manufacturers.find(m => m.id === selectedManufacturerId)?.name || '';
+  }, [selectedManufacturerId, manufacturers]);
+
+  // Derive manufacturer list from API data
+  const manufacturerList = useMemo(() => {
+    return manufacturers.map(m => m.name);
+  }, [manufacturers]);
+
+  // Helper to find factory ID by name (for compatibility with folder data)
+  const findManufacturerIdByName = (name: string): string | null => {
+    const found = manufacturers.find(m => m.name === name);
+    return found?.id || null;
+  };
+
+  // Helper to select manufacturer by name (for folder clicks)
+  const selectManufacturerByName = (name: string) => {
+    const id = findManufacturerIdByName(name);
+    if (id) setSelectedManufacturerId(id);
+  };
 
   // Folder management state
   const [folders, setFolders] = useState<SpecSheetFolder[]>(mockSpecSheetFolders);
@@ -144,17 +212,9 @@ export default function SpecSheetsContent() {
     setDragOverIndex(null);
   };
 
-  const handleDrop = (index: number) => {
-    if (draggedManufacturerIndex === null || draggedManufacturerIndex === index) {
-      setDraggedManufacturerIndex(null);
-      setDragOverIndex(null);
-      return;
-    }
-
-    const newList = [...manufacturerList];
-    const [removed] = newList.splice(draggedManufacturerIndex, 1);
-    newList.splice(index, 0, removed);
-    setManufacturerList(newList);
+  const handleDrop = (_index: number) => {
+    // Manufacturer reordering is not supported when using API data
+    // Ordering should be managed through the manufacturer settings page
     setDraggedManufacturerIndex(null);
     setDragOverIndex(null);
   };
@@ -164,43 +224,24 @@ export default function SpecSheetsContent() {
     setDragOverIndex(null);
   };
 
-  const handleRenameManufacturer = (index: number) => {
-    setEditingManufacturerIndex(index);
-    setEditingManufacturerName(manufacturerList[index]);
+  const handleRenameManufacturer = (_index: number) => {
+    // Manufacturer renaming should be done through the manufacturer settings page
+    alert('To rename a manufacturer, please use the Manufacturers page in Settings.');
   };
 
   const handleSaveManufacturerRename = () => {
-    if (editingManufacturerIndex !== null && editingManufacturerName.trim()) {
-      const newList = [...manufacturerList];
-      newList[editingManufacturerIndex] = editingManufacturerName.trim();
-      setManufacturerList(newList);
-    }
     setEditingManufacturerIndex(null);
     setEditingManufacturerName('');
   };
 
-  const handleDeleteManufacturer = (index: number) => {
-    const manufacturer = manufacturerList[index];
-    const count = manufacturerCounts[manufacturer] || 0;
-    if (count > 0) {
-      alert(`Cannot delete "${manufacturer}" because it has ${count} spec sheet(s) associated with it.`);
-      return;
-    }
-    if (confirm(`Delete manufacturer "${manufacturer}"?`)) {
-      const newList = manufacturerList.filter((_, i) => i !== index);
-      setManufacturerList(newList);
-    }
+  const handleDeleteManufacturer = (_index: number) => {
+    // Manufacturer deletion should be done through the manufacturer settings page
+    alert('To delete a manufacturer, please use the Manufacturers page in Settings.');
   };
 
   const handleAddManufacturer = () => {
-    const newName = prompt('Enter new manufacturer name:');
-    if (newName && newName.trim()) {
-      if (manufacturerList.includes(newName.trim())) {
-        alert('This manufacturer already exists.');
-        return;
-      }
-      setManufacturerList([...manufacturerList, newName.trim()]);
-    }
+    // Manufacturer creation should be done through the manufacturer settings page
+    alert('To add a new manufacturer, please use the Manufacturers page in Settings.');
   };
 
   // Folder management functions
@@ -373,17 +414,18 @@ export default function SpecSheetsContent() {
     return folders.filter(f => f.parentId === parentId);
   };
 
-  const manufacturers = getManufacturersWithSpecSheets();
-  const allTags = getAllSpecSheetTags();
+  // Derive all unique tags from loaded spec sheets
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    specSheets.forEach(sheet => {
+      sheet.tags?.forEach(tag => tagSet.add(tag));
+    });
+    return Array.from(tagSet).sort();
+  }, [specSheets]);
 
-  // Filter spec sheets
+  // Filter spec sheets (already filtered by manufacturer via API)
   const filteredSpecSheets = useMemo(() => {
-    let result = [...mockSpecSheets];
-
-    // Manufacturer filter
-    if (selectedManufacturer) {
-      result = result.filter(s => s.manufacturer === selectedManufacturer);
-    }
+    let result = [...specSheets];
 
     // Folder filter
     if (selectedFolderId) {
@@ -416,11 +458,12 @@ export default function SpecSheetsContent() {
     }
 
     return result.sort((a, b) => a.displayName.localeCompare(b.displayName));
-  }, [selectedManufacturer, selectedFolderId, selectedTags, highlightFilter, searchQuery]);
+  }, [specSheets, selectedFolderId, selectedTags, highlightFilter, searchQuery]);
 
-  // Get highlight count for a spec sheet
+  // Get highlight count for a spec sheet (from API data)
   const getHighlightCount = (specSheetId: string) => {
-    return mockHighlightDefinitions.filter(h => h.specSheetId === specSheetId).length;
+    const sheet = specSheets.find(s => s.id === specSheetId);
+    return sheet?.highlightCount || 0;
   };
 
   // Toggle folder expansion
@@ -451,27 +494,27 @@ export default function SpecSheetsContent() {
 
   // Clear all filters
   const clearFilters = () => {
-    setSelectedManufacturer('');
+    setSelectedManufacturerId(null);
     setSelectedTags([]);
     setHighlightFilter('all');
     setSelectedFolderId(null);
     setSearchQuery('');
   };
 
-  const hasActiveFilters = selectedManufacturer || selectedTags.length > 0 || highlightFilter !== 'all' || selectedFolderId;
+  const hasActiveFilters = selectedManufacturerId || selectedTags.length > 0 || highlightFilter !== 'all' || selectedFolderId;
 
-  // Count spec sheets per manufacturer
+  // Count spec sheets per manufacturer (from loaded data)
   const manufacturerCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    mockSpecSheets.forEach(s => {
+    specSheets.forEach(s => {
       counts[s.manufacturer] = (counts[s.manufacturer] || 0) + 1;
     });
     return counts;
-  }, []);
+  }, [specSheets]);
 
   // Count spec sheets in folder
   const getFolderCount = (folderId: string): number => {
-    return mockSpecSheets.filter(s => s.folderId === folderId).length;
+    return specSheets.filter(s => s.folderId === folderId).length;
   };
 
   // Render folder tree recursively
@@ -491,7 +534,7 @@ export default function SpecSheetsContent() {
               if (!isEditing) {
                 if (hasChildren) toggleFolder(folder.id);
                 setSelectedFolderId(isSelected ? null : folder.id);
-                if (folder.manufacturer) setSelectedManufacturer(folder.manufacturer);
+                if (folder.manufacturer) selectManufacturerByName(folder.manufacturer);
               }
             }}
             onContextMenu={(e) => handleFolderContextMenu(e, folder)}
@@ -619,7 +662,7 @@ export default function SpecSheetsContent() {
                 <div className="flex flex-wrap gap-1.5">
                   {allTags.map(tag => {
                     const isSelected = selectedTags.includes(tag);
-                    const count = mockSpecSheets.filter(s => s.tags.includes(tag)).length;
+                    const count = specSheets.filter(s => s.tags.includes(tag)).length;
                     return (
                       <button
                         key={tag}
@@ -688,7 +731,7 @@ export default function SpecSheetsContent() {
                     <path d="M7 7h6M7 10h6M7 13h4"/>
                   </svg>
                   <span className="flex-1 text-left">All Sheets</span>
-                  <span className="text-xs text-[var(--muted-foreground)]">{mockSpecSheets.length}</span>
+                  <span className="text-xs text-[var(--muted-foreground)]">{specSheets.length}</span>
                 </button>
                 <button
                   onClick={() => setHighlightFilter('highlighted')}
@@ -702,7 +745,7 @@ export default function SpecSheetsContent() {
                   </svg>
                   <span className="flex-1 text-left">With Highlights</span>
                   <span className={`text-xs ${highlightFilter === 'highlighted' ? 'text-green-600' : 'text-[var(--muted-foreground)]'}`}>
-                    {mockSpecSheets.filter(s => (s.highlightCount || 0) > 0).length}
+                    {specSheets.filter(s => (s.highlightCount || 0) > 0).length}
                   </span>
                 </button>
                 <button
@@ -717,7 +760,7 @@ export default function SpecSheetsContent() {
                   </svg>
                   <span className="flex-1 text-left">Without Highlights</span>
                   <span className={`text-xs ${highlightFilter === 'not_highlighted' ? 'text-orange-600' : 'text-[var(--muted-foreground)]'}`}>
-                    {mockSpecSheets.filter(s => (s.highlightCount || 0) === 0).length}
+                    {specSheets.filter(s => (s.highlightCount || 0) === 0).length}
                   </span>
                 </button>
               </div>
@@ -763,32 +806,34 @@ export default function SpecSheetsContent() {
                 {/* All Manufacturers option */}
                 <button
                   onClick={() => {
-                    setSelectedManufacturer('');
+                    setSelectedManufacturerId(null);
                     setSelectedFolderId(null);
                   }}
                   className={`w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-[var(--muted)]/50 transition-colors ${
-                    !selectedManufacturer && !selectedFolderId ? 'bg-[var(--muted)] font-medium' : ''
+                    !selectedManufacturerId && !selectedFolderId ? 'bg-[var(--muted)] font-medium' : ''
                   }`}
                 >
                   <span className="w-3" />
                   <span className="flex-1 text-left">All Manufacturers</span>
                   <span className="text-xs text-[var(--muted-foreground)] bg-[var(--muted)] px-2 py-0.5 rounded-full">
-                    {mockSpecSheets.length}
+                    {isLoadingManufacturers ? '...' : manufacturers.length}
                   </span>
                 </button>
 
-                {manufacturers.map(manufacturer => {
-                  const isExpanded = expandedManufacturers.has(manufacturer);
-                  const isSelected = selectedManufacturer === manufacturer && !selectedFolderId;
-                  const manufacturerFolders = getFoldersForManufacturer(manufacturer);
-                  const count = manufacturerCounts[manufacturer] || 0;
+                {isLoadingManufacturers ? (
+                  <div className="px-4 py-3 text-sm text-[var(--muted-foreground)]">Loading...</div>
+                ) : manufacturers.map(mfr => {
+                  const isExpanded = expandedManufacturers.has(mfr.name);
+                  const isSelected = selectedManufacturerId === mfr.id && !selectedFolderId;
+                  const manufacturerFolders = getFoldersForManufacturer(mfr.name);
+                  const count = manufacturerCounts[mfr.name] || 0;
 
                   return (
-                    <div key={manufacturer}>
+                    <div key={mfr.id}>
                       <div
                         onClick={() => {
-                          toggleManufacturer(manufacturer);
-                          setSelectedManufacturer(manufacturer);
+                          toggleManufacturer(mfr.name);
+                          setSelectedManufacturerId(mfr.id);
                           setSelectedFolderId(null);
                         }}
                         className={`w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-[var(--muted)]/50 transition-colors cursor-pointer group ${
@@ -806,11 +851,11 @@ export default function SpecSheetsContent() {
                         >
                           <path d="M7 5l5 5-5 5" strokeLinecap="round" strokeLinejoin="round"/>
                         </svg>
-                        <span className="flex-1 text-left truncate">{manufacturer}</span>
+                        <span className="flex-1 text-left truncate">{mfr.name}</span>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleAddRootFolder(manufacturer);
+                            handleAddRootFolder(mfr.name);
                           }}
                           className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-[var(--muted)] rounded transition-all mr-1"
                           title="Add folder"
@@ -829,7 +874,7 @@ export default function SpecSheetsContent() {
                           {/* Add folder button for empty manufacturers */}
                           {manufacturerFolders.length === 0 && (
                             <button
-                              onClick={() => handleAddRootFolder(manufacturer)}
+                              onClick={() => handleAddRootFolder(mfr.name)}
                               className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)]/50 transition-colors"
                               style={{ paddingLeft: '28px' }}
                             >

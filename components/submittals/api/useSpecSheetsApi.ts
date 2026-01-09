@@ -273,9 +273,9 @@ export function useSpecSheetsWithFactoryNames(factoryId: string | null, publishe
   const { data: factories, isLoading: factoriesLoading } = useFactories();
   const { data: specSheets, isLoading: specSheetsLoading, error } = useSpecSheetsByFactory(factoryId, publishedOnly);
 
-  // Build factory ID to name map
+  // Build factory ID to name map (FactoryLandingPage uses 'title' for name)
   const factoryMap = new Map<string, string>();
-  factories?.forEach(f => factoryMap.set(f.id, f.name));
+  factories?.forEach(f => factoryMap.set(f.id, f.title));
 
   // Transform spec sheets to frontend format
   const transformedSpecSheets = specSheets?.map(sheet =>
@@ -286,7 +286,7 @@ export function useSpecSheetsWithFactoryNames(factoryId: string | null, publishe
     data: transformedSpecSheets,
     isLoading: factoriesLoading || specSheetsLoading,
     error,
-    factories: factories?.map(f => ({ id: f.id, name: f.name })) || [],
+    factories: factories?.map(f => ({ id: f.id, name: f.title })) || [],
   };
 }
 
@@ -303,9 +303,9 @@ export function useSpecSheetSearchWithFactoryNames(params: {
   const { data: factories, isLoading: factoriesLoading } = useFactories();
   const { data: specSheets, isLoading: specSheetsLoading, error } = useSpecSheetSearch(params, enabled);
 
-  // Build factory ID to name map
+  // Build factory ID to name map (FactoryLandingPage uses 'title' for name)
   const factoryMap = new Map<string, string>();
-  factories?.forEach(f => factoryMap.set(f.id, f.name));
+  factories?.forEach(f => factoryMap.set(f.id, f.title));
 
   // Transform spec sheets to frontend format
   const transformedSpecSheets = specSheets?.map(sheet =>
@@ -316,7 +316,7 @@ export function useSpecSheetSearchWithFactoryNames(params: {
     data: transformedSpecSheets,
     isLoading: factoriesLoading || specSheetsLoading,
     error,
-    factories: factories?.map(f => ({ id: f.id, name: f.name })) || [],
+    factories: factories?.map(f => ({ id: f.id, name: f.title })) || [],
   };
 }
 
@@ -328,9 +328,9 @@ export function useManufacturersWithSpecSheets() {
   const { data: factories, isLoading, error } = useFactories();
 
   // TODO: Filter to only factories that have spec sheets
-  // For now, return all factories
+  // For now, return all factories (FactoryLandingPage uses 'title' for name)
   return {
-    data: factories?.map(f => ({ id: f.id, name: f.name })) || [],
+    data: factories?.map(f => ({ id: f.id, name: f.title })) || [],
     isLoading,
     error,
   };
