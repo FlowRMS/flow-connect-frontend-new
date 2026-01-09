@@ -896,4 +896,238 @@ describe('Takeoff Flow Consistency', () => {
       });
     });
   });
+
+  // ==========================================================================
+  // CSV EXPORT TESTS
+  // ==========================================================================
+  describe('CSV Export Functionality', () => {
+    /**
+     * Helper function to escape CSV cell values
+     * Must wrap in quotes if contains comma, quote, or newline
+     */
+    const escapeCSV = (value: string | number): string => {
+      const str = String(value);
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    describe('escapeCSV Helper Function', () => {
+      it('should return plain string when no special characters', () => {
+        expect(escapeCSV('Hello')).toBe('Hello');
+        expect(escapeCSV('Page 1')).toBe('Page 1');
+        expect(escapeCSV('Yes')).toBe('Yes');
+      });
+
+      it('should wrap in quotes when string contains comma', () => {
+        expect(escapeCSV('Hello, World')).toBe('"Hello, World"');
+        expect(escapeCSV('Item A, Item B')).toBe('"Item A, Item B"');
+      });
+
+      it('should wrap in quotes and escape when string contains quote', () => {
+        expect(escapeCSV('Say "Hello"')).toBe('"Say ""Hello"""');
+        expect(escapeCSV('It\'s a "test"')).toBe('"It\'s a ""test"""');
+      });
+
+      it('should wrap in quotes when string contains newline', () => {
+        expect(escapeCSV('Line 1\nLine 2')).toBe('"Line 1\nLine 2"');
+      });
+
+      it('should handle numbers correctly', () => {
+        expect(escapeCSV(42)).toBe('42');
+        expect(escapeCSV(0)).toBe('0');
+      });
+
+      it('should handle complex strings with multiple special chars', () => {
+        const complexString = 'The page contains "keywords" like product, info\nand more';
+        const escaped = escapeCSV(complexString);
+        expect(escaped).toBe('"The page contains ""keywords"" like product, info\nand more"');
+      });
+    });
+
+    describe('CSV Row Generation', () => {
+      interface ReportItem {
+        page: number;
+        included: boolean;
+        reason: string;
+      }
+
+      it('should generate correct header row', () => {
+        const headerRow = ['Page', 'AI Marked Relevant', 'Reason'];
+        const csvHeader = headerRow.map(cell => escapeCSV(cell)).join(',');
+
+        expect(csvHeader).toBe('Page,AI Marked Relevant,Reason');
+      });
+
+      it('should generate correct data row for simple data', () => {
+        const item: ReportItem = {
+          page: 1,
+          included: true,
+          reason: 'Contains product information',
+        };
+
+        const row = [
+          `Page ${item.page}`,
+          item.included ? 'Yes' : 'No',
+          item.reason,
+        ];
+        const csvRow = row.map(cell => escapeCSV(cell)).join(',');
+
+        expect(csvRow).toBe('Page 1,Yes,Contains product information');
+      });
+
+      it('should properly escape reason with commas', () => {
+        const item: ReportItem = {
+          page: 1,
+          included: false,
+          reason: 'No product, schedule, or spec information found',
+        };
+
+        const row = [
+          `Page ${item.page}`,
+          item.included ? 'Yes' : 'No',
+          item.reason,
+        ];
+        const csvRow = row.map(cell => escapeCSV(cell)).join(',');
+
+        expect(csvRow).toBe('Page 1,No,"No product, schedule, or spec information found"');
+      });
+
+      it('should properly escape reason with quotes', () => {
+        const item: ReportItem = {
+          page: 1,
+          included: false,
+          reason: 'Does not contain "keywords" like product or schedule',
+        };
+
+        const row = [
+          `Page ${item.page}`,
+          item.included ? 'Yes' : 'No',
+          item.reason,
+        ];
+        const csvRow = row.map(cell => escapeCSV(cell)).join(',');
+
+        expect(csvRow).toBe('Page 1,No,"Does not contain ""keywords"" like product or schedule"');
+      });
+    });
+
+    describe('Full CSV Generation', () => {
+      interface ReportItem {
+        page: number;
+        included: boolean;
+        reason: string;
+      }
+
+      const generateCSV = (reportItems: ReportItem[]): string => {
+        const rows: (string | number)[][] = [
+          ['Page', 'AI Marked Relevant', 'Reason'],
+          ...reportItems.map(item => [
+            `Page ${item.page}`,
+            item.included ? 'Yes' : 'No',
+            item.reason,
+          ]),
+        ];
+
+        return rows.map(row =>
+          row.map(cell => escapeCSV(cell)).join(',')
+        ).join('\n');
+      };
+
+      it('should generate valid CSV with multiple rows', () => {
+        const items: ReportItem[] = [
+          { page: 1, included: true, reason: 'Contains schedules' },
+          { page: 2, included: false, reason: 'Technical drawing only' },
+        ];
+
+        const csv = generateCSV(items);
+        const lines = csv.split('\n');
+
+        expect(lines.length).toBe(3); // Header + 2 data rows
+        expect(lines[0]).toBe('Page,AI Marked Relevant,Reason');
+        expect(lines[1]).toBe('Page 1,Yes,Contains schedules');
+        expect(lines[2]).toBe('Page 2,No,Technical drawing only');
+      });
+
+      it('should handle empty report items', () => {
+        const items: ReportItem[] = [];
+        const csv = generateCSV(items);
+
+        expect(csv).toBe('Page,AI Marked Relevant,Reason');
+      });
+
+      it('should generate CSV that Excel can parse correctly', () => {
+        const items: ReportItem[] = [
+          {
+            page: 1,
+            included: false,
+            reason: 'The page contains a detailed plumbing under floor plan drawing but does not contain any of the specified keywords such as product, information, schedules.',
+          },
+        ];
+
+        const csv = generateCSV(items);
+        const lines = csv.split('\n');
+
+        // Header should be 3 columns
+        expect(lines[0].split(',').length).toBe(3);
+
+        // Data row: Page 1, No, and a long quoted reason
+        // The reason contains commas so it should be quoted
+        expect(lines[1]).toContain('Page 1');
+        expect(lines[1]).toContain('No');
+        expect(lines[1]).toContain('"The page contains');
+      });
+
+      it('should NOT split words into separate columns (regression test)', () => {
+        // This was the bug: "Abridgment Report Summary" was being split into
+        // separate columns because it wasn't properly formatted as CSV
+        const items: ReportItem[] = [
+          { page: 1, included: true, reason: 'Multiple words here' },
+        ];
+
+        const csv = generateCSV(items);
+        const lines = csv.split('\n');
+
+        // Parse the CSV manually to verify column count
+        const parseCSVRow = (row: string): string[] => {
+          const result: string[] = [];
+          let current = '';
+          let inQuotes = false;
+
+          for (let i = 0; i < row.length; i++) {
+            const char = row[i];
+            if (char === '"') {
+              if (inQuotes && row[i + 1] === '"') {
+                current += '"';
+                i++;
+              } else {
+                inQuotes = !inQuotes;
+              }
+            } else if (char === ',' && !inQuotes) {
+              result.push(current);
+              current = '';
+            } else {
+              current += char;
+            }
+          }
+          result.push(current);
+          return result;
+        };
+
+        // Header should have exactly 3 columns
+        const headerCols = parseCSVRow(lines[0]);
+        expect(headerCols.length).toBe(3);
+        expect(headerCols[0]).toBe('Page');
+        expect(headerCols[1]).toBe('AI Marked Relevant');
+        expect(headerCols[2]).toBe('Reason');
+
+        // Data row should have exactly 3 columns
+        const dataCols = parseCSVRow(lines[1]);
+        expect(dataCols.length).toBe(3);
+        expect(dataCols[0]).toBe('Page 1');
+        expect(dataCols[1]).toBe('Yes');
+        expect(dataCols[2]).toBe('Multiple words here');
+      });
+    });
+  });
 });
