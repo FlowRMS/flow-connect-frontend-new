@@ -1688,6 +1688,7 @@ function FlowRMSPageContent() {
         onOpenChange={setIsSelectTemplateOpen}
         onApplyTemplate={handleApplyTemplate}
         isApplyingTemplate={isApplyingTemplate}
+        entityType={entityType}
       />
 
       <SupportSubmissionModal

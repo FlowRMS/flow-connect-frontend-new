@@ -7,9 +7,29 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/flow-ai/ui/input';
 import { Button } from '@/components/flow-ai/ui/button';
 import { Badge } from '@/components/flow-ai/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/flow-ai/ui/select';
 import { cn } from '@/lib/flow-ai/cn';
 import { Q_GET_CLUSTERS } from '@/lib/flow-ai/gql';
 import { toast } from 'sonner';
+import { EntityType, ENTITY_TYPE_OPTIONS } from '@/components/flow-ai/types/queue';
+import { Building2 } from 'lucide-react';
+
+// Filter entity types to only those relevant for templates
+const TEMPLATE_ENTITY_TYPES: EntityType[] = [
+  'QUOTES',
+  'ORDERS',
+  'INVOICES',
+  'CHECKS',
+  'PRODUCTS',
+  'FACTORIES',
+  'CUSTOMERS',
+  'ORDER_ACKNOWLEDGEMENTS',
+];
+
+// Create filtered options for templates
+const TEMPLATE_ENTITY_TYPE_OPTIONS = ENTITY_TYPE_OPTIONS.filter((opt) =>
+  TEMPLATE_ENTITY_TYPES.includes(opt.value)
+);
 
 interface Cluster {
   id: string;
@@ -33,6 +53,7 @@ interface SelectTemplateModalProps {
   onOpenChange: (open: boolean) => void;
   onApplyTemplate: (clusterId: string) => Promise<boolean> | boolean;
   isApplyingTemplate?: boolean;
+  entityType?: string | null;
 }
 
 export function SelectTemplateModal({
@@ -40,12 +61,15 @@ export function SelectTemplateModal({
   onOpenChange,
   onApplyTemplate,
   isApplyingTemplate = false,
+  entityType,
 }: SelectTemplateModalProps) {
   const apolloClient = useApolloClient();
   const [clusters, setClusters] = useState<Cluster[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClusterId, setSelectedClusterId] = useState<string | null>(null);
+  const [entityTypeFilter, setEntityTypeFilter] = useState<EntityType | 'all'>('all');
+
 
   const fetchClusters = useCallback(async () => {
     setLoading(true);
@@ -74,8 +98,16 @@ export function SelectTemplateModal({
     if (!open) {
       setSearchTerm('');
       setSelectedClusterId(null);
+      setEntityTypeFilter('all');
+    } else {
+      // Initialize entity type filter with the prop value when modal opens
+      if (entityType && TEMPLATE_ENTITY_TYPES.includes(entityType as EntityType)) {
+        setEntityTypeFilter(entityType as EntityType);
+      } else {
+        setEntityTypeFilter('all');
+      }
     }
-  }, [open]);
+  }, [open, entityType]);
 
   const enrichedClusters = useMemo<EnrichedCluster[]>(() => {
     return clusters.map((cluster) => {
@@ -110,10 +142,26 @@ export function SelectTemplateModal({
   }, [clusters]);
 
   const filteredClusters = useMemo(() => {
-    const value = searchTerm.trim().toLowerCase();
-    if (!value) return enrichedClusters;
+    // First filter by entityType if selected
+    let filtered = enrichedClusters;
+    
+    if (entityTypeFilter !== 'all') {
+      const normalizedEntityType = entityTypeFilter.toUpperCase().trim();
+      filtered = enrichedClusters.filter((cluster) => {
+        // If cluster has no entityType in metadata, show it (for backward compatibility)
+        if (!cluster.metadata.entityType) {
+          return true;
+        }
+        // Compare case-insensitively
+        return cluster.metadata.entityType.toUpperCase().trim() === normalizedEntityType;
+      });
+    }
 
-    return enrichedClusters.filter((cluster) => {
+    // Then apply search filter if there's a search term
+    const value = searchTerm.trim().toLowerCase();
+    if (!value) return filtered;
+
+    return filtered.filter((cluster) => {
       const matchesId = cluster.id.toLowerCase().includes(value);
       const matchesName = cluster.clusterName?.toLowerCase().includes(value);
       const matchesSource = cluster.metadata.sourceName?.toLowerCase().includes(value);
@@ -122,7 +170,7 @@ export function SelectTemplateModal({
       );
       return matchesId || matchesName || matchesSource || matchesInstructions;
     });
-  }, [enrichedClusters, searchTerm]);
+  }, [enrichedClusters, searchTerm, entityTypeFilter]);
 
   const handleApply = useCallback(async () => {
     if (!selectedClusterId) {
@@ -156,14 +204,33 @@ export function SelectTemplateModal({
 
         <div className="space-y-4 flex-1 min-h-0 flex flex-col">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-              <Input
-                value={searchTerm}
-                placeholder="Search by template name, ID, source, or instruction"
-                onChange={(event) => setSearchTerm(event.target.value)}
-                className="pl-9"
-              />
+            <div className="flex gap-2 flex-1">
+              <Select
+                value={entityTypeFilter}
+                onValueChange={(v) => setEntityTypeFilter(v as EntityType | 'all')}
+              >
+                <SelectTrigger className="w-[190px] focus:ring-0 focus:ring-offset-0">
+                  <Building2 className="w-4 h-4 mr-2 shrink-0" />
+                  <SelectValue placeholder="Entity Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Entity Types</SelectItem>
+                  {TEMPLATE_ENTITY_TYPE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                <Input
+                  value={searchTerm}
+                  placeholder="Search by template name, ID, source, or instruction"
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  className="pl-9"
+                />
+              </div>
             </div>
             <Button variant="outline" size="sm" onClick={() => fetchClusters()} disabled={loading}>
               {loading ? (
