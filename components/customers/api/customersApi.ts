@@ -521,6 +521,32 @@ export async function deleteCustomer(id: string): Promise<boolean> {
 }
 
 /**
+ * Fetch all customer IDs matching the given filters
+ * Used for bulk operations when "select all" is enabled
+ */
+export async function fetchAllCustomerIds(
+  filters?: CustomerLandingPageFilter[],
+  orderBy?: CustomerLandingPageOrderBy[]
+): Promise<string[]> {
+  // First get total count
+  const initialResult = await fetchCustomersWithPagination(filters, orderBy, { limit: 1, offset: 0 });
+  const total = initialResult.total;
+
+  if (total === 0) return [];
+
+  // Fetch all records in batches
+  const batchSize = 500;
+  const allIds: string[] = [];
+
+  for (let offset = 0; offset < total; offset += batchSize) {
+    const result = await fetchCustomersWithPagination(filters, orderBy, { limit: batchSize, offset });
+    allIds.push(...result.records.map(r => r.id));
+  }
+
+  return allIds;
+}
+
+/**
  * Search users for rep selection
  * Returns users filtered by inside/outside rep type
  * Empty searchTerm returns initial results

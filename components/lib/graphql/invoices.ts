@@ -1165,3 +1165,29 @@ export async function createInvoiceFromOrder(input: CreateInvoiceFromOrderInput)
 
   return response.data.createInvoiceFromOrder;
 }
+
+/**
+ * Fetch all invoice IDs for bulk operations
+ * Used when user selects all including unloaded items
+ */
+export async function fetchAllInvoiceIds(
+  filters?: InvoiceLandingPageFilter[],
+  orderBy?: InvoiceLandingPageOrderBy[]
+): Promise<string[]> {
+  // First get the total count
+  const initialResult = await fetchInvoicesWithPagination(filters, orderBy, { limit: 1, offset: 0 });
+  const total = initialResult.total;
+
+  if (total === 0) return [];
+
+  // Fetch all IDs in batches
+  const batchSize = 500;
+  const allIds: string[] = [];
+
+  for (let offset = 0; offset < total; offset += batchSize) {
+    const result = await fetchInvoicesWithPagination(filters, orderBy, { limit: batchSize, offset });
+    allIds.push(...result.records.map(r => r.id));
+  }
+
+  return allIds;
+}

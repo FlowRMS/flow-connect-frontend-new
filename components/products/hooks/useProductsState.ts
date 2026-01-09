@@ -3,7 +3,7 @@
  * Manages UI state for the products list page
  */
 
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   useProductsInfinite,
   useProductSearch,
@@ -12,7 +12,9 @@ import {
   type ProductLandingPageOrderBy,
   type ProductSearchResult,
 } from '../api/useProductsApi';
+import { fetchAllProductIds } from '../api/productsApi';
 import type { ActiveFilter } from '../../advancedFilters/AdvancedFilters';
+import { useBulkSelection } from '../../shared';
 
 export type ViewMode = 'list' | 'grid';
 
@@ -123,6 +125,23 @@ export function useProductsState() {
     if (!data?.pages || data.pages.length === 0) return 0;
     return data.pages[0].total;
   }, [data]);
+
+  // Bulk selection with shared hook
+  const bulkSelection = useBulkSelection({
+    items: products,
+    totalCount,
+    fetchAllIds: () => fetchAllProductIds(serverFilters, serverOrderBy),
+  });
+
+  // Bulk delete modal state
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+
+  // Handle bulk delete success
+  const handleBulkDeleteSuccess = useCallback(() => {
+    bulkSelection.clearSelection();
+    setShowBulkDeleteModal(false);
+    refetch();
+  }, [bulkSelection, refetch]);
 
   // Apply client-side search and filtering
   const filteredProducts = useMemo(() => {
@@ -379,5 +398,23 @@ export function useProductsState() {
 
     // Handlers
     handleProductDeleted,
+
+    // Bulk selection (from shared hook)
+    selectedIds: bulkSelection.selectedIds,
+    excludedIds: bulkSelection.excludedIds,
+    selectAllMode: bulkSelection.selectAllMode,
+    selectedCount: bulkSelection.selectedCount,
+    isAllSelected: bulkSelection.isAllSelected,
+    isPartiallySelected: bulkSelection.isPartiallySelected,
+    isItemSelected: bulkSelection.isItemSelected,
+    handleSelectAll: bulkSelection.handleSelectAll,
+    handleSelectOne: bulkSelection.handleSelectOne,
+    clearSelection: bulkSelection.clearSelection,
+    getAllSelectedIds: bulkSelection.getAllSelectedIds,
+
+    // Bulk delete modal
+    showBulkDeleteModal,
+    setShowBulkDeleteModal,
+    handleBulkDeleteSuccess,
   };
 }

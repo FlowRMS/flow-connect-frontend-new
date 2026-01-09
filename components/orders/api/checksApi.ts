@@ -122,6 +122,31 @@ export function useChecksByFactory(factoryId: string | null) {
 }
 
 /**
+ * Fetch all check IDs for bulk operations
+ * Used when user selects all including unloaded items
+ */
+export async function fetchAllCheckIds(
+  filters?: Array<{ columnName: string; operator: string; value: string }>
+): Promise<string[]> {
+  // First get the total count
+  const initialResult = await _fetchChecksLandingPage(filters, 1, 0);
+  const total = initialResult.total;
+
+  if (total === 0) return [];
+
+  // Fetch all IDs in batches
+  const batchSize = 500;
+  const allIds: string[] = [];
+
+  for (let offset = 0; offset < total; offset += batchSize) {
+    const result = await _fetchChecksLandingPage(filters, batchSize, offset);
+    allIds.push(...result.records.map(r => r.id));
+  }
+
+  return allIds;
+}
+
+/**
  * Hook to create a check
  */
 export function useCreateCheck() {

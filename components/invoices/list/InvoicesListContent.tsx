@@ -17,6 +17,7 @@ import {
   RecordPaymentModal,
   CreateInvoiceModal,
 } from './components/modals';
+import { BulkDeleteModal, BulkActionsToolbar } from '../../shared';
 
 export default function InvoicesListContent() {
   const state = useInvoicesListState();
@@ -101,6 +102,17 @@ export default function InvoicesListContent() {
             showQuickDateFieldDropdown={state.showQuickDateFieldDropdown}
             setShowQuickDateFieldDropdown={state.setShowQuickDateFieldDropdown}
           />
+
+          {/* Bulk Actions Toolbar */}
+          <BulkActionsToolbar
+            entityType="INVOICES"
+            selectedCount={state.selectedCount}
+            totalCount={state.totalCount}
+            loadedCount={state.filteredInvoices.length}
+            selectAllMode={state.selectAllMode}
+            onClearSelection={state.clearSelection}
+            onDelete={() => state.setShowBulkDeleteModal(true)}
+          />
         </div>
 
         {/* Loading State */}
@@ -141,6 +153,11 @@ export default function InvoicesListContent() {
             selectAllInvoices={state.selectAllInvoices}
             clearSelection={state.clearSelection}
             areAllEligibleSelected={state.areAllEligibleSelected}
+            isItemSelected={state.isItemSelected}
+            isAllSelected={state.isAllSelected}
+            isPartiallySelected={state.isPartiallySelected}
+            handleSelectAll={state.handleSelectAll}
+            handleSelectOne={state.handleSelectOne}
             sortField={state.sortField}
             sortDirection={state.sortDirection}
             handleSort={state.handleSort}
@@ -228,6 +245,17 @@ export default function InvoicesListContent() {
           }}
         />
       )}
+
+      {/* Bulk Delete Modal */}
+      <BulkDeleteModal
+        isOpen={state.showBulkDeleteModal}
+        entityType="INVOICES"
+        selectedCount={state.selectedCount}
+        getAllSelectedIds={state.getAllSelectedIds}
+        onClose={() => state.setShowBulkDeleteModal(false)}
+        onSuccess={state.handleBulkDeleteSuccess}
+        queryKeysToInvalidate={[['invoices']]}
+      />
     </main>
   );
 }
