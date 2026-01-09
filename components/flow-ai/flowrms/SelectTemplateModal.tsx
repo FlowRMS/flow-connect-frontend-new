@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useApolloClient } from '@apollo/client/react';
-import { Search, Sparkles, Loader2, RefreshCw, FileText, Hash } from 'lucide-react';
+import { Search, Sparkles, Loader2, RefreshCw, FileText, Hash, Plus } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/flow-ai/ui/dialog';
 import { Input } from '@/components/flow-ai/ui/input';
 import { Button } from '@/components/flow-ai/ui/button';
@@ -285,8 +285,9 @@ export function SelectTemplateModal({
             <div className="text-xs text-muted-foreground">Select a template to continue.</div>
           )}
           <div className="flex gap-2 sm:flex-shrink-0">
-            <Button variant="ghost" onClick={() => onOpenChange(false)}>
-              Cancel
+            <Button variant="outline" className="justify-center" onClick={() => onOpenChange(false)}>
+              <Plus className="w-4 h-4" />
+              Create New Template
             </Button>
             <Button
               onClick={handleApply}
