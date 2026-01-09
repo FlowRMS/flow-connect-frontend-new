@@ -86,7 +86,7 @@ function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
     quantityCredited: detail.cancelledBalance || 0,
     isCancelled: detail.status === 'CANCELLED',
     isConsignment: false,
-    status: detail.status === 'CANCELLED' ? 'cancelled' : detail.status === 'SHIPPED' ? 'shipped' : 'open',
+    status: detail.status?.toLowerCase() as ('open' | 'shipped' | 'partial_shipped' | 'cancelled' | 'invoiced') || 'open',
     // Store additional fields for line item
     endUserId: detail.endUserId,
     endUserName: '', // Will be fetched separately

@@ -7,6 +7,8 @@ import {
   ApolloLink,
   Observable,
 } from "@apollo/client";
+import { onError } from "@apollo/client/link/error";
+import { isUserNotFoundError, triggerGlobalUnauthorized } from "@/components/lib/unauthorized-handler";
 
 // Token cache for WorkOS tokens
 let cachedToken: string | null = null;
@@ -49,6 +51,17 @@ const httpLink = new HttpLink({
   fetchOptions: {
     mode: 'cors',
   },
+});
+
+// Error link to handle UserNotFoundError globally
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const errorLink = onError(({ graphQLErrors }: any) => {
+  if (graphQLErrors && isUserNotFoundError(graphQLErrors)) {
+    clearTokenCache();
+    if (typeof window !== 'undefined') {
+      triggerGlobalUnauthorized();
+    }
+  }
 });
 
 // Auth link that adds WorkOS token to requests
@@ -94,7 +107,7 @@ const authLink = new ApolloLink((operation, forward) => {
   });
 });
 
-const link = ApolloLink.from([authLink, httpLink]);
+const link = ApolloLink.from([errorLink, authLink, httpLink]);
 
 const cache = new InMemoryCache({
   typePolicies: {
