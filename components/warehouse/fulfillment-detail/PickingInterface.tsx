@@ -98,19 +98,35 @@ export default function PickingInterface({
     const initial: Record<string, LineItemPickState> = {};
     fulfillmentOrder.lineItems.forEach(li => {
       const allocations = getAllocationsForLineItem(li, inventoryData);
-      initial[li.id] = {
-        lineItemId: li.id,
-        locations: allocations.map(loc => ({
+      const serverPickedQty = Number(li.pickedQty) || 0;
+      const isFullyPicked = serverPickedQty >= li.allocatedQty;
+
+      // If already picked on server, distribute picked qty across locations proportionally
+      let remainingPicked = serverPickedQty;
+      const locations = allocations.map((loc, idx) => {
+        const locPickedQty = isFullyPicked
+          ? loc.quantity  // Fully picked - each location has its full quantity
+          : (idx === allocations.length - 1
+              ? remainingPicked  // Last location gets remainder
+              : Math.min(loc.quantity, remainingPicked));
+        remainingPicked = Math.max(0, remainingPicked - locPickedQty);
+
+        return {
           locationId: loc.locationId,
           locationName: loc.locationName,
           locationType: loc.locationType,
           expectedQty: loc.quantity,
-          pickedQty: 0,
-          isFinalized: false,
-        })),
+          pickedQty: locPickedQty,
+          isFinalized: locPickedQty > 0,
+        };
+      });
+
+      initial[li.id] = {
+        lineItemId: li.id,
+        locations,
         totalExpected: li.allocatedQty,
-        totalPicked: 0,
-        isShort: false,
+        totalPicked: serverPickedQty,
+        isShort: serverPickedQty < li.allocatedQty && locations.every(l => l.isFinalized),
         shortageNotes: '',
       };
     });
@@ -188,6 +204,17 @@ export default function PickingInterface({
     const state = locationPicks[li.id];
     return state && state.totalPicked >= state.totalExpected;
   });
+
+  // Sync picked quantities to parent component when locationPicks changes
+  // This avoids calling setState during render which causes React errors
+  useEffect(() => {
+    Object.entries(locationPicks).forEach(([lineItemId, lineState]) => {
+      const currentPicked = pickedItems[lineItemId] ?? 0;
+      if (lineState.totalPicked !== currentPicked) {
+        onMarkAsPicked(lineItemId, lineState.totalPicked);
+      }
+    });
+  }, [locationPicks, pickedItems, onMarkAsPicked]);
 
   // Calculate all shortages across all finalized locations
   const allShortages = useMemo(() => {
@@ -369,9 +396,6 @@ export default function PickingInterface({
       const allFinalized = newLocations.every(l => l.isFinalized);
       const isShort = allFinalized && newTotalPicked < currentLineState.totalExpected;
 
-      // Sync with parent component
-      onMarkAsPicked(lineItemId, newTotalPicked);
-
       return {
         ...prev,
         [lineItemId]: {
@@ -382,7 +406,7 @@ export default function PickingInterface({
         },
       };
     });
-  }, [locationPicks, fulfillmentOrder.lineItems, onMarkAsPicked, onReportInventoryDiscrepancy]);
+  }, [locationPicks, fulfillmentOrder.lineItems, onReportInventoryDiscrepancy]);
 
   // Unfinalize a location - allows editing again and recalculates expected quantities
   const handleUnfinalizeLocation = useCallback((lineItemId: string, locationId: string) => {
@@ -442,7 +466,6 @@ export default function PickingInterface({
 
       const newTotalPicked = newLocations.reduce((sum, l) => sum + (l.isFinalized ? l.pickedQty : 0), 0);
       const allFinalized = newLocations.every(l => l.isFinalized);
-      onMarkAsPicked(lineItemId, newTotalPicked);
 
       return {
         ...prev,
@@ -454,7 +477,7 @@ export default function PickingInterface({
         },
       };
     });
-  }, [onMarkAsPicked, fulfillmentOrder.lineItems]);
+  }, [fulfillmentOrder.lineItems, inventoryData]);
 
   // Pick all from a specific location and finalize it
   const handlePickAllFromLocation = useCallback((lineItemId: string, locationId: string) => {
@@ -470,7 +493,6 @@ export default function PickingInterface({
 
       const newTotalPicked = newLocations.reduce((sum, l) => sum + (l.isFinalized ? l.pickedQty : 0), 0);
       const allFinalized = newLocations.every(l => l.isFinalized);
-      onMarkAsPicked(lineItemId, newTotalPicked);
 
       return {
         ...prev,
@@ -482,7 +504,7 @@ export default function PickingInterface({
         },
       };
     });
-  }, [onMarkAsPicked]);
+  }, []);
 
   // Pick all from all locations for a line item and finalize all
   const handlePickAllForItem = useCallback((lineItemId: string) => {
@@ -497,7 +519,6 @@ export default function PickingInterface({
       }));
 
       const newTotalPicked = newLocations.reduce((sum, l) => sum + l.pickedQty, 0);
-      onMarkAsPicked(lineItemId, newTotalPicked);
 
       return {
         ...prev,
@@ -509,7 +530,7 @@ export default function PickingInterface({
         },
       };
     });
-  }, [onMarkAsPicked]);
+  }, []);
 
   // Reset picking for a line item
   const handleResetItem = useCallback((lineItemId: string) => {
@@ -531,8 +552,6 @@ export default function PickingInterface({
         isFinalized: false,
       }));
 
-      onMarkAsPicked(lineItemId, 0);
-
       return {
         ...prev,
         [lineItemId]: {
@@ -543,7 +562,7 @@ export default function PickingInterface({
         },
       };
     });
-  }, [onMarkAsPicked, fulfillmentOrder.lineItems, inventoryData]);
+  }, [fulfillmentOrder.lineItems, inventoryData]);
 
   // Report all inventory discrepancies across the order
   const handleReportAllDiscrepancies = useCallback(() => {

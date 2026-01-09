@@ -527,6 +527,8 @@ export interface FulfillmentOrderLineItem {
 
   // Warehouse reality - qty breakdown
   allocatedQty: number;
+  pickedQty: number;
+  packedQty: number;
   shippedQty: number;
   backorderQty: number;
 
