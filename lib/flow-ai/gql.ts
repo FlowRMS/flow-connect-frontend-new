@@ -68,6 +68,7 @@ export const Q_GET_PENDING = gql`
       sourceName
       sourceType
       status
+      workflowStatus
       updatedAt
     }
   }
@@ -770,6 +771,18 @@ export const Q_GET_ALL_PENDING_ENTITIES = gql`
     products: pendingEntities(filterInput: { entityType: PRODUCTS, pendingDocumentId: $pendingDocumentId }) {
       ${PENDING_ENTITY_FIELDS}
     }
+    orders: pendingEntities(filterInput: { entityType: ORDERS, pendingDocumentId: $pendingDocumentId }) {
+      ${PENDING_ENTITY_FIELDS}
+    }
+    invoices: pendingEntities(filterInput: { entityType: INVOICES, pendingDocumentId: $pendingDocumentId }) {
+      ${PENDING_ENTITY_FIELDS}
+    }
+    credits: pendingEntities(filterInput: { entityType: CREDITS, pendingDocumentId: $pendingDocumentId }) {
+      ${PENDING_ENTITY_FIELDS}
+    }
+    adjustments: pendingEntities(filterInput: { entityType: ADJUSTMENTS, pendingDocumentId: $pendingDocumentId }) {
+      ${PENDING_ENTITY_FIELDS}
+    }
   }
 `;
 
@@ -1117,6 +1130,31 @@ export const M_BATCH_PROCESS_DOCUMENTS = gql`
 export const M_EXECUTE_DOCUMENT_WORKFLOW = gql`
   mutation ExecuteDocumentWorkflow($pendingDocumentId: UUID!) {
     executeDocumentWorkflow(pendingDocumentId: $pendingDocumentId) {
+      message
+      success
+      taskId
+    }
+  }
+`;
+
+// Query to get processing results for a pending document
+export const Q_PENDING_DOCUMENT_PROCESSINGS = gql`
+  query PendingDocumentProcessings($pendingDocumentId: UUID!) {
+    pendingDocumentProcessings(pendingDocumentId: $pendingDocumentId) {
+      dtoJson
+      entityId
+      errorMessage
+      id
+      pendingDocumentId
+      status
+    }
+  }
+`;
+
+// Mutation to send email notification when pending document status changes
+export const M_SEND_PENDING_DOCUMENT_STATUS_EMAIL = gql`
+  mutation SendPendingDocumentStatusEmail($pendingDocumentId: UUID!) {
+    sendPendingDocumentStatusEmail(pendingDocumentId: $pendingDocumentId) {
       message
       success
       taskId

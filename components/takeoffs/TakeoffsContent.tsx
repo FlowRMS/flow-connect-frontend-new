@@ -15,7 +15,7 @@ import { UploadModal } from './modals/UploadModal';
 import { AbridgmentReportModal } from './modals/AbridgmentReportModal';
 import { CreateQuoteFromTakeoffModal } from './modals/CreateQuoteFromTakeoffModal';
 import { TAKEOFF_FILTER_OPTIONS } from './constants';
-import AdvancedFilters from '../AdvancedFilters';
+import AdvancedFilters from '../advancedFilters/AdvancedFilters';
 import { showWarningToast } from '../lib/toast';
 
 export function TakeoffsContent() {

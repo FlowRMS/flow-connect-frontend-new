@@ -15,7 +15,7 @@ import type {
   LinkedTitle,
 } from './types';
 import type { CRMTask } from '../lib/crm-graphql';
-import type { ActiveFilter } from '../AdvancedFilters';
+import type { ActiveFilter } from '../advancedFilters/AdvancedFilters';
 import { formatLocalDate, parseLocalDate } from '../lib/date-utils';
 
 // Status mappings

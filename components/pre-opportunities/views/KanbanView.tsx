@@ -470,7 +470,7 @@ export function KanbanView({
           id: d.id,
           itemNumber: d.itemNumber,
           productId: d.productId,
-          productCpnId: d.productCpnId,
+          factoryId: d.factoryId || '',
           quantity: d.quantity,
           unitPrice: d.unitPrice,
           discountRate: d.discountRate,

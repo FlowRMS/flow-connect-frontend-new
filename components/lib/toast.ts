@@ -506,6 +506,54 @@ export const orderToasts = {
     showErrorToast('Failed to Create Invoice', {
       description: error || 'Please try again or contact support',
     }),
+
+  duplicateSuccess: (orderNumber: string) =>
+    showSuccessToast('Order Duplicated', {
+      description: `${orderNumber} has been created successfully`,
+    }),
+
+  duplicateError: (error?: string) =>
+    showErrorToast('Failed to Duplicate Order', {
+      description: error || 'Please try again or contact support',
+    }),
+};
+
+// Team Member Toasts
+export const teamMemberToasts = {
+  createSuccess: (name: string) =>
+    showSuccessToast('User Created', {
+      description: `${name} has been added to your team`,
+    }),
+
+  createError: (error?: string) =>
+    showErrorToast('Failed to Create User', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  updateSuccess: (name: string) =>
+    showSuccessToast('User Updated', {
+      description: `${name}'s information has been updated`,
+    }),
+
+  updateError: (error?: string) =>
+    showErrorToast('Failed to Update User', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  deleteSuccess: (name: string) =>
+    showSuccessToast('User Deleted', {
+      description: `${name} has been removed from your team`,
+    }),
+
+  deleteError: (error?: string) =>
+    showErrorToast('Failed to Delete User', {
+      description: error || 'Please try again or contact support',
+    }),
+
+  statusChanged: (name: string, enabled: boolean) =>
+    showSuccessToast(enabled ? 'User Activated' : 'User Deactivated', {
+      description: `${name} has been ${enabled ? 'activated' : 'deactivated'}`,
+    }),
 };
 
 // Takeoff Toasts

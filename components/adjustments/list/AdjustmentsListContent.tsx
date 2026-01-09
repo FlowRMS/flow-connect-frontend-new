@@ -6,7 +6,8 @@
 
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAdjustmentsListState } from './hooks/useAdjustmentsListState';
 import type { AdjustmentLandingPage, AdjustmentStatus } from '@/components/orders/api/adjustmentsApi';
 import { AdjustmentModal } from '@/components/orders/detail/components/modals/adjustments/AdjustmentModal';
@@ -38,6 +39,10 @@ const formatDate = (dateString?: string) => {
 };
 
 export default function AdjustmentsListContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const adjustmentIdFromUrl = searchParams.get('id');
+
   const {
     adjustments,
     isLoadingAdjustments,
@@ -74,6 +79,25 @@ export default function AdjustmentsListContent() {
     isSavingAdjustment,
     isDeletingAdjustment,
   } = useAdjustmentsListState();
+
+  // Handle URL param to open adjustment detail modal
+  useEffect(() => {
+    if (adjustmentIdFromUrl && adjustments.length > 0 && !showAdjustmentDetailModal) {
+      const adjustment = adjustments.find(a => a.id === adjustmentIdFromUrl);
+      if (adjustment) {
+        viewAdjustment(adjustment);
+      }
+    }
+  }, [adjustmentIdFromUrl, adjustments, showAdjustmentDetailModal, viewAdjustment]);
+
+  // Update URL when modal is opened/closed
+  useEffect(() => {
+    if (selectedAdjustment && !searchParams.get('id')) {
+      router.replace(`/adjustments?id=${selectedAdjustment.id}`, { scroll: false });
+    } else if (!selectedAdjustment && searchParams.get('id')) {
+      router.replace('/adjustments', { scroll: false });
+    }
+  }, [selectedAdjustment, router, searchParams]);
 
   // Local filter/sort state (status filter and sorting are client-side)
   const [statusFilter, setStatusFilter] = useState<AdjustmentStatus | 'ALL'>('ALL');

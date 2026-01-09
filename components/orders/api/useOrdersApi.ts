@@ -11,6 +11,7 @@ import {
   createOrder,
   updateOrder,
   deleteOrder,
+  duplicateOrder,
   createOrderFromQuote,
   type Order,
   type OrderLandingPage,
@@ -172,6 +173,22 @@ export function useDeleteOrder() {
 
   return useMutation<boolean, Error, string>({
     mutationFn: deleteOrder,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: orderQueryKeys.orders() });
+      queryClient.invalidateQueries({ queryKey: orderQueryKeys.all });
+    },
+  });
+}
+
+/**
+ * Duplicate order mutation
+ */
+export function useDuplicateOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation<Order, Error, { orderId: string; newOrderNumber: string; newSoldToCustomerId: string }>({
+    mutationFn: ({ orderId, newOrderNumber, newSoldToCustomerId }) =>
+      duplicateOrder(orderId, newOrderNumber, newSoldToCustomerId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: orderQueryKeys.orders() });
       queryClient.invalidateQueries({ queryKey: orderQueryKeys.all });

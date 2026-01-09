@@ -3,11 +3,13 @@
  * Top bar with back button, order number, and all action buttons/dropdowns
  */
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Order } from '@/lib/types/rms';
 import type { ViewMode, VersionInfo } from '../../types';
 import { orderStatusLabels } from '../../constants';
 import { CreatedByBadge } from '@/components/ui/CreatedByBadge';
+import { PDFBuilder } from '@/components/shared/pdf-builder';
 
 interface HeaderTopBarProps {
   order: Order;
@@ -40,18 +42,20 @@ interface HeaderTopBarProps {
   handleMakeWarehouseOrder: () => void;
   handleGenerateFulfillmentRequest: () => void;
   onCreateInvoice?: () => void;
+  onDuplicateOrder?: () => void;
 }
 
 const getStatusColor = (status: Order['status']) => {
   const colors: Record<Order['status'], string> = {
-    draft: 'bg-gray-100 text-gray-700',
-    open: 'bg-blue-100 text-blue-700',
-    partial_shipped: 'bg-yellow-100 text-yellow-700',
-    shipped: 'bg-green-100 text-green-700',
-    cancelled: 'bg-red-100 text-red-700',
-    dormant: 'bg-gray-100 text-gray-600',
+    OPEN: 'bg-blue-100 text-blue-700',
+    PARTIAL_SHIPPED: 'bg-yellow-100 text-yellow-700',
+    SHIPPED_COMPLETE: 'bg-green-100 text-green-700',
+    CANCELLED: 'bg-red-100 text-red-700',
+    OVER_SHIPPED: 'bg-orange-100 text-orange-700',
+    PARTIAL_CANCELLED: 'bg-red-100 text-red-600',
+    OVER_CANCELLED: 'bg-red-100 text-red-800',
   };
-  return colors[status] || colors.draft;
+  return colors[status] || colors.OPEN;
 };
 
 export function HeaderTopBar({
@@ -81,8 +85,10 @@ export function HeaderTopBar({
   handleMakeWarehouseOrder,
   handleGenerateFulfillmentRequest,
   onCreateInvoice,
+  onDuplicateOrder,
 }: HeaderTopBarProps) {
   const router = useRouter();
+  const [showPDFBuilder, setShowPDFBuilder] = useState(false);
 
   return (
     <div className="border-b border-[var(--border)] bg-[var(--card)] px-6 py-4 flex-shrink-0">
@@ -139,10 +145,11 @@ export function HeaderTopBar({
                 </button>
                 <button
                   onClick={() => {
-                    alert('Duplicate order');
                     setShowActionsDropdown(false);
+                    onDuplicateOrder?.();
                   }}
-                  className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
+                  disabled={isCreateMode || !order.id}
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                     <rect x="6" y="6" width="12" height="12" rx="2"/>
@@ -207,8 +214,8 @@ export function HeaderTopBar({
               </svg>
             </button>
             {showStatusDropdown && (
-              <div className="absolute top-full left-0 mt-1 w-40 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
-                {(['draft', 'open', 'partial_shipped', 'shipped', 'cancelled', 'dormant'] as Order['status'][]).map((status) => (
+              <div className="absolute top-full left-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                {(['OPEN', 'PARTIAL_SHIPPED', 'SHIPPED_COMPLETE', 'CANCELLED', 'OVER_SHIPPED', 'PARTIAL_CANCELLED', 'OVER_CANCELLED'] as Order['status'][]).map((status) => (
                   <button
                     key={status}
                     onClick={() => {
@@ -259,8 +266,13 @@ export function HeaderTopBar({
 
           {/* Generate PDF Button */}
           <button
-            disabled
-            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium transition-colors opacity-50 cursor-not-allowed"
+            onClick={() => setShowPDFBuilder(true)}
+            disabled={isCreateMode || !order.id}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              isCreateMode || !order.id
+                ? 'bg-red-600 text-white opacity-50 cursor-not-allowed'
+                : 'bg-red-600 text-white hover:bg-red-700'
+            }`}
           >
             <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M6 2h8l4 4v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2z" strokeLinecap="round" strokeLinejoin="round"/>
@@ -268,7 +280,6 @@ export function HeaderTopBar({
               <path d="M8 12h4M8 16h4M8 8h1" strokeLinecap="round"/>
             </svg>
             PDF
-            <span className="px-1.5 py-0.5 bg-red-400 text-white rounded text-xs">Soon</span>
           </button>
 
           {/* Save/Create Button with Dropdown */}
@@ -319,6 +330,14 @@ export function HeaderTopBar({
           </div>
         </div>
       </div>
+
+      {/* PDF Builder */}
+      <PDFBuilder
+        entityId={order.id}
+        entityType="ORDERS"
+        isOpen={showPDFBuilder}
+        onClose={() => setShowPDFBuilder(false)}
+      />
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { toast } from 'sonner';
 import {
   useProductCategories,
   useCreateProductCategory,
@@ -261,6 +262,29 @@ export function ManageCategoriesModal({ isOpen, onClose }: ManageCategoriesModal
     }
   };
 
+  // Helper to extract error message from GraphQL errors
+  const getErrorMessage = (error: unknown): string => {
+    // Check for GraphQL error structure with errors array
+    if (error && typeof error === 'object') {
+      // Handle ApolloError or similar with graphQLErrors
+      const apolloError = error as { graphQLErrors?: Array<{ message?: string }> };
+      if (apolloError.graphQLErrors && apolloError.graphQLErrors.length > 0) {
+        return apolloError.graphQLErrors[0].message || 'An error occurred';
+      }
+
+      // Handle error with message property
+      if ('message' in error) {
+        const message = (error as { message: string }).message;
+        // Check if it's the specific linked records error
+        if (message.includes('linked to other records')) {
+          return 'Cannot delete this category because it is linked to products. Please remove the products first.';
+        }
+        return message;
+      }
+    }
+    return 'Failed to delete category';
+  };
+
   // Handle delete category
   const handleDelete = async () => {
     if (!deletingCategory) return;
@@ -269,8 +293,10 @@ export function ManageCategoriesModal({ isOpen, onClose }: ManageCategoriesModal
       await deleteMutation.mutateAsync(deletingCategory.id);
       setDeletingCategory(null);
       refetchCategories();
+      toast.success('Category deleted successfully');
     } catch (error) {
       console.error('Failed to delete category:', error);
+      toast.error(getErrorMessage(error));
     }
   };
 

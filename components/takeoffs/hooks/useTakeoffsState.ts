@@ -16,7 +16,7 @@ import type {
   DocumentDiscipline
 } from '../types';
 import { transformTakeoffResponse } from '../types';
-import type { ActiveFilter } from '../../AdvancedFilters';
+import type { ActiveFilter } from '../../advancedFilters/AdvancedFilters';
 import { useUser } from '../../providers/user-provider';
 import { takeoffToasts, showInfoToast, showErrorToast, showSuccessToast, showWarningToast } from '../../lib/toast';
 import {

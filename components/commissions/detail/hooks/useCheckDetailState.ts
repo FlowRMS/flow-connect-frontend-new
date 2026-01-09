@@ -188,7 +188,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     check?.status === 'POSTED' ? 'posted' : 'unposted'
   );
   const [postedDate, setPostedDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
+    check?.postDate || ''
   );
   const [isTotalStatedCommission, setIsTotalStatedCommission] = useState(false);
   const [isTiedToCommissionUpload, setIsTiedToCommissionUpload] = useState(true);
@@ -212,6 +212,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
       setCommissionAmount(check.netAmount || 0);
       setCheckDate(check.checkDate || '');
       setStatus(check.status === 'POSTED' ? 'posted' : 'unposted');
+      setPostedDate(check.postDate || '');
     }
   }, [check]);
 

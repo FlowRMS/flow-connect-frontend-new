@@ -149,7 +149,7 @@ export default function ConvertQuoteToOrderModal({
       jobName: quote.projectName,
       quoteId: quote.id,
       quoteNumber: quote.quoteNumber,
-      status: 'open',
+      status: 'OPEN',
       fulfillmentStatus: 'not_started',
       billingStatus: 'not_invoiced',
       commissionStatus: 'pending',

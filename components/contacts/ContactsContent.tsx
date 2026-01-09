@@ -6,7 +6,7 @@
 
 import React, { useMemo, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import AdvancedFilters from '../AdvancedFilters';
+import AdvancedFilters from '../advancedFilters/AdvancedFilters';
 import SortButton from '../SortButton';
 import ContactDetailView from './detail/ContactDetailView';
 import ListView from './views/ListView';

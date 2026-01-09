@@ -13,9 +13,24 @@ interface ListViewProps {
   onCustomerClick: (customer: CustomerLandingPage) => void;
   onEditClick: (customer: CustomerLandingPage) => void;
   onDeleteClick: (customer: CustomerLandingPage) => void;
+  selectedIds: Set<string>;
+  onSelectAll: (checked: boolean) => void;
+  onSelectOne: (id: string, checked: boolean) => void;
+  isAllSelected: boolean;
+  isPartiallySelected: boolean;
 }
 
-export function ListView({ customers, onCustomerClick, onEditClick, onDeleteClick }: ListViewProps) {
+export function ListView({
+  customers,
+  onCustomerClick,
+  onEditClick,
+  onDeleteClick,
+  selectedIds,
+  onSelectAll,
+  onSelectOne,
+  isAllSelected,
+  isPartiallySelected,
+}: ListViewProps) {
   const formatDate = (dateString?: string) => {
     if (!dateString) return '-';
     try {
@@ -47,6 +62,17 @@ export function ListView({ customers, onCustomerClick, onEditClick, onDeleteClic
         <table className="w-full">
           <thead>
             <tr className="bg-[var(--muted)]/30 border-b border-[var(--border)]">
+              <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider w-12">
+                <input
+                  type="checkbox"
+                  checked={isAllSelected}
+                  ref={(el) => {
+                    if (el) el.indeterminate = isPartiallySelected;
+                  }}
+                  onChange={(e) => onSelectAll(e.target.checked)}
+                  className="w-4 h-4 text-[var(--primary)] border-[var(--border)] rounded focus:ring-[var(--primary)] cursor-pointer"
+                />
+              </th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
                 Company Name
               </th>
@@ -74,9 +100,19 @@ export function ListView({ customers, onCustomerClick, onEditClick, onDeleteClic
             {customers.map((customer) => (
               <tr
                 key={customer.id}
-                className="hover:bg-[var(--muted)]/30 transition-colors cursor-pointer"
+                className={`hover:bg-[var(--muted)]/30 transition-colors cursor-pointer ${
+                  selectedIds.has(customer.id) ? 'bg-[var(--primary)]/5' : ''
+                }`}
                 onClick={() => onCustomerClick(customer)}
               >
+                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(customer.id)}
+                    onChange={(e) => onSelectOne(customer.id, e.target.checked)}
+                    className="w-4 h-4 text-[var(--primary)] border-[var(--border)] rounded focus:ring-[var(--primary)] cursor-pointer"
+                  />
+                </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">

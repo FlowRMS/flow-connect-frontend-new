@@ -1,7 +1,7 @@
 // Entity Matching Types - Aligned with GraphQL API
 
 // API Entity Types
-export type PendingEntityType = 'FACTORIES' | 'CUSTOMERS' | 'BILL_TO_CUSTOMERS' | 'PRODUCTS' | 'END_USERS';
+export type PendingEntityType = 'FACTORIES' | 'CUSTOMERS' | 'BILL_TO_CUSTOMERS' | 'PRODUCTS' | 'END_USERS' | 'ORDERS' | 'INVOICES' | 'CREDITS' | 'ADJUSTMENTS';
 
 // API Status Types
 export type ConfirmationStatus =
@@ -10,10 +10,13 @@ export type ConfirmationStatus =
   | 'CONFIRMED'
   | 'CREATED_NEW'
   | 'REJECTED'
-  | 'NEEDS_REVIEW';
+  | 'NEEDS_REVIEW'
+  | 'EMPTY_NAME'
+  | 'SET_FOR_CREATION'
+  | 'SKIPPED';
 
 // Bulk Confirm Action Types
-export type BulkConfirmAction = 'MATCH_EXISTING' | 'CREATE_NEW' | 'REJECT';
+export type BulkConfirmAction = 'MATCH_EXISTING' | 'CREATE_NEW' | 'REJECT' | 'SKIP' | 'SET_FOR_CREATION';
 
 // Match Candidate from API
 export interface MatchCandidate {
@@ -99,7 +102,7 @@ export interface ProcessExtractedDtosProgress {
 }
 
 // UI Step navigation types
-export type EntityStep = 'factories' | 'customers' | 'billtocustomers' | 'endusers' | 'products';
+export type EntityStep = 'factories' | 'customers' | 'billtocustomers' | 'endusers' | 'products' | 'orders' | 'invoices' | 'credits' | 'adjustments';
 
 // Map from step to API entity type
 export const stepToEntityType: Record<EntityStep, PendingEntityType> = {
@@ -108,6 +111,10 @@ export const stepToEntityType: Record<EntityStep, PendingEntityType> = {
   billtocustomers: 'BILL_TO_CUSTOMERS',
   endusers: 'END_USERS',
   products: 'PRODUCTS',
+  orders: 'ORDERS',
+  invoices: 'INVOICES',
+  credits: 'CREDITS',
+  adjustments: 'ADJUSTMENTS',
 };
 
 // Map from API entity type to step
@@ -117,10 +124,14 @@ export const entityTypeToStep: Record<PendingEntityType, EntityStep> = {
   BILL_TO_CUSTOMERS: 'billtocustomers',
   END_USERS: 'endusers',
   PRODUCTS: 'products',
+  ORDERS: 'orders',
+  INVOICES: 'invoices',
+  CREDITS: 'credits',
+  ADJUSTMENTS: 'adjustments',
 };
 
 // Filter types for UI
-export type FilterType = 'auto-matched' | 'needs-review' | 'pending' | 'confirmed' | 'no-match';
+export type FilterType = 'auto-matched' | 'needs-review' | 'pending' | 'confirmed' | 'no-match' | 'skipped' | 'set-for-creation';
 
 // Map confirmation status to filter type
 export const statusToFilterType: Record<ConfirmationStatus, FilterType> = {
@@ -130,6 +141,9 @@ export const statusToFilterType: Record<ConfirmationStatus, FilterType> = {
   CONFIRMED: 'confirmed',
   CREATED_NEW: 'confirmed',
   REJECTED: 'no-match',
+  EMPTY_NAME: 'needs-review',
+  SET_FOR_CREATION: 'set-for-creation',
+  SKIPPED: 'skipped',
 };
 
 // Step status for navigation UI
@@ -155,7 +169,7 @@ export function needsAction(status: ConfirmationStatus): boolean {
 // Helper function to check if entity is resolved (no longer needs action)
 // AUTO_MATCHED is considered resolved as it has a valid match that can be auto-approved
 export function isResolved(status: ConfirmationStatus): boolean {
-  return status === 'CONFIRMED' || status === 'CREATED_NEW' || status === 'REJECTED' || status === 'AUTO_MATCHED';
+  return status === 'CONFIRMED' || status === 'CREATED_NEW' || status === 'REJECTED' || status === 'AUTO_MATCHED' || status === 'SKIPPED' || status === 'SET_FOR_CREATION';
 }
 
 // Parse extracted data JSON
@@ -210,6 +224,9 @@ export function pendingEntityToEntityMatch(entity: PendingEntity): EntityMatch {
     NEEDS_REVIEW: 'needs-review',
     PENDING_REVIEW: 'needs-review',
     REJECTED: 'no-match',
+    EMPTY_NAME: 'needs-review',
+    SET_FOR_CREATION: 'user-created',
+    SKIPPED: 'no-match',
   };
 
   return {
