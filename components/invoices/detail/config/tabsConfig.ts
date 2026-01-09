@@ -44,6 +44,7 @@ export const getTabsConfig = (lineItemsCount: number = 0, isCreateMode: boolean 
     {
       id: 'activity',
       label: 'Activity',
+      comingSoon: true,
       disabled: isCreateMode,
       disabledReason: 'Save invoice first',
     },

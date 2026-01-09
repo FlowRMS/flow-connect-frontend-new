@@ -20,7 +20,7 @@ import SpreadsheetView from './tasks/views/SpreadsheetView';
 import CalendarView from './tasks/views/CalendarView';
 import TaskModal from './tasks/modals/TaskModal';
 import { CreateTaskModal } from './tasks/modals';
-import AdvancedFilters from './AdvancedFilters';
+import AdvancedFilters from './advancedFilters/AdvancedFilters';
 import SortButton from './SortButton';
 
 export default function TasksContent() {

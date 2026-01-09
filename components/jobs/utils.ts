@@ -4,7 +4,7 @@
 
 import { OWNER_COLORS, FILTER_COLUMN_MAP } from './constants';
 import type { Job } from './types';
-import type { ActiveFilter } from '../AdvancedFilters';
+import type { ActiveFilter } from '../advancedFilters/AdvancedFilters';
 
 /**
  * Get initials from a name

@@ -7,7 +7,7 @@
 
 import React, { useMemo, useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import AdvancedFilters, { ActiveFilter, ActiveSort } from './AdvancedFilters';
+import AdvancedFilters, { ActiveFilter, ActiveSort } from './advancedFilters/AdvancedFilters';
 import SortButton from './SortButton';
 import { useCRMCompanyLandingPagesInfinite, useDeleteCRMCompany, useUpdateCRMCompany, useCRMCompany } from './hooks/useCRMApi';
 

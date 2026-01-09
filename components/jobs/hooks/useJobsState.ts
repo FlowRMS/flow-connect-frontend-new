@@ -4,7 +4,7 @@
 
 import { useState, useMemo } from 'react';
 import type { Job, RepType, DuplicateGroup, ViewMode, MergeStrategy } from '../types';
-import type { ActiveFilter, ActiveSort } from '../../AdvancedFilters';
+import type { ActiveFilter, ActiveSort } from '../../advancedFilters/AdvancedFilters';
 import { applyFilter, sortJobs, getUniqueValues } from '../utils';
 import { DEFAULT_VISIBLE_CATEGORIES, DEFAULT_STAGES } from '../constants';
 import type { JobLandingPage, JobStatus } from '../../lib/crm-graphql';

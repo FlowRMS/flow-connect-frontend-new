@@ -7,7 +7,7 @@
 'use client';
 
 import React from 'react';
-import AdvancedFilters from '@/components/AdvancedFilters';
+import AdvancedFilters from '@/components/advancedFilters/AdvancedFilters';
 import { useInvoicesListState } from './hooks/useInvoicesListState';
 import { getInvoiceFilterOptions } from './config/filterConfig';
 import { InvoicesTable } from './components/table/InvoicesTable';
