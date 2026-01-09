@@ -1,9 +1,29 @@
 'use client';
 
-import React, { useState } from 'react';
-import { mockHighlightDefinitions, specSheetCategoryLabels } from '../../lib/data/submittals-mock';
+import React, { useState, useMemo } from 'react';
+import { specSheetCategoryLabels } from '../../lib/data/submittals-mock';
 import type { SpecSheet, SpecSheetCategory, HighlightDefinition, HighlightRegion } from '../../lib/types/submittals';
 import HighlightEditor from './HighlightEditor';
+import {
+  useHighlightVersions,
+  useCreateHighlightVersion,
+  useUpdateHighlightRegions,
+} from './api/useSpecSheetsApi';
+
+// Valid highlight shapes - used for runtime validation
+const VALID_SHAPES = ['highlight', 'rectangle', 'circle', 'arrow', 'text', 'freehand'] as const;
+type ValidShape = typeof VALID_SHAPES[number];
+
+// Validate and normalize shape type from API
+function normalizeShapeType(shapeType: string): HighlightRegion['shape'] {
+  const normalized = shapeType.toLowerCase();
+  if (VALID_SHAPES.includes(normalized as ValidShape)) {
+    return normalized as HighlightRegion['shape'];
+  }
+  // Default to 'highlight' for unknown shapes
+  console.warn(`Unknown shape type: ${shapeType}, defaulting to 'highlight'`);
+  return 'highlight';
+}
 
 interface SpecSheetDetailPanelProps {
   specSheet: SpecSheet;
@@ -23,8 +43,35 @@ export default function SpecSheetDetailPanel({ specSheet, highlightCount, onClos
   const [newHighlightCatalog, setNewHighlightCatalog] = useState('');
   const [showNewHighlightForm, setShowNewHighlightForm] = useState(false);
 
-  // Get highlights for this spec sheet
-  const highlights = mockHighlightDefinitions.filter(h => h.specSheetId === specSheet.id);
+  // API hooks for highlights
+  const { data: highlightVersions = [], isLoading: isLoadingHighlights } = useHighlightVersions(specSheet.id);
+  const createHighlightVersionMutation = useCreateHighlightVersion();
+  const updateHighlightRegionsMutation = useUpdateHighlightRegions();
+
+  // Transform API highlight versions to frontend HighlightDefinition format
+  const highlights: HighlightDefinition[] = useMemo(() => {
+    return highlightVersions.map(version => ({
+      id: version.id,
+      specSheetId: version.specSheetId,
+      catalogNumber: version.name, // Using version name as catalog number
+      manufacturer: specSheet.manufacturer,
+      regions: version.regions.map(r => ({
+        id: r.id,
+        pageNumber: r.pageNumber,
+        x: r.x,
+        y: r.y,
+        width: r.width,
+        height: r.height,
+        shape: normalizeShapeType(r.shapeType),
+        color: r.color,
+        annotation: r.annotation || undefined,
+      })),
+      createdAt: version.createdAt,
+      createdBy: version.createdBy.fullName,
+      updatedAt: version.createdAt, // API doesn't have separate updated timestamps
+      updatedBy: version.createdBy.fullName,
+    }));
+  }, [highlightVersions, specSheet.manufacturer]);
 
   const allCategories: SpecSheetCategory[] = [
     'indoor', 'outdoor', 'sports_lighting', 'controls', 'emergency',
@@ -67,11 +114,51 @@ export default function SpecSheetDetailPanel({ specSheet, highlightCount, onClos
     setShowHighlightEditor(true);
   };
 
-  const handleSaveHighlight = (regions: HighlightRegion[]) => {
+  const handleSaveHighlight = async (regions: HighlightRegion[]) => {
     const catalogNumber = editingHighlight?.catalogNumber || newHighlightCatalog;
     const manufacturer = editingHighlight?.manufacturer || specSheet.manufacturer;
 
-    onHighlightSave?.(catalogNumber, manufacturer, regions);
+    try {
+      // Transform regions to API format
+      const apiRegions = regions.map(r => ({
+        pageNumber: r.pageNumber,
+        x: r.x,
+        y: r.y,
+        width: r.width,
+        height: r.height,
+        shapeType: r.shape,
+        color: r.color,
+        annotation: r.annotation,
+      }));
+
+      if (editingHighlight?.id) {
+        // Update existing highlight version
+        await updateHighlightRegionsMutation.mutateAsync({
+          versionId: editingHighlight.id,
+          regions: apiRegions,
+        });
+      } else {
+        // Create new highlight version, then update regions
+        const newVersion = await createHighlightVersionMutation.mutateAsync({
+          specSheetId: specSheet.id,
+          name: catalogNumber,
+          description: `Highlights for ${catalogNumber}`,
+        });
+        if (regions.length > 0) {
+          await updateHighlightRegionsMutation.mutateAsync({
+            versionId: newVersion.id,
+            regions: apiRegions,
+          });
+        }
+      }
+
+      // Also call the legacy callback if provided
+      onHighlightSave?.(catalogNumber, manufacturer, regions);
+    } catch (error) {
+      console.error('Failed to save highlight:', error);
+      alert('Failed to save highlight. Please try again.');
+    }
+
     setShowHighlightEditor(false);
     setEditingHighlight(undefined);
     setNewHighlightCatalog('');

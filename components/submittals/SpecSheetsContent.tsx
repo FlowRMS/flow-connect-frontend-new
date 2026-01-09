@@ -168,6 +168,13 @@ export default function SpecSheetsContent() {
     return manufacturers.map(m => m.name);
   }, [manufacturers]);
 
+  // Auto-select first manufacturer when data loads (if none selected)
+  useEffect(() => {
+    if (!selectedManufacturerId && manufacturers.length > 0 && !isLoadingManufacturers) {
+      setSelectedManufacturerId(manufacturers[0].id);
+    }
+  }, [manufacturers, selectedManufacturerId, isLoadingManufacturers]);
+
   // Helper to find factory ID by name (for compatibility with folder data)
   const findManufacturerIdByName = (name: string): string | null => {
     const found = manufacturers.find(m => m.name === name);
