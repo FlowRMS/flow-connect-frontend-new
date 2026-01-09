@@ -8,8 +8,9 @@ import {
   createEmptyQuoteV2,
   transformLineItemV2ToDetailInput,
 } from './types';
-import { QuoteDetailHeaderV2 } from './components/QuoteDetailHeaderV2';
+import { QuoteDetailHeaderV2, type ViewMode } from './components/QuoteDetailHeaderV2';
 import { LineItemsTabV2 } from './tabs/LineItemsTabV2';
+import { getColumnsForView, COLUMN_LABELS } from './config/viewsConfig';
 import { NotesTabV2 } from './tabs/NotesTabV2';
 import { TasksTabV2 } from './tabs/TasksTabV2';
 import { ActivityTabV2 } from './tabs/ActivityTabV2';
@@ -102,8 +103,23 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
   // Settings state
   const [settings, setSettings] = useState<QuoteSettingsV2>(defaultQuoteSettingsV2);
 
-  // Column configuration
+  // View mode state
+  const [viewMode, setViewMode] = useState<ViewMode>('simple');
+
+  // Column configuration - derived from viewMode
   const [columnConfig, setColumnConfig] = useState<ColumnConfig[]>(defaultColumnConfigV2);
+
+  // Update column config when view mode changes
+  const effectiveColumnConfig = useMemo(() => {
+    const viewColumns = getColumnsForView(viewMode);
+    return viewColumns.map((key) => ({
+      key,
+      label: COLUMN_LABELS[key],
+      group: key.startsWith('ovg') || key.startsWith('earn') || key === 'percentOver' ? 'Commission' as const :
+             ['quantity', 'uom', 'divisor', 'unitPrice', 'sellTotal'].includes(key) ? 'Pricing' as const : 'Basic' as const,
+      visible: true,
+    }));
+  }, [viewMode]);
 
   // Modal states
   const [showColumnsModal, setShowColumnsModal] = useState(false);
@@ -665,6 +681,8 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         lineItems={lineItems}
         settings={settings}
         onClearLineItemProducts={handleClearLineItemProducts}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
       />
 
       {/* Tabs */}
@@ -711,7 +729,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
             onLineItemsChange={handleLineItemsChange}
             onOpenColumnsModal={() => setShowColumnsModal(true)}
             onOpenAdditionalDetails={handleOpenAdditionalDetails}
-            columnConfig={columnConfig}
+            columnConfig={effectiveColumnConfig}
             quoteId={quote.id}
             settings={settings}
             soldToCustomerId={quote.soldToCustomerId}

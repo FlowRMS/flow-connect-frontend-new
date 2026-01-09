@@ -197,6 +197,14 @@ export interface LineItemV2 {
   // Split rates - inside and outside reps at line item level
   insideSplitRates?: { id: string; userId?: string; splitRate?: string; position?: number }[];
   outsideSplitRates?: { id: string; userId?: string; splitRate?: string; position?: number }[];
+
+  // Overage fields
+  percentOver?: number;
+  commissionAmount?: number;
+  ovgPercent?: number;
+  ovgAmount?: number;
+  earnPercent?: number;
+  earnAmount?: number;
 }
 
 export interface NoteV2 {
@@ -288,7 +296,14 @@ export type LineItemColumnKey =
   | 'commissionPercent'
   | 'commission'
   | 'commissionTotal'
-  | 'linkedOrder';
+  | 'linkedOrder'
+  // Overage columns
+  | 'percentOver'
+  | 'commissionAmount'
+  | 'ovgPercent'
+  | 'ovgAmount'
+  | 'earnPercent'
+  | 'earnAmount';
 
 export interface ColumnConfig {
   key: LineItemColumnKey;

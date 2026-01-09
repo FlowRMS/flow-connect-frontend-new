@@ -48,6 +48,9 @@ function getQuoteStatusBadgeClass(status?: QuoteV2Status): string {
   }
 }
 
+// View mode type
+export type ViewMode = 'simple' | 'overage';
+
 interface QuoteDetailHeaderV2Props {
   quote: QuoteV2;
   onQuoteChange: (updates: Partial<QuoteV2>) => void;
@@ -61,6 +64,8 @@ interface QuoteDetailHeaderV2Props {
   lineItems?: LineItemV2[];
   settings?: QuoteSettingsV2;
   onClearLineItemProducts?: () => void;
+  viewMode?: ViewMode;
+  onViewModeChange?: (mode: ViewMode) => void;
 }
 
 // Pipeline stage options - kept for potential future use
@@ -134,6 +139,8 @@ export function QuoteDetailHeaderV2({
   lineItems = [],
   settings,
   onClearLineItemProducts,
+  viewMode: controlledViewMode,
+  onViewModeChange,
 }: QuoteDetailHeaderV2Props) {
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
@@ -141,7 +148,17 @@ export function QuoteDetailHeaderV2({
   const [showVersionMenu, setShowVersionMenu] = useState(false);
   const [showViewModeMenu, setShowViewModeMenu] = useState(false);
   const [showSaveMenu, setShowSaveMenu] = useState(false);
-  const [viewMode, setViewMode] = useState<'simple' | 'overage'>('simple');
+  const [localViewMode, setLocalViewMode] = useState<ViewMode>('simple');
+
+  // Use controlled viewMode if provided, otherwise use local state
+  const viewMode = controlledViewMode ?? localViewMode;
+  const handleViewModeChange = (mode: ViewMode) => {
+    if (onViewModeChange) {
+      onViewModeChange(mode);
+    } else {
+      setLocalViewMode(mode);
+    }
+  };
   const [showCreateOrderModal, setShowCreateOrderModal] = useState(false);
   const [showQuoteDetails, setShowQuoteDetails] = useState(true);
   const [showPDFBuilder, setShowPDFBuilder] = useState(false);
@@ -721,19 +738,56 @@ export function QuoteDetailHeaderV2({
             </button>
           </div>
 
-          {/* View Mode Dropdown - Coming Soon */}
+          {/* View Mode Dropdown */}
           <div className="relative">
             <button
-              disabled
-              className="flex items-center gap-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-gray-50 text-gray-400 cursor-not-allowed"
+              onClick={() => setShowViewModeMenu(!showViewModeMenu)}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             >
               <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
                 <path d="M2 10s3-6 8-6 8 6 8 6-3 6-8 6-8-6-8-6z" />
               </svg>
-              Simple View
-              <ComingSoonBadge inline />
+              {viewMode === 'simple' ? 'Simple View' : 'Overage View'}
+              <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+              </svg>
             </button>
+            {showViewModeMenu && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowViewModeMenu(false)} />
+                <div className="absolute top-full right-0 mt-1 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1">
+                  <button
+                    onClick={() => {
+                      handleViewModeChange('simple');
+                      setShowViewModeMenu(false);
+                    }}
+                    className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${viewMode === 'simple' ? 'bg-gray-50' : ''}`}
+                  >
+                    <span>Simple View</span>
+                    {viewMode === 'simple' && (
+                      <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" className="text-indigo-600">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleViewModeChange('overage');
+                      setShowViewModeMenu(false);
+                    }}
+                    className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${viewMode === 'overage' ? 'bg-gray-50' : ''}`}
+                  >
+                    <span>Overage View</span>
+                    {viewMode === 'overage' && (
+                      <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" className="text-indigo-600">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
 
           {/* PDF Button */}

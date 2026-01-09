@@ -329,12 +329,35 @@ export function LineItemsTabV2({
       case 'endUser':
         displayValue = item.endUserName || (settings?.specifyEndUserPerLine ? 'Select...' : '—');
         break;
+      // Overage columns
+      case 'percentOver':
+        displayValue = item.percentOver !== undefined ? `${item.percentOver.toFixed(2)}%` : '—';
+        break;
+      case 'commissionAmount':
+        displayValue = item.commissionAmount !== undefined ? `$${item.commissionAmount.toFixed(2)}` : '—';
+        break;
+      case 'ovgPercent':
+        displayValue = item.ovgPercent !== undefined ? `${item.ovgPercent.toFixed(2)}%` : '—';
+        break;
+      case 'ovgAmount':
+        displayValue = item.ovgAmount !== undefined ? `$${item.ovgAmount.toFixed(2)}` : '—';
+        break;
+      case 'earnPercent':
+        displayValue = item.earnPercent !== undefined ? `${item.earnPercent.toFixed(2)}%` : '—';
+        break;
+      case 'earnAmount':
+        displayValue = item.earnAmount !== undefined ? `$${item.earnAmount.toFixed(2)}` : '—';
+        break;
       default:
         displayValue = '—';
     }
 
     // Read-only cells - endUser is editable when specifyEndUserPerLine is true
-    const readOnlyCells = ['sellTotal', 'commission', 'commissionTotal', 'linkedOrder'];
+    // Overage columns are always read-only (calculated values)
+    const readOnlyCells = [
+      'sellTotal', 'commission', 'commissionTotal', 'linkedOrder',
+      'percentOver', 'commissionAmount', 'ovgPercent', 'ovgAmount', 'earnPercent', 'earnAmount'
+    ];
     if (!settings?.specifyEndUserPerLine) {
       readOnlyCells.push('endUser');
     }
