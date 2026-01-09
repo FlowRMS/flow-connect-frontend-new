@@ -1460,3 +1460,29 @@ export async function searchJobs(searchTerm: string, limit?: number): Promise<Jo
     createdBy: job.createdBy?.fullName,
   }));
 }
+
+/**
+ * Fetch all quote IDs for bulk operations
+ * Used when user selects all including unloaded items
+ */
+export async function fetchAllQuoteIds(
+  filters?: QuoteLandingPageFilter[],
+  orderBy?: QuoteLandingPageOrderBy[]
+): Promise<string[]> {
+  // First get the total count
+  const initialResult = await fetchQuotesWithPagination(filters, orderBy, { limit: 1, offset: 0 });
+  const total = initialResult.total;
+
+  if (total === 0) return [];
+
+  // Fetch all IDs in batches
+  const batchSize = 500;
+  const allIds: string[] = [];
+
+  for (let offset = 0; offset < total; offset += batchSize) {
+    const result = await fetchQuotesWithPagination(filters, orderBy, { limit: batchSize, offset });
+    allIds.push(...result.records.map(r => r.id));
+  }
+
+  return allIds;
+}

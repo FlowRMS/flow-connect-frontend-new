@@ -122,6 +122,11 @@ export default function CommissionsListContent() {
                 selectAllChecks={state.selectAllChecks}
                 clearSelection={state.clearSelection}
                 areAllEligibleSelected={state.areAllEligibleSelected}
+                isItemSelected={state.isItemSelected}
+                isAllSelected={state.isAllSelected}
+                isPartiallySelected={state.isPartiallySelected}
+                handleSelectAll={state.handleSelectAll}
+                handleSelectOne={state.handleSelectOne}
                 sortField={state.sortField}
                 sortDirection={state.sortDirection}
                 handleSort={state.handleSort}

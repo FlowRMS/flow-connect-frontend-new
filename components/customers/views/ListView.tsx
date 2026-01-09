@@ -14,6 +14,9 @@ interface ListViewProps {
   onEditClick: (customer: CustomerLandingPage) => void;
   onDeleteClick: (customer: CustomerLandingPage) => void;
   selectedIds: Set<string>;
+  excludedIds: Set<string>;
+  selectAllMode: boolean;
+  isItemSelected: (id: string) => boolean;
   onSelectAll: (checked: boolean) => void;
   onSelectOne: (id: string, checked: boolean) => void;
   isAllSelected: boolean;
@@ -25,7 +28,7 @@ export function ListView({
   onCustomerClick,
   onEditClick,
   onDeleteClick,
-  selectedIds,
+  isItemSelected,
   onSelectAll,
   onSelectOne,
   isAllSelected,
@@ -101,14 +104,14 @@ export function ListView({
               <tr
                 key={customer.id}
                 className={`hover:bg-[var(--muted)]/30 transition-colors cursor-pointer ${
-                  selectedIds.has(customer.id) ? 'bg-[var(--primary)]/5' : ''
+                  isItemSelected(customer.id) ? 'bg-[var(--primary)]/5' : ''
                 }`}
                 onClick={() => onCustomerClick(customer)}
               >
                 <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                   <input
                     type="checkbox"
-                    checked={selectedIds.has(customer.id)}
+                    checked={isItemSelected(customer.id)}
                     onChange={(e) => onSelectOne(customer.id, e.target.checked)}
                     className="w-4 h-4 text-[var(--primary)] border-[var(--border)] rounded focus:ring-[var(--primary)] cursor-pointer"
                   />
