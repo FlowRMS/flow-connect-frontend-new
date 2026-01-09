@@ -21,6 +21,7 @@ export function LinkedObjectsTab({ orderId }: LinkedObjectsTabProps) {
           sourceEntityType="ORDER"
           title="Linked Objects"
           showAddLinkButton={true}
+          enabledCategories={['contacts', 'companies', 'pre-opportunities', 'quotes', 'orders', 'invoices', 'checks', 'jobs', 'files']}
         />
       </div>
     </div>
