@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useApolloClient } from '@apollo/client/react';
-import { Search, Sparkles, Loader2, RefreshCw, FileText, Hash, Plus } from 'lucide-react';
+import { Search, Sparkles, Loader2, FileText, Hash, Plus } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/flow-ai/ui/dialog';
 import { Input } from '@/components/flow-ai/ui/input';
 import { Button } from '@/components/flow-ai/ui/button';
@@ -203,7 +203,7 @@ export function SelectTemplateModal({
         </DialogHeader>
 
         <div className="space-y-4 flex-1 min-h-0 flex flex-col">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center">
             <div className="flex gap-2 flex-1">
               <Select
                 value={entityTypeFilter}
@@ -232,19 +232,6 @@ export function SelectTemplateModal({
                 />
               </div>
             </div>
-            <Button variant="outline" size="sm" onClick={() => fetchClusters()} disabled={loading}>
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Refreshing...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Refresh
-                </>
-              )}
-            </Button>
           </div>
 
           <div className="flex-1 overflow-y-auto pr-2">
