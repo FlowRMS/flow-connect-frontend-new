@@ -305,11 +305,11 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
               {getTabsConfig(state.invoice.lineItems.length, state.isCreateMode).map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => !tab.disabled && state.setActiveTab(tab.id)}
-                  disabled={tab.disabled}
-                  title={tab.disabled ? tab.disabledReason : undefined}
+                  onClick={() => !tab.disabled && !tab.comingSoon && state.setActiveTab(tab.id)}
+                  disabled={tab.disabled || tab.comingSoon}
+                  title={tab.disabled ? tab.disabledReason : tab.comingSoon ? 'Coming soon' : undefined}
                   className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                    tab.disabled
+                    tab.disabled || tab.comingSoon
                       ? 'border-transparent text-gray-300 cursor-not-allowed'
                       : state.activeTab === tab.id
                       ? 'border-[var(--primary)] text-[var(--primary)]'
@@ -317,6 +317,11 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
                   }`}
                 >
                   {tab.label}
+                  {tab.comingSoon && (
+                    <span className="ml-2 px-1.5 py-0.5 rounded text-xs bg-yellow-100 text-yellow-700">
+                      SOON
+                    </span>
+                  )}
                   {tab.id === 'credits' &&
                     !tab.disabled &&
                     Object.keys(state.lineItemCredits).length > 0 && (

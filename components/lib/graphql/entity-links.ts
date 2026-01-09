@@ -534,11 +534,11 @@ export async function fetchRelatedEntities(
     factories: data?.factories || [],
     invoices: data?.invoices || [],
     jobs: data?.jobs || [],
-    notes: mapFormattedCreatedBy(data?.notes) || [],
+    notes: data?.notes || [],
     orders: data?.orders || [],
     preOpportunities: data?.preOpportunities || [],
     products: data?.products || [],
     quotes: data?.quotes || [],
-    tasks: mapFormattedCreatedBy(data?.tasks) || [],
+    tasks: data?.tasks || [],
   };
 }

@@ -616,12 +616,12 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
   const tabs: { key: TabType; label: string; count?: number; comingSoon?: boolean; disabled?: boolean; disabledReason?: string }[] = useMemo(() => [
     { key: 'lineItems', label: 'Line Items', count: lineItems.length },
     { key: 'files', label: 'Files', disabled: isNew, disabledReason: 'Save quote first' },
-    { key: 'notes', label: 'Notes', comingSoon: true, disabled: isNew, disabledReason: 'Save quote first' },
-    { key: 'tasks', label: 'Tasks', comingSoon: true, disabled: isNew, disabledReason: 'Save quote first' },
+    { key: 'notes', label: 'Notes', disabled: isNew, disabledReason: 'Save quote first' },
+    { key: 'tasks', label: 'Tasks', disabled: isNew, disabledReason: 'Save quote first' },
     { key: 'activity', label: 'Activity', comingSoon: true, disabled: isNew, disabledReason: 'Save quote first' },
-    { key: 'linkedObjects', label: 'Linked Objects', comingSoon: true, disabled: isNew, disabledReason: 'Save quote first' },
+    { key: 'linkedObjects', label: 'Linked Objects', disabled: isNew, disabledReason: 'Save quote first' },
     { key: 'versions', label: 'Versions', comingSoon: true, disabled: isNew, disabledReason: 'Save quote first' },
-    { key: 'settings', label: 'Settings', comingSoon: true },
+    { key: 'settings', label: 'Settings' },
   ], [lineItems.length, isNew]);
 
   // Loading state
@@ -690,11 +690,11 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         {tabs.map((tab) => (
           <button
             key={tab.key}
-            onClick={() => !tab.disabled && setActiveTab(tab.key)}
-            disabled={tab.disabled}
-            title={tab.disabled ? tab.disabledReason : undefined}
+            onClick={() => !tab.disabled && !tab.comingSoon && setActiveTab(tab.key)}
+            disabled={tab.disabled || tab.comingSoon}
+            title={tab.disabled ? tab.disabledReason : tab.comingSoon ? 'Coming soon' : undefined}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-              tab.disabled
+              tab.disabled || tab.comingSoon
                 ? 'border-transparent text-gray-300 cursor-not-allowed'
                 : activeTab === tab.key
                 ? 'border-indigo-600 text-indigo-600'
@@ -707,9 +707,9 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
                 {tab.count}
               </span>
             )}
-            {tab.comingSoon && !tab.disabled && (
-              <span className="px-1.5 py-0.5 bg-gray-100 text-gray-400 rounded text-[10px] uppercase">
-                Soon
+            {tab.comingSoon && (
+              <span className="px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded text-xs font-medium">
+                SOON
               </span>
             )}
           </button>
@@ -746,25 +746,11 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         )}
 
         {activeTab === 'notes' && (
-          <div className="p-6">
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
-              <p className="text-amber-700 text-sm">
-                <span className="font-medium">Coming Soon:</span> Notes functionality is not yet available via API.
-              </p>
-            </div>
-            <NotesTabV2 quoteId={quote.id} />
-          </div>
+          <NotesTabV2 quoteId={quote.id} />
         )}
 
         {activeTab === 'tasks' && (
-          <div className="p-6">
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
-              <p className="text-amber-700 text-sm">
-                <span className="font-medium">Coming Soon:</span> Tasks functionality is not yet available via API.
-              </p>
-            </div>
-            <TasksTabV2 quoteId={quote.id} />
-          </div>
+          <TasksTabV2 quoteId={quote.id} />
         )}
 
         {activeTab === 'activity' && (
@@ -815,11 +801,6 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
 
         {activeTab === 'settings' && (
           <div className="h-full overflow-auto p-6">
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
-              <p className="text-amber-700 text-sm">
-                <span className="font-medium">Coming Soon:</span> Quote settings are not yet available via API.
-              </p>
-            </div>
             <SettingsTabV2 settings={settings} onSettingsChange={setSettings} />
           </div>
         )}
