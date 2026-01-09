@@ -4,7 +4,7 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import type { Company, ViewMode } from '../types';
-import type { ActiveFilter, ActiveSort } from '../../AdvancedFilters';
+import type { ActiveFilter, ActiveSort } from '../../advancedFilters/AdvancedFilters';
 import { applyFilter as applyFilterUtil } from '../../lib/filter-utils';
 import { sortCompanies, getUniqueValues } from '../utils';
 import { mapLandingPageToUICompany } from '../types';

@@ -683,7 +683,7 @@ function getInternalUrl(entityType: 'quote' | 'order' | 'invoice' | 'check', id:
     case 'invoice':
       return `/invoices/${id}`;
     case 'check':
-      return `/checks/${id}`;
+      return `/commissions/${id}`;
     default:
       return '#';
   }

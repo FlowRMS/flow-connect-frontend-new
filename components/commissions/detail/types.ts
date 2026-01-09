@@ -107,6 +107,7 @@ export interface TabConfig {
   count?: number;
   disabled?: boolean;
   disabledReason?: string;
+  comingSoon?: boolean;
 }
 
 // Saved view configuration

@@ -16,6 +16,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "FlowCRM",
   description: "FlowCRM - Customer Relationship Management",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "FlowCRM",
+  },
   icons: {
     icon: "/flow-logo.png",
     shortcut: "/flow-logo.png",

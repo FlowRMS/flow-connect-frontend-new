@@ -500,17 +500,17 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               { id: 'acknowledgements', label: 'Acknowledgements', disabled: isCreateMode, disabledReason: 'Save order first' },
               { id: 'notes', label: 'Notes', disabled: isCreateMode, disabledReason: 'Save order first' },
               { id: 'tasks', label: 'Tasks', disabled: isCreateMode, disabledReason: 'Save order first' },
-              { id: 'activity', label: 'Activity', disabled: isCreateMode, disabledReason: 'Save order first' },
+              { id: 'activity', label: 'Activity', comingSoon: true, disabled: isCreateMode, disabledReason: 'Save order first' },
               { id: 'linked-objects', label: 'Linked Objects', disabled: isCreateMode, disabledReason: 'Save order first' },
               { id: 'settings', label: 'Settings' },
             ].filter(tab => !tab.hidden).map(tab => (
               <button
                 key={tab.id}
-                onClick={() => !tab.disabled && state.setActiveTab(tab.id as any)}
-                disabled={tab.disabled}
-                title={tab.disabled ? tab.disabledReason : undefined}
+                onClick={() => !tab.disabled && !tab.comingSoon && state.setActiveTab(tab.id as any)}
+                disabled={tab.disabled || tab.comingSoon}
+                title={tab.disabled ? tab.disabledReason : tab.comingSoon ? 'Coming soon' : undefined}
                 className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                  tab.disabled
+                  tab.disabled || tab.comingSoon
                     ? 'border-transparent text-gray-300 cursor-not-allowed'
                     : state.activeTab === tab.id
                     ? 'border-[var(--primary)] text-[var(--primary)]'
@@ -518,6 +518,11 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
                 }`}
               >
                 {tab.label}
+                {tab.comingSoon && (
+                  <span className="ml-2 px-1.5 py-0.5 rounded text-xs bg-yellow-100 text-yellow-700">
+                    SOON
+                  </span>
+                )}
                 {tab.count !== undefined && tab.count > 0 && (
                   <span className={`ml-2 px-1.5 py-0.5 rounded text-xs ${tab.disabled ? 'bg-gray-50 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
                     {tab.count}

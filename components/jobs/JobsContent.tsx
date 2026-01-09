@@ -8,7 +8,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { DragEndEvent, DragStartEvent, DragOverEvent } from '@dnd-kit/core';
-import AdvancedFilters, { ActiveFilter, ActiveSort } from '../AdvancedFilters';
+import AdvancedFilters, { ActiveFilter, ActiveSort } from '../advancedFilters/AdvancedFilters';
 import SortButton from '../SortButton';
 import CreateJobModal from '../CreateJobModal';
 import { useCRMJobLandingPagesInfinite, useCRMJobStatuses, useUpdateCRMJob, useCRMJob, useDeleteCRMJob } from '../hooks/useCRMApi';

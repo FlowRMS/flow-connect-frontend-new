@@ -5,7 +5,7 @@
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useCustomersInfinite, useCustomerSearch, type CustomerLandingPage, type CustomerLandingPageFilter, type CustomerLandingPageOrderBy, type CustomerSearchResult } from '../api/useCustomersApi';
-import type { ActiveFilter } from '../../AdvancedFilters';
+import type { ActiveFilter } from '../../advancedFilters/AdvancedFilters';
 
 export type ViewMode = 'list' | 'grid';
 

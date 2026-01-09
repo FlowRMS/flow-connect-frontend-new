@@ -165,7 +165,7 @@ const RESULT_TYPE_CONFIG: Record<string, {
         <line x1="3" y1="10" x2="21" y2="10"/>
       </svg>
     ),
-    href: (id) => `/checks/${id}`,
+    href: (id) => `/commissions/${id}`,
   },
 };
 
