@@ -4,6 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type { LineItemV2, ColumnConfig, LineItemColumnKey, QuoteSettingsV2 } from '../types';
 import { useProductSearch, useFactorySearch, useProductCpns, useCustomerSearch, useProductUoms, getProductCpnByCustomer } from '../../quotes/api/useQuotesApi';
+import { FIXTURE_SCHEDULE_OPTIONS } from '../config/viewsConfig';
 
 interface LineItemsTabV2Props {
   lineItems: LineItemV2[];
@@ -51,12 +52,13 @@ export function LineItemsTabV2({
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Determine if we need product, factory, CPN, UOM, or end user search based on open dropdown
+  // Determine if we need product, factory, CPN, UOM, end user, or fixture schedule based on open dropdown
   const isProductDropdown = dropdownOpen && ['partNumber', 'description'].includes(dropdownOpen.column);
   const isFactoryDropdown = dropdownOpen?.column === 'manufacturer';
   const isCpnDropdown = dropdownOpen?.column === 'customerPartNumber';
   const isUomDropdown = dropdownOpen?.column === 'uom';
   const isEndUserDropdown = dropdownOpen?.column === 'endUser' && settings?.specifyEndUserPerLine;
+  const isFixtureScheduleDropdown = dropdownOpen?.column === 'fixtureSchedule';
 
   // Get current line item's productId and manufacturerId for searches
   const currentLineItem = dropdownOpen ? lineItems.find(li => li.id === dropdownOpen.itemId) : null;
@@ -134,7 +136,7 @@ export function LineItemsTabV2({
   const handleCellClick = (itemId: string, column: LineItemColumnKey, e: React.MouseEvent) => {
     // customerPartNumber and description are read-only (populated when product is selected)
     // partNumber, manufacturer, and uom are dropdown columns
-    const dropdownColumns: LineItemColumnKey[] = ['partNumber', 'manufacturer', 'uom'];
+    const dropdownColumns: LineItemColumnKey[] = ['partNumber', 'manufacturer', 'uom', 'fixtureSchedule'];
     if (settings?.specifyEndUserPerLine) {
       dropdownColumns.push('endUser');
     }
@@ -174,6 +176,8 @@ export function LineItemsTabV2({
       updates.description = value;
     } else if (column === 'manufacturer') {
       updates.manufacturerName = value;
+    } else if (column === 'fixtureSchedule') {
+      updates.fixtureSchedule = value;
     }
     updateLineItem(itemId, updates);
     setDropdownOpen(null);
@@ -264,9 +268,9 @@ export function LineItemsTabV2({
   const renderCell = (item: LineItemV2, column: ColumnConfig) => {
     const isEditing = editingCell?.itemId === item.id && editingCell?.column === column.key;
     const isDropdown = dropdownOpen?.itemId === item.id && dropdownOpen?.column === column.key;
-    // partNumber, manufacturer, and uom are dropdown columns
+    // partNumber, manufacturer, uom, and fixtureSchedule are dropdown columns
     // customerPartNumber and description are read-only (populated when product is selected)
-    const dropdownColumns: LineItemColumnKey[] = ['partNumber', 'manufacturer', 'uom'];
+    const dropdownColumns: LineItemColumnKey[] = ['partNumber', 'manufacturer', 'uom', 'fixtureSchedule'];
     if (settings?.specifyEndUserPerLine) {
       dropdownColumns.push('endUser');
     }
@@ -347,6 +351,10 @@ export function LineItemsTabV2({
         break;
       case 'earnAmount':
         displayValue = item.earnAmount !== undefined ? `$${item.earnAmount.toFixed(2)}` : '—';
+        break;
+      case 'fixtureSchedule':
+        const fixtureOption = FIXTURE_SCHEDULE_OPTIONS.find(opt => opt.value === item.fixtureSchedule);
+        displayValue = fixtureOption?.label || 'Select...';
         break;
       default:
         displayValue = '—';
@@ -636,25 +644,28 @@ export function LineItemsTabV2({
                 left: Math.min(dropdownOpen.position.left, window.innerWidth - 300),
               }}
             >
-              <div className="p-2 border-b border-gray-100">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={
-                    dropdownOpen.column === 'manufacturer' ? 'Search manufacturers...' :
-                    dropdownOpen.column === 'uom' ? 'Search UOMs...' :
-                    'Type to search...'
-                  }
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  autoFocus
-                />
-                {isProductDropdown && (
-                  <div className="mt-1 text-xs text-gray-400">
-                    Searches: Part #, Customer Part #, Description
-                  </div>
-                )}
-              </div>
+              {/* Search input - not shown for fixture schedule dropdown */}
+              {!isFixtureScheduleDropdown && (
+                <div className="p-2 border-b border-gray-100">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder={
+                      dropdownOpen.column === 'manufacturer' ? 'Search manufacturers...' :
+                      dropdownOpen.column === 'uom' ? 'Search UOMs...' :
+                      'Type to search...'
+                    }
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    autoFocus
+                  />
+                  {isProductDropdown && (
+                    <div className="mt-1 text-xs text-gray-400">
+                      Searches: Part #, Customer Part #, Description
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="max-h-48 overflow-y-auto">
                 {/* Loading state */}
                 {(productsLoading || factoriesLoading || cpnsLoading || uomsLoading) && (
@@ -923,6 +934,25 @@ export function LineItemsTabV2({
                     {uomResults.length === 0 && (
                       <div className="px-3 py-2 text-sm text-gray-500">No UOMs found</div>
                     )}
+                  </>
+                )}
+
+                {/* Fixture Schedule dropdown */}
+                {isFixtureScheduleDropdown && (
+                  <>
+                    {FIXTURE_SCHEDULE_OPTIONS.map((option) => (
+                      <button
+                        key={option.value}
+                        onClick={() => {
+                          handleDropdownSelect(dropdownOpen.itemId, 'fixtureSchedule', option.value);
+                        }}
+                        className={`w-full text-left px-3 py-2 hover:bg-gray-50 transition-colors ${
+                          currentLineItem?.fixtureSchedule === option.value ? 'bg-indigo-50 text-indigo-600' : ''
+                        }`}
+                      >
+                        <div className="text-sm font-medium">{option.label}</div>
+                      </button>
+                    ))}
                   </>
                 )}
               </div>

@@ -37,6 +37,7 @@ export const OVERAGE_VIEW_COLUMNS: LineItemColumnKey[] = [
   'customerPartNumber',
   'description',
   'manufacturer',
+  'fixtureSchedule',
   'quantity',
   'uom',
   'unitPrice',
@@ -48,6 +49,18 @@ export const OVERAGE_VIEW_COLUMNS: LineItemColumnKey[] = [
   'ovgAmount',
   'earnPercent',
   'earnAmount',
+];
+
+/**
+ * Fixture Schedule options for the editable dropdown
+ */
+export const FIXTURE_SCHEDULE_OPTIONS = [
+  { value: '', label: 'Select...' },
+  { value: 'TYPE_A', label: 'Type A' },
+  { value: 'TYPE_B', label: 'Type B' },
+  { value: 'TYPE_C', label: 'Type C' },
+  { value: 'TYPE_D', label: 'Type D' },
+  { value: 'TYPE_E', label: 'Type E' },
 ];
 
 /**
@@ -105,4 +118,5 @@ export const COLUMN_LABELS: Record<LineItemColumnKey, string> = {
   ovgAmount: 'Ovg $',
   earnPercent: 'Earn %',
   earnAmount: 'Earn $',
+  fixtureSchedule: 'Fixture Schedule',
 };

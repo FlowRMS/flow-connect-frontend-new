@@ -205,6 +205,7 @@ export interface LineItemV2 {
   ovgAmount?: number;
   earnPercent?: number;
   earnAmount?: number;
+  fixtureSchedule?: string;
 }
 
 export interface NoteV2 {
@@ -303,7 +304,8 @@ export type LineItemColumnKey =
   | 'ovgPercent'
   | 'ovgAmount'
   | 'earnPercent'
-  | 'earnAmount';
+  | 'earnAmount'
+  | 'fixtureSchedule';
 
 export interface ColumnConfig {
   key: LineItemColumnKey;
