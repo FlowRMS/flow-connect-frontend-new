@@ -6,6 +6,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { fetchOrderById, type Order } from '@/components/lib/graphql/orders';
 import { fetchUserById } from '@/components/lib/api/search';
 
@@ -15,6 +16,7 @@ interface OrderDetailModalProps {
 }
 
 export function OrderDetailModal({ orderId, onClose }: OrderDetailModalProps) {
+  const router = useRouter();
   const [order, setOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -109,17 +111,19 @@ export function OrderDetailModal({ orderId, onClose }: OrderDetailModalProps) {
             <h2 className="text-lg font-semibold text-[var(--foreground)]">
               {isLoading ? 'Loading...' : order?.orderNumber || 'Order Details'}
             </h2>
-            {order?.headerStatus && (
+            {order?.status && (
               <span className={`px-2 py-0.5 text-xs font-medium rounded ${
-                order.headerStatus === 'SHIPPED'
+                order.status === 'SHIPPED_COMPLETE'
                   ? 'bg-green-100 text-green-700'
-                  : order.headerStatus === 'CANCELLED'
+                  : order.status === 'PARTIAL_SHIPPED'
+                  ? 'bg-blue-100 text-blue-700'
+                  : order.status === 'CANCELLED'
                   ? 'bg-red-100 text-red-700'
-                  : order.headerStatus === 'DRAFT'
+                  : order.status === 'DRAFT'
                   ? 'bg-gray-100 text-gray-700'
                   : 'bg-yellow-100 text-yellow-700'
               }`}>
-                {order.headerStatus}
+                {order.status.replace(/_/g, ' ')}
               </span>
             )}
           </div>
@@ -323,20 +327,18 @@ export function OrderDetailModal({ orderId, onClose }: OrderDetailModalProps) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end p-6 border-t border-[var(--border)] bg-[var(--muted)]/30">
-          {order?.url && (
-            <a
-              href={order.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-4 py-2 text-sm font-medium text-[var(--primary)] hover:bg-[var(--muted)] rounded-lg transition-colors mr-2"
-            >
-              View in ERP
-            </a>
-          )}
+        <div className="flex items-center justify-between p-6 border-t border-[var(--border)] bg-[var(--muted)]/30">
+          <button
+            onClick={() => {
+              router.push(`/orders/${orderId}`);
+            }}
+            className="px-4 py-2 text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] rounded-lg transition-colors"
+          >
+            Go to Order
+          </button>
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-[var(--primary)] text-white text-sm font-medium rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+            className="px-4 py-2 bg-[var(--muted)] text-[var(--foreground)] text-sm font-medium rounded-lg hover:bg-[var(--muted)]/80 transition-colors"
           >
             Close
           </button>
