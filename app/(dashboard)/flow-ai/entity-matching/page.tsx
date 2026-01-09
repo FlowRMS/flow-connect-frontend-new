@@ -147,6 +147,9 @@ function EntityMatchingContent() {
   // State for workflow triggering (new flow)
   const [isProcessingWorkflow, setIsProcessingWorkflow] = useState(false);
 
+  // State for document type (CHECKS, INVOICES, etc.)
+  const [documentType, setDocumentType] = useState<string | null>(null);
+
   // Pagination for performance - only render a limited number of items initially
   const ITEMS_PER_PAGE = 50;
   const [displayLimit, setDisplayLimit] = useState(ITEMS_PER_PAGE);
@@ -158,6 +161,35 @@ function EntityMatchingContent() {
       router.push('/flow-ai');
     }
   }, [pendingId, router]);
+
+  // Fetch document type from pending document
+  useEffect(() => {
+    const fetchDocumentType = async () => {
+      if (!pendingId) return;
+
+      try {
+        const result = await flowrmsApolloClient.query<{
+          getPendingDocument?: {
+            entityType: string | null;
+          };
+        }>({
+          query: Q_GET_PENDING,
+          variables: { pendingId },
+          fetchPolicy: 'cache-first',
+        });
+
+        const entityType = result.data?.getPendingDocument?.entityType;
+        if (entityType) {
+          console.log('Document type:', entityType);
+          setDocumentType(entityType);
+        }
+      } catch (error) {
+        console.error('Error fetching document type:', error);
+      }
+    };
+
+    fetchDocumentType();
+  }, [pendingId]);
 
   const {
     factories,
@@ -197,7 +229,10 @@ function EntityMatchingContent() {
     handleSearchEntities,
     handleSearchUsers,
     initialLoadComplete,
-  } = useEntityMatching({ pendingDocumentId: pendingId });
+    // Factory-based entities state (for CHECKS/INVOICES document types)
+    isFactoryMatched,
+    factoryEntitiesLoading,
+  } = useEntityMatching({ pendingDocumentId: pendingId, documentType });
 
   // Reset display limit when switching tabs for performance
   useEffect(() => {
@@ -1155,6 +1190,8 @@ function EntityMatchingContent() {
           creditsCount={credits.length}
           adjustmentsCount={adjustments.length}
           getStepStatus={getStepStatus}
+          documentType={documentType}
+          isFactoryMatched={isFactoryMatched}
         />
 
         {/* Filter and Action Controls */}
