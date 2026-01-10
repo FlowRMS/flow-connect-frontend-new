@@ -7,6 +7,7 @@
 import { useState, useCallback } from 'react';
 import { fetchCustomerById } from '@/components/customers/api/customersApi';
 import { fetchFactoryById } from '@/components/warehouse/api/factoriesApi';
+import { fetchUser } from '@/components/lib/graphql/users';
 
 // Types for split rates
 export interface RepSplitRate {
@@ -60,13 +61,32 @@ export function useAutoPopulateReps(): UseAutoPopulateRepsReturn {
       }
 
       // Map customer outside reps to our format
-      const reps: RepSplitRate[] = customer.outsideReps.map((rep, idx) => ({
-        id: rep.id || crypto.randomUUID(),
-        userId: rep.userId,
-        userName: rep.user?.fullName || `${rep.user?.firstName || ''} ${rep.user?.lastName || ''}`.trim() || '',
-        splitRate: rep.splitRate || '100',
-        position: rep.position || idx + 1,
-      }));
+      // Fetch user details for each rep if not already populated
+      const reps: RepSplitRate[] = await Promise.all(
+        customer.outsideReps.map(async (rep, idx) => {
+          let userName = rep.user?.fullName || `${rep.user?.firstName || ''} ${rep.user?.lastName || ''}`.trim();
+
+          // If userName is empty and we have userId, fetch user details
+          if (!userName && rep.userId) {
+            try {
+              const user = await fetchUser(rep.userId);
+              if (user) {
+                userName = user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim();
+              }
+            } catch (err) {
+              console.warn('Failed to fetch user details for rep:', rep.userId, err);
+            }
+          }
+
+          return {
+            id: rep.id || crypto.randomUUID(),
+            userId: rep.userId,
+            userName: userName || '',
+            splitRate: rep.splitRate || '100',
+            position: rep.position || idx + 1,
+          };
+        })
+      );
 
       // If only one rep, ensure split rate is 100
       if (reps.length === 1) {
@@ -97,13 +117,33 @@ export function useAutoPopulateReps(): UseAutoPopulateRepsReturn {
       }
 
       // Map factory split rates to our format
-      const reps: RepSplitRate[] = factory.splitRates.map((rep, idx) => ({
-        id: rep.id || crypto.randomUUID(),
-        userId: rep.user?.id || '',
-        userName: rep.user?.fullName || `${rep.user?.firstName || ''} ${rep.user?.lastName || ''}`.trim() || '',
-        splitRate: rep.splitRate || '100',
-        position: rep.position || idx + 1,
-      }));
+      // Fetch user details for each rep if not already populated
+      const reps: RepSplitRate[] = await Promise.all(
+        factory.splitRates.map(async (rep, idx) => {
+          const userId = rep.user?.id || '';
+          let userName = rep.user?.fullName || `${rep.user?.firstName || ''} ${rep.user?.lastName || ''}`.trim();
+
+          // If userName is empty and we have userId, fetch user details
+          if (!userName && userId) {
+            try {
+              const user = await fetchUser(userId);
+              if (user) {
+                userName = user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim();
+              }
+            } catch (err) {
+              console.warn('Failed to fetch user details for rep:', userId, err);
+            }
+          }
+
+          return {
+            id: rep.id || crypto.randomUUID(),
+            userId,
+            userName: userName || '',
+            splitRate: rep.splitRate || '100',
+            position: rep.position || idx + 1,
+          };
+        })
+      );
 
       // If only one rep, ensure split rate is 100
       if (reps.length === 1) {

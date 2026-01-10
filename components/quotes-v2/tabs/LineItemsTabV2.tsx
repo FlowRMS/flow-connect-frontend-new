@@ -6,6 +6,15 @@ import type { LineItemV2, ColumnConfig, LineItemColumnKey, QuoteSettingsV2 } fro
 import { useProductSearch, useFactorySearch, useProductCpns, useCustomerSearch, useProductUoms, getProductCpnByCustomer } from '../../quotes/api/useQuotesApi';
 import { useAutoPopulateReps } from '@/components/shared/hooks/useAutoPopulateReps';
 
+// Type for rep split rates passed from parent
+interface RepSplitRateInfo {
+  id: string;
+  userId: string;
+  userName: string;
+  splitRate: string;
+  position: number;
+}
+
 interface LineItemsTabV2Props {
   lineItems: LineItemV2[];
   onLineItemsChange: (items: LineItemV2[]) => void;
@@ -17,6 +26,9 @@ interface LineItemsTabV2Props {
   soldToCustomerId?: string;
   headerFactoryId?: string;
   headerFactoryName?: string;
+  // Current reps for inheriting to new line items
+  currentOutsideReps?: RepSplitRateInfo[];
+  currentInsideReps?: RepSplitRateInfo[];
 }
 
 export function LineItemsTabV2({
@@ -30,6 +42,8 @@ export function LineItemsTabV2({
   soldToCustomerId,
   headerFactoryId,
   headerFactoryName,
+  currentOutsideReps,
+  currentInsideReps,
 }: LineItemsTabV2Props) {
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [showSectionsMenu, setShowSectionsMenu] = useState(false);
@@ -237,7 +251,8 @@ export function LineItemsTabV2({
       quoteId: quoteId || lineItems[0]?.quoteId || '',
       partNumber: '',
       description: '',
-      manufacturerName: '',
+      manufacturerName: settings?.factoryPerLineItem === false ? headerFactoryName || '' : '',
+      manufacturerId: settings?.factoryPerLineItem === false ? headerFactoryId : undefined,
       quantity: 1,
       uom: null,
       divisor: 1,
@@ -251,6 +266,26 @@ export function LineItemsTabV2({
       commissionDiscountAmount: 0,
       lineDiscountPercent: 0,
       lineDiscountAmount: 0,
+      // Inherit outside reps if per-line-item setting is enabled
+      outsideSplitRates: settings?.outsideRepAtLineLevel && currentOutsideReps && currentOutsideReps.length > 0
+        ? currentOutsideReps.map((rep, idx) => ({
+            id: crypto.randomUUID(),
+            userId: rep.userId,
+            userName: rep.userName,
+            splitRate: rep.splitRate,
+            position: idx + 1,
+          }))
+        : undefined,
+      // Inherit inside reps if per-line-item setting is enabled AND factory is at header level
+      insideSplitRates: settings?.insideRepAtLineLevel && !settings?.factoryPerLineItem && currentInsideReps && currentInsideReps.length > 0
+        ? currentInsideReps.map((rep, idx) => ({
+            id: crypto.randomUUID(),
+            userId: rep.userId,
+            userName: rep.userName,
+            splitRate: rep.splitRate,
+            position: idx + 1,
+          }))
+        : undefined,
     };
     onLineItemsChange([...lineItems, newItem]);
   };

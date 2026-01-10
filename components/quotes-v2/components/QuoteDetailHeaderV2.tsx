@@ -236,33 +236,53 @@ export function QuoteDetailHeaderV2({
 
     // Initialize insideSplitReps from quote data
     if (quote.insideReps && quote.insideReps.length > 0) {
-      // Fetch user names for all reps
+      // Check if we already have the reps with names in our state (from auto-populate)
+      // by comparing userIds - if they match, keep existing names
+      setInsideSplitReps((currentReps) => {
+        const currentUserIds = new Set(currentReps.map(r => r.userId));
+        const newUserIds = new Set(quote.insideReps!.map(r => r.userId || ''));
+        const allMatch = quote.insideReps!.every(r => currentUserIds.has(r.userId || '')) &&
+                         currentReps.every(r => newUserIds.has(r.userId)) &&
+                         currentReps.length === quote.insideReps!.length;
+
+        // If userIds match, preserve existing names (already populated from auto-populate)
+        if (allMatch && currentReps.some(r => r.userName)) {
+          return currentReps.map((rep, idx) => ({
+            ...rep,
+            splitRate: quote.insideReps![idx]?.splitRate || rep.splitRate,
+            position: quote.insideReps![idx]?.position || rep.position || idx + 1,
+          }));
+        }
+
+        // Otherwise, need to fetch names - return placeholder and trigger async fetch
+        return quote.insideReps!.map((rep, idx) => ({
+          id: rep.id || crypto.randomUUID(),
+          userId: rep.userId || '',
+          userName: '', // Will be populated by async fetch below
+          splitRate: rep.splitRate || '100',
+          position: rep.position || idx + 1,
+        }));
+      });
+
+      // Fetch user names for all inside reps (only if we don't have names)
       searchUsers({ searchTerm: '', isInside: true, enabled: true, limit: 100 })
         .then((users) => {
-          const repsWithNames = quote.insideReps!.map((rep, idx) => {
-            const matchingUser = users.find((u) => u.id === rep.userId);
-            return {
-              id: rep.id || crypto.randomUUID(),
-              userId: rep.userId || '',
-              userName: matchingUser?.fullName || '',
-              splitRate: rep.splitRate || '100',
-              position: rep.position || idx + 1,
-            };
+          setInsideSplitReps((currentReps) => {
+            // Only update if we still don't have names
+            if (currentReps.some(r => r.userName)) {
+              return currentReps;
+            }
+            return currentReps.map((rep, idx) => {
+              const matchingUser = users.find((u) => u.id === rep.userId);
+              return {
+                ...rep,
+                userName: matchingUser?.fullName || '',
+              };
+            });
           });
-          setInsideSplitReps(repsWithNames);
         })
         .catch((err) => {
           console.error('Failed to fetch inside rep names:', err);
-          // Still set reps without names
-          setInsideSplitReps(
-            quote.insideReps!.map((rep, idx) => ({
-              id: rep.id || crypto.randomUUID(),
-              userId: rep.userId || '',
-              userName: '',
-              splitRate: rep.splitRate || '100',
-              position: rep.position || idx + 1,
-            }))
-          );
         });
     } else {
       setInsideSplitReps([]);
@@ -276,32 +296,53 @@ export function QuoteDetailHeaderV2({
 
     // Initialize outsideSplitReps from quote data
     if (quote.outsideReps && quote.outsideReps.length > 0) {
-      // Fetch user names for all outside reps
+      // Check if we already have the reps with names in our state (from auto-populate)
+      // by comparing userIds - if they match, keep existing names
+      setOutsideSplitReps((currentReps) => {
+        const currentUserIds = new Set(currentReps.map(r => r.userId));
+        const newUserIds = new Set(quote.outsideReps!.map(r => r.userId || ''));
+        const allMatch = quote.outsideReps!.every(r => currentUserIds.has(r.userId || '')) &&
+                         currentReps.every(r => newUserIds.has(r.userId)) &&
+                         currentReps.length === quote.outsideReps!.length;
+
+        // If userIds match, preserve existing names (already populated from auto-populate)
+        if (allMatch && currentReps.some(r => r.userName)) {
+          return currentReps.map((rep, idx) => ({
+            ...rep,
+            splitRate: quote.outsideReps![idx]?.splitRate || rep.splitRate,
+            position: quote.outsideReps![idx]?.position || rep.position || idx + 1,
+          }));
+        }
+
+        // Otherwise, need to fetch names - return placeholder and trigger async fetch
+        return quote.outsideReps!.map((rep, idx) => ({
+          id: rep.id || crypto.randomUUID(),
+          userId: rep.userId || '',
+          userName: '', // Will be populated by async fetch below
+          splitRate: rep.splitRate || '100',
+          position: rep.position || idx + 1,
+        }));
+      });
+
+      // Fetch user names for all outside reps (only if we don't have names)
       searchUsers({ searchTerm: '', isOutside: true, enabled: true, limit: 100 })
         .then((users) => {
-          const repsWithNames = quote.outsideReps!.map((rep, idx) => {
-            const matchingUser = users.find((u) => u.id === rep.userId);
-            return {
-              id: rep.id || crypto.randomUUID(),
-              userId: rep.userId || '',
-              userName: matchingUser?.fullName || '',
-              splitRate: rep.splitRate || '100',
-              position: rep.position || idx + 1,
-            };
+          setOutsideSplitReps((currentReps) => {
+            // Only update if we still don't have names
+            if (currentReps.some(r => r.userName)) {
+              return currentReps;
+            }
+            return currentReps.map((rep, idx) => {
+              const matchingUser = users.find((u) => u.id === rep.userId);
+              return {
+                ...rep,
+                userName: matchingUser?.fullName || '',
+              };
+            });
           });
-          setOutsideSplitReps(repsWithNames);
         })
         .catch((err) => {
           console.error('Failed to fetch outside rep names:', err);
-          setOutsideSplitReps(
-            quote.outsideReps!.map((rep, idx) => ({
-              id: rep.id || crypto.randomUUID(),
-              userId: rep.userId || '',
-              userName: '',
-              splitRate: rep.splitRate || '100',
-              position: rep.position || idx + 1,
-            }))
-          );
         });
     } else {
       setOutsideSplitReps([]);

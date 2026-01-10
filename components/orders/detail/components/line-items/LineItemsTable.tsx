@@ -17,6 +17,15 @@ import { formatCurrency } from '../../utils';
 
 type EditableColumnKey = 'partNumber' | 'custPartNumber' | 'description' | 'uom' | 'divisor' | 'quantity' | 'unitPrice' | 'commissionPercent' | 'manufacturer' | 'endUser';
 
+// Type for rep split rates passed from parent
+interface RepSplitRateInfo {
+  id: string;
+  userId: string;
+  userName: string;
+  splitRate: string;
+  position: number;
+}
+
 interface LineItemsTableProps {
   order: Order;
   selectedLineItems: Set<string>;
@@ -46,7 +55,12 @@ interface LineItemsTableProps {
   onDeleteLines: () => void;
   onUpdateLineItems?: (items: OrderLineItem[]) => void;
   showEndUserPerLine?: boolean;
+  showOutsideRepPerLine?: boolean;
+  showInsideRepPerLine?: boolean;
   onOpenAdditionalDetails?: (item: OrderLineItem) => void;
+  // Current reps for inheriting to new line items
+  currentOutsideReps?: RepSplitRateInfo[];
+  currentInsideReps?: RepSplitRateInfo[];
 }
 
 export function LineItemsTable({
@@ -78,7 +92,11 @@ export function LineItemsTable({
   onDeleteLines,
   onUpdateLineItems,
   showEndUserPerLine = false,
+  showOutsideRepPerLine = false,
+  showInsideRepPerLine = false,
   onOpenAdditionalDetails,
+  currentOutsideReps,
+  currentInsideReps,
 }: LineItemsTableProps) {
   // Editable state
   const [editingCell, setEditingCell] = useState<{ itemId: string; column: EditableColumnKey } | null>(null);
@@ -174,6 +192,26 @@ export function LineItemsTable({
         isCancelled: false,
         isConsignment: false,
         status: 'open',
+        // Inherit outside reps if per-line-item setting is enabled
+        outsideSplitRates: showOutsideRepPerLine && currentOutsideReps && currentOutsideReps.length > 0
+          ? currentOutsideReps.map((rep, idx) => ({
+              id: crypto.randomUUID(),
+              userId: rep.userId,
+              userName: rep.userName,
+              splitRate: rep.splitRate,
+              position: idx + 1,
+            }))
+          : undefined,
+        // Inherit inside reps if per-line-item setting is enabled
+        insideSplitRates: showInsideRepPerLine && currentInsideReps && currentInsideReps.length > 0
+          ? currentInsideReps.map((rep, idx) => ({
+              id: crypto.randomUUID(),
+              userId: rep.userId,
+              userName: rep.userName,
+              splitRate: rep.splitRate,
+              position: idx + 1,
+            }))
+          : undefined,
       };
       onUpdateLineItems([...lineItems, newItem]);
     }

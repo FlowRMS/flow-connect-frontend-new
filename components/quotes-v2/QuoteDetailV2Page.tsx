@@ -100,6 +100,10 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
   // Line items state
   const [lineItems, setLineItems] = useState<LineItemV2[]>([]);
 
+  // Current reps with names (for passing to line items when adding new ones)
+  const [currentOutsideReps, setCurrentOutsideReps] = useState<RepSplitRate[]>([]);
+  const [currentInsideReps, setCurrentInsideReps] = useState<RepSplitRate[]>([]);
+
   // Settings state
   const [settings, setSettings] = useState<QuoteSettingsV2>(defaultQuoteSettingsV2);
 
@@ -603,6 +607,9 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
 
   // Handler to auto-populate outside reps for all line items
   const handleAutoPopulateOutsideRepsToLineItems = useCallback((reps: RepSplitRate[]) => {
+    // Always store the current reps for new line items to inherit
+    setCurrentOutsideReps(reps);
+
     if (lineItems.length === 0) return;
 
     // Convert RepSplitRate[] to the format expected by line items
@@ -625,6 +632,9 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
 
   // Handler to auto-populate inside reps for all line items (when factory is at header level)
   const handleAutoPopulateInsideRepsToLineItems = useCallback((reps: RepSplitRate[]) => {
+    // Always store the current reps for new line items to inherit
+    setCurrentInsideReps(reps);
+
     if (lineItems.length === 0) return;
 
     // Convert RepSplitRate[] to the format expected by line items
@@ -699,20 +709,12 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
     // Handle outsideRepAtLineLevel toggle
     if (oldSettings.outsideRepAtLineLevel !== newSettings.outsideRepAtLineLevel) {
       if (newSettings.outsideRepAtLineLevel) {
-        // Switching to per-line-item mode: populate line items from header reps
-        if (quote.outsideReps && quote.outsideReps.length > 0) {
-          const outsideSplitRates = quote.outsideReps.map((rep, idx) => ({
-            id: crypto.randomUUID(),
-            userId: rep.userId,
-            userName: '', // Will be looked up when opening modal
-            splitRate: rep.splitRate,
-            position: rep.position || idx + 1,
-          }));
-          setLineItems(prev => prev.map(item => ({ ...item, outsideSplitRates })));
-        } else if (quote.soldToCustomerId) {
-          // No header reps, fetch from customer
+        // Switching to per-line-item mode: ALWAYS fetch from customer to get proper names
+        if (quote.soldToCustomerId) {
           const reps = await fetchOutsideRepsFromCustomer(quote.soldToCustomerId);
           if (reps.length > 0) {
+            // Store for new line items to inherit
+            setCurrentOutsideReps(reps);
             const outsideSplitRates = reps.map((rep, idx) => ({
               id: crypto.randomUUID(),
               userId: rep.userId,
@@ -755,20 +757,12 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
             })
           );
           setLineItems(updatedLineItems);
-        } else if (quote.insideReps && quote.insideReps.length > 0) {
-          // Factory is at header level - use header reps
-          const insideSplitRates = quote.insideReps.map((rep, idx) => ({
-            id: crypto.randomUUID(),
-            userId: rep.userId,
-            userName: '', // Will be looked up when opening modal
-            splitRate: rep.splitRate,
-            position: rep.position || idx + 1,
-          }));
-          setLineItems(prev => prev.map(item => ({ ...item, insideSplitRates })));
         } else if (quote.factoryId) {
-          // No header reps, fetch from factory
+          // Factory is at header level - ALWAYS fetch from factory to get proper names
           const reps = await fetchInsideRepsFromFactory(quote.factoryId);
           if (reps.length > 0) {
+            // Store for new line items to inherit
+            setCurrentInsideReps(reps);
             const insideSplitRates = reps.map((rep, idx) => ({
               id: crypto.randomUUID(),
               userId: rep.userId,
@@ -813,6 +807,8 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         // Switching to header-level factory - populate all line items with header factory's reps
         const reps = await fetchInsideRepsFromFactory(quote.factoryId);
         if (reps.length > 0) {
+          // Store for new line items to inherit
+          setCurrentInsideReps(reps);
           const insideSplitRates = reps.map((rep, idx) => ({
             id: crypto.randomUUID(),
             userId: rep.userId,
@@ -824,7 +820,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         }
       }
     }
-  }, [settings, quote.outsideReps, quote.insideReps, quote.soldToCustomerId, quote.factoryId, lineItems, fetchOutsideRepsFromCustomer, fetchInsideRepsFromFactory]);
+  }, [settings, quote.soldToCustomerId, quote.factoryId, lineItems, fetchOutsideRepsFromCustomer, fetchInsideRepsFromFactory]);
 
   const tabs: { key: TabType; label: string; count?: number; comingSoon?: boolean; disabled?: boolean; disabledReason?: string }[] = useMemo(() => [
     { key: 'lineItems', label: 'Line Items', count: lineItems.length },
@@ -949,6 +945,8 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
             soldToCustomerId={quote.soldToCustomerId}
             headerFactoryId={quote.factoryId}
             headerFactoryName={quote.factoryName}
+            currentOutsideReps={currentOutsideReps}
+            currentInsideReps={currentInsideReps}
           />
         )}
 

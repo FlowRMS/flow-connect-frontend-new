@@ -71,6 +71,10 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   const [showDuplicateOrderModal, setShowDuplicateOrderModal] = useState(false);
   const duplicateOrderMutation = useDuplicateOrder();
 
+  // Current reps with names (for passing to line items when adding new ones)
+  const [currentOutsideReps, setCurrentOutsideReps] = useState<RepSplitRate[]>([]);
+  const [currentInsideReps, setCurrentInsideReps] = useState<RepSplitRate[]>([]);
+
   // Auto-populate reps hook for settings toggle
   const { fetchOutsideRepsFromCustomer, fetchInsideRepsFromFactory } = useAutoPopulateReps();
 
@@ -78,12 +82,14 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   const handleSetShowOutsideRepPerLine = async (value: boolean) => {
     state.setShowOutsideRepPerLine(value);
 
-    if (value && order?.lineItems && order.lineItems.length > 0) {
-      // Switching to per-line-item mode: populate line items from customer's outside reps
-      if (order.customerId) {
+    if (value) {
+      // Switching to per-line-item mode: ALWAYS fetch from customer to get proper names
+      if (order?.customerId) {
         try {
           const reps = await fetchOutsideRepsFromCustomer(order.customerId);
           if (reps.length > 0) {
+            // Store for new line items to inherit
+            setCurrentOutsideReps(reps);
             const outsideSplitRates = reps.map((rep, idx) => ({
               id: crypto.randomUUID(),
               userId: rep.userId,
@@ -91,17 +97,19 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               splitRate: rep.splitRate,
               position: idx + 1,
             }));
-            const updatedLineItems = order.lineItems.map(item => ({
-              ...item,
-              outsideSplitRates,
-            }));
-            state.updateLocalOrder({ lineItems: updatedLineItems });
+            if (order.lineItems && order.lineItems.length > 0) {
+              const updatedLineItems = order.lineItems.map(item => ({
+                ...item,
+                outsideSplitRates,
+              }));
+              state.updateLocalOrder({ lineItems: updatedLineItems });
+            }
           }
         } catch (error) {
           console.error('Failed to fetch outside reps:', error);
         }
       }
-    } else if (!value && order?.lineItems) {
+    } else if (order?.lineItems) {
       // Switching to header mode: clear line item reps
       const updatedLineItems = order.lineItems.map(item => ({
         ...item,
@@ -114,12 +122,14 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   const handleSetShowInsideRepPerLine = async (value: boolean) => {
     state.setShowInsideRepPerLine(value);
 
-    if (value && order?.lineItems && order.lineItems.length > 0) {
-      // Switching to per-line-item mode: populate line items from factory's inside reps
-      if (order.manufacturerId) {
+    if (value) {
+      // Switching to per-line-item mode: ALWAYS fetch from factory to get proper names
+      if (order?.manufacturerId) {
         try {
           const reps = await fetchInsideRepsFromFactory(order.manufacturerId);
           if (reps.length > 0) {
+            // Store for new line items to inherit
+            setCurrentInsideReps(reps);
             const insideSplitRates = reps.map((rep, idx) => ({
               id: crypto.randomUUID(),
               userId: rep.userId,
@@ -127,17 +137,19 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               splitRate: rep.splitRate,
               position: idx + 1,
             }));
-            const updatedLineItems = order.lineItems.map(item => ({
-              ...item,
-              insideSplitRates,
-            }));
-            state.updateLocalOrder({ lineItems: updatedLineItems });
+            if (order.lineItems && order.lineItems.length > 0) {
+              const updatedLineItems = order.lineItems.map(item => ({
+                ...item,
+                insideSplitRates,
+              }));
+              state.updateLocalOrder({ lineItems: updatedLineItems });
+            }
           }
         } catch (error) {
           console.error('Failed to fetch inside reps:', error);
         }
       }
-    } else if (!value && order?.lineItems) {
+    } else if (order?.lineItems) {
       // Switching to header mode: clear line item reps
       const updatedLineItems = order.lineItems.map(item => ({
         ...item,
@@ -514,6 +526,9 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
 
   // Handler to auto-populate outside reps for all line items
   const handleAutoPopulateOutsideRepsToLineItems = (reps: RepSplitRate[]) => {
+    // Always store the current reps for new line items to inherit
+    setCurrentOutsideReps(reps);
+
     if (!order.lineItems || order.lineItems.length === 0) return;
 
     // Convert RepSplitRate[] to the format expected by line items
@@ -536,6 +551,9 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
 
   // Handler to auto-populate inside reps for all line items
   const handleAutoPopulateInsideRepsToLineItems = (reps: RepSplitRate[]) => {
+    // Always store the current reps for new line items to inherit
+    setCurrentInsideReps(reps);
+
     if (!order.lineItems || order.lineItems.length === 0) return;
 
     // Convert RepSplitRate[] to the format expected by line items
@@ -738,7 +756,11 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               onDeleteLines={handleDeleteLines}
               onUpdateLineItems={state.updateLineItems}
               showEndUserPerLine={state.showEndUserPerLine}
+              showOutsideRepPerLine={state.showOutsideRepPerLine}
+              showInsideRepPerLine={state.showInsideRepPerLine}
               onOpenAdditionalDetails={state.openAdditionalDetails}
+              currentOutsideReps={currentOutsideReps}
+              currentInsideReps={currentInsideReps}
             />
           )}
 
