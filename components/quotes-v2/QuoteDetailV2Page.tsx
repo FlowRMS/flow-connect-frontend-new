@@ -35,6 +35,7 @@ import {
   useDuplicateQuoteV2,
 } from './api/quotesV2Api';
 import { searchUsers, searchFactories, searchCustomers, getProductCpnByCustomer } from '../quotes/api/quotesApi';
+import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/useAutoPopulateReps';
 import { quoteToasts } from '../lib/toast';
 import { createLink, deleteLinkByEntities } from '../lib/graphql/entity-links';
 
@@ -597,6 +598,234 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
     }
   }, [quote.id, duplicateQuoteMutation]);
 
+  // Get the hook for fetching factory reps (used for per-line-item factory mode)
+  const { fetchInsideRepsFromFactory } = useAutoPopulateReps();
+
+  // Handler to auto-populate outside reps for all line items
+  const handleAutoPopulateOutsideRepsToLineItems = useCallback((reps: RepSplitRate[]) => {
+    if (lineItems.length === 0) return;
+
+    // Convert RepSplitRate[] to the format expected by line items
+    // Include userName so the modal can display the name without looking it up
+    const outsideSplitRates = reps.map((rep, idx) => ({
+      id: crypto.randomUUID(),
+      userId: rep.userId,
+      userName: rep.userName,
+      splitRate: rep.splitRate,
+      position: idx + 1,
+    }));
+
+    // Update all line items with the same outside reps
+    setLineItems(prev => prev.map(item => ({
+      ...item,
+      outsideSplitRates,
+    })));
+    setHasChanges(true);
+  }, [lineItems.length]);
+
+  // Handler to auto-populate inside reps for all line items (when factory is at header level)
+  const handleAutoPopulateInsideRepsToLineItems = useCallback((reps: RepSplitRate[]) => {
+    if (lineItems.length === 0) return;
+
+    // Convert RepSplitRate[] to the format expected by line items
+    // Include userName so the modal can display the name without looking it up
+    const insideSplitRates = reps.map((rep, idx) => ({
+      id: crypto.randomUUID(),
+      userId: rep.userId,
+      userName: rep.userName,
+      splitRate: rep.splitRate,
+      position: idx + 1,
+    }));
+
+    // Update all line items with the same inside reps
+    setLineItems(prev => prev.map(item => ({
+      ...item,
+      insideSplitRates,
+    })));
+    setHasChanges(true);
+  }, [lineItems.length]);
+
+  // Handler to auto-populate inside reps per line item based on each line's manufacturer
+  // This is for when factoryPerLineItem is enabled - each line item gets reps from its own manufacturer
+  const handleAutoPopulateInsideRepsPerLineItemFactory = useCallback(async () => {
+    if (lineItems.length === 0) return;
+
+    // Process each line item that has a manufacturer
+    const updatedLineItems = await Promise.all(
+      lineItems.map(async (item) => {
+        if (!item.manufacturerId) {
+          return item; // No manufacturer, keep as is
+        }
+
+        try {
+          const reps = await fetchInsideRepsFromFactory(item.manufacturerId);
+          if (reps.length === 0) {
+            return item; // No reps found, keep as is
+          }
+
+          // Convert to line item format - include userName
+          const insideSplitRates = reps.map((rep, idx) => ({
+            id: crypto.randomUUID(),
+            userId: rep.userId,
+            userName: rep.userName,
+            splitRate: rep.splitRate,
+            position: idx + 1,
+          }));
+
+          return {
+            ...item,
+            insideSplitRates,
+          };
+        } catch (error) {
+          console.error(`Failed to fetch reps for manufacturer ${item.manufacturerId}:`, error);
+          return item; // On error, keep as is
+        }
+      })
+    );
+
+    setLineItems(updatedLineItems);
+    setHasChanges(true);
+  }, [lineItems, fetchInsideRepsFromFactory]);
+
+  // Get the hook for fetching customer reps (for settings toggle)
+  const { fetchOutsideRepsFromCustomer } = useAutoPopulateReps();
+
+  // Handler for settings changes with rep redistribution
+  const handleSettingsChange = useCallback(async (newSettings: QuoteSettingsV2) => {
+    const oldSettings = settings;
+    setSettings(newSettings);
+    setHasChanges(true);
+
+    // Handle outsideRepAtLineLevel toggle
+    if (oldSettings.outsideRepAtLineLevel !== newSettings.outsideRepAtLineLevel) {
+      if (newSettings.outsideRepAtLineLevel) {
+        // Switching to per-line-item mode: populate line items from header reps
+        if (quote.outsideReps && quote.outsideReps.length > 0) {
+          const outsideSplitRates = quote.outsideReps.map((rep, idx) => ({
+            id: crypto.randomUUID(),
+            userId: rep.userId,
+            userName: '', // Will be looked up when opening modal
+            splitRate: rep.splitRate,
+            position: rep.position || idx + 1,
+          }));
+          setLineItems(prev => prev.map(item => ({ ...item, outsideSplitRates })));
+        } else if (quote.soldToCustomerId) {
+          // No header reps, fetch from customer
+          const reps = await fetchOutsideRepsFromCustomer(quote.soldToCustomerId);
+          if (reps.length > 0) {
+            const outsideSplitRates = reps.map((rep, idx) => ({
+              id: crypto.randomUUID(),
+              userId: rep.userId,
+              userName: rep.userName,
+              splitRate: rep.splitRate,
+              position: idx + 1,
+            }));
+            setLineItems(prev => prev.map(item => ({ ...item, outsideSplitRates })));
+          }
+        }
+      } else {
+        // Switching to header mode: clear line item reps (header will be populated from customer when selected)
+        setLineItems(prev => prev.map(item => ({ ...item, outsideSplitRates: [] })));
+      }
+    }
+
+    // Handle insideRepAtLineLevel toggle
+    if (oldSettings.insideRepAtLineLevel !== newSettings.insideRepAtLineLevel) {
+      if (newSettings.insideRepAtLineLevel) {
+        // Switching to per-line-item mode
+        if (newSettings.factoryPerLineItem) {
+          // Factory is per line item - each line item gets its own manufacturer's reps
+          const updatedLineItems = await Promise.all(
+            lineItems.map(async (item) => {
+              if (!item.manufacturerId) return item;
+              try {
+                const reps = await fetchInsideRepsFromFactory(item.manufacturerId);
+                if (reps.length === 0) return item;
+                const insideSplitRates = reps.map((rep, idx) => ({
+                  id: crypto.randomUUID(),
+                  userId: rep.userId,
+                  userName: rep.userName,
+                  splitRate: rep.splitRate,
+                  position: idx + 1,
+                }));
+                return { ...item, insideSplitRates };
+              } catch {
+                return item;
+              }
+            })
+          );
+          setLineItems(updatedLineItems);
+        } else if (quote.insideReps && quote.insideReps.length > 0) {
+          // Factory is at header level - use header reps
+          const insideSplitRates = quote.insideReps.map((rep, idx) => ({
+            id: crypto.randomUUID(),
+            userId: rep.userId,
+            userName: '', // Will be looked up when opening modal
+            splitRate: rep.splitRate,
+            position: rep.position || idx + 1,
+          }));
+          setLineItems(prev => prev.map(item => ({ ...item, insideSplitRates })));
+        } else if (quote.factoryId) {
+          // No header reps, fetch from factory
+          const reps = await fetchInsideRepsFromFactory(quote.factoryId);
+          if (reps.length > 0) {
+            const insideSplitRates = reps.map((rep, idx) => ({
+              id: crypto.randomUUID(),
+              userId: rep.userId,
+              userName: rep.userName,
+              splitRate: rep.splitRate,
+              position: idx + 1,
+            }));
+            setLineItems(prev => prev.map(item => ({ ...item, insideSplitRates })));
+          }
+        }
+      } else {
+        // Switching to header mode: clear line item reps
+        setLineItems(prev => prev.map(item => ({ ...item, insideSplitRates: [] })));
+      }
+    }
+
+    // Handle factoryPerLineItem toggle when insideRepAtLineLevel is already on
+    if (oldSettings.factoryPerLineItem !== newSettings.factoryPerLineItem && newSettings.insideRepAtLineLevel) {
+      if (newSettings.factoryPerLineItem) {
+        // Switching to per-line-item factory mode - repopulate each line item from its manufacturer
+        const updatedLineItems = await Promise.all(
+          lineItems.map(async (item) => {
+            if (!item.manufacturerId) return item;
+            try {
+              const reps = await fetchInsideRepsFromFactory(item.manufacturerId);
+              if (reps.length === 0) return item;
+              const insideSplitRates = reps.map((rep, idx) => ({
+                id: crypto.randomUUID(),
+                userId: rep.userId,
+                userName: rep.userName,
+                splitRate: rep.splitRate,
+                position: idx + 1,
+              }));
+              return { ...item, insideSplitRates };
+            } catch {
+              return item;
+            }
+          })
+        );
+        setLineItems(updatedLineItems);
+      } else if (quote.factoryId) {
+        // Switching to header-level factory - populate all line items with header factory's reps
+        const reps = await fetchInsideRepsFromFactory(quote.factoryId);
+        if (reps.length > 0) {
+          const insideSplitRates = reps.map((rep, idx) => ({
+            id: crypto.randomUUID(),
+            userId: rep.userId,
+            userName: rep.userName,
+            splitRate: rep.splitRate,
+            position: idx + 1,
+          }));
+          setLineItems(prev => prev.map(item => ({ ...item, insideSplitRates })));
+        }
+      }
+    }
+  }, [settings, quote.outsideReps, quote.insideReps, quote.soldToCustomerId, quote.factoryId, lineItems, fetchOutsideRepsFromCustomer, fetchInsideRepsFromFactory]);
+
   const tabs: { key: TabType; label: string; count?: number; comingSoon?: boolean; disabled?: boolean; disabledReason?: string }[] = useMemo(() => [
     { key: 'lineItems', label: 'Line Items', count: lineItems.length },
     { key: 'files', label: 'Files', disabled: isNew, disabledReason: 'Save quote first' },
@@ -665,6 +894,9 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         lineItems={lineItems}
         settings={settings}
         onClearLineItemProducts={handleClearLineItemProducts}
+        onAutoPopulateOutsideRepsToLineItems={handleAutoPopulateOutsideRepsToLineItems}
+        onAutoPopulateInsideRepsToLineItems={handleAutoPopulateInsideRepsToLineItems}
+        onAutoPopulateInsideRepsPerLineItemFactory={handleAutoPopulateInsideRepsPerLineItemFactory}
       />
 
       {/* Tabs */}
@@ -783,7 +1015,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
 
         {activeTab === 'settings' && (
           <div className="h-full overflow-auto p-6">
-            <SettingsTabV2 settings={settings} onSettingsChange={setSettings} />
+            <SettingsTabV2 settings={settings} onSettingsChange={handleSettingsChange} />
           </div>
         )}
       </div>

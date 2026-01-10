@@ -37,6 +37,7 @@ import {
 } from './components/modals';
 import { DuplicateOrderModal } from '../list/components/modals/DuplicateOrderModal';
 import { useDuplicateOrder } from '../api/useOrdersApi';
+import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/useAutoPopulateReps';
 import { useCreditsState } from './hooks/useCreditsState';
 import { useAdjustmentsState } from './hooks/useAdjustmentsState';
 import { useAcknowledgementsState } from './hooks/useAcknowledgementsState';
@@ -69,6 +70,82 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   // Duplicate Order modal state
   const [showDuplicateOrderModal, setShowDuplicateOrderModal] = useState(false);
   const duplicateOrderMutation = useDuplicateOrder();
+
+  // Auto-populate reps hook for settings toggle
+  const { fetchOutsideRepsFromCustomer, fetchInsideRepsFromFactory } = useAutoPopulateReps();
+
+  // Wrapped handlers for settings changes with rep redistribution
+  const handleSetShowOutsideRepPerLine = async (value: boolean) => {
+    state.setShowOutsideRepPerLine(value);
+
+    if (value && order?.lineItems && order.lineItems.length > 0) {
+      // Switching to per-line-item mode: populate line items from customer's outside reps
+      if (order.customerId) {
+        try {
+          const reps = await fetchOutsideRepsFromCustomer(order.customerId);
+          if (reps.length > 0) {
+            const outsideSplitRates = reps.map((rep, idx) => ({
+              id: crypto.randomUUID(),
+              userId: rep.userId,
+              userName: rep.userName,
+              splitRate: rep.splitRate,
+              position: idx + 1,
+            }));
+            const updatedLineItems = order.lineItems.map(item => ({
+              ...item,
+              outsideSplitRates,
+            }));
+            state.updateLocalOrder({ lineItems: updatedLineItems });
+          }
+        } catch (error) {
+          console.error('Failed to fetch outside reps:', error);
+        }
+      }
+    } else if (!value && order?.lineItems) {
+      // Switching to header mode: clear line item reps
+      const updatedLineItems = order.lineItems.map(item => ({
+        ...item,
+        outsideSplitRates: [],
+      }));
+      state.updateLocalOrder({ lineItems: updatedLineItems });
+    }
+  };
+
+  const handleSetShowInsideRepPerLine = async (value: boolean) => {
+    state.setShowInsideRepPerLine(value);
+
+    if (value && order?.lineItems && order.lineItems.length > 0) {
+      // Switching to per-line-item mode: populate line items from factory's inside reps
+      if (order.manufacturerId) {
+        try {
+          const reps = await fetchInsideRepsFromFactory(order.manufacturerId);
+          if (reps.length > 0) {
+            const insideSplitRates = reps.map((rep, idx) => ({
+              id: crypto.randomUUID(),
+              userId: rep.userId,
+              userName: rep.userName,
+              splitRate: rep.splitRate,
+              position: idx + 1,
+            }));
+            const updatedLineItems = order.lineItems.map(item => ({
+              ...item,
+              insideSplitRates,
+            }));
+            state.updateLocalOrder({ lineItems: updatedLineItems });
+          }
+        } catch (error) {
+          console.error('Failed to fetch inside reps:', error);
+        }
+      }
+    } else if (!value && order?.lineItems) {
+      // Switching to header mode: clear line item reps
+      const updatedLineItems = order.lineItems.map(item => ({
+        ...item,
+        insideSplitRates: [],
+      }));
+      state.updateLocalOrder({ lineItems: updatedLineItems });
+    }
+  };
 
   // Loading state
   if (state?.isLoading) {
@@ -435,6 +512,50 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
     alert(state.hasFreightLine ? 'Freight line would be removed' : 'Freight line would be added');
   };
 
+  // Handler to auto-populate outside reps for all line items
+  const handleAutoPopulateOutsideRepsToLineItems = (reps: RepSplitRate[]) => {
+    if (!order.lineItems || order.lineItems.length === 0) return;
+
+    // Convert RepSplitRate[] to the format expected by line items
+    const outsideSplitRates = reps.map((rep, idx) => ({
+      id: crypto.randomUUID(),
+      userId: rep.userId,
+      userName: rep.userName,
+      splitRate: rep.splitRate,
+      position: idx + 1,
+    }));
+
+    // Update all line items with the same outside reps
+    const updatedLineItems = order.lineItems.map(item => ({
+      ...item,
+      outsideSplitRates,
+    }));
+
+    state.updateLocalOrder({ lineItems: updatedLineItems });
+  };
+
+  // Handler to auto-populate inside reps for all line items
+  const handleAutoPopulateInsideRepsToLineItems = (reps: RepSplitRate[]) => {
+    if (!order.lineItems || order.lineItems.length === 0) return;
+
+    // Convert RepSplitRate[] to the format expected by line items
+    const insideSplitRates = reps.map((rep, idx) => ({
+      id: crypto.randomUUID(),
+      userId: rep.userId,
+      userName: rep.userName,
+      splitRate: rep.splitRate,
+      position: idx + 1,
+    }));
+
+    // Update all line items with the same inside reps
+    const updatedLineItems = order.lineItems.map(item => ({
+      ...item,
+      insideSplitRates,
+    }));
+
+    state.updateLocalOrder({ lineItems: updatedLineItems });
+  };
+
   return (
     <main className="flex flex-col h-screen bg-[var(--background)]">
       {/* Header */}
@@ -485,6 +606,8 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         setShowQuoteLookupModal={state.setShowQuoteLookupModal}
         onCreateInvoice={() => setShowCreateInvoiceModal(true)}
         onDuplicateOrder={() => setShowDuplicateOrderModal(true)}
+        onAutoPopulateOutsideRepsToLineItems={handleAutoPopulateOutsideRepsToLineItems}
+        onAutoPopulateInsideRepsToLineItems={handleAutoPopulateInsideRepsToLineItems}
       />
 
       {/* Main Content Area with Tabs */}
@@ -670,9 +793,9 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               showEndUserPerLine={state.showEndUserPerLine}
               setShowEndUserPerLine={state.setShowEndUserPerLine}
               showOutsideRepPerLine={state.showOutsideRepPerLine}
-              setShowOutsideRepPerLine={state.setShowOutsideRepPerLine}
+              setShowOutsideRepPerLine={handleSetShowOutsideRepPerLine}
               showInsideRepPerLine={state.showInsideRepPerLine}
-              setShowInsideRepPerLine={state.setShowInsideRepPerLine}
+              setShowInsideRepPerLine={handleSetShowInsideRepPerLine}
               customerPartNumberSource={state.customerPartNumberSource}
               setCustomerPartNumberSource={state.setCustomerPartNumberSource}
               hasFreightLine={state.hasFreightLine}

@@ -5,6 +5,7 @@ import type { QuoteV2, QuotePipelineStage, LineItemV2, QuoteSettingsV2, QuoteV2S
 import { SearchableDropdownV2 } from './SearchableDropdownV2';
 import { useCustomerSearch, useUserSearch, useJobSearch, useFactorySearch } from '../../quotes/api/useQuotesApi';
 import { searchUsers } from '../../quotes/api/quotesApi';
+import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/useAutoPopulateReps';
 import { CreateOrderFromQuoteModal } from '../modals/CreateOrderFromQuoteModal';
 import { CreatedByBadge } from '@/components/ui/CreatedByBadge';
 import { PDFBuilder } from '@/components/shared/pdf-builder';
@@ -61,6 +62,11 @@ interface QuoteDetailHeaderV2Props {
   lineItems?: LineItemV2[];
   settings?: QuoteSettingsV2;
   onClearLineItemProducts?: () => void;
+  // Callbacks for auto-populating reps at line item level
+  onAutoPopulateOutsideRepsToLineItems?: (reps: RepSplitRate[]) => void;
+  onAutoPopulateInsideRepsToLineItems?: (reps: RepSplitRate[]) => void;
+  // Callback for auto-populating inside reps per line item using each line's manufacturer
+  onAutoPopulateInsideRepsPerLineItemFactory?: () => void;
 }
 
 // Pipeline stage options - kept for potential future use
@@ -134,7 +140,16 @@ export function QuoteDetailHeaderV2({
   lineItems = [],
   settings,
   onClearLineItemProducts,
+  onAutoPopulateOutsideRepsToLineItems,
+  onAutoPopulateInsideRepsToLineItems,
+  onAutoPopulateInsideRepsPerLineItemFactory,
 }: QuoteDetailHeaderV2Props) {
+  // Auto-populate reps hook
+  const {
+    fetchOutsideRepsFromCustomer,
+    fetchInsideRepsFromFactory,
+  } = useAutoPopulateReps();
+
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [showPipelineStageMenu, setShowPipelineStageMenu] = useState(false);
@@ -899,7 +914,7 @@ export function QuoteDetailHeaderV2({
             <SearchableDropdownV2
               value={quote.soldToCustomerId}
               displayValue={quote.soldToCustomerName}
-              onChange={(id, label) => {
+              onChange={async (id, label) => {
                 onQuoteChange({ soldToCustomerId: id, soldToCustomerName: label });
                 // If "Same as sold to" is checked, update end user too
                 if (endUserSameAsSoldTo) {
@@ -908,6 +923,49 @@ export function QuoteDetailHeaderV2({
                 // If "Same as sold to" is checked for bill to, update bill to too
                 if (billToSameAsSoldTo) {
                   onQuoteChange({ billToCustomerId: id, billToCustomerName: label });
+                }
+                // Auto-populate outside reps from customer
+                if (id) {
+                  const reps = await fetchOutsideRepsFromCustomer(id);
+                  if (reps.length > 0) {
+                    if (settings?.outsideRepAtLineLevel) {
+                      // Per line item mode - populate all line items
+                      onAutoPopulateOutsideRepsToLineItems?.(reps);
+                    } else {
+                      // Header level mode - populate header fields
+                      const primaryRep = reps[0];
+                      if (reps.length > 1) {
+                        // Multiple reps - set up split commission
+                        setShowOutsideSplitCommission(true);
+                        setOutsideSplitReps(reps.map((r, idx) => ({
+                          id: r.id,
+                          userId: r.userId,
+                          userName: r.userName,
+                          splitRate: r.splitRate,
+                          position: idx + 1,
+                        })));
+                        onQuoteChange({
+                          outsideRepId: primaryRep.userId,
+                          outsideRepName: primaryRep.userName,
+                          outsideReps: reps.map((r, idx) => ({
+                            id: '',
+                            userId: r.userId,
+                            splitRate: r.splitRate,
+                            position: idx + 1,
+                          })),
+                        });
+                      } else {
+                        // Single rep
+                        setShowOutsideSplitCommission(false);
+                        setOutsideSplitReps([]);
+                        onQuoteChange({
+                          outsideRepId: primaryRep.userId,
+                          outsideRepName: primaryRep.userName,
+                          outsideReps: [{ id: '', userId: primaryRep.userId, splitRate: '100', position: 1 }],
+                        });
+                      }
+                    }
+                  }
                 }
               }}
               options={soldToOptions}
@@ -1253,7 +1311,7 @@ export function QuoteDetailHeaderV2({
                 isLoading={isFactoriesLoading}
                 options={factoryOptions}
                 onSearch={handleFactorySearch}
-                onChange={(id, label) => {
+                onChange={async (id, label) => {
                   // If manufacturer changed and there are line items with products, clear them
                   const manufacturerChanged = id !== quote.factoryId;
                   if (manufacturerChanged && onClearLineItemProducts) {
@@ -1261,6 +1319,50 @@ export function QuoteDetailHeaderV2({
                   }
                   onQuoteChange({ factoryId: id || undefined, factoryName: label });
                   setFactorySearchEnabled(false);
+
+                  // Auto-populate inside reps from factory
+                  if (id) {
+                    const reps = await fetchInsideRepsFromFactory(id);
+                    if (reps.length > 0) {
+                      if (settings?.insideRepAtLineLevel) {
+                        // Per line item mode - populate all line items with same reps
+                        onAutoPopulateInsideRepsToLineItems?.(reps);
+                      } else {
+                        // Header level mode - populate header fields
+                        const primaryRep = reps[0];
+                        if (reps.length > 1) {
+                          // Multiple reps - set up split commission
+                          setShowInsideSplitCommission(true);
+                          setInsideSplitReps(reps.map((r, idx) => ({
+                            id: r.id,
+                            userId: r.userId,
+                            userName: r.userName,
+                            splitRate: r.splitRate,
+                            position: idx + 1,
+                          })));
+                          onQuoteChange({
+                            insideRepId: primaryRep.userId,
+                            insideRepName: primaryRep.userName,
+                            insideReps: reps.map((r, idx) => ({
+                              id: '',
+                              userId: r.userId,
+                              splitRate: r.splitRate,
+                              position: idx + 1,
+                            })),
+                          });
+                        } else {
+                          // Single rep
+                          setShowInsideSplitCommission(false);
+                          setInsideSplitReps([]);
+                          onQuoteChange({
+                            insideRepId: primaryRep.userId,
+                            insideRepName: primaryRep.userName,
+                            insideReps: [{ id: '', userId: primaryRep.userId, splitRate: '100', position: 1 }],
+                          });
+                        }
+                      }
+                    }
+                  }
                 }}
               />
             )}

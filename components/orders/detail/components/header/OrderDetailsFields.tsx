@@ -18,6 +18,7 @@ import {
   useFactorySearch,
   useUserSearch,
 } from '../../../api';
+import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/useAutoPopulateReps';
 
 // ComingSoonBadge component for unsupported features
 function ComingSoonBadge({ inline = false }: { inline?: boolean }) {
@@ -53,6 +54,9 @@ interface OrderDetailsFieldsProps {
   showEndUserPerLine?: boolean;
   showOutsideRepPerLine?: boolean;
   showInsideRepPerLine?: boolean;
+  // Callbacks for auto-populating reps at line item level
+  onAutoPopulateOutsideRepsToLineItems?: (reps: RepSplitRate[]) => void;
+  onAutoPopulateInsideRepsToLineItems?: (reps: RepSplitRate[]) => void;
 }
 
 export function OrderDetailsFields({
@@ -78,7 +82,14 @@ export function OrderDetailsFields({
   showEndUserPerLine = false,
   showOutsideRepPerLine = false,
   showInsideRepPerLine = false,
+  onAutoPopulateOutsideRepsToLineItems,
+  onAutoPopulateInsideRepsToLineItems,
 }: OrderDetailsFieldsProps) {
+  // Auto-populate reps hook
+  const {
+    fetchOutsideRepsFromCustomer,
+    fetchInsideRepsFromFactory,
+  } = useAutoPopulateReps();
   // Search states
   const [soldToSearchTerm, setSoldToSearchTerm] = useState('');
   const [soldToSearchEnabled, setSoldToSearchEnabled] = useState(false);
@@ -191,6 +202,68 @@ export function OrderDetailsFields({
     }
   };
 
+  // Auto-populate inside reps from factory (called when factory changes)
+  const autoPopulateInsideReps = async (factoryId: string) => {
+    const reps = await fetchInsideRepsFromFactory(factoryId);
+    if (reps.length === 0) return;
+
+    if (showInsideRepPerLine) {
+      // Per line item mode - populate all line items
+      onAutoPopulateInsideRepsToLineItems?.(reps);
+    } else {
+      // Header level mode - populate header fields
+      const primaryRep = reps[0];
+      setOrderInsideRep(primaryRep.userId);
+      handleFieldUpdate('insideRepId', primaryRep.userId);
+      handleFieldUpdate('insideRepName', primaryRep.userName);
+
+      if (reps.length > 1) {
+        // Multiple reps - enable split commission
+        setSplitInsideCommission(true);
+        setInsideRepSplits(reps.map(r => ({
+          repId: r.userId,
+          repName: r.userName,
+          percentage: parseInt(r.splitRate) || Math.floor(100 / reps.length),
+        })));
+        openInsideRepModal();
+      } else {
+        setSplitInsideCommission(false);
+        setInsideRepSplits([]);
+      }
+    }
+  };
+
+  // Auto-populate outside reps from customer (called when customer changes)
+  const autoPopulateOutsideReps = async (customerId: string) => {
+    const reps = await fetchOutsideRepsFromCustomer(customerId);
+    if (reps.length === 0) return;
+
+    if (showOutsideRepPerLine) {
+      // Per line item mode - populate all line items
+      onAutoPopulateOutsideRepsToLineItems?.(reps);
+    } else {
+      // Header level mode - populate header fields
+      const primaryRep = reps[0];
+      setOrderOutsideRep(primaryRep.userId);
+      handleFieldUpdate('outsideRepId' as keyof Order, primaryRep.userId);
+      handleFieldUpdate('outsideRepName' as keyof Order, primaryRep.userName);
+
+      if (reps.length > 1) {
+        // Multiple reps - enable split commission
+        setSplitOutsideCommission(true);
+        setOutsideRepSplits(reps.map(r => ({
+          repId: r.userId,
+          repName: r.userName,
+          percentage: parseInt(r.splitRate) || Math.floor(100 / reps.length),
+        })));
+        openOutsideRepModal();
+      } else {
+        setSplitOutsideCommission(false);
+        setOutsideRepSplits([]);
+      }
+    }
+  };
+
   return (
     <div className="border-b border-[var(--border)] bg-blue-50/30 flex-shrink-0">
       <button
@@ -243,6 +316,10 @@ export function OrderDetailsFields({
                   handleFieldUpdate('manufacturerId', id);
                   handleFieldUpdate('manufacturerName', label);
                   setFactorySearchEnabled(false);
+                  // Auto-populate inside reps from factory
+                  if (id) {
+                    autoPopulateInsideReps(id);
+                  }
                 }}
                 options={factoryOptions}
                 placeholder="Select Factory..."
@@ -274,6 +351,10 @@ export function OrderDetailsFields({
                   if (billToSameAsSoldTo) {
                     handleFieldUpdate('billToCustomerId' as keyof Order, id);
                     handleFieldUpdate('billToCustomerName' as keyof Order, label);
+                  }
+                  // Auto-populate outside reps from customer
+                  if (id) {
+                    autoPopulateOutsideReps(id);
                   }
                 }}
                 options={soldToOptions}

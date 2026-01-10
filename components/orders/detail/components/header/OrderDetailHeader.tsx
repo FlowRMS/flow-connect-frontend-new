@@ -14,6 +14,7 @@ import { RepSplit, ViewMode } from '../../types';
 import { HeaderTopBar } from './HeaderTopBar';
 import { PricingSummaryBar } from './PricingSummaryBar';
 import { OrderDetailsFields } from './OrderDetailsFields';
+import { RepSplitRate } from '@/components/shared/hooks/useAutoPopulateReps';
 
 interface OrderDetailHeaderProps {
   order: Order;
@@ -67,6 +68,9 @@ interface OrderDetailHeaderProps {
   handleGenerateFulfillmentRequest?: () => void;
   onCreateInvoice?: () => void;
   onDuplicateOrder?: () => void;
+  // Callbacks for auto-populating reps at line item level
+  onAutoPopulateOutsideRepsToLineItems?: (reps: RepSplitRate[]) => void;
+  onAutoPopulateInsideRepsToLineItems?: (reps: RepSplitRate[]) => void;
 }
 
 export function OrderDetailHeader(props: OrderDetailHeaderProps) {
@@ -122,6 +126,8 @@ export function OrderDetailHeader(props: OrderDetailHeaderProps) {
     handleGenerateFulfillmentRequest = () => { alert('Fulfillment request - coming soon'); },
     onCreateInvoice,
     onDuplicateOrder,
+    onAutoPopulateOutsideRepsToLineItems,
+    onAutoPopulateInsideRepsToLineItems,
   } = props;
 
   // Calculate totals
@@ -205,6 +211,8 @@ export function OrderDetailHeader(props: OrderDetailHeaderProps) {
         showEndUserPerLine={showEndUserPerLine}
         showOutsideRepPerLine={showOutsideRepPerLine}
         showInsideRepPerLine={showInsideRepPerLine}
+        onAutoPopulateOutsideRepsToLineItems={onAutoPopulateOutsideRepsToLineItems}
+        onAutoPopulateInsideRepsToLineItems={onAutoPopulateInsideRepsToLineItems}
       />
     </>
   );

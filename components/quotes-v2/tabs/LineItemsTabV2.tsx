@@ -4,6 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type { LineItemV2, ColumnConfig, LineItemColumnKey, QuoteSettingsV2 } from '../types';
 import { useProductSearch, useFactorySearch, useProductCpns, useCustomerSearch, useProductUoms, getProductCpnByCustomer } from '../../quotes/api/useQuotesApi';
+import { useAutoPopulateReps } from '@/components/shared/hooks/useAutoPopulateReps';
 
 interface LineItemsTabV2Props {
   lineItems: LineItemV2[];
@@ -36,6 +37,9 @@ export function LineItemsTabV2({
   const [dropdownOpen, setDropdownOpen] = useState<{ itemId: string; column: LineItemColumnKey; position: { top: number; left: number } } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Hook for fetching inside reps from factory when manufacturer changes
+  const { fetchInsideRepsFromFactory } = useAutoPopulateReps();
 
   // Debounce search query - immediately trigger on dropdown open (when searchQuery is empty)
   useEffect(() => {
@@ -671,7 +675,7 @@ export function LineItemsTabV2({
                       return (
                         <button
                           key={factory.id}
-                          onClick={() => {
+                          onClick={async () => {
                             // If changing manufacturer, clear product-related fields to maintain consistency
                             const updates: Partial<LineItemV2> = {
                               manufacturerId: factory.id,
@@ -683,6 +687,25 @@ export function LineItemsTabV2({
                               updates.description = '';
                               updates.customerPartNumber = '';
                             }
+
+                            // Auto-populate inside reps if insideRepAtLineLevel is enabled
+                            if (settings?.insideRepAtLineLevel) {
+                              try {
+                                const reps = await fetchInsideRepsFromFactory(factory.id);
+                                if (reps.length > 0) {
+                                  updates.insideSplitRates = reps.map((rep, idx) => ({
+                                    id: crypto.randomUUID(),
+                                    userId: rep.userId,
+                                    userName: rep.userName,
+                                    splitRate: rep.splitRate,
+                                    position: idx + 1,
+                                  }));
+                                }
+                              } catch (error) {
+                                console.error('Failed to fetch inside reps for factory:', error);
+                              }
+                            }
+
                             updateLineItem(dropdownOpen.itemId, updates);
                             setDropdownOpen(null);
                             setSearchQuery('');

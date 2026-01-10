@@ -10,7 +10,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import type { OrderLineItem } from '@/lib/types/rms';
 import { SearchableDropdownV2 } from '@/components/quotes-v2/components/SearchableDropdownV2';
 import { useCustomerSearch, useUserSearch } from '../../../../api';
-import { searchUsers } from '@/components/quotes/api/quotesApi';
+import { fetchUserById } from '@/components/lib/api/search';
 
 // Commission split rep interface
 interface CommissionSplitRep {
@@ -126,26 +126,45 @@ export function AdditionalDetailsModal({
       // Initialize inside split reps from line item
       const insideSplitRates = (lineItem as any).insideSplitRates;
       if (insideSplitRates && insideSplitRates.length > 0) {
-        // Fetch user names for inside reps
-        searchUsers({ searchTerm: '', isInside: true, enabled: true, limit: 100 })
-          .then((users) => {
-            const repsWithNames: CommissionSplitRep[] = insideSplitRates.map((rep: any, idx: number) => {
-              const matchingUser = users.find(u => u.id === rep.userId);
+        // Fetch user names for inside reps by their IDs
+        Promise.all(
+          insideSplitRates.map(async (rep: any, idx: number) => {
+            // If userName is already stored, use it
+            if (rep.userName) {
               return {
                 id: rep.id || crypto.randomUUID(),
                 userId: rep.userId || '',
-                userName: matchingUser?.fullName || '',
+                userName: rep.userName,
                 splitRate: rep.splitRate || '100',
                 position: rep.position || idx + 1,
               };
-            });
-            setInsideSplitReps(repsWithNames);
+            }
+            // Otherwise fetch by ID
+            if (rep.userId) {
+              const user = await fetchUserById(rep.userId);
+              return {
+                id: rep.id || crypto.randomUUID(),
+                userId: rep.userId,
+                userName: user?.fullName || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'Unknown',
+                splitRate: rep.splitRate || '100',
+                position: rep.position || idx + 1,
+              };
+            }
+            return {
+              id: rep.id || crypto.randomUUID(),
+              userId: '',
+              userName: 'Unknown',
+              splitRate: rep.splitRate || '100',
+              position: rep.position || idx + 1,
+            };
           })
+        )
+          .then((repsWithNames) => setInsideSplitReps(repsWithNames))
           .catch(() => {
             setInsideSplitReps(insideSplitRates.map((rep: any, idx: number) => ({
               id: rep.id || crypto.randomUUID(),
               userId: rep.userId || '',
-              userName: '',
+              userName: rep.userName || 'Unknown',
               splitRate: rep.splitRate || '100',
               position: rep.position || idx + 1,
             })));
@@ -157,26 +176,45 @@ export function AdditionalDetailsModal({
       // Initialize outside split reps from line item
       const outsideSplitRates = (lineItem as any).outsideSplitRates;
       if (outsideSplitRates && outsideSplitRates.length > 0) {
-        // Fetch user names for outside reps
-        searchUsers({ searchTerm: '', isOutside: true, enabled: true, limit: 100 })
-          .then((users) => {
-            const repsWithNames: CommissionSplitRep[] = outsideSplitRates.map((rep: any, idx: number) => {
-              const matchingUser = users.find(u => u.id === rep.userId);
+        // Fetch user names for outside reps by their IDs
+        Promise.all(
+          outsideSplitRates.map(async (rep: any, idx: number) => {
+            // If userName is already stored, use it
+            if (rep.userName) {
               return {
                 id: rep.id || crypto.randomUUID(),
                 userId: rep.userId || '',
-                userName: matchingUser?.fullName || '',
+                userName: rep.userName,
                 splitRate: rep.splitRate || '100',
                 position: rep.position || idx + 1,
               };
-            });
-            setOutsideSplitReps(repsWithNames);
+            }
+            // Otherwise fetch by ID
+            if (rep.userId) {
+              const user = await fetchUserById(rep.userId);
+              return {
+                id: rep.id || crypto.randomUUID(),
+                userId: rep.userId,
+                userName: user?.fullName || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'Unknown',
+                splitRate: rep.splitRate || '100',
+                position: rep.position || idx + 1,
+              };
+            }
+            return {
+              id: rep.id || crypto.randomUUID(),
+              userId: '',
+              userName: 'Unknown',
+              splitRate: rep.splitRate || '100',
+              position: rep.position || idx + 1,
+            };
           })
+        )
+          .then((repsWithNames) => setOutsideSplitReps(repsWithNames))
           .catch(() => {
             setOutsideSplitReps(outsideSplitRates.map((rep: any, idx: number) => ({
               id: rep.id || crypto.randomUUID(),
               userId: rep.userId || '',
-              userName: '',
+              userName: rep.userName || 'Unknown',
               splitRate: rep.splitRate || '100',
               position: rep.position || idx + 1,
             })));
