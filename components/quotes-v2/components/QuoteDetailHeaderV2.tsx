@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type { QuoteV2, QuotePipelineStage, LineItemV2, QuoteSettingsV2, QuoteV2Status } from '../types';
 import { SearchableDropdownV2 } from './SearchableDropdownV2';
 import { useCustomerSearch, useUserSearch, useJobSearch, useFactorySearch } from '../../quotes/api/useQuotesApi';
@@ -229,6 +229,10 @@ export function QuoteDetailHeaderV2({
   const [outsideSplitRepSearchTerm, setOutsideSplitRepSearchTerm] = useState('');
   const [outsideSplitRepSearchEnabled, setOutsideSplitRepSearchEnabled] = useState(false);
 
+  // Ref to skip useEffect when auto-populating reps (prevents race condition)
+  const skipOutsideRepsEffectRef = useRef(false);
+  const skipInsideRepsEffectRef = useRef(false);
+
   // Sync split commission state when quote.insideReps changes
   useEffect(() => {
     const hasMultipleInsideReps = (quote.insideReps?.length || 0) > 1;
@@ -291,6 +295,12 @@ export function QuoteDetailHeaderV2({
 
   // Sync outside reps state when quote.outsideReps changes
   useEffect(() => {
+    // Skip this effect if we just auto-populated (prevents race condition)
+    if (skipOutsideRepsEffectRef.current) {
+      skipOutsideRepsEffectRef.current = false;
+      return;
+    }
+
     const hasMultipleOutsideReps = (quote.outsideReps?.length || 0) > 1;
     setShowOutsideSplitCommission(hasMultipleOutsideReps);
 
@@ -951,6 +961,81 @@ export function QuoteDetailHeaderV2({
             </select>
           </div>
           <div>
+            <label className="block text-xs text-gray-500 mb-1">Manufacturer</label>
+            {settings?.factoryPerLineItem ? (
+              <div className="relative">
+                <input
+                  type="text"
+                  value="Per line item"
+                  disabled
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md bg-gray-100 text-gray-400 cursor-not-allowed"
+                />
+              </div>
+            ) : (
+              <SearchableDropdownV2
+                value={quote.factoryId || ''}
+                displayValue={quote.factoryName || ''}
+                placeholder="Select manufacturer..."
+                isLoading={isFactoriesLoading}
+                options={factoryOptions}
+                onSearch={handleFactorySearch}
+                onChange={async (id, label) => {
+                  // If manufacturer changed and there are line items with products, clear them
+                  const manufacturerChanged = id !== quote.factoryId;
+                  if (manufacturerChanged && onClearLineItemProducts) {
+                    onClearLineItemProducts();
+                  }
+                  onQuoteChange({ factoryId: id || undefined, factoryName: label });
+                  setFactorySearchEnabled(false);
+
+                  // Auto-populate inside reps from factory
+                  if (id) {
+                    const reps = await fetchInsideRepsFromFactory(id);
+                    if (reps.length > 0) {
+                      if (settings?.insideRepAtLineLevel) {
+                        // Per line item mode - populate all line items with same reps
+                        onAutoPopulateInsideRepsToLineItems?.(reps);
+                      } else {
+                        // Header level mode - populate header fields
+                        const primaryRep = reps[0];
+                        if (reps.length > 1) {
+                          // Multiple reps - set up split commission
+                          setShowInsideSplitCommission(true);
+                          setInsideSplitReps(reps.map((r, idx) => ({
+                            id: r.id,
+                            userId: r.userId,
+                            userName: r.userName,
+                            splitRate: r.splitRate,
+                            position: idx + 1,
+                          })));
+                          onQuoteChange({
+                            insideRepId: primaryRep.userId,
+                            insideRepName: primaryRep.userName,
+                            insideReps: reps.map((r, idx) => ({
+                              id: '',
+                              userId: r.userId,
+                              splitRate: r.splitRate,
+                              position: idx + 1,
+                            })),
+                          });
+                        } else {
+                          // Single rep
+                          setShowInsideSplitCommission(false);
+                          setInsideSplitReps([]);
+                          onQuoteChange({
+                            insideRepId: primaryRep.userId,
+                            insideRepName: primaryRep.userName,
+                            insideReps: [{ id: '', userId: primaryRep.userId, splitRate: '100', position: 1 }],
+                          });
+                        }
+                      }
+                    }
+                  }
+                }}
+              />
+            )}
+          </div>
+          <div>
             <label className="block text-xs text-gray-500 mb-1">Sold To Customer*</label>
             <SearchableDropdownV2
               value={quote.soldToCustomerId}
@@ -985,6 +1070,8 @@ export function QuoteDetailHeaderV2({
                           splitRate: r.splitRate,
                           position: idx + 1,
                         })));
+                        // Skip the useEffect to prevent it from overwriting our reps with names
+                        skipOutsideRepsEffectRef.current = true;
                         onQuoteChange({
                           outsideRepId: primaryRep.userId,
                           outsideRepName: primaryRep.userName,
@@ -1104,6 +1191,10 @@ export function QuoteDetailHeaderV2({
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             />
           </div>
+        </div>
+
+        {/* Row 2 */}
+        <div className="grid grid-cols-8 gap-4 mb-4">
           <div>
             <label className="block text-xs text-gray-500 mb-1">Freight Terms</label>
             <input
@@ -1113,10 +1204,6 @@ export function QuoteDetailHeaderV2({
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             />
           </div>
-        </div>
-
-        {/* Row 2 */}
-        <div className="grid grid-cols-7 gap-4 mb-4">
           <div>
             <label className="block text-xs text-gray-500 mb-1">Quote Date*</label>
             <input
@@ -1331,86 +1418,7 @@ export function QuoteDetailHeaderV2({
           </div>
         </div>
 
-        {/* Row 3 - Manufacturer (header-level) */}
-        <div className="grid grid-cols-7 gap-4 mb-4">
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Manufacturer</label>
-            {settings?.factoryPerLineItem ? (
-              <div className="relative">
-                <input
-                  type="text"
-                  value="Per line item"
-                  disabled
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md bg-gray-100 text-gray-400 cursor-not-allowed"
-                />
-              </div>
-            ) : (
-              <SearchableDropdownV2
-                value={quote.factoryId || ''}
-                displayValue={quote.factoryName || ''}
-                placeholder="Select manufacturer..."
-                isLoading={isFactoriesLoading}
-                options={factoryOptions}
-                onSearch={handleFactorySearch}
-                onChange={async (id, label) => {
-                  // If manufacturer changed and there are line items with products, clear them
-                  const manufacturerChanged = id !== quote.factoryId;
-                  if (manufacturerChanged && onClearLineItemProducts) {
-                    onClearLineItemProducts();
-                  }
-                  onQuoteChange({ factoryId: id || undefined, factoryName: label });
-                  setFactorySearchEnabled(false);
-
-                  // Auto-populate inside reps from factory
-                  if (id) {
-                    const reps = await fetchInsideRepsFromFactory(id);
-                    if (reps.length > 0) {
-                      if (settings?.insideRepAtLineLevel) {
-                        // Per line item mode - populate all line items with same reps
-                        onAutoPopulateInsideRepsToLineItems?.(reps);
-                      } else {
-                        // Header level mode - populate header fields
-                        const primaryRep = reps[0];
-                        if (reps.length > 1) {
-                          // Multiple reps - set up split commission
-                          setShowInsideSplitCommission(true);
-                          setInsideSplitReps(reps.map((r, idx) => ({
-                            id: r.id,
-                            userId: r.userId,
-                            userName: r.userName,
-                            splitRate: r.splitRate,
-                            position: idx + 1,
-                          })));
-                          onQuoteChange({
-                            insideRepId: primaryRep.userId,
-                            insideRepName: primaryRep.userName,
-                            insideReps: reps.map((r, idx) => ({
-                              id: '',
-                              userId: r.userId,
-                              splitRate: r.splitRate,
-                              position: idx + 1,
-                            })),
-                          });
-                        } else {
-                          // Single rep
-                          setShowInsideSplitCommission(false);
-                          setInsideSplitReps([]);
-                          onQuoteChange({
-                            insideRepId: primaryRep.userId,
-                            insideRepName: primaryRep.userName,
-                            insideReps: [{ id: '', userId: primaryRep.userId, splitRate: '100', position: 1 }],
-                          });
-                        }
-                      }
-                    }
-                  }
-                }}
-              />
-            )}
-          </div>
-        </div>
-
-        {/* Row 4 - Published and Blanket Checkboxes */}
+        {/* Row 3 - Published and Blanket Checkboxes */}
         <div className="flex items-center gap-6 mt-4">
           <label className="flex items-center gap-2 cursor-pointer">
             <input

@@ -62,25 +62,28 @@ export function useAutoPopulateReps(): UseAutoPopulateRepsReturn {
 
       // Map customer outside reps to our format
       // Fetch user details for each rep if not already populated
+      // Note: API returns user.id, not userId directly
       const reps: RepSplitRate[] = await Promise.all(
         customer.outsideReps.map(async (rep, idx) => {
+          // Get userId from either rep.userId or rep.user.id
+          const userId = rep.userId || rep.user?.id || '';
           let userName = rep.user?.fullName || `${rep.user?.firstName || ''} ${rep.user?.lastName || ''}`.trim();
 
           // If userName is empty and we have userId, fetch user details
-          if (!userName && rep.userId) {
+          if (!userName && userId) {
             try {
-              const user = await fetchUser(rep.userId);
+              const user = await fetchUser(userId);
               if (user) {
                 userName = user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim();
               }
             } catch (err) {
-              console.warn('Failed to fetch user details for rep:', rep.userId, err);
+              console.warn('Failed to fetch user details for rep:', userId, err);
             }
           }
 
           return {
             id: rep.id || crypto.randomUUID(),
-            userId: rep.userId,
+            userId,
             userName: userName || '',
             splitRate: rep.splitRate || '100',
             position: rep.position || idx + 1,
