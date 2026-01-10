@@ -14,7 +14,8 @@ import type { ColumnKey, ViewMode, LineItemCredit, InvoiceLineItem, EditableInvo
 import { BulkActionsBar } from './BulkActionsBar';
 import { LineItemsTableHeader } from './LineItemsTableHeader';
 import { formatCurrency } from '../../utils';
-import { useProductSearch, useProductCpns, useProductUoms, getProductCpnByCustomer } from '@/components/orders/api';
+import { useProductSearch, useProductCpns, useProductUoms, getProductCpnByCustomer, listProductPricingTiers, getPriceForQuantity } from '@/components/orders/api';
+import type { ProductPricingTierResult } from '@/components/quotes/api/quotesApi';
 
 type EditableColumnKey = 'partNumber' | 'custPartNumber' | 'description' | 'uom' | 'divisor' | 'quantity' | 'unitPrice' | 'commissionPercent';
 
@@ -79,6 +80,10 @@ export function LineItemsTable({
   // Search state with debouncing
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  // Store pricing tiers per product ID for volume discount calculations
+  const [productPricingTiers, setProductPricingTiers] = useState<Record<string, ProductPricingTierResult[]>>({});
+  // Track which line items have CPN pricing (CPN pricing is fixed and doesn't change with quantity)
+  const [lineItemsWithCpnPricing, setLineItemsWithCpnPricing] = useState<Set<string>>(new Set());
 
   // Debounce search - 300ms delay
   useEffect(() => {
@@ -156,6 +161,7 @@ export function LineItemsTable({
 
   // Handle product selection - auto-fills Part#, Description, and fetches CPN
   // Also populates: unit price, qty (defaults to 1), commission %, sell total, commission $
+  // Now includes CPN pricing override and volume pricing tiers
   const handleProductSelect = async (itemId: string, product: any) => {
     const item = invoice.lineItems.find(li => li.id === itemId);
     if (!item) return;
@@ -163,28 +169,74 @@ export function LineItemsTable({
     // Default quantity to 1 if not set (new line item scenario)
     const quantity = item.quantity > 0 ? item.quantity : 1;
     const divisor = product.defaultDivisor || item.divisor || 1;
-    const unitPrice = product.unitPrice || 0;
-    const commissionRate = product.defaultCommissionRate || 0.08;
-    const extendedPrice = quantity * unitPrice / divisor;
-    const commissionAmount = extendedPrice * commissionRate;
+
+    // Default values from product
+    let unitPrice = product.unitPrice || 0;
+    let commissionRate = product.defaultCommissionRate || 0.08;
 
     // Close dropdown first
     setDropdownOpen(null);
     setSearchQuery('');
 
-    // Fetch CPN for the sold-to customer
+    // Fetch CPN and pricing tiers in parallel
     let custPartNumber = '';
     const soldToCustomerId = invoice.customerId;
-    if (soldToCustomerId && product.id) {
-      try {
-        const cpnResult = await getProductCpnByCustomer(product.id, soldToCustomerId);
-        if (cpnResult?.customerPartNumber) {
-          custPartNumber = cpnResult.customerPartNumber;
+
+    if (product.id) {
+      const [cpnResult, tiersResult] = await Promise.all([
+        // Fetch CPN for the customer
+        soldToCustomerId
+          ? getProductCpnByCustomer(product.id, soldToCustomerId).catch(() => null)
+          : Promise.resolve(null),
+        // Fetch pricing tiers for volume discounts
+        listProductPricingTiers(product.id).catch(() => [])
+      ]);
+
+      // Track if CPN has custom pricing (CPN pricing takes priority over tier pricing)
+      let cpnHasCustomPrice = false;
+
+      if (cpnResult) {
+        custPartNumber = cpnResult.customerPartNumber || '';
+        // Use CPN's unit price if available (override product default)
+        if (cpnResult.unitPrice) {
+          unitPrice = parseFloat(cpnResult.unitPrice);
+          cpnHasCustomPrice = true;
         }
-      } catch (err) {
-        // CPN not found is not an error - just leave it empty
+        // Use CPN's commission rate if available (override product default)
+        if (cpnResult.commissionRate) {
+          commissionRate = parseFloat(cpnResult.commissionRate);
+        }
+      }
+
+      // Track this line item's CPN pricing status for quantity changes
+      if (cpnHasCustomPrice) {
+        setLineItemsWithCpnPricing(prev => new Set([...prev, itemId]));
+      } else {
+        // Remove from CPN pricing set if no CPN price
+        setLineItemsWithCpnPricing(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(itemId);
+          return newSet;
+        });
+      }
+
+      // Store pricing tiers for quantity-based price updates
+      // Only apply tier pricing if CPN doesn't have custom price
+      if (tiersResult && tiersResult.length > 0) {
+        setProductPricingTiers(prev => ({
+          ...prev,
+          [product.id]: tiersResult
+        }));
+        // Only apply tier pricing if no CPN custom price
+        if (!cpnHasCustomPrice) {
+          unitPrice = getPriceForQuantity(quantity, tiersResult, unitPrice);
+        }
       }
     }
+
+    // Calculate derived values with final pricing
+    const extendedPrice = quantity * unitPrice / divisor;
+    const commissionAmount = extendedPrice * commissionRate;
 
     // Single atomic update with ALL product data including:
     // Part #, Description, CPN, Unit Price, Qty, Divisor, UOM,
@@ -264,9 +316,20 @@ export function LineItemsTable({
       case 'quantity': {
         const qty = parseInt(value) || 1;
         const divisor = item.divisor || 1;
-        const extendedPrice = qty * item.unitPrice / divisor;
+        // Check if product has pricing tiers and apply tier-based pricing
+        // BUT skip tier pricing if this line item has CPN pricing (CPN price is fixed)
+        let unitPrice = item.unitPrice;
+        const hasCpnPricing = lineItemsWithCpnPricing.has(itemId);
+        if (!hasCpnPricing && item.productId && productPricingTiers[item.productId]) {
+          unitPrice = getPriceForQuantity(qty, productPricingTiers[item.productId], item.unitPrice);
+        }
+        const extendedPrice = qty * unitPrice / divisor;
         const commissionAmount = extendedPrice * (item.commissionRate ?? 0.08);
         updates.quantity = qty;
+        // Only update unit price if using tier pricing (not CPN)
+        if (!hasCpnPricing) {
+          updates.unitPrice = unitPrice;
+        }
         updates.amount = extendedPrice;
         updates.total = extendedPrice;
         updates.commissionAmount = commissionAmount;
