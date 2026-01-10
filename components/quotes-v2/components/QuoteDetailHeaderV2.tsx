@@ -157,6 +157,9 @@ export function QuoteDetailHeaderV2({
   // End user same as sold to
   const [endUserSameAsSoldTo, setEndUserSameAsSoldTo] = useState(false);
 
+  // Bill to same as sold to
+  const [billToSameAsSoldTo, setBillToSameAsSoldTo] = useState(false);
+
   // User search state
   const [insideRepSearchTerm, setInsideRepSearchTerm] = useState('');
   const [outsideRepSearchTerm, setOutsideRepSearchTerm] = useState('');
@@ -386,6 +389,17 @@ export function QuoteDetailHeaderV2({
       onQuoteChange({
         endUserId: quote.soldToCustomerId,
         endUserName: quote.soldToCustomerName,
+      });
+    }
+  }, [quote.soldToCustomerId, quote.soldToCustomerName, onQuoteChange]);
+
+  // Handle bill to same as sold to checkbox
+  const handleBillToSameAsSoldTo = useCallback((checked: boolean) => {
+    setBillToSameAsSoldTo(checked);
+    if (checked && quote.soldToCustomerId) {
+      onQuoteChange({
+        billToCustomerId: quote.soldToCustomerId,
+        billToCustomerName: quote.soldToCustomerName,
       });
     }
   }, [quote.soldToCustomerId, quote.soldToCustomerName, onQuoteChange]);
@@ -891,6 +905,10 @@ export function QuoteDetailHeaderV2({
                 if (endUserSameAsSoldTo) {
                   onQuoteChange({ endUserId: id, endUserName: label });
                 }
+                // If "Same as sold to" is checked for bill to, update bill to too
+                if (billToSameAsSoldTo) {
+                  onQuoteChange({ billToCustomerId: id, billToCustomerName: label });
+                }
               }}
               options={soldToOptions}
               onSearch={handleSoldToSearch}
@@ -908,7 +926,17 @@ export function QuoteDetailHeaderV2({
               onSearch={handleBillToSearch}
               isLoading={isBillToLoading}
               placeholder="Search customers..."
+              disabled={billToSameAsSoldTo}
             />
+            <label className="flex items-center gap-1.5 mt-1 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={billToSameAsSoldTo}
+                onChange={(e) => handleBillToSameAsSoldTo(e.target.checked)}
+                className="w-3 h-3 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+              />
+              <span className="text-xs text-gray-500">Same as sold to</span>
+            </label>
           </div>
           {/* End User - grey out and show "per line item" when settings enabled */}
           <div>

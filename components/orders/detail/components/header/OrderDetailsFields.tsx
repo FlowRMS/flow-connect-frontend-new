@@ -101,6 +101,13 @@ export function OrderDetailsFields({
     return endUserId && customerId && endUserId === customerId;
   });
 
+  // Bill to same as sold to checkbox state
+  const [billToSameAsSoldTo, setBillToSameAsSoldTo] = useState(() => {
+    const billToCustomerId = (order as any).billToCustomerId;
+    const customerId = order.customerId;
+    return billToCustomerId && customerId && billToCustomerId === customerId;
+  });
+
   // Update the checkbox when order changes
   useEffect(() => {
     const endUserId = (order as any).endUserId;
@@ -109,6 +116,15 @@ export function OrderDetailsFields({
       setEndUserSameAsSoldTo(true);
     }
   }, [(order as any).endUserId, order.customerId]);
+
+  // Update bill to checkbox when order changes
+  useEffect(() => {
+    const billToCustomerId = (order as any).billToCustomerId;
+    const customerId = order.customerId;
+    if (billToCustomerId && customerId && billToCustomerId === customerId) {
+      setBillToSameAsSoldTo(true);
+    }
+  }, [(order as any).billToCustomerId, order.customerId]);
 
   // Search hooks
   const { data: soldToCustomers, isLoading: isSoldToLoading } = useCustomerSearch(soldToSearchTerm, soldToSearchEnabled);
@@ -254,6 +270,11 @@ export function OrderDetailsFields({
                     handleFieldUpdate('endUserId' as keyof Order, id);
                     handleFieldUpdate('endUserName' as keyof Order, label);
                   }
+                  // If "Same as sold to" is checked for bill to, update bill to too
+                  if (billToSameAsSoldTo) {
+                    handleFieldUpdate('billToCustomerId' as keyof Order, id);
+                    handleFieldUpdate('billToCustomerName' as keyof Order, label);
+                  }
                 }}
                 options={soldToOptions}
                 placeholder="Select Customer..."
@@ -284,7 +305,23 @@ export function OrderDetailsFields({
                   setBillToSearchTerm(query);
                   setBillToSearchEnabled(true);
                 }}
+                disabled={billToSameAsSoldTo}
               />
+              <label className="flex items-center gap-1.5 mt-1 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={billToSameAsSoldTo}
+                  onChange={(e) => {
+                    setBillToSameAsSoldTo(e.target.checked);
+                    if (e.target.checked && order.customerId) {
+                      handleFieldUpdate('billToCustomerId' as keyof Order, order.customerId);
+                      handleFieldUpdate('billToCustomerName' as keyof Order, order.customerName);
+                    }
+                  }}
+                  className="w-3 h-3 accent-[var(--primary)]"
+                />
+                <span className="text-xs text-[var(--muted-foreground)]">Same as sold to</span>
+              </label>
             </div>
 
             {/* End User - always show in header (when showEndUserPerLine is false, it's header level) */}
