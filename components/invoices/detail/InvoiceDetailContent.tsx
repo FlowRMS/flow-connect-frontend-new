@@ -33,6 +33,7 @@ import { isOverdue } from './utils';
 import { mockOrders, mockChecks } from '@/lib/data/rms-mock';
 import type { ColumnKey, RepSplit, InvoiceLineItem } from './types';
 import type { OrderLineItem } from '@/lib/types/rms';
+import { toast } from 'sonner';
 
 interface InvoiceDetailContentProps {
   invoiceId: string;
@@ -133,24 +134,24 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
       state.setWarehouseConversionMode('all');
       state.setShowWarehouseConversionModal(true);
     } else {
-      alert('All products are already marked as warehouse products.');
+      toast.info('All products are already marked as warehouse products.');
     }
     state.setShowActionsDropdown(false);
   };
 
   const handleGeneratePDF = () => {
-    alert('Generate PDF');
+    toast.info('Generate PDF feature coming soon');
   };
 
   const handleSave = async () => {
     const success = await state.saveInvoice();
     if (success) {
-      alert('Invoice saved successfully');
+      toast.success('Invoice saved successfully');
       if (state.isCreateMode) {
         router.push('/invoices');
       }
     } else {
-      alert('Failed to save invoice');
+      toast.error('Failed to save invoice');
     }
   };
 
@@ -166,7 +167,7 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
       { version: newVersion, date: today, isLatest: true },
     ]);
     state.setCurrentVersion(newVersion);
-    alert(`Saved as version ${newVersion}`);
+    toast.success(`Saved as version ${newVersion}`);
   };
 
   const handleBulkConvertToWarehouse = () => {
@@ -188,7 +189,7 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
       state.setWarehouseConversionMode('selected');
       state.setShowWarehouseConversionModal(true);
     } else {
-      alert('All selected products are already marked as warehouse products.');
+      toast.info('All selected products are already marked as warehouse products.');
     }
   };
 
