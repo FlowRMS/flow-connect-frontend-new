@@ -1052,6 +1052,7 @@ export interface RelatedEntityNote {
   content?: string;
   mentions?: string;
   tags?: string;
+  isPublic?: boolean;
   createdAt?: string;
   createdBy?: UserLite;
 }
@@ -1161,7 +1162,7 @@ export interface RelatedEntityTask {
   priority?: string;
   dueDate?: string;
   reminderDate?: string;
-  assignedToId?: string;
+  assignees?: string[]; // Array of user UUIDs
   createdAt?: string;
   createdBy?: UserLite;
   tags?: string;

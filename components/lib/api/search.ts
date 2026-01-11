@@ -66,6 +66,14 @@ export interface ContactSearchResult {
   createdAt: string;
 }
 
+export interface TaskSearchResultAssignee {
+  id: string;
+  firstName?: string;
+  lastName?: string;
+  fullName?: string;
+  email?: string;
+}
+
 export interface TaskSearchResult {
   id: string;
   title: string;
@@ -74,7 +82,7 @@ export interface TaskSearchResult {
   priority: string;
   dueDate: string;
   reminderDate?: string;
-  assignedToId: string;
+  assignees?: TaskSearchResultAssignee[];
   tags?: string;
   createdAt: string;
   createdBy: string;
@@ -326,7 +334,13 @@ const CONTACT_SEARCH = `
 const TASK_SEARCH = `
   query TaskSearch($searchTerm: String!, $limit: Int) {
     taskSearch(searchTerm: $searchTerm, limit: $limit) {
-      assignedToId
+      assignees {
+        id
+        firstName
+        lastName
+        fullName
+        email
+      }
       createdAt
       createdBy {
         email

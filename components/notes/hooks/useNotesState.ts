@@ -32,6 +32,7 @@ function parseApiNote(note: NoteLandingPage): ParsedNote {
     mentions: [], // NoteLandingPage doesn't include mentions
     tags: parseCommaSeparated(note.tags || ''),
     linkedTitles: parseLinkedEntities(note.linkedEntities),
+    isPublic: note.isPublic || false,
     createdBy: note.createdBy || '',
     createdAt: note.createdAt || '',
   };
