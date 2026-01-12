@@ -535,7 +535,7 @@ export function OrderDetailsFields({
 
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Projected Ship Date
+                Projected Ship Date<span className="text-red-500">*</span>
               </label>
               <StyledDatePicker
                 selected={parseDateString(order.requestedShipDate || order.shipDate)}

@@ -253,6 +253,19 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
       // Helper to check if ID is a valid UUID (from API)
       const isValidUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
+      // Validate required dates
+      if (!order.dueDate) {
+        console.error('❌ VALIDATION FAILED: Due Date is missing');
+        orderToasts.updateError('Due Date is required.');
+        return;
+      }
+
+      if (!order.requestedShipDate && !order.shipDate) {
+        console.error('❌ VALIDATION FAILED: Projected Ship Date is missing');
+        orderToasts.updateError('Projected Ship Date is required.');
+        return;
+      }
+
       // Validate End User based on settings (REQUIRED field)
       const orderEndUserId = (order as any).endUserId;
 
