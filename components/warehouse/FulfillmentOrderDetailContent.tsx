@@ -932,10 +932,16 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   };
 
   const handleCreateInventoryRequest = async (items: { lineItem: FulfillmentOrderLineItem; requestedQty: number }[]) => {
+    // Validate warehouse is assigned
+    if (!fulfillmentOrder.warehouseId) {
+      alert('Error: No warehouse assigned to this fulfillment order. Please assign a warehouse before creating a shipment request.');
+      return;
+    }
+
     // Group items by manufacturer
     const byManufacturer = items.reduce((acc, item) => {
       const inv = backorderItems.find(bi => bi.lineItem.id === item.lineItem.id);
-      if (inv) {
+      if (inv && inv.manufacturerId) {
         const mfrId = inv.manufacturerId;
         if (!acc[mfrId]) {
           acc[mfrId] = { name: inv.manufacturerName, items: [] };
@@ -948,9 +954,16 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
       return acc;
     }, {} as Record<string, { name: string; items: Array<{ productId: string; quantity: number }> }>);
 
+    // Validate we have manufacturers to request from
+    const manufacturerEntries = Object.entries(byManufacturer);
+    if (manufacturerEntries.length === 0) {
+      alert('Error: No manufacturers found for the selected items. Products need to have a manufacturer assigned.');
+      return;
+    }
+
     try {
       // Create shipment requests for each manufacturer
-      for (const [mfrId, { items: reqItems }] of Object.entries(byManufacturer)) {
+      for (const [mfrId, { items: reqItems }] of manufacturerEntries) {
         await createShipmentRequestMutation.mutateAsync({
           warehouseId: fulfillmentOrder.warehouseId,
           factoryId: mfrId,
@@ -970,9 +983,11 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
       });
 
       setShowRequestInventoryModal(false);
+      alert('Shipment request created successfully!');
       setForceUpdate(prev => prev + 1);
     } catch (error) {
       console.error('Failed to create shipment request:', error);
+      alert(`Failed to create shipment request: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
