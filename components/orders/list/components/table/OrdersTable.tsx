@@ -17,6 +17,8 @@ interface OrdersTableProps {
   filteredOrders: Order[];
   // Loading state
   isLoading?: boolean;
+  // Filters state
+  hasFilters?: boolean;
   // Selection
   selectedOrderIds: Set<string>;
   toggleOrderSelection: (orderId: string) => void;
@@ -35,6 +37,7 @@ interface OrdersTableProps {
 export function OrdersTable({
   filteredOrders,
   isLoading = false,
+  hasFilters = false,
   selectedOrderIds,
   toggleOrderSelection,
   selectAllOrders,
@@ -62,39 +65,42 @@ export function OrdersTable({
         />
       )}
 
-      <div className="overflow-x-auto">
-        <div className="min-w-[1990px]">
-          {/* Table Header */}
-          <OrdersTableHeader
-            filteredOrders={filteredOrders}
-            areAllEligibleSelected={areAllEligibleSelected(filteredOrders)}
-            onSelectAll={() => selectAllOrders(filteredOrders)}
-            gridColumns={gridColumns}
-          />
+      {!isLoading && filteredOrders.length === 0 ? (
+        // Empty state - don't show table structure
+        null
+      ) : (
+        <div className="overflow-x-auto">
+          <div className="min-w-[1990px]">
+            {/* Table Header */}
+            <OrdersTableHeader
+              filteredOrders={filteredOrders}
+              areAllEligibleSelected={areAllEligibleSelected(filteredOrders)}
+              onSelectAll={() => selectAllOrders(filteredOrders)}
+              gridColumns={gridColumns}
+            />
 
-          {/* Table Body */}
-          <div className="divide-y divide-[var(--border)]">
-            {isLoading ? (
-              <OrdersTableSkeleton gridColumns={gridColumns} />
-            ) : filteredOrders.length === 0 ? (
-              <OrdersEmptyState />
-            ) : (
-              filteredOrders.map((order) => (
-                <OrderRow
-                  key={order.id}
-                  order={order}
-                  isSelected={selectedOrderIds.has(order.id)}
-                  isLinked={isOrderLinked(order)}
-                  linkedReason={getOrderLinkedReason(order)}
-                  onToggleSelection={() => toggleOrderSelection(order.id)}
-                  onPreview={() => setSelectedOrder(order)}
-                  gridColumns={gridColumns}
-                />
-              ))
-            )}
+            {/* Table Body */}
+            <div className="divide-y divide-[var(--border)]">
+              {isLoading ? (
+                <OrdersTableSkeleton gridColumns={gridColumns} />
+              ) : (
+                filteredOrders.map((order) => (
+                  <OrderRow
+                    key={order.id}
+                    order={order}
+                    isSelected={selectedOrderIds.has(order.id)}
+                    isLinked={isOrderLinked(order)}
+                    linkedReason={getOrderLinkedReason(order)}
+                    onToggleSelection={() => toggleOrderSelection(order.id)}
+                    onPreview={() => setSelectedOrder(order)}
+                    gridColumns={gridColumns}
+                  />
+                ))
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

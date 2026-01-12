@@ -14,6 +14,7 @@ import SortButton from '@/components/SortButton';
 import { useOrdersListState } from './hooks/useOrdersListState';
 import { getOrderFilterOptions, getOrderSortOptions } from './config/filterConfig';
 import { OrdersTable } from './components/table/OrdersTable';
+import { OrdersEmptyState } from './components/table/OrdersEmptyState';
 import { QuickDateFilter } from './components/QuickDateFilter';
 import { OrderDetailPanel } from './components/sidebar/OrderDetailPanel';
 import {
@@ -50,6 +51,11 @@ export default function OrdersListContent() {
 
   // Determine if we're loading (initial load or refetch)
   const isLoading = state.isLoading || state.isFetching;
+
+  // Check if there are any filters applied (advanced filters, quick date filter, or search)
+  const hasFilters = state.activeFilters.length > 0 || 
+                     state.quickDatePreset !== 'all' || 
+                     (state.searchQuery.length >= 2);
 
   // Error state
   if (state.error) {
@@ -184,6 +190,7 @@ export default function OrdersListContent() {
           <OrdersTable
             filteredOrders={state.filteredOrders}
             isLoading={isLoading}
+            hasFilters={hasFilters}
             selectedOrderIds={state.selectedOrderIds}
             toggleOrderSelection={state.toggleOrderSelection}
             selectAllOrders={state.selectAllOrders}
@@ -195,6 +202,11 @@ export default function OrdersListContent() {
             bulkDelete={state.bulkDelete}
             setSelectedOrder={state.setSelectedOrder}
           />
+
+          {/* Empty State - shown outside table when no data */}
+          {!isLoading && state.filteredOrders.length === 0 && (
+            <OrdersEmptyState hasFilters={hasFilters} />
+          )}
 
           {/* Loading indicator for infinite scroll */}
           {state.isFetchingNextPage && (
