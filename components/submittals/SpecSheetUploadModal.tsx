@@ -1,27 +1,29 @@
 'use client';
 
 import React, { useState } from 'react';
-import { getManufacturersWithSpecSheets, specSheetCategoryLabels } from '../../lib/data/submittals-mock';
+import { specSheetCategoryLabels } from '../../lib/data/submittals-mock';
 import type { SpecSheetCategory, UploadSource } from '../../lib/types/submittals';
+import { useManufacturersWithSpecSheets, useCreateSpecSheet } from './api/useSpecSheetsApi';
 
 interface SpecSheetUploadModalProps {
   onClose: () => void;
-  defaultManufacturer?: string;
+  onSuccess?: () => void;
+  defaultManufacturerId?: string;
 }
 
-export default function SpecSheetUploadModal({ onClose, defaultManufacturer }: SpecSheetUploadModalProps) {
+export default function SpecSheetUploadModal({ onClose, onSuccess, defaultManufacturerId }: SpecSheetUploadModalProps) {
   const [uploadSource, setUploadSource] = useState<UploadSource>('url');
   const [url, setUrl] = useState('');
   const [file, setFile] = useState<File | null>(null);
-  const [manufacturer, setManufacturer] = useState(defaultManufacturer || '');
-  const [newManufacturer, setNewManufacturer] = useState('');
-  const [showNewManufacturer, setShowNewManufacturer] = useState(false);
+  const [manufacturerId, setManufacturerId] = useState(defaultManufacturerId || '');
   const [displayName, setDisplayName] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<SpecSheetCategory[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const manufacturers = getManufacturersWithSpecSheets();
+  const { data: manufacturers = [], isLoading: loadingManufacturers } = useManufacturersWithSpecSheets();
+  const createSpecSheetMutation = useCreateSpecSheet();
+
   const allCategories: SpecSheetCategory[] = [
     'indoor', 'outdoor', 'sports_lighting', 'controls', 'emergency',
     'decorative', 'industrial', 'drives', 'sub_metering', 'cable_tray', 'other'
@@ -67,19 +69,50 @@ export default function SpecSheetUploadModal({ onClose, defaultManufacturer }: S
     );
   };
 
+  const getFileName = () => {
+    if (uploadSource === 'file' && file) {
+      return file.name;
+    }
+    if (uploadSource === 'url' && url) {
+      // Extract filename from URL
+      const urlParts = url.split('/');
+      const lastPart = urlParts[urlParts.length - 1];
+      return lastPart.split('?')[0] || 'spec-sheet.pdf';
+    }
+    return 'spec-sheet.pdf';
+  };
+
   const handleSubmit = async () => {
-    setIsLoading(true);
-    // Simulate upload delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setIsLoading(false);
-    onClose();
+    setError(null);
+
+    try {
+      const input = {
+        factoryId: manufacturerId,
+        fileName: getFileName(),
+        displayName: displayName || undefined,
+        uploadSource: uploadSource,
+        sourceUrl: uploadSource === 'url' ? url : undefined,
+        pageCount: 1, // Backend will determine actual page count when processing
+        categories: selectedCategories,
+        file: uploadSource === 'file' ? file ?? undefined : undefined,
+        published: true,
+        needsReview: false,
+      };
+
+      await createSpecSheetMutation.mutateAsync(input);
+      onSuccess?.();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create spec sheet');
+    }
   };
 
   const isValid = () => {
     const hasSource = uploadSource === 'url' ? url.trim() : file;
-    const hasManufacturer = showNewManufacturer ? newManufacturer.trim() : manufacturer;
-    return hasSource && hasManufacturer && selectedCategories.length > 0;
+    return hasSource && manufacturerId && selectedCategories.length > 0;
   };
+
+  const isLoading = createSpecSheetMutation.isPending;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -99,6 +132,13 @@ export default function SpecSheetUploadModal({ onClose, defaultManufacturer }: S
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* Error message */}
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+              {error}
+            </div>
+          )}
+
           {/* Upload Source Tabs */}
           <div>
             <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Upload Method</label>
@@ -228,42 +268,17 @@ export default function SpecSheetUploadModal({ onClose, defaultManufacturer }: S
             <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
               Manufacturer
             </label>
-            {!showNewManufacturer ? (
-              <div className="space-y-2">
-                <select
-                  value={manufacturer}
-                  onChange={(e) => setManufacturer(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
-                >
-                  <option value="">Select manufacturer...</option>
-                  {manufacturers.map(m => (
-                    <option key={m} value={m}>{m}</option>
-                  ))}
-                </select>
-                <button
-                  onClick={() => setShowNewManufacturer(true)}
-                  className="text-sm text-[var(--primary)] hover:text-[var(--primary-hover)]"
-                >
-                  + Add new manufacturer
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <input
-                  type="text"
-                  value={newManufacturer}
-                  onChange={(e) => setNewManufacturer(e.target.value)}
-                  placeholder="Enter manufacturer name..."
-                  className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
-                />
-                <button
-                  onClick={() => { setShowNewManufacturer(false); setNewManufacturer(''); }}
-                  className="text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                >
-                  Select existing manufacturer
-                </button>
-              </div>
-            )}
+            <select
+              value={manufacturerId}
+              onChange={(e) => setManufacturerId(e.target.value)}
+              disabled={loadingManufacturers}
+              className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)] disabled:opacity-50"
+            >
+              <option value="">{loadingManufacturers ? 'Loading...' : 'Select manufacturer...'}</option>
+              {manufacturers.map(m => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
           </div>
 
           {/* Display Name */}
