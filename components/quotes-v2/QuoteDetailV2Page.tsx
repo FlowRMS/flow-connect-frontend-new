@@ -73,9 +73,9 @@ async function fetchCpnsAndUpdatePricing(
           unitPrice = parseFloat(cpnResult.unitPrice);
           hasCpnPricing = true;
         }
-        // Use CPN's commission rate if available (convert from whole number to decimal)
+        // Use CPN's commission rate if available (stored as whole percentage, e.g., 3 for 3%)
         if (cpnResult.commissionRate) {
-          commissionRate = parseFloat(cpnResult.commissionRate) / 100;
+          commissionRate = parseFloat(cpnResult.commissionRate);
         }
       }
 
@@ -88,8 +88,9 @@ async function fetchCpnsAndUpdatePricing(
       const quantity = li.quantity || 1;
       const divisor = li.divisor || 1;
       const sellTotal = quantity * unitPrice / divisor;
-      const commission = quantity > 0 ? sellTotal * commissionRate / quantity : 0;
-      const commissionTotal = sellTotal * commissionRate;
+      // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
+      const commission = quantity > 0 ? sellTotal * (commissionRate / 100) / quantity : 0;
+      const commissionTotal = sellTotal * (commissionRate / 100);
 
       return {
         itemId: li.id,
@@ -388,7 +389,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         unitPrice: 0,
         sellTotal: 0,
         total: 0,
-        commissionPercent: 0.08,
+        commissionPercent: 8, // Stored as whole percentage (8 for 8%)
         commission: 0,
         commissionTotal: 0,
         commissionDiscountPercent: 0,

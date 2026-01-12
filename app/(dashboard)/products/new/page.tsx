@@ -581,8 +581,8 @@ export default function CreateProductPage() {
                   <input
                     type="number"
                     step="0.1"
-                    value={formData.defaultCommissionRate !== undefined ? formData.defaultCommissionRate * 100 : ''}
-                    onChange={(e) => handleChange('defaultCommissionRate', e.target.value ? parseFloat(e.target.value) / 100 : undefined)}
+                    value={formData.defaultCommissionRate !== undefined ? formData.defaultCommissionRate : ''}
+                    onChange={(e) => handleChange('defaultCommissionRate', e.target.value ? parseFloat(e.target.value) : undefined)}
                     className={`${inputClass} pr-8 ${errors.defaultCommissionRate ? 'border-red-500' : ''}`}
                     placeholder="0"
                   />

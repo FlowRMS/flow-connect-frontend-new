@@ -423,8 +423,8 @@ export function CreateProductModal({ isOpen, onClose, onSuccess }: CreateProduct
                     step="0.01"
                     min="0"
                     max="100"
-                    value={formData.defaultCommissionRate !== undefined ? formData.defaultCommissionRate * 100 : ''}
-                    onChange={(e) => handleChange('defaultCommissionRate', e.target.value ? parseFloat(e.target.value) / 100 : undefined)}
+                    value={formData.defaultCommissionRate !== undefined ? formData.defaultCommissionRate : ''}
+                    onChange={(e) => handleChange('defaultCommissionRate', e.target.value ? parseFloat(e.target.value) : undefined)}
                     placeholder="0"
                     className={`w-full pl-3 pr-8 py-2.5 border rounded-lg text-sm bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 ${
                       errors.defaultCommissionRate ? 'border-red-500' : 'border-[var(--border)]'

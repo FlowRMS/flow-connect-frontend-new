@@ -253,7 +253,7 @@ export function LineItemsTable({
         quantityCredited: 0,
         unitPrice: 0,
         extendedPrice: 0,
-        commissionRate: 0.08,
+        commissionRate: 8, // Stored as whole percentage (8 for 8%)
         commissionAmount: 0,
         productId: '',
         isCancelled: false,
@@ -334,7 +334,9 @@ export function LineItemsTable({
 
     // Default values from product
     let unitPrice = product.unitPrice || 0;
-    let commissionRate = product.defaultCommissionRate || 0.08;
+    // Commission rate stored as whole percentage (e.g., 8 for 8%)
+    // Product defaultCommissionRate is now stored as whole percentage (8 for 8%)
+    let commissionRate = product.defaultCommissionRate || 8;
 
     // Close dropdown first
     setDropdownOpen(null);
@@ -365,9 +367,9 @@ export function LineItemsTable({
           cpnHasCustomPrice = true;
         }
         // Use CPN's commission rate if available (override product default)
-        // CPN commission rate is stored as whole number (e.g., 3 for 3%), convert to decimal
+        // CPN commission rate is stored as whole number (e.g., 3 for 3%)
         if (cpnResult.commissionRate) {
-          commissionRate = parseFloat(cpnResult.commissionRate) / 100;
+          commissionRate = parseFloat(cpnResult.commissionRate);
         }
       }
 
@@ -431,7 +433,8 @@ export function LineItemsTable({
           divisor: divisor,
           commissionRate: commissionRate,
           extendedPrice: extendedPrice,
-          commissionAmount: extendedPrice * commissionRate,
+          // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
+          commissionAmount: extendedPrice * (commissionRate / 100),
         } : li
       );
       onUpdateLineItems(updatedItems);
@@ -476,14 +479,15 @@ export function LineItemsTable({
     const quantity = item.quantity || 1;
     const unitPrice = item.unitPrice || 0;
     const extendedPrice = quantity * unitPrice / divisor;
-    const commissionRate = item.commissionRate ?? 0.08;
+    const commissionRate = item.commissionRate ?? 8; // Stored as whole percentage
 
     updateLineItem(itemId, {
       uomId: uom.id,
       uom: uom.title,
       divisor: divisor,
       extendedPrice: extendedPrice,
-      commissionAmount: extendedPrice * commissionRate,
+      // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
+      commissionAmount: extendedPrice * (commissionRate / 100),
     } as any);
     setDropdownOpen(null);
     setSearchQuery('');
@@ -545,7 +549,8 @@ export function LineItemsTable({
           updates.unitPrice = unitPrice;
         }
         updates.extendedPrice = extendedPrice;
-        updates.commissionAmount = extendedPrice * (item.commissionRate ?? 0.08);
+        // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
+        updates.commissionAmount = extendedPrice * ((item.commissionRate ?? 8) / 100);
         break;
       }
       case 'unitPrice': {
@@ -553,7 +558,8 @@ export function LineItemsTable({
         const extendedPrice = item.quantity * price;
         updates.unitPrice = price;
         updates.extendedPrice = extendedPrice;
-        updates.commissionAmount = extendedPrice * (item.commissionRate ?? 0.08);
+        // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
+        updates.commissionAmount = extendedPrice * ((item.commissionRate ?? 8) / 100);
         // Mark as manual override
         setLineItemPricingSource(prev => ({
           ...prev,
@@ -568,9 +574,10 @@ export function LineItemsTable({
         break;
       }
       case 'commissionPercent': {
-        const pct = parseFloat(value) / 100 || 0;
+        const pct = parseFloat(value) || 0;
         updates.commissionRate = pct;
-        updates.commissionAmount = item.extendedPrice * pct;
+        // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
+        updates.commissionAmount = item.extendedPrice * (pct / 100);
         break;
       }
       case 'divisor':
@@ -635,8 +642,8 @@ export function LineItemsTable({
         editValue = String(item.unitPrice || 0);
         break;
       case 'commissionPercent':
-        displayValue = `${((item.commissionRate || 0) * 100).toFixed(1)}%`;
-        editValue = ((item.commissionRate || 0) * 100).toFixed(1);
+        displayValue = `${Number(item.commissionRate || 0).toFixed(1)}%`;
+        editValue = Number(item.commissionRate || 0).toFixed(1);
         break;
     }
 
@@ -929,14 +936,14 @@ export function LineItemsTable({
                   {/* Commission */}
                   {visibleColumns.has('commission') && (
                     <td className="px-3 py-2 text-sm text-right font-medium text-purple-600">
-                      {formatCurrency(item.commissionAmount || item.extendedPrice * (item.commissionRate ?? 0.08))}
+                      {formatCurrency(item.commissionAmount || item.extendedPrice * ((item.commissionRate ?? 8) / 100))}
                     </td>
                   )}
 
                   {/* Commission Total */}
                   {visibleColumns.has('commissionTotal') && (
                     <td className="px-3 py-2 text-sm text-right font-medium text-purple-600">
-                      {formatCurrency(item.commissionAmount || item.extendedPrice * (item.commissionRate ?? 0.08))}
+                      {formatCurrency(item.commissionAmount || item.extendedPrice * ((item.commissionRate ?? 8) / 100))}
                     </td>
                   )}
 
@@ -1026,7 +1033,7 @@ export function LineItemsTable({
                   {/* Com $ */}
                   {visibleColumns.has('commissionAmount') && (
                     <td className="px-3 py-2 text-sm text-right text-purple-600">
-                      {formatCurrency(item.commissionAmount || item.extendedPrice * (item.commissionRate ?? 0.08))}
+                      {formatCurrency(item.commissionAmount || item.extendedPrice * ((item.commissionRate ?? 8) / 100))}
                     </td>
                   )}
 
@@ -1047,7 +1054,7 @@ export function LineItemsTable({
                   {/* Earn % */}
                   {visibleColumns.has('earnPercent') && (
                     <td className="px-3 py-2 text-sm text-right">
-                      {(((item.commissionRate ?? 0.08) + 0.15 * 0.85) * 100).toFixed(1)}%
+                      {(((item.commissionRate ?? 8) / 100 + 0.15 * 0.85) * 100).toFixed(1)}%
                     </td>
                   )}
 
@@ -1055,7 +1062,7 @@ export function LineItemsTable({
                   {visibleColumns.has('earnAmount') && (
                     <td className="px-3 py-2 text-sm text-right font-medium text-green-600">
                       {formatCurrency(
-                        (item.commissionAmount || item.extendedPrice * (item.commissionRate ?? 0.08)) +
+                        (item.commissionAmount || item.extendedPrice * ((item.commissionRate ?? 8) / 100)) +
                         (item.unitPrice * 0.15 * item.quantity * 0.85)
                       )}
                     </td>
