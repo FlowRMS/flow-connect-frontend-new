@@ -148,7 +148,7 @@ export function useCreateNote() {
   return useMutation<
     Note,
     Error,
-    { title: string; content: string; mentions: string; tags: string }
+    { title: string; content: string; mentions: string; tags: string; isPublic?: boolean }
   >({
     mutationFn: createNote,
     onSuccess: () => {
@@ -166,7 +166,7 @@ export function useUpdateNote() {
   return useMutation<
     Note,
     Error,
-    { id: string; input: { title: string; content: string; mentions: string; tags: string } }
+    { id: string; input: { title: string; content: string; mentions: string; tags: string; isPublic?: boolean } }
   >({
     mutationFn: ({ id, input }) => updateNote(id, input),
     onSuccess: (_, variables) => {

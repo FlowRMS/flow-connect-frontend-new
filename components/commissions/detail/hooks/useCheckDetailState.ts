@@ -801,6 +801,19 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
   // Unpost check state
   const [isUnposting, setIsUnposting] = useState(false);
 
+  // Delete confirmation modal state
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+
+  // Open delete confirmation modal
+  const openDeleteConfirmModal = useCallback(() => {
+    setShowDeleteConfirmModal(true);
+  }, []);
+
+  // Close delete confirmation modal
+  const closeDeleteConfirmModal = useCallback(() => {
+    setShowDeleteConfirmModal(false);
+  }, []);
+
   // Unpost check - changes status from POSTED back to OPEN
   const handleUnpost = useCallback(async () => {
     if (isCreateMode || status !== 'posted') return;
@@ -849,6 +862,11 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     isSaving: createCheckMutation.isPending || updateCheckMutation.isPending,
     isDeleting: deleteCheckMutation.isPending,
     isUnposting,
+
+    // Delete confirmation modal
+    showDeleteConfirmModal,
+    openDeleteConfirmModal,
+    closeDeleteConfirmModal,
 
     // Factory ID (for API)
     factoryId,

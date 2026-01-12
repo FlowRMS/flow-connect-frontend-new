@@ -3,7 +3,18 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type { LineItemV2, ColumnConfig, LineItemColumnKey, QuoteSettingsV2 } from '../types';
-import { useProductSearch, useFactorySearch, useProductCpns, useCustomerSearch, useProductUoms, getProductCpnByCustomer } from '../../quotes/api/useQuotesApi';
+import { useProductSearch, useFactorySearch, useProductCpns, useCustomerSearch, useProductUoms, getProductCpnByCustomer, listProductPricingTiers } from '../../quotes/api/useQuotesApi';
+import type { ProductPricingTierResult } from '../../quotes/api/quotesApi';
+import { useAutoPopulateReps } from '@/components/shared/hooks/useAutoPopulateReps';
+
+// Type for rep split rates passed from parent
+interface RepSplitRateInfo {
+  id: string;
+  userId: string;
+  userName: string;
+  splitRate: string;
+  position: number;
+}
 
 interface LineItemsTabV2Props {
   lineItems: LineItemV2[];
@@ -16,6 +27,9 @@ interface LineItemsTabV2Props {
   soldToCustomerId?: string;
   headerFactoryId?: string;
   headerFactoryName?: string;
+  // Current reps for inheriting to new line items
+  currentOutsideReps?: RepSplitRateInfo[];
+  currentInsideReps?: RepSplitRateInfo[];
 }
 
 export function LineItemsTabV2({
@@ -29,6 +43,8 @@ export function LineItemsTabV2({
   soldToCustomerId,
   headerFactoryId,
   headerFactoryName,
+  currentOutsideReps,
+  currentInsideReps,
 }: LineItemsTabV2Props) {
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [showSectionsMenu, setShowSectionsMenu] = useState(false);
@@ -36,6 +52,74 @@ export function LineItemsTabV2({
   const [dropdownOpen, setDropdownOpen] = useState<{ itemId: string; column: LineItemColumnKey; position: { top: number; left: number } } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  // Store pricing tiers per product ID for volume discount calculations
+  const [productPricingTiers, setProductPricingTiers] = useState<Record<string, ProductPricingTierResult[]>>({});
+  // Track which line items have CPN pricing (CPN pricing is fixed and doesn't change with quantity)
+  const [lineItemsWithCpnPricing, setLineItemsWithCpnPricing] = useState<Set<string>>(new Set());
+  // Track pricing source for each line item: 'product' | 'cpn' | 'tier:X-Y'
+  const [lineItemPricingSource, setLineItemPricingSource] = useState<Record<string, string>>({});
+
+  // Hook for fetching inside reps from factory when manufacturer changes
+  const { fetchInsideRepsFromFactory } = useAutoPopulateReps();
+
+  // Track previous soldToCustomerId to detect changes and update pricing sources
+  const prevSoldToCustomerIdRef = React.useRef<string | undefined>(undefined);
+
+  // Re-fetch CPN pricing status when sold-to customer changes
+  useEffect(() => {
+    // Only re-fetch if customer actually changed (not on initial load)
+    if (
+      prevSoldToCustomerIdRef.current !== undefined &&
+      soldToCustomerId !== prevSoldToCustomerIdRef.current &&
+      lineItems.some(li => li.productId)
+    ) {
+      // Fetch CPN data for all line items with products and update pricing sources
+      const itemsWithProducts = lineItems.filter(li => li.productId);
+
+      (async () => {
+        const newCpnPricingSet = new Set<string>();
+        const newPricingSources: Record<string, string> = {};
+
+        await Promise.all(itemsWithProducts.map(async (li) => {
+          try {
+            const [cpnResult, tiersResult] = await Promise.all([
+              soldToCustomerId
+                ? getProductCpnByCustomer(li.productId!, soldToCustomerId).catch(() => null)
+                : Promise.resolve(null),
+              listProductPricingTiers(li.productId!).catch(() => [])
+            ]);
+
+            let pricingSource = 'product';
+
+            if (cpnResult?.unitPrice) {
+              newCpnPricingSet.add(li.id);
+              pricingSource = 'cpn';
+            } else if (tiersResult && tiersResult.length > 0) {
+              const tierMatch = tiersResult.find(
+                tier => (li.quantity || 1) >= tier.quantityLow && (li.quantity || 1) <= tier.quantityHigh
+              );
+              if (tierMatch) {
+                pricingSource = `tier:${tierMatch.quantityLow}-${tierMatch.quantityHigh}`;
+              }
+              // Cache the tiers
+              setProductPricingTiers(prev => ({
+                ...prev,
+                [li.productId!]: tiersResult
+              }));
+            }
+
+            newPricingSources[li.id] = pricingSource;
+          } catch (err) {
+            // Keep existing pricing source on error
+          }
+        }));
+
+        setLineItemsWithCpnPricing(newCpnPricingSet);
+        setLineItemPricingSource(prev => ({ ...prev, ...newPricingSources }));
+      })();
+    }
+    prevSoldToCustomerIdRef.current = soldToCustomerId;
+  }, [soldToCustomerId, lineItems]);
 
   // Debounce search query - immediately trigger on dropdown open (when searchQuery is empty)
   useEffect(() => {
@@ -180,17 +264,60 @@ export function LineItemsTabV2({
     setSearchQuery('');
   };
 
-  const handleCellChange = (itemId: string, column: LineItemColumnKey, value: string) => {
+  const handleCellChange = async (itemId: string, column: LineItemColumnKey, value: string) => {
     const updates: Partial<LineItemV2> = {};
     const item = lineItems.find((li) => li.id === itemId);
     if (!item) return;
 
     if (column === 'quantity') {
       const qty = parseInt(value) || 1;
-      const sellTotal = qty * item.unitPrice / item.divisor;
+      // Check if product has pricing tiers and apply tier-based pricing
+      // BUT skip tier pricing if this line item has CPN pricing (CPN price is fixed)
+      let unitPrice = item.unitPrice;
+      const hasCpnPricing = lineItemsWithCpnPricing.has(itemId);
+      let pricingSource = hasCpnPricing ? 'cpn' : 'product';
+
+      if (!hasCpnPricing && item.productId) {
+        // Fetch pricing tiers on-demand if not cached
+        let tiers = productPricingTiers[item.productId];
+        if (!tiers) {
+          try {
+            tiers = await listProductPricingTiers(item.productId);
+            if (tiers && tiers.length > 0) {
+              setProductPricingTiers(prev => ({
+                ...prev,
+                [item.productId!]: tiers
+              }));
+            }
+          } catch (err) {
+            tiers = [];
+          }
+        }
+        if (tiers && tiers.length > 0) {
+          const tierMatch = tiers.find(
+            tier => qty >= tier.quantityLow && qty <= tier.quantityHigh
+          );
+          if (tierMatch) {
+            unitPrice = tierMatch.unitPrice;
+            pricingSource = `tier:${tierMatch.quantityLow}-${tierMatch.quantityHigh}`;
+          }
+        }
+      }
+
+      // Update pricing source
+      setLineItemPricingSource(prev => ({
+        ...prev,
+        [itemId]: pricingSource
+      }));
+
+      const sellTotal = qty * unitPrice / item.divisor;
       const commissionTotal = sellTotal * item.commissionPercent;
       const commission = qty > 0 ? commissionTotal / qty : 0;
       updates.quantity = qty;
+      // Only update unit price if using tier pricing (not CPN)
+      if (!hasCpnPricing) {
+        updates.unitPrice = unitPrice;
+      }
       updates.sellTotal = sellTotal;
       updates.commission = commission;
       updates.commissionTotal = commissionTotal;
@@ -212,6 +339,17 @@ export function LineItemsTabV2({
       updates.sellTotal = sellTotal;
       updates.commission = commission;
       updates.commissionTotal = commissionTotal;
+      // Mark as manual override
+      setLineItemPricingSource(prev => ({
+        ...prev,
+        [itemId]: 'manual'
+      }));
+      // Remove from CPN pricing since user manually changed it
+      setLineItemsWithCpnPricing(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(itemId);
+        return newSet;
+      });
     } else if (column === 'commissionPercent') {
       const pct = parseFloat(value) / 100 || 0;
       // Recalculate sellTotal to ensure consistency
@@ -233,7 +371,8 @@ export function LineItemsTabV2({
       quoteId: quoteId || lineItems[0]?.quoteId || '',
       partNumber: '',
       description: '',
-      manufacturerName: '',
+      manufacturerName: settings?.factoryPerLineItem === false ? headerFactoryName || '' : '',
+      manufacturerId: settings?.factoryPerLineItem === false ? headerFactoryId : undefined,
       quantity: 1,
       uom: null,
       divisor: 1,
@@ -247,6 +386,26 @@ export function LineItemsTabV2({
       commissionDiscountAmount: 0,
       lineDiscountPercent: 0,
       lineDiscountAmount: 0,
+      // Inherit outside reps if per-line-item setting is enabled
+      outsideSplitRates: settings?.outsideRepAtLineLevel && currentOutsideReps && currentOutsideReps.length > 0
+        ? currentOutsideReps.map((rep, idx) => ({
+            id: crypto.randomUUID(),
+            userId: rep.userId,
+            userName: rep.userName,
+            splitRate: rep.splitRate,
+            position: idx + 1,
+          }))
+        : undefined,
+      // Inherit inside reps if per-line-item setting is enabled AND factory is at header level
+      insideSplitRates: settings?.insideRepAtLineLevel && !settings?.factoryPerLineItem && currentInsideReps && currentInsideReps.length > 0
+        ? currentInsideReps.map((rep, idx) => ({
+            id: crypto.randomUUID(),
+            userId: rep.userId,
+            userName: rep.userName,
+            splitRate: rep.splitRate,
+            position: idx + 1,
+          }))
+        : undefined,
     };
     onLineItemsChange([...lineItems, newItem]);
   };
@@ -420,6 +579,65 @@ export function LineItemsTabV2({
             }}
             className="w-full px-2 py-1 text-center border border-indigo-500 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
+        </td>
+      );
+    }
+
+    // Special rendering for unitPrice to show pricing source tag
+    if (column.key === 'unitPrice') {
+      const pricingSource = lineItemPricingSource[item.id] || 'product';
+      let tagLabel = '';
+      let tagColor = '';
+
+      if (pricingSource === 'cpn') {
+        tagLabel = 'CPN';
+        tagColor = 'bg-blue-100 text-blue-700';
+      } else if (pricingSource === 'manual') {
+        tagLabel = 'Manual';
+        tagColor = 'bg-gray-100 text-gray-600';
+      } else if (pricingSource.startsWith('tier:')) {
+        // Format range without decimals (e.g., "1-100" not "1.0000-100.0000")
+        const range = pricingSource.replace('tier:', '');
+        const [low, high] = range.split('-').map(n => Math.round(parseFloat(n)));
+        tagLabel = `Qty ${low}-${high}`;
+        tagColor = 'bg-green-100 text-green-700';
+      } else {
+        tagLabel = 'Product';
+        tagColor = 'bg-purple-100 text-purple-700';
+      }
+
+      if (isEditing) {
+        return (
+          <td key={column.key} className="px-3 py-2 text-sm">
+            <input
+              type="text"
+              defaultValue={editValue}
+              autoFocus
+              onBlur={(e) => handleCellChange(item.id, column.key, e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleCellChange(item.id, column.key, e.currentTarget.value);
+                } else if (e.key === 'Escape') {
+                  setEditingCell(null);
+                }
+              }}
+              className="w-full px-2 py-1 text-center border border-indigo-500 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </td>
+        );
+      }
+
+      return (
+        <td key={column.key} className="px-3 py-2 text-sm text-center">
+          <button
+            onClick={(e) => handleCellClick(item.id, column.key, e)}
+            className="w-full px-2 py-1 rounded hover:bg-gray-100 transition-colors flex items-center justify-center gap-1.5"
+          >
+            <span>{displayValue}</span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${tagColor}`}>
+              {tagLabel}
+            </span>
+          </button>
         </td>
       );
     }
@@ -671,7 +889,7 @@ export function LineItemsTabV2({
                       return (
                         <button
                           key={factory.id}
-                          onClick={() => {
+                          onClick={async () => {
                             // If changing manufacturer, clear product-related fields to maintain consistency
                             const updates: Partial<LineItemV2> = {
                               manufacturerId: factory.id,
@@ -683,6 +901,25 @@ export function LineItemsTabV2({
                               updates.description = '';
                               updates.customerPartNumber = '';
                             }
+
+                            // Auto-populate inside reps if insideRepAtLineLevel is enabled
+                            if (settings?.insideRepAtLineLevel) {
+                              try {
+                                const reps = await fetchInsideRepsFromFactory(factory.id);
+                                if (reps.length > 0) {
+                                  updates.insideSplitRates = reps.map((rep, idx) => ({
+                                    id: crypto.randomUUID(),
+                                    userId: rep.userId,
+                                    userName: rep.userName,
+                                    splitRate: rep.splitRate,
+                                    position: idx + 1,
+                                  }));
+                                }
+                              } catch (error) {
+                                console.error('Failed to fetch inside reps for factory:', error);
+                              }
+                            }
+
                             updateLineItem(dropdownOpen.itemId, updates);
                             setDropdownOpen(null);
                             setSearchQuery('');
@@ -734,33 +971,96 @@ export function LineItemsTabV2({
                           const itemId = dropdownOpen.itemId;
                           const quantity = item?.quantity || 1;
                           const divisor = product.defaultDivisor || item?.divisor || 1;
-                          const unitPrice = product.unitPrice || 0;
-                          const commissionRate = product.defaultCommissionRate || 0;
 
-                          // Calculate derived values
-                          const sellTotal = quantity * unitPrice / divisor;
-                          const commission = sellTotal * commissionRate / quantity;
-                          const commissionTotal = sellTotal * commissionRate;
+                          // Default values from product
+                          let unitPrice = product.unitPrice || 0;
+                          let commissionRate = product.defaultCommissionRate || 0;
 
                           // Close dropdown first
                           setDropdownOpen(null);
                           setSearchQuery('');
                           setDebouncedSearch('');
 
-                          // Fetch CPN first, then do a single atomic update with all data
+                          // Fetch CPN and pricing tiers in parallel
                           let customerPartNumber = '';
-                          if (soldToCustomerId && product.id) {
-                            try {
-                              const cpnResult = await getProductCpnByCustomer(product.id, soldToCustomerId);
-                              if (cpnResult?.customerPartNumber) {
-                                customerPartNumber = cpnResult.customerPartNumber;
+
+                          if (product.id) {
+                            const [cpnResult, tiersResult] = await Promise.all([
+                              // Fetch CPN for the customer
+                              soldToCustomerId
+                                ? getProductCpnByCustomer(product.id, soldToCustomerId).catch(() => null)
+                                : Promise.resolve(null),
+                              // Fetch pricing tiers for volume discounts
+                              listProductPricingTiers(product.id).catch(() => [])
+                            ]);
+
+                            // Track if CPN has custom pricing (CPN pricing takes priority over tier pricing)
+                            let cpnHasCustomPrice = false;
+
+                            if (cpnResult) {
+                              customerPartNumber = cpnResult.customerPartNumber || '';
+                              // Use CPN's unit price if available (override product default)
+                              if (cpnResult.unitPrice) {
+                                unitPrice = parseFloat(cpnResult.unitPrice);
+                                cpnHasCustomPrice = true;
                               }
-                            } catch (err) {
-                              // CPN not found is not an error - just leave it empty
+                              // Use CPN's commission rate if available (override product default)
+                              // CPN commission rate is stored as whole number (e.g., 3 for 3%), convert to decimal
+                              if (cpnResult.commissionRate) {
+                                commissionRate = parseFloat(cpnResult.commissionRate) / 100;
+                              }
                             }
+
+                            // Track this line item's CPN pricing status for quantity changes
+                            if (cpnHasCustomPrice) {
+                              setLineItemsWithCpnPricing(prev => new Set([...prev, itemId]));
+                            } else {
+                              // Remove from CPN pricing set if no CPN price
+                              setLineItemsWithCpnPricing(prev => {
+                                const newSet = new Set(prev);
+                                newSet.delete(itemId);
+                                return newSet;
+                              });
+                            }
+
+                            // Determine pricing source and apply tier pricing if applicable
+                            let pricingSource = 'product';
+                            if (cpnHasCustomPrice) {
+                              pricingSource = 'cpn';
+                            }
+
+                            // Store pricing tiers for quantity-based price updates
+                            // Only apply tier pricing if CPN doesn't have custom price
+                            if (tiersResult && tiersResult.length > 0) {
+                              setProductPricingTiers(prev => ({
+                                ...prev,
+                                [product.id]: tiersResult
+                              }));
+                              // Only apply tier pricing if no CPN custom price
+                              if (!cpnHasCustomPrice) {
+                                const tierMatch = tiersResult.find(
+                                  tier => quantity >= tier.quantityLow && quantity <= tier.quantityHigh
+                                );
+                                if (tierMatch) {
+                                  unitPrice = tierMatch.unitPrice;
+                                  pricingSource = `tier:${tierMatch.quantityLow}-${tierMatch.quantityHigh}`;
+                                }
+                              }
+                            }
+
+                            // Update pricing source for this line item
+                            setLineItemPricingSource(prev => ({
+                              ...prev,
+                              [itemId]: pricingSource
+                            }));
                           }
 
-                          // Single atomic update with all product data including CPN
+                          // Calculate derived values with final pricing
+                          const sellTotal = quantity * unitPrice / divisor;
+                          const commission = quantity > 0 ? sellTotal * commissionRate / quantity : 0;
+                          const commissionTotal = sellTotal * commissionRate;
+
+                          // Single atomic update with all product data including CPN and tier pricing
                           onLineItemsChange(
                             lineItems.map((li) => li.id === itemId ? {
                               ...li,

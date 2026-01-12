@@ -81,6 +81,7 @@ export interface Note {
   content: string;
   mentions: string | string[]; // API returns array of UUIDs, but also accepts string
   tags: string;
+  isPublic: boolean;
   createdBy: string;
   createdAt: string;
 }
@@ -118,6 +119,7 @@ export interface NoteLandingPage {
   }>;
   mentions: string;
   tags: string[];
+  isPublic: boolean;
   createdBy: string;
   createdAt: string;
 }
@@ -128,6 +130,7 @@ export interface CreateNoteInput {
   content: string;
   mentions?: string;
   tags?: string;
+  isPublic?: boolean;
 }
 
 export interface UpdateNoteInput {
@@ -135,6 +138,7 @@ export interface UpdateNoteInput {
   content: string;
   mentions?: string;
   tags?: string;
+  isPublic?: boolean;
 }
 
 export interface AddNoteConversationInput {
@@ -178,6 +182,7 @@ const FIND_NOTES_LANDING_PAGES = `
           content
           createdAt
           createdBy
+          isPublic
           linkedEntities {
             entityType
             id
@@ -201,6 +206,7 @@ const GET_NOTE = `
       content
       mentions
       tags
+      isPublic
       createdBy {
         email
         firstName
@@ -226,6 +232,7 @@ const CREATE_NOTE = `
         lastName
       }
       id
+      isPublic
       mentions
       tags
       title
@@ -246,6 +253,7 @@ const UPDATE_NOTE = `
         lastName
       }
       id
+      isPublic
       mentions
       tags
       title
@@ -431,10 +439,11 @@ export async function fetchNote(id: string): Promise<Note | null> {
  */
 export async function createNote(input: CreateNoteInput): Promise<Note> {
   // Build input object, converting mentions from comma-separated string to array of UUIDs
-  const apiInput: { title: string; content: string; tags?: string; mentions?: string[] } = {
+  const apiInput: { title: string; content: string; tags?: string; mentions?: string[]; isPublic?: boolean } = {
     title: input.title,
     content: input.content,
     tags: input.tags,
+    isPublic: input.isPublic ?? false,
   };
   if (input.mentions && input.mentions.trim()) {
     // Convert comma-separated string to array of UUIDs
@@ -465,10 +474,11 @@ export async function updateNote(
   input: UpdateNoteInput
 ): Promise<Note> {
   // Build input object, converting mentions from comma-separated string to array of UUIDs
-  const apiInput: { title: string; content: string; tags?: string; mentions?: string[] } = {
+  const apiInput: { title: string; content: string; tags?: string; mentions?: string[]; isPublic?: boolean } = {
     title: input.title,
     content: input.content,
     tags: input.tags,
+    isPublic: input.isPublic ?? false,
   };
   if (input.mentions && input.mentions.trim()) {
     // Convert comma-separated string to array of UUIDs

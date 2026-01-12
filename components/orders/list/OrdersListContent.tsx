@@ -15,6 +15,7 @@ import { getOrderFilterOptions } from './config/filterConfig';
 import { OrdersTable } from './components/table/OrdersTable';
 import { QuickDateFilter } from './components/QuickDateFilter';
 import { OrderDetailPanel } from './components/sidebar/OrderDetailPanel';
+import { BulkDeleteModal, BulkActionsToolbar } from '../../shared';
 import {
   CreditModal,
   AcknowledgementModal,
@@ -149,6 +150,17 @@ export default function OrdersListContent() {
             showQuickDateFieldDropdown={state.showQuickDateFieldDropdown}
             setShowQuickDateFieldDropdown={state.setShowQuickDateFieldDropdown}
           />
+
+          {/* Bulk Actions Toolbar */}
+          <BulkActionsToolbar
+            entityType="ORDERS"
+            selectedCount={state.selectedCount}
+            totalCount={state.totalCount}
+            loadedCount={state.filteredOrders.length}
+            selectAllMode={state.selectAllMode}
+            onClearSelection={state.clearSelection}
+            onDelete={() => state.setShowBulkDeleteModal(true)}
+          />
         </div>
 
         {/* Orders Table */}
@@ -160,6 +172,11 @@ export default function OrdersListContent() {
             selectAllOrders={state.selectAllOrders}
             clearSelection={state.clearSelection}
             areAllEligibleSelected={state.areAllEligibleSelected}
+            isItemSelected={state.isItemSelected}
+            isAllSelected={state.isAllSelected}
+            isPartiallySelected={state.isPartiallySelected}
+            handleSelectAll={state.handleSelectAll}
+            handleSelectOne={state.handleSelectOne}
             sortField={state.sortField}
             sortDirection={state.sortDirection}
             handleSort={state.handleSort}
@@ -242,6 +259,17 @@ export default function OrdersListContent() {
         ackLineItems={state.ackLineItems}
         setAckLineItems={state.setAckLineItems}
         onSubmit={state.saveAcknowledgement}
+      />
+
+      {/* Bulk Delete Modal */}
+      <BulkDeleteModal
+        isOpen={state.showBulkDeleteModal}
+        entityType="ORDERS"
+        selectedCount={state.selectedCount}
+        getAllSelectedIds={state.getAllSelectedIds}
+        onClose={() => state.setShowBulkDeleteModal(false)}
+        onSuccess={state.handleBulkDeleteSuccess}
+        queryKeysToInvalidate={[['orders']]}
       />
     </main>
   );

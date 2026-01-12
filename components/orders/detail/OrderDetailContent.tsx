@@ -37,6 +37,7 @@ import {
 } from './components/modals';
 import { DuplicateOrderModal } from '../list/components/modals/DuplicateOrderModal';
 import { useDuplicateOrder } from '../api/useOrdersApi';
+import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/useAutoPopulateReps';
 import { useCreditsState } from './hooks/useCreditsState';
 import { useAdjustmentsState } from './hooks/useAdjustmentsState';
 import { useAcknowledgementsState } from './hooks/useAcknowledgementsState';
@@ -69,6 +70,95 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   // Duplicate Order modal state
   const [showDuplicateOrderModal, setShowDuplicateOrderModal] = useState(false);
   const duplicateOrderMutation = useDuplicateOrder();
+
+  // Current reps with names (for passing to line items when adding new ones)
+  const [currentOutsideReps, setCurrentOutsideReps] = useState<RepSplitRate[]>([]);
+  const [currentInsideReps, setCurrentInsideReps] = useState<RepSplitRate[]>([]);
+
+  // Auto-populate reps hook for settings toggle
+  const { fetchOutsideRepsFromCustomer, fetchInsideRepsFromFactory } = useAutoPopulateReps();
+
+  // Wrapped handlers for settings changes with rep redistribution
+  const handleSetShowOutsideRepPerLine = async (value: boolean) => {
+    state.setShowOutsideRepPerLine(value);
+
+    if (value) {
+      // Switching to per-line-item mode: ALWAYS fetch from END USER to get proper names
+      const endUserId = (order as any)?.endUserId;
+      if (endUserId) {
+        try {
+          const reps = await fetchOutsideRepsFromCustomer(endUserId);
+          if (reps.length > 0) {
+            // Store for new line items to inherit
+            setCurrentOutsideReps(reps);
+            const outsideSplitRates = reps.map((rep, idx) => ({
+              id: crypto.randomUUID(),
+              userId: rep.userId,
+              userName: rep.userName,
+              splitRate: rep.splitRate,
+              position: idx + 1,
+            }));
+            if (order?.lineItems && order.lineItems.length > 0) {
+              const updatedLineItems = order.lineItems.map(item => ({
+                ...item,
+                outsideSplitRates,
+              }));
+              state.updateLocalOrder({ lineItems: updatedLineItems });
+            }
+          }
+        } catch (error) {
+          console.error('Failed to fetch outside reps:', error);
+        }
+      }
+    } else if (order?.lineItems) {
+      // Switching to header mode: clear line item reps
+      const updatedLineItems = order.lineItems.map(item => ({
+        ...item,
+        outsideSplitRates: [],
+      }));
+      state.updateLocalOrder({ lineItems: updatedLineItems });
+    }
+  };
+
+  const handleSetShowInsideRepPerLine = async (value: boolean) => {
+    state.setShowInsideRepPerLine(value);
+
+    if (value) {
+      // Switching to per-line-item mode: ALWAYS fetch from factory to get proper names
+      if (order?.manufacturerId) {
+        try {
+          const reps = await fetchInsideRepsFromFactory(order.manufacturerId);
+          if (reps.length > 0) {
+            // Store for new line items to inherit
+            setCurrentInsideReps(reps);
+            const insideSplitRates = reps.map((rep, idx) => ({
+              id: crypto.randomUUID(),
+              userId: rep.userId,
+              userName: rep.userName,
+              splitRate: rep.splitRate,
+              position: idx + 1,
+            }));
+            if (order.lineItems && order.lineItems.length > 0) {
+              const updatedLineItems = order.lineItems.map(item => ({
+                ...item,
+                insideSplitRates,
+              }));
+              state.updateLocalOrder({ lineItems: updatedLineItems });
+            }
+          }
+        } catch (error) {
+          console.error('Failed to fetch inside reps:', error);
+        }
+      }
+    } else if (order?.lineItems) {
+      // Switching to header mode: clear line item reps
+      const updatedLineItems = order.lineItems.map(item => ({
+        ...item,
+        insideSplitRates: [],
+      }));
+      state.updateLocalOrder({ lineItems: updatedLineItems });
+    }
+  };
 
   // Loading state
   if (state?.isLoading) {
@@ -435,8 +525,58 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
     alert(state.hasFreightLine ? 'Freight line would be removed' : 'Freight line would be added');
   };
 
+  // Handler to auto-populate outside reps for all line items
+  const handleAutoPopulateOutsideRepsToLineItems = (reps: RepSplitRate[]) => {
+    // Always store the current reps for new line items to inherit
+    setCurrentOutsideReps(reps);
+
+    if (!order.lineItems || order.lineItems.length === 0) return;
+
+    // Convert RepSplitRate[] to the format expected by line items
+    const outsideSplitRates = reps.map((rep, idx) => ({
+      id: crypto.randomUUID(),
+      userId: rep.userId,
+      userName: rep.userName,
+      splitRate: rep.splitRate,
+      position: idx + 1,
+    }));
+
+    // Update all line items with the same outside reps
+    const updatedLineItems = order.lineItems.map(item => ({
+      ...item,
+      outsideSplitRates,
+    }));
+
+    state.updateLocalOrder({ lineItems: updatedLineItems });
+  };
+
+  // Handler to auto-populate inside reps for all line items
+  const handleAutoPopulateInsideRepsToLineItems = (reps: RepSplitRate[]) => {
+    // Always store the current reps for new line items to inherit
+    setCurrentInsideReps(reps);
+
+    if (!order.lineItems || order.lineItems.length === 0) return;
+
+    // Convert RepSplitRate[] to the format expected by line items
+    const insideSplitRates = reps.map((rep, idx) => ({
+      id: crypto.randomUUID(),
+      userId: rep.userId,
+      userName: rep.userName,
+      splitRate: rep.splitRate,
+      position: idx + 1,
+    }));
+
+    // Update all line items with the same inside reps
+    const updatedLineItems = order.lineItems.map(item => ({
+      ...item,
+      insideSplitRates,
+    }));
+
+    state.updateLocalOrder({ lineItems: updatedLineItems });
+  };
+
   return (
-    <main className="flex flex-col h-screen bg-[var(--background)]">
+    <main className="flex flex-col min-h-full bg-[var(--background)]">
       {/* Header */}
       <OrderDetailHeader
         order={order}
@@ -485,10 +625,12 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         setShowQuoteLookupModal={state.setShowQuoteLookupModal}
         onCreateInvoice={() => setShowCreateInvoiceModal(true)}
         onDuplicateOrder={() => setShowDuplicateOrderModal(true)}
+        onAutoPopulateOutsideRepsToLineItems={handleAutoPopulateOutsideRepsToLineItems}
+        onAutoPopulateInsideRepsToLineItems={handleAutoPopulateInsideRepsToLineItems}
       />
 
       {/* Main Content Area with Tabs */}
-      <div className="flex-1 flex flex-col p-6 overflow-hidden">
+      <div className="flex-1 flex flex-col p-6">
         {/* Tab Navigation */}
         <div className="flex items-center justify-between gap-1 mb-6 border-b border-[var(--border)] flex-shrink-0 bg-white pt-4 px-4 -mx-6 -mt-6">
           <div className="flex gap-1">
@@ -584,7 +726,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         </div>
 
         {/* Tab Content */}
-        <div className="flex-1 overflow-auto pb-32">
+        <div className="flex-1 pb-32">
           {state.activeTab === 'line-items' && (
             <LineItemsTable
               order={order}
@@ -615,7 +757,11 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               onDeleteLines={handleDeleteLines}
               onUpdateLineItems={state.updateLineItems}
               showEndUserPerLine={state.showEndUserPerLine}
+              showOutsideRepPerLine={state.showOutsideRepPerLine}
+              showInsideRepPerLine={state.showInsideRepPerLine}
               onOpenAdditionalDetails={state.openAdditionalDetails}
+              currentOutsideReps={currentOutsideReps}
+              currentInsideReps={currentInsideReps}
             />
           )}
 
@@ -670,9 +816,9 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               showEndUserPerLine={state.showEndUserPerLine}
               setShowEndUserPerLine={state.setShowEndUserPerLine}
               showOutsideRepPerLine={state.showOutsideRepPerLine}
-              setShowOutsideRepPerLine={state.setShowOutsideRepPerLine}
+              setShowOutsideRepPerLine={handleSetShowOutsideRepPerLine}
               showInsideRepPerLine={state.showInsideRepPerLine}
-              setShowInsideRepPerLine={state.setShowInsideRepPerLine}
+              setShowInsideRepPerLine={handleSetShowInsideRepPerLine}
               customerPartNumberSource={state.customerPartNumberSource}
               setCustomerPartNumberSource={state.setCustomerPartNumberSource}
               hasFreightLine={state.hasFreightLine}

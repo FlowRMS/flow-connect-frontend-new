@@ -34,12 +34,13 @@ import {
   useDeleteQuoteV2,
   useDuplicateQuoteV2,
 } from './api/quotesV2Api';
-import { searchUsers, searchFactories, searchCustomers, getProductCpnByCustomer } from '../quotes/api/quotesApi';
+import { searchUsers, searchFactories, searchCustomers, getProductCpnByCustomer, listProductPricingTiers, getPriceForQuantity } from '../quotes/api/quotesApi';
+import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/useAutoPopulateReps';
 import { quoteToasts } from '../lib/toast';
 import { createLink, deleteLinkByEntities } from '../lib/graphql/entity-links';
 
-// Helper function to fetch CPNs for line items with products
-async function fetchCpnsForLineItems(
+// Helper function to fetch CPNs and update pricing for line items when customer changes
+async function fetchCpnsAndUpdatePricing(
   items: LineItemV2[],
   customerId: string,
   setLineItems: React.Dispatch<React.SetStateAction<LineItemV2[]>>
@@ -50,26 +51,82 @@ async function fetchCpnsForLineItems(
   const itemsWithProducts = items.filter(li => li.productId);
   if (itemsWithProducts.length === 0) return;
 
-  // Fetch CPNs for each product in parallel
-  const cpnPromises = itemsWithProducts.map(async (li) => {
+  // Fetch CPNs and pricing tiers for each product in parallel
+  const pricingPromises = itemsWithProducts.map(async (li) => {
     try {
-      const cpnResult = await getProductCpnByCustomer(li.productId!, customerId);
-      return { itemId: li.id, cpn: cpnResult?.customerPartNumber || '' };
+      const [cpnResult, tiersResult] = await Promise.all([
+        getProductCpnByCustomer(li.productId!, customerId).catch(() => null),
+        listProductPricingTiers(li.productId!).catch(() => [])
+      ]);
+
+      // Determine pricing based on CPN or quantity tiers
+      let unitPrice = li.unitPrice;
+      let commissionRate = li.commissionPercent;
+      let customerPartNumber = '';
+      let hasCpnPricing = false;
+
+      if (cpnResult) {
+        customerPartNumber = cpnResult.customerPartNumber || '';
+        // Use CPN's unit price if available (takes priority)
+        if (cpnResult.unitPrice) {
+          unitPrice = parseFloat(cpnResult.unitPrice);
+          hasCpnPricing = true;
+        }
+        // Use CPN's commission rate if available (convert from whole number to decimal)
+        if (cpnResult.commissionRate) {
+          commissionRate = parseFloat(cpnResult.commissionRate) / 100;
+        }
+      }
+
+      // If no CPN pricing, check quantity tiers
+      if (!hasCpnPricing && tiersResult && tiersResult.length > 0) {
+        unitPrice = getPriceForQuantity(li.quantity || 1, tiersResult, unitPrice);
+      }
+
+      // Calculate derived values
+      const quantity = li.quantity || 1;
+      const divisor = li.divisor || 1;
+      const sellTotal = quantity * unitPrice / divisor;
+      const commission = quantity > 0 ? sellTotal * commissionRate / quantity : 0;
+      const commissionTotal = sellTotal * commissionRate;
+
+      return {
+        itemId: li.id,
+        customerPartNumber,
+        unitPrice,
+        commissionPercent: commissionRate,
+        sellTotal,
+        commission,
+        commissionTotal,
+        hasCpnPricing
+      };
     } catch (err) {
-      console.log('No CPN found for product:', li.productId);
-      return { itemId: li.id, cpn: '' };
+      console.log('Error fetching pricing for product:', li.productId);
+      return { itemId: li.id, customerPartNumber: '', hasCpnPricing: false };
     }
   });
 
-  const cpnResults = await Promise.all(cpnPromises);
+  const pricingResults = await Promise.all(pricingPromises);
 
-  // Update line items with fetched CPNs
-  const cpnMap = new Map(cpnResults.map(r => [r.itemId, r.cpn]));
+  // Build map of updates
+  const updateMap = new Map(pricingResults.map(r => [r.itemId, r]));
+
+  // Update line items with fetched CPNs and pricing
   setLineItems((prev) =>
-    prev.map((li) => ({
-      ...li,
-      customerPartNumber: cpnMap.has(li.id) ? cpnMap.get(li.id)! : li.customerPartNumber,
-    }))
+    prev.map((li) => {
+      const update = updateMap.get(li.id);
+      if (!update) return li;
+
+      return {
+        ...li,
+        customerPartNumber: update.customerPartNumber,
+        ...(update.unitPrice !== undefined && { unitPrice: update.unitPrice }),
+        ...(update.commissionPercent !== undefined && { commissionPercent: update.commissionPercent }),
+        ...(update.sellTotal !== undefined && { sellTotal: update.sellTotal }),
+        ...(update.commission !== undefined && { commission: update.commission }),
+        ...(update.commissionTotal !== undefined && { commissionTotal: update.commissionTotal }),
+      };
+    })
   );
 }
 
@@ -98,6 +155,10 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
 
   // Line items state
   const [lineItems, setLineItems] = useState<LineItemV2[]>([]);
+
+  // Current reps with names (for passing to line items when adding new ones)
+  const [currentOutsideReps, setCurrentOutsideReps] = useState<RepSplitRate[]>([]);
+  const [currentInsideReps, setCurrentInsideReps] = useState<RepSplitRate[]>([]);
 
   // Settings state
   const [settings, setSettings] = useState<QuoteSettingsV2>(defaultQuoteSettingsV2);
@@ -189,7 +250,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
 
         // Fetch CPNs for line items that have products
         if (apiQuote.soldToCustomerId && transformedLineItems.some(li => li.productId)) {
-          fetchCpnsForLineItems(transformedLineItems, apiQuote.soldToCustomerId, setLineItems);
+          fetchCpnsAndUpdatePricing(transformedLineItems, apiQuote.soldToCustomerId, setLineItems);
         }
       }
       setHasChanges(false);
@@ -285,6 +346,34 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
     }
   }, [apiQuote, isNew]);
 
+  // Initialize with one empty line item for new quotes
+  useEffect(() => {
+    if (isNew && lineItems.length === 0) {
+      const defaultLineItem: LineItemV2 = {
+        id: `li-${Date.now()}`,
+        quoteId: '',
+        partNumber: '',
+        description: '',
+        manufacturerName: '',
+        manufacturerId: undefined,
+        quantity: 1,
+        uom: null,
+        divisor: 1,
+        unitPrice: 0,
+        sellTotal: 0,
+        total: 0,
+        commissionPercent: 0.08,
+        commission: 0,
+        commissionTotal: 0,
+        commissionDiscountPercent: 0,
+        commissionDiscountAmount: 0,
+        lineDiscountPercent: 0,
+        lineDiscountAmount: 0,
+      };
+      setLineItems([defaultLineItem]);
+    }
+  }, [isNew]);
+
   // Track previous soldToCustomerId to detect changes
   const prevSoldToCustomerIdRef = React.useRef<string | undefined>(undefined);
 
@@ -304,7 +393,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       quote.soldToCustomerId &&
       lineItems.some(li => li.productId)
     ) {
-      fetchCpnsForLineItems(lineItems, quote.soldToCustomerId, setLineItems);
+      fetchCpnsAndUpdatePricing(lineItems, quote.soldToCustomerId, setLineItems);
     }
     prevSoldToCustomerIdRef.current = quote.soldToCustomerId;
   }, [quote.soldToCustomerId, lineItems]);
@@ -597,6 +686,226 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
     }
   }, [quote.id, duplicateQuoteMutation]);
 
+  // Get the hook for fetching factory reps (used for per-line-item factory mode)
+  const { fetchInsideRepsFromFactory } = useAutoPopulateReps();
+
+  // Handler to auto-populate outside reps for all line items
+  const handleAutoPopulateOutsideRepsToLineItems = useCallback((reps: RepSplitRate[]) => {
+    // Always store the current reps for new line items to inherit
+    setCurrentOutsideReps(reps);
+
+    if (lineItems.length === 0) return;
+
+    // Convert RepSplitRate[] to the format expected by line items
+    // Include userName so the modal can display the name without looking it up
+    const outsideSplitRates = reps.map((rep, idx) => ({
+      id: crypto.randomUUID(),
+      userId: rep.userId,
+      userName: rep.userName,
+      splitRate: rep.splitRate,
+      position: idx + 1,
+    }));
+
+    // Update all line items with the same outside reps
+    setLineItems(prev => prev.map(item => ({
+      ...item,
+      outsideSplitRates,
+    })));
+    setHasChanges(true);
+  }, [lineItems.length]);
+
+  // Handler to auto-populate inside reps for all line items (when factory is at header level)
+  const handleAutoPopulateInsideRepsToLineItems = useCallback((reps: RepSplitRate[]) => {
+    // Always store the current reps for new line items to inherit
+    setCurrentInsideReps(reps);
+
+    if (lineItems.length === 0) return;
+
+    // Convert RepSplitRate[] to the format expected by line items
+    // Include userName so the modal can display the name without looking it up
+    const insideSplitRates = reps.map((rep, idx) => ({
+      id: crypto.randomUUID(),
+      userId: rep.userId,
+      userName: rep.userName,
+      splitRate: rep.splitRate,
+      position: idx + 1,
+    }));
+
+    // Update all line items with the same inside reps
+    setLineItems(prev => prev.map(item => ({
+      ...item,
+      insideSplitRates,
+    })));
+    setHasChanges(true);
+  }, [lineItems.length]);
+
+  // Handler to auto-populate inside reps per line item based on each line's manufacturer
+  // This is for when factoryPerLineItem is enabled - each line item gets reps from its own manufacturer
+  const handleAutoPopulateInsideRepsPerLineItemFactory = useCallback(async () => {
+    if (lineItems.length === 0) return;
+
+    // Process each line item that has a manufacturer
+    const updatedLineItems = await Promise.all(
+      lineItems.map(async (item) => {
+        if (!item.manufacturerId) {
+          return item; // No manufacturer, keep as is
+        }
+
+        try {
+          const reps = await fetchInsideRepsFromFactory(item.manufacturerId);
+          if (reps.length === 0) {
+            return item; // No reps found, keep as is
+          }
+
+          // Convert to line item format - include userName
+          const insideSplitRates = reps.map((rep, idx) => ({
+            id: crypto.randomUUID(),
+            userId: rep.userId,
+            userName: rep.userName,
+            splitRate: rep.splitRate,
+            position: idx + 1,
+          }));
+
+          return {
+            ...item,
+            insideSplitRates,
+          };
+        } catch (error) {
+          console.error(`Failed to fetch reps for manufacturer ${item.manufacturerId}:`, error);
+          return item; // On error, keep as is
+        }
+      })
+    );
+
+    setLineItems(updatedLineItems);
+    setHasChanges(true);
+  }, [lineItems, fetchInsideRepsFromFactory]);
+
+  // Get the hook for fetching customer reps (for settings toggle)
+  const { fetchOutsideRepsFromCustomer } = useAutoPopulateReps();
+
+  // Handler for settings changes with rep redistribution
+  const handleSettingsChange = useCallback(async (newSettings: QuoteSettingsV2) => {
+    const oldSettings = settings;
+    setSettings(newSettings);
+    setHasChanges(true);
+
+    // Handle outsideRepAtLineLevel toggle
+    if (oldSettings.outsideRepAtLineLevel !== newSettings.outsideRepAtLineLevel) {
+      if (newSettings.outsideRepAtLineLevel) {
+        // Switching to per-line-item mode: ALWAYS fetch from END USER to get proper names
+        if (quote.endUserId) {
+          const reps = await fetchOutsideRepsFromCustomer(quote.endUserId);
+          if (reps.length > 0) {
+            // Store for new line items to inherit
+            setCurrentOutsideReps(reps);
+            const outsideSplitRates = reps.map((rep, idx) => ({
+              id: crypto.randomUUID(),
+              userId: rep.userId,
+              userName: rep.userName,
+              splitRate: rep.splitRate,
+              position: idx + 1,
+            }));
+            setLineItems(prev => prev.map(item => ({ ...item, outsideSplitRates })));
+          }
+        }
+      } else {
+        // Switching to header mode: clear line item reps (header will be populated from end user when selected)
+        setLineItems(prev => prev.map(item => ({ ...item, outsideSplitRates: [] })));
+      }
+    }
+
+    // Handle insideRepAtLineLevel toggle
+    if (oldSettings.insideRepAtLineLevel !== newSettings.insideRepAtLineLevel) {
+      if (newSettings.insideRepAtLineLevel) {
+        // Switching to per-line-item mode
+        if (newSettings.factoryPerLineItem) {
+          // Factory is per line item - each line item gets its own manufacturer's reps
+          const updatedLineItems = await Promise.all(
+            lineItems.map(async (item) => {
+              if (!item.manufacturerId) return item;
+              try {
+                const reps = await fetchInsideRepsFromFactory(item.manufacturerId);
+                if (reps.length === 0) return item;
+                const insideSplitRates = reps.map((rep, idx) => ({
+                  id: crypto.randomUUID(),
+                  userId: rep.userId,
+                  userName: rep.userName,
+                  splitRate: rep.splitRate,
+                  position: idx + 1,
+                }));
+                return { ...item, insideSplitRates };
+              } catch {
+                return item;
+              }
+            })
+          );
+          setLineItems(updatedLineItems);
+        } else if (quote.factoryId) {
+          // Factory is at header level - ALWAYS fetch from factory to get proper names
+          const reps = await fetchInsideRepsFromFactory(quote.factoryId);
+          if (reps.length > 0) {
+            // Store for new line items to inherit
+            setCurrentInsideReps(reps);
+            const insideSplitRates = reps.map((rep, idx) => ({
+              id: crypto.randomUUID(),
+              userId: rep.userId,
+              userName: rep.userName,
+              splitRate: rep.splitRate,
+              position: idx + 1,
+            }));
+            setLineItems(prev => prev.map(item => ({ ...item, insideSplitRates })));
+          }
+        }
+      } else {
+        // Switching to header mode: clear line item reps
+        setLineItems(prev => prev.map(item => ({ ...item, insideSplitRates: [] })));
+      }
+    }
+
+    // Handle factoryPerLineItem toggle when insideRepAtLineLevel is already on
+    if (oldSettings.factoryPerLineItem !== newSettings.factoryPerLineItem && newSettings.insideRepAtLineLevel) {
+      if (newSettings.factoryPerLineItem) {
+        // Switching to per-line-item factory mode - repopulate each line item from its manufacturer
+        const updatedLineItems = await Promise.all(
+          lineItems.map(async (item) => {
+            if (!item.manufacturerId) return item;
+            try {
+              const reps = await fetchInsideRepsFromFactory(item.manufacturerId);
+              if (reps.length === 0) return item;
+              const insideSplitRates = reps.map((rep, idx) => ({
+                id: crypto.randomUUID(),
+                userId: rep.userId,
+                userName: rep.userName,
+                splitRate: rep.splitRate,
+                position: idx + 1,
+              }));
+              return { ...item, insideSplitRates };
+            } catch {
+              return item;
+            }
+          })
+        );
+        setLineItems(updatedLineItems);
+      } else if (quote.factoryId) {
+        // Switching to header-level factory - populate all line items with header factory's reps
+        const reps = await fetchInsideRepsFromFactory(quote.factoryId);
+        if (reps.length > 0) {
+          // Store for new line items to inherit
+          setCurrentInsideReps(reps);
+          const insideSplitRates = reps.map((rep, idx) => ({
+            id: crypto.randomUUID(),
+            userId: rep.userId,
+            userName: rep.userName,
+            splitRate: rep.splitRate,
+            position: idx + 1,
+          }));
+          setLineItems(prev => prev.map(item => ({ ...item, insideSplitRates })));
+        }
+      }
+    }
+  }, [settings, quote.endUserId, quote.factoryId, lineItems, fetchOutsideRepsFromCustomer, fetchInsideRepsFromFactory]);
+
   const tabs: { key: TabType; label: string; count?: number; comingSoon?: boolean; disabled?: boolean; disabledReason?: string }[] = useMemo(() => [
     { key: 'lineItems', label: 'Line Items', count: lineItems.length },
     { key: 'files', label: 'Files', disabled: isNew, disabledReason: 'Save quote first' },
@@ -638,7 +947,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
   }
 
   return (
-    <div className="h-full flex flex-col bg-white">
+    <div className="min-h-full flex flex-col bg-white">
       {/* Save Error Banner */}
       {saveError && (
         <div className="bg-red-50 border-b border-red-200 px-6 py-3 flex items-center justify-between">
@@ -665,6 +974,9 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         lineItems={lineItems}
         settings={settings}
         onClearLineItemProducts={handleClearLineItemProducts}
+        onAutoPopulateOutsideRepsToLineItems={handleAutoPopulateOutsideRepsToLineItems}
+        onAutoPopulateInsideRepsToLineItems={handleAutoPopulateInsideRepsToLineItems}
+        onAutoPopulateInsideRepsPerLineItemFactory={handleAutoPopulateInsideRepsPerLineItemFactory}
       />
 
       {/* Tabs */}
@@ -704,7 +1016,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       </div>
 
       {/* Tab Content */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1">
         {activeTab === 'lineItems' && (
           <LineItemsTabV2
             lineItems={lineItems}
@@ -717,6 +1029,8 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
             soldToCustomerId={quote.soldToCustomerId}
             headerFactoryId={quote.factoryId}
             headerFactoryName={quote.factoryName}
+            currentOutsideReps={currentOutsideReps}
+            currentInsideReps={currentInsideReps}
           />
         )}
 
@@ -783,7 +1097,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
 
         {activeTab === 'settings' && (
           <div className="h-full overflow-auto p-6">
-            <SettingsTabV2 settings={settings} onSettingsChange={setSettings} />
+            <SettingsTabV2 settings={settings} onSettingsChange={handleSettingsChange} />
           </div>
         )}
       </div>

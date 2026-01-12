@@ -18,6 +18,7 @@ import {
   useFactorySearch,
   useUserSearch,
 } from '../../../api';
+import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/useAutoPopulateReps';
 
 // ComingSoonBadge component for unsupported features
 function ComingSoonBadge({ inline = false }: { inline?: boolean }) {
@@ -53,6 +54,9 @@ interface OrderDetailsFieldsProps {
   showEndUserPerLine?: boolean;
   showOutsideRepPerLine?: boolean;
   showInsideRepPerLine?: boolean;
+  // Callbacks for auto-populating reps at line item level
+  onAutoPopulateOutsideRepsToLineItems?: (reps: RepSplitRate[]) => void;
+  onAutoPopulateInsideRepsToLineItems?: (reps: RepSplitRate[]) => void;
 }
 
 export function OrderDetailsFields({
@@ -78,7 +82,14 @@ export function OrderDetailsFields({
   showEndUserPerLine = false,
   showOutsideRepPerLine = false,
   showInsideRepPerLine = false,
+  onAutoPopulateOutsideRepsToLineItems,
+  onAutoPopulateInsideRepsToLineItems,
 }: OrderDetailsFieldsProps) {
+  // Auto-populate reps hook
+  const {
+    fetchOutsideRepsFromCustomer,
+    fetchInsideRepsFromFactory,
+  } = useAutoPopulateReps();
   // Search states
   const [soldToSearchTerm, setSoldToSearchTerm] = useState('');
   const [soldToSearchEnabled, setSoldToSearchEnabled] = useState(false);
@@ -101,6 +112,13 @@ export function OrderDetailsFields({
     return endUserId && customerId && endUserId === customerId;
   });
 
+  // Bill to same as sold to checkbox state
+  const [billToSameAsSoldTo, setBillToSameAsSoldTo] = useState(() => {
+    const billToCustomerId = (order as any).billToCustomerId;
+    const customerId = order.customerId;
+    return billToCustomerId && customerId && billToCustomerId === customerId;
+  });
+
   // Update the checkbox when order changes
   useEffect(() => {
     const endUserId = (order as any).endUserId;
@@ -109,6 +127,15 @@ export function OrderDetailsFields({
       setEndUserSameAsSoldTo(true);
     }
   }, [(order as any).endUserId, order.customerId]);
+
+  // Update bill to checkbox when order changes
+  useEffect(() => {
+    const billToCustomerId = (order as any).billToCustomerId;
+    const customerId = order.customerId;
+    if (billToCustomerId && customerId && billToCustomerId === customerId) {
+      setBillToSameAsSoldTo(true);
+    }
+  }, [(order as any).billToCustomerId, order.customerId]);
 
   // Search hooks
   const { data: soldToCustomers, isLoading: isSoldToLoading } = useCustomerSearch(soldToSearchTerm, soldToSearchEnabled);
@@ -175,6 +202,76 @@ export function OrderDetailsFields({
     }
   };
 
+  // Auto-populate inside reps from factory (called when factory changes)
+  const autoPopulateInsideReps = async (factoryId: string) => {
+    const reps = await fetchInsideRepsFromFactory(factoryId);
+    if (reps.length === 0) return;
+
+    if (showInsideRepPerLine) {
+      // Per line item mode - populate all line items
+      onAutoPopulateInsideRepsToLineItems?.(reps);
+    } else {
+      // Header level mode - populate header fields
+      const primaryRep = reps[0];
+      setOrderInsideRep(primaryRep.userId);
+      handleFieldUpdate('insideRepId', primaryRep.userId);
+      handleFieldUpdate('insideRepName', primaryRep.userName);
+
+      if (reps.length > 1) {
+        // Multiple reps - enable split commission
+        setSplitInsideCommission(true);
+        const defaultPercentage = Math.floor(100 / reps.length);
+        setInsideRepSplits(reps.map((r, idx) => {
+          const parsed = parseInt(r.splitRate, 10);
+          return {
+            repId: r.userId || '',
+            repName: r.userName || '',
+            percentage: !isNaN(parsed) ? parsed : (idx === reps.length - 1 ? 100 - (defaultPercentage * (reps.length - 1)) : defaultPercentage),
+          };
+        }));
+        openInsideRepModal();
+      } else {
+        setSplitInsideCommission(false);
+        setInsideRepSplits([]);
+      }
+    }
+  };
+
+  // Auto-populate outside reps from end user (called when end user changes)
+  const autoPopulateOutsideReps = async (endUserId: string) => {
+    const reps = await fetchOutsideRepsFromCustomer(endUserId);
+    if (reps.length === 0) return;
+
+    if (showOutsideRepPerLine) {
+      // Per line item mode - populate all line items
+      onAutoPopulateOutsideRepsToLineItems?.(reps);
+    } else {
+      // Header level mode - populate header fields
+      const primaryRep = reps[0];
+      setOrderOutsideRep(primaryRep.userId);
+      handleFieldUpdate('outsideRepId' as keyof Order, primaryRep.userId);
+      handleFieldUpdate('outsideRepName' as keyof Order, primaryRep.userName);
+
+      if (reps.length > 1) {
+        // Multiple reps - enable split commission
+        setSplitOutsideCommission(true);
+        const defaultPercentage = Math.floor(100 / reps.length);
+        setOutsideRepSplits(reps.map((r, idx) => {
+          const parsed = parseInt(r.splitRate, 10);
+          return {
+            repId: r.userId || '',
+            repName: r.userName || '',
+            percentage: !isNaN(parsed) ? parsed : (idx === reps.length - 1 ? 100 - (defaultPercentage * (reps.length - 1)) : defaultPercentage),
+          };
+        }));
+        openOutsideRepModal();
+      } else {
+        setSplitOutsideCommission(false);
+        setOutsideRepSplits([]);
+      }
+    }
+  };
+
   return (
     <div className="border-b border-[var(--border)] bg-blue-50/30 flex-shrink-0">
       <button
@@ -227,6 +324,10 @@ export function OrderDetailsFields({
                   handleFieldUpdate('manufacturerId', id);
                   handleFieldUpdate('manufacturerName', label);
                   setFactorySearchEnabled(false);
+                  // Auto-populate inside reps from factory
+                  if (id) {
+                    autoPopulateInsideReps(id);
+                  }
                 }}
                 options={factoryOptions}
                 placeholder="Select Factory..."
@@ -249,10 +350,19 @@ export function OrderDetailsFields({
                   handleFieldUpdate('customerId', id);
                   handleFieldUpdate('customerName', label);
                   setSoldToSearchEnabled(false);
-                  // If "Same as sold to" is checked, update end user too
+                  // If "Same as sold to" is checked, update end user too and auto-populate outside reps
                   if (endUserSameAsSoldTo) {
                     handleFieldUpdate('endUserId' as keyof Order, id);
                     handleFieldUpdate('endUserName' as keyof Order, label);
+                    // Auto-populate outside reps from end user (which is same as sold to in this case)
+                    if (id) {
+                      autoPopulateOutsideReps(id);
+                    }
+                  }
+                  // If "Same as sold to" is checked for bill to, update bill to too
+                  if (billToSameAsSoldTo) {
+                    handleFieldUpdate('billToCustomerId' as keyof Order, id);
+                    handleFieldUpdate('billToCustomerName' as keyof Order, label);
                   }
                 }}
                 options={soldToOptions}
@@ -284,7 +394,23 @@ export function OrderDetailsFields({
                   setBillToSearchTerm(query);
                   setBillToSearchEnabled(true);
                 }}
+                disabled={billToSameAsSoldTo}
               />
+              <label className="flex items-center gap-1.5 mt-1 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={billToSameAsSoldTo}
+                  onChange={(e) => {
+                    setBillToSameAsSoldTo(e.target.checked);
+                    if (e.target.checked && order.customerId) {
+                      handleFieldUpdate('billToCustomerId' as keyof Order, order.customerId);
+                      handleFieldUpdate('billToCustomerName' as keyof Order, order.customerName);
+                    }
+                  }}
+                  className="w-3 h-3 accent-[var(--primary)]"
+                />
+                <span className="text-xs text-[var(--muted-foreground)]">Same as sold to</span>
+              </label>
             </div>
 
             {/* End User - always show in header (when showEndUserPerLine is false, it's header level) */}
@@ -301,6 +427,10 @@ export function OrderDetailsFields({
                       handleFieldUpdate('endUserId' as keyof Order, id);
                       handleFieldUpdate('endUserName' as keyof Order, label);
                       setEndUserSearchEnabled(false);
+                      // Auto-populate outside reps from end user
+                      if (id) {
+                        autoPopulateOutsideReps(id);
+                      }
                     }}
                     options={endUserOptions}
                     placeholder="Select End User..."
@@ -320,6 +450,8 @@ export function OrderDetailsFields({
                         if (e.target.checked && order.customerId) {
                           handleFieldUpdate('endUserId' as keyof Order, order.customerId);
                           handleFieldUpdate('endUserName' as keyof Order, order.customerName);
+                          // Auto-populate outside reps from end user (which is same as sold to)
+                          autoPopulateOutsideReps(order.customerId);
                         }
                       }}
                       className="w-3 h-3 accent-[var(--primary)]"

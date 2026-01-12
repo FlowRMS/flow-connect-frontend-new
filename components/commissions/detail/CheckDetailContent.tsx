@@ -27,6 +27,7 @@ import {
   AddLineItemModal,
   OrderDetailModal,
 } from './components/modals';
+import * as XLSX from 'xlsx';
 import {
   AdjustmentModal,
   AdjustmentDetailModal,
@@ -96,7 +97,61 @@ export default function CheckDetailContent({
   };
 
   const handleDownloadExcel = () => {
-    alert('Downloading Excel...');
+    // Prepare data for Excel export
+    const paidLineItems = state.lineItems.filter((item) => item.paid);
+
+    // Create worksheet data
+    const worksheetData = [
+      // Header row
+      ['Type', 'Entity Number', 'Order Number', 'Expected Commission', 'Commission Received', 'Sales Amount', 'Outside Sales Rep'],
+      // Data rows
+      ...paidLineItems.map((item) => [
+        item.type.toUpperCase(),
+        item.number,
+        item.orderNumber || '-',
+        item.expectedCommission,
+        item.paidCommission,
+        item.commissionRateActual > 0
+          ? (item.paidCommission / (item.commissionRateActual / 100))
+          : 0,
+        item.salesRep || '-',
+      ]),
+    ];
+
+    // Create summary data
+    const summaryData = [
+      ['Posted Statement Summary'],
+      [''],
+      ['Check Summary'],
+      ['Check Number', state.checkNumber || '-'],
+      ['Factory', state.check?.manufacturerName || '-'],
+      ['Check Date', state.checkDate ? new Date(state.checkDate).toLocaleDateString() : '-'],
+      ['Check Amount', state.isTotalStatedCommission ? state.summary.paidTotal : state.commissionAmount],
+      ['Commission Month', state.commissionMonth || '-'],
+      ['Post Date', state.postedDate ? new Date(state.postedDate).toLocaleDateString() : '-'],
+      [''],
+      ['Commission Summary'],
+      ['Paid Commissions', state.summary.paidTotal],
+      ['Expected Commission', state.summary.expectedTotal],
+      ['Balance', state.summary.paidTotal - state.summary.expectedTotal],
+    ];
+
+    // Create workbook
+    const workbook = XLSX.utils.book_new();
+
+    // Add summary sheet
+    const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
+
+    // Add details sheet
+    const detailsSheet = XLSX.utils.aoa_to_sheet(worksheetData);
+    XLSX.utils.book_append_sheet(workbook, detailsSheet, 'Details');
+
+    // Generate filename
+    const filename = `Posted_Statement_${state.checkNumber || 'Check'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+    // Download
+    XLSX.writeFile(workbook, filename);
   };
 
   const handleSaveAsNewVersion = () => {
@@ -131,9 +186,11 @@ export default function CheckDetailContent({
         onSaveAndClose={state.handleSaveAndClose}
         onSaveAsNewVersion={handleSaveAsNewVersion}
         onUnpost={state.handleUnpost}
+        onDelete={state.openDeleteConfirmModal}
         isCreateMode={state.isCreateMode}
         isSaving={state.isSaving}
         isUnposting={state.isUnposting}
+        isDeleting={state.isDeleting}
         isOriginallyPosted={state.isOriginallyPosted}
       />
 
@@ -541,6 +598,17 @@ export default function CheckDetailContent({
           onClose={state.closeOrderDetail}
         />
       )}
+
+      {/* Delete Confirmation Modal for Check */}
+      <DeleteConfirmModal
+        isOpen={state.showDeleteConfirmModal}
+        title="Delete Check?"
+        message="Are you sure you want to delete check"
+        itemName={state.checkNumber || state.check?.checkNumber}
+        isPending={state.isDeleting}
+        onConfirm={state.handleDelete}
+        onCancel={state.closeDeleteConfirmModal}
+      />
     </main>
   );
 }
