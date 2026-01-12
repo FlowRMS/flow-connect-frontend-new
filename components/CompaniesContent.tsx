@@ -8,6 +8,7 @@
 import React, { useMemo, useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useFlowChat } from '@/contexts/FlowChatContext';
 import AdvancedFilters, { ActiveFilter, ActiveSort } from './advancedFilters/AdvancedFilters';
 import SortButton from './SortButton';
 import { useCRMCompanyLandingPagesInfinite, useDeleteCRMCompany, useUpdateCRMCompany, useCRMCompany } from './hooks/useCRMApi';
@@ -185,6 +186,7 @@ export default function CompaniesContent() {
   // Router for navigation
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { setFullEntityContext } = useFlowChat();
 
   // Hydration-safe mounted state
   const [isMounted, setIsMounted] = useState(false);
@@ -367,6 +369,18 @@ export default function CompaniesContent() {
       isIntentionalClearRef.current = false;
     }
   }, [companyIdFromUrl]);
+
+  // Set full entity context for global chatbot (type, id, and company name)
+  useEffect(() => {
+    if (selectedCompany?.name && selectedCompany?.id) {
+      setFullEntityContext('company', selectedCompany.id, selectedCompany.name);
+    } else {
+      setFullEntityContext(null, null, null);
+    }
+    return () => {
+      setFullEntityContext(null, null, null);
+    };
+  }, [selectedCompany?.name, selectedCompany?.id, setFullEntityContext]);
 
   // Update URL when a company is selected (not when cleared - that's handled by handleBack)
   useEffect(() => {

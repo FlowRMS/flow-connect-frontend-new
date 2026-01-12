@@ -6,9 +6,10 @@
 
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
+import { useFlowChat } from '@/contexts/FlowChatContext';
 import { useInvoiceDetailState, useInvoiceLineItemsTable } from './hooks';
 import { HeaderTopBar, PricingSummaryBar, InvoiceDetailsFields } from './components/header';
 import { LineItemsTable } from './components/line-items';
@@ -43,6 +44,17 @@ interface InvoiceDetailContentProps {
 export default function InvoiceDetailContent({ invoiceId, initialOrderId }: InvoiceDetailContentProps) {
   const router = useRouter();
   const state = useInvoiceDetailState({ invoiceId, initialOrderId });
+  const { setFullEntityContext } = useFlowChat();
+
+  // Set full entity context for global chatbot (type, id, and invoice number)
+  useEffect(() => {
+    if (state?.invoice?.invoiceNumber && invoiceId) {
+      setFullEntityContext('invoice', invoiceId, state.invoice.invoiceNumber);
+    }
+    return () => {
+      setFullEntityContext(null, null, null);
+    };
+  }, [state?.invoice?.invoiceNumber, invoiceId, setFullEntityContext]);
 
   // Line items table hook - must be called before any early returns to respect Rules of Hooks
   const tableHook = useInvoiceLineItemsTable({
@@ -235,7 +247,7 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
   };
 
   return (
-    <main className="flex flex-col h-screen bg-[var(--background)]">
+    <main className="flex flex-col min-h-full bg-[var(--background)]">
       {/* Header Top Bar */}
       <HeaderTopBar
         invoice={state.invoice}
@@ -297,9 +309,9 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
       />
 
       {/* Main Content Area with Tabs */}
-      <div className="flex flex-1 overflow-hidden min-h-0">
+      <div className="flex flex-1 min-h-0">
         {/* Main Content */}
-        <div className="flex-1 flex flex-col p-6 min-w-0 overflow-hidden">
+        <div className="flex-1 flex flex-col p-6 min-w-0">
           {/* Tabs */}
           <div className="flex items-center justify-between gap-1 mb-6 border-b border-[var(--border)] flex-shrink-0 bg-white -mx-6 px-6 pt-4 -mt-6">
             <div className="flex gap-1">
@@ -529,7 +541,7 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
           {/* Settings Tab */}
           {state.activeTab === 'settings' && (
             <div className="flex-1 overflow-auto">
-              <SettingsTab />
+              <SettingsTab invoice={state.invoice} />
             </div>
           )}
         </div>
@@ -658,6 +670,9 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
         onClose={() => state.setShowAdditionalDetailsModal(false)}
         lineItem={state.selectedLineItemForDetails}
         onSave={state.saveAdditionalDetails}
+        endUserPerLineItem={(state.invoice as any)?.endUserPerLineItem}
+        outsidePerLineItem={(state.invoice as any)?.outsidePerLineItem}
+        insidePerLineItem={(state.invoice as any)?.insidePerLineItem}
       />
     </main>
   );

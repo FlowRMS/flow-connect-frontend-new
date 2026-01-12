@@ -366,6 +366,11 @@ export default function UniversalSearch() {
                           {result.alias}
                         </span>
                       )}
+                      {result.extraInfo && (
+                        <span className="text-xs text-gray-500 truncate">
+                          • {result.extraInfo}
+                        </span>
+                      )}
                     </div>
                   </div>
 

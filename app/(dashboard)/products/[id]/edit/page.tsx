@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { useFlowChat } from '@/contexts/FlowChatContext';
 import {
   useProduct,
   useUpdateProduct,
@@ -68,6 +69,17 @@ export default function ProductEditPage() {
   const { data: product, isLoading: isLoadingProduct, error: productError } = useProduct(productId);
   const updateProductMutation = useUpdateProduct();
   const { data: uoms = [] } = useProductUoms();
+  const { setFullEntityContext } = useFlowChat();
+
+  // Set full entity context for global chatbot (type, id, and product part number)
+  useEffect(() => {
+    if (product?.factoryPartNumber && productId) {
+      setFullEntityContext('product', productId, product.factoryPartNumber);
+    }
+    return () => {
+      setFullEntityContext(null, null, null);
+    };
+  }, [product?.factoryPartNumber, productId, setFullEntityContext]);
 
   // CPN Hooks
   const { data: cpns = [], isLoading: isLoadingCpns, refetch: refetchCpns } = useProductCpns(productId);
@@ -927,8 +939,8 @@ export default function ProductEditPage() {
                   <input
                     type="number"
                     step="0.1"
-                    value={formData.defaultCommissionRate ? (formData.defaultCommissionRate * 100).toFixed(1) : ''}
-                    onChange={(e) => handleFieldChange('defaultCommissionRate', e.target.value ? parseFloat(e.target.value) / 100 : 0)}
+                    value={formData.defaultCommissionRate ? formData.defaultCommissionRate : ''}
+                    onChange={(e) => handleFieldChange('defaultCommissionRate', e.target.value ? parseFloat(e.target.value) : 0)}
                     className={`${inputClass} pr-8`}
                     placeholder="0"
                   />
@@ -1318,7 +1330,7 @@ export default function ProductEditPage() {
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                             </svg>
-                            {formatPercent(cpn.commissionRate / 100)}
+                            {`${Number(cpn.commissionRate || 0).toFixed(1)}%`}
                           </span>
                         </div>
                       </div>

@@ -311,7 +311,8 @@ export function LineItemsTabV2({
       }));
 
       const sellTotal = qty * unitPrice / item.divisor;
-      const commissionTotal = sellTotal * item.commissionPercent;
+      // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
+      const commissionTotal = sellTotal * (item.commissionPercent / 100);
       const commission = qty > 0 ? commissionTotal / qty : 0;
       updates.quantity = qty;
       // Only update unit price if using tier pricing (not CPN)
@@ -324,7 +325,8 @@ export function LineItemsTabV2({
     } else if (column === 'divisor') {
       const divisor = parseFloat(value) || 1;
       const sellTotal = item.quantity * item.unitPrice / divisor;
-      const commissionTotal = sellTotal * item.commissionPercent;
+      // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
+      const commissionTotal = sellTotal * (item.commissionPercent / 100);
       const commission = item.quantity > 0 ? commissionTotal / item.quantity : 0;
       updates.divisor = divisor;
       updates.sellTotal = sellTotal;
@@ -333,7 +335,8 @@ export function LineItemsTabV2({
     } else if (column === 'unitPrice') {
       const price = parseFloat(value.replace(/[$,]/g, '')) || 0;
       const sellTotal = item.quantity * price / item.divisor;
-      const commissionTotal = sellTotal * item.commissionPercent;
+      // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
+      const commissionTotal = sellTotal * (item.commissionPercent / 100);
       const commission = item.quantity > 0 ? commissionTotal / item.quantity : 0;
       updates.unitPrice = price;
       updates.sellTotal = sellTotal;
@@ -351,10 +354,11 @@ export function LineItemsTabV2({
         return newSet;
       });
     } else if (column === 'commissionPercent') {
-      const pct = parseFloat(value) / 100 || 0;
+      const pct = parseFloat(value) || 0;
       // Recalculate sellTotal to ensure consistency
       const sellTotal = item.quantity * item.unitPrice / item.divisor;
-      const commissionTotal = sellTotal * pct;
+      // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
+      const commissionTotal = sellTotal * (pct / 100);
       const commission = item.quantity > 0 ? commissionTotal / item.quantity : 0;
       updates.commissionPercent = pct;
       updates.sellTotal = sellTotal; // Ensure sellTotal is up to date
@@ -379,7 +383,7 @@ export function LineItemsTabV2({
       unitPrice: 0,
       sellTotal: 0,
       total: 0,
-      commissionPercent: 0.08,
+      commissionPercent: 8, // Stored as whole percentage (8 for 8%)
       commission: 0,
       commissionTotal: 0,
       commissionDiscountPercent: 0,
@@ -389,7 +393,7 @@ export function LineItemsTabV2({
       // Inherit outside reps if per-line-item setting is enabled
       outsideSplitRates: settings?.outsideRepAtLineLevel && currentOutsideReps && currentOutsideReps.length > 0
         ? currentOutsideReps.map((rep, idx) => ({
-            id: crypto.randomUUID(),
+            id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
             userId: rep.userId,
             userName: rep.userName,
             splitRate: rep.splitRate,
@@ -399,7 +403,7 @@ export function LineItemsTabV2({
       // Inherit inside reps if per-line-item setting is enabled AND factory is at header level
       insideSplitRates: settings?.insideRepAtLineLevel && !settings?.factoryPerLineItem && currentInsideReps && currentInsideReps.length > 0
         ? currentInsideReps.map((rep, idx) => ({
-            id: crypto.randomUUID(),
+            id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
             userId: rep.userId,
             userName: rep.userName,
             splitRate: rep.splitRate,
@@ -473,8 +477,8 @@ export function LineItemsTabV2({
         displayValue = `$${Number(item.sellTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         break;
       case 'commissionPercent':
-        displayValue = (Number(item.commissionPercent || 0) * 100).toFixed(2);
-        editValue = (Number(item.commissionPercent || 0) * 100).toFixed(2);
+        displayValue = Number(item.commissionPercent || 0).toFixed(2);
+        editValue = Number(item.commissionPercent || 0).toFixed(2);
         break;
       case 'commission':
         displayValue = `$${Number(item.commission || 0).toFixed(2)}`;
@@ -908,7 +912,7 @@ export function LineItemsTabV2({
                                 const reps = await fetchInsideRepsFromFactory(factory.id);
                                 if (reps.length > 0) {
                                   updates.insideSplitRates = reps.map((rep, idx) => ({
-                                    id: crypto.randomUUID(),
+                                    id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
                                     userId: rep.userId,
                                     userName: rep.userName,
                                     splitRate: rep.splitRate,
@@ -1005,9 +1009,9 @@ export function LineItemsTabV2({
                                 cpnHasCustomPrice = true;
                               }
                               // Use CPN's commission rate if available (override product default)
-                              // CPN commission rate is stored as whole number (e.g., 3 for 3%), convert to decimal
+                              // CPN commission rate is stored as whole number (e.g., 3 for 3%)
                               if (cpnResult.commissionRate) {
-                                commissionRate = parseFloat(cpnResult.commissionRate) / 100;
+                                commissionRate = parseFloat(cpnResult.commissionRate);
                               }
                             }
 
@@ -1170,7 +1174,8 @@ export function LineItemsTabV2({
                               const unitPrice = item?.unitPrice || 0;
                               const commissionPercent = item?.commissionPercent || 0;
                               const sellTotal = quantity * unitPrice / divisor;
-                              const commissionTotal = sellTotal * commissionPercent;
+                              // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
+                              const commissionTotal = sellTotal * (commissionPercent / 100);
                               const commission = quantity > 0 ? commissionTotal / quantity : 0;
 
                               updateLineItem(dropdownOpen.itemId, {

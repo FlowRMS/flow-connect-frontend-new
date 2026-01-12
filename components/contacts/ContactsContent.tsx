@@ -6,6 +6,7 @@
 
 import React, { useMemo, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useFlowChat } from '@/contexts/FlowChatContext';
 import AdvancedFilters from '../advancedFilters/AdvancedFilters';
 import SortButton from '../SortButton';
 import ContactDetailView from './detail/ContactDetailView';
@@ -25,6 +26,19 @@ export default function ContactsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const state = useContactsState();
+  const { setFullEntityContext } = useFlowChat();
+
+  // Set full entity context for global chatbot (type, id, and contact name)
+  useEffect(() => {
+    if (state.selectedContact?.name && state.selectedContact?.id) {
+      setFullEntityContext('contact', state.selectedContact.id, state.selectedContact.name);
+    } else {
+      setFullEntityContext(null, null, null);
+    }
+    return () => {
+      setFullEntityContext(null, null, null);
+    };
+  }, [state.selectedContact?.name, state.selectedContact?.id, setFullEntityContext]);
 
   // Infinite scroll trigger
   const { loadMoreRef } = useInfiniteScroll({

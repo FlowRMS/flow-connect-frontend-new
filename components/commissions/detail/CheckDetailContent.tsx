@@ -5,8 +5,9 @@
 
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useFlowChat } from '@/contexts/FlowChatContext';
 import { useCheckDetailState } from './hooks';
 import { HeaderTopBar, PricingSummaryBar, CheckDetailsFields } from './components/header';
 import { LineItemsTable } from './components/line-items';
@@ -46,6 +47,17 @@ export default function CheckDetailContent({
 }: CheckDetailContentProps) {
   const router = useRouter();
   const state = useCheckDetailState({ checkId });
+  const { setFullEntityContext } = useFlowChat();
+
+  // Set full entity context for global chatbot (type, id, and check number)
+  useEffect(() => {
+    if (state?.checkNumber && checkId) {
+      setFullEntityContext('commission', checkId, state.checkNumber);
+    }
+    return () => {
+      setFullEntityContext(null, null, null);
+    };
+  }, [state?.checkNumber, checkId, setFullEntityContext]);
 
   // Adjustments state management - reuse from orders
   const adjustmentsState = useAdjustmentsState();
@@ -186,9 +198,11 @@ export default function CheckDetailContent({
         onSaveAndClose={state.handleSaveAndClose}
         onSaveAsNewVersion={handleSaveAsNewVersion}
         onUnpost={state.handleUnpost}
+        onDelete={state.openDeleteConfirmModal}
         isCreateMode={state.isCreateMode}
         isSaving={state.isSaving}
         isUnposting={state.isUnposting}
+        isDeleting={state.isDeleting}
         isOriginallyPosted={state.isOriginallyPosted}
       />
 
@@ -596,6 +610,17 @@ export default function CheckDetailContent({
           onClose={state.closeOrderDetail}
         />
       )}
+
+      {/* Delete Confirmation Modal for Check */}
+      <DeleteConfirmModal
+        isOpen={state.showDeleteConfirmModal}
+        title="Delete Check?"
+        message="Are you sure you want to delete check"
+        itemName={state.checkNumber || state.check?.checkNumber}
+        isPending={state.isDeleting}
+        onConfirm={state.handleDelete}
+        onCancel={state.closeDeleteConfirmModal}
+      />
     </main>
   );
 }
