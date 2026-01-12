@@ -220,11 +220,15 @@ export function OrderDetailsFields({
       if (reps.length > 1) {
         // Multiple reps - enable split commission
         setSplitInsideCommission(true);
-        setInsideRepSplits(reps.map(r => ({
-          repId: r.userId,
-          repName: r.userName,
-          percentage: parseInt(r.splitRate) || Math.floor(100 / reps.length),
-        })));
+        const defaultPercentage = Math.floor(100 / reps.length);
+        setInsideRepSplits(reps.map((r, idx) => {
+          const parsed = parseInt(r.splitRate, 10);
+          return {
+            repId: r.userId || '',
+            repName: r.userName || '',
+            percentage: !isNaN(parsed) ? parsed : (idx === reps.length - 1 ? 100 - (defaultPercentage * (reps.length - 1)) : defaultPercentage),
+          };
+        }));
         openInsideRepModal();
       } else {
         setSplitInsideCommission(false);
@@ -233,9 +237,9 @@ export function OrderDetailsFields({
     }
   };
 
-  // Auto-populate outside reps from customer (called when customer changes)
-  const autoPopulateOutsideReps = async (customerId: string) => {
-    const reps = await fetchOutsideRepsFromCustomer(customerId);
+  // Auto-populate outside reps from end user (called when end user changes)
+  const autoPopulateOutsideReps = async (endUserId: string) => {
+    const reps = await fetchOutsideRepsFromCustomer(endUserId);
     if (reps.length === 0) return;
 
     if (showOutsideRepPerLine) {
@@ -251,11 +255,15 @@ export function OrderDetailsFields({
       if (reps.length > 1) {
         // Multiple reps - enable split commission
         setSplitOutsideCommission(true);
-        setOutsideRepSplits(reps.map(r => ({
-          repId: r.userId,
-          repName: r.userName,
-          percentage: parseInt(r.splitRate) || Math.floor(100 / reps.length),
-        })));
+        const defaultPercentage = Math.floor(100 / reps.length);
+        setOutsideRepSplits(reps.map((r, idx) => {
+          const parsed = parseInt(r.splitRate, 10);
+          return {
+            repId: r.userId || '',
+            repName: r.userName || '',
+            percentage: !isNaN(parsed) ? parsed : (idx === reps.length - 1 ? 100 - (defaultPercentage * (reps.length - 1)) : defaultPercentage),
+          };
+        }));
         openOutsideRepModal();
       } else {
         setSplitOutsideCommission(false);
@@ -342,19 +350,19 @@ export function OrderDetailsFields({
                   handleFieldUpdate('customerId', id);
                   handleFieldUpdate('customerName', label);
                   setSoldToSearchEnabled(false);
-                  // If "Same as sold to" is checked, update end user too
+                  // If "Same as sold to" is checked, update end user too and auto-populate outside reps
                   if (endUserSameAsSoldTo) {
                     handleFieldUpdate('endUserId' as keyof Order, id);
                     handleFieldUpdate('endUserName' as keyof Order, label);
+                    // Auto-populate outside reps from end user (which is same as sold to in this case)
+                    if (id) {
+                      autoPopulateOutsideReps(id);
+                    }
                   }
                   // If "Same as sold to" is checked for bill to, update bill to too
                   if (billToSameAsSoldTo) {
                     handleFieldUpdate('billToCustomerId' as keyof Order, id);
                     handleFieldUpdate('billToCustomerName' as keyof Order, label);
-                  }
-                  // Auto-populate outside reps from customer
-                  if (id) {
-                    autoPopulateOutsideReps(id);
                   }
                 }}
                 options={soldToOptions}
@@ -419,6 +427,10 @@ export function OrderDetailsFields({
                       handleFieldUpdate('endUserId' as keyof Order, id);
                       handleFieldUpdate('endUserName' as keyof Order, label);
                       setEndUserSearchEnabled(false);
+                      // Auto-populate outside reps from end user
+                      if (id) {
+                        autoPopulateOutsideReps(id);
+                      }
                     }}
                     options={endUserOptions}
                     placeholder="Select End User..."
@@ -438,6 +450,8 @@ export function OrderDetailsFields({
                         if (e.target.checked && order.customerId) {
                           handleFieldUpdate('endUserId' as keyof Order, order.customerId);
                           handleFieldUpdate('endUserName' as keyof Order, order.customerName);
+                          // Auto-populate outside reps from end user (which is same as sold to)
+                          autoPopulateOutsideReps(order.customerId);
                         }
                       }}
                       className="w-3 h-3 accent-[var(--primary)]"

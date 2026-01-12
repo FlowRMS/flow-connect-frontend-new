@@ -449,15 +449,57 @@ export function QuoteDetailHeaderV2({
   }, []);
 
   // Handle end user same as sold to checkbox
-  const handleEndUserSameAsSoldTo = useCallback((checked: boolean) => {
+  const handleEndUserSameAsSoldTo = useCallback(async (checked: boolean) => {
     setEndUserSameAsSoldTo(checked);
     if (checked && quote.soldToCustomerId) {
       onQuoteChange({
         endUserId: quote.soldToCustomerId,
         endUserName: quote.soldToCustomerName,
       });
+      // Auto-populate outside reps from end user (which is same as sold to)
+      const reps = await fetchOutsideRepsFromCustomer(quote.soldToCustomerId);
+      if (reps.length > 0) {
+        if (settings?.outsideRepAtLineLevel) {
+          // Per line item mode - populate all line items
+          onAutoPopulateOutsideRepsToLineItems?.(reps);
+        } else {
+          // Header level mode - populate header fields
+          const primaryRep = reps[0];
+          if (reps.length > 1) {
+            // Multiple reps - set up split commission
+            setShowOutsideSplitCommission(true);
+            setOutsideSplitReps(reps.map((r, idx) => ({
+              id: r.id,
+              userId: r.userId,
+              userName: r.userName,
+              splitRate: r.splitRate,
+              position: idx + 1,
+            })));
+            skipOutsideRepsEffectRef.current = true;
+            onQuoteChange({
+              outsideRepId: primaryRep.userId,
+              outsideRepName: primaryRep.userName,
+              outsideReps: reps.map((r, idx) => ({
+                id: '',
+                userId: r.userId,
+                splitRate: r.splitRate,
+                position: idx + 1,
+              })),
+            });
+          } else {
+            // Single rep
+            setShowOutsideSplitCommission(false);
+            setOutsideSplitReps([]);
+            onQuoteChange({
+              outsideRepId: primaryRep.userId,
+              outsideRepName: primaryRep.userName,
+              outsideReps: [{ id: '', userId: primaryRep.userId, splitRate: '100', position: 1 }],
+            });
+          }
+        }
+      }
     }
-  }, [quote.soldToCustomerId, quote.soldToCustomerName, onQuoteChange]);
+  }, [quote.soldToCustomerId, quote.soldToCustomerName, onQuoteChange, fetchOutsideRepsFromCustomer, settings?.outsideRepAtLineLevel, onAutoPopulateOutsideRepsToLineItems]);
 
   // Handle bill to same as sold to checkbox
   const handleBillToSameAsSoldTo = useCallback((checked: boolean) => {
@@ -1046,58 +1088,58 @@ export function QuoteDetailHeaderV2({
               displayValue={quote.soldToCustomerName}
               onChange={async (id, label) => {
                 onQuoteChange({ soldToCustomerId: id, soldToCustomerName: label });
-                // If "Same as sold to" is checked, update end user too
+                // If "Same as sold to" is checked, update end user too and auto-populate outside reps
                 if (endUserSameAsSoldTo) {
                   onQuoteChange({ endUserId: id, endUserName: label });
+                  // Auto-populate outside reps from end user (which is same as sold to in this case)
+                  if (id) {
+                    const reps = await fetchOutsideRepsFromCustomer(id);
+                    if (reps.length > 0) {
+                      if (settings?.outsideRepAtLineLevel) {
+                        // Per line item mode - populate all line items
+                        onAutoPopulateOutsideRepsToLineItems?.(reps);
+                      } else {
+                        // Header level mode - populate header fields
+                        const primaryRep = reps[0];
+                        if (reps.length > 1) {
+                          // Multiple reps - set up split commission
+                          setShowOutsideSplitCommission(true);
+                          setOutsideSplitReps(reps.map((r, idx) => ({
+                            id: r.id,
+                            userId: r.userId,
+                            userName: r.userName,
+                            splitRate: r.splitRate,
+                            position: idx + 1,
+                          })));
+                          // Skip the useEffect to prevent it from overwriting our reps with names
+                          skipOutsideRepsEffectRef.current = true;
+                          onQuoteChange({
+                            outsideRepId: primaryRep.userId,
+                            outsideRepName: primaryRep.userName,
+                            outsideReps: reps.map((r, idx) => ({
+                              id: '',
+                              userId: r.userId,
+                              splitRate: r.splitRate,
+                              position: idx + 1,
+                            })),
+                          });
+                        } else {
+                          // Single rep
+                          setShowOutsideSplitCommission(false);
+                          setOutsideSplitReps([]);
+                          onQuoteChange({
+                            outsideRepId: primaryRep.userId,
+                            outsideRepName: primaryRep.userName,
+                            outsideReps: [{ id: '', userId: primaryRep.userId, splitRate: '100', position: 1 }],
+                          });
+                        }
+                      }
+                    }
+                  }
                 }
                 // If "Same as sold to" is checked for bill to, update bill to too
                 if (billToSameAsSoldTo) {
                   onQuoteChange({ billToCustomerId: id, billToCustomerName: label });
-                }
-                // Auto-populate outside reps from customer
-                if (id) {
-                  const reps = await fetchOutsideRepsFromCustomer(id);
-                  if (reps.length > 0) {
-                    if (settings?.outsideRepAtLineLevel) {
-                      // Per line item mode - populate all line items
-                      onAutoPopulateOutsideRepsToLineItems?.(reps);
-                    } else {
-                      // Header level mode - populate header fields
-                      const primaryRep = reps[0];
-                      if (reps.length > 1) {
-                        // Multiple reps - set up split commission
-                        setShowOutsideSplitCommission(true);
-                        setOutsideSplitReps(reps.map((r, idx) => ({
-                          id: r.id,
-                          userId: r.userId,
-                          userName: r.userName,
-                          splitRate: r.splitRate,
-                          position: idx + 1,
-                        })));
-                        // Skip the useEffect to prevent it from overwriting our reps with names
-                        skipOutsideRepsEffectRef.current = true;
-                        onQuoteChange({
-                          outsideRepId: primaryRep.userId,
-                          outsideRepName: primaryRep.userName,
-                          outsideReps: reps.map((r, idx) => ({
-                            id: '',
-                            userId: r.userId,
-                            splitRate: r.splitRate,
-                            position: idx + 1,
-                          })),
-                        });
-                      } else {
-                        // Single rep
-                        setShowOutsideSplitCommission(false);
-                        setOutsideSplitReps([]);
-                        onQuoteChange({
-                          outsideRepId: primaryRep.userId,
-                          outsideRepName: primaryRep.userName,
-                          outsideReps: [{ id: '', userId: primaryRep.userId, splitRate: '100', position: 1 }],
-                        });
-                      }
-                    }
-                  }
                 }
               }}
               options={soldToOptions}
@@ -1123,7 +1165,54 @@ export function QuoteDetailHeaderV2({
                 <SearchableDropdownV2
                   value={quote.endUserId || ''}
                   displayValue={quote.endUserName || ''}
-                  onChange={(id, label) => onQuoteChange({ endUserId: id, endUserName: label })}
+                  onChange={async (id, label) => {
+                    onQuoteChange({ endUserId: id, endUserName: label });
+                    // Auto-populate outside reps from end user
+                    if (id) {
+                      const reps = await fetchOutsideRepsFromCustomer(id);
+                      if (reps.length > 0) {
+                        if (settings?.outsideRepAtLineLevel) {
+                          // Per line item mode - populate all line items
+                          onAutoPopulateOutsideRepsToLineItems?.(reps);
+                        } else {
+                          // Header level mode - populate header fields
+                          const primaryRep = reps[0];
+                          if (reps.length > 1) {
+                            // Multiple reps - set up split commission
+                            setShowOutsideSplitCommission(true);
+                            setOutsideSplitReps(reps.map((r, idx) => ({
+                              id: r.id,
+                              userId: r.userId,
+                              userName: r.userName,
+                              splitRate: r.splitRate,
+                              position: idx + 1,
+                            })));
+                            // Skip the useEffect to prevent it from overwriting our reps with names
+                            skipOutsideRepsEffectRef.current = true;
+                            onQuoteChange({
+                              outsideRepId: primaryRep.userId,
+                              outsideRepName: primaryRep.userName,
+                              outsideReps: reps.map((r, idx) => ({
+                                id: '',
+                                userId: r.userId,
+                                splitRate: r.splitRate,
+                                position: idx + 1,
+                              })),
+                            });
+                          } else {
+                            // Single rep
+                            setShowOutsideSplitCommission(false);
+                            setOutsideSplitReps([]);
+                            onQuoteChange({
+                              outsideRepId: primaryRep.userId,
+                              outsideRepName: primaryRep.userName,
+                              outsideReps: [{ id: '', userId: primaryRep.userId, splitRate: '100', position: 1 }],
+                            });
+                          }
+                        }
+                      }
+                    }
+                  }}
                   options={endUserOptions}
                   onSearch={handleEndUserSearch}
                   isLoading={isEndUserLoading}

@@ -83,10 +83,11 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
     state.setShowOutsideRepPerLine(value);
 
     if (value) {
-      // Switching to per-line-item mode: ALWAYS fetch from customer to get proper names
-      if (order?.customerId) {
+      // Switching to per-line-item mode: ALWAYS fetch from END USER to get proper names
+      const endUserId = (order as any)?.endUserId;
+      if (endUserId) {
         try {
-          const reps = await fetchOutsideRepsFromCustomer(order.customerId);
+          const reps = await fetchOutsideRepsFromCustomer(endUserId);
           if (reps.length > 0) {
             // Store for new line items to inherit
             setCurrentOutsideReps(reps);
@@ -97,7 +98,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
               splitRate: rep.splitRate,
               position: idx + 1,
             }));
-            if (order.lineItems && order.lineItems.length > 0) {
+            if (order?.lineItems && order.lineItems.length > 0) {
               const updatedLineItems = order.lineItems.map(item => ({
                 ...item,
                 outsideSplitRates,

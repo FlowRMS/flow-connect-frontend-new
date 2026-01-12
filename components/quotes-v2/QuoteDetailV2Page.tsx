@@ -737,9 +737,9 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
     // Handle outsideRepAtLineLevel toggle
     if (oldSettings.outsideRepAtLineLevel !== newSettings.outsideRepAtLineLevel) {
       if (newSettings.outsideRepAtLineLevel) {
-        // Switching to per-line-item mode: ALWAYS fetch from customer to get proper names
-        if (quote.soldToCustomerId) {
-          const reps = await fetchOutsideRepsFromCustomer(quote.soldToCustomerId);
+        // Switching to per-line-item mode: ALWAYS fetch from END USER to get proper names
+        if (quote.endUserId) {
+          const reps = await fetchOutsideRepsFromCustomer(quote.endUserId);
           if (reps.length > 0) {
             // Store for new line items to inherit
             setCurrentOutsideReps(reps);
@@ -754,7 +754,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
           }
         }
       } else {
-        // Switching to header mode: clear line item reps (header will be populated from customer when selected)
+        // Switching to header mode: clear line item reps (header will be populated from end user when selected)
         setLineItems(prev => prev.map(item => ({ ...item, outsideSplitRates: [] })));
       }
     }
@@ -848,7 +848,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         }
       }
     }
-  }, [settings, quote.soldToCustomerId, quote.factoryId, lineItems, fetchOutsideRepsFromCustomer, fetchInsideRepsFromFactory]);
+  }, [settings, quote.endUserId, quote.factoryId, lineItems, fetchOutsideRepsFromCustomer, fetchInsideRepsFromFactory]);
 
   const tabs: { key: TabType; label: string; count?: number; comingSoon?: boolean; disabled?: boolean; disabledReason?: string }[] = useMemo(() => [
     { key: 'lineItems', label: 'Line Items', count: lineItems.length },

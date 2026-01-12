@@ -11,6 +11,7 @@ import type { OrderLineItem } from '@/lib/types/rms';
 import { SearchableDropdownV2 } from '@/components/quotes-v2/components/SearchableDropdownV2';
 import { useCustomerSearch, useUserSearch } from '../../../../api';
 import { fetchUserById } from '@/components/lib/api/search';
+import { useAutoPopulateReps } from '@/components/shared/hooks/useAutoPopulateReps';
 
 // Commission split rep interface
 interface CommissionSplitRep {
@@ -54,6 +55,9 @@ export function AdditionalDetailsModal({
   // Inside/Outside rep state for line item level
   const [insideSplitReps, setInsideSplitReps] = useState<CommissionSplitRep[]>([]);
   const [outsideSplitReps, setOutsideSplitReps] = useState<CommissionSplitRep[]>([]);
+
+  // Auto-populate reps hook
+  const { fetchOutsideRepsFromCustomer } = useAutoPopulateReps();
 
   // End user search
   const [endUserSearchTerm, setEndUserSearchTerm] = useState('');
@@ -350,12 +354,28 @@ export function AdditionalDetailsModal({
                 <SearchableDropdownV2
                   value={formData.endUserId}
                   displayValue={formData.endUserName}
-                  onChange={(id, label) => {
+                  onChange={async (id, label) => {
                     setFormData({
                       ...formData,
                       endUserId: id,
                       endUserName: label,
                     });
+                    // Auto-populate outside reps from end user when both end user per line item
+                    // AND outside rep per line item are enabled
+                    if (id && showOutsideRepPerLine) {
+                      const reps = await fetchOutsideRepsFromCustomer(id);
+                      if (reps.length > 0) {
+                        // Convert to the format expected by this modal
+                        const newOutsideSplitReps = reps.map((rep, idx) => ({
+                          id: crypto.randomUUID(),
+                          userId: rep.userId,
+                          userName: rep.userName,
+                          splitRate: rep.splitRate,
+                          position: idx + 1,
+                        }));
+                        setOutsideSplitReps(newOutsideSplitReps);
+                      }
+                    }
                   }}
                   options={endUserOptions}
                   placeholder="Search end user..."
