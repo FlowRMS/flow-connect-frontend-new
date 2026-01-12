@@ -342,15 +342,24 @@ export default function CompaniesContent() {
   const targetCompanyId = (!isIntentionalClearRef.current && companyIdFromUrl) ? companyIdFromUrl : (selectedCompany?.id || '');
   const { data: fullCompanyData, isLoading: companyDetailLoading } = useCRMCompany(targetCompanyId);
 
+  // Fetch parent company name if the selected company has a parentCompanyId
+  const parentCompanyIdToFetch = fullCompanyData?.parentCompanyId || selectedCompany?.parentCompanyId || '';
+  const { data: parentCompanyData } = useCRMCompany(parentCompanyIdToFetch);
+
   // When we get company data from API (navigating via URL), set it as selected
   useEffect(() => {
     if (fullCompanyData && companyIdFromUrl && !isIntentionalClearRef.current) {
       const mappedCompany = mapAPICompanyToUICompany(fullCompanyData);
-      if (!selectedCompany || selectedCompany.id !== mappedCompany.id) {
+      // Include parent company name if we have it
+      if (parentCompanyData && fullCompanyData.parentCompanyId) {
+        mappedCompany.parentCompanyName = parentCompanyData.name;
+      }
+      if (!selectedCompany || selectedCompany.id !== mappedCompany.id ||
+          (parentCompanyData && !selectedCompany.parentCompanyName)) {
         setSelectedCompany(mappedCompany);
       }
     }
-  }, [fullCompanyData, companyIdFromUrl, selectedCompany, setSelectedCompany]);
+  }, [fullCompanyData, companyIdFromUrl, selectedCompany, setSelectedCompany, parentCompanyData]);
 
   // Reset the intentional clear flag when URL has no ID
   useEffect(() => {
@@ -448,21 +457,29 @@ export default function CompaniesContent() {
     const nameToSend = editFormData.name || selectedCompany.name;
 
     try {
+      // Build update input - handle parentCompanyId to allow clearing
+      const updateInput: Record<string, unknown> = {
+        name: nameToSend,
+        phone: editFormData.phone,
+        website: editFormData.website,
+        companySourceType: normalizedSourceType,
+        tags: tagsToSend,
+      };
+
+      // Include parentCompanyId - use null to clear, or the value to set
+      if (editFormData.parentCompanyId !== undefined) {
+        updateInput.parentCompanyId = editFormData.parentCompanyId || null;
+      }
+
       await updateCompanyMutation.mutateAsync({
         id: selectedCompany.id,
-        input: {
-          name: nameToSend,
-          phone: editFormData.phone,
-          website: editFormData.website,
-          companySourceType: normalizedSourceType,
-          tags: tagsToSend,
-        },
+        input: updateInput as Parameters<typeof updateCompanyMutation.mutateAsync>[0]['input'],
       });
-      
+
       // Update local state
       const updatedName = editFormData.name || selectedCompany.name;
       const updatedTags = tagsToSend ? tagsToSend.split(',').map(t => t.trim()).filter(Boolean) : selectedCompany.tags;
-      
+
       companyToasts.updateSuccess(updatedName);
       setSelectedCompany({
         ...selectedCompany,
@@ -472,6 +489,8 @@ export default function CompaniesContent() {
         companySourceType: normalizedSourceType,
         type: [COMPANY_SOURCE_TYPE_LABELS[normalizedSourceType] || 'Customer'],
         tags: updatedTags,
+        parentCompanyId: editFormData.parentCompanyId ?? selectedCompany.parentCompanyId,
+        parentCompanyName: editFormData.parentCompanyName ?? selectedCompany.parentCompanyName,
       });
       
       setIsEditing(false);

@@ -239,5 +239,7 @@ export function mapAPICompanyToUICompany(apiCompany: APICompany): Company {
     standardCommissionRate: apiCompany.standardCommissionRate ?? undefined,
     warehouseCommissionRate: apiCompany.warehouseCommissionRate ?? undefined,
     createdBy: apiCompany.createdBy || '',
+    parentCompanyId: apiCompany.parentCompanyId ?? undefined,
+    // parentCompanyName is fetched separately using parentCompanyId
   };
 }
