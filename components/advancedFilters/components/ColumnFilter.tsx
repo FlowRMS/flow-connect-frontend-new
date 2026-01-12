@@ -60,6 +60,13 @@ export function ColumnFilter({
   const [localNumberOperator, setLocalNumberOperator] = useState<FilterOperator>(
     value.operator || 'EQ'
   );
+  const [localTextOperator, setLocalTextOperator] = useState<FilterOperator>(() => {
+    // Initialize based on type - only use operator if it's a text filter
+    if (type === 'text' && value.operator) {
+      return value.operator;
+    }
+    return 'ILIKE'; // Default to 'Contains' for text filters
+  });
   const [localBooleanValue, setLocalBooleanValue] = useState<'all' | 'true' | 'false' | null>(() => {
     // Determine initial boolean value from prop
     if (value.text === 'true') return 'true';
@@ -74,7 +81,12 @@ export function ColumnFilter({
     setLocalDateStart(value.dateStart ? parseDateString(value.dateStart) : null);
     setLocalDateEnd(value.dateEnd ? parseDateString(value.dateEnd) : null);
     if (value.operator) {
-      setLocalNumberOperator(value.operator);
+      // Set operator based on filter type
+      if (type === 'number') {
+        setLocalNumberOperator(value.operator);
+      } else if (type === 'text') {
+        setLocalTextOperator(value.operator);
+      }
     }
     // Sync boolean value
     if (type === 'boolean') {
@@ -110,9 +122,10 @@ export function ColumnFilter({
     options: type === 'dropdown' ? options : undefined,
   };
 
-  const handleTextApply = (option: FilterOption, value: string) => {
+  const handleTextApply = (option: FilterOption, val: string, operator?: FilterOperator) => {
     onChange({
-      text: value.trim(),
+      text: val.trim(),
+      operator: operator || localTextOperator,
     });
     onToggle();
   };
@@ -221,7 +234,9 @@ export function ColumnFilter({
                 label: placeholder ? placeholder.replace('Filter ', '').replace('...', '') : filterOption.label,
               }}
               filterValue={localTextValue}
+              textOperator={localTextOperator}
               onFilterValueChange={setLocalTextValue}
+              onOperatorChange={setLocalTextOperator}
               onApply={handleTextApply}
               onClear={handleClear}
               hasActiveFilter={!!value.text && value.text.trim() !== ''}

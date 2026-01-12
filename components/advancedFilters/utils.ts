@@ -30,3 +30,20 @@ export function formatDateToISO(date: Date | null): string {
   return `${year}-${month}-${day}`;
 }
 
+/**
+ * Helper function to format date to backend datetime format
+ * Formats as '%Y-%m-%d %H:%M:%S' (e.g., '2026-01-18 04:59:59')
+ * @param date - Date object to format
+ * @returns Formatted date string (YYYY-MM-DD HH:MM:SS) or empty string if date is null
+ */
+export function formatDateToBackend(date: Date | null): string {
+  if (!date) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+

@@ -12,7 +12,7 @@ import { fetchAllQuoteIds } from '../quotes/api/quotesApi';
 import { quoteToasts } from '../lib/toast';
 import AdvancedFilters, { type ActiveFilter } from '../advancedFilters/AdvancedFilters';
 import { getQuoteFilterOptions } from './config/filterConfig';
-import { formatDateToISO } from '../advancedFilters/utils';
+import { formatDateToISO, formatDateToBackend, parseDateString } from '../advancedFilters/utils';
 import { useBulkSelection } from '../shared';
 import { BulkDeleteModal, BulkActionsToolbar } from '../shared';
 import type { ColumnFilterValue } from '../advancedFilters/components/ColumnFilter';
@@ -124,12 +124,12 @@ export function QuotesV2Content() {
       
       // Format date based on column type:
       // - entityDate (Quote Date): YYYY-MM-DD format (date only)
-      // - createdAt: ISO string format (datetime with time)
+      // - createdAt: Backend format '%Y-%m-%d %H:%M:%S' (datetime with time)
       const formatDate = (date: Date): string => {
         if (columnName === 'entityDate') {
           return formatDateToISO(date); // Returns YYYY-MM-DD
         }
-        return date.toISOString(); // Returns full ISO datetime
+        return formatDateToBackend(date); // Returns 'YYYY-MM-DD HH:MM:SS'
       };
 
       result.push({
@@ -264,10 +264,10 @@ export function QuotesV2Content() {
             value: filterValue.text, // 'true' or 'false' as string
           });
         } else {
-          // Text filter
+          // Text filter - use operator from filterValue (EQ for exact match, ILIKE for contains)
           filters.push({
             columnName,
-            operator: 'ILIKE',
+            operator: filterValue.operator || 'ILIKE',
             value: filterValue.text,
           });
         }
@@ -280,18 +280,21 @@ export function QuotesV2Content() {
         });
       } else if (filterValue.dateStart || filterValue.dateEnd) {
         // Date range filter
+        // Convert date strings to backend format '%Y-%m-%d %H:%M:%S'
         if (filterValue.dateStart) {
+          const startDate = parseDateString(filterValue.dateStart);
           filters.push({
             columnName,
             operator: 'GTE',
-            value: filterValue.dateStart,
+            value: startDate ? formatDateToBackend(startDate) : filterValue.dateStart,
           });
         }
         if (filterValue.dateEnd) {
+          const endDate = parseDateString(filterValue.dateEnd);
           filters.push({
             columnName,
             operator: 'LTE',
-            value: filterValue.dateEnd,
+            value: endDate ? formatDateToBackend(endDate) : filterValue.dateEnd,
           });
         }
       }

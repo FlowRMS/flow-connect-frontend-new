@@ -4,12 +4,13 @@ import React, { useState, useEffect, useMemo } from 'react';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 import './AdvancedFilters.css';
 import type { FilterOperator, ActiveFilter, ActiveSort, FilterOption, AdvancedFiltersProps } from './types';
-import { parseDateString, formatDateToISO } from './utils';
+import { parseDateString, formatDateToISO, formatDateToBackend } from './utils';
 import { ActiveFilters } from './components/ActiveFilters';
 import { TextFilter } from './components/filter-types/TextFilter';
 import { NumberFilter } from './components/filter-types/NumberFilter';
 import { DropdownFilter } from './components/filter-types/DropdownFilter';
 import { DateRangeFilter } from './components/filter-types/DateRangeFilter';
+import { BooleanFilter } from './components/filter-types/BooleanFilter';
 
 // Re-export types for backward compatibility
 export type { FilterOperator, ActiveFilter, ActiveSort, FilterOption };
@@ -32,6 +33,8 @@ export default function AdvancedFilters({
   const [filterValue, setFilterValue] = useState('');
   const [selectedValues, setSelectedValues] = useState<string[]>([]);
   const [numberOperator, setNumberOperator] = useState<FilterOperator>('EQ');
+  const [textOperator, setTextOperator] = useState<FilterOperator>('ILIKE');
+  const [booleanValue, setBooleanValue] = useState<'all' | 'true' | 'false' | null>(null);
   const [localFilters, setLocalFilters] = useState<ActiveFilter[]>([]);
   const [dateRangeStart, setDateRangeStart] = useState<Date | null>(null);
   const [dateRangeEnd, setDateRangeEnd] = useState<Date | null>(null);
@@ -83,7 +86,15 @@ export default function AdvancedFilters({
         // Find existing filters for this column (date filters use two: GTE and LTE)
         const existingFilters = localFilters.filter(f => f.columnName === option.columnName);
         
-        if (option.type === 'date') {
+        if (option.type === 'boolean') {
+          // For boolean filters, check if there's an active filter
+          const booleanFilter = existingFilters.find(f => f.operator === 'EQ');
+          if (booleanFilter && booleanFilter.value) {
+            setBooleanValue(booleanFilter.value === 'true' ? 'true' : 'false');
+          } else {
+            setBooleanValue('all');
+          }
+        } else if (option.type === 'date') {
           // For date filters, look for GTE (start) and LTE (end) filters
           const startFilter = existingFilters.find(f => f.operator === 'GTE');
           const endFilter = existingFilters.find(f => f.operator === 'LTE');
@@ -271,7 +282,7 @@ export default function AdvancedFilters({
       newFilters.push({
         columnName: option.columnName,
         operator: 'GTE',
-        value: formatDateToISO(dateRangeStart),
+        value: formatDateToBackend(dateRangeStart),
       });
     }
     
@@ -280,7 +291,7 @@ export default function AdvancedFilters({
       newFilters.push({
         columnName: option.columnName,
         operator: 'LTE',
-        value: formatDateToISO(dateRangeEnd),
+        value: formatDateToBackend(dateRangeEnd),
       });
     }
     
@@ -296,6 +307,33 @@ export default function AdvancedFilters({
     setExpandedFilterId(null);
     setDateRangeStart(null);
     setDateRangeEnd(null);
+  };
+
+  const handleApplyBooleanFilter = (option: FilterOption, value: 'all' | 'true' | 'false') => {
+    if (!option.columnName) return;
+    
+    // Remove existing filter for this column
+    const newFilters = localFilters.filter(f => f.columnName !== option.columnName);
+    
+    // Add filter only if value is not 'all'
+    if (value !== 'all') {
+      newFilters.push({
+        columnName: option.columnName,
+        operator: 'EQ',
+        value: value, // 'true' or 'false' as string
+      });
+    }
+    
+    setLocalFilters(newFilters);
+    
+    // Notify parent
+    if (onFiltersChange) {
+      onFiltersChange(newFilters);
+    } else if (onFilterChange) {
+      onFilterChange(newFilters.length > 0 ? newFilters[0] : undefined);
+    }
+    setExpandedFilterId(null);
+    setBooleanValue(null);
   };
 
   const handleClearFilter = (columnName?: string) => {
@@ -321,6 +359,7 @@ export default function AdvancedFilters({
     setExpandedFilterId(null);
     setDateRangeStart(null);
     setDateRangeEnd(null);
+    setBooleanValue(null);
   };
 
   const activeFilterCount = localFilters.length;
@@ -360,8 +399,8 @@ export default function AdvancedFilters({
             {/* Header - Fixed */}
             <div className="flex-shrink-0 flex items-start justify-between p-3 sm:p-6 pb-3 sm:pb-4 border-b border-gray-100">
               <div className="flex items-center gap-2 sm:gap-3">
-                <div className="p-2 sm:p-2.5 bg-blue-50 rounded-lg">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" className="sm:w-5 sm:h-5">
+                <div className="p-2 sm:p-2.5 bg-indigo-50 rounded-lg">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" strokeWidth="2" className="sm:w-5 sm:h-5">
                     <path d="M3 6h18M7 12h10M11 18h2" strokeLinecap="round"/>
                   </svg>
                 </div>
@@ -421,9 +460,9 @@ export default function AdvancedFilters({
                           option.available === false
                             ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
                             : expandedFilterId === option.id
-                              ? 'bg-blue-600 text-white shadow-lg border border-blue-600'
+                              ? 'bg-indigo-600 text-white shadow-lg border border-indigo-600'
                               : localFilters.some(f => f.columnName === option.columnName)
-                                ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-sm'
+                                ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-sm'
                                 : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 hover:border-gray-300'
                         }`}
                       >
@@ -491,11 +530,27 @@ export default function AdvancedFilters({
                             onToggleValue={toggleValue}
                             onApply={handleApplyMultiSelect}
                           />
+                        ) : option.type === 'boolean' ? (
+                          <BooleanFilter
+                            option={option}
+                            selectedValue={booleanValue}
+                            onValueChange={(value) => {
+                              setBooleanValue(value);
+                              handleApplyBooleanFilter(option, value);
+                            }}
+                            onClear={() => {
+                              setBooleanValue(null);
+                              handleClearFilter(option.columnName);
+                            }}
+                            hasActiveFilter={localFilters.some(f => f.columnName === option.columnName)}
+                          />
                         ) : (
                           <TextFilter
                             option={option}
                             filterValue={filterValue}
+                            textOperator={textOperator}
                             onFilterValueChange={setFilterValue}
+                            onOperatorChange={setTextOperator}
                             onApply={handleApplyFilter}
                           />
                         )}
