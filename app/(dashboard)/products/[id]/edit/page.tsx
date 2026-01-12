@@ -657,13 +657,15 @@ export default function ProductEditPage() {
             </button>
             <div>
               <h1 className="text-xl font-semibold text-gray-900">
+                {formData.factoryPartNumber || 'Untitled Product'}
+              </h1>
+              <p className="text-sm text-gray-500">
                 {formData.description
                   ? formData.description.length > 50
                     ? `${formData.description.slice(0, 50)}...`
                     : formData.description
-                  : 'Untitled Product'}
-              </h1>
-              <p className="text-sm text-gray-500">{formData.factoryPartNumber}</p>
+                  : ''}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
