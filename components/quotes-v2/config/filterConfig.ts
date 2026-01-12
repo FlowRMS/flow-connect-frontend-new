@@ -70,10 +70,9 @@ export function getQuoteFilterOptions(
     { 
       id: 'published', 
       label: 'Published', 
-      type: 'dropdown' as const, 
+      type: 'boolean' as const, 
       columnName: 'published', 
-      available: true, 
-      options: ['true', 'false'] 
+      available: true
     },
     { 
       id: 'quote-date', 

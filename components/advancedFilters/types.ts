@@ -15,7 +15,7 @@ export type ActiveSort = {
 export type FilterOption = {
   id: string;
   label: string;
-  type: 'dropdown' | 'date' | 'text' | 'number';
+  type: 'dropdown' | 'date' | 'text' | 'number' | 'boolean';
   columnName?: string; // API column name for filtering
   available?: boolean; // Whether this filter is available in the API
   options?: string[]; // Available options for dropdown filters
