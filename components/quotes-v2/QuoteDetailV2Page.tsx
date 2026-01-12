@@ -290,6 +290,34 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
     }
   }, [apiQuote, isNew]);
 
+  // Initialize with one empty line item for new quotes
+  useEffect(() => {
+    if (isNew && lineItems.length === 0) {
+      const defaultLineItem: LineItemV2 = {
+        id: `li-${Date.now()}`,
+        quoteId: '',
+        partNumber: '',
+        description: '',
+        manufacturerName: '',
+        manufacturerId: undefined,
+        quantity: 1,
+        uom: null,
+        divisor: 1,
+        unitPrice: 0,
+        sellTotal: 0,
+        total: 0,
+        commissionPercent: 0.08,
+        commission: 0,
+        commissionTotal: 0,
+        commissionDiscountPercent: 0,
+        commissionDiscountAmount: 0,
+        lineDiscountPercent: 0,
+        lineDiscountAmount: 0,
+      };
+      setLineItems([defaultLineItem]);
+    }
+  }, [isNew]);
+
   // Track previous soldToCustomerId to detect changes
   const prevSoldToCustomerIdRef = React.useRef<string | undefined>(undefined);
 

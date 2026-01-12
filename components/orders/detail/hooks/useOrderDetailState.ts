@@ -24,8 +24,31 @@ interface UseOrderDetailStateProps {
 
 /**
  * Create an empty order for create mode
+ * Includes one default line item so user can start entering data immediately
  */
 function createEmptyOrder(): Order {
+  const defaultLineItem = {
+    id: `li-${Date.now()}`,
+    lineNumber: 1,
+    partNumber: '',
+    description: '',
+    uom: null,
+    uomId: null,
+    divisor: 1,
+    quantity: 1,
+    quantityShipped: 0,
+    quantityInvoiced: 0,
+    quantityCredited: 0,
+    unitPrice: 0,
+    extendedPrice: 0,
+    commissionRate: 0.08,
+    commissionAmount: 0,
+    productId: '',
+    isCancelled: false,
+    isConsignment: false,
+    status: 'open' as const,
+  };
+
   return {
     id: '',
     orderNumber: '',
@@ -47,7 +70,7 @@ function createEmptyOrder(): Order {
     requestedShipDate: undefined,
     actualShipDate: undefined,
     quoteId: undefined,
-    lineItems: [],
+    lineItems: [defaultLineItem],
     subtotal: 0,
     freight: 0,
     total: 0,

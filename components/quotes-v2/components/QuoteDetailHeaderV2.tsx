@@ -934,8 +934,8 @@ export function QuoteDetailHeaderV2({
         {showQuoteDetails && (
         <div className="px-6 pb-4">
 
-        {/* Row 1 */}
-        <div className="grid grid-cols-8 gap-4 mb-4">
+        {/* Row 1: Quote Number, Manufacturer, Quote Date, Expiration Date, Sold To Customer, End User, Outside Rep */}
+        <div className="grid grid-cols-7 gap-4 mb-4">
           <div>
             <label className="block text-xs text-gray-500 mb-1">Quote Number*</label>
             <input
@@ -945,20 +945,6 @@ export function QuoteDetailHeaderV2({
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               placeholder="Enter quote number"
             />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1 flex items-center gap-1">
-              Quote Type
-              <span className="text-[10px] bg-gray-100 text-gray-400 px-1 py-0.5 rounded uppercase">Soon</span>
-            </label>
-            <select
-              disabled
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-gray-50 text-gray-400 cursor-not-allowed"
-            >
-              <option>Standard</option>
-              <option>Blanket</option>
-              <option>RFQ</option>
-            </select>
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Manufacturer</label>
@@ -1036,6 +1022,24 @@ export function QuoteDetailHeaderV2({
             )}
           </div>
           <div>
+            <label className="block text-xs text-gray-500 mb-1">Quote Date*</label>
+            <input
+              type="date"
+              value={formatDateForInput(quote.quoteDate)}
+              onChange={(e) => handleDateChange('quoteDate', e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Expiration Date</label>
+            <input
+              type="date"
+              value={formatDateForInput(quote.expirationDate)}
+              onChange={(e) => handleDateChange('expirationDate', e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            />
+          </div>
+          <div>
             <label className="block text-xs text-gray-500 mb-1">Sold To Customer*</label>
             <SearchableDropdownV2
               value={quote.soldToCustomerId}
@@ -1102,28 +1106,6 @@ export function QuoteDetailHeaderV2({
               placeholder="Search customers..."
             />
           </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Bill To Customer</label>
-            <SearchableDropdownV2
-              value={quote.billToCustomerId}
-              displayValue={quote.billToCustomerName}
-              onChange={(id, label) => onQuoteChange({ billToCustomerId: id, billToCustomerName: label })}
-              options={billToOptions}
-              onSearch={handleBillToSearch}
-              isLoading={isBillToLoading}
-              placeholder="Search customers..."
-              disabled={billToSameAsSoldTo}
-            />
-            <label className="flex items-center gap-1.5 mt-1 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={billToSameAsSoldTo}
-                onChange={(e) => handleBillToSameAsSoldTo(e.target.checked)}
-                className="w-3 h-3 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-              />
-              <span className="text-xs text-gray-500">Same as sold to</span>
-            </label>
-          </div>
           {/* End User - grey out and show "per line item" when settings enabled */}
           <div>
             <label className="block text-xs text-gray-500 mb-1">End User</label>
@@ -1159,86 +1141,6 @@ export function QuoteDetailHeaderV2({
                 </label>
               </>
             )}
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Job</label>
-            <SearchableDropdownV2
-              value={quote.jobId || ''}
-              displayValue={quote.jobName || ''}
-              placeholder="Search jobs..."
-              isLoading={isJobsLoading}
-              options={(jobs || []).map((job) => ({
-                id: job.id,
-                label: job.jobName,
-                sublabel: job.jobType ? `${job.jobType}${job.status?.name ? ` • ${job.status.name}` : ''}` : job.status?.name,
-              }))}
-              onSearch={(term) => {
-                setJobSearchTerm(term);
-                setJobSearchEnabled(true);
-              }}
-              onChange={(id, label) => {
-                onQuoteChange({ jobId: id || undefined, jobName: label });
-                setJobSearchEnabled(false);
-              }}
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Payment Terms</label>
-            <input
-              type="text"
-              value={quote.paymentTerms}
-              onChange={(e) => onQuoteChange({ paymentTerms: e.target.value })}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            />
-          </div>
-        </div>
-
-        {/* Row 2 */}
-        <div className="grid grid-cols-8 gap-4 mb-4">
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Freight Terms</label>
-            <input
-              type="text"
-              value={quote.freightTerms}
-              onChange={(e) => onQuoteChange({ freightTerms: e.target.value })}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Quote Date*</label>
-            <input
-              type="date"
-              value={formatDateForInput(quote.quoteDate)}
-              onChange={(e) => handleDateChange('quoteDate', e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Expiration Date</label>
-            <input
-              type="date"
-              value={formatDateForInput(quote.expirationDate)}
-              onChange={(e) => handleDateChange('expirationDate', e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Revised Date</label>
-            <input
-              type="date"
-              value={formatDateForInput(quote.revisedDate || '')}
-              onChange={(e) => handleDateChange('revisedDate', e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Accept Date</label>
-            <input
-              type="date"
-              value={formatDateForInput(quote.acceptDate || '')}
-              onChange={(e) => handleDateChange('acceptDate', e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            />
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Outside Rep</label>
@@ -1324,6 +1226,104 @@ export function QuoteDetailHeaderV2({
               </>
             )}
           </div>
+        </div>
+
+        {/* Row 2: Quote Type, Bill To, Job, Payment Terms, Freight Terms, Revised Date, Accept Date, Inside Rep */}
+        <div className="grid grid-cols-8 gap-4 mb-4">
+          <div>
+            <label className="block text-xs text-gray-500 mb-1 flex items-center gap-1">
+              Quote Type
+              <span className="text-[10px] bg-gray-100 text-gray-400 px-1 py-0.5 rounded uppercase">Soon</span>
+            </label>
+            <select
+              disabled
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-gray-50 text-gray-400 cursor-not-allowed"
+            >
+              <option>Standard</option>
+              <option>Blanket</option>
+              <option>RFQ</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Bill To Customer</label>
+            <SearchableDropdownV2
+              value={quote.billToCustomerId}
+              displayValue={quote.billToCustomerName}
+              onChange={(id, label) => onQuoteChange({ billToCustomerId: id, billToCustomerName: label })}
+              options={billToOptions}
+              onSearch={handleBillToSearch}
+              isLoading={isBillToLoading}
+              placeholder="Search customers..."
+              disabled={billToSameAsSoldTo}
+            />
+            <label className="flex items-center gap-1.5 mt-1 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={billToSameAsSoldTo}
+                onChange={(e) => handleBillToSameAsSoldTo(e.target.checked)}
+                className="w-3 h-3 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+              />
+              <span className="text-xs text-gray-500">Same as sold to</span>
+            </label>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Job</label>
+            <SearchableDropdownV2
+              value={quote.jobId || ''}
+              displayValue={quote.jobName || ''}
+              placeholder="Search jobs..."
+              isLoading={isJobsLoading}
+              options={(jobs || []).map((job) => ({
+                id: job.id,
+                label: job.jobName,
+                sublabel: job.jobType ? `${job.jobType}${job.status?.name ? ` • ${job.status.name}` : ''}` : job.status?.name,
+              }))}
+              onSearch={(term) => {
+                setJobSearchTerm(term);
+                setJobSearchEnabled(true);
+              }}
+              onChange={(id, label) => {
+                onQuoteChange({ jobId: id || undefined, jobName: label });
+                setJobSearchEnabled(false);
+              }}
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Payment Terms</label>
+            <input
+              type="text"
+              value={quote.paymentTerms}
+              onChange={(e) => onQuoteChange({ paymentTerms: e.target.value })}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Freight Terms</label>
+            <input
+              type="text"
+              value={quote.freightTerms}
+              onChange={(e) => onQuoteChange({ freightTerms: e.target.value })}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Revised Date</label>
+            <input
+              type="date"
+              value={formatDateForInput(quote.revisedDate || '')}
+              onChange={(e) => handleDateChange('revisedDate', e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Accept Date</label>
+            <input
+              type="date"
+              value={formatDateForInput(quote.acceptDate || '')}
+              onChange={(e) => handleDateChange('acceptDate', e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            />
+          </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Inside Rep</label>
             {/* Grey out and show "per line item" when settings enabled */}
@@ -1406,15 +1406,6 @@ export function QuoteDetailHeaderV2({
                 )}
               </>
             )}
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Customer Ref</label>
-            <input
-              type="text"
-              value={quote.customerRef || ''}
-              onChange={(e) => onQuoteChange({ customerRef: e.target.value })}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            />
           </div>
         </div>
 
