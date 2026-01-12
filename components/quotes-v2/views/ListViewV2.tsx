@@ -3,7 +3,8 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import type { QuoteV2, QuotePipelineStage } from '../types';
 import { AvatarInline } from '@/components/ui/CreatedByBadge';
-import { ColumnFilter, type ColumnFilterValue } from '@/components/advancedFilters/components/ColumnFilter';
+import { ColumnFilter } from '@/components/advancedFilters/components/ColumnFilter';
+import type { ActiveFilter } from '@/components/advancedFilters/types';
 import { getQuoteFilterOptions } from '../config/filterConfig';
 
 interface ListViewV2Props {
@@ -15,12 +16,12 @@ interface ListViewV2Props {
   isPartiallySelected?: boolean;
   onSelectAll?: (checked: boolean) => void;
   onSelectOne?: (id: string, checked: boolean) => void;
-  // Column filters
-  onColumnFiltersChange?: (filters: Record<string, ColumnFilterValue>) => void;
+  // Column filters - now using ActiveFilter[]
+  onColumnFiltersChange?: (filters: Record<string, ActiveFilter[]>) => void;
   // Filter options for column filters
   filterOptions?: ReturnType<typeof getQuoteFilterOptions>;
   // Column filters from parent (controlled)
-  columnFilters?: Record<string, ColumnFilterValue>;
+  columnFilters?: Record<string, ActiveFilter[]>;
   // Loading state
   isLoading?: boolean;
   // Whether there are any active filters (for better empty state messaging)
@@ -94,10 +95,10 @@ export function ListViewV2({
   const [localSelectedQuotes, setLocalSelectedQuotes] = useState<Set<string>>(new Set());
   
   // Column filter state - use parent if provided, otherwise local state
-  const [localColumnFilters, setLocalColumnFilters] = useState<Record<string, ColumnFilterValue>>({});
+  const [localColumnFilters, setLocalColumnFilters] = useState<Record<string, ActiveFilter[]>>({});
   const columnFilters = parentColumnFilters !== undefined ? parentColumnFilters : localColumnFilters;
   const setColumnFilters = parentColumnFilters !== undefined 
-    ? (filters: Record<string, ColumnFilterValue>) => {
+    ? (filters: Record<string, ActiveFilter[]>) => {
         if (onColumnFiltersChange) {
           onColumnFiltersChange(filters);
         }
@@ -118,27 +119,21 @@ export function ListViewV2({
     published: 'published',
   };
   
-  // Handle column filter change
-  const handleColumnFilterChange = useCallback((columnKey: string, value: ColumnFilterValue) => {
+  // Handle column filter change - now receives ActiveFilter[]
+  const handleColumnFilterChange = useCallback((columnKey: string, filters: ActiveFilter[]) => {
     const newFilters = { ...columnFilters };
-    // Remove filter if empty
-    const isEmpty = 
-      (value.text === undefined || value.text === '') &&
-      (value.selected === undefined || value.selected.length === 0) &&
-      (value.dateStart === undefined || value.dateStart === '') &&
-      (value.dateEnd === undefined || value.dateEnd === '');
-    
-    if (isEmpty) {
+    // Remove filter if empty array
+    if (filters.length === 0) {
       delete newFilters[columnKey];
     } else {
-      newFilters[columnKey] = value;
+      newFilters[columnKey] = filters;
     }
     
     setColumnFilters(newFilters);
     if (onColumnFiltersChange) {
       onColumnFiltersChange(newFilters);
     }
-  }, [columnFilters, onColumnFiltersChange]);
+  }, [columnFilters, onColumnFiltersChange, setColumnFilters]);
 
   const handleSort = (column: SortKey) => {
     if (sortColumn === column) {
@@ -293,12 +288,15 @@ export function ListViewV2({
     // Ensure type is preserved correctly
     const filterType = filterOption.type as 'text' | 'dropdown' | 'number' | 'date' | 'boolean';
     
+    // Get filters for this column (ActiveFilter[])
+    const columnFiltersForThisColumn = columnFilters[columnKey] || [];
+    
     return (
       <ColumnFilter
         type={filterType}
         columnName={filterOption.columnName}
-        value={columnFilters[columnKey] || {}}
-        onChange={(value) => handleColumnFilterChange(columnKey, value)}
+        value={columnFiltersForThisColumn}
+        onChange={(filters) => handleColumnFilterChange(columnKey, filters)}
         options={filterOption.options}
         placeholder={filterOption.type === 'text' || filterOption.type === 'number' 
           ? `Filter ${filterOption.label.toLowerCase()}...` 

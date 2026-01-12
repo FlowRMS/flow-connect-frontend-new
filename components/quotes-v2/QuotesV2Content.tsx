@@ -10,12 +10,13 @@ import { ListViewV2 } from './views/ListViewV2';
 import { useQuotesV2Infinite, useUpdateQuoteStageV2, useQuoteSearchV2, type QuoteSearchResult } from './api/quotesV2Api';
 import { fetchAllQuoteIds } from '../quotes/api/quotesApi';
 import { quoteToasts } from '../lib/toast';
-import AdvancedFilters, { type ActiveFilter } from '../advancedFilters/AdvancedFilters';
+import AdvancedFilters from '../advancedFilters/AdvancedFilters';
+import type { ActiveFilter } from '../advancedFilters/types';
 import { getQuoteFilterOptions } from './config/filterConfig';
 import { formatDateToISO, formatDateToBackend, parseDateString } from '../advancedFilters/utils';
+import { useFilterSync } from '../advancedFilters/hooks/useFilterSync';
 import { useBulkSelection } from '../shared';
 import { BulkDeleteModal, BulkActionsToolbar } from '../shared';
-import type { ColumnFilterValue } from '../advancedFilters/components/ColumnFilter';
 
 type ViewMode = 'kanban' | 'list';
 type QuickFilter = 'all' | 'today' | 'this_week' | 'last_week';
@@ -41,13 +42,43 @@ export function QuotesV2Content() {
   // Server-side filters - defined BEFORE API hook so they can be passed to the query
   const [serverFilters, setServerFilters] = useState<QuoteLandingPageFilter[]>([]);
   const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
-  const [columnFilters, setColumnFilters] = useState<Record<string, ColumnFilterValue>>({});
+  const [columnFilters, setColumnFilters] = useState<Record<string, ActiveFilter[]>>({});
   
   // Initialize columnFiltersToAPI as empty (will be computed after uniqueQuoteNumbers/uniqueCreators)
   // This allows filters to be computed before the hook
   const [columnFiltersToAPIState, setColumnFiltersToAPIState] = useState<QuoteLandingPageFilter[]>([]);
   
-  // Handler for server-side filter changes
+  // Refs to prevent infinite loops during synchronization
+  const isSyncingFromAdvanced = useRef(false);
+  const isSyncingFromColumn = useRef(false);
+
+  // Map from UI column keys to filter option IDs (for sync)
+  const columnKeyToFilterId: Record<string, string> = useMemo(() => ({
+    quoteNumber: 'quote-number',
+    status: 'status',
+    pipelineStage: 'pipeline-stage',
+    quoteAmount: 'total-amount',
+    commission: 'commission',
+    entryDate: 'created-date',
+    quoteDate: 'quote-date',
+    expirationDate: 'expiration-date',
+    published: 'published',
+  }), []);
+
+  // We initialize with empty arrays to avoid dependency issues
+  const quoteFilterOptionsForSync = useMemo(() => {
+    // Try to use uniqueQuoteNumbers and uniqueCreators if available, otherwise empty arrays
+    // Note: uniqueQuoteNumbers and uniqueCreators are defined later, so we use empty arrays initially
+    return getQuoteFilterOptions([], []);
+  }, []);
+
+  // Hook for synchronizing filters between AdvancedFilters and ColumnFilters
+  const { syncAdvancedToColumn, syncColumnToAdvanced } = useFilterSync({
+    filterOptions: quoteFilterOptionsForSync,
+    columnKeyToFilterId,
+  });
+  
+  // Handler for server-side filter changes (from AdvancedFilters)
   const handleServerFiltersChange = useCallback((filters: ActiveFilter[]) => {
     setActiveFilters(filters);
     
@@ -68,12 +99,60 @@ export function QuotesV2Content() {
       };
     });
     setServerFilters(apiFilters);
-  }, []);
+
+    // Sync to ColumnFilters (most recent filter replaces previous one for same column)
+    // Only sync if not already syncing from column filters to avoid infinite loop
+    if (!isSyncingFromColumn.current) {
+      isSyncingFromAdvanced.current = true;
+      const syncedColumnFilters = syncAdvancedToColumn(filters);
+      setColumnFilters((prev) => {
+        // If filters array is empty, clear all column filters
+        // Otherwise, merge: new filters from AdvancedFilters replace old ones for same columns
+        if (filters.length === 0) {
+          return {};
+        }
+        return { ...prev, ...syncedColumnFilters };
+      });
+      // Reset flag after state update
+      setTimeout(() => {
+        isSyncingFromAdvanced.current = false;
+      }, 0);
+    }
+  }, [syncAdvancedToColumn]);
   
-  // Handler for column filter changes
-  const handleColumnFiltersChange = useCallback((filters: Record<string, ColumnFilterValue>) => {
+  // Handler for column filter changes (from ColumnFilters)
+  const handleColumnFiltersChange = useCallback((filters: Record<string, ActiveFilter[]>) => {
     setColumnFilters(filters);
-  }, []);
+
+    // Sync to AdvancedFilters (most recent filter replaces previous one for same column)
+    // Only sync if not already syncing from advanced filters to avoid infinite loop
+    if (!isSyncingFromAdvanced.current) {
+      isSyncingFromColumn.current = true;
+      const syncedActiveFilters = syncColumnToAdvanced(filters);
+      setActiveFilters(syncedActiveFilters);
+      
+      // Also update serverFilters to trigger API call
+      const apiFilters: QuoteLandingPageFilter[] = syncedActiveFilters.map(f => {
+        if (f.values && f.values.length > 0) {
+          return {
+            operator: f.operator,
+            columnName: f.columnName,
+            values: f.values,
+          };
+        }
+        return {
+          operator: f.operator,
+          columnName: f.columnName,
+          value: f.value,
+        };
+      });
+      setServerFilters(apiFilters);
+      // Reset flag after state update
+      setTimeout(() => {
+        isSyncingFromColumn.current = false;
+      }, 0);
+    }
+  }, [syncColumnToAdvanced]);
 
   // Build quick filters based on quick filter selection
   const quickFilters = useMemo<QuoteLandingPageFilter[]>(() => {
@@ -210,98 +289,41 @@ export function QuotesV2Content() {
     return Array.from(creators).sort();
   }, [allQuotesData]);
 
-  // Get filter options
-  const quoteFilterOptions = useMemo(() => {
+  // Get filter options (updated with unique values)
+  const quoteFilterOptionsWithValues = useMemo(() => {
     return getQuoteFilterOptions(
       uniqueQuoteNumbers,
       uniqueCreators
     );
   }, [uniqueQuoteNumbers, uniqueCreators]);
 
-  // Convert column filters to QuoteLandingPageFilter[]
+  // Convert column filters (Record<string, ActiveFilter[]>) to QuoteLandingPageFilter[]
+  // Now much simpler since columnFilters already uses ActiveFilter[]
   const columnFiltersToAPI = useMemo<QuoteLandingPageFilter[]>(() => {
     const filters: QuoteLandingPageFilter[] = [];
-    const filterOptions = getQuoteFilterOptions(uniqueQuoteNumbers, uniqueCreators);
     
-    // Map from UI column keys to filter option IDs
-    const columnKeyToFilterId: Record<string, string> = {
-      quoteNumber: 'quote-number',
-      status: 'status',
-      pipelineStage: 'pipeline-stage',
-      quoteAmount: 'total-amount',
-      commission: 'commission',
-      entryDate: 'created-date',
-      quoteDate: 'quote-date',
-      expirationDate: 'expiration-date',
-      published: 'published',
-    };
-    
-    Object.entries(columnFilters).forEach(([columnKey, filterValue]) => {
-      const filterId = columnKeyToFilterId[columnKey];
-      if (!filterId) return;
-      
-      const filterOption = filterOptions.find(f => f.id === filterId);
-      if (!filterOption || !filterOption.columnName) return;
-      
-      const columnName = filterOption.columnName;
-      
-      // Handle different filter types
-      if (filterValue.text !== undefined && filterValue.text !== '') {
-        // Text, number, or boolean filter
-        if (filterOption.type === 'number') {
-          // Number filter with operator
+    // Flatten all column filters into a single array
+    Object.values(columnFilters).forEach((columnFilterArray) => {
+      columnFilterArray.forEach((filter) => {
+        // Convert ActiveFilter to QuoteLandingPageFilter
+        if (filter.values && filter.values.length > 0) {
           filters.push({
-            columnName,
-            operator: filterValue.operator || 'EQ',
-            value: filterValue.text,
+            operator: filter.operator,
+            columnName: filter.columnName,
+            values: filter.values,
           });
-        } else if (filterOption.type === 'boolean') {
-          // Boolean filter - always use EQ operator
-          // Send as string 'true' or 'false' (backend expects string for now)
+        } else if (filter.value) {
           filters.push({
-            columnName,
-            operator: 'EQ',
-            value: filterValue.text, // 'true' or 'false' as string
-          });
-        } else {
-          // Text filter - use operator from filterValue (EQ for exact match, ILIKE for contains)
-          filters.push({
-            columnName,
-            operator: filterValue.operator || 'ILIKE',
-            value: filterValue.text,
+            operator: filter.operator,
+            columnName: filter.columnName,
+            value: filter.value,
           });
         }
-      } else if (filterValue.selected && filterValue.selected.length > 0) {
-        // Dropdown filter (multi-select)
-        filters.push({
-          columnName,
-          operator: 'IN',
-          values: filterValue.selected,
-        });
-      } else if (filterValue.dateStart || filterValue.dateEnd) {
-        // Date range filter
-        // Convert date strings to backend format '%Y-%m-%d %H:%M:%S'
-        if (filterValue.dateStart) {
-          const startDate = parseDateString(filterValue.dateStart);
-          filters.push({
-            columnName,
-            operator: 'GTE',
-            value: startDate ? formatDateToBackend(startDate) : filterValue.dateStart,
-          });
-        }
-        if (filterValue.dateEnd) {
-          const endDate = parseDateString(filterValue.dateEnd);
-          filters.push({
-            columnName,
-            operator: 'LTE',
-            value: endDate ? formatDateToBackend(endDate) : filterValue.dateEnd,
-          });
-        }
-      }
+      });
     });
     
     return filters;
-  }, [columnFilters, uniqueQuoteNumbers, uniqueCreators]);
+  }, [columnFilters]);
 
   // Update state when columnFiltersToAPI changes
   useEffect(() => {
@@ -538,11 +560,11 @@ export function QuotesV2Content() {
             </div>
 
             {/* Advanced Filters */}
-            <AdvancedFilters
-              filterOptions={quoteFilterOptions}
-              onFiltersChange={handleServerFiltersChange}
-              activeFilters={activeFilters}
-            />
+              <AdvancedFilters
+                filterOptions={quoteFilterOptionsWithValues}
+                onFiltersChange={handleServerFiltersChange}
+                activeFilters={activeFilters}
+              />
 
             {/* Sort */}
             <div className="relative">
@@ -759,9 +781,9 @@ export function QuotesV2Content() {
                   isPartiallySelected={bulkSelection.isPartiallySelected}
                   onSelectAll={bulkSelection.handleSelectAll}
                   onSelectOne={bulkSelection.handleSelectOne}
-                  onColumnFiltersChange={handleColumnFiltersChange}
-                  filterOptions={quoteFilterOptions}
-                  columnFilters={columnFilters}
+                    onColumnFiltersChange={handleColumnFiltersChange}
+                    filterOptions={quoteFilterOptionsWithValues}
+                    columnFilters={columnFilters}
                   isLoading={isLoading}
                   hasActiveFilters={hasActiveFilters}
                 />

@@ -2,16 +2,17 @@
 
 import React, { useState, useEffect } from 'react';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
-import type { FilterOperator, FilterOption } from '../types';
+import type { FilterOperator, FilterOption, ActiveFilter } from '../types';
 import { TextFilter } from './filter-types/TextFilter';
 import { DropdownFilter } from './filter-types/DropdownFilter';
 import { NumberFilter } from './filter-types/NumberFilter';
 import { DateRangeFilter } from './filter-types/DateRangeFilter';
 import { BooleanFilter } from './filter-types/BooleanFilter';
-import { parseDateString, formatDateToISO } from '../utils';
+import { parseDateString, formatDateToBackend } from '../utils';
 
 export type ColumnFilterType = 'text' | 'dropdown' | 'number' | 'date' | 'boolean';
 
+// Keep ColumnFilterValue for backward compatibility during migration
 export interface ColumnFilterValue {
   // For text and number filters
   text?: string;
@@ -27,8 +28,8 @@ export interface ColumnFilterValue {
 export interface ColumnFilterProps {
   type: ColumnFilterType;
   columnName: string;
-  value: ColumnFilterValue;
-  onChange: (value: ColumnFilterValue) => void;
+  value: ActiveFilter[]; // Changed to ActiveFilter[]
+  onChange: (filters: ActiveFilter[]) => void; // Changed to ActiveFilter[]
   options?: string[]; // For dropdown filters
   placeholder?: string;
   isOpen: boolean;
@@ -49,68 +50,91 @@ export function ColumnFilter({
   isOpen,
   onToggle,
 }: ColumnFilterProps) {
-  const [localTextValue, setLocalTextValue] = useState(value.text || '');
-  const [localSelectedValues, setLocalSelectedValues] = useState<string[]>(value.selected || []);
-  const [localDateStart, setLocalDateStart] = useState<Date | null>(
-    value.dateStart ? parseDateString(value.dateStart) : null
-  );
-  const [localDateEnd, setLocalDateEnd] = useState<Date | null>(
-    value.dateEnd ? parseDateString(value.dateEnd) : null
-  );
+  // Extract values from ActiveFilter[] based on type
+  const getTextValue = () => {
+    const filter = value.find(f => f.columnName === columnName && f.value);
+    return filter?.value || '';
+  };
+
+  const getSelectedValues = () => {
+    const filter = value.find(f => f.columnName === columnName && f.operator === 'IN' && f.values);
+    return filter?.values || [];
+  };
+
+  const getDateStart = () => {
+    const filter = value.find(f => f.columnName === columnName && f.operator === 'GTE' && f.value);
+    return filter?.value ? parseDateString(filter.value) : null;
+  };
+
+  const getDateEnd = () => {
+    const filter = value.find(f => f.columnName === columnName && f.operator === 'LTE' && f.value);
+    return filter?.value ? parseDateString(filter.value) : null;
+  };
+
+  const getOperator = () => {
+    const filter = value.find(f => f.columnName === columnName && f.value);
+    return filter?.operator;
+  };
+
+  const [localTextValue, setLocalTextValue] = useState(getTextValue());
+  const [localSelectedValues, setLocalSelectedValues] = useState<string[]>(getSelectedValues());
+  const [localDateStart, setLocalDateStart] = useState<Date | null>(getDateStart());
+  const [localDateEnd, setLocalDateEnd] = useState<Date | null>(getDateEnd());
   const [localNumberOperator, setLocalNumberOperator] = useState<FilterOperator>(
-    value.operator || 'EQ'
+    getOperator() || 'EQ'
   );
   const [localTextOperator, setLocalTextOperator] = useState<FilterOperator>(() => {
-    // Initialize based on type - only use operator if it's a text filter
-    if (type === 'text' && value.operator) {
-      return value.operator;
+    const op = getOperator();
+    if (type === 'text' && op) {
+      return op;
     }
     return 'ILIKE'; // Default to 'Contains' for text filters
   });
   const [localBooleanValue, setLocalBooleanValue] = useState<'all' | 'true' | 'false' | null>(() => {
-    // Determine initial boolean value from prop
-    if (value.text === 'true') return 'true';
-    if (value.text === 'false') return 'false';
+    const textVal = getTextValue();
+    if (textVal === 'true') return 'true';
+    if (textVal === 'false') return 'false';
     return 'all';
   });
 
   // Sync local state with prop value when popover opens or value changes
   useEffect(() => {
-    setLocalTextValue(value.text || '');
-    setLocalSelectedValues(value.selected || []);
-    setLocalDateStart(value.dateStart ? parseDateString(value.dateStart) : null);
-    setLocalDateEnd(value.dateEnd ? parseDateString(value.dateEnd) : null);
-    if (value.operator) {
-      // Set operator based on filter type
+    setLocalTextValue(getTextValue());
+    setLocalSelectedValues(getSelectedValues());
+    setLocalDateStart(getDateStart());
+    setLocalDateEnd(getDateEnd());
+    const op = getOperator();
+    if (op) {
       if (type === 'number') {
-        setLocalNumberOperator(value.operator);
+        setLocalNumberOperator(op);
       } else if (type === 'text') {
-        setLocalTextOperator(value.operator);
+        setLocalTextOperator(op);
       }
     }
     // Sync boolean value
     if (type === 'boolean') {
-      if (value.text === 'true') {
+      const textVal = getTextValue();
+      if (textVal === 'true') {
         setLocalBooleanValue('true');
-      } else if (value.text === 'false') {
+      } else if (textVal === 'false') {
         setLocalBooleanValue('false');
       } else {
         setLocalBooleanValue('all');
       }
     }
-  }, [value, type]);
+  }, [value, type, columnName]);
 
   // Determine if filter has an active value - check both prop value and local state
   const hasValue =
     type === 'text'
-      ? (value.text !== undefined && value.text.trim() !== '') || localTextValue.trim() !== ''
+      ? getTextValue().trim() !== '' || localTextValue.trim() !== ''
       : type === 'dropdown'
-      ? (value.selected !== undefined && value.selected.length > 0) || localSelectedValues.length > 0
+      ? getSelectedValues().length > 0 || localSelectedValues.length > 0
       : type === 'number'
-      ? (value.text !== undefined && value.text.trim() !== '') || localTextValue.trim() !== ''
+      ? getTextValue().trim() !== '' || localTextValue.trim() !== ''
       : type === 'boolean'
-      ? (value.text === 'true' || value.text === 'false') || (localBooleanValue !== 'all' && localBooleanValue !== null)
-      : (value.dateStart !== undefined && value.dateStart !== '') || (value.dateEnd !== undefined && value.dateEnd !== '') || localDateStart !== null || localDateEnd !== null;
+      ? (getTextValue() === 'true' || getTextValue() === 'false') || (localBooleanValue !== 'all' && localBooleanValue !== null)
+      : getDateStart() !== null || getDateEnd() !== null || localDateStart !== null || localDateEnd !== null;
 
   // Create filter option for internal components
   // Preserve the type explicitly to prevent it from changing
@@ -122,57 +146,105 @@ export function ColumnFilter({
     options: type === 'dropdown' ? options : undefined,
   };
 
+  // Helper to remove existing filters for this column and add new ones
+  const updateFilters = (newFilters: ActiveFilter[]) => {
+    const otherFilters = value.filter(f => f.columnName !== columnName);
+    onChange([...otherFilters, ...newFilters]);
+  };
+
   const handleTextApply = (option: FilterOption, val: string, operator?: FilterOperator) => {
-    onChange({
-      text: val.trim(),
-      operator: operator || localTextOperator,
-    });
+    const trimmedVal = val.trim();
+    if (trimmedVal) {
+      updateFilters([{
+        columnName,
+        operator: operator || localTextOperator,
+        value: trimmedVal,
+      }]);
+    } else {
+      // Remove filter if empty
+      const otherFilters = value.filter(f => f.columnName !== columnName);
+      onChange(otherFilters);
+    }
     onToggle();
   };
 
   const handleDropdownApply = () => {
-    onChange({
-      selected: localSelectedValues,
-    });
+    if (localSelectedValues.length > 0) {
+      updateFilters([{
+        columnName,
+        operator: 'IN',
+        values: localSelectedValues,
+      }]);
+    } else {
+      // Remove filter if empty
+      const otherFilters = value.filter(f => f.columnName !== columnName);
+      onChange(otherFilters);
+    }
     onToggle();
   };
 
   const handleNumberApply = () => {
-    onChange({
-      text: localTextValue.trim(),
-      operator: localNumberOperator,
-    });
+    const trimmedVal = localTextValue.trim();
+    if (trimmedVal) {
+      updateFilters([{
+        columnName,
+        operator: localNumberOperator,
+        value: trimmedVal,
+      }]);
+    } else {
+      // Remove filter if empty
+      const otherFilters = value.filter(f => f.columnName !== columnName);
+      onChange(otherFilters);
+    }
     onToggle();
   };
 
   const handleDateApply = () => {
-    onChange({
-      dateStart: localDateStart ? formatDateToISO(localDateStart) : undefined,
-      dateEnd: localDateEnd ? formatDateToISO(localDateEnd) : undefined,
-    });
+    const newFilters: ActiveFilter[] = [];
+    if (localDateStart) {
+      newFilters.push({
+        columnName,
+        operator: 'GTE',
+        value: formatDateToBackend(localDateStart),
+      });
+    }
+    if (localDateEnd) {
+      newFilters.push({
+        columnName,
+        operator: 'LTE',
+        value: formatDateToBackend(localDateEnd),
+      });
+    }
+    if (newFilters.length > 0) {
+      updateFilters(newFilters);
+    } else {
+      // Remove filter if empty
+      const otherFilters = value.filter(f => f.columnName !== columnName);
+      onChange(otherFilters);
+    }
     onToggle();
   };
 
   const handleBooleanChange = (val: 'all' | 'true' | 'false') => {
     if (val === 'all') {
-      onChange({ text: '' });
+      // Remove filter
+      const otherFilters = value.filter(f => f.columnName !== columnName);
+      onChange(otherFilters);
     } else {
-      onChange({ text: val });
+      updateFilters([{
+        columnName,
+        operator: 'EQ',
+        value: val,
+      }]);
     }
     // Auto-apply boolean filters (no need to keep popover open)
     onToggle();
   };
 
   const handleClear = () => {
-    if (type === 'text' || type === 'number') {
-      onChange({ text: '' });
-    } else if (type === 'dropdown') {
-      onChange({ selected: [] });
-    } else if (type === 'boolean') {
-      onChange({ text: '' });
-    } else {
-      onChange({ dateStart: undefined, dateEnd: undefined });
-    }
+    // Remove all filters for this column
+    const otherFilters = value.filter(f => f.columnName !== columnName);
+    onChange(otherFilters);
     onToggle();
   };
 
@@ -239,7 +311,7 @@ export function ColumnFilter({
               onOperatorChange={setLocalTextOperator}
               onApply={handleTextApply}
               onClear={handleClear}
-              hasActiveFilter={!!value.text && value.text.trim() !== ''}
+              hasActiveFilter={getTextValue().trim() !== ''}
             />
           )}
 
@@ -252,7 +324,7 @@ export function ColumnFilter({
               onToggleValue={toggleDropdownValue}
               onApply={handleDropdownApply}
               onClear={handleClear}
-              hasActiveFilter={!!value.selected && value.selected.length > 0}
+              hasActiveFilter={getSelectedValues().length > 0}
             />
           )}
 
@@ -265,7 +337,7 @@ export function ColumnFilter({
               onOperatorChange={setLocalNumberOperator}
               onApply={handleNumberApply}
               onClear={handleClear}
-              hasActiveFilter={!!value.text && value.text.trim() !== ''}
+              hasActiveFilter={getTextValue().trim() !== ''}
             />
           )}
 
@@ -288,7 +360,7 @@ export function ColumnFilter({
               selectedValue={localBooleanValue}
               onValueChange={handleBooleanChange}
               onClear={handleClear}
-              hasActiveFilter={!!value.text && (value.text === 'true' || value.text === 'false')}
+              hasActiveFilter={getTextValue() === 'true' || getTextValue() === 'false'}
             />
           )}
         </PopoverPrimitive.Content>
