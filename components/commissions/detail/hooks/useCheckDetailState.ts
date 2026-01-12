@@ -597,7 +597,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     createdById?: string;
     url?: string;
   }>) => {
-    // Convert open invoices to line items format
+    // Convert open invoices to line items format with isNew flag
     const newLineItems: LineItem[] = invoices.map((invoice) => ({
       id: `temp-${invoice.id}`,
       type: 'invoice' as const,
@@ -618,9 +618,26 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
       status: invoice.status,
       createdAt: invoice.createdAt,
       url: invoice.url,
+      isNew: true, // Mark as new/unsaved
     }));
 
-    setLineItems(newLineItems);
+    // ADD to existing line items instead of replacing
+    // Filter out duplicates based on invoiceId to avoid adding the same invoice twice
+    setLineItems((prevLineItems) => {
+      const existingInvoiceIds = new Set(
+        prevLineItems
+          .filter((item) => item.invoiceId)
+          .map((item) => item.invoiceId)
+      );
+
+      // Only add invoices that don't already exist in the list
+      const uniqueNewItems = newLineItems.filter(
+        (item) => !existingInvoiceIds.has(item.invoiceId)
+      );
+
+      // Return new unique items at the TOP + existing items
+      return [...uniqueNewItems, ...prevLineItems];
+    });
   }, []);
 
   // Summary calculations

@@ -79,6 +79,11 @@ export function LineItemsTableRow({
               {item.type === 'invoice' ? 'Invoice' : item.type === 'credit' ? 'Credit' : 'Adjustment'}
             </span>
             <span className="text-sm text-[var(--foreground)] font-medium">{item.number || '-'}</span>
+            {item.isNew && (
+              <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-emerald-100 text-emerald-700 border border-emerald-300 uppercase tracking-wide animate-pulse">
+                New
+              </span>
+            )}
           </div>
         </td>
       )}
