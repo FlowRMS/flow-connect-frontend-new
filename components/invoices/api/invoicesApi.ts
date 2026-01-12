@@ -13,6 +13,7 @@ export {
   updateInvoice,
   deleteInvoice,
   createInvoiceFromOrder,
+  fetchAllInvoiceIds,
   type Invoice,
   type InvoiceLandingPage,
   type InvoiceBalance,

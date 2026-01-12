@@ -347,7 +347,8 @@ const SEARCH_CUSTOMERS = `
       id
       companyName
       parentId
-
+      isParent
+      buyingGroupId
     }
   }
 `;

@@ -1,7 +1,7 @@
 // Entity Matching Types - Aligned with GraphQL API
 
 // API Entity Types
-export type PendingEntityType = 'FACTORIES' | 'CUSTOMERS' | 'BILL_TO_CUSTOMERS' | 'PRODUCTS' | 'END_USERS' | 'ORDERS' | 'INVOICES';
+export type PendingEntityType = 'FACTORIES' | 'CUSTOMERS' | 'BILL_TO_CUSTOMERS' | 'PRODUCTS' | 'END_USERS' | 'ORDERS' | 'INVOICES' | 'CREDITS' | 'ADJUSTMENTS';
 
 // API Status Types
 export type ConfirmationStatus =
@@ -102,7 +102,7 @@ export interface ProcessExtractedDtosProgress {
 }
 
 // UI Step navigation types
-export type EntityStep = 'factories' | 'customers' | 'billtocustomers' | 'endusers' | 'products' | 'orders' | 'invoices';
+export type EntityStep = 'factories' | 'customers' | 'billtocustomers' | 'endusers' | 'products' | 'orders' | 'invoices' | 'credits' | 'adjustments';
 
 // Map from step to API entity type
 export const stepToEntityType: Record<EntityStep, PendingEntityType> = {
@@ -113,6 +113,8 @@ export const stepToEntityType: Record<EntityStep, PendingEntityType> = {
   products: 'PRODUCTS',
   orders: 'ORDERS',
   invoices: 'INVOICES',
+  credits: 'CREDITS',
+  adjustments: 'ADJUSTMENTS',
 };
 
 // Map from API entity type to step
@@ -124,6 +126,8 @@ export const entityTypeToStep: Record<PendingEntityType, EntityStep> = {
   PRODUCTS: 'products',
   ORDERS: 'orders',
   INVOICES: 'invoices',
+  CREDITS: 'credits',
+  ADJUSTMENTS: 'adjustments',
 };
 
 // Filter types for UI

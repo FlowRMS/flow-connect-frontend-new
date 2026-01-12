@@ -423,3 +423,11 @@ export {
   type PDFSplitRate,
   type PDFUom,
 } from './pdf-entities';
+
+// Bulk Operations module
+export {
+  bulkDelete,
+  type BulkDeleteEntityType,
+  type BulkDeleteResult,
+  type BulkDeleteFailure,
+} from './bulk-operations';

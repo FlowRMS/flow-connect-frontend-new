@@ -129,4 +129,7 @@ export interface TabConfig {
   id: TabType;
   label: string;
   count?: number;
+  disabled?: boolean;
+  disabledReason?: string;
+  comingSoon?: boolean;
 }

@@ -195,8 +195,8 @@ export interface LineItemV2 {
   status?: QuoteDetailStatus;
 
   // Split rates - inside and outside reps at line item level
-  insideSplitRates?: { id: string; userId?: string; splitRate?: string; position?: number }[];
-  outsideSplitRates?: { id: string; userId?: string; splitRate?: string; position?: number }[];
+  insideSplitRates?: { id: string; userId?: string; userName?: string; splitRate?: string; position?: number }[];
+  outsideSplitRates?: { id: string; userId?: string; userName?: string; splitRate?: string; position?: number }[];
 }
 
 export interface NoteV2 {

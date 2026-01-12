@@ -3,10 +3,11 @@
  * Enhanced with Jobs-style styling and portaled dropdowns
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type { Company } from '../types';
 import type { CompanySourceType } from '../../lib/crm-graphql';
+import { COMPANY_SOURCE_TYPE_LABELS, COMPANY_SOURCE_TYPE_OPTIONS } from '../../lib/crm-graphql';
 
 interface CompanyInfoFormProps {
   company: Company;
@@ -15,26 +16,28 @@ interface CompanyInfoFormProps {
   onFieldChange: (field: string, value: string | number | CompanySourceType) => void;
 }
 
-// Portaled Select Component for Company Type
+// Portaled Select Component for Company Source Type
 function CompanyTypeSelect({
   value,
   onChange,
   disabled,
 }: {
-  value: CompanySourceType;
+  value: CompanySourceType | undefined;
   onChange: (value: CompanySourceType) => void;
   disabled: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Only Customer type available - Manufacturers are managed in /manufacturers
-  const options: { value: CompanySourceType; label: string; description: string }[] = [
-    { value: 'CUSTOMER', label: 'Customer', description: 'End customers and buyers' },
-  ];
+  // Filter options based on search term
+  const filteredOptions = COMPANY_SOURCE_TYPE_OPTIONS.filter(option =>
+    COMPANY_SOURCE_TYPE_LABELS[option].toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   useEffect(() => {
     setPortalTarget(document.body);
@@ -44,21 +47,25 @@ function CompanyTypeSelect({
     if (isOpen && triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom;
-      const dropdownHeight = 120;
-      
+      const dropdownHeight = 320; // Taller dropdown for more options
+
       if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
         setPosition({
           top: rect.top + window.scrollY - dropdownHeight - 4,
           left: rect.left + window.scrollX,
-          width: rect.width,
+          width: Math.max(rect.width, 280),
         });
       } else {
         setPosition({
           top: rect.bottom + window.scrollY + 4,
           left: rect.left + window.scrollX,
-          width: rect.width,
+          width: Math.max(rect.width, 280),
         });
       }
+      // Focus search input when dropdown opens
+      setTimeout(() => searchInputRef.current?.focus(), 0);
+    } else {
+      setSearchTerm('');
     }
   }, [isOpen]);
 
@@ -67,7 +74,7 @@ function CompanyTypeSelect({
       const target = event.target as Node;
       const isInsideTrigger = triggerRef.current?.contains(target);
       const isInsideDropdown = dropdownRef.current?.contains(target);
-      
+
       if (!isInsideTrigger && !isInsideDropdown) {
         setIsOpen(false);
       }
@@ -76,20 +83,13 @@ function CompanyTypeSelect({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const selectedOption = options.find(opt => opt.value === value);
-
-  const getTypeColor = (type: CompanySourceType) => {
-    return type === 'MANUFACTURER'
-      ? { bg: 'bg-purple-50', text: 'text-purple-700', dot: 'bg-purple-500' }
-      : { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-500' };
-  };
+  const selectedLabel = value ? COMPANY_SOURCE_TYPE_LABELS[value] : 'Select Company Type';
 
   if (disabled) {
-    const colors = getTypeColor(value);
     return (
       <div className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 flex items-center gap-2">
-        <span className={`w-2.5 h-2.5 rounded-full ${colors.dot}`} />
-        <span className="text-gray-900">{selectedOption?.label || (value === 'MANUFACTURER' ? 'Manufacturer' : 'Customer')}</span>
+        <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+        <span className="text-gray-900">{selectedLabel}</span>
       </div>
     );
   }
@@ -100,38 +100,48 @@ function CompanyTypeSelect({
       className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"
       style={{ top: position.top, left: position.left, width: position.width }}
     >
-      <div className="py-1">
-        {options.map((option) => {
-          const colors = getTypeColor(option.value);
-          return (
+      {/* Search input */}
+      <div className="p-2 border-b border-gray-100">
+        <input
+          ref={searchInputRef}
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search company types..."
+          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+      </div>
+      {/* Options list */}
+      <div className="max-h-60 overflow-y-auto py-1">
+        {filteredOptions.length === 0 ? (
+          <div className="px-4 py-3 text-sm text-gray-500 text-center">No matching types found</div>
+        ) : (
+          filteredOptions.map((option) => (
             <button
-              key={option.value}
+              key={option}
               type="button"
               onClick={() => {
-                onChange(option.value);
+                onChange(option);
                 setIsOpen(false);
               }}
               className={`
                 w-full px-4 py-2.5 text-left text-sm flex items-center gap-2.5
                 transition-colors hover:bg-gray-50
-                ${value === option.value ? 'bg-blue-50' : ''}
+                ${value === option ? 'bg-blue-50' : ''}
               `}
             >
-              <span className={`w-2.5 h-2.5 rounded-full ${colors.dot} flex-shrink-0`} />
-              <div className="flex-1">
-                <span className={`${value === option.value ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
-                  {option.label}
-                </span>
-                <p className="text-xs text-gray-500 mt-0.5">{option.description}</p>
-              </div>
-              {value === option.value && (
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-500 flex-shrink-0" />
+              <span className={`flex-1 ${value === option ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
+                {COMPANY_SOURCE_TYPE_LABELS[option]}
+              </span>
+              {value === option && (
                 <svg className="w-4 h-4 text-blue-600 ml-auto flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                 </svg>
               )}
             </button>
-          );
-        })}
+          ))
+        )}
       </div>
     </div>,
     portalTarget
@@ -151,13 +161,13 @@ function CompanyTypeSelect({
         `}
       >
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span className={`w-2.5 h-2.5 rounded-full ${getTypeColor(value).dot}`} />
-          <span className="text-gray-900">{selectedOption?.label || (value === 'MANUFACTURER' ? 'Manufacturer' : 'Customer')}</span>
+          <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+          <span className={value ? 'text-gray-900' : 'text-gray-400'}>{selectedLabel}</span>
         </div>
-        <svg 
-          className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`} 
-          fill="none" 
-          viewBox="0 0 24 24" 
+        <svg
+          className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`}
+          fill="none"
+          viewBox="0 0 24 24"
           stroke="currentColor"
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -177,8 +187,8 @@ export default function CompanyInfoForm({
   const inputBaseClass = `
     w-full px-4 py-3 border rounded-lg text-sm
     transition-all duration-200
-    ${isEditing 
-      ? 'border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent hover:border-gray-400' 
+    ${isEditing
+      ? 'border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent hover:border-gray-400'
       : 'border-gray-200 bg-gray-50 cursor-default'
     }
   `;
@@ -227,7 +237,7 @@ export default function CompanyInfoForm({
               Company Type
             </label>
             <CompanyTypeSelect
-              value={(isEditing ? editFormData.companySourceType : company.companySourceType) || 'CUSTOMER'}
+              value={isEditing ? editFormData.companySourceType : company.companySourceType}
               onChange={(value) => onFieldChange('companySourceType', value)}
               disabled={!isEditing}
             />

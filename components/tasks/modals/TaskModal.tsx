@@ -69,9 +69,14 @@ export default function TaskModal({
   // Local task state for immediate UI updates
   const [localTask, setLocalTask] = useState(task);
   
-  // Assignee editing state
-  const [editAssigneeName, setEditAssigneeName] = useState(task.assignedTo || 'Unassigned');
-  const [editAssigneeId, setEditAssigneeId] = useState(task.assignedToId || '');
+  // Assignee editing state - now supports multiple assignees
+  // task.assignees is TaskAssignee[] (objects) from single task query, or undefined from landing page
+  const [editAssignees, setEditAssignees] = useState<Array<{ id: string; name: string }>>(
+    task.assignees?.map(assignee => ({
+      id: assignee.id,
+      name: assignee.fullName?.trim() || [assignee.firstName, assignee.lastName].filter(Boolean).join(' ').trim() || assignee.email || 'Unknown'
+    })) || []
+  );
   const [assigneeSearch, setAssigneeSearch] = useState('');
   const [debouncedAssigneeSearch, setDebouncedAssigneeSearch] = useState('');
   const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
@@ -155,9 +160,7 @@ export default function TaskModal({
     setLocalTask(task);
   }, [task]);
 
-  // Update edit state when full task loads (for tags, reminderDate, and assignedToId)
-  // CRITICAL: fullTask from useTask has assignedToId (UUID), while the landing page task
-  // only has assignedTo (name string). We must use fullTask.assignedToId for API updates.
+  // Update edit state when full task loads (for tags, reminderDate, and assignees)
   useEffect(() => {
     if (fullTask) {
       if (fullTask.tags) {
@@ -166,9 +169,12 @@ export default function TaskModal({
       if (fullTask.reminderDate) {
         setEditReminderDate(fullTask.reminderDate);
       }
-      // CRITICAL: Update assignedToId from fullTask - this is the actual UUID
-      if (fullTask.assignedToId) {
-        setEditAssigneeId(fullTask.assignedToId);
+      // Update assignees from fullTask (assignees are now user objects)
+      if (fullTask.assignees && fullTask.assignees.length > 0) {
+        setEditAssignees(fullTask.assignees.map(assignee => ({
+          id: assignee.id,
+          name: assignee.fullName?.trim() || [assignee.firstName, assignee.lastName].filter(Boolean).join(' ').trim() || assignee.email || 'Unknown'
+        })));
       }
     }
   }, [fullTask]);
@@ -276,19 +282,8 @@ export default function TaskModal({
 
   const handleSaveEdit = async () => {
     try {
-      // CRITICAL: Determine the correct assignedToId to send
-      // Priority: 1) User's edited value if they changed it, 2) fullTask.assignedToId from GetTask API
-      // We MUST send assignedToId to preserve the assignment, otherwise it gets unassigned
-      let finalAssignedToId: string | undefined = undefined;
-
-      if (editAssigneeId && editAssigneeId.trim() !== '') {
-        // User has set/edited an assignee
-        finalAssignedToId = editAssigneeId;
-      } else if (fullTask?.assignedToId) {
-        // Preserve existing assignment from the full task data (GetTask API has assignedToId)
-        finalAssignedToId = fullTask.assignedToId;
-      }
-      // If both are empty, finalAssignedToId stays undefined (truly unassigned)
+      // Send assigneeIds array for multiple assignees
+      const assigneeIds = editAssignees.length > 0 ? editAssignees.map(a => a.id) : undefined;
 
       await updateTaskMutation.mutateAsync({
         id: localTask.id,
@@ -300,9 +295,14 @@ export default function TaskModal({
           dueDate: editDueDate || undefined,
           reminderDate: editReminderDate || undefined,
           tags: editTags.join(','),
-          assignedToId: finalAssignedToId,
+          assigneeIds: assigneeIds,
         }
       });
+
+      // Format assignees display for local state
+      const assignedToDisplay = editAssignees.length > 0
+        ? (editAssignees.length === 1 ? editAssignees[0].name : `${editAssignees[0].name} +${editAssignees.length - 1}`)
+        : 'Unassigned';
 
       // Update local state immediately for UI feedback
       setLocalTask(prev => ({
@@ -316,8 +316,9 @@ export default function TaskModal({
         dueDate: editDueDate,
         reminderDate: editReminderDate,
         tags: editTags,
-        assignedTo: editAssigneeName,
-        assignedToId: finalAssignedToId || '',
+        assignedTo: assignedToDisplay,
+        // Convert editAssignees back to TaskAssignee format for local state
+        assignees: editAssignees.map(a => ({ id: a.id, fullName: a.name })),
       }));
 
       setIsEditMode(false);
@@ -337,12 +338,36 @@ export default function TaskModal({
     setEditDueDate(localTask.dueDate);
     setEditReminderDate(fullTask?.reminderDate || localTask.reminderDate || '');
     setEditTags(fullTask?.tags ? parseTagsString(fullTask.tags) : localTask.tags);
-    setEditAssigneeName(localTask.assignedTo || 'Unassigned');
-    // CRITICAL: Use fullTask.assignedToId (UUID) when available, fallback to localTask.assignedToId
-    setEditAssigneeId(fullTask?.assignedToId || localTask.assignedToId || '');
+    // Reset assignees from fullTask (user objects) or localTask (may have assigneeNames as strings)
+    if (fullTask?.assignees && fullTask.assignees.length > 0) {
+      setEditAssignees(fullTask.assignees.map(assignee => ({
+        id: assignee.id,
+        name: assignee.fullName?.trim() || [assignee.firstName, assignee.lastName].filter(Boolean).join(' ').trim() || assignee.email || 'Unknown'
+      })));
+    } else if (localTask.assigneeNames && localTask.assigneeNames.length > 0) {
+      // From landing page - we only have names, no IDs, so we can't edit them properly
+      // Best effort: show names but without IDs they can't be removed/managed
+      setEditAssignees([]);
+    } else {
+      setEditAssignees([]);
+    }
     setIsEditMode(false);
     setAddEntityType(null);
     setEntitySearch('');
+  };
+
+  const handleAddAssignee = (user: { id: string; firstName?: string | null; lastName?: string | null; fullName?: string | null; email?: string | null }) => {
+    const name = user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown';
+    if (!editAssignees.some(a => a.id === user.id)) {
+      setEditAssignees([...editAssignees, { id: user.id, name }]);
+    }
+    setAssigneeSearch('');
+    setShowAssigneeDropdown(false);
+    setAssigneeDropdownPosition(null);
+  };
+
+  const handleRemoveAssignee = (assigneeId: string) => {
+    setEditAssignees(editAssignees.filter(a => a.id !== assigneeId));
   };
 
   const handleDeleteTask = async () => {
@@ -653,105 +678,119 @@ export default function TaskModal({
               <div className="grid grid-cols-2 gap-6">
                 <div>
                   <h3 className="text-sm font-semibold text-[var(--foreground)] mb-2 uppercase tracking-wider">
-                    Assigned To
+                    Assignees
                   </h3>
                   {isEditMode ? (
-                    <div className="relative">
-                      <input
-                        ref={assigneeInputRef}
-                        type="text"
-                        value={assigneeSearch || editAssigneeName}
-                        onChange={(e) => {
-                          setAssigneeSearch(e.target.value);
-                          setShowAssigneeDropdown(true);
-                        }}
-                        onFocus={() => {
-                          setShowAssigneeDropdown(true);
-                          // Update position when focused
-                          setTimeout(() => {
-                            if (assigneeInputRef.current) {
-                              const rect = assigneeInputRef.current.getBoundingClientRect();
-                              setAssigneeDropdownPosition({
-                                top: rect.bottom + 4,
-                                left: rect.left,
-                                width: rect.width,
-                              });
-                            }
-                          }, 0);
-                        }}
-                        placeholder="Search users..."
-                        className={inputClass}
-                      />
-                      {showAssigneeDropdown && isMounted && assigneeDropdownPosition && createPortal(
-                        <div
-                          ref={assigneeDropdownRef}
-                          style={{
-                            position: 'fixed',
-                            top: assigneeDropdownPosition.top,
-                            left: assigneeDropdownPosition.left,
-                            width: assigneeDropdownPosition.width,
-                            zIndex: 9999,
-                          }}
-                          className="bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
-                        >
-                          {isLoadingAssignees ? (
-                            <div className="px-4 py-3 text-center text-sm text-gray-500">Loading...</div>
-                          ) : assigneeUsers.length === 0 ? (
-                            <div className="px-4 py-3 text-center text-sm text-gray-500">
-                              {assigneeSearch ? 'No users found' : 'Type to search users'}
-                            </div>
-                          ) : (
-                            assigneeUsers.slice(0, 10).map((user) => {
-                              const userName = user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Unknown User';
-                              return (
-                                <button
-                                  key={user.id}
-                                  type="button"
-                                  onClick={() => {
-                                    setEditAssigneeName(userName);
-                                    setEditAssigneeId(user.id);
-                                    setAssigneeSearch('');
-                                    setShowAssigneeDropdown(false);
-                                    setAssigneeDropdownPosition(null);
-                                  }}
-                                  className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 transition-colors flex items-center gap-2"
-                                >
-                                  <div className={`w-6 h-6 rounded-full ${getAvatarColor(userName)} flex items-center justify-center text-white text-xs font-semibold`}>
-                                    {getInitials(userName)}
-                                  </div>
-                                  <div className="flex flex-col">
-                                    <span>{userName}</span>
-                                    {user.email && <span className="text-xs text-gray-400">{user.email}</span>}
-                                  </div>
-                                </button>
-                              );
-                            })
-                          )}
-                        </div>,
-                        document.body
+                    <div className="space-y-2">
+                      {/* Selected assignees */}
+                      {editAssignees.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {editAssignees.map((assignee) => (
+                            <span key={assignee.id} className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs flex items-center gap-1">
+                              <div className={`w-5 h-5 rounded-full ${getAvatarColor(assignee.name)} flex items-center justify-center text-white text-[10px] font-semibold`}>
+                                {getInitials(assignee.name)}
+                              </div>
+                              {assignee.name}
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveAssignee(assignee.id)}
+                                className="ml-1 hover:text-blue-900"
+                              >
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </span>
+                          ))}
+                        </div>
                       )}
-                      {editAssigneeName && editAssigneeName !== 'Unassigned' && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditAssigneeName('Unassigned');
-                            setEditAssigneeId('');
-                            setAssigneeSearch('');
+                      {/* Search input */}
+                      <div className="relative">
+                        <input
+                          ref={assigneeInputRef}
+                          type="text"
+                          value={assigneeSearch}
+                          onChange={(e) => {
+                            setAssigneeSearch(e.target.value);
+                            setShowAssigneeDropdown(true);
                           }}
-                          className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                        >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      )}
+                          onFocus={() => {
+                            setShowAssigneeDropdown(true);
+                            setTimeout(() => {
+                              if (assigneeInputRef.current) {
+                                const rect = assigneeInputRef.current.getBoundingClientRect();
+                                setAssigneeDropdownPosition({
+                                  top: rect.bottom + 4,
+                                  left: rect.left,
+                                  width: rect.width,
+                                });
+                              }
+                            }, 0);
+                          }}
+                          placeholder="Search users to add..."
+                          className={inputClass}
+                        />
+                        {showAssigneeDropdown && isMounted && assigneeDropdownPosition && createPortal(
+                          <div
+                            ref={assigneeDropdownRef}
+                            style={{
+                              position: 'fixed',
+                              top: assigneeDropdownPosition.top,
+                              left: assigneeDropdownPosition.left,
+                              width: assigneeDropdownPosition.width,
+                              zIndex: 9999,
+                            }}
+                            className="bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
+                          >
+                            {isLoadingAssignees ? (
+                              <div className="px-4 py-3 text-center text-sm text-gray-500">Loading...</div>
+                            ) : assigneeUsers.length === 0 ? (
+                              <div className="px-4 py-3 text-center text-sm text-gray-500">
+                                {assigneeSearch ? 'No users found' : 'Type to search users'}
+                              </div>
+                            ) : (
+                              assigneeUsers
+                                .filter(user => !editAssignees.some(a => a.id === user.id))
+                                .slice(0, 10)
+                                .map((user) => {
+                                  const userName = user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Unknown User';
+                                  return (
+                                    <button
+                                      key={user.id}
+                                      type="button"
+                                      onClick={() => handleAddAssignee(user)}
+                                      className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 transition-colors flex items-center gap-2"
+                                    >
+                                      <div className={`w-6 h-6 rounded-full ${getAvatarColor(userName)} flex items-center justify-center text-white text-xs font-semibold`}>
+                                        {getInitials(userName)}
+                                      </div>
+                                      <div className="flex flex-col">
+                                        <span>{userName}</span>
+                                        {user.email && <span className="text-xs text-gray-400">{user.email}</span>}
+                                      </div>
+                                    </button>
+                                  );
+                                })
+                            )}
+                          </div>,
+                          document.body
+                        )}
+                      </div>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2">
-                      <div className={`w-8 h-8 rounded-full ${getAvatarColor(editAssigneeName)} flex items-center justify-center text-white text-xs font-semibold`}>
-                        {getInitials(editAssigneeName)}
-                      </div>
-                      <span className="text-sm text-[var(--foreground)]">{editAssigneeName}</span>
+                    <div className="flex flex-wrap gap-2">
+                      {editAssignees.length > 0 ? (
+                        editAssignees.map((assignee) => (
+                          <div key={assignee.id} className="flex items-center gap-2">
+                            <div className={`w-8 h-8 rounded-full ${getAvatarColor(assignee.name)} flex items-center justify-center text-white text-xs font-semibold`}>
+                              {getInitials(assignee.name)}
+                            </div>
+                            <span className="text-sm text-[var(--foreground)]">{assignee.name}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <span className="text-sm text-[var(--muted-foreground)]">Unassigned</span>
+                      )}
                     </div>
                   )}
                 </div>

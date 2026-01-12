@@ -982,6 +982,22 @@ const GET_PRODUCT_CPN_BY_PRODUCT_AND_CUSTOMER = `
 `;
 
 // ============================================================================
+// Product Pricing Tiers Query (for Volume Discounts)
+// ============================================================================
+
+const LIST_PRODUCT_QUANTITY_PRICING = `
+  query ListProductQuantityPricingByProductId($productId: UUID!) {
+    listProductQuantityPricingByProductId(productId: $productId) {
+      id
+      productId
+      quantityLow
+      quantityHigh
+      unitPrice
+    }
+  }
+`;
+
+// ============================================================================
 // Product UOMs Query (for Unit of Measure)
 // ============================================================================
 
@@ -1037,6 +1053,14 @@ export interface ProductCpnResult {
   productId: string;
   commissionRate?: string;
   unitPrice?: string;
+}
+
+export interface ProductPricingTierResult {
+  id: string;
+  productId: string;
+  quantityLow: number;
+  quantityHigh: number;
+  unitPrice: number;
 }
 
 export interface ProductUomResult {
@@ -1367,6 +1391,52 @@ export async function listProductUoms(): Promise<ProductUomResult[]> {
   return response.data?.productUoms || [];
 }
 
+/**
+ * List pricing tiers for a product (volume discounts)
+ * Used to determine unit price based on quantity
+ */
+export async function listProductPricingTiers(productId: string): Promise<ProductPricingTierResult[]> {
+  if (!productId) return [];
+
+  const response = await crmGraphQLRequest<{ listProductQuantityPricingByProductId: ProductPricingTierResult[] }>({
+    query: LIST_PRODUCT_QUANTITY_PRICING,
+    variables: { productId },
+  });
+
+  if (response.errors) {
+    // If no pricing tiers found, this is not an error - just return empty array
+    console.log('No pricing tiers found for product:', response.errors[0]?.message);
+    return [];
+  }
+
+  return response.data?.listProductQuantityPricingByProductId || [];
+}
+
+/**
+ * Get the applicable unit price based on quantity and pricing tiers
+ * Returns the tier unit price if quantity falls within a tier, otherwise returns default price
+ */
+export function getPriceForQuantity(
+  quantity: number,
+  pricingTiers: ProductPricingTierResult[],
+  defaultUnitPrice: number
+): number {
+  if (!pricingTiers || pricingTiers.length === 0) {
+    return defaultUnitPrice;
+  }
+
+  // Find the tier that matches the quantity (using quantityLow and quantityHigh)
+  const applicableTier = pricingTiers.find(
+    tier => quantity >= tier.quantityLow && quantity <= tier.quantityHigh
+  );
+
+  if (applicableTier) {
+    return applicableTier.unitPrice;
+  }
+
+  return defaultUnitPrice;
+}
+
 // ============================================================================
 // Job Search Types and API
 // ============================================================================
@@ -1461,4 +1531,30 @@ export async function searchJobs(searchTerm: string, limit?: number): Promise<Jo
     createdAt: job.createdAt,
     createdBy: job.createdBy?.fullName,
   }));
+}
+
+/**
+ * Fetch all quote IDs for bulk operations
+ * Used when user selects all including unloaded items
+ */
+export async function fetchAllQuoteIds(
+  filters?: QuoteLandingPageFilter[],
+  orderBy?: QuoteLandingPageOrderBy[]
+): Promise<string[]> {
+  // First get the total count
+  const initialResult = await fetchQuotesWithPagination(filters, orderBy, { limit: 1, offset: 0 });
+  const total = initialResult.total;
+
+  if (total === 0) return [];
+
+  // Fetch all IDs in batches
+  const batchSize = 500;
+  const allIds: string[] = [];
+
+  for (let offset = 0; offset < total; offset += batchSize) {
+    const result = await fetchQuotesWithPagination(filters, orderBy, { limit: batchSize, offset });
+    allIds.push(...result.records.map(r => r.id));
+  }
+
+  return allIds;
 }

@@ -84,6 +84,7 @@ export function parseNote(note: Note): ParsedNote {
     mentions: parseCommaSeparated(note.mentions),
     tags: parseCommaSeparated(note.tags),
     linkedTitles: [], // Note detail doesn't have linkedTitles, use relatedEntities for detail view
+    isPublic: note.isPublic,
     createdBy: note.createdBy,
     createdAt: note.createdAt,
   };
@@ -101,6 +102,7 @@ export function parseNoteLandingPage(note: NoteLandingPage): ParsedNote {
     mentions: [], // Landing page doesn't include mentions
     tags: parseCommaSeparated(note.tags),
     linkedTitles: parseLinkedEntities(note.linkedEntities),
+    isPublic: note.isPublic,
     createdBy: note.createdBy,
     createdAt: note.createdAt,
   };
