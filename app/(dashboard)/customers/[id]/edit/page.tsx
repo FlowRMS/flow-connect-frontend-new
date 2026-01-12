@@ -406,7 +406,7 @@ export default function CustomerEditPage() {
           input: {
             sourceId: customerId,
             sourceType: 'CUSTOMER',
-            addressType: addressData.addressType,
+            addressTypes: addressData.addressTypes || [addressData.addressType],
             line1: addressData.line1,
             line2: addressData.line2,
             city: addressData.city,
@@ -424,7 +424,7 @@ export default function CustomerEditPage() {
         await createAddress.mutateAsync({
           sourceId: customerId,
           sourceType: 'CUSTOMER',
-          addressType: addressData.addressType,
+          addressTypes: addressData.addressTypes || [addressData.addressType],
           line1: addressData.line1,
           line2: addressData.line2,
           city: addressData.city,
