@@ -620,6 +620,10 @@ export function transformLineItemV2ToDetailInput(
   // New items with IDs like "li-123456" should not send ID
   const id = lineItem.id && isValidUUID(lineItem.id) ? lineItem.id : undefined;
 
+  // CRITICAL: If the line item is NEW (no valid UUID), its split rates should also NOT have IDs
+  // This prevents sending randomly generated UUIDs that don't exist in the database
+  const isNewLineItem = !id;
+
   // Determine which split rates to use based on settings:
   // - If per-line-item is enabled (insideRepAtLineLevel/outsideRepAtLineLevel = true), use lineItem's split rates
   // - If per-line-item is disabled (false), use header-level reps for all line items
@@ -628,18 +632,20 @@ export function transformLineItemV2ToDetailInput(
   const useLineItemOutsideReps = settings?.outsideRepAtLineLevel !== false;
 
   // Build insideSplitRates - use line item's rates or header rates based on setting
+  // Only include split rate ID if the parent line item is NOT new (existing in DB)
   const insideRepsSource = useLineItemInsideReps ? lineItem.insideSplitRates : headerInsideReps;
   const insideSplitRates = insideRepsSource?.map((rep) => ({
-    ...(rep.id && isValidUUID(rep.id) ? { id: rep.id } : {}),
+    ...(!isNewLineItem && rep.id && isValidUUID(rep.id) ? { id: rep.id } : {}),
     userId: rep.userId || '',
     splitRate: Number(rep.splitRate) || 100,
     position: rep.position,
   }));
 
   // Build outsideSplitRates - use line item's rates or header rates based on setting
+  // Only include split rate ID if the parent line item is NOT new (existing in DB)
   const outsideRepsSource = useLineItemOutsideReps ? lineItem.outsideSplitRates : headerOutsideReps;
   const outsideSplitRates = outsideRepsSource?.map((rep) => ({
-    ...(rep.id && isValidUUID(rep.id) ? { id: rep.id } : {}),
+    ...(!isNewLineItem && rep.id && isValidUUID(rep.id) ? { id: rep.id } : {}),
     userId: rep.userId || '',
     splitRate: Number(rep.splitRate) || 100,
     position: rep.position,

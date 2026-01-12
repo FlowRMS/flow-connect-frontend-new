@@ -716,7 +716,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
     // Convert RepSplitRate[] to the format expected by line items
     // Include userName so the modal can display the name without looking it up
     const outsideSplitRates = reps.map((rep, idx) => ({
-      id: crypto.randomUUID(),
+      id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
       userId: rep.userId,
       userName: rep.userName,
       splitRate: rep.splitRate,
@@ -741,7 +741,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
     // Convert RepSplitRate[] to the format expected by line items
     // Include userName so the modal can display the name without looking it up
     const insideSplitRates = reps.map((rep, idx) => ({
-      id: crypto.randomUUID(),
+      id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
       userId: rep.userId,
       userName: rep.userName,
       splitRate: rep.splitRate,
@@ -776,7 +776,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
 
           // Convert to line item format - include userName
           const insideSplitRates = reps.map((rep, idx) => ({
-            id: crypto.randomUUID(),
+            id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
             userId: rep.userId,
             userName: rep.userName,
             splitRate: rep.splitRate,
@@ -817,7 +817,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
             // Store for new line items to inherit
             setCurrentOutsideReps(reps);
             const outsideSplitRates = reps.map((rep, idx) => ({
-              id: crypto.randomUUID(),
+              id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
               userId: rep.userId,
               userName: rep.userName,
               splitRate: rep.splitRate,
@@ -845,7 +845,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
                 const reps = await fetchInsideRepsFromFactory(item.manufacturerId);
                 if (reps.length === 0) return item;
                 const insideSplitRates = reps.map((rep, idx) => ({
-                  id: crypto.randomUUID(),
+                  id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
                   userId: rep.userId,
                   userName: rep.userName,
                   splitRate: rep.splitRate,
@@ -865,7 +865,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
             // Store for new line items to inherit
             setCurrentInsideReps(reps);
             const insideSplitRates = reps.map((rep, idx) => ({
-              id: crypto.randomUUID(),
+              id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
               userId: rep.userId,
               userName: rep.userName,
               splitRate: rep.splitRate,
@@ -891,7 +891,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
               const reps = await fetchInsideRepsFromFactory(item.manufacturerId);
               if (reps.length === 0) return item;
               const insideSplitRates = reps.map((rep, idx) => ({
-                id: crypto.randomUUID(),
+                id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
                 userId: rep.userId,
                 userName: rep.userName,
                 splitRate: rep.splitRate,
@@ -911,7 +911,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
           // Store for new line items to inherit
           setCurrentInsideReps(reps);
           const insideSplitRates = reps.map((rep, idx) => ({
-            id: crypto.randomUUID(),
+            id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
             userId: rep.userId,
             userName: rep.userName,
             splitRate: rep.splitRate,

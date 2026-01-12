@@ -516,7 +516,7 @@ export function QuoteDetailHeaderV2({
   const addRepToSplit = useCallback((rep: { id: string; fullName?: string; firstName?: string; lastName?: string }, isInside: boolean) => {
     const repName = rep.fullName || `${rep.firstName} ${rep.lastName}`;
     const newRep: CommissionSplitRep = {
-      id: crypto.randomUUID(),
+      id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
       userId: rep.id,
       userName: repName,
       splitRate: '0',
@@ -1296,7 +1296,7 @@ export function QuoteDetailHeaderV2({
                           // Initialize with current rep if no split reps exist
                           if (outsideSplitReps.length === 0) {
                             setOutsideSplitReps([{
-                              id: crypto.randomUUID(),
+                              id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
                               userId: quote.outsideRepId || '',
                               userName: quote.outsideRepName || '',
                               splitRate: '100',
@@ -1477,7 +1477,7 @@ export function QuoteDetailHeaderV2({
                           // Initialize with current rep if no split reps exist
                           if (insideSplitReps.length === 0) {
                             setInsideSplitReps([{
-                              id: crypto.randomUUID(),
+                              id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
                               userId: quote.insideRepId || '',
                               userName: quote.insideRepName || '',
                               splitRate: '100',

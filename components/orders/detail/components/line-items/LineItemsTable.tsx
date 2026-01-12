@@ -262,7 +262,7 @@ export function LineItemsTable({
         // Inherit outside reps if per-line-item setting is enabled
         outsideSplitRates: showOutsideRepPerLine && currentOutsideReps && currentOutsideReps.length > 0
           ? currentOutsideReps.map((rep, idx) => ({
-              id: crypto.randomUUID(),
+              id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
               userId: rep.userId,
               userName: rep.userName,
               splitRate: rep.splitRate,
@@ -272,7 +272,7 @@ export function LineItemsTable({
         // Inherit inside reps if per-line-item setting is enabled
         insideSplitRates: showInsideRepPerLine && currentInsideReps && currentInsideReps.length > 0
           ? currentInsideReps.map((rep, idx) => ({
-              id: crypto.randomUUID(),
+              id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
               userId: rep.userId,
               userName: rep.userName,
               splitRate: rep.splitRate,

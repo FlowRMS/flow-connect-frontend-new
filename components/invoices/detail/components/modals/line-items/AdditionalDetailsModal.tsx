@@ -127,7 +127,7 @@ export function AdditionalDetailsModal({
       // Initialize outside split reps from line item
       if (lineItem.outsideSplitRates && lineItem.outsideSplitRates.length > 0) {
         const reps: CommissionSplitRep[] = lineItem.outsideSplitRates.map((rep, idx) => ({
-          id: crypto.randomUUID(),
+          id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
           userId: rep.userId || '',
           userName: rep.userName || '',
           splitRate: rep.splitRate || 0,
@@ -141,7 +141,7 @@ export function AdditionalDetailsModal({
       // Initialize inside split reps from line item
       if (lineItem.insideSplitRates && lineItem.insideSplitRates.length > 0) {
         const reps: CommissionSplitRep[] = lineItem.insideSplitRates.map((rep, idx) => ({
-          id: crypto.randomUUID(),
+          id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
           userId: rep.userId || '',
           userName: rep.userName || '',
           splitRate: rep.splitRate || 0,
@@ -161,7 +161,7 @@ export function AdditionalDetailsModal({
     const repName = rep.fullName || `${rep.firstName || ''} ${rep.lastName || ''}`.trim();
 
     const newRep: CommissionSplitRep = {
-      id: crypto.randomUUID(),
+      id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
       userId: rep.id,
       userName: repName,
       splitRate: 0,
@@ -205,7 +205,7 @@ export function AdditionalDetailsModal({
     const repName = rep.fullName || `${rep.firstName || ''} ${rep.lastName || ''}`.trim();
 
     const newRep: CommissionSplitRep = {
-      id: crypto.randomUUID(),
+      id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
       userId: rep.id,
       userName: repName,
       splitRate: 0,
