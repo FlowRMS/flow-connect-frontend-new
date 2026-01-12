@@ -269,10 +269,19 @@ export function useOrdersListState() {
   // Search orders
   const { data: searchResults, isLoading: isSearching } = useOrderSearch(searchQuery, 100);
 
-  // Flatten paginated data
+  // Flatten paginated data and deduplicate by ID
+  // This prevents React key conflicts when the same order appears in multiple pages
   const allOrdersData = useMemo(() => {
     if (!ordersData?.pages) return [];
-    return ordersData.pages.flatMap(page => page.records);
+    const allRecords = ordersData.pages.flatMap(page => page.records);
+    
+    // Deduplicate by ID, keeping the last occurrence of each order
+    const uniqueMap = new Map<string, OrderLandingPage>();
+    allRecords.forEach(record => {
+      uniqueMap.set(record.id, record);
+    });
+    
+    return Array.from(uniqueMap.values());
   }, [ordersData]);
 
   // Get total count
