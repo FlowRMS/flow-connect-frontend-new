@@ -115,6 +115,32 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
   const firstDetail = apiInvoice.details?.[0];
   const headerEndUserId = !endUserPerLineItem ? (firstDetail?.endUserId || '') : '';
 
+  // Get header-level outside split rates (when NOT per-line-item)
+  const headerOutsideSplitRates = !outsidePerLineItem && firstDetail?.outsideSplitRates
+    ? firstDetail.outsideSplitRates.map(s => ({
+        userId: s.userId || '',
+        userName: s.user?.fullName || '',
+        splitRate: parseFloat(s.splitRate || '0'),
+        position: s.position || 0,
+      }))
+    : [];
+
+  // Get header-level inside split rates (when NOT per-line-item)
+  const headerInsideSplitRates = !insidePerLineItem && (firstDetail as any)?.insideSplitRates
+    ? ((firstDetail as any).insideSplitRates || []).map((s: any) => ({
+        userId: s.userId || '',
+        userName: s.user?.fullName || '',
+        splitRate: parseFloat(s.splitRate || '0'),
+        position: s.position || 0,
+      }))
+    : [];
+
+  // Get primary rep (first in split rates or from order)
+  const headerOutsideRepId = headerOutsideSplitRates.length > 0 ? headerOutsideSplitRates[0].userId : '';
+  const headerOutsideRepName = headerOutsideSplitRates.length > 0 ? headerOutsideSplitRates[0].userName : '';
+  const headerInsideRepId = headerInsideSplitRates.length > 0 ? headerInsideSplitRates[0].userId : '';
+  const headerInsideRepName = headerInsideSplitRates.length > 0 ? headerInsideSplitRates[0].userName : '';
+
   return {
     id: apiInvoice.id,
     invoiceNumber: apiInvoice.invoiceNumber || '',
@@ -148,6 +174,13 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
     // Header-level end user (when not per-line-item)
     endUserId: headerEndUserId,
     endUserName: '', // Will be populated from customer lookup
+    // Header-level reps (when not per-line-item, grabbed from first line item)
+    outsideRepId: headerOutsideRepId,
+    outsideRepName: headerOutsideRepName,
+    outsideSplitRates: headerOutsideSplitRates,
+    insideRepId: headerInsideRepId,
+    insideRepName: headerInsideRepName,
+    insideSplitRates: headerInsideSplitRates,
   };
 }
 

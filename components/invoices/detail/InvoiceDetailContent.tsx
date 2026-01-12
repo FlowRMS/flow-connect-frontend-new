@@ -658,6 +658,9 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
         onClose={() => state.setShowAdditionalDetailsModal(false)}
         lineItem={state.selectedLineItemForDetails}
         onSave={state.saveAdditionalDetails}
+        endUserPerLineItem={(state.invoice as any)?.endUserPerLineItem}
+        outsidePerLineItem={(state.invoice as any)?.outsidePerLineItem}
+        insidePerLineItem={(state.invoice as any)?.insidePerLineItem}
       />
     </main>
   );

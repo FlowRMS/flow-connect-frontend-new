@@ -25,6 +25,10 @@ interface AdditionalDetailsModalProps {
   onClose: () => void;
   lineItem: InvoiceLineItem | null;
   onSave: (updates: Partial<InvoiceLineItem>) => void;
+  // Per-line-item flags - when true, show the corresponding section in the modal
+  endUserPerLineItem?: boolean;
+  outsidePerLineItem?: boolean;
+  insidePerLineItem?: boolean;
 }
 
 export function AdditionalDetailsModal({
@@ -32,6 +36,9 @@ export function AdditionalDetailsModal({
   onClose,
   lineItem,
   onSave,
+  endUserPerLineItem = false,
+  outsidePerLineItem = false,
+  insidePerLineItem = false,
 }: AdditionalDetailsModalProps) {
   const [formData, setFormData] = useState({
     endUserId: '',
@@ -277,10 +284,12 @@ export function AdditionalDetailsModal({
   };
 
   const outsideSplitTotal = outsideSplitReps.reduce((sum, r) => sum + (r.splitRate || 0), 0);
-  const isOutsideSplitValid = outsideSplitReps.length === 0 || outsideSplitTotal === 100;
+  // Only validate outside split if we're showing it (outsidePerLineItem is true)
+  const isOutsideSplitValid = !outsidePerLineItem || outsideSplitReps.length === 0 || outsideSplitTotal === 100;
 
   const insideSplitTotal = insideSplitReps.reduce((sum, r) => sum + (r.splitRate || 0), 0);
-  const isInsideSplitValid = insideSplitReps.length === 0 || insideSplitTotal === 100;
+  // Only validate inside split if we're showing it (insidePerLineItem is true)
+  const isInsideSplitValid = !insidePerLineItem || insideSplitReps.length === 0 || insideSplitTotal === 100;
 
   const isSplitValid = isOutsideSplitValid && isInsideSplitValid;
 
@@ -312,30 +321,33 @@ export function AdditionalDetailsModal({
 
           {/* Content */}
           <div className="px-6 py-4 space-y-4 overflow-y-auto flex-1">
-            {/* End User */}
-            <div>
-              <label className="block text-sm text-gray-700 mb-1">End User</label>
-              <SearchableDropdownV2
-                value={formData.endUserId}
-                displayValue={formData.endUserName}
-                onChange={(id, label) => {
-                  setFormData({
-                    ...formData,
-                    endUserId: id,
-                    endUserName: label,
-                  });
-                }}
-                options={endUserOptions}
-                placeholder="Search end user..."
-                onSearch={(term) => {
-                  setEndUserSearchTerm(term);
-                  setEndUserSearchEnabled(true);
-                }}
-                isLoading={isEndUserLoading}
-              />
-            </div>
+            {/* End User - only shown when endUserPerLineItem is true */}
+            {endUserPerLineItem && (
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">End User</label>
+                <SearchableDropdownV2
+                  value={formData.endUserId}
+                  displayValue={formData.endUserName}
+                  onChange={(id, label) => {
+                    setFormData({
+                      ...formData,
+                      endUserId: id,
+                      endUserName: label,
+                    });
+                  }}
+                  options={endUserOptions}
+                  placeholder="Search end user..."
+                  onSearch={(term) => {
+                    setEndUserSearchTerm(term);
+                    setEndUserSearchEnabled(true);
+                  }}
+                  isLoading={isEndUserLoading}
+                />
+              </div>
+            )}
 
-            {/* Outside Rep Commission Split */}
+            {/* Outside Rep Commission Split - only shown when outsidePerLineItem is true */}
+            {outsidePerLineItem && (
             <div className="border border-green-200 rounded-lg p-4 bg-green-50/30">
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-2 h-2 rounded-full bg-green-500"></div>
@@ -402,8 +414,10 @@ export function AdditionalDetailsModal({
                 placeholder="Search to add outside rep..."
               />
             </div>
+            )}
 
-            {/* Inside Rep Commission Split */}
+            {/* Inside Rep Commission Split - only shown when insidePerLineItem is true */}
+            {insidePerLineItem && (
             <div className="border border-blue-200 rounded-lg p-4 bg-blue-50/30">
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-2 h-2 rounded-full bg-blue-500"></div>
@@ -470,6 +484,7 @@ export function AdditionalDetailsModal({
                 placeholder="Search to add inside rep..."
               />
             </div>
+            )}
 
             {/* Commission Discount % */}
             <div>

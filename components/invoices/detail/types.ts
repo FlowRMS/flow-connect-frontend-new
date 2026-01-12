@@ -93,6 +93,20 @@ export interface EditableInvoice extends Omit<BaseInvoice, 'lineItems'> {
   insideRepId?: string;
   insideRepName?: string;
 
+  // Header-level split rates (when NOT per-line-item, grabbed from first line item)
+  outsideSplitRates?: {
+    userId: string;
+    userName: string;
+    splitRate: number;
+    position: number;
+  }[];
+  insideSplitRates?: {
+    userId: string;
+    userName: string;
+    splitRate: number;
+    position: number;
+  }[];
+
   // Per-line-item flags from order - when true, these are set per line item in Additional Details
   // When false, they should be shown in header fields (read-only from order)
   outsidePerLineItem?: boolean;
