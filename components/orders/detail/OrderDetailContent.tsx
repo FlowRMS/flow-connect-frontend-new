@@ -6,9 +6,10 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useOrderDetailState } from './hooks/useOrderDetailState';
+import { useFlowChat } from '@/contexts/FlowChatContext';
 import { OrderDetailHeader } from './components/header';
 import { LineItemsTable } from './components/line-items';
 import { NotesTab, TasksTab, ActivityTab, CreditsTab, AdjustmentsTab, AcknowledgementsTab, LinkedObjectsTab, SettingsTab } from './components/tabs';
@@ -52,6 +53,7 @@ interface OrderDetailContentProps {
 export default function OrderDetailContent({ orderId }: OrderDetailContentProps) {
   const router = useRouter();
   const state = useOrderDetailState({ orderId });
+  const { setFullEntityContext } = useFlowChat();
 
   // Credits state management
   const creditsState = useCreditsState({ orderId: orderId !== 'new' ? orderId : null });
@@ -78,6 +80,16 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   // Auto-populate reps hook for settings toggle
   const { fetchOutsideRepsFromCustomer, fetchInsideRepsFromFactory } = useAutoPopulateReps();
 
+  // Set full entity context for global chatbot (type, id, and order number)
+  useEffect(() => {
+    if (state?.order?.orderNumber && orderId) {
+      setFullEntityContext('order', orderId, state.order.orderNumber);
+    }
+    return () => {
+      setFullEntityContext(null, null, null);
+    };
+  }, [state?.order?.orderNumber, orderId, setFullEntityContext]);
+
   // Wrapped handlers for settings changes with rep redistribution
   const handleSetShowOutsideRepPerLine = async (value: boolean) => {
     state.setShowOutsideRepPerLine(value);
@@ -92,7 +104,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
             // Store for new line items to inherit
             setCurrentOutsideReps(reps);
             const outsideSplitRates = reps.map((rep, idx) => ({
-              id: crypto.randomUUID(),
+              id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
               userId: rep.userId,
               userName: rep.userName,
               splitRate: rep.splitRate,
@@ -132,7 +144,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
             // Store for new line items to inherit
             setCurrentInsideReps(reps);
             const insideSplitRates = reps.map((rep, idx) => ({
-              id: crypto.randomUUID(),
+              id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
               userId: rep.userId,
               userName: rep.userName,
               splitRate: rep.splitRate,
@@ -241,6 +253,19 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
       // Helper to check if ID is a valid UUID (from API)
       const isValidUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
+      // Validate required dates
+      if (!order.dueDate) {
+        console.error('❌ VALIDATION FAILED: Due Date is missing');
+        orderToasts.updateError('Due Date is required.');
+        return;
+      }
+
+      if (!order.requestedShipDate && !order.shipDate) {
+        console.error('❌ VALIDATION FAILED: Projected Ship Date is missing');
+        orderToasts.updateError('Projected Ship Date is required.');
+        return;
+      }
+
       // Validate End User based on settings (REQUIRED field)
       const orderEndUserId = (order as any).endUserId;
 
@@ -331,6 +356,10 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
 
       // Build details with insideSplitRates and outsideSplitRates at detail level
       const buildDetails = (includeId: boolean) => (order.lineItems || []).map((item, index) => {
+        // CRITICAL: Check if this is a new line item (no valid UUID)
+        // If the line item is new, its split rates should NOT have IDs either
+        const isNewLineItem = !item.id || !isValidUUID(item.id);
+
         // Determine which split rates to use based on per-line-item settings:
         // - If per-line-item is enabled, use the line item's own split rates
         // - If disabled, use header-level split rates for all line items
@@ -339,8 +368,9 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
 
         if (state.showInsideRepPerLine && (item as any).insideSplitRates?.length > 0) {
           // Use line item's own inside split rates
+          // Only include split rate ID if the parent line item is NOT new (existing in DB)
           lineInsideSplitRates = (item as any).insideSplitRates.map((sr: any, idx: number) => ({
-            ...(sr.id && isValidUUID(sr.id) ? { id: sr.id } : {}),
+            ...(!isNewLineItem && sr.id && isValidUUID(sr.id) ? { id: sr.id } : {}),
             userId: sr.userId || '',
             splitRate: Number(sr.splitRate) || 100,
             position: sr.position ?? idx,
@@ -349,8 +379,9 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
 
         if (state.showOutsideRepPerLine && (item as any).outsideSplitRates?.length > 0) {
           // Use line item's own outside split rates
+          // Only include split rate ID if the parent line item is NOT new (existing in DB)
           lineOutsideSplitRates = (item as any).outsideSplitRates.map((sr: any, idx: number) => ({
-            ...(sr.id && isValidUUID(sr.id) ? { id: sr.id } : {}),
+            ...(!isNewLineItem && sr.id && isValidUUID(sr.id) ? { id: sr.id } : {}),
             userId: sr.userId || '',
             splitRate: Number(sr.splitRate) || 100,
             position: sr.position ?? idx,
@@ -376,11 +407,19 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           leadTime: (item as any).leadTime || undefined,
           note: (item as any).note || undefined,
         };
-        // Get endUserId: use line-item level if set, otherwise fall back to order-level
-        const lineEndUserId = (item as any).endUserId;
-        const endUserIdToUse = (lineEndUserId && isValidUUID(lineEndUserId))
-          ? lineEndUserId
-          : (orderEndUserId && isValidUUID(orderEndUserId) ? orderEndUserId : undefined);
+        // Get endUserId: RESPECT the showEndUserPerLine setting!
+        // - When showEndUserPerLine is TRUE: use line-item's endUserId
+        // - When showEndUserPerLine is FALSE: ALWAYS use header-level endUserId for ALL line items
+        let endUserIdToUse: string | undefined;
+
+        if (state.showEndUserPerLine) {
+          // Per-line-item is ON: use line item's end user
+          const lineEndUserId = (item as any).endUserId;
+          endUserIdToUse = (lineEndUserId && isValidUUID(lineEndUserId)) ? lineEndUserId : undefined;
+        } else {
+          // Per-line-item is OFF: ALWAYS use header-level end user, ignoring any line-item end users
+          endUserIdToUse = (orderEndUserId && isValidUUID(orderEndUserId)) ? orderEndUserId : undefined;
+        }
 
         if (endUserIdToUse) {
           detail.endUserId = endUserIdToUse;
@@ -534,7 +573,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
 
     // Convert RepSplitRate[] to the format expected by line items
     const outsideSplitRates = reps.map((rep, idx) => ({
-      id: crypto.randomUUID(),
+      id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
       userId: rep.userId,
       userName: rep.userName,
       splitRate: rep.splitRate,
@@ -559,7 +598,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
 
     // Convert RepSplitRate[] to the format expected by line items
     const insideSplitRates = reps.map((rep, idx) => ({
-      id: crypto.randomUUID(),
+      id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
       userId: rep.userId,
       userName: rep.userName,
       splitRate: rep.splitRate,

@@ -224,7 +224,7 @@ export function AdditionalDetailsModalV2({
     const setReps = isInside ? setInsideSplitReps : setOutsideSplitReps;
 
     const newRep: CommissionSplitRep = {
-      id: crypto.randomUUID(),
+      id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
       userId: rep.id,
       userName: repName,
       splitRate: '0',
@@ -360,7 +360,7 @@ export function AdditionalDetailsModalV2({
                       if (reps.length > 0) {
                         // Convert to the format expected by this modal
                         const newOutsideSplitReps = reps.map((rep, idx) => ({
-                          id: crypto.randomUUID(),
+                          id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
                           userId: rep.userId,
                           userName: rep.userName,
                           splitRate: rep.splitRate,

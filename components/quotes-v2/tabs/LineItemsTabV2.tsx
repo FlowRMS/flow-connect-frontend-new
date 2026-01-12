@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import type { LineItemV2, ColumnConfig, LineItemColumnKey, QuoteSettingsV2 } from '../types';
 import { useProductSearch, useFactorySearch, useProductCpns, useCustomerSearch, useProductUoms, getProductCpnByCustomer, listProductPricingTiers } from '../../quotes/api/useQuotesApi';
 import type { ProductPricingTierResult } from '../../quotes/api/quotesApi';
+import { fetchProductById } from '../../products/api/productsApi';
 import { useAutoPopulateReps } from '@/components/shared/hooks/useAutoPopulateReps';
 
 // Type for rep split rates passed from parent
@@ -311,7 +312,8 @@ export function LineItemsTabV2({
       }));
 
       const sellTotal = qty * unitPrice / item.divisor;
-      const commissionTotal = sellTotal * item.commissionPercent;
+      // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
+      const commissionTotal = sellTotal * (item.commissionPercent / 100);
       const commission = qty > 0 ? commissionTotal / qty : 0;
       updates.quantity = qty;
       // Only update unit price if using tier pricing (not CPN)
@@ -324,7 +326,8 @@ export function LineItemsTabV2({
     } else if (column === 'divisor') {
       const divisor = parseFloat(value) || 1;
       const sellTotal = item.quantity * item.unitPrice / divisor;
-      const commissionTotal = sellTotal * item.commissionPercent;
+      // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
+      const commissionTotal = sellTotal * (item.commissionPercent / 100);
       const commission = item.quantity > 0 ? commissionTotal / item.quantity : 0;
       updates.divisor = divisor;
       updates.sellTotal = sellTotal;
@@ -333,7 +336,8 @@ export function LineItemsTabV2({
     } else if (column === 'unitPrice') {
       const price = parseFloat(value.replace(/[$,]/g, '')) || 0;
       const sellTotal = item.quantity * price / item.divisor;
-      const commissionTotal = sellTotal * item.commissionPercent;
+      // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
+      const commissionTotal = sellTotal * (item.commissionPercent / 100);
       const commission = item.quantity > 0 ? commissionTotal / item.quantity : 0;
       updates.unitPrice = price;
       updates.sellTotal = sellTotal;
@@ -351,10 +355,11 @@ export function LineItemsTabV2({
         return newSet;
       });
     } else if (column === 'commissionPercent') {
-      const pct = parseFloat(value) / 100 || 0;
+      const pct = parseFloat(value) || 0;
       // Recalculate sellTotal to ensure consistency
       const sellTotal = item.quantity * item.unitPrice / item.divisor;
-      const commissionTotal = sellTotal * pct;
+      // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
+      const commissionTotal = sellTotal * (pct / 100);
       const commission = item.quantity > 0 ? commissionTotal / item.quantity : 0;
       updates.commissionPercent = pct;
       updates.sellTotal = sellTotal; // Ensure sellTotal is up to date
@@ -379,7 +384,7 @@ export function LineItemsTabV2({
       unitPrice: 0,
       sellTotal: 0,
       total: 0,
-      commissionPercent: 0.08,
+      commissionPercent: 8, // Stored as whole percentage (8 for 8%)
       commission: 0,
       commissionTotal: 0,
       commissionDiscountPercent: 0,
@@ -389,7 +394,7 @@ export function LineItemsTabV2({
       // Inherit outside reps if per-line-item setting is enabled
       outsideSplitRates: settings?.outsideRepAtLineLevel && currentOutsideReps && currentOutsideReps.length > 0
         ? currentOutsideReps.map((rep, idx) => ({
-            id: crypto.randomUUID(),
+            id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
             userId: rep.userId,
             userName: rep.userName,
             splitRate: rep.splitRate,
@@ -399,7 +404,7 @@ export function LineItemsTabV2({
       // Inherit inside reps if per-line-item setting is enabled AND factory is at header level
       insideSplitRates: settings?.insideRepAtLineLevel && !settings?.factoryPerLineItem && currentInsideReps && currentInsideReps.length > 0
         ? currentInsideReps.map((rep, idx) => ({
-            id: crypto.randomUUID(),
+            id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
             userId: rep.userId,
             userName: rep.userName,
             splitRate: rep.splitRate,
@@ -473,8 +478,8 @@ export function LineItemsTabV2({
         displayValue = `$${Number(item.sellTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         break;
       case 'commissionPercent':
-        displayValue = (Number(item.commissionPercent || 0) * 100).toFixed(2);
-        editValue = (Number(item.commissionPercent || 0) * 100).toFixed(2);
+        displayValue = Number(item.commissionPercent || 0).toFixed(2);
+        editValue = Number(item.commissionPercent || 0).toFixed(2);
         break;
       case 'commission':
         displayValue = `$${Number(item.commission || 0).toFixed(2)}`;
@@ -908,7 +913,7 @@ export function LineItemsTabV2({
                                 const reps = await fetchInsideRepsFromFactory(factory.id);
                                 if (reps.length > 0) {
                                   updates.insideSplitRates = reps.map((rep, idx) => ({
-                                    id: crypto.randomUUID(),
+                                    id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
                                     userId: rep.userId,
                                     userName: rep.userName,
                                     splitRate: rep.splitRate,
@@ -970,7 +975,6 @@ export function LineItemsTabV2({
                           const item = lineItems.find(li => li.id === dropdownOpen.itemId);
                           const itemId = dropdownOpen.itemId;
                           const quantity = item?.quantity || 1;
-                          const divisor = product.defaultDivisor || item?.divisor || 1;
 
                           // Default values from product
                           let unitPrice = product.unitPrice || 0;
@@ -981,18 +985,37 @@ export function LineItemsTabV2({
                           setSearchQuery('');
                           setDebouncedSearch('');
 
-                          // Fetch CPN and pricing tiers in parallel
+                          // Fetch CPN, pricing tiers, and full product details in parallel
                           let customerPartNumber = '';
+                          let factoryId: string | undefined;
+                          let factoryTitle: string | undefined;
+                          let uomId: string | undefined;
+                          let uomTitle: string | undefined;
+                          let divisor = product.defaultDivisor || item?.divisor || 1;
 
                           if (product.id) {
-                            const [cpnResult, tiersResult] = await Promise.all([
+                            const [cpnResult, tiersResult, fullProduct] = await Promise.all([
                               // Fetch CPN for the customer
                               soldToCustomerId
                                 ? getProductCpnByCustomer(product.id, soldToCustomerId).catch(() => null)
                                 : Promise.resolve(null),
                               // Fetch pricing tiers for volume discounts
-                              listProductPricingTiers(product.id).catch(() => [])
+                              listProductPricingTiers(product.id).catch(() => []),
+                              // Fetch full product details for factory and UOM
+                              fetchProductById(product.id).catch(() => null)
                             ]);
+
+                            // Extract factory and UOM from full product details
+                            if (fullProduct) {
+                              factoryId = fullProduct.factory?.id;
+                              factoryTitle = fullProduct.factory?.title;
+                              uomId = fullProduct.uom?.id;
+                              uomTitle = fullProduct.uom?.title;
+                              // Use UOM's divisionFactor if available
+                              if (fullProduct.uom?.divisionFactor) {
+                                divisor = fullProduct.uom.divisionFactor;
+                              }
+                            }
 
                             // Track if CPN has custom pricing (CPN pricing takes priority over tier pricing)
                             let cpnHasCustomPrice = false;
@@ -1005,9 +1028,9 @@ export function LineItemsTabV2({
                                 cpnHasCustomPrice = true;
                               }
                               // Use CPN's commission rate if available (override product default)
-                              // CPN commission rate is stored as whole number (e.g., 3 for 3%), convert to decimal
+                              // CPN commission rate is stored as whole number (e.g., 3 for 3%)
                               if (cpnResult.commissionRate) {
-                                commissionRate = parseFloat(cpnResult.commissionRate) / 100;
+                                commissionRate = parseFloat(cpnResult.commissionRate);
                               }
                             }
 
@@ -1074,6 +1097,12 @@ export function LineItemsTabV2({
                               sellTotal: sellTotal,
                               commission: commission,
                               commissionTotal: commissionTotal,
+                              // Auto-populate manufacturer from product's factory
+                              manufacturerId: factoryId || li.manufacturerId,
+                              manufacturerName: factoryTitle || li.manufacturerName,
+                              // Auto-populate UOM from product's default UOM
+                              uomId: uomId || li.uomId,
+                              uom: uomTitle || li.uom,
                             } : li)
                           );
                         }}
@@ -1170,7 +1199,8 @@ export function LineItemsTabV2({
                               const unitPrice = item?.unitPrice || 0;
                               const commissionPercent = item?.commissionPercent || 0;
                               const sellTotal = quantity * unitPrice / divisor;
-                              const commissionTotal = sellTotal * commissionPercent;
+                              // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
+                              const commissionTotal = sellTotal * (commissionPercent / 100);
                               const commission = quantity > 0 ? commissionTotal / quantity : 0;
 
                               updateLineItem(dropdownOpen.itemId, {

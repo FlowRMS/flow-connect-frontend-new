@@ -75,14 +75,14 @@ export const calculateLineItemsSummary = (
   lineCount: number;
 } => {
   const expectedTotal = lineItems.reduce(
-    (sum, item) => sum + item.expectedCommission,
+    (sum, item) => sum + (Number(item.expectedCommission) || 0),
     0
   );
   const paidTotal = lineItems.reduce(
-    (sum, item) => sum + item.paidCommission,
+    (sum, item) => sum + (Number(item.paidCommission) || 0),
     0
   );
-  const balanceTotal = lineItems.reduce((sum, item) => sum + item.balance, 0);
+  const balanceTotal = lineItems.reduce((sum, item) => sum + (Number(item.balance) || 0), 0);
   return {
     expectedTotal,
     paidTotal,

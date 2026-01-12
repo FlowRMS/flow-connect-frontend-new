@@ -37,6 +37,7 @@ import {
 import { searchUsers, searchFactories, searchCustomers, getProductCpnByCustomer, listProductPricingTiers, getPriceForQuantity } from '../quotes/api/quotesApi';
 import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/useAutoPopulateReps';
 import { quoteToasts } from '../lib/toast';
+import { useFlowChat } from '@/contexts/FlowChatContext';
 import { createLink, deleteLinkByEntities } from '../lib/graphql/entity-links';
 
 // Helper function to fetch CPNs and update pricing for line items when customer changes
@@ -72,9 +73,9 @@ async function fetchCpnsAndUpdatePricing(
           unitPrice = parseFloat(cpnResult.unitPrice);
           hasCpnPricing = true;
         }
-        // Use CPN's commission rate if available (convert from whole number to decimal)
+        // Use CPN's commission rate if available (stored as whole percentage, e.g., 3 for 3%)
         if (cpnResult.commissionRate) {
-          commissionRate = parseFloat(cpnResult.commissionRate) / 100;
+          commissionRate = parseFloat(cpnResult.commissionRate);
         }
       }
 
@@ -87,8 +88,9 @@ async function fetchCpnsAndUpdatePricing(
       const quantity = li.quantity || 1;
       const divisor = li.divisor || 1;
       const sellTotal = quantity * unitPrice / divisor;
-      const commission = quantity > 0 ? sellTotal * commissionRate / quantity : 0;
-      const commissionTotal = sellTotal * commissionRate;
+      // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
+      const commission = quantity > 0 ? sellTotal * (commissionRate / 100) / quantity : 0;
+      const commissionTotal = sellTotal * (commissionRate / 100);
 
       return {
         itemId: li.id,
@@ -141,6 +143,7 @@ interface QuoteDetailV2PageProps {
 export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetailV2PageProps) {
   // API hooks
   const { data: apiQuote, isLoading, error } = useQuoteV2(quoteId);
+  const { setFullEntityContext } = useFlowChat();
   const createQuoteMutation = useCreateQuoteV2();
   const updateQuoteMutation = useUpdateQuoteV2();
   const deleteQuoteMutation = useDeleteQuoteV2();
@@ -244,6 +247,20 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
                   endUserName: li.endUserId ? customerMap.get(li.endUserId) || '' : '',
                 }))
               );
+
+              // When endUserPerLineItem is false, populate header-level end user from first line item
+              // (all line items should have the same end user when this setting is off)
+              if (apiQuote.endUserPerLineItem === false && transformedLineItems.length > 0) {
+                const firstLineItemWithEndUser = transformedLineItems.find(li => li.endUserId);
+                if (firstLineItemWithEndUser?.endUserId) {
+                  const endUserName = customerMap.get(firstLineItemWithEndUser.endUserId) || '';
+                  setQuote(prev => ({
+                    ...prev,
+                    endUserId: firstLineItemWithEndUser.endUserId,
+                    endUserName: endUserName,
+                  }));
+                }
+              }
             })
             .catch((err) => console.error('Failed to fetch end user names:', err));
         }
@@ -346,6 +363,16 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
     }
   }, [apiQuote, isNew]);
 
+  // Set full entity context for global chatbot (type, id, and quote number)
+  useEffect(() => {
+    if (quote?.quoteNumber && quoteId) {
+      setFullEntityContext('quote', quoteId, quote.quoteNumber);
+    }
+    return () => {
+      setFullEntityContext(null, null, null);
+    };
+  }, [quote?.quoteNumber, quoteId, setFullEntityContext]);
+
   // Initialize with one empty line item for new quotes
   useEffect(() => {
     if (isNew && lineItems.length === 0) {
@@ -362,7 +389,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         unitPrice: 0,
         sellTotal: 0,
         total: 0,
-        commissionPercent: 0.08,
+        commissionPercent: 8, // Stored as whole percentage (8 for 8%)
         commission: 0,
         commissionTotal: 0,
         commissionDiscountPercent: 0,
@@ -463,6 +490,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       factoryPerLineItem: settings.factoryPerLineItem,
       // Split rates are now at detail level (insideSplitRates and outsideSplitRates per line item)
       // Pass settings so each line item uses its own split rates when per-line-item is enabled
+      // Pass header-level endUserId for when specifyEndUserPerLine is false
       details: lineItems.map((li, index) => ({
         ...transformLineItemV2ToDetailInput(
           li,
@@ -472,8 +500,10 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
             insideRepAtLineLevel: settings.insideRepAtLineLevel,
             outsideRepAtLineLevel: settings.outsideRepAtLineLevel,
             factoryPerLineItem: settings.factoryPerLineItem,
+            specifyEndUserPerLine: settings.specifyEndUserPerLine,
           },
-          quote.factoryId // Pass header-level factory for when factoryPerLineItem is false
+          quote.factoryId, // Pass header-level factory for when factoryPerLineItem is false
+          quote.endUserId // Pass header-level endUserId for when specifyEndUserPerLine is false
         ),
         itemNumber: li.itemNumber ?? index + 1,
       })),
@@ -699,7 +729,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
     // Convert RepSplitRate[] to the format expected by line items
     // Include userName so the modal can display the name without looking it up
     const outsideSplitRates = reps.map((rep, idx) => ({
-      id: crypto.randomUUID(),
+      id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
       userId: rep.userId,
       userName: rep.userName,
       splitRate: rep.splitRate,
@@ -724,7 +754,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
     // Convert RepSplitRate[] to the format expected by line items
     // Include userName so the modal can display the name without looking it up
     const insideSplitRates = reps.map((rep, idx) => ({
-      id: crypto.randomUUID(),
+      id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
       userId: rep.userId,
       userName: rep.userName,
       splitRate: rep.splitRate,
@@ -759,7 +789,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
 
           // Convert to line item format - include userName
           const insideSplitRates = reps.map((rep, idx) => ({
-            id: crypto.randomUUID(),
+            id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
             userId: rep.userId,
             userName: rep.userName,
             splitRate: rep.splitRate,
@@ -800,7 +830,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
             // Store for new line items to inherit
             setCurrentOutsideReps(reps);
             const outsideSplitRates = reps.map((rep, idx) => ({
-              id: crypto.randomUUID(),
+              id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
               userId: rep.userId,
               userName: rep.userName,
               splitRate: rep.splitRate,
@@ -828,7 +858,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
                 const reps = await fetchInsideRepsFromFactory(item.manufacturerId);
                 if (reps.length === 0) return item;
                 const insideSplitRates = reps.map((rep, idx) => ({
-                  id: crypto.randomUUID(),
+                  id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
                   userId: rep.userId,
                   userName: rep.userName,
                   splitRate: rep.splitRate,
@@ -848,7 +878,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
             // Store for new line items to inherit
             setCurrentInsideReps(reps);
             const insideSplitRates = reps.map((rep, idx) => ({
-              id: crypto.randomUUID(),
+              id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
               userId: rep.userId,
               userName: rep.userName,
               splitRate: rep.splitRate,
@@ -874,7 +904,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
               const reps = await fetchInsideRepsFromFactory(item.manufacturerId);
               if (reps.length === 0) return item;
               const insideSplitRates = reps.map((rep, idx) => ({
-                id: crypto.randomUUID(),
+                id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
                 userId: rep.userId,
                 userName: rep.userName,
                 splitRate: rep.splitRate,
@@ -894,7 +924,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
           // Store for new line items to inherit
           setCurrentInsideReps(reps);
           const insideSplitRates = reps.map((rep, idx) => ({
-            id: crypto.randomUUID(),
+            id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
             userId: rep.userId,
             userName: rep.userName,
             splitRate: rep.splitRate,

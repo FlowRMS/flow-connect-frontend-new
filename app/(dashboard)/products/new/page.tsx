@@ -36,7 +36,7 @@ export default function CreateProductPage() {
     defaultCommissionRate: undefined,
     productUomId: '',
     productCategoryId: undefined,
-    published: false,
+    published: true,
     approvalNeeded: false,
     description: '',
   });
@@ -283,14 +283,14 @@ export default function CreateProductPage() {
               </div>
               <div>
                 <h1 className="text-xl font-semibold text-gray-900">
+                  {formData.factoryPartNumber || 'New Product'}
+                </h1>
+                <p className="text-sm text-gray-500">
                   {formData.description
                     ? formData.description.length > 50
                       ? `${formData.description.slice(0, 50)}...`
                       : formData.description
-                    : 'New Product'}
-                </h1>
-                <p className="text-sm text-gray-500">
-                  {formData.factoryPartNumber || 'Enter product details below'}
+                    : 'Enter product details below'}
                 </p>
               </div>
             </div>
@@ -581,8 +581,8 @@ export default function CreateProductPage() {
                   <input
                     type="number"
                     step="0.1"
-                    value={formData.defaultCommissionRate !== undefined ? formData.defaultCommissionRate * 100 : ''}
-                    onChange={(e) => handleChange('defaultCommissionRate', e.target.value ? parseFloat(e.target.value) / 100 : undefined)}
+                    value={formData.defaultCommissionRate !== undefined ? formData.defaultCommissionRate : ''}
+                    onChange={(e) => handleChange('defaultCommissionRate', e.target.value ? parseFloat(e.target.value) : undefined)}
                     className={`${inputClass} pr-8 ${errors.defaultCommissionRate ? 'border-red-500' : ''}`}
                     placeholder="0"
                   />

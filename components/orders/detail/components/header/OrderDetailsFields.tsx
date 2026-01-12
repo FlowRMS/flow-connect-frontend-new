@@ -105,35 +105,32 @@ export function OrderDetailsFields({
   const [endUserSearchEnabled, setEndUserSearchEnabled] = useState(false);
 
   // End user same as sold to checkbox state
-  // Initialize based on whether endUserId matches customerId
-  const [endUserSameAsSoldTo, setEndUserSameAsSoldTo] = useState(() => {
-    const endUserId = (order as any).endUserId;
-    const customerId = order.customerId;
-    return endUserId && customerId && endUserId === customerId;
-  });
+  // Initialize to false - user must explicitly check it (matching quotes behavior)
+  const [endUserSameAsSoldTo, setEndUserSameAsSoldTo] = useState(false);
 
   // Bill to same as sold to checkbox state
-  const [billToSameAsSoldTo, setBillToSameAsSoldTo] = useState(() => {
-    const billToCustomerId = (order as any).billToCustomerId;
-    const customerId = order.customerId;
-    return billToCustomerId && customerId && billToCustomerId === customerId;
-  });
+  // Initialize to false - user must explicitly check it (matching quotes behavior)
+  const [billToSameAsSoldTo, setBillToSameAsSoldTo] = useState(false);
 
-  // Update the checkbox when order changes
+  // Update the checkbox when order changes - check both directions
   useEffect(() => {
     const endUserId = (order as any).endUserId;
     const customerId = order.customerId;
     if (endUserId && customerId && endUserId === customerId) {
       setEndUserSameAsSoldTo(true);
+    } else {
+      setEndUserSameAsSoldTo(false);
     }
   }, [(order as any).endUserId, order.customerId]);
 
-  // Update bill to checkbox when order changes
+  // Update bill to checkbox when order changes - check both directions
   useEffect(() => {
     const billToCustomerId = (order as any).billToCustomerId;
     const customerId = order.customerId;
     if (billToCustomerId && customerId && billToCustomerId === customerId) {
       setBillToSameAsSoldTo(true);
+    } else {
+      setBillToSameAsSoldTo(false);
     }
   }, [(order as any).billToCustomerId, order.customerId]);
 
@@ -315,7 +312,7 @@ export function OrderDetailsFields({
 
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Factory<span className="text-red-500">*</span>
+                Manufacturer<span className="text-red-500">*</span>
               </label>
               <SearchableDropdownV2
                 value={order.manufacturerId || ''}
@@ -330,7 +327,7 @@ export function OrderDetailsFields({
                   }
                 }}
                 options={factoryOptions}
-                placeholder="Select Factory..."
+                placeholder="Select Manufacturer..."
                 isLoading={isFactoryLoading}
                 onSearch={(query) => {
                   setFactorySearchTerm(query);
@@ -538,7 +535,7 @@ export function OrderDetailsFields({
 
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Projected Ship Date
+                Projected Ship Date<span className="text-red-500">*</span>
               </label>
               <StyledDatePicker
                 selected={parseDateString(order.requestedShipDate || order.shipDate)}
@@ -549,11 +546,11 @@ export function OrderDetailsFields({
             </div>
           </div>
 
-          {/* Row 3: Factory SO Number, Outside Rep, Inside Rep, Quote Reference, Freight Terms, Due Date */}
+          {/* Row 3: Manufacturer SO Number, Outside Rep, Inside Rep, Quote Reference, Freight Terms, Due Date */}
           <div className="grid grid-cols-6 gap-4">
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Factory SO Number
+                Manufacturer SO Number
               </label>
               <input
                 type="text"
@@ -580,7 +577,7 @@ export function OrderDetailsFields({
                     <div className="flex-1">
                       <SearchableDropdownV2
                         value={orderOutsideRep}
-                        displayValue={outsideRepOptions.find(r => r.id === orderOutsideRep)?.label || (order as any).outsideRepName}
+                        displayValue={outsideRepOptions.find(r => r.id === orderOutsideRep)?.label || outsideRepSplits.find(r => r.repId === orderOutsideRep)?.repName || (order as any).outsideRepName}
                         onChange={(id, label) => {
                           setOrderOutsideRep(id);
                           handleFieldUpdate('outsideRepId' as keyof Order, id);
@@ -659,7 +656,7 @@ export function OrderDetailsFields({
                     <div className="flex-1">
                       <SearchableDropdownV2
                         value={orderInsideRep}
-                        displayValue={insideRepOptions.find(r => r.id === orderInsideRep)?.label || order.insideRepName}
+                        displayValue={insideRepOptions.find(r => r.id === orderInsideRep)?.label || insideRepSplits.find(r => r.repId === orderInsideRep)?.repName || (order as any).insideRepName || order.insideRepName}
                         onChange={(id, label) => {
                           setOrderInsideRep(id);
                           handleFieldUpdate('insideRepId', id);

@@ -290,14 +290,14 @@ export function PostedStatementModal({
                           {item.orderNumber || '-'}
                         </td>
                         <td className="px-4 py-3 text-sm text-[var(--foreground)] text-right">
-                          ${item.expectedCommission.toFixed(5)}
+                          ${Number(item.expectedCommission).toFixed(5)}
                         </td>
                         <td className="px-4 py-3 text-sm text-[var(--foreground)] text-right">
-                          ${item.paidCommission.toFixed(5)}
+                          ${Number(item.paidCommission).toFixed(5)}
                         </td>
                         <td className="px-4 py-3 text-sm text-[var(--foreground)] text-right">
-                          {item.commissionRateActual > 0
-                            ? `$${(item.paidCommission / (item.commissionRateActual / 100)).toFixed(2)}`
+                          {Number(item.commissionRateActual) > 0
+                            ? `$${(Number(item.paidCommission) / (Number(item.commissionRateActual) / 100)).toFixed(2)}`
                             : '-'}
                         </td>
                         <td className="px-4 py-3 text-sm text-[var(--foreground)]">

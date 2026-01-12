@@ -853,19 +853,36 @@ export default function ContactDetailView({
   // Reference to the scrollable container
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
+  // Flag to disable scroll spy during programmatic scrolling
+  const isScrollingRef = useRef(false);
+
   const scrollToSection = useCallback((tabId: TabId) => {
     const section = sectionRefs.current[tabId];
     const container = scrollContainerRef.current;
     if (section && container) {
+      // Disable scroll spy during programmatic scroll
+      isScrollingRef.current = true;
+      setActiveTab(tabId);
+
+      // Calculate the section's position relative to the scroll container
+      const containerRect = container.getBoundingClientRect();
+      const sectionRect = section.getBoundingClientRect();
+      const scrollTop = container.scrollTop;
       const headerOffset = 20;
-      const sectionTop = section.offsetTop - headerOffset;
+
+      // Calculate the target scroll position
+      const sectionTop = sectionRect.top - containerRect.top + scrollTop - headerOffset;
 
       container.scrollTo({
         top: sectionTop,
         behavior: 'smooth'
       });
+
+      // Re-enable scroll spy after scroll animation completes
+      setTimeout(() => {
+        isScrollingRef.current = false;
+      }, 500);
     }
-    setActiveTab(tabId);
   }, []);
 
   // Scroll spy - update active tab based on scroll position
@@ -876,15 +893,18 @@ export default function ContactDetailView({
     const tabIds: TabId[] = ['overview', 'sales-reps', 'addresses', 'emails', 'meetings', 'connected-entities'];
 
     const handleScroll = () => {
-      const scrollTop = container.scrollTop;
+      // Skip scroll spy updates during programmatic scrolling
+      if (isScrollingRef.current) return;
 
+      const containerRect = container.getBoundingClientRect();
       let currentSection: TabId = 'overview';
 
       for (const tabId of tabIds) {
         const section = sectionRefs.current[tabId];
         if (section) {
-          const sectionTop = section.offsetTop;
-          if (scrollTop >= sectionTop - 100) {
+          const sectionRect = section.getBoundingClientRect();
+          // Check if section top is at or above the container top + offset
+          if (sectionRect.top <= containerRect.top + 100) {
             currentSection = tabId;
           }
         }
@@ -937,7 +957,7 @@ export default function ContactDetailView({
   const labelClass = "flex items-center gap-2 text-sm font-medium text-gray-700 mb-2";
 
   return (
-    <main className="flex-1 bg-gray-50 overflow-hidden flex flex-col">
+    <main className="h-full bg-gray-50 overflow-hidden flex flex-col">
       {/* Sticky Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
         <div className="flex items-center justify-between">
@@ -1034,8 +1054,8 @@ export default function ContactDetailView({
         </div>
       </div>
 
-      {/* Sticky Tab Navigation */}
-      <div className="bg-white border-b border-gray-200 px-6 flex-shrink-0 sticky top-0 z-10">
+      {/* Tab Navigation */}
+      <div className="bg-white border-b border-gray-200 px-6 flex-shrink-0">
         <div className="flex gap-1 overflow-x-auto py-2">
           {tabs.map((tab) => (
             <button
