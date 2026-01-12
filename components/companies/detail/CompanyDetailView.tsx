@@ -6,18 +6,16 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import type { Company, CompanyAddress, AddressType, ManufacturerInfo, SalesRepAssignment, CompanyHierarchyRole, ChildCompanyRef } from '../types';
-import type { CompanySourceType, Contact as APIContact, Job as APIJob } from '../../lib/crm-graphql';
+import type { CompanySourceType } from '../../lib/crm-graphql';
 import { COMPANY_SOURCE_TYPE_OPTIONS, COMPANY_SOURCE_TYPE_LABELS } from '../../lib/crm-graphql';
-import CompanyRelatedEntities from './CompanyRelatedEntities';
-import ConnectedNotesSection from '../../notes/ConnectedNotesSection';
-import ConnectedTasksSection from '../../tasks/ConnectedTasksSection';
+import type { RelatedEntityContact, RelatedEntityJob } from '../../lib/crm-graphql';
+import { ConnectedEntitiesSection } from '../../shared/ConnectedEntitiesSection';
 import DeleteConfirmModal from './DeleteConfirmModal';
-import { AddTaskNoteLinkModal } from '../modals/AddTaskNoteLinkModal';
 import { AddAddressModal, type Address } from '../../shared/AddAddressModal';
 import AliasesModal, { CompanyAlias } from '../../AliasesModal';
 import { SelectChildCompaniesModal } from '../modals/SelectChildCompaniesModal';
 
-type TabId = 'overview' | 'factory-info' | 'sales-reps' | 'addresses' | 'contacts' | 'jobs' | 'quotes' | 'orders' | 'invoices' | 'commission-statements' | 'pre-quotes' | 'emails' | 'meetings' | 'tasks' | 'notes';
+type TabId = 'overview' | 'factory-info' | 'sales-reps' | 'addresses' | 'emails' | 'meetings' | 'connected-entities';
 
 // US States list
 const US_STATES = [
@@ -55,8 +53,8 @@ interface CompanyDetailViewProps {
   onDeleteConfirm: () => void;
   onDeleteCancel: () => void;
   onFieldChange: (field: string, value: string | number | boolean | string[] | CompanySourceType | CompanyAddress[] | ManufacturerInfo | SalesRepAssignment[] | CompanyHierarchyRole | ChildCompanyRef[]) => void;
-  onContactClick?: (contact: APIContact) => void;
-  onJobClick?: (job: APIJob) => void;
+  onContactClick?: (contact: RelatedEntityContact) => void;
+  onJobClick?: (job: RelatedEntityJob) => void;
 }
 
 
@@ -382,11 +380,6 @@ export default function CompanyDetailView({
   onContactClick,
   onJobClick,
 }: CompanyDetailViewProps) {
-  // Modal states for linking tasks/notes
-  const [showAddLinkModal, setShowAddLinkModal] = useState(false);
-  const [addLinkEntityType, setAddLinkEntityType] = useState<'TASK' | 'NOTE'>('TASK');
-  const [tasksSectionKey, setTasksSectionKey] = useState(0);
-  const [notesSectionKey, setNotesSectionKey] = useState(0);
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [showAddAddressModal, setShowAddAddressModal] = useState(false);
   const [showAddTagModal, setShowAddTagModal] = useState(false);
@@ -435,17 +428,9 @@ export default function CompanyDetailView({
     'factory-info': null,
     'sales-reps': null,
     'addresses': null,
-    'contacts': null,
-    'jobs': null,
-    'quotes': null,
-    'orders': null,
-    'invoices': null,
-    'commission-statements': null,
-    'pre-quotes': null,
     'emails': null,
     'meetings': null,
-    'tasks': null,
-    'notes': null,
+    'connected-entities': null,
   });
 
   // Reference to the scrollable container
@@ -476,8 +461,8 @@ export default function CompanyDetailView({
       let currentSection: TabId = 'overview';
 
       const tabIds: TabId[] = isManufacturer
-        ? ['overview', 'factory-info', 'addresses', 'contacts', 'pre-quotes', 'emails', 'meetings', 'tasks', 'notes']
-        : ['overview', 'addresses', 'contacts', 'pre-quotes', 'emails', 'meetings', 'tasks', 'notes'];
+        ? ['overview', 'factory-info', 'sales-reps', 'addresses', 'emails', 'meetings', 'connected-entities']
+        : ['overview', 'sales-reps', 'addresses', 'emails', 'meetings', 'connected-entities'];
 
       for (const tabId of tabIds) {
         const section = sectionRefs.current[tabId];
@@ -496,21 +481,6 @@ export default function CompanyDetailView({
     handleScroll();
     return () => container.removeEventListener('scroll', handleScroll);
   }, [isManufacturer]);
-
-  // Handle link success - trigger refetch via key change
-  const handleLinkSuccess = () => {
-    if (addLinkEntityType === 'TASK') {
-      setTasksSectionKey(prev => prev + 1);
-    } else {
-      setNotesSectionKey(prev => prev + 1);
-    }
-  };
-
-  // Open add link modal for specific entity type
-  const openAddLinkModal = (entityType: 'TASK' | 'NOTE') => {
-    setAddLinkEntityType(entityType);
-    setShowAddLinkModal(true);
-  };
 
   // Get addresses
   const addresses = isEditing ? (editFormData.addresses || company.addresses || []) : (company.addresses || []);
@@ -610,17 +580,9 @@ export default function CompanyDetailView({
     ),
     { id: 'sales-reps', label: 'Sales Reps' },
     { id: 'addresses', label: 'Addresses' },
-    { id: 'contacts', label: 'Contacts' },
     { id: 'emails', label: 'Emails' },
     { id: 'meetings', label: 'Meetings' },
-    { id: 'tasks', label: 'Tasks' },
-    { id: 'notes', label: 'Notes' },
-    { id: 'jobs', label: 'Jobs' },
-    { id: 'pre-quotes', label: 'Pre-Quotes' },
-    { id: 'quotes', label: 'Quotes' },
-    { id: 'orders', label: 'Orders' },
-    { id: 'invoices', label: 'Invoices' },
-    { id: 'commission-statements', label: 'Commissions' },
+    { id: 'connected-entities', label: 'Connected Entities' },
   ];
 
   const inputClass = "w-full px-4 py-3 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400";
@@ -1766,311 +1728,6 @@ export default function CompanyDetailView({
           </div>
         </div>
 
-        {/* ============ CONTACTS SECTION ============ */}
-        <div ref={el => { sectionRefs.current['contacts'] = el; }} id="section-contacts">
-          <CompanyRelatedEntities
-            company={company}
-            onContactClick={onContactClick}
-            onJobClick={onJobClick}
-            onNewContactClick={() => {/* TODO: New contact modal */}}
-            onNewJobClick={() => {/* TODO: New job modal */}}
-          />
-        </div>
-
-        {/* ============ JOBS SECTION ============ */}
-        <div ref={el => { sectionRefs.current['jobs'] = el; }} id="section-jobs">
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
-            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg font-semibold text-[var(--foreground)]">Jobs</h2>
-                <span className="px-2 py-0.5 text-xs font-medium bg-[var(--muted)] text-[var(--muted-foreground)] rounded-full">
-                  0
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {/* TODO: Link job modal */}}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg hover:bg-[var(--muted)] transition-colors"
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Link Job
-                </button>
-                <button
-                  onClick={() => {/* TODO: New job modal */}}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-                  </svg>
-                  New Job
-                </button>
-              </div>
-            </div>
-            <div className="p-6">
-              <div className="text-center py-4 text-[var(--muted-foreground)]">
-                <svg className="w-12 h-12 text-[var(--muted-foreground)]/30 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-                <p className="text-sm">No jobs linked</p>
-                <button
-                  onClick={() => {/* TODO: New job modal */}}
-                  className="mt-2 text-sm text-[var(--primary)] hover:underline"
-                >
-                  + Add a job
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ============ QUOTES SECTION ============ */}
-        <div ref={el => { sectionRefs.current['quotes'] = el; }} id="section-quotes">
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
-            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg font-semibold text-[var(--foreground)]">Quotes</h2>
-                <span className="px-2 py-0.5 text-xs font-medium bg-[var(--muted)] text-[var(--muted-foreground)] rounded-full">
-                  0
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {/* TODO: Link quote modal */}}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg hover:bg-[var(--muted)] transition-colors"
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Link Quote
-                </button>
-                <button
-                  onClick={() => {/* TODO: New quote modal */}}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-                  </svg>
-                  New Quote
-                </button>
-              </div>
-            </div>
-            <div className="p-6">
-              <div className="text-center py-4 text-[var(--muted-foreground)]">
-                <svg className="w-12 h-12 text-[var(--muted-foreground)]/30 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <p className="text-sm">No quotes linked</p>
-                <button
-                  onClick={() => {/* TODO: New quote modal */}}
-                  className="mt-2 text-sm text-[var(--primary)] hover:underline"
-                >
-                  + Add a quote
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ============ ORDERS SECTION ============ */}
-        <div ref={el => { sectionRefs.current['orders'] = el; }} id="section-orders">
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
-            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg font-semibold text-[var(--foreground)]">Orders</h2>
-                <span className="px-2 py-0.5 text-xs font-medium bg-[var(--muted)] text-[var(--muted-foreground)] rounded-full">
-                  0
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {/* TODO: Link order modal */}}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg hover:bg-[var(--muted)] transition-colors"
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Link Order
-                </button>
-                <button
-                  onClick={() => {/* TODO: New order modal */}}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-                  </svg>
-                  New Order
-                </button>
-              </div>
-            </div>
-            <div className="p-6">
-              <div className="text-center py-4 text-[var(--muted-foreground)]">
-                <svg className="w-12 h-12 text-[var(--muted-foreground)]/30 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                </svg>
-                <p className="text-sm">No orders linked</p>
-                <button
-                  onClick={() => {/* TODO: New order modal */}}
-                  className="mt-2 text-sm text-[var(--primary)] hover:underline"
-                >
-                  + Add an order
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ============ INVOICES SECTION ============ */}
-        <div ref={el => { sectionRefs.current['invoices'] = el; }} id="section-invoices">
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
-            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg font-semibold text-[var(--foreground)]">Invoices</h2>
-                <span className="px-2 py-0.5 text-xs font-medium bg-[var(--muted)] text-[var(--muted-foreground)] rounded-full">
-                  0
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {/* TODO: Link invoice modal */}}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg hover:bg-[var(--muted)] transition-colors"
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Link Invoice
-                </button>
-                <button
-                  onClick={() => {/* TODO: New invoice modal */}}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-                  </svg>
-                  New Invoice
-                </button>
-              </div>
-            </div>
-            <div className="p-6">
-              <div className="text-center py-4 text-[var(--muted-foreground)]">
-                <svg className="w-12 h-12 text-[var(--muted-foreground)]/30 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2zM10 8.5a.5.5 0 11-1 0 .5.5 0 011 0zm5 5a.5.5 0 11-1 0 .5.5 0 011 0z" />
-                </svg>
-                <p className="text-sm">No invoices linked</p>
-                <button
-                  onClick={() => {/* TODO: New invoice modal */}}
-                  className="mt-2 text-sm text-[var(--primary)] hover:underline"
-                >
-                  + Add an invoice
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ============ COMMISSION STATEMENTS SECTION ============ */}
-        <div ref={el => { sectionRefs.current['commission-statements'] = el; }} id="section-commission-statements">
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
-            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg font-semibold text-[var(--foreground)]">Commissions</h2>
-                <span className="px-2 py-0.5 text-xs font-medium bg-[var(--muted)] text-[var(--muted-foreground)] rounded-full">
-                  0
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {/* TODO: Link commission statement modal */}}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg hover:bg-[var(--muted)] transition-colors"
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Link Statement
-                </button>
-                <button
-                  onClick={() => {/* TODO: New commission statement modal */}}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-                  </svg>
-                  New Statement
-                </button>
-              </div>
-            </div>
-            <div className="p-6">
-              <div className="text-center py-4 text-[var(--muted-foreground)]">
-                <svg className="w-12 h-12 text-[var(--muted-foreground)]/30 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <p className="text-sm">No commission statements linked</p>
-                <button
-                  onClick={() => {/* TODO: New commission statement modal */}}
-                  className="mt-2 text-sm text-[var(--primary)] hover:underline"
-                >
-                  + Add a statement
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ============ PRE-QUOTES SECTION ============ */}
-        <div ref={el => { sectionRefs.current['pre-quotes'] = el; }} id="section-pre-quotes">
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
-            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg font-semibold text-[var(--foreground)]">Pre-Quotes</h2>
-                <span className="px-2 py-0.5 text-xs font-medium bg-[var(--muted)] text-[var(--muted-foreground)] rounded-full">
-                  0
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {/* TODO: Link pre-quote modal */}}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg hover:bg-[var(--muted)] transition-colors"
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Link Pre-Quote
-                </button>
-                <button
-                  onClick={() => {/* TODO: New pre-quote modal */}}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-                  </svg>
-                  New Pre-Quote
-                </button>
-              </div>
-            </div>
-            <div className="p-6">
-              <div className="text-center py-4 text-[var(--muted-foreground)]">
-                <svg className="w-12 h-12 text-[var(--muted-foreground)]/30 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <p className="text-sm">No pre-quotes linked</p>
-                <button
-                  onClick={() => {/* TODO: New pre-quote modal */}}
-                  className="mt-2 text-sm text-[var(--primary)] hover:underline"
-                >
-                  + Add a pre-quote
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* ============ EMAILS SECTION ============ */}
         <div ref={el => { sectionRefs.current['emails'] = el; }} id="section-emails">
           <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
@@ -2169,43 +1826,19 @@ export default function CompanyDetailView({
           </div>
         </div>
 
-        {/* ============ TASKS SECTION ============ */}
-        <div ref={el => { sectionRefs.current['tasks'] = el; }} id="section-tasks">
-          <ConnectedTasksSection
-            key={`tasks-${tasksSectionKey}`}
+        {/* ============ CONNECTED ENTITIES SECTION ============ */}
+        <div ref={el => { sectionRefs.current['connected-entities'] = el; }} id="section-connected-entities">
+          <ConnectedEntitiesSection
             entityId={company.id}
-            entityType="COMPANY"
-            title="Tasks"
-            onAddClick={() => { openAddLinkModal('TASK'); }}
-            onNewClick={() => {/* TODO: New task modal */}}
-            onUnlinkSuccess={() => setTasksSectionKey(prev => prev + 1)}
-          />
-        </div>
-
-        {/* ============ NOTES SECTION ============ */}
-        <div ref={el => { sectionRefs.current['notes'] = el; }} id="section-notes">
-          <ConnectedNotesSection
-            key={`notes-${notesSectionKey}`}
-            entityId={company.id}
-            entityType="COMPANY"
-            title="Notes"
-            onAddClick={() => { openAddLinkModal('NOTE'); }}
-            onNewClick={() => {/* TODO: New note modal */}}
-            onUnlinkSuccess={() => setNotesSectionKey(prev => prev + 1)}
+            sourceEntityType="COMPANY"
+            title="Connected Entities"
+            enabledCategories={['contacts', 'jobs', 'pre-opportunities', 'tasks', 'notes', 'quotes', 'orders', 'invoices', 'checks', 'files']}
+            onContactClick={onContactClick}
+            onJobClick={onJobClick}
           />
         </div>
 
       </div>
-
-      {/* Add Link Modal for Tasks/Notes */}
-      <AddTaskNoteLinkModal
-        isOpen={showAddLinkModal}
-        entityId={company.id}
-        entityType="COMPANY"
-        initialLinkType={addLinkEntityType}
-        onClose={() => { setShowAddLinkModal(false); }}
-        onSuccess={handleLinkSuccess}
-      />
 
       <AddAddressModal
         isOpen={showAddAddressModal}

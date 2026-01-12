@@ -13,7 +13,7 @@ import { useCRMCompanyLandingPagesInfinite, useDeleteCRMCompany, useUpdateCRMCom
 
 import { companyToasts } from './lib/toast';
 import { useInfiniteScroll } from './hooks/useInfiniteScroll';
-import type { CompanySourceType, Contact as APIContact, Job as APIJob, LandingPageFilter, LandingPageOrderBy } from './lib/crm-graphql';
+import type { CompanySourceType, RelatedEntityContact, RelatedEntityJob, LandingPageFilter, LandingPageOrderBy } from './lib/crm-graphql';
 
 // Modular imports
 import { useCompaniesState } from './companies/hooks/useCompaniesState';
@@ -194,12 +194,12 @@ export default function CompaniesContent() {
   };
 
   // Navigation handlers for related entities
-  const handleContactClick = (contact: APIContact) => {
+  const handleContactClick = (contact: RelatedEntityContact) => {
     // Navigate to contacts page with the contact ID as query param
     router.push(`/contacts?id=${contact.id}`);
   };
 
-  const handleJobClick = (job: APIJob) => {
+  const handleJobClick = (job: RelatedEntityJob) => {
     // Navigate to jobs page with the job ID as query param
     router.push(`/jobs?id=${job.id}`);
   };
