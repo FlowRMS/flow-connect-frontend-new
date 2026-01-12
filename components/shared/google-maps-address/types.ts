@@ -35,7 +35,8 @@ export interface Address {
 export interface CreateAddressInput {
   sourceId: string;
   sourceType: AddressSourceType;
-  addressType: AddressType;
+  addressType?: AddressType;
+  addressTypes?: AddressType[]; // Allow passing array for API compatibility
   line1: string;
   line2?: string;
   city: string;
@@ -50,6 +51,7 @@ export interface UpdateAddressInput {
   sourceId?: string;
   sourceType?: AddressSourceType;
   addressType?: AddressType;
+  addressTypes?: AddressType[]; // Allow passing array for API compatibility
   line1?: string;
   line2?: string;
   city?: string;
