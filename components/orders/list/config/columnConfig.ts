@@ -23,8 +23,8 @@ export const ORDER_TABLE_COLUMNS: ColumnConfig[] = [
   { id: 'dueDate', width: '90px', label: 'Due Date', sortable: false, filterable: false },
   { id: 'manufacturerName', width: '140px', label: 'Factory', sortable: true, filterable: true },
   { id: 'customerName', width: '140px', label: 'Customer', sortable: true, filterable: true },
-  { id: 'jobName', width: '1fr', label: 'Job Name', sortable: false, filterable: false },
-  { id: 'visible', width: '60px', label: 'Visible', sortable: false, filterable: false, align: 'center' },
+  { id: 'jobName', width: '180px', label: 'Job Name', sortable: false, filterable: false },
+  { id: 'visible', width: '50px', label: 'Visible', sortable: false, filterable: false, align: 'center' },
 ];
 
 /**
