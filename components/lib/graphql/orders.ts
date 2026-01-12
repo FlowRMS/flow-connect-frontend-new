@@ -437,6 +437,12 @@ const FIND_ORDER_BY_ID = `
       entityDate
       factSoNumber
       factoryId
+      factory {
+        id
+        title
+        accountNumber
+        published
+      }
       freightTerms
       headerStatus
       job {

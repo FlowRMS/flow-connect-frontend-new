@@ -579,21 +579,23 @@ function isValidUUID(id: string): boolean {
 /**
  * Transform LineItemV2 back to QuoteDetailInput for API
  *
- * When per-line-item settings are enabled, each line item uses its own split rates/factory.
- * When disabled, all line items use the header-level split rates/factory.
+ * When per-line-item settings are enabled, each line item uses its own split rates/factory/endUser.
+ * When disabled, all line items use the header-level split rates/factory/endUser.
  *
  * @param lineItem - The line item to transform
  * @param headerInsideReps - Header-level inside reps (only used when insideRepAtLineLevel is false)
  * @param headerOutsideReps - Header-level outside reps (only used when outsideRepAtLineLevel is false)
- * @param settings - Quote settings to determine whether to use header or line-item level reps/factory
+ * @param settings - Quote settings to determine whether to use header or line-item level reps/factory/endUser
  * @param headerFactoryId - Header-level factory ID (used when factoryPerLineItem is false)
+ * @param headerEndUserId - Header-level end user ID (used when specifyEndUserPerLine is false)
  */
 export function transformLineItemV2ToDetailInput(
   lineItem: LineItemV2,
   headerInsideReps?: { id: string; userId?: string; splitRate?: string; position?: number }[],
   headerOutsideReps?: { id: string; userId?: string; splitRate?: string; position?: number }[],
-  settings?: { insideRepAtLineLevel?: boolean; outsideRepAtLineLevel?: boolean; factoryPerLineItem?: boolean },
-  headerFactoryId?: string
+  settings?: { insideRepAtLineLevel?: boolean; outsideRepAtLineLevel?: boolean; factoryPerLineItem?: boolean; specifyEndUserPerLine?: boolean },
+  headerFactoryId?: string,
+  headerEndUserId?: string
 ): {
   id?: string;
   itemNumber?: number;
@@ -649,6 +651,13 @@ export function transformLineItemV2ToDetailInput(
   const useLineItemFactory = settings?.factoryPerLineItem !== false;
   const factoryId = useLineItemFactory ? lineItem.manufacturerId : headerFactoryId;
 
+  // Determine which endUserId to use:
+  // - If specifyEndUserPerLine is true, use line item's endUserId
+  // - If specifyEndUserPerLine is false, use header-level endUserId for all line items
+  const useLineItemEndUser = settings?.specifyEndUserPerLine === true;
+  const endUserIdSource = useLineItemEndUser ? lineItem.endUserId : headerEndUserId;
+  const endUserId = endUserIdSource && isValidUUID(endUserIdSource) ? endUserIdSource : undefined;
+
   return {
     id,
     itemNumber: lineItem.itemNumber,
@@ -657,8 +666,7 @@ export function transformLineItemV2ToDetailInput(
     commissionDiscountRate: lineItem.commissionDiscountPercent?.toString(),
     commissionRate: lineItem.commissionPercent?.toString(),
     discountRate: lineItem.lineDiscountPercent?.toString(),
-    // Only include endUserId if it's a valid UUID (not empty string)
-    endUserId: lineItem.endUserId && isValidUUID(lineItem.endUserId) ? lineItem.endUserId : undefined,
+    endUserId,
     factoryId,
     leadTime: lineItem.leadTime,
     note: lineItem.note,

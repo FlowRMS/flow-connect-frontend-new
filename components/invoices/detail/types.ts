@@ -45,6 +45,12 @@ export interface InvoiceLineItem {
     splitRate: number;
     position: number;
   }[];
+  insideSplitRates?: {
+    userId: string;
+    userName: string;
+    splitRate: number;
+    position: number;
+  }[];
   // Optional fields for warehouse/consignment tracking
   isWarehouseConsignment?: boolean;
   inventoryOnHand?: number;

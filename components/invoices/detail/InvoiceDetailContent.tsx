@@ -529,7 +529,7 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
           {/* Settings Tab */}
           {state.activeTab === 'settings' && (
             <div className="flex-1 overflow-auto">
-              <SettingsTab />
+              <SettingsTab invoice={state.invoice} />
             </div>
           )}
         </div>

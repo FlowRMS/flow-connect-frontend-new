@@ -244,6 +244,20 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
                   endUserName: li.endUserId ? customerMap.get(li.endUserId) || '' : '',
                 }))
               );
+
+              // When endUserPerLineItem is false, populate header-level end user from first line item
+              // (all line items should have the same end user when this setting is off)
+              if (apiQuote.endUserPerLineItem === false && transformedLineItems.length > 0) {
+                const firstLineItemWithEndUser = transformedLineItems.find(li => li.endUserId);
+                if (firstLineItemWithEndUser?.endUserId) {
+                  const endUserName = customerMap.get(firstLineItemWithEndUser.endUserId) || '';
+                  setQuote(prev => ({
+                    ...prev,
+                    endUserId: firstLineItemWithEndUser.endUserId,
+                    endUserName: endUserName,
+                  }));
+                }
+              }
             })
             .catch((err) => console.error('Failed to fetch end user names:', err));
         }
@@ -463,6 +477,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       factoryPerLineItem: settings.factoryPerLineItem,
       // Split rates are now at detail level (insideSplitRates and outsideSplitRates per line item)
       // Pass settings so each line item uses its own split rates when per-line-item is enabled
+      // Pass header-level endUserId for when specifyEndUserPerLine is false
       details: lineItems.map((li, index) => ({
         ...transformLineItemV2ToDetailInput(
           li,
@@ -472,8 +487,10 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
             insideRepAtLineLevel: settings.insideRepAtLineLevel,
             outsideRepAtLineLevel: settings.outsideRepAtLineLevel,
             factoryPerLineItem: settings.factoryPerLineItem,
+            specifyEndUserPerLine: settings.specifyEndUserPerLine,
           },
-          quote.factoryId // Pass header-level factory for when factoryPerLineItem is false
+          quote.factoryId, // Pass header-level factory for when factoryPerLineItem is false
+          quote.endUserId // Pass header-level endUserId for when specifyEndUserPerLine is false
         ),
         itemNumber: li.itemNumber ?? index + 1,
       })),
