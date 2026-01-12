@@ -1,8 +1,10 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import type { QuoteV2, QuotePipelineStage } from '../types';
 import { AvatarInline } from '@/components/ui/CreatedByBadge';
+import { ColumnFilter, type ColumnFilterValue } from '@/components/advancedFilters/components/ColumnFilter';
+import { getQuoteFilterOptions } from '../config/filterConfig';
 
 interface ListViewV2Props {
   quotes: QuoteV2[];
@@ -13,6 +15,16 @@ interface ListViewV2Props {
   isPartiallySelected?: boolean;
   onSelectAll?: (checked: boolean) => void;
   onSelectOne?: (id: string, checked: boolean) => void;
+  // Column filters
+  onColumnFiltersChange?: (filters: Record<string, ColumnFilterValue>) => void;
+  // Filter options for column filters
+  filterOptions?: ReturnType<typeof getQuoteFilterOptions>;
+  // Column filters from parent (controlled)
+  columnFilters?: Record<string, ColumnFilterValue>;
+  // Loading state
+  isLoading?: boolean;
+  // Whether there are any active filters (for better empty state messaging)
+  hasActiveFilters?: boolean;
 }
 
 type SortKey = 'quoteNumber' | 'status' | 'pipelineStage' | 'quoteAmount' | 'commission' | 'entryDate' | 'quoteDate' | 'expirationDate' | 'published';
@@ -70,11 +82,63 @@ export function ListViewV2({
   isPartiallySelected,
   onSelectAll,
   onSelectOne,
+  onColumnFiltersChange,
+  filterOptions = getQuoteFilterOptions([], []),
+  columnFilters: parentColumnFilters,
+  isLoading = false,
+  hasActiveFilters = false,
 }: ListViewV2Props) {
   const [sortColumn, setSortColumn] = useState<SortKey | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   // Local selection state (fallback if parent props not provided)
   const [localSelectedQuotes, setLocalSelectedQuotes] = useState<Set<string>>(new Set());
+  
+  // Column filter state - use parent if provided, otherwise local state
+  const [localColumnFilters, setLocalColumnFilters] = useState<Record<string, ColumnFilterValue>>({});
+  const columnFilters = parentColumnFilters !== undefined ? parentColumnFilters : localColumnFilters;
+  const setColumnFilters = parentColumnFilters !== undefined 
+    ? (filters: Record<string, ColumnFilterValue>) => {
+        if (onColumnFiltersChange) {
+          onColumnFiltersChange(filters);
+        }
+      }
+    : setLocalColumnFilters;
+  const [openFilter, setOpenFilter] = useState<string | null>(null);
+  
+  // Map from UI column keys to filter option IDs
+  const columnKeyToFilterId: Record<string, string> = {
+    quoteNumber: 'quote-number',
+    status: 'status',
+    pipelineStage: 'pipeline-stage',
+    quoteAmount: 'total-amount',
+    commission: 'commission',
+    entryDate: 'created-date',
+    quoteDate: 'quote-date',
+    expirationDate: 'expiration-date',
+    published: 'published',
+  };
+  
+  // Handle column filter change
+  const handleColumnFilterChange = useCallback((columnKey: string, value: ColumnFilterValue) => {
+    const newFilters = { ...columnFilters };
+    // Remove filter if empty
+    const isEmpty = 
+      (value.text === undefined || value.text === '') &&
+      (value.selected === undefined || value.selected.length === 0) &&
+      (value.dateStart === undefined || value.dateStart === '') &&
+      (value.dateEnd === undefined || value.dateEnd === '');
+    
+    if (isEmpty) {
+      delete newFilters[columnKey];
+    } else {
+      newFilters[columnKey] = value;
+    }
+    
+    setColumnFilters(newFilters);
+    if (onColumnFiltersChange) {
+      onColumnFiltersChange(newFilters);
+    }
+  }, [columnFilters, onColumnFiltersChange]);
 
   const handleSort = (column: SortKey) => {
     if (sortColumn === column) {
@@ -217,6 +281,33 @@ export function ListViewV2({
       <path d="M3 4h14M5 8h10M7 12h6M9 16h2" strokeLinecap="round" />
     </svg>
   );
+  
+  // Render column filter component
+  const renderColumnFilter = (columnKey: string) => {
+    const filterId = columnKeyToFilterId[columnKey];
+    if (!filterId) return null;
+    
+    const filterOption = filterOptions.find(f => f.id === filterId);
+    if (!filterOption || !filterOption.columnName) return null;
+    
+    // Ensure type is preserved correctly
+    const filterType = filterOption.type as 'text' | 'dropdown' | 'number' | 'date' | 'boolean';
+    
+    return (
+      <ColumnFilter
+        type={filterType}
+        columnName={filterOption.columnName}
+        value={columnFilters[columnKey] || {}}
+        onChange={(value) => handleColumnFilterChange(columnKey, value)}
+        options={filterOption.options}
+        placeholder={filterOption.type === 'text' || filterOption.type === 'number' 
+          ? `Filter ${filterOption.label.toLowerCase()}...` 
+          : undefined}
+        isOpen={openFilter === columnKey}
+        onToggle={() => setOpenFilter(openFilter === columnKey ? null : columnKey)}
+      />
+    );
+  };
 
   return (
     <div className="bg-white rounded-lg border border-gray-200">
@@ -240,50 +331,74 @@ export function ListViewV2({
               <th className="w-10 px-3 py-3 text-center"></th>
               {/* Quote Number */}
               <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('quoteNumber')}>
-                  Quote Number {renderFilterIcon()} {renderSortIcon('quoteNumber')}
+                <div className="flex items-center gap-1">
+                  <span className="cursor-pointer hover:text-gray-700" onClick={() => handleSort('quoteNumber')}>
+                    Quote Number {renderSortIcon('quoteNumber')}
+                  </span>
+                  {renderColumnFilter('quoteNumber')}
                 </div>
               </th>
               {/* Status */}
               <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('status')}>
-                  Status {renderFilterIcon()} {renderSortIcon('status')}
+                <div className="flex items-center gap-1">
+                  <span className="cursor-pointer hover:text-gray-700" onClick={() => handleSort('status')}>
+                    Status {renderSortIcon('status')}
+                  </span>
+                  {renderColumnFilter('status')}
                 </div>
               </th>
               {/* Pipeline Stage */}
               <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('pipelineStage')}>
-                  Pipeline Stage {renderFilterIcon()} {renderSortIcon('pipelineStage')}
+                <div className="flex items-center gap-1">
+                  <span className="cursor-pointer hover:text-gray-700" onClick={() => handleSort('pipelineStage')}>
+                    Pipeline Stage {renderSortIcon('pipelineStage')}
+                  </span>
+                  {renderColumnFilter('pipelineStage')}
                 </div>
               </th>
               {/* Quote Amount */}
               <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('quoteAmount')}>
-                  Total {renderFilterIcon()} {renderSortIcon('quoteAmount')}
+                <div className="flex items-center gap-1">
+                  <span className="cursor-pointer hover:text-gray-700" onClick={() => handleSort('quoteAmount')}>
+                    Total {renderSortIcon('quoteAmount')}
+                  </span>
+                  {renderColumnFilter('quoteAmount')}
                 </div>
               </th>
               {/* Commission */}
               <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('commission')}>
-                  Commission {renderFilterIcon()} {renderSortIcon('commission')}
+                <div className="flex items-center gap-1">
+                  <span className="cursor-pointer hover:text-gray-700" onClick={() => handleSort('commission')}>
+                    Commission {renderSortIcon('commission')}
+                  </span>
+                  {renderColumnFilter('commission')}
                 </div>
               </th>
               {/* Entry Date */}
               <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('entryDate')}>
-                  Entry Date {renderFilterIcon()} {renderSortIcon('entryDate')}
+                <div className="flex items-center gap-1">
+                  <span className="cursor-pointer hover:text-gray-700" onClick={() => handleSort('entryDate')}>
+                    Entry Date {renderSortIcon('entryDate')}
+                  </span>
+                  {renderColumnFilter('entryDate')}
                 </div>
               </th>
               {/* Quote Date */}
               <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('quoteDate')}>
-                  Quote Date {renderFilterIcon()} {renderSortIcon('quoteDate')}
+                <div className="flex items-center gap-1">
+                  <span className="cursor-pointer hover:text-gray-700" onClick={() => handleSort('quoteDate')}>
+                    Quote Date {renderSortIcon('quoteDate')}
+                  </span>
+                  {renderColumnFilter('quoteDate')}
                 </div>
               </th>
               {/* Exp. Date */}
               <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('expirationDate')}>
-                  Exp. Date {renderFilterIcon()} {renderSortIcon('expirationDate')}
+                <div className="flex items-center gap-1">
+                  <span className="cursor-pointer hover:text-gray-700" onClick={() => handleSort('expirationDate')}>
+                    Exp. Date {renderSortIcon('expirationDate')}
+                  </span>
+                  {renderColumnFilter('expirationDate')}
                 </div>
               </th>
               {/* Created By */}
@@ -292,15 +407,56 @@ export function ListViewV2({
               </th>
               {/* Published */}
               <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('published')}>
-                  Published {renderFilterIcon()} {renderSortIcon('published')}
+                <div className="flex items-center gap-1">
+                  <span className="cursor-pointer hover:text-gray-700" onClick={() => handleSort('published')}>
+                    Published {renderSortIcon('published')}
+                  </span>
+                  {renderColumnFilter('published')}
                 </div>
               </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {sortedQuotes.map((quote) => {
-              return (
+            {isLoading && quotes.length === 0 ? (
+              <tr>
+                <td colSpan={11} className="px-4 py-8 text-center">
+                  <div className="flex flex-col items-center justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-4" />
+                    <p className="text-gray-500">Loading quotes...</p>
+                  </div>
+                </td>
+              </tr>
+            ) : sortedQuotes.length === 0 ? (
+              <tr>
+                <td colSpan={11} className="px-4 py-8 text-center">
+                  <div className="flex flex-col items-center justify-center py-8">
+                    <svg
+                      className="w-10 h-10 text-gray-400 mb-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                      />
+                    </svg>
+                    <p className="text-lg font-medium text-gray-900 mb-2">
+                      {hasActiveFilters ? 'No quotes found for the applied filters' : 'No quotes found'}
+                    </p>
+                    {hasActiveFilters && (
+                      <p className="text-sm text-gray-500">
+                        Try adjusting your filters to see more results
+                      </p>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              sortedQuotes.map((quote) => {
+                return (
                 <tr
                   key={quote.id}
                   className="hover:bg-gray-50 transition-colors cursor-pointer"
@@ -377,18 +533,13 @@ export function ListViewV2({
                     )}
                   </td>
                 </tr>
-              );
-            })}
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
 
-      {/* Empty state */}
-      {quotes.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-gray-500">No quotes found</p>
-        </div>
-      )}
     </div>
   );
 }

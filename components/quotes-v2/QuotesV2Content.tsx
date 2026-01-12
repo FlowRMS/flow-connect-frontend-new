@@ -15,6 +15,7 @@ import { getQuoteFilterOptions } from './config/filterConfig';
 import { formatDateToISO } from '../advancedFilters/utils';
 import { useBulkSelection } from '../shared';
 import { BulkDeleteModal, BulkActionsToolbar } from '../shared';
+import type { ColumnFilterValue } from '../advancedFilters/components/ColumnFilter';
 
 type ViewMode = 'kanban' | 'list';
 type QuickFilter = 'all' | 'today' | 'this_week' | 'last_week';
@@ -40,6 +41,11 @@ export function QuotesV2Content() {
   // Server-side filters - defined BEFORE API hook so they can be passed to the query
   const [serverFilters, setServerFilters] = useState<QuoteLandingPageFilter[]>([]);
   const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
+  const [columnFilters, setColumnFilters] = useState<Record<string, ColumnFilterValue>>({});
+  
+  // Initialize columnFiltersToAPI as empty (will be computed after uniqueQuoteNumbers/uniqueCreators)
+  // This allows filters to be computed before the hook
+  const [columnFiltersToAPIState, setColumnFiltersToAPIState] = useState<QuoteLandingPageFilter[]>([]);
   
   // Handler for server-side filter changes
   const handleServerFiltersChange = useCallback((filters: ActiveFilter[]) => {
@@ -62,6 +68,11 @@ export function QuotesV2Content() {
       };
     });
     setServerFilters(apiFilters);
+  }, []);
+  
+  // Handler for column filter changes
+  const handleColumnFiltersChange = useCallback((filters: Record<string, ColumnFilterValue>) => {
+    setColumnFilters(filters);
   }, []);
 
   // Build quick filters based on quick filter selection
@@ -137,17 +148,28 @@ export function QuotesV2Content() {
     return result;
   }, [quickFilter, quickDateField]);
 
-  // Combine quick filters with advanced filters
-  const filters = useMemo<QuoteLandingPageFilter[]>(() => {
-    return [...quickFilters, ...serverFilters];
-  }, [quickFilters, serverFilters]);
-
   // Build order by
   const orderBy = useMemo<QuoteLandingPageOrderBy[]>(() => {
     return [{ columnName: sortBy, direction: sortDirection }];
   }, [sortBy, sortDirection]);
 
+  // Combine all filters (uses columnFiltersToAPIState which will be updated when columnFiltersToAPI is computed)
+  const filters = useMemo<QuoteLandingPageFilter[]>(() => {
+    return [...quickFilters, ...serverFilters, ...columnFiltersToAPIState];
+  }, [quickFilters, serverFilters, columnFiltersToAPIState]);
+
+  // Check if there are any active filters
+  const hasActiveFilters = useMemo(() => {
+    return (
+      quickFilters.length > 0 ||
+      serverFilters.length > 0 ||
+      columnFiltersToAPIState.length > 0 ||
+      Object.keys(columnFilters).length > 0
+    );
+  }, [quickFilters, serverFilters, columnFiltersToAPIState, columnFilters]);
+
   // Fetch quotes from API with infinite scroll
+  // React Query will auto-update when filters change (via queryKey)
   const {
     data: quotesData,
     isLoading,
@@ -169,9 +191,7 @@ export function QuotesV2Content() {
     return quotesData.pages.flatMap(page => page.records);
   }, [quotesData]);
 
-  // Note: uniqueStatuses and uniquePipelineStages are now constants
-  // defined in filterConfig.ts, no longer calculated from data
-
+  
   const uniqueQuoteNumbers = useMemo(() => {
     if (!allQuotesData.length) return [];
     const numbers = new Set<string>();
@@ -197,6 +217,94 @@ export function QuotesV2Content() {
       uniqueCreators
     );
   }, [uniqueQuoteNumbers, uniqueCreators]);
+
+  // Convert column filters to QuoteLandingPageFilter[]
+  const columnFiltersToAPI = useMemo<QuoteLandingPageFilter[]>(() => {
+    const filters: QuoteLandingPageFilter[] = [];
+    const filterOptions = getQuoteFilterOptions(uniqueQuoteNumbers, uniqueCreators);
+    
+    // Map from UI column keys to filter option IDs
+    const columnKeyToFilterId: Record<string, string> = {
+      quoteNumber: 'quote-number',
+      status: 'status',
+      pipelineStage: 'pipeline-stage',
+      quoteAmount: 'total-amount',
+      commission: 'commission',
+      entryDate: 'created-date',
+      quoteDate: 'quote-date',
+      expirationDate: 'expiration-date',
+      published: 'published',
+    };
+    
+    Object.entries(columnFilters).forEach(([columnKey, filterValue]) => {
+      const filterId = columnKeyToFilterId[columnKey];
+      if (!filterId) return;
+      
+      const filterOption = filterOptions.find(f => f.id === filterId);
+      if (!filterOption || !filterOption.columnName) return;
+      
+      const columnName = filterOption.columnName;
+      
+      // Handle different filter types
+      if (filterValue.text !== undefined && filterValue.text !== '') {
+        // Text, number, or boolean filter
+        if (filterOption.type === 'number') {
+          // Number filter with operator
+          filters.push({
+            columnName,
+            operator: filterValue.operator || 'EQ',
+            value: filterValue.text,
+          });
+        } else if (filterOption.type === 'boolean') {
+          // Boolean filter - always use EQ operator
+          // Send as string 'true' or 'false' (backend expects string for now)
+          filters.push({
+            columnName,
+            operator: 'EQ',
+            value: filterValue.text, // 'true' or 'false' as string
+          });
+        } else {
+          // Text filter
+          filters.push({
+            columnName,
+            operator: 'ILIKE',
+            value: filterValue.text,
+          });
+        }
+      } else if (filterValue.selected && filterValue.selected.length > 0) {
+        // Dropdown filter (multi-select)
+        filters.push({
+          columnName,
+          operator: 'IN',
+          values: filterValue.selected,
+        });
+      } else if (filterValue.dateStart || filterValue.dateEnd) {
+        // Date range filter
+        if (filterValue.dateStart) {
+          filters.push({
+            columnName,
+            operator: 'GTE',
+            value: filterValue.dateStart,
+          });
+        }
+        if (filterValue.dateEnd) {
+          filters.push({
+            columnName,
+            operator: 'LTE',
+            value: filterValue.dateEnd,
+          });
+        }
+      }
+    });
+    
+    return filters;
+  }, [columnFilters, uniqueQuoteNumbers, uniqueCreators]);
+
+  // Update state when columnFiltersToAPI changes
+  useEffect(() => {
+    setColumnFiltersToAPIState(columnFiltersToAPI);
+  }, [columnFiltersToAPI]);
+
 
   // Transform API data to UI format, using search results when searching
   const quotes = useMemo<QuoteV2[]>(() => {
@@ -611,14 +719,7 @@ export function QuotesV2Content() {
 
       {/* Content */}
       <div ref={scrollContainerRef} className="flex-1 overflow-auto p-4">
-        {isLoading && quotes.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-4" />
-              <p className="text-gray-500">Loading quotes...</p>
-            </div>
-          </div>
-        ) : error ? (
+        {error ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
               <p className="text-red-500 mb-4">Failed to load quotes: {error.message}</p>
@@ -655,6 +756,11 @@ export function QuotesV2Content() {
                   isPartiallySelected={bulkSelection.isPartiallySelected}
                   onSelectAll={bulkSelection.handleSelectAll}
                   onSelectOne={bulkSelection.handleSelectOne}
+                  onColumnFiltersChange={handleColumnFiltersChange}
+                  filterOptions={quoteFilterOptions}
+                  columnFilters={columnFilters}
+                  isLoading={isLoading}
+                  hasActiveFilters={hasActiveFilters}
                 />
 
                 {/* Loading indicator for infinite scroll - list view */}

@@ -9,6 +9,8 @@ type NumberFilterProps = {
   onFilterValueChange: (value: string) => void;
   onOperatorChange: (operator: FilterOperator) => void;
   onApply: (option: FilterOption, value: string) => void;
+  onClear?: () => void;
+  hasActiveFilter?: boolean;
 };
 
 export function NumberFilter({ 
@@ -17,7 +19,9 @@ export function NumberFilter({
   numberOperator, 
   onFilterValueChange, 
   onOperatorChange,
-  onApply 
+  onApply,
+  onClear,
+  hasActiveFilter
 }: NumberFilterProps) {
   const [isOperatorDropdownOpen, setIsOperatorDropdownOpen] = useState(false);
 
@@ -47,7 +51,7 @@ export function NumberFilter({
                 w-full px-3 py-2 text-sm border rounded-lg text-left flex items-center justify-between
                 transition-all bg-white text-gray-900
                 ${isOperatorDropdownOpen 
-                  ? 'border-blue-500 ring-2 ring-blue-500 ring-opacity-20' 
+                  ? 'border-indigo-500 ring-2 ring-indigo-500 ring-opacity-20' 
                   : 'border-gray-300 hover:border-gray-400'
                 }
               `}
@@ -82,12 +86,12 @@ export function NumberFilter({
                   }}
                   className={`
                     w-full px-3 py-2 text-sm text-left hover:bg-gray-50 flex items-center justify-between
-                    ${numberOperator === op ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'}
+                    ${numberOperator === op ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-gray-700'}
                   `}
                 >
                   <span>{getOperatorLabel(op)}</span>
                   {numberOperator === op && (
-                    <svg className="w-4 h-4 text-blue-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="w-4 h-4 text-indigo-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                   )}
@@ -101,15 +105,23 @@ export function NumberFilter({
           value={filterValue}
           onChange={(e) => onFilterValueChange(e.target.value)}
           placeholder={`Enter ${option.label.toLowerCase()}...`}
-          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500"
           autoFocus
         />
       </div>
-      <div className="p-3 border-t border-gray-100 bg-gray-50 flex justify-end">
+      <div className="p-3 border-t border-gray-100 bg-gray-50 flex justify-between items-center gap-2">
+        {hasActiveFilter && onClear && (
+          <button
+            onClick={onClear}
+            className="px-3 py-1.5 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
+          >
+            Clear
+          </button>
+        )}
         <button
           onClick={() => onApply(option, filterValue)}
           disabled={!filterValue.trim()}
-          className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+          className="px-3 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed ml-auto"
         >
           Apply
         </button>
