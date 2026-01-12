@@ -203,8 +203,9 @@ export function LineItemsTable({
           cpnHasCustomPrice = true;
         }
         // Use CPN's commission rate if available (override product default)
+        // CPN commission rate is stored as whole number (e.g., 3 for 3%), convert to decimal
         if (cpnResult.commissionRate) {
-          commissionRate = parseFloat(cpnResult.commissionRate);
+          commissionRate = parseFloat(cpnResult.commissionRate) / 100;
         }
       }
 
