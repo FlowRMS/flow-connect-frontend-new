@@ -20,6 +20,7 @@ export function FloatingChatButton() {
   const [isHovered, setIsHovered] = useState(false);
   const [showPulse, setShowPulse] = useState(true);
   const [isMac, setIsMac] = useState(false);
+  const [isContextBadgeDismissed, setIsContextBadgeDismissed] = useState(false);
 
   // Detect if Mac for keyboard shortcut display
   useEffect(() => {
@@ -31,6 +32,11 @@ export function FloatingChatButton() {
     const timer = setTimeout(() => setShowPulse(false), 10000);
     return () => clearTimeout(timer);
   }, []);
+
+  // Reset context badge dismissed state when entity changes
+  useEffect(() => {
+    setIsContextBadgeDismissed(false);
+  }, [entityContext?.id]);
 
   const entityName = pageContext.entityType ? getEntityDisplayName(pageContext.entityType) : null;
   const showContextBadge = pageContext.isDetailPage && pageContext.entityType;
@@ -80,22 +86,33 @@ export function FloatingChatButton() {
 
         {/* Context Badge - Shows when on a detail page */}
         <AnimatePresence>
-          {showContextBadge && !isOpen && (
+          {showContextBadge && !isOpen && !isContextBadgeDismissed && (
             <motion.div
               initial={{ opacity: 0, x: 20, scale: 0.9 }}
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, x: 20, scale: 0.9 }}
               transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-              className="bg-gradient-to-r from-primary/10 to-secondary/10 backdrop-blur-md border border-primary/20 rounded-full px-3 py-1.5 shadow-lg cursor-pointer hover:border-primary/40 transition-colors"
-              onClick={toggleChat}
+              className="bg-gradient-to-r from-primary/10 to-secondary/10 backdrop-blur-md border border-primary/20 rounded-full px-3 py-1.5 shadow-lg flex items-center gap-2"
             >
-              <div className="flex items-center gap-2">
+              <div
+                className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={toggleChat}
+              >
                 <Sparkles className="w-3 h-3 text-primary animate-pulse" />
                 <span className="text-xs font-medium text-foreground">
                   Ask about this {entityName?.toLowerCase()}
                   {entityContext?.number && <span className="font-semibold"> #{entityContext.number}</span>}
                 </span>
               </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsContextBadgeDismissed(true);
+                }}
+                className="ml-1 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="w-3 h-3" />
+              </button>
             </motion.div>
           )}
         </AnimatePresence>
@@ -176,20 +193,6 @@ export function FloatingChatButton() {
           </AnimatePresence>
         </motion.button>
 
-        {/* Tooltip on hover */}
-        <AnimatePresence>
-          {isHovered && !isOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
-              className="absolute bottom-full right-0 mb-2 px-3 py-1.5 bg-foreground text-background text-sm font-medium rounded-lg whitespace-nowrap pointer-events-none"
-            >
-              Open FlowChat
-              <div className="absolute top-full right-4 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-foreground" />
-            </motion.div>
-          )}
-        </AnimatePresence>
       </motion.div>
     </>
   );

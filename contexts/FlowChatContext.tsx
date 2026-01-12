@@ -83,6 +83,7 @@ interface FlowChatContextType {
   } | null;
   setEntityContext: (context: { type: EntityType; id: string | null; number: string | null; includeInChat: boolean } | null) => void;
   setEntityNumber: (number: string | null) => void; // To set entity number from external components
+  setFullEntityContext: (type: EntityType | null, id: string | null, number: string | null) => void; // To set full context from detail pages
 
   // Page change tracking - signals when to start new chat
   shouldStartNewChat: boolean;
@@ -270,27 +271,52 @@ export function FlowChatProvider({ children }: { children: React.ReactNode }) {
     if (previousPathname !== null && previousPathname !== pathname) {
       // Signal that a new chat should start
       setShouldStartNewChat(true);
-    }
-    setPreviousPathname(pathname);
-
-    if (pageContext.isDetailPage && pageContext.entityType && pageContext.entityId) {
-      setEntityContext({
-        type: pageContext.entityType,
-        id: pageContext.entityId,
-        number: null, // Will be set by external component via setEntityNumber
-        includeInChat: true,
-      });
-    } else {
+      // Clear context on navigation - detail pages will set their own via setFullEntityContext
       setEntityContext(null);
     }
-  }, [pageContext, pathname, previousPathname]);
+    setPreviousPathname(pathname);
+    // Don't auto-set context here - let detail pages set it via setFullEntityContext
+    // This prevents race conditions where this effect overwrites the number
+  }, [pathname, previousPathname]);
 
   // Set entity number from external components (like detail pages)
+  // This also ensures the entity context exists based on current page context
   const setEntityNumber = useCallback((number: string | null) => {
     setEntityContext((prev) => {
-      if (!prev) return prev;
-      return { ...prev, number };
+      // If we have an existing context, update the number
+      if (prev) {
+        return { ...prev, number };
+      }
+      // If no context exists but we have page context with an entity, create context
+      // This handles cases where URL pattern didn't match but we're on a detail page
+      if (number && pageContext.entityType && pageContext.entityId) {
+        return {
+          type: pageContext.entityType,
+          id: pageContext.entityId,
+          number,
+          includeInChat: true,
+        };
+      }
+      return prev;
     });
+  }, [pageContext.entityType, pageContext.entityId]);
+
+  // Set full entity context from external components (for pages that don't use URL params)
+  const setFullEntityContext = useCallback((type: EntityType | null, id: string | null, number: string | null) => {
+    console.log('[FlowChatContext] setFullEntityContext called with:', { type, id, number });
+    if (type && id) {
+      const newContext = {
+        type,
+        id,
+        number,
+        includeInChat: true,
+      };
+      console.log('[FlowChatContext] Setting entityContext to:', newContext);
+      setEntityContext(newContext);
+    } else {
+      console.log('[FlowChatContext] Clearing entityContext');
+      setEntityContext(null);
+    }
   }, []);
 
   // Acknowledge chat reset (called by FlowChatPanel after starting new chat)
@@ -407,6 +433,7 @@ export function FlowChatProvider({ children }: { children: React.ReactNode }) {
     entityContext,
     setEntityContext,
     setEntityNumber,
+    setFullEntityContext,
     shouldStartNewChat,
     acknowledgeChatReset,
     isShortcutHintVisible,
@@ -426,6 +453,7 @@ export function FlowChatProvider({ children }: { children: React.ReactNode }) {
     entityContext,
     setEntityContext,
     setEntityNumber,
+    setFullEntityContext,
     shouldStartNewChat,
     acknowledgeChatReset,
     isShortcutHintVisible,

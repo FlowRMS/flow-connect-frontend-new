@@ -37,6 +37,7 @@ import {
 import { searchUsers, searchFactories, searchCustomers, getProductCpnByCustomer, listProductPricingTiers, getPriceForQuantity } from '../quotes/api/quotesApi';
 import { useAutoPopulateReps, RepSplitRate } from '@/components/shared/hooks/useAutoPopulateReps';
 import { quoteToasts } from '../lib/toast';
+import { useFlowChat } from '@/contexts/FlowChatContext';
 import { createLink, deleteLinkByEntities } from '../lib/graphql/entity-links';
 
 // Helper function to fetch CPNs and update pricing for line items when customer changes
@@ -141,6 +142,7 @@ interface QuoteDetailV2PageProps {
 export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetailV2PageProps) {
   // API hooks
   const { data: apiQuote, isLoading, error } = useQuoteV2(quoteId);
+  const { setFullEntityContext } = useFlowChat();
   const createQuoteMutation = useCreateQuoteV2();
   const updateQuoteMutation = useUpdateQuoteV2();
   const deleteQuoteMutation = useDeleteQuoteV2();
@@ -345,6 +347,16 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       }
     }
   }, [apiQuote, isNew]);
+
+  // Set full entity context for global chatbot (type, id, and quote number)
+  useEffect(() => {
+    if (quote?.quoteNumber && quoteId) {
+      setFullEntityContext('quote', quoteId, quote.quoteNumber);
+    }
+    return () => {
+      setFullEntityContext(null, null, null);
+    };
+  }, [quote?.quoteNumber, quoteId, setFullEntityContext]);
 
   // Initialize with one empty line item for new quotes
   useEffect(() => {

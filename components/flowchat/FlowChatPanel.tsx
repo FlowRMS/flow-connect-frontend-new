@@ -11,7 +11,6 @@ import {
   User,
   Mic,
   Square,
-  Sparkles,
   ChevronRight,
   MessageSquarePlus,
   History,
@@ -20,6 +19,8 @@ import {
   Minimize2,
   ExternalLink,
   Zap,
+  Eye,
+  EyeOff,
   Target,
   Search,
   TrendingUp,
@@ -140,6 +141,7 @@ export function FlowChatPanel() {
   } = useFlowChat();
 
   const [inputMessage, setInputMessage] = useState('');
+  const [messageToSend, setMessageToSend] = useState(''); // The actual message sent to AI (may include context)
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeChat, setActiveChat] = useState<Chat | null>(null);
   const [streamingMessage, setStreamingMessage] = useState<ChatMessageType | null>(null);
@@ -147,6 +149,7 @@ export function FlowChatPanel() {
   const [showHistory, setShowHistory] = useState(false);
   const [isCreatingNewChat, setIsCreatingNewChat] = useState(false);
   const [hasManuallyReset, setHasManuallyReset] = useState(false); // Prevent session restore after manual reset
+  const [isBackdropBlurred, setIsBackdropBlurred] = useState(true); // Toggle backdrop blur
 
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -213,7 +216,7 @@ export function FlowChatPanel() {
   const subscriptionChatId = activeChat?.id || null;
   useSubscription<{ chatWithAgent: ChatStreamResponse }>(SUB_CHAT_WITH_AGENT, {
     variables: {
-      userMessage: inputMessage,
+      userMessage: messageToSend, // Use the contextual message (includes entity context if applicable)
       chatId: subscriptionChatId,
       config: { disableSuggestions: true, enableVectorSearch: false },
     },
@@ -285,16 +288,23 @@ export function FlowChatPanel() {
 
     const trimmedMessage = inputMessage.trim();
 
-    // Build contextual message
+    // Debug: Log what entityContext contains
+    console.log('[FlowChat] entityContext at submit:', JSON.stringify(entityContext, null, 2));
+
+    // Build contextual message (context is only sent to AI, not displayed)
     let contextualMessage = trimmedMessage;
-    if (entityContext?.includeInChat && entityContext.type && entityContext.id) {
+    if (entityContext?.includeInChat && entityContext.type && entityContext.number) {
       const entityName = getEntityDisplayName(entityContext.type);
-      // Include both the number (if available) and the ID
-      const entityIdentifier = entityContext.number
-        ? `${entityName} #${entityContext.number} (ID: ${entityContext.id})`
-        : `${entityName} ID: ${entityContext.id}`;
-      contextualMessage = `[Context: Viewing ${entityIdentifier}]\n\n${trimmedMessage}`;
+      // Only include the entity number (human-readable identifier), not the database ID
+      contextualMessage = `[Context: Currently viewing ${entityName} Number: ${entityContext.number}]\n\n${trimmedMessage}`;
+      // Debug log to verify context is being sent
+      console.log('[FlowChat] Sending message with context:', contextualMessage);
+    } else {
+      console.log('[FlowChat] No context added. includeInChat:', entityContext?.includeInChat, 'type:', entityContext?.type, 'number:', entityContext?.number);
     }
+
+    // Set the message to send (with context) for the subscription
+    setMessageToSend(contextualMessage);
 
     if (!activeChat?.id) {
       try {
@@ -306,9 +316,10 @@ export function FlowChatPanel() {
           return;
         }
 
-        const userMessage: ChatMessageType = {
+        // Display message shows only user's text (no context prefix)
+        const userMessageForDisplay: ChatMessageType = {
           chatId: newChatId,
-          content: contextualMessage,
+          content: trimmedMessage, // Display without context
           createdAt: new Date().toISOString(),
           id: `temp-user-${Date.now()}`,
           messageType: 'TEXT',
@@ -322,7 +333,7 @@ export function FlowChatPanel() {
           id: newChatId,
           createdAt: new Date().toISOString(),
           followUpSuggestions: [],
-          messages: [userMessage],
+          messages: [userMessageForDisplay],
           sessionId: '',
           status: 'ACTIVE',
           title: '',
@@ -339,9 +350,10 @@ export function FlowChatPanel() {
       }
     }
 
-    const userMessage: ChatMessageType = {
+    // Display message shows only user's text (no context prefix)
+    const userMessageForDisplay: ChatMessageType = {
       chatId: activeChat.id,
-      content: contextualMessage,
+      content: trimmedMessage, // Display without context
       createdAt: new Date().toISOString(),
       id: `temp-user-${Date.now()}`,
       messageType: 'TEXT',
@@ -355,7 +367,7 @@ export function FlowChatPanel() {
       if (!prev) return null;
       return {
         ...prev,
-        messages: [...(prev.messages || []), userMessage],
+        messages: [...(prev.messages || []), userMessageForDisplay],
       };
     });
 
@@ -424,7 +436,10 @@ export function FlowChatPanel() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[90]"
+            className={cn(
+              'fixed inset-0 z-[90] transition-all duration-300',
+              isBackdropBlurred ? 'bg-black/20 backdrop-blur-sm' : 'bg-transparent'
+            )}
             onClick={closeChat}
           />
 
@@ -448,17 +463,19 @@ export function FlowChatPanel() {
                   </div>
                   <div>
                     <h2 className="font-semibold text-foreground">FlowChat</h2>
-                    {pageContext.isDetailPage && entityName && (
-                      <p className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Target className="w-3 h-3" />
-                        Viewing {entityName}
-                        {entityContext?.number && <span className="font-medium">#{entityContext.number}</span>}
-                      </p>
-                    )}
                   </div>
                 </div>
 
                 <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={cn('h-8 w-8', !isBackdropBlurred && 'bg-muted')}
+                    onClick={() => setIsBackdropBlurred(!isBackdropBlurred)}
+                    title={isBackdropBlurred ? 'Show background' : 'Blur background'}
+                  >
+                    {isBackdropBlurred ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -497,22 +514,7 @@ export function FlowChatPanel() {
                 </div>
               </div>
 
-              {/* Context Banner */}
-              {pageContext.isDetailPage && entityContext?.includeInChat && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  className="px-4 pb-3"
-                >
-                  <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-primary/10 to-secondary/10 rounded-lg border border-primary/20">
-                    <Sparkles className="w-4 h-4 text-primary" />
-                    <span className="text-xs text-foreground">
-                      Context-aware mode: Questions will include {entityName?.toLowerCase()}
-                      {entityContext?.number ? ` #${entityContext.number}` : ''} data
-                    </span>
-                  </div>
-                </motion.div>
-              )}
+              {/* Context is sent to AI but not visually displayed - check console for debug logs */}
             </div>
 
             {/* History Sidebar */}

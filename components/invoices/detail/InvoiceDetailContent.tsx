@@ -6,9 +6,10 @@
 
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
+import { useFlowChat } from '@/contexts/FlowChatContext';
 import { useInvoiceDetailState, useInvoiceLineItemsTable } from './hooks';
 import { HeaderTopBar, PricingSummaryBar, InvoiceDetailsFields } from './components/header';
 import { LineItemsTable } from './components/line-items';
@@ -43,6 +44,17 @@ interface InvoiceDetailContentProps {
 export default function InvoiceDetailContent({ invoiceId, initialOrderId }: InvoiceDetailContentProps) {
   const router = useRouter();
   const state = useInvoiceDetailState({ invoiceId, initialOrderId });
+  const { setFullEntityContext } = useFlowChat();
+
+  // Set full entity context for global chatbot (type, id, and invoice number)
+  useEffect(() => {
+    if (state?.invoice?.invoiceNumber && invoiceId) {
+      setFullEntityContext('invoice', invoiceId, state.invoice.invoiceNumber);
+    }
+    return () => {
+      setFullEntityContext(null, null, null);
+    };
+  }, [state?.invoice?.invoiceNumber, invoiceId, setFullEntityContext]);
 
   // Line items table hook - must be called before any early returns to respect Rules of Hooks
   const tableHook = useInvoiceLineItemsTable({
