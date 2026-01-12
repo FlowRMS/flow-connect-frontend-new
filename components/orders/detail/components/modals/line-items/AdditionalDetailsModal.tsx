@@ -282,7 +282,10 @@ export function AdditionalDetailsModal({
   };
 
   const handleSave = () => {
-    const updates: any = { ...formData };
+    // Build updates object WITHOUT endUserId/endUserName by default
+    // Only include them if showEndUserPerLine is enabled (matching quotes behavior)
+    const { endUserId, endUserName, ...restFormData } = formData;
+    const updates: any = { ...restFormData };
 
     // Add inside/outside split rates if per-line-item is enabled
     if (showInsideRepPerLine && insideSplitReps.length > 0) {
@@ -301,6 +304,12 @@ export function AdditionalDetailsModal({
         splitRate: r.splitRate,
         position: idx + 1,
       }));
+    }
+
+    // Only save endUserId and endUserName if per-line-item is enabled
+    if (showEndUserPerLine) {
+      updates.endUserId = endUserId;
+      updates.endUserName = endUserName;
     }
 
     onSave(updates);

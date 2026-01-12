@@ -105,35 +105,32 @@ export function OrderDetailsFields({
   const [endUserSearchEnabled, setEndUserSearchEnabled] = useState(false);
 
   // End user same as sold to checkbox state
-  // Initialize based on whether endUserId matches customerId
-  const [endUserSameAsSoldTo, setEndUserSameAsSoldTo] = useState(() => {
-    const endUserId = (order as any).endUserId;
-    const customerId = order.customerId;
-    return endUserId && customerId && endUserId === customerId;
-  });
+  // Initialize to false - user must explicitly check it (matching quotes behavior)
+  const [endUserSameAsSoldTo, setEndUserSameAsSoldTo] = useState(false);
 
   // Bill to same as sold to checkbox state
-  const [billToSameAsSoldTo, setBillToSameAsSoldTo] = useState(() => {
-    const billToCustomerId = (order as any).billToCustomerId;
-    const customerId = order.customerId;
-    return billToCustomerId && customerId && billToCustomerId === customerId;
-  });
+  // Initialize to false - user must explicitly check it (matching quotes behavior)
+  const [billToSameAsSoldTo, setBillToSameAsSoldTo] = useState(false);
 
-  // Update the checkbox when order changes
+  // Update the checkbox when order changes - check both directions
   useEffect(() => {
     const endUserId = (order as any).endUserId;
     const customerId = order.customerId;
     if (endUserId && customerId && endUserId === customerId) {
       setEndUserSameAsSoldTo(true);
+    } else {
+      setEndUserSameAsSoldTo(false);
     }
   }, [(order as any).endUserId, order.customerId]);
 
-  // Update bill to checkbox when order changes
+  // Update bill to checkbox when order changes - check both directions
   useEffect(() => {
     const billToCustomerId = (order as any).billToCustomerId;
     const customerId = order.customerId;
     if (billToCustomerId && customerId && billToCustomerId === customerId) {
       setBillToSameAsSoldTo(true);
+    } else {
+      setBillToSameAsSoldTo(false);
     }
   }, [(order as any).billToCustomerId, order.customerId]);
 

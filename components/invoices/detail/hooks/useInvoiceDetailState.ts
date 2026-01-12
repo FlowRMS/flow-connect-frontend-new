@@ -402,8 +402,19 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
 
     // Always populate order-related fields (Sold To, Bill To, PO#, Job, Terms, Reps)
     // Factory is now fetched directly from order query with factory { id title }
+
+    // When endUserPerLineItem is false, get end user from first line item since all line items share the same end user
+    // First check order details for the end user ID
+    const firstOrderDetail = (order.details || order.lineItems)?.[0];
+    const endUserIdFromOrderLineItem = firstOrderDetail?.endUserId || '';
+
     setLocalInvoice(prev => {
       if (!prev) return prev;
+
+      // Also check the current invoice's line items for end user ID
+      const firstInvoiceDetail = prev.lineItems?.[0];
+      const endUserIdFromLineItem = firstInvoiceDetail?.endUserId || endUserIdFromOrderLineItem || '';
+
       return {
         ...prev,
         // Order reference
@@ -421,8 +432,9 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
         soldToCustomerName: order.soldToCustomer?.companyName || '',
         billToCustomerId: order.billToCustomerId || order.soldToCustomerId || '',
         billToCustomerName: order.billToCustomer?.companyName || order.soldToCustomer?.companyName || '',
-        endUserId: order.endUserPerLineItem ? '' : (order.endUserId || ''),
-        endUserName: order.endUserPerLineItem ? '' : (order.endUser?.companyName || ''),
+        // When endUserPerLineItem is false, get end user from first line item (all line items share the same end user)
+        endUserId: order.endUserPerLineItem ? '' : (order.endUserId || endUserIdFromLineItem || prev.endUserId || ''),
+        endUserName: order.endUserPerLineItem ? '' : (order.endUser?.companyName || prev.endUserName || ''),
 
         // Order reference fields
         poNumber: order.customerPo || order.poNumber || '',

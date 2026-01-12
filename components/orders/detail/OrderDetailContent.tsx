@@ -394,11 +394,19 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           leadTime: (item as any).leadTime || undefined,
           note: (item as any).note || undefined,
         };
-        // Get endUserId: use line-item level if set, otherwise fall back to order-level
-        const lineEndUserId = (item as any).endUserId;
-        const endUserIdToUse = (lineEndUserId && isValidUUID(lineEndUserId))
-          ? lineEndUserId
-          : (orderEndUserId && isValidUUID(orderEndUserId) ? orderEndUserId : undefined);
+        // Get endUserId: RESPECT the showEndUserPerLine setting!
+        // - When showEndUserPerLine is TRUE: use line-item's endUserId
+        // - When showEndUserPerLine is FALSE: ALWAYS use header-level endUserId for ALL line items
+        let endUserIdToUse: string | undefined;
+
+        if (state.showEndUserPerLine) {
+          // Per-line-item is ON: use line item's end user
+          const lineEndUserId = (item as any).endUserId;
+          endUserIdToUse = (lineEndUserId && isValidUUID(lineEndUserId)) ? lineEndUserId : undefined;
+        } else {
+          // Per-line-item is OFF: ALWAYS use header-level end user, ignoring any line-item end users
+          endUserIdToUse = (orderEndUserId && isValidUUID(orderEndUserId)) ? orderEndUserId : undefined;
+        }
 
         if (endUserIdToUse) {
           detail.endUserId = endUserIdToUse;
