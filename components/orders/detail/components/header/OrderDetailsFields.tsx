@@ -577,7 +577,7 @@ export function OrderDetailsFields({
                     <div className="flex-1">
                       <SearchableDropdownV2
                         value={orderOutsideRep}
-                        displayValue={outsideRepOptions.find(r => r.id === orderOutsideRep)?.label || (order as any).outsideRepName}
+                        displayValue={outsideRepOptions.find(r => r.id === orderOutsideRep)?.label || outsideRepSplits.find(r => r.repId === orderOutsideRep)?.repName || (order as any).outsideRepName}
                         onChange={(id, label) => {
                           setOrderOutsideRep(id);
                           handleFieldUpdate('outsideRepId' as keyof Order, id);
@@ -656,7 +656,7 @@ export function OrderDetailsFields({
                     <div className="flex-1">
                       <SearchableDropdownV2
                         value={orderInsideRep}
-                        displayValue={insideRepOptions.find(r => r.id === orderInsideRep)?.label || order.insideRepName}
+                        displayValue={insideRepOptions.find(r => r.id === orderInsideRep)?.label || insideRepSplits.find(r => r.repId === orderInsideRep)?.repName || (order as any).insideRepName || order.insideRepName}
                         onChange={(id, label) => {
                           setOrderInsideRep(id);
                           handleFieldUpdate('insideRepId', id);

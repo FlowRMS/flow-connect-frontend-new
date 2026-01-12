@@ -12,6 +12,7 @@ import { searchInvoices, type InvoiceSearchResult } from '@/components/lib/api/s
 import { searchCredits, type CreditSearchResult } from '@/components/orders/api/creditsApi';
 import { searchAdjustments, type AdjustmentSearchResult } from '@/components/orders/api/adjustmentsApi';
 import { fetchInvoiceById, type Invoice } from '@/components/lib/graphql/invoices';
+import { fetchCreditById, type Credit } from '@/components/lib/graphql/credits';
 
 interface AddLineItemModalProps {
   onClose: () => void;
@@ -44,6 +45,10 @@ export function AddLineItemModal({
   const [selectedCredit, setSelectedCredit] = useState<CreditSearchResult | null>(null);
   const [showCreditDropdown, setShowCreditDropdown] = useState(false);
   const [isSearchingCredits, setIsSearchingCredits] = useState(false);
+
+  // Full credit details (fetched after selection)
+  const [creditDetails, setCreditDetails] = useState<Credit | null>(null);
+  const [isLoadingCreditDetails, setIsLoadingCreditDetails] = useState(false);
 
   // Adjustment search state
   const [adjustmentSearch, setAdjustmentSearch] = useState('');
@@ -152,10 +157,21 @@ export function AddLineItemModal({
   };
 
   // Handle credit selection
-  const handleSelectCredit = (credit: CreditSearchResult) => {
+  const handleSelectCredit = async (credit: CreditSearchResult) => {
     setSelectedCredit(credit);
     setCreditSearch(credit.creditNumber || '');
     setShowCreditDropdown(false);
+
+    // Fetch full credit details
+    setIsLoadingCreditDetails(true);
+    try {
+      const details = await fetchCreditById(credit.id);
+      setCreditDetails(details);
+    } catch (error) {
+      console.error('Error fetching credit details:', error);
+    } finally {
+      setIsLoadingCreditDetails(false);
+    }
   };
 
   // Handle adjustment selection
@@ -180,6 +196,7 @@ export function AddLineItemModal({
   // Clear credit selection
   const handleClearCredit = () => {
     setSelectedCredit(null);
+    setCreditDetails(null);
     setCreditSearch('');
     setAppliedAmount(0);
   };
@@ -198,6 +215,7 @@ export function AddLineItemModal({
         type: 'invoice',
         number: selectedInvoice.invoiceNumber,
         orderId: selectedInvoice.orderId || '',
+        orderNumber: invoiceDetails?.order?.orderNumber || '',
         customer: '-',
         salesRep: '-',
         commissionRateExpected: 0,
@@ -217,6 +235,7 @@ export function AddLineItemModal({
         type: 'credit',
         number: selectedCredit.creditNumber || '',
         orderId: selectedCredit.orderId || '',
+        orderNumber: creditDetails?.order?.orderNumber || '',
         customer: '-',
         salesRep: '-',
         commissionRateExpected: 0,
@@ -307,6 +326,7 @@ export function AddLineItemModal({
                 onClick={() => {
                   setType('invoice');
                   setSelectedCredit(null);
+                  setCreditDetails(null);
                   setCreditSearch('');
                   setSelectedAdjustment(null);
                   setAdjustmentSearch('');
@@ -345,6 +365,7 @@ export function AddLineItemModal({
                   setInvoiceDetails(null);
                   setInvoiceSearch('');
                   setSelectedCredit(null);
+                  setCreditDetails(null);
                   setCreditSearch('');
                   setAppliedAmount(0);
                 }}
