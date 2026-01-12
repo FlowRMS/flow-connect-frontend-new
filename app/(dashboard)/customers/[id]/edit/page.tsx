@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { useFlowChat } from '@/contexts/FlowChatContext';
 import {
   useCustomer,
   useUpdateCustomer,
@@ -48,6 +49,17 @@ export default function CustomerEditPage() {
   // API Hooks
   const { data: customer, isLoading, error } = useCustomer(customerId);
   const updateCustomer = useUpdateCustomer();
+  const { setFullEntityContext } = useFlowChat();
+
+  // Set full entity context for global chatbot (type, id, and customer name)
+  useEffect(() => {
+    if (customer?.companyName && customerId) {
+      setFullEntityContext('customer', customerId, customer.companyName);
+    }
+    return () => {
+      setFullEntityContext(null, null, null);
+    };
+  }, [customer?.companyName, customerId, setFullEntityContext]);
 
   // State
   const [activeTab, setActiveTab] = useState<TabId>('overview');

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { useFlowChat } from '@/contexts/FlowChatContext';
 import {
   useProduct,
   useUpdateProduct,
@@ -68,6 +69,17 @@ export default function ProductEditPage() {
   const { data: product, isLoading: isLoadingProduct, error: productError } = useProduct(productId);
   const updateProductMutation = useUpdateProduct();
   const { data: uoms = [] } = useProductUoms();
+  const { setFullEntityContext } = useFlowChat();
+
+  // Set full entity context for global chatbot (type, id, and product part number)
+  useEffect(() => {
+    if (product?.factoryPartNumber && productId) {
+      setFullEntityContext('product', productId, product.factoryPartNumber);
+    }
+    return () => {
+      setFullEntityContext(null, null, null);
+    };
+  }, [product?.factoryPartNumber, productId, setFullEntityContext]);
 
   // CPN Hooks
   const { data: cpns = [], isLoading: isLoadingCpns, refetch: refetchCpns } = useProductCpns(productId);

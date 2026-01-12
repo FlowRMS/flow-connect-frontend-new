@@ -7,6 +7,7 @@
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useFlowChat } from '@/contexts/FlowChatContext';
 import type { DragEndEvent, DragStartEvent, DragOverEvent } from '@dnd-kit/core';
 import AdvancedFilters, { ActiveFilter, ActiveSort } from '../advancedFilters/AdvancedFilters';
 import SortButton from '../SortButton';
@@ -31,7 +32,8 @@ export default function JobsContent() {
   // Router for navigation
   const router = useRouter();
   const searchParams = useSearchParams();
-  
+  const { setFullEntityContext } = useFlowChat();
+
   // Hydration-safe mounted state
   const [isMounted, setIsMounted] = useState(false);
 
@@ -189,6 +191,18 @@ export default function JobsContent() {
       }
     }
   }, [selectedJob?.id, isMounted, router, searchParams]);
+
+  // Set full entity context for global chatbot (type, id, and job name)
+  useEffect(() => {
+    if (detailedJob?.name && detailedJob?.id) {
+      setFullEntityContext('job', detailedJob.id, detailedJob.name);
+    } else {
+      setFullEntityContext(null, null, null);
+    }
+    return () => {
+      setFullEntityContext(null, null, null);
+    };
+  }, [detailedJob?.name, detailedJob?.id, setFullEntityContext]);
 
   // Filter and sort configuration
   const jobFilterOptions = getJobFilterOptions(uniqueJobNames, uniqueStatuses, uniqueTypes, uniqueCreators);

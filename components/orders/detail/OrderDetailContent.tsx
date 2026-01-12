@@ -6,9 +6,10 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useOrderDetailState } from './hooks/useOrderDetailState';
+import { useFlowChat } from '@/contexts/FlowChatContext';
 import { OrderDetailHeader } from './components/header';
 import { LineItemsTable } from './components/line-items';
 import { NotesTab, TasksTab, ActivityTab, CreditsTab, AdjustmentsTab, AcknowledgementsTab, LinkedObjectsTab, SettingsTab } from './components/tabs';
@@ -52,6 +53,7 @@ interface OrderDetailContentProps {
 export default function OrderDetailContent({ orderId }: OrderDetailContentProps) {
   const router = useRouter();
   const state = useOrderDetailState({ orderId });
+  const { setFullEntityContext } = useFlowChat();
 
   // Credits state management
   const creditsState = useCreditsState({ orderId: orderId !== 'new' ? orderId : null });
@@ -77,6 +79,16 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
 
   // Auto-populate reps hook for settings toggle
   const { fetchOutsideRepsFromCustomer, fetchInsideRepsFromFactory } = useAutoPopulateReps();
+
+  // Set full entity context for global chatbot (type, id, and order number)
+  useEffect(() => {
+    if (state?.order?.orderNumber && orderId) {
+      setFullEntityContext('order', orderId, state.order.orderNumber);
+    }
+    return () => {
+      setFullEntityContext(null, null, null);
+    };
+  }, [state?.order?.orderNumber, orderId, setFullEntityContext]);
 
   // Wrapped handlers for settings changes with rep redistribution
   const handleSetShowOutsideRepPerLine = async (value: boolean) => {
