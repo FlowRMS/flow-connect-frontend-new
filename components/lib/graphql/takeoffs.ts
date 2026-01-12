@@ -17,10 +17,13 @@ export type TakeoffStatusEnum = 'CLASSIFICATION' | 'ABRIDGMENT' | 'PARSING' | 'C
 export interface TakeoffDocumentResponse {
   id: string;
   takeoffId: string;
+  fileId: string;
+  // File info derived from file relationship
   name: string;
   fileType: string;
-  fileSize: string;
+  fileSize: number;
   documentUrl: string | null;
+  // Takeoff-specific fields
   classification: string | null;
   confidence: number | null;
   pages: number;
@@ -39,10 +42,9 @@ export interface TakeoffResponse {
   takeoffNumber: string;
   title: string;
   source: string;
-  createdBy: string;
+  createdById: string;
   status: TakeoffStatusEnum;
   quoteId: string | null;
-  userId: string;
   metadata: Record<string, unknown> | null;
   createdAt: string;
   documents: TakeoffDocumentResponse[];
@@ -71,10 +73,7 @@ export interface ParsedItem {
 }
 
 export interface TakeoffDocumentInput {
-  name: string;
-  fileType?: string;
-  fileSize: string;
-  documentUrl?: string | null;
+  fileId: string;
   classification?: string | null;
   confidence?: number | null;
   pages?: number;
@@ -89,7 +88,6 @@ export interface TakeoffDocumentInput {
 export interface CreateTakeoffInput {
   title: string;
   source?: string;
-  createdBy: string;
   status?: TakeoffStatusEnum;
   quoteId?: string | null;
   metadata?: Record<string, unknown> | null;
@@ -105,10 +103,9 @@ export interface UpdateTakeoffInput {
 }
 
 export interface UpdateTakeoffDocumentInput {
-  name?: string | null;
   classification?: string | null;
-  discipline?: string | null; // Added for discipline persistence
   confidence?: number | null;
+  discipline?: string | null;
   pages?: number | null;
   abridged?: boolean | null;
   abridgedPages?: number | null;
@@ -130,8 +127,7 @@ const GET_USER_TAKEOFFS = `
     $search: String,
     $status: String,
     $source: String,
-    $title: String,
-    $createdBy: String
+    $title: String
   ) {
     getUserTakeoffs(
       limit: $limit,
@@ -139,22 +135,21 @@ const GET_USER_TAKEOFFS = `
       search: $search,
       status: $status,
       source: $source,
-      title: $title,
-      createdBy: $createdBy
+      title: $title
     ) {
       id
       takeoffNumber
       title
       source
-      createdBy
+      createdById
       status
       quoteId
-      userId
       metadata
       createdAt
       documents {
         id
         takeoffId
+        fileId
         name
         fileType
         fileSize
@@ -182,8 +177,7 @@ const GET_USER_TAKEOFFS_PAGINATED = `
     $search: String,
     $status: String,
     $source: String,
-    $title: String,
-    $createdBy: String
+    $title: String
   ) {
     getUserTakeoffsPaginated(
       limit: $limit,
@@ -191,8 +185,7 @@ const GET_USER_TAKEOFFS_PAGINATED = `
       search: $search,
       status: $status,
       source: $source,
-      title: $title,
-      createdBy: $createdBy
+      title: $title
     ) {
       totalCount
       takeoffs {
@@ -200,15 +193,15 @@ const GET_USER_TAKEOFFS_PAGINATED = `
         takeoffNumber
         title
         source
-        createdBy
+        createdById
         status
         quoteId
-        userId
         metadata
         createdAt
         documents {
           id
           takeoffId
+          fileId
           name
           fileType
           fileSize
@@ -237,15 +230,15 @@ const GET_TAKEOFF = `
       takeoffNumber
       title
       source
-      createdBy
+      createdById
       status
       quoteId
-      userId
       metadata
       createdAt
       documents {
         id
         takeoffId
+        fileId
         name
         fileType
         fileSize
@@ -274,17 +267,18 @@ const CREATE_TAKEOFF = `
   mutation CreateTakeoff($input: CreateTakeoffInput!) {
     createTakeoff(input: $input) {
       id
+      takeoffNumber
       title
       source
-      createdBy
+      createdById
       status
       quoteId
-      userId
       metadata
       createdAt
       documents {
         id
         takeoffId
+        fileId
         name
         fileType
         fileSize
@@ -306,12 +300,12 @@ const UPDATE_TAKEOFF = `
   mutation UpdateTakeoff($takeoffId: UUID!, $input: UpdateTakeoffInput!) {
     updateTakeoff(takeoffId: $takeoffId, input: $input) {
       id
+      takeoffNumber
       title
       source
-      createdBy
+      createdById
       status
       quoteId
-      userId
       metadata
       createdAt
     }
@@ -329,6 +323,7 @@ const UPDATE_TAKEOFF_DOCUMENT = `
     updateTakeoffDocument(documentId: $documentId, input: $input) {
       id
       takeoffId
+      fileId
       name
       fileType
       fileSize
@@ -688,7 +683,6 @@ export interface FetchTakeoffsParams {
   search?: string;
   status?: string;
   source?: string;
-  createdBy?: string;
   dateFrom?: string;
   dateTo?: string;
   title?: string;
@@ -715,7 +709,6 @@ export async function fetchUserTakeoffs(params?: FetchTakeoffsParams): Promise<T
       status: params?.status || null,
       source: params?.source || null,
       title: params?.title || null,
-      createdBy: params?.createdBy || null,
     },
   });
 
@@ -741,7 +734,6 @@ export async function fetchUserTakeoffsPaginated(params?: FetchTakeoffsParams): 
       status: params?.status || null,
       source: params?.source || null,
       title: params?.title || null,
-      createdBy: params?.createdBy || null,
     },
   });
 
@@ -871,7 +863,6 @@ export interface UploadProgressCallback {
 export interface CreateTakeoffWithFilesInput {
   title: string;
   source?: string;
-  createdBy: string;
   metadata?: {
     clientName?: string;
     bidDate?: string;
@@ -892,6 +883,7 @@ export interface UploadedFileInfo {
 const UPLOAD_TAKEOFF_DOCUMENT = `
   mutation UploadTakeoffDocument($file: Upload!, $fileName: String!, $folder: String) {
     uploadTakeoffDocument(file: $file, fileName: $fileName, folder: $folder) {
+      fileId
       s3Key
       presignedUrl
       fileName
@@ -902,6 +894,7 @@ const UPLOAD_TAKEOFF_DOCUMENT = `
 `;
 
 interface TakeoffUploadResponse {
+  fileId: string;  // UUID of the created File record - use this in TakeoffDocumentInput
   s3Key: string;
   presignedUrl: string;
   fileName: string;
@@ -963,8 +956,9 @@ export async function uploadFilesToStorage(
       onProgress?.(i, 50, 'uploading');
 
       // Create a compatible file response
+      // Use fileId from upload response (UUID of File record in database)
       const crmFile: FileResponse = {
-        id: uploadResult.s3Key,
+        id: uploadResult.fileId,  // This is now the real File UUID, not s3Key
         fileName: uploadResult.fileName,
         filePath: uploadResult.s3Key,
         fileSha: '',
@@ -1062,13 +1056,11 @@ export async function createTakeoffWithFiles(
   }
   console.log('[createTakeoffWithFiles] Presigned URLs:', uploadedFiles.map(f => ({ name: f.file.name, url: f.presignedUrl?.substring(0, 50) + '...' })));
 
-  // Step 3: Create takeoff with document URLs and page counts
+  // Step 3: Create takeoff with document file IDs and page counts
+  // NOTE: crmFile.id is the file_id from the files.files table (created by uploadTakeoffDocument)
   console.log('[createTakeoffWithFiles] Step 3: Creating takeoff with documents...');
-  const documents: TakeoffDocumentInput[] = uploadedFiles.map(({ file, crmFile, presignedUrl }) => ({
-    name: file.name,
-    fileType: file.type || 'application/pdf',
-    fileSize: crmFile.fileSize ? `${(crmFile.fileSize / 1024).toFixed(1)} KB` : `${(file.size / 1024).toFixed(1)} KB`,
-    documentUrl: presignedUrl,
+  const documents: TakeoffDocumentInput[] = uploadedFiles.map(({ file, crmFile }) => ({
+    fileId: crmFile.id,
     pages: pageCountMap.get(file.name) || 0,
     abridged: false,
   }));
@@ -1077,7 +1069,6 @@ export async function createTakeoffWithFiles(
   const takeoffInput: CreateTakeoffInput = {
     title: input.title,
     source: input.source || 'Manual Upload',
-    createdBy: input.createdBy,
     status: 'CLASSIFICATION',
     metadata: input.metadata || null,
     documents,
@@ -1098,16 +1089,17 @@ export async function createTakeoffWithFiles(
     } else {
       console.warn('[createTakeoffWithFiles] Still no documents after refetch, constructing from input');
       // Construct documents from our input as a last resort
-      result.documents = documents.map((doc, index) => ({
+      result.documents = uploadedFiles.map(({ file, crmFile, presignedUrl }, index) => ({
         id: `temp-${index}-${Date.now()}`,
         takeoffId: result.id,
-        name: doc.name,
-        fileType: doc.fileType || '',
-        fileSize: doc.fileSize,
-        documentUrl: doc.documentUrl ?? null,
+        fileId: crmFile.id,
+        name: file.name,
+        fileType: file.type || 'application/pdf',
+        fileSize: crmFile.fileSize || file.size,
+        documentUrl: presignedUrl ?? null,
         abridgedUrl: null,
-        pages: doc.pages || 0,
-        abridged: doc.abridged || false,
+        pages: pageCountMap.get(file.name) || 0,
+        abridged: false,
         abridgedPages: null,
         reductionPercentage: null,
         classification: null,

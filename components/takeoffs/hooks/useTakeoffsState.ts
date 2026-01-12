@@ -198,7 +198,6 @@ export function useTakeoffsState() {
     status?: string;
     source?: string;
     title?: string;
-    createdBy?: string;
   }) => {
     setIsLoading(true);
     setError(null);
@@ -209,7 +208,6 @@ export function useTakeoffsState() {
         status: options?.status || undefined,
         source: options?.source || undefined,
         title: options?.title || undefined,
-        createdBy: options?.createdBy || undefined,
       };
       console.log('[Takeoffs] Fetching with params:', searchParams);
 
@@ -220,7 +218,7 @@ export function useTakeoffsState() {
       setTakeoffsData(transformedTakeoffs);
 
       // Update totalCount when no filters are applied (for "Showing X of Y" display)
-      const hasFilters = options?.search || options?.status || options?.source || options?.title || options?.createdBy;
+      const hasFilters = options?.search || options?.status || options?.source || options?.title;
       if (!hasFilters) {
         setTotalCount(transformedTakeoffs.length);
       }
@@ -258,14 +256,6 @@ export function useTakeoffsState() {
     return undefined;
   }, [activeFilters]);
 
-  const createdByFilter = useMemo(() => {
-    const createdByFilterItem = activeFilters.find(f => f.columnName === 'createdBy');
-    if (createdByFilterItem?.value) {
-      return createdByFilterItem.value;
-    }
-    return undefined;
-  }, [activeFilters]);
-
   const priorityFilter = useMemo(() => {
     const priorityFilterItem = activeFilters.find(f => f.columnName === 'priority');
     if (priorityFilterItem?.values && priorityFilterItem.values.length > 0) {
@@ -291,9 +281,8 @@ export function useTakeoffsState() {
       status: statusFilter,
       source: sourceFilter,
       title: titleFilter,
-      createdBy: createdByFilter,
     });
-  }, [loadTakeoffs, debouncedSearch, statusFilter, sourceFilter, titleFilter, createdByFilter]);
+  }, [loadTakeoffs, debouncedSearch, statusFilter, sourceFilter, titleFilter]);
 
   // Apply client-side filtering for priority (backend doesn't support it)
   const takeoffs = useMemo(() => {
@@ -1474,11 +1463,11 @@ export function useTakeoffsState() {
 
     try {
       // Upload files to CRM storage and create takeoff in flow-ai
+      // Note: createdById is now set automatically from auth_info on the backend
       const newTakeoff = await createTakeoffWithFiles(
         {
           title: projectData?.projectName || `New Takeoff - ${new Date().toLocaleDateString()}`,
           source: 'Manual Upload',
-          createdBy: currentUserName,
           metadata: projectData ? {
             clientName: projectData.clientName,
             bidDate: projectData.bidDate,
@@ -1511,11 +1500,17 @@ export function useTakeoffsState() {
         // Try to use documents from the raw response
         if (newTakeoff.documents && newTakeoff.documents.length > 0) {
           console.log('[Upload] Using raw documents:', newTakeoff.documents.length);
+          // Helper to format file size
+          const formatSize = (bytes: number): string => {
+            if (bytes < 1024) return `${bytes} B`;
+            if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+            return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+          };
           const docs = newTakeoff.documents.map(doc => ({
             id: doc.id,
             name: doc.name,
             type: 'PDF' as const,
-            size: doc.fileSize,
+            size: formatSize(doc.fileSize),
             uploadDate: doc.createdAt,
             classification: '' as const,
             confidence: doc.confidence || 0,
@@ -1576,11 +1571,17 @@ export function useTakeoffsState() {
           fullTakeoff.documents.forEach(doc => {
             console.log(`[handleSelectTakeoff] Document ${doc.name}: pageAnalyses=`, doc.pageAnalyses, 'abridged=', doc.abridged);
           });
+          // Helper to format file size
+          const formatSize = (bytes: number): string => {
+            if (bytes < 1024) return `${bytes} B`;
+            if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+            return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+          };
           docs = fullTakeoff.documents.map(doc => ({
             id: doc.id,
             name: doc.name,
             type: 'PDF' as const,
-            size: doc.fileSize,
+            size: formatSize(doc.fileSize),
             uploadDate: doc.createdAt,
             classification: doc.classification ? (doc.classification as DocumentClassification) : ('' as DocumentClassification),
             confidence: doc.confidence || 0,
@@ -1725,9 +1726,8 @@ export function useTakeoffsState() {
       status: statusFilter,
       source: sourceFilter,
       title: titleFilter,
-      createdBy: createdByFilter,
     });
-  }, [loadTakeoffs, debouncedSearch, statusFilter, sourceFilter, titleFilter, createdByFilter]);
+  }, [loadTakeoffs, debouncedSearch, statusFilter, sourceFilter, titleFilter]);
 
   // Modal handlers
   const handleOpenUploadModal = useCallback(() => {

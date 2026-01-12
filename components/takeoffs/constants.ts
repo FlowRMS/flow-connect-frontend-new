@@ -24,6 +24,7 @@ export const TAKEOFF_STATUS_OPTIONS = [
 ] as const;
 
 // Filter options for take-offs list
+// Note: "Created By" filter removed - backend now uses created_by_id (UUID) from auth
 export const TAKEOFF_FILTER_OPTIONS: TakeoffFilterOption[] = [
   { id: 'takeoffId', label: 'Takeoff ID', type: 'text', columnName: 'id' },
   { id: 'title', label: 'Title', type: 'text', columnName: 'title' },
@@ -34,7 +35,6 @@ export const TAKEOFF_FILTER_OPTIONS: TakeoffFilterOption[] = [
     columnName: 'status',
     options: [...TAKEOFF_STATUS_OPTIONS],
   },
-  { id: 'createdBy', label: 'Created By', type: 'text', columnName: 'createdBy' },
   { id: 'date', label: 'Date', type: 'date', columnName: 'createdDate' },
 ];
 

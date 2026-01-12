@@ -97,12 +97,11 @@ export interface Takeoff {
   takeoffNumber: string;
   title: string;
   source: string;
-  createdBy: string;
+  createdById: string;
   createdDate: string;
   status: TakeoffStatus;
   priority?: TakeoffPriority;
   quoteId?: string;
-  userId?: string;
   metadata?: TakeoffMetadata;
   documents?: TakeoffDocument[];
 }
@@ -185,11 +184,10 @@ export function transformTakeoffResponse(response: TakeoffResponse): Takeoff {
     takeoffNumber: response.takeoffNumber,
     title: response.title,
     source: response.source,
-    createdBy: response.createdBy,
+    createdById: response.createdById,
     createdDate: response.createdAt,
     status: statusDisplayMap[response.status],
     quoteId: response.quoteId || undefined,
-    userId: response.userId,
     metadata: transformMetadata(response.metadata),
     documents: response.documents?.map(transformDocumentResponse),
   };
@@ -225,11 +223,18 @@ function safeParseParsedItems(parsedItems: unknown): ParsedItem[] | undefined {
  * Transform API document response to UI display format
  */
 export function transformDocumentResponse(doc: TakeoffDocumentResponse): TakeoffDocument {
+  // Format file size for display
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
   return {
     id: doc.id,
     name: doc.name,
     type: 'PDF',
-    size: doc.fileSize,
+    size: formatFileSize(doc.fileSize),
     uploadDate: doc.createdAt,
     classification: mapClassification(doc.classification),
     confidence: doc.confidence || 0,

@@ -18,7 +18,7 @@ interface TakeoffListViewProps {
 }
 
 // Sortable fields type
-type SortField = 'title' | 'source' | 'createdBy' | 'createdDate' | 'status';
+type SortField = 'title' | 'source' | 'createdDate' | 'status';
 
 // Get status badge styling
 function getStatusBadge(status: string) {
@@ -110,10 +110,6 @@ export function TakeoffListView({
           aValue = a.source?.toLowerCase() || '';
           bValue = b.source?.toLowerCase() || '';
           break;
-        case 'createdBy':
-          aValue = a.createdBy?.toLowerCase() || '';
-          bValue = b.createdBy?.toLowerCase() || '';
-          break;
         case 'createdDate':
           aValue = a.createdDate ? new Date(a.createdDate).getTime() : 0;
           bValue = b.createdDate ? new Date(b.createdDate).getTime() : 0;
@@ -190,15 +186,6 @@ export function TakeoffListView({
               </div>
             </th>
             <th
-              onClick={() => handleSort('createdBy')}
-              className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 group"
-            >
-              <div className="flex items-center">
-                Created By
-                <SortIndicator field="createdBy" />
-              </div>
-            </th>
-            <th
               onClick={() => handleSort('createdDate')}
               className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 group"
             >
@@ -245,13 +232,6 @@ export function TakeoffListView({
               <td className="px-6 py-4">
                 <span className="text-sm text-gray-600">
                   {takeoff.source || 'Manual Upload'}
-                </span>
-              </td>
-
-              {/* Created By */}
-              <td className="px-6 py-4">
-                <span className="text-sm text-gray-600">
-                  {takeoff.createdBy || '-'}
                 </span>
               </td>
 
