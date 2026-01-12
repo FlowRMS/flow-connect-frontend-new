@@ -88,13 +88,20 @@ export function GridView({
                 <h3 className="text-sm font-semibold text-[var(--foreground)] truncate">
                   {customer.companyName || 'Unnamed Customer'}
                 </h3>
-                <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${
-                  customer.isParent
-                    ? 'bg-purple-100 text-purple-700'
-                    : 'bg-gray-100 text-gray-700'
-                }`}>
-                  {customer.isParent ? 'Parent' : 'Child'}
-                </span>
+                {/* Hierarchy: Buying Group (top) -> Parent Customer -> Customer */}
+                {customer.isParent && !customer.parent && !customer.buyingGroup ? (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">
+                    Buying Group
+                  </span>
+                ) : customer.isParent ? (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+                    Parent
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                    Child
+                  </span>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>

@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { useCreateCRMCompany } from '../../../../components/hooks/useCRMApi';
 import { useCompanySearch } from '../../../../components/notes/api';
 import type { CompanySourceType } from '../../../../components/lib/crm-graphql';
+import { COMPANY_SOURCE_TYPE_LABELS, COMPANY_SOURCE_TYPE_OPTIONS } from '../../../../components/lib/crm-graphql';
 
 // ============================================================================
 // Types
@@ -152,6 +153,152 @@ function CustomSelect({ value, onChange, options, placeholder, disabled }: Custo
           ) : (
             <span className="text-gray-400">{placeholder || 'Select...'}</span>
           )}
+        </div>
+        <svg
+          className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {dropdownContent}
+    </div>
+  );
+}
+
+// Company Source Type Select (industry-specific types)
+interface CompanySourceTypeSelectProps {
+  value: CompanySourceType | '';
+  onChange: (value: CompanySourceType) => void;
+}
+
+function CompanySourceTypeSelect({ value, onChange }: CompanySourceTypeSelectProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
+  const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const filteredOptions = COMPANY_SOURCE_TYPE_OPTIONS.filter(option =>
+    COMPANY_SOURCE_TYPE_LABELS[option].toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  useEffect(() => {
+    setPortalTarget(document.body);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const dropdownHeight = 320;
+
+      if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
+        setPosition({
+          top: rect.top + window.scrollY - dropdownHeight - 4,
+          left: rect.left + window.scrollX,
+          width: Math.max(rect.width, 280),
+        });
+      } else {
+        setPosition({
+          top: rect.bottom + window.scrollY + 4,
+          left: rect.left + window.scrollX,
+          width: Math.max(rect.width, 280),
+        });
+      }
+      setTimeout(() => searchInputRef.current?.focus(), 0);
+    } else {
+      setSearchTerm('');
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const isInsideTrigger = triggerRef.current?.contains(target);
+      const isInsideDropdown = dropdownRef.current?.contains(target);
+
+      if (!isInsideTrigger && !isInsideDropdown) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectedLabel = value ? COMPANY_SOURCE_TYPE_LABELS[value] : 'Select Company Type';
+
+  const dropdownContent = isOpen && portalTarget && createPortal(
+    <div
+      ref={dropdownRef}
+      className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"
+      style={{ top: position.top, left: position.left, width: position.width }}
+    >
+      <div className="p-2 border-b border-gray-100">
+        <input
+          ref={searchInputRef}
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search company types..."
+          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+      </div>
+      <div className="max-h-60 overflow-y-auto py-1">
+        {filteredOptions.length === 0 ? (
+          <div className="px-4 py-3 text-sm text-gray-500 text-center">No matching types found</div>
+        ) : (
+          filteredOptions.map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => {
+                onChange(option);
+                setIsOpen(false);
+              }}
+              className={`
+                w-full px-4 py-2.5 text-left text-sm flex items-center gap-2.5
+                transition-colors hover:bg-gray-50
+                ${value === option ? 'bg-blue-50' : ''}
+              `}
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-500 flex-shrink-0" />
+              <span className={`flex-1 ${value === option ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
+                {COMPANY_SOURCE_TYPE_LABELS[option]}
+              </span>
+              {value === option && (
+                <svg className="w-4 h-4 text-blue-600 ml-auto flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </button>
+          ))
+        )}
+      </div>
+    </div>,
+    portalTarget
+  );
+
+  return (
+    <div className="relative">
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`
+          w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-white text-left
+          flex items-center justify-between gap-2 transition-all
+          hover:border-blue-300 hover:shadow-sm cursor-pointer
+          ${isOpen ? 'ring-2 ring-blue-500 border-transparent shadow-sm' : ''}
+        `}
+      >
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+          <span className={value ? 'text-gray-900' : 'text-gray-400'}>{selectedLabel}</span>
         </div>
         <svg
           className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`}
@@ -376,7 +523,7 @@ export default function CreateCompanyPage() {
 
   // Form state
   const [name, setName] = useState('');
-  const [companyType, setCompanyType] = useState<CompanySourceType>('CUSTOMER');
+  const [companySourceType, setCompanySourceType] = useState<CompanySourceType | ''>('');
   const [phone, setPhone] = useState('');
   const [website, setWebsite] = useState('');
   const [tags, setTags] = useState('');
@@ -459,10 +606,15 @@ export default function CreateCompanyPage() {
       return;
     }
 
+    if (!companySourceType) {
+      toast.error('Please select a company type');
+      return;
+    }
+
     try {
       const newCompany = await createCompanyMutation.mutateAsync({
         name: name.trim(),
-        companySourceType: companyType,
+        companySourceType: companySourceType,
         phone: phone.trim() || undefined,
         website: website.trim() || undefined,
         tags: tags.trim() || undefined,
@@ -478,11 +630,6 @@ export default function CreateCompanyPage() {
       console.error('Create error:', err);
     }
   };
-
-  // Only Customer type available - Manufacturers are managed in /manufacturers
-  const companyTypeOptions = [
-    { value: 'CUSTOMER', label: 'Customer', description: 'A customer account for sales and orders' },
-  ];
 
   const tabs = [
     { id: 'overview' as TabId, label: 'Overview' },
@@ -596,12 +743,13 @@ export default function CreateCompanyPage() {
               <label className={labelClass}>
                 Company Type <span className="text-red-500">*</span>
               </label>
-              <CustomSelect
-                value={companyType}
-                onChange={(v) => setCompanyType(v as CompanySourceType)}
-                options={companyTypeOptions}
-                placeholder="Select company type"
+              <CompanySourceTypeSelect
+                value={companySourceType}
+                onChange={(v) => setCompanySourceType(v)}
               />
+              <p className="mt-1.5 text-xs text-gray-500">
+                Select the industry type that best describes this company.
+              </p>
             </div>
 
             {/* Company Name */}

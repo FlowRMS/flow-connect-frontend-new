@@ -7,6 +7,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import type { Company, CompanyAddress, AddressType, ManufacturerInfo, SalesRepAssignment, CompanyHierarchyRole, ChildCompanyRef } from '../types';
 import type { CompanySourceType, Contact as APIContact, Job as APIJob } from '../../lib/crm-graphql';
+import { COMPANY_SOURCE_TYPE_OPTIONS, COMPANY_SOURCE_TYPE_LABELS } from '../../lib/crm-graphql';
 import CompanyRelatedEntities from './CompanyRelatedEntities';
 import ConnectedNotesSection from '../../notes/ConnectedNotesSection';
 import ConnectedTasksSection from '../../tasks/ConnectedTasksSection';
@@ -58,46 +59,33 @@ interface CompanyDetailViewProps {
   onJobClick?: (job: APIJob) => void;
 }
 
-// Default company type options
-const DEFAULT_COMPANY_TYPES = [
-  { value: 'Customer', label: 'Customer', color: { bg: 'bg-green-100', text: 'text-green-700', dot: 'bg-green-500' } },
-  { value: 'Manufacturer', label: 'Manufacturer', color: { bg: 'bg-purple-100', text: 'text-purple-700', dot: 'bg-purple-500' } },
-];
 
-// Company Type Single-Select Dropdown with "Add Category" option
+// Company Type Single-Select Dropdown using proper enum values
 function CompanyTypeSelect({
   value,
   onChange,
-  customTypes = [],
-  onAddCustomType,
   disabled,
 }: {
-  value: string;
-  onChange: (value: string) => void;
-  customTypes?: string[];
-  onAddCustomType?: (type: string) => void;
+  value: CompanySourceType | string;
+  onChange: (value: CompanySourceType) => void;
   disabled: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newTypeName, setNewTypeName] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // All options: defaults + custom
-  const allOptions = [
-    ...DEFAULT_COMPANY_TYPES,
-    ...customTypes.map(t => ({
-      value: t,
-      label: t,
-      color: { bg: 'bg-blue-100', text: 'text-blue-700', dot: 'bg-blue-500' },
-      isCustom: true,
-    })),
-  ];
+  // Filter options based on search term
+  const filteredOptions = COMPANY_SOURCE_TYPE_OPTIONS.filter(option =>
+    COMPANY_SOURCE_TYPE_LABELS[option].toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
-  const selectedOption = allOptions.find(opt => opt.value === value) || allOptions[0];
+  const selectedLabel = value && COMPANY_SOURCE_TYPE_LABELS[value as CompanySourceType]
+    ? COMPANY_SOURCE_TYPE_LABELS[value as CompanySourceType]
+    : 'Select Company Type';
 
   useEffect(() => {
     setPortalTarget(document.body);
@@ -106,22 +94,26 @@ function CompanyTypeSelect({
   useEffect(() => {
     if (isOpen && triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
-      const dropdownHeight = 200;
+      const dropdownHeight = 320;
       const spaceBelow = window.innerHeight - rect.bottom;
 
       if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
         setPosition({
           top: rect.top + window.scrollY - dropdownHeight - 4,
           left: rect.left + window.scrollX,
-          width: rect.width,
+          width: Math.max(rect.width, 280),
         });
       } else {
         setPosition({
           top: rect.bottom + window.scrollY + 4,
           left: rect.left + window.scrollX,
-          width: rect.width,
+          width: Math.max(rect.width, 280),
         });
       }
+      // Focus search input when dropdown opens
+      setTimeout(() => searchInputRef.current?.focus(), 0);
+    } else {
+      setSearchTerm('');
     }
   }, [isOpen]);
 
@@ -139,25 +131,11 @@ function CompanyTypeSelect({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleAddCategory = () => {
-    if (newTypeName.trim() && onAddCustomType) {
-      const trimmed = newTypeName.trim();
-      // Don't allow duplicates
-      if (!allOptions.some(opt => opt.value.toLowerCase() === trimmed.toLowerCase())) {
-        onAddCustomType(trimmed);
-        onChange(trimmed); // Select the newly added type
-      }
-    }
-    setNewTypeName('');
-    setShowAddModal(false);
-    setIsOpen(false);
-  };
-
   if (disabled) {
     return (
       <div className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 flex items-center gap-2">
-        <span className={`w-2.5 h-2.5 rounded-full ${selectedOption.color.dot}`} />
-        <span className="text-gray-900">{selectedOption.label}</span>
+        <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+        <span className="text-gray-900">{selectedLabel}</span>
       </div>
     );
   }
@@ -168,86 +146,48 @@ function CompanyTypeSelect({
       className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"
       style={{ top: position.top, left: position.left, width: position.width }}
     >
-      <div className="py-1 max-h-[250px] overflow-y-auto">
-        {allOptions.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            onClick={() => {
-              onChange(option.value);
-              setIsOpen(false);
-            }}
-            className={`
-              w-full px-4 py-2.5 text-left text-sm flex items-center gap-2.5
-              transition-colors hover:bg-gray-50
-              ${value === option.value ? 'bg-blue-50' : ''}
-            `}
-          >
-            <span className={`w-2.5 h-2.5 rounded-full ${option.color.dot} flex-shrink-0`} />
-            <span className={`flex-1 ${value === option.value ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
-              {option.label}
-            </span>
-            {value === option.value && (
-              <svg className="w-4 h-4 text-blue-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-              </svg>
-            )}
-          </button>
-        ))}
-
-        {/* Add Category Option */}
-        <div className="border-t border-gray-100 mt-1 pt-1">
-          <button
-            type="button"
-            onClick={() => setShowAddModal(true)}
-            className="w-full px-4 py-2.5 text-left text-sm flex items-center gap-2.5 text-gray-600 hover:bg-gray-50 transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            <span>Add category</span>
-          </button>
-        </div>
-      </div>
-    </div>,
-    portalTarget
-  );
-
-  // Add Category Modal
-  const addModal = showAddModal && portalTarget && createPortal(
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={() => setShowAddModal(false)} />
-      <div className="relative bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Add Company Type</h3>
+      {/* Search input */}
+      <div className="p-2 border-b border-gray-100">
         <input
+          ref={searchInputRef}
           type="text"
-          value={newTypeName}
-          onChange={(e) => setNewTypeName(e.target.value)}
-          placeholder="Enter type name..."
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          autoFocus
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') handleAddCategory();
-            if (e.key === 'Escape') setShowAddModal(false);
-          }}
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search company types..."
+          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
-        <div className="flex justify-end gap-3 mt-4">
-          <button
-            type="button"
-            onClick={() => setShowAddModal(false)}
-            className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleAddCategory}
-            disabled={!newTypeName.trim()}
-            className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-          >
-            Add
-          </button>
-        </div>
+      </div>
+      {/* Options list */}
+      <div className="max-h-60 overflow-y-auto py-1">
+        {filteredOptions.length === 0 ? (
+          <div className="px-4 py-3 text-sm text-gray-500 text-center">No matching types found</div>
+        ) : (
+          filteredOptions.map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => {
+                onChange(option);
+                setIsOpen(false);
+              }}
+              className={`
+                w-full px-4 py-2.5 text-left text-sm flex items-center gap-2.5
+                transition-colors hover:bg-gray-50
+                ${value === option ? 'bg-blue-50' : ''}
+              `}
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-500 flex-shrink-0" />
+              <span className={`flex-1 ${value === option ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
+                {COMPANY_SOURCE_TYPE_LABELS[option]}
+              </span>
+              {value === option && (
+                <svg className="w-4 h-4 text-blue-600 ml-auto flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </button>
+          ))
+        )}
       </div>
     </div>,
     portalTarget
@@ -267,8 +207,8 @@ function CompanyTypeSelect({
         `}
       >
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span className={`w-2.5 h-2.5 rounded-full ${selectedOption.color.dot}`} />
-          <span className="text-gray-900">{selectedOption.label}</span>
+          <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+          <span className={value ? 'text-gray-900' : 'text-gray-400'}>{selectedLabel}</span>
         </div>
         <svg
           className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`}
@@ -280,7 +220,6 @@ function CompanyTypeSelect({
         </svg>
       </button>
       {dropdownContent}
-      {addModal}
     </div>
   );
 }
@@ -877,13 +816,9 @@ export default function CompanyDetailView({
                   <div>
                     <label className={labelClass}>Company Type</label>
                     <CompanyTypeSelect
-                      value={isEditing ? (editFormData.type?.[0] ?? company.type[0] ?? 'Customer') : (company.type[0] ?? 'Customer')}
-                      onChange={(value) => onFieldChange('type', [value] as unknown as string)}
-                      customTypes={[]}
-                      onAddCustomType={(newType) => {
-                        onFieldChange('type', [newType] as unknown as string);
-                      }}
-                      disabled={false}
+                      value={isEditing ? (editFormData.companySourceType ?? company.companySourceType ?? 'CUSTOMER') : (company.companySourceType ?? 'CUSTOMER')}
+                      onChange={(value) => onFieldChange('companySourceType', value)}
+                      disabled={!isEditing}
                     />
                   </div>
                 </div>
@@ -1394,13 +1329,9 @@ export default function CompanyDetailView({
                     <div>
                       <label className={labelClass}>Company Type</label>
                       <CompanyTypeSelect
-                        value={isEditing ? (editFormData.type?.[0] ?? company.type[0] ?? 'Manufacturer') : (company.type[0] ?? 'Manufacturer')}
-                        onChange={(value) => onFieldChange('type', [value] as unknown as string)}
-                        customTypes={[]}
-                        onAddCustomType={(newType) => {
-                          onFieldChange('type', [newType] as unknown as string);
-                        }}
-                        disabled={false}
+                        value={isEditing ? (editFormData.companySourceType ?? company.companySourceType ?? 'MANUFACTURER') : (company.companySourceType ?? 'MANUFACTURER')}
+                        onChange={(value) => onFieldChange('companySourceType', value)}
+                        disabled={!isEditing}
                       />
                     </div>
 

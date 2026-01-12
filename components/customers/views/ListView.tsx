@@ -159,13 +159,23 @@ export function ListView({
                   )}
                 </td>
                 <td className="px-4 py-3">
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                    customer.isParent
-                      ? 'bg-purple-100 text-purple-700'
-                      : 'bg-gray-100 text-gray-700'
-                  }`}>
-                    {customer.isParent ? 'Parent' : 'Child'}
-                  </span>
+                  {/* Hierarchy: Buying Group (top) -> Parent Customer -> Customer */}
+                  {customer.isParent && !customer.parent && !customer.buyingGroup ? (
+                    // This is a buying group (top of hierarchy - is parent with no parent)
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">
+                      Buying Group
+                    </span>
+                  ) : customer.isParent ? (
+                    // This is a parent customer (middle of hierarchy)
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+                      Parent
+                    </span>
+                  ) : (
+                    // This is a child customer
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                      Child
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${

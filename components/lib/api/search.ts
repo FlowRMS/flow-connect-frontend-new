@@ -244,6 +244,7 @@ export interface CustomerSearchResult {
   companyName: string;
   isParent?: boolean;
   parentId?: string;
+  buyingGroupId?: string;
   insideRepId?: string;
   published?: boolean;
 }
@@ -563,6 +564,7 @@ const CUSTOMER_SEARCH = `
       companyName
       isParent
       parentId
+      buyingGroupId
       published
     }
   }
