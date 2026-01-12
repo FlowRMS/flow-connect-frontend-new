@@ -36,7 +36,7 @@ export default function CreateProductPage() {
     defaultCommissionRate: undefined,
     productUomId: '',
     productCategoryId: undefined,
-    published: false,
+    published: true,
     approvalNeeded: false,
     description: '',
   });
