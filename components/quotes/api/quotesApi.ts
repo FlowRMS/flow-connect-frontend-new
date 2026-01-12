@@ -185,6 +185,12 @@ export interface Quote {
   factoryPerLineItem?: boolean;
 }
 
+export interface QuoteLandingPageSalesRep {
+  avgSplitRate?: number;
+  fullName?: string;
+  total?: number;
+}
+
 export interface QuoteLandingPage {
   id: string;
   createdAt?: string;
@@ -198,6 +204,13 @@ export interface QuoteLandingPage {
   total?: number;
   commission?: number;
   userIds?: string[];
+  // New fields from query
+  partNumbers?: string[];
+  salesReps?: QuoteLandingPageSalesRep[];
+  soldToCustomerName?: string;
+  factories?: string[];
+  endUsers?: string[];
+  categories?: string[];
 }
 
 // Input Types
@@ -308,6 +321,16 @@ const QUOTE_LANDING_PAGES = `
           total
           commission
           userIds
+          partNumbers
+          salesReps {
+            avgSplitRate
+            fullName
+            total
+          }
+          soldToCustomerName
+          factories
+          endUsers
+          categories
         }
       }
       total

@@ -17,6 +17,7 @@ import type {
 export type {
   Quote,
   QuoteLandingPage,
+  QuoteLandingPageSalesRep,
   QuoteDetail,
   QuoteBalance,
   QuoteCustomer,
@@ -138,6 +139,13 @@ export interface QuoteV2 {
   // Header-level manufacturer (used when factoryPerLineItem is false)
   factoryId?: string;
   factoryName?: string;
+
+  // New landing page fields
+  partNumbers?: string[];
+  salesReps?: { avgSplitRate?: number; fullName?: string; total?: number }[];
+  factories?: string[];
+  endUsers?: string[];
+  categories?: string[];
 }
 
 export interface LineItemV2 {
@@ -381,9 +389,9 @@ export function transformLandingPageToQuoteV2(quote: QuoteLandingPage): QuoteV2 
     apiStatus: quote.status,
     published: quote.published,
 
-    // Customer info - not available in landing page, will be empty
+    // Customer info - now available from landing page
     soldToCustomerId: '',
-    soldToCustomerName: '',
+    soldToCustomerName: quote.soldToCustomerName || '',
     billToCustomerId: '',
     billToCustomerName: '',
 
@@ -418,12 +426,19 @@ export function transformLandingPageToQuoteV2(quote: QuoteLandingPage): QuoteV2 
     // Tags - Coming soon
     tags: [],
 
-    // Counts - Coming soon
-    factoriesCount: 0,
-    endUsersCount: 0,
+    // Counts - derive from new fields
+    factoriesCount: quote.factories?.length || 0,
+    endUsersCount: quote.endUsers?.length || 0,
 
     // Created by
     createdById: quote.createdBy,
+
+    // New landing page fields
+    partNumbers: quote.partNumbers,
+    salesReps: quote.salesReps,
+    factories: quote.factories,
+    endUsers: quote.endUsers,
+    categories: quote.categories,
   };
 }
 
