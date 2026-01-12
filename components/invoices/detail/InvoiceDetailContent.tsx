@@ -33,6 +33,7 @@ import { isOverdue } from './utils';
 import { mockOrders, mockChecks } from '@/lib/data/rms-mock';
 import type { ColumnKey, RepSplit, InvoiceLineItem } from './types';
 import type { OrderLineItem } from '@/lib/types/rms';
+import { toast } from 'sonner';
 
 interface InvoiceDetailContentProps {
   invoiceId: string;
@@ -133,24 +134,24 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
       state.setWarehouseConversionMode('all');
       state.setShowWarehouseConversionModal(true);
     } else {
-      alert('All products are already marked as warehouse products.');
+      toast.info('All products are already marked as warehouse products.');
     }
     state.setShowActionsDropdown(false);
   };
 
   const handleGeneratePDF = () => {
-    alert('Generate PDF');
+    toast.info('Generate PDF feature coming soon');
   };
 
   const handleSave = async () => {
     const success = await state.saveInvoice();
     if (success) {
-      alert('Invoice saved successfully');
+      toast.success('Invoice saved successfully');
       if (state.isCreateMode) {
         router.push('/invoices');
       }
     } else {
-      alert('Failed to save invoice');
+      toast.error('Failed to save invoice');
     }
   };
 
@@ -166,7 +167,7 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
       { version: newVersion, date: today, isLatest: true },
     ]);
     state.setCurrentVersion(newVersion);
-    alert(`Saved as version ${newVersion}`);
+    toast.success(`Saved as version ${newVersion}`);
   };
 
   const handleBulkConvertToWarehouse = () => {
@@ -188,7 +189,7 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
       state.setWarehouseConversionMode('selected');
       state.setShowWarehouseConversionModal(true);
     } else {
-      alert('All selected products are already marked as warehouse products.');
+      toast.info('All selected products are already marked as warehouse products.');
     }
   };
 
@@ -305,11 +306,11 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
               {getTabsConfig(state.invoice.lineItems.length, state.isCreateMode).map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => !tab.disabled && state.setActiveTab(tab.id)}
-                  disabled={tab.disabled}
-                  title={tab.disabled ? tab.disabledReason : undefined}
+                  onClick={() => !tab.disabled && !tab.comingSoon && state.setActiveTab(tab.id)}
+                  disabled={tab.disabled || tab.comingSoon}
+                  title={tab.disabled ? tab.disabledReason : tab.comingSoon ? 'Coming soon' : undefined}
                   className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                    tab.disabled
+                    tab.disabled || tab.comingSoon
                       ? 'border-transparent text-gray-300 cursor-not-allowed'
                       : state.activeTab === tab.id
                       ? 'border-[var(--primary)] text-[var(--primary)]'
@@ -317,6 +318,11 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
                   }`}
                 >
                   {tab.label}
+                  {tab.comingSoon && (
+                    <span className="ml-2 px-1.5 py-0.5 rounded text-xs bg-yellow-100 text-yellow-700">
+                      SOON
+                    </span>
+                  )}
                   {tab.id === 'credits' &&
                     !tab.disabled &&
                     Object.keys(state.lineItemCredits).length > 0 && (

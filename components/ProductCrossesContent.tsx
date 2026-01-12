@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import AdvancedFilters from './AdvancedFilters';
+import AdvancedFilters from './advancedFilters/AdvancedFilters';
 
 // ============================================
 // TYPES

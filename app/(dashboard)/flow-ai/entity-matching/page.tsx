@@ -147,8 +147,8 @@ function EntityMatchingContent() {
   // State for workflow triggering (new flow)
   const [isProcessingWorkflow, setIsProcessingWorkflow] = useState(false);
 
-  // Ref to track if we've already checked for empty entities redirect
-  const hasCheckedEmptyRedirect = useRef(false);
+  // State for document type (CHECKS, INVOICES, etc.)
+  const [documentType, setDocumentType] = useState<string | null>(null);
 
   // Pagination for performance - only render a limited number of items initially
   const ITEMS_PER_PAGE = 50;
@@ -162,6 +162,35 @@ function EntityMatchingContent() {
     }
   }, [pendingId, router]);
 
+  // Fetch document type from pending document
+  useEffect(() => {
+    const fetchDocumentType = async () => {
+      if (!pendingId) return;
+
+      try {
+        const result = await flowrmsApolloClient.query<{
+          getPendingDocument?: {
+            entityType: string | null;
+          };
+        }>({
+          query: Q_GET_PENDING,
+          variables: { pendingId },
+          fetchPolicy: 'cache-first',
+        });
+
+        const entityType = result.data?.getPendingDocument?.entityType;
+        if (entityType) {
+          console.log('Document type:', entityType);
+          setDocumentType(entityType);
+        }
+      } catch (error) {
+        console.error('Error fetching document type:', error);
+      }
+    };
+
+    fetchDocumentType();
+  }, [pendingId]);
+
   const {
     factories,
     customers,
@@ -170,6 +199,8 @@ function EntityMatchingContent() {
     products,
     orders,
     invoices,
+    credits,
+    adjustments,
     currentStep,
     setCurrentStep,
     activeFilters,
@@ -198,37 +229,18 @@ function EntityMatchingContent() {
     handleSearchEntities,
     handleSearchUsers,
     initialLoadComplete,
-  } = useEntityMatching({ pendingDocumentId: pendingId });
+    // Factory-based entities state (for CHECKS/INVOICES document types)
+    isFactoryMatched,
+    factoryEntitiesLoading,
+  } = useEntityMatching({ pendingDocumentId: pendingId, documentType });
 
   // Reset display limit when switching tabs for performance
   useEffect(() => {
     setDisplayLimit(ITEMS_PER_PAGE);
   }, [currentStep]);
 
-  // Auto-skip to upload-complete if all entity arrays are empty after loading
-  // This triggers the executeDocumentWorkflow and navigates to upload-complete
-  useEffect(() => {
-    // Wait until initial load is complete before checking
-    if (!initialLoadComplete || hasCheckedEmptyRedirect.current || !pendingId) return;
-
-    hasCheckedEmptyRedirect.current = true;
-
-    // Check if all entity arrays are empty
-    const hasNoEntities = factories.length === 0 &&
-                          customers.length === 0 &&
-                          billToCustomers.length === 0 &&
-                          endUsers.length === 0 &&
-                          products.length === 0 &&
-                          orders.length === 0 &&
-                          invoices.length === 0;
-
-    if (hasNoEntities) {
-      toast.info('No entities to match. Starting document processing...');
-      // Trigger the same flow as handleCompleteMatching - this will execute the workflow
-      // and navigate to queue page
-      handleCompleteMatching();
-    }
-  }, [initialLoadComplete, factories, customers, billToCustomers, endUsers, products, orders, invoices, pendingId]);
+  // Removed auto-skip logic - user must manually click "Complete & Continue" button
+  // even when all entities are automatically matched or no entities exist
 
   const handleCompleteMatching = async () => {
     if (!pendingId) {
@@ -317,6 +329,8 @@ function EntityMatchingContent() {
       case 'PRODUCTS': return 'Product';
       case 'ORDERS': return 'Order';
       case 'INVOICES': return 'Invoice';
+      case 'CREDITS': return 'Credit';
+      case 'ADJUSTMENTS': return 'Adjustment';
       default: return 'Entity';
     }
   };
@@ -825,11 +839,11 @@ function EntityMatchingContent() {
                 <span>Confirmed {confirmationCount} times by users</span>
               </div>
             )}
-            {/* Action buttons row - Different for Orders/Invoices vs other entity types */}
+            {/* Action buttons row - Different for Orders/Invoices/Credits/Adjustments vs other entity types */}
             {!isLocked && (
               <div className="flex gap-2">
-                {/* Orders and Invoices: Skip and Set for Creation buttons */}
-                {(getCurrentEntityType() === 'ORDERS' || getCurrentEntityType() === 'INVOICES') ? (
+                {/* Orders, Invoices, Credits, and Adjustments: Skip and Set for Creation buttons */}
+                {(getCurrentEntityType() === 'ORDERS' || getCurrentEntityType() === 'INVOICES' || getCurrentEntityType() === 'CREDITS' || getCurrentEntityType() === 'ADJUSTMENTS') ? (
                   <>
                     <Button
                       variant="outline"
@@ -914,8 +928,8 @@ function EntityMatchingContent() {
                 )}
               </div>
             )}
-            {/* Create New button - hidden for locked entities and for Orders/Invoices */}
-            {!isLocked && getCurrentEntityType() !== 'ORDERS' && getCurrentEntityType() !== 'INVOICES' && (
+            {/* Create New button - hidden for locked entities and for Orders/Invoices/Credits/Adjustments */}
+            {!isLocked && getCurrentEntityType() !== 'ORDERS' && getCurrentEntityType() !== 'INVOICES' && getCurrentEntityType() !== 'CREDITS' && getCurrentEntityType() !== 'ADJUSTMENTS' && (
               <Popover
                 open={createNewPopoverOpen === entity.id}
                 onOpenChange={(open) => {
@@ -1173,7 +1187,11 @@ function EntityMatchingContent() {
           productsCount={products.length}
           ordersCount={orders.length}
           invoicesCount={invoices.length}
+          creditsCount={credits.length}
+          adjustmentsCount={adjustments.length}
           getStepStatus={getStepStatus}
+          documentType={documentType}
+          isFactoryMatched={isFactoryMatched}
         />
 
         {/* Filter and Action Controls */}

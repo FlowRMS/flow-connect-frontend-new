@@ -7,6 +7,12 @@ import { AvatarInline } from '@/components/ui/CreatedByBadge';
 interface ListViewV2Props {
   quotes: QuoteV2[];
   onQuoteClick: (quote: QuoteV2) => void;
+  // Selection props from parent (optional for backward compatibility)
+  isItemSelected?: (id: string) => boolean;
+  isAllSelected?: boolean;
+  isPartiallySelected?: boolean;
+  onSelectAll?: (checked: boolean) => void;
+  onSelectOne?: (id: string, checked: boolean) => void;
 }
 
 type SortKey = 'quoteNumber' | 'status' | 'pipelineStage' | 'quoteAmount' | 'commission' | 'entryDate' | 'quoteDate' | 'expirationDate' | 'published';
@@ -56,10 +62,19 @@ function formatPipelineStage(stage?: QuotePipelineStage): string {
     .join(' ');
 }
 
-export function ListViewV2({ quotes, onQuoteClick }: ListViewV2Props) {
+export function ListViewV2({
+  quotes,
+  onQuoteClick,
+  isItemSelected,
+  isAllSelected,
+  isPartiallySelected,
+  onSelectAll,
+  onSelectOne,
+}: ListViewV2Props) {
   const [sortColumn, setSortColumn] = useState<SortKey | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [selectedQuotes, setSelectedQuotes] = useState<Set<string>>(new Set());
+  // Local selection state (fallback if parent props not provided)
+  const [localSelectedQuotes, setLocalSelectedQuotes] = useState<Set<string>>(new Set());
 
   const handleSort = (column: SortKey) => {
     if (sortColumn === column) {
@@ -124,22 +139,46 @@ export function ListViewV2({ quotes, onQuoteClick }: ListViewV2Props) {
     });
   }, [quotes, sortColumn, sortDirection]);
 
+  // Use parent props if available, otherwise use local state
+  const checkIsSelected = (id: string) =>
+    isItemSelected ? isItemSelected(id) : localSelectedQuotes.has(id);
+
+  const allSelected = isAllSelected !== undefined
+    ? isAllSelected
+    : (localSelectedQuotes.size === quotes.length && quotes.length > 0);
+
+  const partiallySelected = isPartiallySelected !== undefined
+    ? isPartiallySelected
+    : (localSelectedQuotes.size > 0 && localSelectedQuotes.size < quotes.length);
+
   const toggleSelectAll = () => {
-    if (selectedQuotes.size === quotes.length) {
-      setSelectedQuotes(new Set());
+    if (onSelectAll) {
+      // Use parent handler
+      onSelectAll(!allSelected);
     } else {
-      setSelectedQuotes(new Set(quotes.map((q) => q.id)));
+      // Local fallback
+      if (localSelectedQuotes.size === quotes.length) {
+        setLocalSelectedQuotes(new Set());
+      } else {
+        setLocalSelectedQuotes(new Set(quotes.map((q) => q.id)));
+      }
     }
   };
 
   const toggleSelect = (id: string) => {
-    const newSet = new Set(selectedQuotes);
-    if (newSet.has(id)) {
-      newSet.delete(id);
+    if (onSelectOne) {
+      // Use parent handler
+      onSelectOne(id, !checkIsSelected(id));
     } else {
-      newSet.add(id);
+      // Local fallback
+      const newSet = new Set(localSelectedQuotes);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      setLocalSelectedQuotes(newSet);
     }
-    setSelectedQuotes(newSet);
   };
 
   const formatDate = (dateStr: string): string => {
@@ -190,7 +229,10 @@ export function ListViewV2({ quotes, onQuoteClick }: ListViewV2Props) {
                 <input
                   type="checkbox"
                   className="rounded border-gray-300 accent-indigo-600"
-                  checked={selectedQuotes.size === quotes.length && quotes.length > 0}
+                  checked={allSelected}
+                  ref={(el) => {
+                    if (el) el.indeterminate = partiallySelected;
+                  }}
                   onChange={toggleSelectAll}
                 />
               </th>
@@ -269,7 +311,7 @@ export function ListViewV2({ quotes, onQuoteClick }: ListViewV2Props) {
                     <input
                       type="checkbox"
                       className="rounded border-gray-300 accent-indigo-600"
-                      checked={selectedQuotes.has(quote.id)}
+                      checked={checkIsSelected(quote.id)}
                       onChange={() => toggleSelect(quote.id)}
                     />
                   </td>

@@ -8,6 +8,7 @@ export interface TeamMember {
   roleDisplay: string;
   status: 'active' | 'inactive';
   avatar?: string;
+  visible?: boolean;
 }
 
 export interface Permission {

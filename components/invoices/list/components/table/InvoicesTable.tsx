@@ -7,7 +7,6 @@ import type { Invoice } from '@/lib/types/rms';
 import type { SortField, SortDirection, ColumnFilters } from '../../types';
 import { getGridTemplateColumns } from '../../config/columnConfig';
 import { isInvoiceLinked, getInvoiceLinkedReason } from '../../utils';
-import { BulkActionsBar } from './BulkActionsBar';
 import { InvoicesTableHeader } from './InvoicesTableHeader';
 import { InvoiceRow } from './InvoiceRow';
 import { InvoicesEmptyState } from './InvoicesEmptyState';
@@ -15,12 +14,18 @@ import { InvoicesEmptyState } from './InvoicesEmptyState';
 interface InvoicesTableProps {
   // Data
   filteredInvoices: Invoice[];
-  // Selection
+  // Selection (legacy API)
   selectedInvoiceIds: Set<string>;
   toggleInvoiceSelection: (invoiceId: string) => void;
   selectAllInvoices: (invoices: Invoice[]) => void;
   clearSelection: () => void;
-  areAllEligibleSelected: (invoices: Invoice[]) => boolean;
+  areAllEligibleSelected: ((invoices: Invoice[]) => boolean) | boolean;
+  // Selection (new API for proper select all)
+  isItemSelected?: (id: string) => boolean;
+  isAllSelected?: boolean;
+  isPartiallySelected?: boolean;
+  handleSelectAll?: (checked: boolean) => void;
+  handleSelectOne?: (id: string, checked: boolean) => void;
   // Sorting
   sortField: SortField;
   sortDirection: SortDirection;
@@ -51,6 +56,11 @@ export function InvoicesTable({
   selectAllInvoices,
   clearSelection,
   areAllEligibleSelected,
+  isItemSelected,
+  isAllSelected,
+  isPartiallySelected,
+  handleSelectAll,
+  handleSelectOne,
   sortField,
   sortDirection,
   handleSort,
@@ -71,27 +81,34 @@ export function InvoicesTable({
 }: InvoicesTableProps) {
   const gridColumns = getGridTemplateColumns();
 
+  // Compatibility layer: use new API if available, fall back to legacy
+  const checkIsSelected = (id: string) =>
+    isItemSelected ? isItemSelected(id) : selectedInvoiceIds.has(id);
+  const allSelected = isAllSelected !== undefined
+    ? isAllSelected
+    : (typeof areAllEligibleSelected === 'function' ? areAllEligibleSelected(filteredInvoices) : areAllEligibleSelected);
+  const partiallySelected = isPartiallySelected !== undefined
+    ? isPartiallySelected
+    : (selectedInvoiceIds.size > 0 && !allSelected);
+
   return (
     <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
-      {/* Bulk Actions Bar */}
-      {selectedInvoiceIds.size > 0 && (
-        <BulkActionsBar
-          selectedCount={selectedInvoiceIds.size}
-          showBulkActionsMenu={showBulkActionsMenu}
-          setShowBulkActionsMenu={setShowBulkActionsMenu}
-          onClearSelection={clearSelection}
-          onBulkSetStatus={bulkSetStatus}
-          onBulkDelete={bulkDelete}
-        />
-      )}
-
       <div className="overflow-x-auto">
         <div className="min-w-[1640px]">
           {/* Table Header */}
           <InvoicesTableHeader
             filteredInvoices={filteredInvoices}
-            areAllEligibleSelected={areAllEligibleSelected(filteredInvoices)}
-            onSelectAll={() => selectAllInvoices(filteredInvoices)}
+            areAllEligibleSelected={allSelected}
+            isPartiallySelected={partiallySelected}
+            onSelectAll={(checked) => {
+              if (handleSelectAll) {
+                handleSelectAll(checked);
+              } else if (checked) {
+                selectAllInvoices(filteredInvoices);
+              } else {
+                clearSelection();
+              }
+            }}
             sortField={sortField}
             sortDirection={sortDirection}
             onSort={handleSort}
@@ -116,10 +133,16 @@ export function InvoicesTable({
                 <InvoiceRow
                   key={invoice.id}
                   invoice={invoice}
-                  isSelected={selectedInvoiceIds.has(invoice.id)}
+                  isSelected={checkIsSelected(invoice.id)}
                   isLinked={isInvoiceLinked(invoice)}
                   linkedReason={getInvoiceLinkedReason(invoice)}
-                  onToggleSelection={() => toggleInvoiceSelection(invoice.id)}
+                  onToggleSelection={() => {
+                    if (handleSelectOne) {
+                      handleSelectOne(invoice.id, !checkIsSelected(invoice.id));
+                    } else {
+                      toggleInvoiceSelection(invoice.id);
+                    }
+                  }}
                   onPreview={() => setSelectedInvoice(invoice)}
                   gridColumns={gridColumns}
                 />

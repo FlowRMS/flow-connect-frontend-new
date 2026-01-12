@@ -8,10 +8,11 @@
 import { useState, useMemo, useCallback } from 'react';
 import type { Invoice, OrderSplitRate, InvoiceStatus } from '@/lib/types/rms';
 import { mockSalesReps } from '@/lib/data/rms-mock';
-import { useInvoicesInfinite, useInvoiceSearch, type InvoiceLandingPage } from '../../api';
+import { useInvoicesInfinite, useInvoiceSearch, type InvoiceLandingPage, fetchAllInvoiceIds } from '../../api';
 import { useInvoiceFilters } from './useInvoiceFilters';
-import { useInvoiceSelection } from './useInvoiceSelection';
 import { useInvoiceBulkActions } from './useInvoiceBulkActions';
+import { useBulkSelection } from '../../../shared';
+import { isInvoiceLinked } from '../utils';
 
 /**
  * Map API status to RMS InvoiceStatus type
@@ -180,13 +181,39 @@ export function useInvoicesListState() {
   // Integrate filter hook
   const filterState = useInvoiceFilters(invoices);
 
-  // Integrate selection hook
-  const selectionState = useInvoiceSelection();
+  // Integrate shared bulk selection hook
+  // Note: Not using isItemEligible - individual row checkboxes handle disabled state
+  const bulkSelection = useBulkSelection({
+    items: invoices,
+    totalCount,
+    fetchAllIds: fetchAllInvoiceIds,
+  });
+
+  // Bulk delete modal state
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+
+  // Handle successful bulk delete
+  const handleBulkDeleteSuccess = useCallback(() => {
+    bulkSelection.clearSelection();
+    setShowBulkDeleteModal(false);
+    refetch();
+  }, [bulkSelection, refetch]);
+
+  // Compatibility layer for existing selection API
+  const selectedInvoiceIds = bulkSelection.selectedIds;
+  const toggleInvoiceSelection = useCallback((invoiceId: string) => {
+    bulkSelection.handleSelectOne(invoiceId, !bulkSelection.isItemSelected(invoiceId));
+  }, [bulkSelection]);
+  const selectAllInvoices = useCallback(() => {
+    bulkSelection.handleSelectAll(true);
+  }, [bulkSelection]);
+  const clearSelection = bulkSelection.clearSelection;
+  const areAllEligibleSelected = bulkSelection.isAllSelected;
 
   // Integrate bulk actions hook
   const bulkActionsState = useInvoiceBulkActions({
-    selectedInvoiceIds: selectionState.selectedInvoiceIds,
-    clearSelection: selectionState.clearSelection,
+    selectedInvoiceIds: bulkSelection.selectedIds,
+    clearSelection: bulkSelection.clearSelection,
     setInvoices,
   });
 
@@ -321,8 +348,25 @@ export function useInvoicesListState() {
     splitPercentageTotal,
     // Filter state and actions
     ...filterState,
-    // Selection state and actions
-    ...selectionState,
+    // Selection state and actions (using shared bulk selection)
+    selectedInvoiceIds,
+    toggleInvoiceSelection,
+    selectAllInvoices,
+    clearSelection,
+    areAllEligibleSelected,
+    // New bulk selection values for proper "select all" functionality
+    isItemSelected: bulkSelection.isItemSelected,
+    isAllSelected: bulkSelection.isAllSelected,
+    isPartiallySelected: bulkSelection.isPartiallySelected,
+    handleSelectAll: bulkSelection.handleSelectAll,
+    handleSelectOne: bulkSelection.handleSelectOne,
+    selectAllMode: bulkSelection.selectAllMode,
+    selectedCount: bulkSelection.selectedCount,
+    getAllSelectedIds: bulkSelection.getAllSelectedIds,
+    // Bulk delete modal
+    showBulkDeleteModal,
+    setShowBulkDeleteModal,
+    handleBulkDeleteSuccess,
     // Bulk actions state and actions
     ...bulkActionsState,
   };

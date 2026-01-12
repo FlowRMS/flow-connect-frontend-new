@@ -8,10 +8,13 @@ import { transformLandingPageToQuoteV2 } from './types';
 import { KanbanViewV2 } from './views/KanbanViewV2';
 import { ListViewV2 } from './views/ListViewV2';
 import { useQuotesV2Infinite, useUpdateQuoteStageV2, useQuoteSearchV2, type QuoteSearchResult } from './api/quotesV2Api';
+import { fetchAllQuoteIds } from '../quotes/api/quotesApi';
 import { quoteToasts } from '../lib/toast';
 import AdvancedFilters, { type ActiveFilter } from '../advancedFilters/AdvancedFilters';
 import { getQuoteFilterOptions } from './config/filterConfig';
 import { formatDateToISO } from '../advancedFilters/utils';
+import { useBulkSelection } from '../shared';
+import { BulkDeleteModal, BulkActionsToolbar } from '../shared';
 
 type ViewMode = 'kanban' | 'list';
 type QuickFilter = 'all' | 'today' | 'this_week' | 'last_week';
@@ -262,6 +265,23 @@ export function QuotesV2Content() {
     if (!quotesData?.pages || quotesData.pages.length === 0) return 0;
     return quotesData.pages[0].total;
   }, [quotesData]);
+
+  // Bulk selection hook
+  const bulkSelection = useBulkSelection({
+    items: quotes,
+    totalCount,
+    fetchAllIds: fetchAllQuoteIds,
+  });
+
+  // Bulk delete modal state
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+
+  // Handle successful bulk delete
+  const handleBulkDeleteSuccess = useCallback(() => {
+    bulkSelection.clearSelection();
+    setShowBulkDeleteModal(false);
+    refetch();
+  }, [bulkSelection, refetch]);
 
   // Computed totals
   const totals = useMemo(() => {
@@ -576,6 +596,17 @@ export function QuotesV2Content() {
             )}
           </div>
         </div>
+
+        {/* Bulk Actions Toolbar */}
+        <BulkActionsToolbar
+          entityType="QUOTES"
+          selectedCount={bulkSelection.selectedCount}
+          totalCount={totalCount}
+          loadedCount={quotes.length}
+          selectAllMode={bulkSelection.selectAllMode}
+          onClearSelection={bulkSelection.clearSelection}
+          onDelete={() => setShowBulkDeleteModal(true)}
+        />
       </div>
 
       {/* Content */}
@@ -616,7 +647,15 @@ export function QuotesV2Content() {
               />
             ) : (
               <>
-                <ListViewV2 quotes={quotes} onQuoteClick={handleQuoteClick} />
+                <ListViewV2
+                  quotes={quotes}
+                  onQuoteClick={handleQuoteClick}
+                  isItemSelected={bulkSelection.isItemSelected}
+                  isAllSelected={bulkSelection.isAllSelected}
+                  isPartiallySelected={bulkSelection.isPartiallySelected}
+                  onSelectAll={bulkSelection.handleSelectAll}
+                  onSelectOne={bulkSelection.handleSelectOne}
+                />
 
                 {/* Loading indicator for infinite scroll - list view */}
                 {isFetchingNextPage && (
@@ -637,6 +676,17 @@ export function QuotesV2Content() {
           </>
         )}
       </div>
+
+      {/* Bulk Delete Modal */}
+      <BulkDeleteModal
+        isOpen={showBulkDeleteModal}
+        entityType="QUOTES"
+        selectedCount={bulkSelection.selectedCount}
+        getAllSelectedIds={bulkSelection.getAllSelectedIds}
+        onClose={() => setShowBulkDeleteModal(false)}
+        onSuccess={handleBulkDeleteSuccess}
+        queryKeysToInvalidate={[['quotes-v2'], ['quotes']]}
+      />
     </div>
   );
 }

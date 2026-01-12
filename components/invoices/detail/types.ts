@@ -170,6 +170,7 @@ export interface TabConfig {
   count?: number;
   disabled?: boolean;
   disabledReason?: string;
+  comingSoon?: boolean;
 }
 
 // Order tooltip state (for linked orders in line items)

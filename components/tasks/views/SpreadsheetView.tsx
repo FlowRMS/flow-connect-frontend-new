@@ -5,7 +5,7 @@
 import React from 'react';
 import type { Task, TaskStatusAPI, TaskPriorityAPI } from '../types';
 import { AVAILABLE_ASSIGNEES, API_STATUS_OPTIONS, API_PRIORITY_OPTIONS } from '../constants';
-import { convertAPIStatusToUI, convertAPIPriorityToUI, getReminderStatus, getReminderStatusColor, formatReminderDate } from '../utils';
+import { convertAPIStatusToUI, convertAPIPriorityToUI, getReminderStatus, getReminderStatusColor, formatReminderDate, getInitials, getAvatarColor } from '../utils';
 import { CustomSelect, LinkedTitleBadges } from '../components';
 import { StyledDatePicker, parseDateString, formatDateToString } from '../components';
 
@@ -139,7 +139,36 @@ export default function SpreadsheetView({
                   />
                 </td>
                 <td className="px-4 py-3">
-                  <div className="text-sm text-[var(--muted-foreground)]">{task.assignedTo}</div>
+                  {task.assigneeNames && task.assigneeNames.length > 0 ? (
+                    <div className="flex items-center gap-2">
+                      <div className="flex -space-x-1">
+                        {task.assigneeNames.slice(0, 2).map((name, idx) => {
+                          const displayName = name.trim() || 'Unknown';
+                          return (
+                            <div
+                              key={`${task.id}-assignee-${idx}`}
+                              className={`w-6 h-6 rounded-full ${getAvatarColor(displayName)} flex items-center justify-center text-white text-[10px] font-semibold border border-white`}
+                              title={displayName}
+                            >
+                              {getInitials(displayName)}
+                            </div>
+                          );
+                        })}
+                        {task.assigneeNames.length > 2 && (
+                          <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 text-[10px] font-semibold border border-white">
+                            +{task.assigneeNames.length - 2}
+                          </div>
+                        )}
+                      </div>
+                      <span className="text-sm text-[var(--muted-foreground)]">
+                        {task.assigneeNames.length === 1
+                          ? task.assigneeNames[0].trim() || 'Unknown'
+                          : `${task.assigneeNames.length} assignees`}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-[var(--muted-foreground)]">{task.assignedTo}</div>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   <StyledDatePicker

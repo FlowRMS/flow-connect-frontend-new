@@ -16,12 +16,18 @@ import { CommissionsEmptyState } from './CommissionsEmptyState';
 interface CommissionsTableProps {
   // Data
   filteredChecks: CommissionCheck[];
-  // Selection
+  // Selection (legacy API)
   selectedCheckIds: Set<string>;
   toggleCheckSelection: (checkId: string) => void;
   selectAllChecks: (checks: CommissionCheck[]) => void;
   clearSelection: () => void;
-  areAllEligibleSelected: (checks: CommissionCheck[]) => boolean;
+  areAllEligibleSelected: ((checks: CommissionCheck[]) => boolean) | boolean;
+  // Selection (new API for proper select all)
+  isItemSelected?: (id: string) => boolean;
+  isAllSelected?: boolean;
+  isPartiallySelected?: boolean;
+  handleSelectAll?: (checked: boolean) => void;
+  handleSelectOne?: (id: string, checked: boolean) => void;
   // Sorting
   sortField: SortField;
   sortDirection: SortDirection;
@@ -52,6 +58,11 @@ export function CommissionsTable({
   selectAllChecks,
   clearSelection,
   areAllEligibleSelected,
+  isItemSelected,
+  isAllSelected,
+  isPartiallySelected,
+  handleSelectAll,
+  handleSelectOne,
   sortField,
   sortDirection,
   handleSort,
@@ -70,28 +81,34 @@ export function CommissionsTable({
 }: CommissionsTableProps) {
   const gridColumns = getGridTemplateColumns();
 
+  // Compatibility layer: use new API if available, fall back to legacy
+  const checkIsSelected = (id: string) =>
+    isItemSelected ? isItemSelected(id) : selectedCheckIds.has(id);
+  const allSelected = isAllSelected !== undefined
+    ? isAllSelected
+    : (typeof areAllEligibleSelected === 'function' ? areAllEligibleSelected(filteredChecks) : areAllEligibleSelected);
+  const partiallySelected = isPartiallySelected !== undefined
+    ? isPartiallySelected
+    : (selectedCheckIds.size > 0 && !allSelected);
+
   return (
     <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
-      {/* Bulk Actions Bar */}
-      {(selectedCheckIds.size > 0 || isBulkUpdating) && (
-        <BulkActionsBar
-          selectedCount={selectedCheckIds.size}
-          showBulkActionsMenu={showBulkActionsMenu}
-          setShowBulkActionsMenu={setShowBulkActionsMenu}
-          onClearSelection={clearSelection}
-          onBulkSetStatus={bulkSetStatus}
-          onBulkDelete={bulkDelete}
-          isLoading={isBulkUpdating}
-        />
-      )}
-
       <div className="overflow-x-auto">
         <div className="min-w-[1200px]">
           {/* Table Header */}
           <CommissionsTableHeader
             filteredChecks={filteredChecks}
-            areAllEligibleSelected={areAllEligibleSelected(filteredChecks)}
-            onSelectAll={() => selectAllChecks(filteredChecks)}
+            areAllEligibleSelected={allSelected}
+            isPartiallySelected={partiallySelected}
+            onSelectAll={(checked) => {
+              if (handleSelectAll) {
+                handleSelectAll(checked);
+              } else if (checked) {
+                selectAllChecks(filteredChecks);
+              } else {
+                clearSelection();
+              }
+            }}
             sortField={sortField}
             sortDirection={sortDirection}
             onSort={handleSort}
