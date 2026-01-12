@@ -14,9 +14,6 @@ import {
   ChevronRight,
   MessageSquarePlus,
   History,
-  Settings,
-  Maximize2,
-  Minimize2,
   ExternalLink,
   Zap,
   Eye,
@@ -30,6 +27,7 @@ import {
   BarChart3,
   ArrowRight,
   Info,
+  GripVertical,
 } from 'lucide-react';
 import { useFlowChat, getEntityDisplayName, QuickAction } from '@/contexts/FlowChatContext';
 import { cn } from '@/lib/flow-ai/cn';
@@ -86,6 +84,7 @@ function MessageBubble({ message, isStreaming = false }: MessageBubbleProps) {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       className={cn('flex gap-2 mb-3', isUser ? 'flex-row-reverse' : 'flex-row')}
+      style={{ maxWidth: '100%' }}
     >
       <div
         className={cn(
@@ -100,16 +99,17 @@ function MessageBubble({ message, isStreaming = false }: MessageBubbleProps) {
 
       <div
         className={cn(
-          'max-w-[85%] rounded-xl px-3 py-2 text-sm',
+          'rounded-2xl px-3.5 py-2.5 text-sm flex-1 min-w-0',
           isUser
-            ? 'bg-primary text-primary-foreground rounded-tr-sm'
-            : 'bg-muted/50 text-foreground rounded-tl-sm border border-border/50'
+            ? 'bg-primary text-primary-foreground rounded-tr-md'
+            : 'bg-muted/50 text-foreground rounded-tl-md border border-border/50'
         )}
+        style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}
       >
         {isUser ? (
-          <p className="whitespace-pre-wrap">{message.content}</p>
+          <p className="whitespace-pre-wrap" style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}>{message.content}</p>
         ) : (
-          <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-p:my-1">
+          <div className="prose prose-sm dark:prose-invert prose-p:leading-relaxed prose-p:my-1" style={{ overflowWrap: 'break-word', wordBreak: 'break-word', maxWidth: '100%' }}>
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
             {isStreaming && (
               <span className="inline-flex gap-0.5 ml-1">
@@ -145,7 +145,8 @@ export function FlowChatPanel() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeChat, setActiveChat] = useState<Chat | null>(null);
   const [streamingMessage, setStreamingMessage] = useState<ChatMessageType | null>(null);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [panelWidth, setPanelWidth] = useState(600); // Default expanded width
+  const [isResizing, setIsResizing] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [isCreatingNewChat, setIsCreatingNewChat] = useState(false);
   const [hasManuallyReset, setHasManuallyReset] = useState(false); // Prevent session restore after manual reset
@@ -153,6 +154,7 @@ export function FlowChatPanel() {
 
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   // Voice recording
   const { isRecording, isProcessing, transcript, startRecording, stopRecording } = useVoiceRecording();
@@ -420,6 +422,34 @@ export function FlowChatPanel() {
     }
   }, [isRecording, startRecording, stopRecording]);
 
+  // Handle resize
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const newWidth = window.innerWidth - e.clientX;
+      // Clamp between 350px and 900px
+      setPanelWidth(Math.min(900, Math.max(350, newWidth)));
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
+
   const displayMessages = useMemo(() => {
     return (activeChat?.messages || []).filter((m) => m.role !== 'SYSTEM' && m.messageType === 'TEXT');
   }, [activeChat?.messages]);
@@ -445,15 +475,27 @@ export function FlowChatPanel() {
 
           {/* Panel */}
           <motion.div
+            ref={panelRef}
             initial={{ x: '100%', opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: '100%', opacity: 0 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className={cn(
-              'fixed top-0 right-0 h-full bg-background border-l border-border shadow-2xl z-[95] flex flex-col',
-              isExpanded ? 'w-[600px]' : 'w-[420px]'
-            )}
+            transition={isResizing ? { duration: 0 } : { type: 'spring', damping: 25, stiffness: 300 }}
+            className="fixed top-0 right-0 h-full bg-background border-l border-border shadow-2xl z-[95] flex flex-col overflow-hidden rounded-l-2xl"
+            style={{ width: `${panelWidth}px` }}
           >
+            {/* Resize Handle */}
+            <div
+              onMouseDown={handleResizeStart}
+              className={cn(
+                'absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize group z-10 flex items-center hover:bg-primary/10',
+                isResizing && 'bg-primary/20'
+              )}
+            >
+              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-6 h-14 bg-primary/90 hover:bg-primary border border-primary/50 rounded-r-lg flex items-center justify-center cursor-ew-resize shadow-lg">
+                <GripVertical className="w-4 h-4 text-primary-foreground" />
+              </div>
+            </div>
+
             {/* Header */}
             <div className="flex-shrink-0 border-b border-border/50 bg-background/95 backdrop-blur-sm">
               <div className="flex items-center justify-between px-4 py-3">
@@ -493,15 +535,6 @@ export function FlowChatPanel() {
                     title="Chat history"
                   >
                     <History className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => setIsExpanded(!isExpanded)}
-                    title={isExpanded ? 'Collapse' : 'Expand'}
-                  >
-                    {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
                   </Button>
                   <Link href="/flow-ai/ai-chat" target="_blank">
                     <Button variant="ghost" size="icon" className="h-8 w-8" title="Open full chat">
@@ -562,8 +595,8 @@ export function FlowChatPanel() {
             </AnimatePresence>
 
             {/* Messages Area */}
-            <ScrollArea ref={scrollAreaRef} className="flex-1">
-              <div className="p-4">
+            <ScrollArea ref={scrollAreaRef} className="flex-1 w-full">
+              <div className="px-4 py-4" style={{ maxWidth: '100%', boxSizing: 'border-box' }}>
                 {displayMessages.length === 0 && !streamingMessage ? (
                   <div className="flex flex-col items-center justify-center py-8">
                     {/* Welcome */}
@@ -628,7 +661,7 @@ export function FlowChatPanel() {
                         <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
                           <Bot className="w-3.5 h-3.5 text-primary-foreground" />
                         </div>
-                        <div className="bg-muted/50 rounded-xl rounded-tl-sm px-3 py-2 border border-border/50">
+                        <div className="bg-muted/50 rounded-2xl rounded-tl-md px-3.5 py-2.5 border border-border/50">
                           <div className="flex items-center gap-1.5">
                             <span className="text-xs text-muted-foreground">Thinking</span>
                             <span className="flex gap-0.5">
