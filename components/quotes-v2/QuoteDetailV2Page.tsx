@@ -947,7 +947,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
   }
 
   return (
-    <div className="h-full flex flex-col bg-white">
+    <div className="min-h-full flex flex-col bg-white">
       {/* Save Error Banner */}
       {saveError && (
         <div className="bg-red-50 border-b border-red-200 px-6 py-3 flex items-center justify-between">
@@ -1016,7 +1016,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       </div>
 
       {/* Tab Content */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1">
         {activeTab === 'lineItems' && (
           <LineItemsTabV2
             lineItems={lineItems}

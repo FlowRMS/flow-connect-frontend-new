@@ -576,7 +576,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   };
 
   return (
-    <main className="flex flex-col h-screen bg-[var(--background)]">
+    <main className="flex flex-col min-h-full bg-[var(--background)]">
       {/* Header */}
       <OrderDetailHeader
         order={order}
@@ -630,7 +630,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
       />
 
       {/* Main Content Area with Tabs */}
-      <div className="flex-1 flex flex-col p-6 overflow-hidden">
+      <div className="flex-1 flex flex-col p-6">
         {/* Tab Navigation */}
         <div className="flex items-center justify-between gap-1 mb-6 border-b border-[var(--border)] flex-shrink-0 bg-white pt-4 px-4 -mx-6 -mt-6">
           <div className="flex gap-1">
@@ -726,7 +726,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         </div>
 
         {/* Tab Content */}
-        <div className="flex-1 overflow-auto pb-32">
+        <div className="flex-1 pb-32">
           {state.activeTab === 'line-items' && (
             <LineItemsTable
               order={order}
