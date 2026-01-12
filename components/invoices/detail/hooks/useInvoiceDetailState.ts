@@ -24,6 +24,7 @@ import {
 } from '../../api';
 import { useOrder } from '@/components/orders/api';
 import { useFactory } from '@/components/warehouse/api/useFactoriesApi';
+import { useCustomer } from '@/components/customers/api/useCustomersApi';
 import { fetchInvoiceById } from '../../api/invoicesApi';
 
 /**
@@ -58,6 +59,9 @@ interface UseInvoiceDetailStateProps {
  * Transform API invoice to EditableInvoice format for local editing
  */
 function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
+  // Cast to any to access order per-line-item flags
+  const order = apiInvoice.order as any;
+
   // Transform details to extended line items for editing
   const extendedLineItems: InvoiceLineItem[] = (apiInvoice.details || []).map((detail, index) => ({
     id: detail.id,
@@ -94,7 +98,48 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
       splitRate: parseFloat(s.splitRate || '0'),
       position: s.position || 0,
     })),
+    insideSplitRates: ((detail as any).insideSplitRates || []).map((s: any) => ({
+      userId: s.userId || '',
+      userName: s.user?.fullName || '',
+      splitRate: parseFloat(s.splitRate || '0'),
+      position: s.position || 0,
+    })),
   }));
+
+  // Get per-line-item flags from order
+  const endUserPerLineItem = order?.endUserPerLineItem || false;
+  const outsidePerLineItem = order?.outsidePerLineItem || false;
+  const insidePerLineItem = order?.insidePerLineItem || false;
+
+  // If NOT per-line-item, grab from first line item for header display
+  const firstDetail = apiInvoice.details?.[0];
+  const headerEndUserId = !endUserPerLineItem ? (firstDetail?.endUserId || '') : '';
+
+  // Get header-level outside split rates (when NOT per-line-item)
+  const headerOutsideSplitRates = !outsidePerLineItem && firstDetail?.outsideSplitRates
+    ? firstDetail.outsideSplitRates.map(s => ({
+        userId: s.userId || '',
+        userName: s.user?.fullName || '',
+        splitRate: parseFloat(s.splitRate || '0'),
+        position: s.position || 0,
+      }))
+    : [];
+
+  // Get header-level inside split rates (when NOT per-line-item)
+  const headerInsideSplitRates = !insidePerLineItem && (firstDetail as any)?.insideSplitRates
+    ? ((firstDetail as any).insideSplitRates || []).map((s: any) => ({
+        userId: s.userId || '',
+        userName: s.user?.fullName || '',
+        splitRate: parseFloat(s.splitRate || '0'),
+        position: s.position || 0,
+      }))
+    : [];
+
+  // Get primary rep (first in split rates or from order)
+  const headerOutsideRepId = headerOutsideSplitRates.length > 0 ? headerOutsideSplitRates[0].userId : '';
+  const headerOutsideRepName = headerOutsideSplitRates.length > 0 ? headerOutsideSplitRates[0].userName : '';
+  const headerInsideRepId = headerInsideSplitRates.length > 0 ? headerInsideSplitRates[0].userId : '';
+  const headerInsideRepName = headerInsideSplitRates.length > 0 ? headerInsideSplitRates[0].userName : '';
 
   return {
     id: apiInvoice.id,
@@ -122,6 +167,20 @@ function transformApiInvoiceToUi(apiInvoice: ApiInvoice): EditableInvoice {
     balance: (apiInvoice.balance?.total || 0) - (apiInvoice.balance?.paidBalance || 0),
     totalCommission: apiInvoice.balance?.commission || 0,
     splitRates: [], // Will be populated from details
+    // Per-line-item flags from order
+    endUserPerLineItem,
+    outsidePerLineItem,
+    insidePerLineItem,
+    // Header-level end user (when not per-line-item)
+    endUserId: headerEndUserId,
+    endUserName: '', // Will be populated from customer lookup
+    // Header-level reps (when not per-line-item, grabbed from first line item)
+    outsideRepId: headerOutsideRepId,
+    outsideRepName: headerOutsideRepName,
+    outsideSplitRates: headerOutsideSplitRates,
+    insideRepId: headerInsideRepId,
+    insideRepName: headerInsideRepName,
+    insideSplitRates: headerInsideSplitRates,
   };
 }
 
@@ -243,6 +302,11 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
   const factoryIdToFetch = linkedOrder?.factoryId || null;
   const { data: linkedFactory } = useFactory(factoryIdToFetch || '');
 
+  // Fetch end user customer details when we have an endUserId
+  // This is needed to display the end user name in the header
+  const endUserIdToFetch = localInvoice?.endUserId || null;
+  const { data: endUserCustomer } = useCustomer(endUserIdToFetch || undefined);
+
   // Initialize local invoice from API data or empty for create mode
   useEffect(() => {
     if (isCreateMode) {
@@ -269,125 +333,142 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
     });
   }, []);
 
+  // Track if we've populated from the current order to avoid re-running unnecessarily
+  const [populatedFromOrderId, setPopulatedFromOrderId] = useState<string | null>(null);
+
   // When order data is loaded, populate the invoice with order fields
   // This works for both:
   // 1. Existing invoice with orderId - auto-populates order fields
   // 2. New invoice with selected order - populates when user selects an order
   useEffect(() => {
-    if (linkedOrder && localInvoice) {
-      setLocalInvoice(prev => {
-        if (!prev) return prev;
+    // Skip if no order data, no local invoice, or already populated from this order
+    if (!linkedOrder || !localInvoice) return;
+    if (populatedFromOrderId === linkedOrder.id) return;
 
-        // Cast to any to access all API-specific fields
-        const order = linkedOrder as any;
+    // Cast to any to access all API-specific fields
+    const order = linkedOrder as any;
 
-        // For existing invoices with orderId, don't overwrite line items
-        // Only overwrite line items if this is a new invoice being created from an order
-        const isNewInvoiceFromOrder = isCreateMode && selectedOrderId;
+    // For existing invoices with orderId, don't overwrite line items
+    // Only overwrite line items if this is a new invoice being created from an order
+    const isNewInvoiceFromOrder = isCreateMode && selectedOrderId;
 
-        // Transform order line items to extended InvoiceLineItem format for editing
-        // Only do this for new invoices being created from an order
-        let extendedLineItems = prev.lineItems;
-        if (isNewInvoiceFromOrder) {
-          extendedLineItems = (order.lineItems || order.details || []).map((item: any, index: number) => ({
-            id: `new-${index}-${Date.now()}`,
-            orderLineItemId: item.id || '',
-            lineNumber: item.lineNumber || item.itemNumber || index + 1,
-            productId: item.productId || '',
-            partNumber: item.partNumber || item.product?.factoryPartNumber || item.productNameAdhoc || '',
-            custPartNumber: item.custPartNumber || '',
-            description: item.description || item.product?.description || item.productDescriptionAdhoc || '',
-            quantity: typeof item.quantity === 'string' ? parseFloat(item.quantity) : (item.quantity || 0),
-            unitPrice: typeof item.unitPrice === 'string' ? parseFloat(item.unitPrice) : (item.unitPrice || 0),
-            uom: item.uom?.title || item.uom || null,
-            uomId: item.uom?.id || item.uomId || null,
-            divisor: item.uom?.divisionFactor || (typeof item.divisionFactor === 'string' ? parseFloat(item.divisionFactor) : (item.divisor || 1)),
-            total: item.total || item.extendedPrice || item.amount || 0,
-            amount: item.total || item.extendedPrice || item.amount || 0,
-            commissionPercent: typeof item.commissionRate === 'string' ? parseFloat(item.commissionRate) * 100 : ((item.commissionRate ?? 0.08) * 100),
-            commissionRate: typeof item.commissionRate === 'string' ? parseFloat(item.commissionRate) : (item.commissionRate ?? 0.08),
-            commission: item.commission || item.commissionAmount || 0,
-            commissionAmount: item.commission || item.commissionAmount || 0,
-            discountPercent: parseFloat(item.discountRate || '0'),
-            discount: item.discount || 0,
-            commissionDiscountPercent: parseFloat(item.commissionDiscountRate || '0'),
-            commissionDiscount: item.commissionDiscount || 0,
-            status: item.status || 'open',
-            leadTime: item.leadTime || '',
-            note: item.note || '',
-            endUserId: item.endUserId || '',
-            orderDetailId: item.id || '',
-            invoicedBalance: 0,
-            outsideSplitRates: [],
-          }));
-        }
-
-        // Always populate order-related fields (Sold To, Bill To, PO#, Job, Terms, Reps)
-        // Factory: Only use from order if not already set from invoice (invoice.factory takes precedence)
-        return {
-          ...prev,
-          // Order reference
-          orderId: linkedOrder.id,
-          orderNumber: linkedOrder.orderNumber || '',
-
-          // Factory (Manufacturer) - only override if not already set from invoice
-          // Factory name will be populated by separate effect when linkedFactory loads
-          manufacturerId: prev.manufacturerId || order.factoryId || order.manufacturerId || '',
-          manufacturerName: prev.manufacturerName || '',
-
-          // Customers
-          customerId: order.soldToCustomerId || order.customerId || prev.customerId || '',
-          customerName: order.soldToCustomer?.companyName || order.customerName || prev.customerName || '',
-          soldToCustomerId: order.soldToCustomerId || '',
-          soldToCustomerName: order.soldToCustomer?.companyName || '',
-          billToCustomerId: order.billToCustomerId || order.soldToCustomerId || '',
-          billToCustomerName: order.billToCustomer?.companyName || order.soldToCustomer?.companyName || '',
-          endUserId: order.endUserPerLineItem ? '' : (order.endUserId || ''),
-          endUserName: order.endUserPerLineItem ? '' : (order.endUser?.companyName || ''),
-
-          // Order reference fields
-          poNumber: order.customerPo || order.poNumber || '',
-          jobId: order.jobId || '',
-          jobName: order.job?.title || order.jobName || '',
-
-          // Terms (from order)
-          paymentTerms: order.paymentTerm?.title || order.paymentTerms || '',
-          paymentTermsId: order.paymentTermId || '',
-          freightTerms: order.freightTerm?.title || order.freightTerms || '',
-          freightTermsId: order.freightTermId || '',
-          shippingTerms: order.shippingTerm?.title || order.shippingTerms || '',
-          shippingTermsId: order.shippingTermId || '',
-
-          // Reps - only populate header if NOT per line item
-          outsideRepId: order.outsidePerLineItem ? '' : (order.outsideRepId || order.outsideSalesRepId || ''),
-          outsideRepName: order.outsidePerLineItem ? '' : (order.outsideRep?.fullName || order.outsideSalesRep?.fullName || ''),
-          insideRepId: order.insidePerLineItem ? '' : (order.insideRepId || order.insideSalesRepId || ''),
-          insideRepName: order.insidePerLineItem ? '' : (order.insideRep?.fullName || order.insideSalesRep?.fullName || ''),
-
-          // Per-line-item flags from order
-          outsidePerLineItem: order.outsidePerLineItem || false,
-          insidePerLineItem: order.insidePerLineItem || false,
-          endUserPerLineItem: order.endUserPerLineItem || false,
-
-          // Dates
-          invoiceDate: prev.invoiceDate || order.entityDate || order.orderDate || '',
-          dueDate: prev.dueDate || order.dueDate || '',
-
-          // Line items (only for new invoice from order)
-          lineItems: extendedLineItems,
-
-          // Totals (only for new invoice from order)
-          ...(isNewInvoiceFromOrder ? {
-            subtotal: order.balance?.subtotal || order.subtotal || 0,
-            total: order.balance?.total || order.total || 0,
-          } : {}),
-
-          // Flag that these fields came from order (for UI to make them read-only)
-          isPopulatedFromOrder: true,
-        };
-      });
+    // Transform order line items to extended InvoiceLineItem format for editing
+    // Only do this for new invoices being created from an order
+    let extendedLineItems = localInvoice.lineItems;
+    if (isNewInvoiceFromOrder) {
+      extendedLineItems = (order.lineItems || order.details || []).map((item: any, index: number) => ({
+        id: `new-${index}-${Date.now()}`,
+        orderLineItemId: item.id || '',
+        lineNumber: item.lineNumber || item.itemNumber || index + 1,
+        productId: item.productId || '',
+        partNumber: item.partNumber || item.product?.factoryPartNumber || item.productNameAdhoc || '',
+        custPartNumber: item.custPartNumber || '',
+        description: item.description || item.product?.description || item.productDescriptionAdhoc || '',
+        quantity: typeof item.quantity === 'string' ? parseFloat(item.quantity) : (item.quantity || 0),
+        unitPrice: typeof item.unitPrice === 'string' ? parseFloat(item.unitPrice) : (item.unitPrice || 0),
+        uom: item.uom?.title || item.uom || null,
+        uomId: item.uom?.id || item.uomId || null,
+        divisor: item.uom?.divisionFactor || (typeof item.divisionFactor === 'string' ? parseFloat(item.divisionFactor) : (item.divisor || 1)),
+        total: item.total || item.extendedPrice || item.amount || 0,
+        amount: item.total || item.extendedPrice || item.amount || 0,
+        commissionPercent: typeof item.commissionRate === 'string' ? parseFloat(item.commissionRate) * 100 : ((item.commissionRate ?? 0.08) * 100),
+        commissionRate: typeof item.commissionRate === 'string' ? parseFloat(item.commissionRate) : (item.commissionRate ?? 0.08),
+        commission: item.commission || item.commissionAmount || 0,
+        commissionAmount: item.commission || item.commissionAmount || 0,
+        discountPercent: parseFloat(item.discountRate || '0'),
+        discount: item.discount || 0,
+        commissionDiscountPercent: parseFloat(item.commissionDiscountRate || '0'),
+        commissionDiscount: item.commissionDiscount || 0,
+        status: item.status || 'open',
+        leadTime: item.leadTime || '',
+        note: item.note || '',
+        endUserId: item.endUserId || '',
+        orderDetailId: item.id || '',
+        invoicedBalance: 0,
+        outsideSplitRates: (item.outsideSplitRates || []).map((s: any) => ({
+          userId: s.userId || '',
+          userName: s.user?.fullName || '',
+          splitRate: parseFloat(s.splitRate || '0'),
+          position: s.position || 0,
+        })),
+        insideSplitRates: (item.insideSplitRates || []).map((s: any) => ({
+          userId: s.userId || '',
+          userName: s.user?.fullName || '',
+          splitRate: parseFloat(s.splitRate || '0'),
+          position: s.position || 0,
+        })),
+      }));
     }
-  }, [linkedOrder, isCreateMode, selectedOrderId]);
+
+    // Always populate order-related fields (Sold To, Bill To, PO#, Job, Terms, Reps)
+    // Factory is now fetched directly from order query with factory { id title }
+    setLocalInvoice(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        // Order reference
+        orderId: linkedOrder.id,
+        orderNumber: linkedOrder.orderNumber || '',
+
+        // Factory (Manufacturer) - use from order.factory if available
+        manufacturerId: prev.manufacturerId || order.factoryId || '',
+        manufacturerName: prev.manufacturerName || order.factory?.title || '',
+
+        // Customers
+        customerId: order.soldToCustomerId || prev.customerId || '',
+        customerName: order.soldToCustomer?.companyName || prev.customerName || '',
+        soldToCustomerId: order.soldToCustomerId || '',
+        soldToCustomerName: order.soldToCustomer?.companyName || '',
+        billToCustomerId: order.billToCustomerId || order.soldToCustomerId || '',
+        billToCustomerName: order.billToCustomer?.companyName || order.soldToCustomer?.companyName || '',
+        endUserId: order.endUserPerLineItem ? '' : (order.endUserId || ''),
+        endUserName: order.endUserPerLineItem ? '' : (order.endUser?.companyName || ''),
+
+        // Order reference fields
+        poNumber: order.customerPo || order.poNumber || '',
+        jobId: order.job?.id || '',
+        jobName: order.job?.jobName || '',
+
+        // Terms (from order) - freightTerms/shippingTerms are strings on Order
+        paymentTerms: order.paymentTerm?.title || order.paymentTerms || '',
+        paymentTermsId: order.paymentTermId || '',
+        freightTerms: order.freightTerms || '',
+        freightTermsId: order.freightTermId || '',
+        shippingTerms: order.shippingTerms || '',
+        shippingTermsId: order.shippingTermId || '',
+
+        // Reps - only populate header if NOT per line item
+        outsideRepId: order.outsidePerLineItem ? '' : (order.outsideRepId || order.outsideSalesRepId || ''),
+        outsideRepName: order.outsidePerLineItem ? '' : (order.outsideRep?.fullName || order.outsideSalesRep?.fullName || ''),
+        insideRepId: order.insidePerLineItem ? '' : (order.insideRepId || order.insideSalesRepId || ''),
+        insideRepName: order.insidePerLineItem ? '' : (order.insideRep?.fullName || order.insideSalesRep?.fullName || ''),
+
+        // Per-line-item flags from order
+        outsidePerLineItem: order.outsidePerLineItem || false,
+        insidePerLineItem: order.insidePerLineItem || false,
+        endUserPerLineItem: order.endUserPerLineItem || false,
+
+        // Dates
+        invoiceDate: prev.invoiceDate || order.entityDate || order.orderDate || '',
+        dueDate: prev.dueDate || order.dueDate || '',
+
+        // Line items (only for new invoice from order)
+        lineItems: extendedLineItems,
+
+        // Totals (only for new invoice from order)
+        ...(isNewInvoiceFromOrder ? {
+          subtotal: order.balance?.subtotal || order.subtotal || 0,
+          total: order.balance?.total || order.total || 0,
+        } : {}),
+
+        // Flag that these fields came from order (for UI to make them read-only)
+        isPopulatedFromOrder: true,
+      };
+    });
+
+    // Mark that we've populated from this order
+    setPopulatedFromOrderId(linkedOrder.id);
+  }, [linkedOrder, localInvoice, isCreateMode, selectedOrderId, populatedFromOrderId]);
 
   // When factory data is loaded, populate the factory name
   useEffect(() => {
@@ -401,6 +482,19 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
       });
     }
   }, [linkedFactory, localInvoice?.manufacturerName]);
+
+  // When end user customer data is loaded, populate the end user name
+  useEffect(() => {
+    if (endUserCustomer && localInvoice && localInvoice.endUserId && !localInvoice.endUserName) {
+      setLocalInvoice(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          endUserName: endUserCustomer.companyName || '',
+        };
+      });
+    }
+  }, [endUserCustomer, localInvoice?.endUserId, localInvoice?.endUserName]);
 
   // Handle invoice selection - copy from existing invoice
   const handleInvoiceSelect = useCallback(async (invoiceId: string, invoiceNumber: string) => {

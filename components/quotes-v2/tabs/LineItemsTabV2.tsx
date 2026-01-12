@@ -389,7 +389,7 @@ export function LineItemsTabV2({
       // Inherit outside reps if per-line-item setting is enabled
       outsideSplitRates: settings?.outsideRepAtLineLevel && currentOutsideReps && currentOutsideReps.length > 0
         ? currentOutsideReps.map((rep, idx) => ({
-            id: crypto.randomUUID(),
+            id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
             userId: rep.userId,
             userName: rep.userName,
             splitRate: rep.splitRate,
@@ -399,7 +399,7 @@ export function LineItemsTabV2({
       // Inherit inside reps if per-line-item setting is enabled AND factory is at header level
       insideSplitRates: settings?.insideRepAtLineLevel && !settings?.factoryPerLineItem && currentInsideReps && currentInsideReps.length > 0
         ? currentInsideReps.map((rep, idx) => ({
-            id: crypto.randomUUID(),
+            id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
             userId: rep.userId,
             userName: rep.userName,
             splitRate: rep.splitRate,
@@ -908,7 +908,7 @@ export function LineItemsTabV2({
                                 const reps = await fetchInsideRepsFromFactory(factory.id);
                                 if (reps.length > 0) {
                                   updates.insideSplitRates = reps.map((rep, idx) => ({
-                                    id: crypto.randomUUID(),
+                                    id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
                                     userId: rep.userId,
                                     userName: rep.userName,
                                     splitRate: rep.splitRate,

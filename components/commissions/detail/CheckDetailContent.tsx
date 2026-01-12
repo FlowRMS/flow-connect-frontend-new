@@ -198,9 +198,11 @@ export default function CheckDetailContent({
         onSaveAndClose={state.handleSaveAndClose}
         onSaveAsNewVersion={handleSaveAsNewVersion}
         onUnpost={state.handleUnpost}
+        onDelete={state.openDeleteConfirmModal}
         isCreateMode={state.isCreateMode}
         isSaving={state.isSaving}
         isUnposting={state.isUnposting}
+        isDeleting={state.isDeleting}
         isOriginallyPosted={state.isOriginallyPosted}
       />
 
@@ -608,6 +610,17 @@ export default function CheckDetailContent({
           onClose={state.closeOrderDetail}
         />
       )}
+
+      {/* Delete Confirmation Modal for Check */}
+      <DeleteConfirmModal
+        isOpen={state.showDeleteConfirmModal}
+        title="Delete Check?"
+        message="Are you sure you want to delete check"
+        itemName={state.checkNumber || state.check?.checkNumber}
+        isPending={state.isDeleting}
+        onConfirm={state.handleDelete}
+        onCancel={state.closeDeleteConfirmModal}
+      />
     </main>
   );
 }

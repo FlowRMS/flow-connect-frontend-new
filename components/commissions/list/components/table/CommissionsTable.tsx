@@ -93,6 +93,19 @@ export function CommissionsTable({
 
   return (
     <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
+      {/* Bulk Actions Bar - shown when items are selected */}
+      {selectedCheckIds.size > 0 && (
+        <BulkActionsBar
+          selectedCount={selectedCheckIds.size}
+          showBulkActionsMenu={showBulkActionsMenu}
+          setShowBulkActionsMenu={setShowBulkActionsMenu}
+          onClearSelection={clearSelection}
+          onBulkSetStatus={bulkSetStatus}
+          onBulkDelete={bulkDelete}
+          isLoading={isBulkUpdating}
+        />
+      )}
+
       <div className="overflow-x-auto">
         <div className="min-w-[1200px]">
           {/* Table Header */}

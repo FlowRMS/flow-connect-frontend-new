@@ -247,7 +247,7 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
   };
 
   return (
-    <main className="flex flex-col h-screen bg-[var(--background)]">
+    <main className="flex flex-col min-h-full bg-[var(--background)]">
       {/* Header Top Bar */}
       <HeaderTopBar
         invoice={state.invoice}
@@ -309,9 +309,9 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
       />
 
       {/* Main Content Area with Tabs */}
-      <div className="flex flex-1 overflow-hidden min-h-0">
+      <div className="flex flex-1 min-h-0">
         {/* Main Content */}
-        <div className="flex-1 flex flex-col p-6 min-w-0 overflow-hidden">
+        <div className="flex-1 flex flex-col p-6 min-w-0">
           {/* Tabs */}
           <div className="flex items-center justify-between gap-1 mb-6 border-b border-[var(--border)] flex-shrink-0 bg-white -mx-6 px-6 pt-4 -mt-6">
             <div className="flex gap-1">
@@ -541,7 +541,7 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
           {/* Settings Tab */}
           {state.activeTab === 'settings' && (
             <div className="flex-1 overflow-auto">
-              <SettingsTab />
+              <SettingsTab invoice={state.invoice} />
             </div>
           )}
         </div>
@@ -670,6 +670,9 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
         onClose={() => state.setShowAdditionalDetailsModal(false)}
         lineItem={state.selectedLineItemForDetails}
         onSave={state.saveAdditionalDetails}
+        endUserPerLineItem={(state.invoice as any)?.endUserPerLineItem}
+        outsidePerLineItem={(state.invoice as any)?.outsidePerLineItem}
+        insidePerLineItem={(state.invoice as any)?.insidePerLineItem}
       />
     </main>
   );

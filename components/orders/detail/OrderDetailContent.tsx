@@ -104,7 +104,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
             // Store for new line items to inherit
             setCurrentOutsideReps(reps);
             const outsideSplitRates = reps.map((rep, idx) => ({
-              id: crypto.randomUUID(),
+              id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
               userId: rep.userId,
               userName: rep.userName,
               splitRate: rep.splitRate,
@@ -144,7 +144,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
             // Store for new line items to inherit
             setCurrentInsideReps(reps);
             const insideSplitRates = reps.map((rep, idx) => ({
-              id: crypto.randomUUID(),
+              id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
               userId: rep.userId,
               userName: rep.userName,
               splitRate: rep.splitRate,
@@ -343,6 +343,10 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
 
       // Build details with insideSplitRates and outsideSplitRates at detail level
       const buildDetails = (includeId: boolean) => (order.lineItems || []).map((item, index) => {
+        // CRITICAL: Check if this is a new line item (no valid UUID)
+        // If the line item is new, its split rates should NOT have IDs either
+        const isNewLineItem = !item.id || !isValidUUID(item.id);
+
         // Determine which split rates to use based on per-line-item settings:
         // - If per-line-item is enabled, use the line item's own split rates
         // - If disabled, use header-level split rates for all line items
@@ -351,8 +355,9 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
 
         if (state.showInsideRepPerLine && (item as any).insideSplitRates?.length > 0) {
           // Use line item's own inside split rates
+          // Only include split rate ID if the parent line item is NOT new (existing in DB)
           lineInsideSplitRates = (item as any).insideSplitRates.map((sr: any, idx: number) => ({
-            ...(sr.id && isValidUUID(sr.id) ? { id: sr.id } : {}),
+            ...(!isNewLineItem && sr.id && isValidUUID(sr.id) ? { id: sr.id } : {}),
             userId: sr.userId || '',
             splitRate: Number(sr.splitRate) || 100,
             position: sr.position ?? idx,
@@ -361,8 +366,9 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
 
         if (state.showOutsideRepPerLine && (item as any).outsideSplitRates?.length > 0) {
           // Use line item's own outside split rates
+          // Only include split rate ID if the parent line item is NOT new (existing in DB)
           lineOutsideSplitRates = (item as any).outsideSplitRates.map((sr: any, idx: number) => ({
-            ...(sr.id && isValidUUID(sr.id) ? { id: sr.id } : {}),
+            ...(!isNewLineItem && sr.id && isValidUUID(sr.id) ? { id: sr.id } : {}),
             userId: sr.userId || '',
             splitRate: Number(sr.splitRate) || 100,
             position: sr.position ?? idx,
@@ -546,7 +552,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
 
     // Convert RepSplitRate[] to the format expected by line items
     const outsideSplitRates = reps.map((rep, idx) => ({
-      id: crypto.randomUUID(),
+      id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
       userId: rep.userId,
       userName: rep.userName,
       splitRate: rep.splitRate,
@@ -571,7 +577,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
 
     // Convert RepSplitRate[] to the format expected by line items
     const insideSplitRates = reps.map((rep, idx) => ({
-      id: crypto.randomUUID(),
+      id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
       userId: rep.userId,
       userName: rep.userName,
       splitRate: rep.splitRate,
@@ -588,7 +594,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
   };
 
   return (
-    <main className="flex flex-col h-screen bg-[var(--background)]">
+    <main className="flex flex-col min-h-full bg-[var(--background)]">
       {/* Header */}
       <OrderDetailHeader
         order={order}
@@ -642,7 +648,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
       />
 
       {/* Main Content Area with Tabs */}
-      <div className="flex-1 flex flex-col p-6 overflow-hidden">
+      <div className="flex-1 flex flex-col p-6">
         {/* Tab Navigation */}
         <div className="flex items-center justify-between gap-1 mb-6 border-b border-[var(--border)] flex-shrink-0 bg-white pt-4 px-4 -mx-6 -mt-6">
           <div className="flex gap-1">
@@ -738,7 +744,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         </div>
 
         {/* Tab Content */}
-        <div className="flex-1 overflow-auto pb-32">
+        <div className="flex-1 pb-32">
           {state.activeTab === 'line-items' && (
             <LineItemsTable
               order={order}

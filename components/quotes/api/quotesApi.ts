@@ -55,7 +55,6 @@ export interface QuoteCreatedBy {
 
 export interface QuoteSplitRate {
   id: string;
-  createdAt?: string;
   position?: number;
   quoteId?: string;
   quoteDetailId?: string;
@@ -121,7 +120,6 @@ export interface QuoteDetail {
 
 export interface QuoteInsideRep {
   id: string;
-  createdAt?: string;
   position?: number;
   quoteId?: string;
   splitRate?: string;
@@ -130,7 +128,6 @@ export interface QuoteInsideRep {
 
 export interface QuoteOutsideRep {
   id: string;
-  createdAt?: string;
   position?: number;
   quoteId?: string;
   splitRate?: string;
@@ -406,7 +403,6 @@ const FIND_QUOTE_BY_ID = `
         }
         outsideSplitRates {
           id
-          createdAt
           position
           quoteDetailId
           splitRate
@@ -540,7 +536,6 @@ const CREATE_QUOTE = `
         }
         outsideSplitRates {
           id
-          createdAt
           position
           quoteDetailId
           splitRate
@@ -670,7 +665,6 @@ const UPDATE_QUOTE = `
         }
         outsideSplitRates {
           id
-          createdAt
           position
           quoteDetailId
           splitRate
@@ -828,7 +822,6 @@ const CREATE_QUOTE_FROM_PRE_OPPORTUNITY = `
         }
         outsideSplitRates {
           id
-          createdAt
           position
           quoteDetailId
           splitRate

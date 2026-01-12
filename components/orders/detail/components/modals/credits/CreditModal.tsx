@@ -451,7 +451,7 @@ export function CreditModal({
       const item = newItems[lineIndex];
       if (!item.outsideSplitRates.some(r => r.userId === repId)) {
         const newRep: OutsideSplitRate = {
-          id: crypto.randomUUID(),
+          id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
           userId: repId,
           userName: repName,
           splitRate: 0,

@@ -246,6 +246,20 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
                   endUserName: li.endUserId ? customerMap.get(li.endUserId) || '' : '',
                 }))
               );
+
+              // When endUserPerLineItem is false, populate header-level end user from first line item
+              // (all line items should have the same end user when this setting is off)
+              if (apiQuote.endUserPerLineItem === false && transformedLineItems.length > 0) {
+                const firstLineItemWithEndUser = transformedLineItems.find(li => li.endUserId);
+                if (firstLineItemWithEndUser?.endUserId) {
+                  const endUserName = customerMap.get(firstLineItemWithEndUser.endUserId) || '';
+                  setQuote(prev => ({
+                    ...prev,
+                    endUserId: firstLineItemWithEndUser.endUserId,
+                    endUserName: endUserName,
+                  }));
+                }
+              }
             })
             .catch((err) => console.error('Failed to fetch end user names:', err));
         }
@@ -475,6 +489,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       factoryPerLineItem: settings.factoryPerLineItem,
       // Split rates are now at detail level (insideSplitRates and outsideSplitRates per line item)
       // Pass settings so each line item uses its own split rates when per-line-item is enabled
+      // Pass header-level endUserId for when specifyEndUserPerLine is false
       details: lineItems.map((li, index) => ({
         ...transformLineItemV2ToDetailInput(
           li,
@@ -484,8 +499,10 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
             insideRepAtLineLevel: settings.insideRepAtLineLevel,
             outsideRepAtLineLevel: settings.outsideRepAtLineLevel,
             factoryPerLineItem: settings.factoryPerLineItem,
+            specifyEndUserPerLine: settings.specifyEndUserPerLine,
           },
-          quote.factoryId // Pass header-level factory for when factoryPerLineItem is false
+          quote.factoryId, // Pass header-level factory for when factoryPerLineItem is false
+          quote.endUserId // Pass header-level endUserId for when specifyEndUserPerLine is false
         ),
         itemNumber: li.itemNumber ?? index + 1,
       })),
@@ -711,7 +728,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
     // Convert RepSplitRate[] to the format expected by line items
     // Include userName so the modal can display the name without looking it up
     const outsideSplitRates = reps.map((rep, idx) => ({
-      id: crypto.randomUUID(),
+      id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
       userId: rep.userId,
       userName: rep.userName,
       splitRate: rep.splitRate,
@@ -736,7 +753,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
     // Convert RepSplitRate[] to the format expected by line items
     // Include userName so the modal can display the name without looking it up
     const insideSplitRates = reps.map((rep, idx) => ({
-      id: crypto.randomUUID(),
+      id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
       userId: rep.userId,
       userName: rep.userName,
       splitRate: rep.splitRate,
@@ -771,7 +788,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
 
           // Convert to line item format - include userName
           const insideSplitRates = reps.map((rep, idx) => ({
-            id: crypto.randomUUID(),
+            id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
             userId: rep.userId,
             userName: rep.userName,
             splitRate: rep.splitRate,
@@ -812,7 +829,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
             // Store for new line items to inherit
             setCurrentOutsideReps(reps);
             const outsideSplitRates = reps.map((rep, idx) => ({
-              id: crypto.randomUUID(),
+              id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
               userId: rep.userId,
               userName: rep.userName,
               splitRate: rep.splitRate,
@@ -840,7 +857,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
                 const reps = await fetchInsideRepsFromFactory(item.manufacturerId);
                 if (reps.length === 0) return item;
                 const insideSplitRates = reps.map((rep, idx) => ({
-                  id: crypto.randomUUID(),
+                  id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
                   userId: rep.userId,
                   userName: rep.userName,
                   splitRate: rep.splitRate,
@@ -860,7 +877,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
             // Store for new line items to inherit
             setCurrentInsideReps(reps);
             const insideSplitRates = reps.map((rep, idx) => ({
-              id: crypto.randomUUID(),
+              id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
               userId: rep.userId,
               userName: rep.userName,
               splitRate: rep.splitRate,
@@ -886,7 +903,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
               const reps = await fetchInsideRepsFromFactory(item.manufacturerId);
               if (reps.length === 0) return item;
               const insideSplitRates = reps.map((rep, idx) => ({
-                id: crypto.randomUUID(),
+                id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
                 userId: rep.userId,
                 userName: rep.userName,
                 splitRate: rep.splitRate,
@@ -906,7 +923,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
           // Store for new line items to inherit
           setCurrentInsideReps(reps);
           const insideSplitRates = reps.map((rep, idx) => ({
-            id: crypto.randomUUID(),
+            id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
             userId: rep.userId,
             userName: rep.userName,
             splitRate: rep.splitRate,
@@ -959,7 +976,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
   }
 
   return (
-    <div className="h-full flex flex-col bg-white">
+    <div className="min-h-full flex flex-col bg-white">
       {/* Save Error Banner */}
       {saveError && (
         <div className="bg-red-50 border-b border-red-200 px-6 py-3 flex items-center justify-between">
@@ -1028,7 +1045,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       </div>
 
       {/* Tab Content */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1">
         {activeTab === 'lineItems' && (
           <LineItemsTabV2
             lineItems={lineItems}
