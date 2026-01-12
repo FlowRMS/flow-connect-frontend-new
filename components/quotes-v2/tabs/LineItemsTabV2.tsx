@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import type { LineItemV2, ColumnConfig, LineItemColumnKey, QuoteSettingsV2 } from '../types';
 import { useProductSearch, useFactorySearch, useProductCpns, useCustomerSearch, useProductUoms, getProductCpnByCustomer, listProductPricingTiers } from '../../quotes/api/useQuotesApi';
 import type { ProductPricingTierResult } from '../../quotes/api/quotesApi';
+import { fetchProductById } from '../../products/api/productsApi';
 import { useAutoPopulateReps } from '@/components/shared/hooks/useAutoPopulateReps';
 
 // Type for rep split rates passed from parent
@@ -974,7 +975,6 @@ export function LineItemsTabV2({
                           const item = lineItems.find(li => li.id === dropdownOpen.itemId);
                           const itemId = dropdownOpen.itemId;
                           const quantity = item?.quantity || 1;
-                          const divisor = product.defaultDivisor || item?.divisor || 1;
 
                           // Default values from product
                           let unitPrice = product.unitPrice || 0;
@@ -985,18 +985,37 @@ export function LineItemsTabV2({
                           setSearchQuery('');
                           setDebouncedSearch('');
 
-                          // Fetch CPN and pricing tiers in parallel
+                          // Fetch CPN, pricing tiers, and full product details in parallel
                           let customerPartNumber = '';
+                          let factoryId: string | undefined;
+                          let factoryTitle: string | undefined;
+                          let uomId: string | undefined;
+                          let uomTitle: string | undefined;
+                          let divisor = product.defaultDivisor || item?.divisor || 1;
 
                           if (product.id) {
-                            const [cpnResult, tiersResult] = await Promise.all([
+                            const [cpnResult, tiersResult, fullProduct] = await Promise.all([
                               // Fetch CPN for the customer
                               soldToCustomerId
                                 ? getProductCpnByCustomer(product.id, soldToCustomerId).catch(() => null)
                                 : Promise.resolve(null),
                               // Fetch pricing tiers for volume discounts
-                              listProductPricingTiers(product.id).catch(() => [])
+                              listProductPricingTiers(product.id).catch(() => []),
+                              // Fetch full product details for factory and UOM
+                              fetchProductById(product.id).catch(() => null)
                             ]);
+
+                            // Extract factory and UOM from full product details
+                            if (fullProduct) {
+                              factoryId = fullProduct.factory?.id;
+                              factoryTitle = fullProduct.factory?.title;
+                              uomId = fullProduct.uom?.id;
+                              uomTitle = fullProduct.uom?.title;
+                              // Use UOM's divisionFactor if available
+                              if (fullProduct.uom?.divisionFactor) {
+                                divisor = fullProduct.uom.divisionFactor;
+                              }
+                            }
 
                             // Track if CPN has custom pricing (CPN pricing takes priority over tier pricing)
                             let cpnHasCustomPrice = false;
@@ -1078,6 +1097,12 @@ export function LineItemsTabV2({
                               sellTotal: sellTotal,
                               commission: commission,
                               commissionTotal: commissionTotal,
+                              // Auto-populate manufacturer from product's factory
+                              manufacturerId: factoryId || li.manufacturerId,
+                              manufacturerName: factoryTitle || li.manufacturerName,
+                              // Auto-populate UOM from product's default UOM
+                              uomId: uomId || li.uomId,
+                              uom: uomTitle || li.uom,
                             } : li)
                           );
                         }}
