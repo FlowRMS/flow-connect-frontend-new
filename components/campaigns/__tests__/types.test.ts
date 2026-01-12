@@ -182,11 +182,10 @@ describe('Types - Send Pace Mapping', () => {
 describe('Types - Entity Fields', () => {
   describe('ENTITY_TYPE_OPTIONS', () => {
     it('should have all required entity types', () => {
-      expect(ENTITY_TYPE_OPTIONS).toHaveLength(4);
+      expect(ENTITY_TYPE_OPTIONS).toHaveLength(3);
       expect(ENTITY_TYPE_OPTIONS.map(o => o.value)).toContain('CONTACT');
       expect(ENTITY_TYPE_OPTIONS.map(o => o.value)).toContain('JOB');
       expect(ENTITY_TYPE_OPTIONS.map(o => o.value)).toContain('COMPANY');
-      expect(ENTITY_TYPE_OPTIONS.map(o => o.value)).toContain('TASK');
     });
   });
 

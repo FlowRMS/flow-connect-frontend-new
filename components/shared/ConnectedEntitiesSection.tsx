@@ -34,7 +34,8 @@ import type {
 import { AddLinkModal } from './AddLinkModal';
 import { linkToasts } from '../lib/toast';
 import { RelatedEntityHoverCard } from './RelatedEntityHoverCard';
-import { fetchFilesByLinkedEntity, formatFileSize, type FileResponse, type FileEntityType } from '../lib/graphql/files';
+import { fetchFilesByLinkedEntity, formatFileSize, getFilePresignedUrl, type FileResponse, type FileEntityType } from '../lib/graphql/files';
+import { showErrorToast } from '../lib/toast';
 
 // ============================================================================
 // Types
@@ -398,12 +399,24 @@ export function ConnectedEntitiesSection({
   };
 
   // Handle file click - open file or download
-  const handleFileClick = (file: FileResponse) => {
+  const handleFileClick = async (file: FileResponse) => {
     if (onFileClick) {
       onFileClick(file);
-    } else if (file.filePath) {
-      // Open file in new tab
-      window.open(file.filePath, '_blank');
+    } else {
+      try {
+        const url = await getFilePresignedUrl(file.id);
+        if (url) {
+          window.open(url, '_blank');
+        } else {
+          showErrorToast('Unable to open file', {
+            description: 'Could not generate download URL',
+          });
+        }
+      } catch (error) {
+        showErrorToast('Failed to open file', {
+          description: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
     }
   };
 
