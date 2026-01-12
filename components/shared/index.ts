@@ -10,3 +10,7 @@ export { PDFBuilder } from './pdf-builder';
 export { useBulkSelection, type UseBulkSelectionOptions, type UseBulkSelectionReturn } from './hooks/useBulkSelection';
 export { BulkDeleteModal } from './modals/BulkDeleteModal';
 export { BulkActionsToolbar } from './BulkActionsToolbar';
+
+// Hover Cards
+export { RelatedEntityHoverCard } from './RelatedEntityHoverCard';
+export { ListPreviewHoverCard, type ListItemType, type SalesRepItem, type ListPreviewHoverCardProps } from './ListPreviewHoverCard';

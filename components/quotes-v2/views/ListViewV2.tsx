@@ -3,6 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import type { QuoteV2, QuotePipelineStage } from '../types';
 import { AvatarInline } from '@/components/ui/CreatedByBadge';
+import { ListPreviewHoverCard } from '@/components/shared/ListPreviewHoverCard';
 
 interface ListViewV2Props {
   quotes: QuoteV2[];
@@ -254,6 +255,26 @@ export function ListViewV2({
                   Customer {renderFilterIcon()} {renderSortIcon('soldToCustomerName')}
                 </div>
               </th>
+              {/* Part Numbers - moved after Customer */}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Part Numbers
+              </th>
+              {/* Sales Reps - moved after Customer */}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Sales Reps
+              </th>
+              {/* Factories - moved after Customer */}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Factories
+              </th>
+              {/* End Users - moved after Customer */}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                End Users
+              </th>
+              {/* Categories - moved after Customer */}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Categories
+              </th>
               {/* Status */}
               <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                 <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('status')}>
@@ -306,26 +327,6 @@ export function ListViewV2({
                   Published {renderFilterIcon()} {renderSortIcon('published')}
                 </div>
               </th>
-              {/* Part Numbers */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Part Numbers
-              </th>
-              {/* Sales Reps */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Sales Reps
-              </th>
-              {/* Factories */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Factories
-              </th>
-              {/* End Users */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                End Users
-              </th>
-              {/* Categories */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Categories
-              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
@@ -363,6 +364,41 @@ export function ListViewV2({
                     <span className="text-sm text-gray-900 truncate max-w-[200px] block" title={quote.soldToCustomerName || '-'}>
                       {quote.soldToCustomerName || '-'}
                     </span>
+                  </td>
+                  {/* Part Numbers - moved after Customer */}
+                  <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                    <ListPreviewHoverCard
+                      items={quote.partNumbers || []}
+                      type="partNumber"
+                    />
+                  </td>
+                  {/* Sales Reps - moved after Customer */}
+                  <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                    <ListPreviewHoverCard
+                      items={quote.salesReps || []}
+                      type="salesRep"
+                    />
+                  </td>
+                  {/* Factories - moved after Customer */}
+                  <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                    <ListPreviewHoverCard
+                      items={quote.factories || []}
+                      type="factory"
+                    />
+                  </td>
+                  {/* End Users - moved after Customer */}
+                  <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                    <ListPreviewHoverCard
+                      items={quote.endUsers || []}
+                      type="endUser"
+                    />
+                  </td>
+                  {/* Categories - moved after Customer */}
+                  <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                    <ListPreviewHoverCard
+                      items={quote.categories || []}
+                      type="category"
+                    />
                   </td>
                   {/* Status */}
                   <td className="px-3 py-3">
@@ -410,111 +446,6 @@ export function ListViewV2({
                         <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="2" />
                         <path d="M7 7l6 6M13 7l-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                       </svg>
-                    )}
-                  </td>
-                  {/* Part Numbers */}
-                  <td className="px-3 py-3">
-                    {quote.partNumbers && quote.partNumbers.length > 0 ? (
-                      <div className="flex flex-wrap gap-1 max-w-[200px]">
-                        {quote.partNumbers.slice(0, 3).map((pn, idx) => (
-                          <span key={idx} className="inline-flex px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-700 truncate max-w-[80px]" title={pn}>
-                            {pn}
-                          </span>
-                        ))}
-                        {quote.partNumbers.length > 3 && (
-                          <span className="inline-flex px-2 py-0.5 rounded text-xs bg-gray-200 text-gray-600">
-                            +{quote.partNumbers.length - 3}
-                          </span>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-sm text-gray-400">-</span>
-                    )}
-                  </td>
-                  {/* Sales Reps */}
-                  <td className="px-3 py-3">
-                    {quote.salesReps && quote.salesReps.length > 0 ? (
-                      <div className="space-y-1 max-w-[250px]">
-                        {quote.salesReps.slice(0, 2).map((rep, idx) => (
-                          <div key={idx} className="flex items-center gap-2 text-xs">
-                            <span className="font-medium text-gray-900 truncate max-w-[100px]" title={rep.fullName || 'Unknown'}>
-                              {rep.fullName || 'Unknown'}
-                            </span>
-                            {rep.avgSplitRate !== undefined && (
-                              <span className="text-blue-600 whitespace-nowrap">
-                                {rep.avgSplitRate}%
-                              </span>
-                            )}
-                            {rep.total !== undefined && (
-                              <span className="text-green-600 whitespace-nowrap">
-                                ${Number(rep.total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </span>
-                            )}
-                          </div>
-                        ))}
-                        {quote.salesReps.length > 2 && (
-                          <span className="text-xs text-gray-500">+{quote.salesReps.length - 2} more</span>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-sm text-gray-400">-</span>
-                    )}
-                  </td>
-                  {/* Factories */}
-                  <td className="px-3 py-3">
-                    {quote.factories && quote.factories.length > 0 ? (
-                      <div className="flex flex-wrap gap-1 max-w-[180px]">
-                        {quote.factories.slice(0, 2).map((factory, idx) => (
-                          <span key={idx} className="inline-flex px-2 py-0.5 rounded text-xs bg-purple-100 text-purple-700 truncate max-w-[80px]" title={factory}>
-                            {factory}
-                          </span>
-                        ))}
-                        {quote.factories.length > 2 && (
-                          <span className="inline-flex px-2 py-0.5 rounded text-xs bg-purple-200 text-purple-600">
-                            +{quote.factories.length - 2}
-                          </span>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-sm text-gray-400">-</span>
-                    )}
-                  </td>
-                  {/* End Users */}
-                  <td className="px-3 py-3">
-                    {quote.endUsers && quote.endUsers.length > 0 ? (
-                      <div className="flex flex-wrap gap-1 max-w-[180px]">
-                        {quote.endUsers.slice(0, 2).map((endUser, idx) => (
-                          <span key={idx} className="inline-flex px-2 py-0.5 rounded text-xs bg-orange-100 text-orange-700 truncate max-w-[80px]" title={endUser}>
-                            {endUser}
-                          </span>
-                        ))}
-                        {quote.endUsers.length > 2 && (
-                          <span className="inline-flex px-2 py-0.5 rounded text-xs bg-orange-200 text-orange-600">
-                            +{quote.endUsers.length - 2}
-                          </span>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-sm text-gray-400">-</span>
-                    )}
-                  </td>
-                  {/* Categories */}
-                  <td className="px-3 py-3">
-                    {quote.categories && quote.categories.length > 0 ? (
-                      <div className="flex flex-wrap gap-1 max-w-[180px]">
-                        {quote.categories.slice(0, 2).map((category, idx) => (
-                          <span key={idx} className="inline-flex px-2 py-0.5 rounded text-xs bg-teal-100 text-teal-700 truncate max-w-[80px]" title={category}>
-                            {category}
-                          </span>
-                        ))}
-                        {quote.categories.length > 2 && (
-                          <span className="inline-flex px-2 py-0.5 rounded text-xs bg-teal-200 text-teal-600">
-                            +{quote.categories.length - 2}
-                          </span>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-sm text-gray-400">-</span>
                     )}
                   </td>
                 </tr>
