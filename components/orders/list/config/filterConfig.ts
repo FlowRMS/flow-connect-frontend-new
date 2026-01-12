@@ -5,7 +5,7 @@
  */
 
 import type { FilterOption } from '../../../advancedFilters/types';
-import { OrderStatus } from '../types';
+import { OrderStatus } from '../constants';
 
 // Order status options matching OrderStatus enum
 export const ORDER_STATUSES: OrderStatus[] = [
