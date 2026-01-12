@@ -205,6 +205,7 @@ export default function AdvancedFilters({
     }
     setExpandedFilterId(null);
     setFilterValue('');
+    setIsExpanded(false);
   };
 
   const handleApplyMultiSelect = (option: FilterOption) => {
@@ -232,6 +233,7 @@ export default function AdvancedFilters({
       onFilterChange(newFilters.length > 0 ? newFilters[0] : undefined);
     }
     setExpandedFilterId(null);
+    setIsExpanded(false);
   };
 
   const toggleValue = (value: string) => {
@@ -267,6 +269,7 @@ export default function AdvancedFilters({
     }
     setExpandedFilterId(null);
     setFilterValue('');
+    setIsExpanded(false);
   };
 
   const handleApplyDateRangeFilter = (option: FilterOption) => {
@@ -307,6 +310,7 @@ export default function AdvancedFilters({
     setExpandedFilterId(null);
     setDateRangeStart(null);
     setDateRangeEnd(null);
+    setIsExpanded(false);
   };
 
   const handleApplyBooleanFilter = (option: FilterOption, value: 'all' | 'true' | 'false') => {
@@ -360,6 +364,7 @@ export default function AdvancedFilters({
     setDateRangeStart(null);
     setDateRangeEnd(null);
     setBooleanValue(null);
+    setIsExpanded(false);
   };
 
   const activeFilterCount = localFilters.length;
