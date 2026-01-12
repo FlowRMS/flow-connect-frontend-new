@@ -1,11 +1,18 @@
 'use client';
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 import type { SpecSheet, HighlightRegion, HighlightShape } from '../../lib/types/submittals';
 import HighlightCanvas from './HighlightCanvas';
+import {
+  useHighlightVersions,
+  useCreateHighlightVersion,
+  useUpdateHighlightRegions,
+  useDeleteHighlightVersion,
+  type HighlightVersionResponse,
+} from './api/useSpecSheetsApi';
 
 // Set up the worker for react-pdf
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -13,7 +20,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/b
 // Demo PDF path - used for all spec sheets in this demo
 const DEMO_PDF_PATH = '/spec-sheets/NPTPSW_spec.pdf';
 
-// Version type for saved highlight configurations
+// Version type for saved highlight configurations (maps from API response)
 type HighlightVersion = {
   id: string;
   name: string;
@@ -21,6 +28,28 @@ type HighlightVersion = {
   createdAt: string;
   createdBy: string;
 };
+
+// Transform API response to local format
+function transformVersionResponse(response: HighlightVersionResponse): HighlightVersion {
+  return {
+    id: response.id,
+    name: response.name,
+    regions: response.regions.map(r => ({
+      id: r.id,
+      pageNumber: r.pageNumber,
+      x: r.x,
+      y: r.y,
+      width: r.width,
+      height: r.height,
+      shape: r.shapeType as HighlightShape,
+      color: r.color,
+      annotation: r.annotation || undefined,
+      tags: [],
+    })),
+    createdAt: response.createdAt,
+    createdBy: response.createdBy.fullName,
+  };
+}
 
 interface SpecSheetViewerModalProps {
   specSheet: SpecSheet;
@@ -60,20 +89,37 @@ export default function SpecSheetViewerModal({ specSheet, onClose }: SpecSheetVi
     setPageSize({ width: page.width, height: page.height });
   };
 
-  // Version management
-  const [versions, setVersions] = useState<HighlightVersion[]>([
-    // Sample initial versions
-    {
-      id: 'v1',
-      name: 'Default Highlights',
-      regions: [],
-      createdAt: new Date().toISOString(),
-      createdBy: 'System',
-    },
-  ]);
-  const [selectedVersionId, setSelectedVersionId] = useState<string>('v1');
+  // Version management - fetch from API
+  const { data: apiVersions = [], isLoading: isLoadingVersions } = useHighlightVersions(specSheet.id);
+  const createVersionMutation = useCreateHighlightVersion();
+  const updateRegionsMutation = useUpdateHighlightRegions();
+  const deleteVersionMutation = useDeleteHighlightVersion();
+
+  // Transform API versions to local format
+  const versions = useMemo(() => {
+    if (apiVersions.length === 0) {
+      // Return default if no versions exist
+      return [{
+        id: 'new',
+        name: 'Unsaved Highlights',
+        regions: [],
+        createdAt: new Date().toISOString(),
+        createdBy: 'Current User',
+      }];
+    }
+    return apiVersions.map(transformVersionResponse);
+  }, [apiVersions]);
+
+  const [selectedVersionId, setSelectedVersionId] = useState<string>('');
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [newVersionName, setNewVersionName] = useState('');
+
+  // Select first version when versions load
+  useEffect(() => {
+    if (versions.length > 0 && !selectedVersionId) {
+      setSelectedVersionId(versions[0].id);
+    }
+  }, [versions, selectedVersionId]);
   const [editingVersionId, setEditingVersionId] = useState<string | null>(null);
   const [editingVersionName, setEditingVersionName] = useState('');
 
@@ -167,119 +213,114 @@ export default function SpecSheetViewerModal({ specSheet, onClose }: SpecSheetVi
     return allRegions.filter(r => r.pageNumber === pageNum).length;
   };
 
-  // Handle region changes (both saved and drawing regions)
+  // Handle region changes (drawing regions only - saved regions are read-only)
   const handleRegionsChange = useCallback((newRegions: HighlightRegion[]) => {
     // Get saved region IDs
     const savedIds = new Set(savedRegions.map(r => r.id));
 
-    // Separate into saved and drawing regions
-    const newDrawingRegions: HighlightRegion[] = [];
-    const updatedSavedRegions: HighlightRegion[] = [];
-
-    newRegions.forEach(r => {
-      if (savedIds.has(r.id)) {
-        updatedSavedRegions.push(r);
-      } else {
-        newDrawingRegions.push(r);
-      }
-    });
+    // Only keep new drawing regions (saved regions cannot be modified in-place)
+    const newDrawingRegions = newRegions.filter(r => !savedIds.has(r.id));
 
     // Update drawing regions
     setDrawingRegions(newDrawingRegions);
-
-    // Update saved regions if any were modified
-    if (updatedSavedRegions.length > 0) {
-      setVersions(prev => prev.map(v => {
-        if (v.id === selectedVersionId) {
-          return {
-            ...v,
-            regions: v.regions.map(r => {
-              const updated = updatedSavedRegions.find(u => u.id === r.id);
-              return updated || r;
-            }),
-          };
-        }
-        return v;
-      }));
-    }
-  }, [savedRegions, selectedVersionId]);
+  }, [savedRegions]);
 
   // Clear current drawing
   const handleClearDrawing = () => {
     setDrawingRegions([]);
   };
 
-  // Delete a specific region
+  // Delete a specific region (only drawing regions can be deleted locally)
   const handleDeleteRegion = (regionId: string) => {
     // Check if it's a drawing region
     const isDrawingRegion = drawingRegions.some(r => r.id === regionId);
     if (isDrawingRegion) {
       setDrawingRegions(prev => prev.filter(r => r.id !== regionId));
-    } else {
-      // It's a saved region - update the version
-      setVersions(prev => prev.map(v => {
-        if (v.id === selectedVersionId) {
-          return {
-            ...v,
-            regions: v.regions.filter(r => r.id !== regionId),
-          };
-        }
-        return v;
-      }));
     }
+    // Saved regions cannot be deleted individually - use "Update Version" to save changes
   };
 
-  // Save as new version
-  const handleSaveVersion = () => {
+  // Save as new version via API
+  const handleSaveVersion = async () => {
     if (!newVersionName.trim()) return;
 
-    const newVersion: HighlightVersion = {
-      id: `v${Date.now()}`,
-      name: newVersionName.trim(),
-      regions: [...savedRegions, ...drawingRegions],
-      createdAt: new Date().toISOString(),
-      createdBy: 'Current User',
-    };
+    try {
+      const allRegions = [...savedRegions, ...drawingRegions];
+      const result = await createVersionMutation.mutateAsync({
+        specSheetId: specSheet.id,
+        name: newVersionName.trim(),
+        regions: allRegions.map(r => ({
+          pageNumber: r.pageNumber,
+          x: r.x,
+          y: r.y,
+          width: r.width,
+          height: r.height,
+          shapeType: r.shape,
+          color: r.color,
+          annotation: r.annotation,
+        })),
+      });
 
-    setVersions(prev => [...prev, newVersion]);
-    setSelectedVersionId(newVersion.id);
-    setDrawingRegions([]);
-    setNewVersionName('');
-    setShowSaveModal(false);
-  };
-
-  // Update current version with new regions
-  const handleUpdateVersion = () => {
-    if (drawingRegions.length === 0) return;
-
-    setVersions(prev => prev.map(v => {
-      if (v.id === selectedVersionId) {
-        return {
-          ...v,
-          regions: [...v.regions, ...drawingRegions],
-        };
-      }
-      return v;
-    }));
-    setDrawingRegions([]);
-  };
-
-  // Delete a version
-  const handleDeleteVersion = (versionId: string) => {
-    if (versions.length <= 1) return; // Keep at least one version
-
-    setVersions(prev => prev.filter(v => v.id !== versionId));
-    if (selectedVersionId === versionId) {
-      setSelectedVersionId(versions[0].id === versionId ? versions[1]?.id : versions[0].id);
+      setSelectedVersionId(result.id);
+      setDrawingRegions([]);
+      setNewVersionName('');
+      setShowSaveModal(false);
+    } catch (error) {
+      console.error('Failed to save version:', error);
     }
   };
 
-  // Rename a version
+  // Update current version with new regions via API
+  const handleUpdateVersion = async () => {
+    if (drawingRegions.length === 0) return;
+    if (selectedVersionId === 'new') {
+      // For unsaved versions, prompt to save as new
+      setShowSaveModal(true);
+      return;
+    }
+
+    try {
+      const allRegions = [...savedRegions, ...drawingRegions];
+      await updateRegionsMutation.mutateAsync({
+        versionId: selectedVersionId,
+        regions: allRegions.map(r => ({
+          pageNumber: r.pageNumber,
+          x: r.x,
+          y: r.y,
+          width: r.width,
+          height: r.height,
+          shapeType: r.shape,
+          color: r.color,
+          annotation: r.annotation,
+        })),
+      });
+      setDrawingRegions([]);
+    } catch (error) {
+      console.error('Failed to update version:', error);
+    }
+  };
+
+  // Delete a version via API
+  const handleDeleteVersion = async (versionId: string) => {
+    if (versions.length <= 1) return; // Keep at least one version
+    if (versionId === 'new') return; // Can't delete unsaved version
+
+    try {
+      await deleteVersionMutation.mutateAsync({ id: versionId, specSheetId: specSheet.id });
+      if (selectedVersionId === versionId) {
+        const remaining = versions.filter(v => v.id !== versionId);
+        setSelectedVersionId(remaining[0]?.id || '');
+      }
+    } catch (error) {
+      console.error('Failed to delete version:', error);
+    }
+  };
+
+  // Rename a version (not implemented - would need API endpoint)
   const handleRenameVersion = (versionId: string, newName: string) => {
     if (!newName.trim()) return;
-    setVersions(prev => prev.map(v =>
-      v.id === versionId ? { ...v, name: newName.trim() } : v
-    ));
+    // TODO: Add API endpoint for renaming versions
+    console.log('Version rename not yet implemented in API:', versionId, newName);
     setEditingVersionId(null);
     setEditingVersionName('');
   };
