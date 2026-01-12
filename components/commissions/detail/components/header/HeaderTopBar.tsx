@@ -271,13 +271,14 @@ export function HeaderTopBar({
                 )}
               </div>
 
-              {/* Unpost Button - Only shown for posted checks */}
-              <button
-                onClick={onUnpost}
-                disabled={isUnposting}
-                className="flex items-center gap-2 px-3 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Unpost this check to enable editing"
-              >
+              {/* Unpost Button - Only shown for posted checks, disabled until saved */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={onUnpost}
+                  disabled={isUnposting || !isOriginallyPosted}
+                  className="flex items-center gap-2 px-3 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={!isOriginallyPosted ? "Save the check first before unposting" : "Unpost this check to enable editing"}
+                >
                 {isUnposting ? (
                   <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
@@ -305,7 +306,13 @@ export function HeaderTopBar({
                   </svg>
                 )}
                 {isUnposting ? 'Unposting...' : 'Unpost'}
-              </button>
+                </button>
+                {!isOriginallyPosted && (
+                  <span className="text-xs text-amber-600 font-medium whitespace-nowrap">
+                    Please hit save to post this
+                  </span>
+                )}
+              </div>
             </>
           )}
 
