@@ -208,6 +208,23 @@ export function useOrdersListState() {
     }
   }, []);
 
+  // Format date for backend API (createdAt field)
+  // Converts ISO format with Z to format with +00:00 and adds microseconds
+  // Example: "2025-11-21T18:10:22.149Z" -> "2025-11-21T18:10:22.149000+00:00"
+  const formatDateForBackend = (date: Date): string => {
+    const isoString = date.toISOString();
+    // Extract milliseconds part (3 digits after the dot)
+    const match = isoString.match(/^(.+)\.(\d{3})Z$/);
+    if (match) {
+      const [, dateTime, milliseconds] = match;
+      // Pad milliseconds to microseconds (6 digits)
+      const microseconds = milliseconds.padEnd(6, '0');
+      return `${dateTime}.${microseconds}+00:00`;
+    }
+    // Fallback: just replace Z with +00:00 if pattern doesn't match
+    return isoString.replace('Z', '+00:00');
+  };
+
   // Build quick filters based on quick date filter selection
   const quickFilters = useMemo<OrderLandingPageFilter[]>(() => {
     const result: OrderLandingPageFilter[] = [];
@@ -220,12 +237,12 @@ export function useOrdersListState() {
         
         // Format date based on column type:
         // - entityDate (Order Date): YYYY-MM-DD format (date only)
-        // - createdAt: ISO string format (datetime with time)
+        // - createdAt: Backend format with microseconds and +00:00 timezone
         const formatDate = (date: Date): string => {
           if (columnName === 'entityDate') {
             return formatDateToISO(date); // Returns YYYY-MM-DD
           }
-          return date.toISOString(); // Returns full ISO datetime
+          return formatDateForBackend(date); // Returns format: YYYY-MM-DDTHH:mm:ss.microseconds+00:00
         };
         
         result.push({
