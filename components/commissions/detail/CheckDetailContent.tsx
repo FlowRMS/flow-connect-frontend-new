@@ -383,29 +383,6 @@ export default function CheckDetailContent({
                   )}
                 </div>
 
-                {/* Sections Button */}
-                <button
-                  onClick={() => state.setShowSectionsModal(true)}
-                  className={`flex items-center gap-2 px-3 py-1.5 text-sm border rounded-lg transition-colors ${
-                    state.showSections
-                      ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]'
-                      : 'border-[var(--border)] hover:bg-[var(--muted)]'
-                  }`}
-                >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 20 20"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <rect x="3" y="3" width="14" height="4" rx="1" />
-                    <rect x="3" y="10" width="14" height="7" rx="1" />
-                  </svg>
-                  Sections
-                </button>
-
                 {/* Columns Button */}
                 <button
                   onClick={() => state.setShowColumnsModal(true)}
