@@ -34,15 +34,22 @@ import type {
   FulfillmentAssignmentRole,
   FulfillmentActivity,
 } from './api/fulfillmentApi';
-// Mock imports only for features without backend support yet (shipment requests)
-import {
-  getPendingShipmentRequestsForManufacturer,
-  addShipmentRequest,
-} from '@/lib/data/warehouse-mock';
 import { BackorderReviewData, AssignedUserRole, AttachedDocument } from '@/lib/types/warehouse';
+// Shipment Request API
+import { useCreateShipmentRequest, useShipmentRequests } from './api/useShipmentRequestApi';
+import type { ShipmentPriority, ShipmentMethod } from './api/shipmentRequestApi';
 // Inventory API for real inventory data
 import { useInventoriesByProducts } from './api/useInventoryApi';
 import type { Inventory } from './api/inventoryApi';
+// Shipping carriers API
+import { useShippingCarriersQuery } from './settings/api/useShippingCarriersApi';
+import type { ShippingCarrier } from './settings/api/shippingCarriersApi';
+// Warehouses API
+import { useWarehousesQuery } from './settings/api/useWarehousesApi';
+import type { Warehouse } from './settings/api/warehousesApi';
+// Users API
+import { useUsersQuery } from './settings/api/useUsersApi';
+import type { User } from './settings/api/usersApi';
 
 // Local type for backorder items compatible with API types
 interface BackorderItem {
@@ -93,7 +100,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   const [_, setForceUpdate] = useState(0);
 
   // Fetch fulfillment order from API
-  const { data: fulfillmentOrder, isLoading, error } = useFulfillmentOrder(fulfillmentOrderId);
+  const { data: fulfillmentOrder, isLoading, error, refetch: refetchOrder } = useFulfillmentOrder(fulfillmentOrderId);
 
   // Mutations
   const updateOrderMutation = useUpdateFulfillmentOrder();
@@ -120,6 +127,14 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   const splitLineItemMutation = useSplitFulfillmentLineItem();
   const cancelBackorderMutation = useCancelBackorderItems();
 
+  // Shipment request hooks
+  const createShipmentRequestMutation = useCreateShipmentRequest();
+  const { data: allShipmentRequests = [] } = useShipmentRequests(
+    fulfillmentOrder?.warehouseId || '',
+    undefined,
+    { enabled: !!fulfillmentOrder?.warehouseId }
+  );
+
   // Editable state - initialized with useEffect when data loads
   const [warehouseId, setWarehouseId] = useState('');
   const [fulfillmentMethod, setFulfillmentMethod] = useState<FulfillmentMethod>('SHIP');
@@ -139,13 +154,34 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
     if (fulfillmentOrder) {
       setWarehouseId(fulfillmentOrder.warehouseId || '');
       setFulfillmentMethod(fulfillmentOrder.fulfillmentMethod || 'SHIP');
-      setShipToName(fulfillmentOrder.shipToAddress?.street || '');
+      setShipToName(fulfillmentOrder.shipToAddress?.name || '');
       setShipToAddressLine1(fulfillmentOrder.shipToAddress?.street || '');
+      setShipToAddressLine2(fulfillmentOrder.shipToAddress?.streetLine2 || '');
       setShipToCity(fulfillmentOrder.shipToAddress?.city || '');
       setShipToState(fulfillmentOrder.shipToAddress?.state || '');
       setShipToPostalCode(fulfillmentOrder.shipToAddress?.postalCode || '');
+      setShipToPhone(fulfillmentOrder.shipToAddress?.phone || '');
       setNeedByDate(fulfillmentOrder.needByDate || '');
       setTrackingNumbers(fulfillmentOrder.trackingNumbers?.join(', ') || '');
+
+      // Update shipping method state
+      const method = fulfillmentOrder.fulfillmentMethod === 'JOBSITE' ? 'SHIP' : (fulfillmentOrder.fulfillmentMethod || 'SHIP');
+      setShippingMethod(method as 'SHIP' | 'WILL_CALL');
+
+      // Update carrier type if available
+      if (fulfillmentOrder.carrierType) {
+        setCarrierType(fulfillmentOrder.carrierType.toLowerCase() as 'parcel' | 'freight');
+      }
+
+      // Update carrier ID if available
+      if (fulfillmentOrder.carrierId) {
+        setSelectedCarrier(fulfillmentOrder.carrierId);
+      }
+
+      // Update freight class if available
+      if (fulfillmentOrder.freightClass) {
+        setFreightClass(fulfillmentOrder.freightClass);
+      }
     }
   }, [fulfillmentOrder]);
 
@@ -187,6 +223,13 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
     return fulfillmentOrder?.activities || [];
   });
 
+  // Sync activities when fulfillment order updates
+  useEffect(() => {
+    if (fulfillmentOrder?.activities) {
+      setActivities(fulfillmentOrder.activities);
+    }
+  }, [fulfillmentOrder?.activities]);
+
   // Modal state
   const [showPackingSlipModal, setShowPackingSlipModal] = useState(false);
   const [showShippingLabelsModal, setShowShippingLabelsModal] = useState(false);
@@ -199,7 +242,8 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   const [shippingMethod, setShippingMethod] = useState<'SHIP' | 'WILL_CALL'>(fulfillmentOrder?.fulfillmentMethod === 'JOBSITE' ? 'SHIP' : (fulfillmentOrder?.fulfillmentMethod || 'SHIP'));
   const [carrierType, setCarrierType] = useState<'parcel' | 'freight'>((fulfillmentOrder as any)?.carrierType || 'parcel');
   const [selectedCarrier, setSelectedCarrier] = useState(fulfillmentOrder?.carrier || '');
-  const [freightClass, setFreightClass] = useState((fulfillmentOrder as any)?.freightClass || '');
+  const [serviceType, setServiceType] = useState((fulfillmentOrder as any)?.serviceType || '');
+  const [freightClass, setFreightClass] = useState(fulfillmentOrder?.freightClass || '');
   const [bolNumber, setBolNumber] = useState((fulfillmentOrder as any)?.bolNumber || '');
   const [proNumber, setProNumber] = useState((fulfillmentOrder as any)?.proNumber || '');
   const [shippingNotes, setShippingNotes] = useState((fulfillmentOrder as any)?.shippingNotes || '');
@@ -222,29 +266,60 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
   // Shipment confirmation modal state
   const [showShipmentConfirmationModal, setShowShipmentConfirmationModal] = useState(false);
 
-  // Attached documents state
-  const [attachedDocuments, setAttachedDocuments] = useState<AttachedDocument[]>(fulfillmentOrder?.documents || []);
-
-  // Get backorder items for this order - items with backorderQty > 0
+  // Get backorder items for this order - items with backorderQty > 0 that aren't already handled by manufacturer
   const backorderItems = useMemo(() => {
     if (!fulfillmentOrder) return [];
     return fulfillmentOrder.lineItems
-      .filter(item => item.backorderQty > 0)
+      .filter(item => item.backorderQty > 0 && !item.fulfilledByManufacturer)
       .map(item => ({
         lineItem: item,
         backorderQty: item.backorderQty,
-        manufacturerId: '', // Will be populated when we have product->manufacturer mapping
-        manufacturerName: 'Manufacturer', // Placeholder
+        manufacturerId: item.factoryId || '',
+        manufacturerName: item.factoryName || 'Unknown Manufacturer',
         inventoryOnHand: 0,
       }));
   }, [fulfillmentOrder]);
 
+  // Helper function to get pending shipment requests for a manufacturer
+  const getPendingShipmentRequestsForManufacturer = (manufacturerId: string) => {
+    return allShipmentRequests.filter(
+      req => req.factoryId === manufacturerId && (req.status === 'DRAFT' || req.status === 'PENDING')
+    );
+  };
+
   // Get pending shipment requests for manufacturers with backorder items
   const pendingShipmentRequests = useMemo(() => {
-    if (backorderItems.length === 0) return [];
+    if (backorderItems.length === 0 || !allShipmentRequests) return [];
     const manufacturerIds = [...new Set(backorderItems.map(item => item.manufacturerId))];
-    return manufacturerIds.flatMap(id => getPendingShipmentRequestsForManufacturer(id));
-  }, [backorderItems]);
+    const requests = manufacturerIds.flatMap(id => getPendingShipmentRequestsForManufacturer(id));
+
+    // Map API ShipmentRequest to component ShipmentRequest type expected by modal
+    return requests.map(req => ({
+      id: req.id,
+      requestNumber: req.requestNumber,
+      vendorId: req.factoryId || '',
+      vendorName: req.factory?.title || 'Unknown Vendor',
+      warehouseId: req.warehouseId || '',
+      warehouseName: 'Warehouse', // TODO: Fetch warehouse name
+      requestMethod: (req.method === 'PHONE_CALL' ? 'CALL' : (req.method || 'EMAIL')) as 'EMAIL' | 'CALL' | 'MANUFACTURER_SYSTEM',
+      status: req.status as any,
+      priority: req.priority.toLowerCase() as 'standard' | 'expedited' | 'urgent',
+      requestedDeliveryDate: req.requestDate || new Date().toISOString(),
+      items: req.items.map(item => ({
+        id: item.id,
+        productId: item.productId,
+        productName: 'Product', // TODO: Fetch product details
+        partNumber: '', // TODO: Fetch part number
+        requestedQuantity: item.quantity,
+        currentStock: 0,
+      })),
+      totalQuantity: req.items.reduce((sum, item) => sum + item.quantity, 0),
+      notes: req.notes || undefined,
+      createdBy: 'System',
+      createdAt: req.createdAt,
+      updatedAt: req.updatedAt,
+    }));
+  }, [backorderItems, allShipmentRequests]);
 
   // Fetch real inventory data for picking - moved here to ensure hooks are called unconditionally
   const productIds = useMemo(
@@ -261,6 +336,40 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
     fulfillmentOrder?.warehouseId || '',
     { enabled: shouldFetchInventory }
   );
+
+  // Fetch shipping carriers from backend
+  const { data: shippingCarriers, isLoading: isLoadingCarriers } = useShippingCarriersQuery(true); // activeOnly = true
+  
+  // Fetch warehouses from backend
+  const { data: warehouses, isLoading: isLoadingWarehouses } = useWarehousesQuery();
+  
+  // Fetch users for activity feed name resolution
+  const { data: users } = useUsersQuery(200); // Fetch up to 200 users
+
+  // Create user lookup map for activity feed
+  const userMap = useMemo(() => {
+    if (!users) return new Map<string, User>();
+    return new Map(users.map(user => [user.id, user]));
+  }, [users]);
+
+  // Map FulfillmentActivity to GenericActivity format with user names
+  const mappedActivities = useMemo((): GenericActivity[] => {
+    return activities.map(activity => {
+      const user = userMap.get(activity.createdById);
+      const createdByName = user 
+        ? user.fullName || `${user.firstName} ${user.lastName}`.trim() || user.username
+        : activity.createdById || 'System';
+      
+      return {
+        id: activity.id,
+        type: activity.activityType,
+        timestamp: activity.createdAt,
+        createdBy: createdByName,
+        content: activity.content || undefined,
+        metadata: activity.metadata || undefined,
+      };
+    });
+  }, [activities, userMap]);
 
   // Convert inventory list to a Map for efficient lookup by productId
   const inventoryDataMap = useMemo(() => {
@@ -766,9 +875,34 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
     }
   };
 
-  const handleSave = () => {
-    // TODO: Implement save functionality
-    console.log('Save clicked');
+  const handleSave = async () => {
+    if (!fulfillmentOrder) return;
+
+    try {
+      await updateOrderMutation.mutateAsync({
+        id: fulfillmentOrder.id,
+        input: {
+          warehouseId: warehouseId || null,
+          fulfillmentMethod: shippingMethod,
+          carrierId: selectedCarrier || null,
+          carrierType: shippingMethod === 'SHIP' ? carrierType.toUpperCase() as 'PARCEL' | 'FREIGHT' : null,
+          freightClass: freightClass || null,
+          needByDate: needByDate || null,
+          shipToAddress: {
+            name: shipToName || null,
+            street: shipToAddressLine1 || null,
+            streetLine2: shipToAddressLine2 || null,
+            city: shipToCity || null,
+            state: shipToState || null,
+            postalCode: shipToPostalCode || null,
+            country: 'USA',
+            phone: shipToPhone || null,
+          },
+        },
+      });
+    } catch (error) {
+      console.error('Failed to save fulfillment order:', error);
+    }
   };
 
   const handleStatusClick = (status: FulfillmentOrderStatus) => {
@@ -797,7 +931,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
     }
   };
 
-  const handleCreateInventoryRequest = (items: { lineItem: FulfillmentOrderLineItem; requestedQty: number }[]) => {
+  const handleCreateInventoryRequest = async (items: { lineItem: FulfillmentOrderLineItem; requestedQty: number }[]) => {
     // Group items by manufacturer
     const byManufacturer = items.reduce((acc, item) => {
       const inv = backorderItems.find(bi => bi.lineItem.id === item.lineItem.id);
@@ -807,43 +941,39 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
           acc[mfrId] = { name: inv.manufacturerName, items: [] };
         }
         acc[mfrId].items.push({
-          id: `REQLI-${Date.now()}-${item.lineItem.id}`,
           productId: item.lineItem.productId,
-          productName: item.lineItem.productName,
-          partNumber: item.lineItem.partNumber,
-          requestedQuantity: item.requestedQty,
-          currentStock: inv.inventoryOnHand,
+          quantity: item.requestedQty,
         });
       }
       return acc;
-    }, {} as Record<string, { name: string; items: any[] }>);
+    }, {} as Record<string, { name: string; items: Array<{ productId: string; quantity: number }> }>);
 
-    // Create shipment requests for each manufacturer
-    Object.entries(byManufacturer).forEach(([mfrId, { name, items: reqItems }]) => {
-      addShipmentRequest({
-        vendorId: mfrId,
-        vendorName: name,
-        warehouseId: fulfillmentOrder.warehouseId,
-        warehouseName: fulfillmentOrder.warehouseName,
-        requestMethod: 'EMAIL',
-        status: 'DRAFT',
-        priority: 'standard',
-        requestedDeliveryDate: fulfillmentOrder.needByDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        items: reqItems,
-        totalQuantity: reqItems.reduce((sum, item) => sum + item.requestedQuantity, 0),
-        notes: `Created from fulfillment order ${fulfillmentOrder.fulfillmentOrderNumber}`,
-        createdBy: 'Current User',
+    try {
+      // Create shipment requests for each manufacturer
+      for (const [mfrId, { items: reqItems }] of Object.entries(byManufacturer)) {
+        await createShipmentRequestMutation.mutateAsync({
+          warehouseId: fulfillmentOrder.warehouseId,
+          factoryId: mfrId,
+          requestDate: new Date().toISOString(),
+          priority: 'STANDARD',
+          method: 'EMAIL',
+          status: 'DRAFT',
+          notes: `Created from fulfillment order ${fulfillmentOrder.fulfillmentOrderNumber}`,
+          items: reqItems,
+        });
+      }
+
+      // Update the fulfillment order to show it's pending delivery
+      updateOrderMutation.mutate({
+        id: fulfillmentOrderId,
+        input: { holdReason: 'Pending inventory delivery request' },
       });
-    });
 
-    // Update the fulfillment order to show it's pending delivery
-    updateOrderMutation.mutate({
-      id: fulfillmentOrderId,
-      input: { holdReason: 'Pending inventory delivery request' },
-    });
-
-    setShowRequestInventoryModal(false);
-    setForceUpdate(prev => prev + 1);
+      setShowRequestInventoryModal(false);
+      setForceUpdate(prev => prev + 1);
+    } catch (error) {
+      console.error('Failed to create shipment request:', error);
+    }
   };
 
   const handleAddToExistingRequest = (requestId: string, items: { lineItem: FulfillmentOrderLineItem; requestedQty: number }[]) => {
@@ -918,22 +1048,6 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
     }
 
     setShowShipmentConfirmationModal(false);
-  };
-
-  // Document handlers (local state only - documents API not yet implemented)
-  const handleAddDocument = (document: Omit<AttachedDocument, 'id'>) => {
-    const newDocument: AttachedDocument = {
-      ...document,
-      id: `DOC-${Date.now()}`,
-    };
-    setAttachedDocuments(prev => [...prev, newDocument]);
-    // TODO: Persist to backend when documents API is implemented
-  };
-
-  const handleRemoveDocument = (documentId: string) => {
-    const updatedDocs = attachedDocuments.filter(d => d.id !== documentId);
-    setAttachedDocuments(updatedDocs);
-    // TODO: Persist to backend when documents API is implemented
   };
 
   // Get continue button props
@@ -1196,11 +1310,16 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
               shipToPhone={shipToPhone}
               carrier={selectedCarrier}
               carrierType={carrierType}
+              serviceType={serviceType}
               trackingNumbers={trackingNumbers}
               freightClass={freightClass}
               shipToDifferentFromPO={shipToDifferentFromPO}
               isReleased={isReleased}
               deliveryMethod={shippingMethod}
+              warehouses={warehouses}
+              isLoadingWarehouses={isLoadingWarehouses}
+              shippingCarriers={shippingCarriers}
+              isLoadingCarriers={isLoadingCarriers}
               onDeliveryMethodChange={setShippingMethod}
               onWarehouseIdChange={setWarehouseId}
               onNeedByDateChange={setNeedByDate}
@@ -1213,6 +1332,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
               onShipToPhoneChange={setShipToPhone}
               onCarrierChange={setSelectedCarrier}
               onCarrierTypeChange={setCarrierType}
+              onServiceTypeChange={setServiceType}
               onTrackingNumbersChange={setTrackingNumbers}
               onFreightClassChange={setFreightClass}
               onShipToDifferentFromPOChange={setShipToDifferentFromPO}
@@ -1228,6 +1348,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
               fulfillmentOrder={fulfillmentOrder}
               isReleased={isReleased}
               onReleaseToWarehouse={handleReleaseToWarehouse}
+              userMap={userMap}
             />
             <AssignmentPanel
               assignedManagers={fulfillmentOrder.assignments?.filter(a => a.role === 'MANAGER') || []}
@@ -1257,15 +1378,15 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
 
             {/* Documents Section */}
             <DocumentsSection
-              documents={attachedDocuments}
-              onAddDocument={handleAddDocument}
-              onRemoveDocument={handleRemoveDocument}
+              fulfillmentOrderId={fulfillmentOrderId}
+              documents={fulfillmentOrder?.documents || []}
+              onDocumentsChange={() => refetchOrder()}
               isEditable={!isShipped}
             />
 
             {/* Activity Feed */}
             <ActivityFeed
-              activities={activities as unknown as GenericActivity[]}
+              activities={mappedActivities}
               onAddNote={handleAddActivityNote}
               getActivityIcon={getActivityIcon}
               getActivityTitle={getActivityTitle}
@@ -1354,7 +1475,7 @@ export default function FulfillmentOrderDetailContent({ fulfillmentOrderId }: Fu
       <ShipmentConfirmationModal
         isOpen={showShipmentConfirmationModal}
         fulfillmentOrder={fulfillmentOrder}
-        attachedDocuments={attachedDocuments}
+        attachedDocuments={fulfillmentOrder?.documents || []}
         carrierType={carrierType}
         carrier={selectedCarrier}
         trackingNumbers={trackingNumbers}

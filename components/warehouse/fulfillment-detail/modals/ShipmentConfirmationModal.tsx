@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { FulfillmentOrder, AttachedDocument } from '@/lib/types/warehouse';
+import { FulfillmentOrder } from '@/lib/types/warehouse';
+import { FulfillmentDocument } from '../../api/fulfillmentApi';
 import { useShippingCarriersByType } from '@/components/warehouse/settings/api/useShippingCarriersApi';
 
 interface ShipmentConfirmationModalProps {
   isOpen: boolean;
   fulfillmentOrder: FulfillmentOrder;
-  attachedDocuments: AttachedDocument[];
+  attachedDocuments: FulfillmentDocument[];
   carrierType: 'parcel' | 'freight';
   carrier: string;
   trackingNumbers: string;
@@ -139,7 +140,7 @@ export default function ShipmentConfirmationModal({
 
   // Get BOL document if exists
   const bolDocument = attachedDocuments.find(d =>
-    d.type === 'BILL_OF_LADING' || d.name.toLowerCase().includes('bill of lading') || d.name.toLowerCase().includes('bol')
+    d.documentType === 'BILL_OF_LADING' || d.fileName?.toLowerCase().includes('bill of lading') || d.fileName?.toLowerCase().includes('bol')
   );
 
   // Variable definitions for this shipment

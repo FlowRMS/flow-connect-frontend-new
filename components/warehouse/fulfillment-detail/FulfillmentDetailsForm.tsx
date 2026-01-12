@@ -1,9 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { FulfillmentOrder, shipStatusColors, shipStatusLabels } from '@/lib/types/warehouse';
 import { mockWarehouses } from '@/lib/data/warehouse-mock';
-import { useShippingCarriersByType } from '@/components/warehouse/settings/api/useShippingCarriersApi';
+import { useShippingCarriersByType, type ShippingCarrier } from '../settings/api/useShippingCarriersApi';
+import type { Warehouse } from '../settings/api/warehousesApi';
 
 interface FulfillmentDetailsFormProps {
   fulfillmentOrder: FulfillmentOrder;
@@ -18,12 +19,17 @@ interface FulfillmentDetailsFormProps {
   shipToPhone: string;
   carrier: string;
   carrierType: 'parcel' | 'freight';
+  serviceType: string;
   trackingNumbers: string;
   freightClass: string;
   shipToDifferentFromPO: boolean;
   isReleased: boolean;
   // Delivery method configuration (pre-release)
   deliveryMethod: 'SHIP' | 'WILL_CALL';
+  warehouses?: Warehouse[];
+  isLoadingWarehouses?: boolean;
+  shippingCarriers?: ShippingCarrier[];
+  isLoadingCarriers?: boolean;
   onDeliveryMethodChange: (method: 'SHIP' | 'WILL_CALL') => void;
   onWarehouseIdChange: (id: string) => void;
   onNeedByDateChange: (date: string) => void;
@@ -36,6 +42,7 @@ interface FulfillmentDetailsFormProps {
   onShipToPhoneChange: (phone: string) => void;
   onCarrierChange: (carrier: string) => void;
   onCarrierTypeChange: (type: 'parcel' | 'freight') => void;
+  onServiceTypeChange: (serviceType: string) => void;
   onTrackingNumbersChange: (tracking: string) => void;
   onFreightClassChange: (freightClass: string) => void;
   onShipToDifferentFromPOChange: (different: boolean) => void;
@@ -54,11 +61,16 @@ export default function FulfillmentDetailsForm({
   shipToPhone,
   carrier,
   carrierType,
+  serviceType,
   trackingNumbers,
   freightClass,
   shipToDifferentFromPO,
   isReleased,
   deliveryMethod,
+  warehouses = [],
+  isLoadingWarehouses = false,
+  shippingCarriers = [],
+  isLoadingCarriers = false,
   onDeliveryMethodChange,
   onWarehouseIdChange,
   onNeedByDateChange,
@@ -71,6 +83,7 @@ export default function FulfillmentDetailsForm({
   onShipToPhoneChange,
   onCarrierChange,
   onCarrierTypeChange,
+  onServiceTypeChange,
   onTrackingNumbersChange,
   onFreightClassChange,
   onShipToDifferentFromPOChange,
@@ -95,6 +108,45 @@ export default function FulfillmentDetailsForm({
     });
   };
 
+  // Sort carriers alphabetically for display
+  const sortedCarriers = useMemo(() => {
+    return [...shippingCarriers].sort((a, b) => a.name.localeCompare(b.name));
+  }, [shippingCarriers]);
+
+  // Get service types from the selected carrier
+  const selectedCarrierData = useMemo(() => {
+    if (!carrier) return null;
+    return shippingCarriers?.find(c => c.id === carrier) || null;
+  }, [carrier, shippingCarriers]);
+
+  const availableServiceTypes = useMemo(() => {
+    const types = selectedCarrierData?.serviceTypes;
+    if (!types) return [];
+    // serviceTypes can be:
+    // - an array of strings: ["Ground", "2nd Day"]
+    // - an object like {"Ground": true, "2nd Day": true}
+    // - a JSON string that needs parsing
+    if (Array.isArray(types)) {
+      return types;
+    }
+    if (typeof types === 'string') {
+      try {
+        const parsed = JSON.parse(types);
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+        return Object.keys(parsed);
+      } catch {
+        return [];
+      }
+    }
+    // If it's an object, get the keys (service type names)
+    if (typeof types === 'object') {
+      return Object.keys(types);
+    }
+    return [];
+  }, [selectedCarrierData]);
+
   return (
     <div className="space-y-4">
       {/* Warehouse & Need By Date Row */}
@@ -105,12 +157,18 @@ export default function FulfillmentDetailsForm({
             <select
               value={warehouseId}
               onChange={(e) => onWarehouseIdChange(e.target.value)}
-              disabled={isReleased}
+              disabled={isReleased || isLoadingWarehouses}
               className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {mockWarehouses.map(wh => (
-                <option key={wh.id} value={wh.id}>{wh.name}</option>
-              ))}
+              {isLoadingWarehouses ? (
+                <option value="">Loading warehouses...</option>
+              ) : warehouses.length > 0 ? (
+                warehouses.filter(wh => wh.isActive !== false).map(wh => (
+                  <option key={wh.id} value={wh.id}>{wh.name}</option>
+                ))
+              ) : (
+                <option value="">No warehouses available</option>
+              )}
             </select>
           </div>
           <div>
@@ -367,52 +425,54 @@ export default function FulfillmentDetailsForm({
         {deliveryMethod === 'SHIP' && (
           <div className="mb-4">
             <label className="block text-xs text-[var(--muted-foreground)] mb-2">
-              {carrierType === 'parcel' ? 'Parcel Carrier' : 'Freight Carrier'}
+              Carrier
             </label>
+            {isLoadingCarriers ? (
+              <div className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm text-[var(--muted-foreground)]">
+                Loading carriers...
+              </div>
+            ) : (
+              <select
+                value={carrier}
+                onChange={(e) => onCarrierChange(e.target.value)}
+                disabled={isReleased}
+                className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <option value="">Select carrier...</option>
+                {shippingCarriers
+                  ?.filter(c => {
+                    // Filter by carrier type - match frontend lowercase with backend uppercase
+                    if (!c.carrierType) return true; // Show carriers without type for backwards compatibility
+                    return c.carrierType.toLowerCase() === carrierType;
+                  })
+                  .map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {c.code ? `(${c.code})` : ''}
+                    </option>
+                  ))
+                }
+              </select>
+            )}
+          </div>
+        )}
+
+        {/* Service Type Selection - show if Ship method and carrier has service types */}
+        {deliveryMethod === 'SHIP' && carrier && availableServiceTypes.length > 0 && (
+          <div className="mb-4">
+            <label className="block text-xs text-[var(--muted-foreground)] mb-2">Service Type</label>
             <select
-              value={carrier}
-              onChange={(e) => onCarrierChange(e.target.value)}
-              disabled={isReleased || carriersLoading}
+              value={serviceType}
+              onChange={(e) => onServiceTypeChange(e.target.value)}
+              disabled={isReleased}
               className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <option value="">{carriersLoading ? 'Loading carriers...' : 'Select carrier...'}</option>
-              {carriers.length > 0 ? (
-                // Use carriers from database
-                carriers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}{c.code ? ` (${c.code})` : ''}
-                  </option>
-                ))
-              ) : !carriersLoading ? (
-                // Fallback to hardcoded options if no carriers configured
-                carrierType === 'parcel' ? (
-                  <>
-                    <option value="ups">UPS</option>
-                    <option value="fedex">FedEx</option>
-                    <option value="usps">USPS</option>
-                    <option value="dhl">DHL</option>
-                    <option value="other_parcel">Other</option>
-                  </>
-                ) : (
-                  <>
-                    <option value="estes">Estes Express</option>
-                    <option value="xpo">XPO Logistics</option>
-                    <option value="saia">SAIA</option>
-                    <option value="old_dominion">Old Dominion</option>
-                    <option value="yrc">YRC Freight</option>
-                    <option value="abf">ABF Freight</option>
-                    <option value="r+l">R+L Carriers</option>
-                    <option value="other_freight">Other</option>
-                  </>
-                )
-              ) : null}
+              <option value="">Select service type...</option>
+              {availableServiceTypes.map(st => (
+                <option key={st} value={st}>
+                  {st}
+                </option>
+              ))}
             </select>
-            {carriers.length === 0 && !carriersLoading && (
-              <p className="text-xs text-amber-600 mt-1">
-                No {carrierType === 'parcel' ? 'parcel' : 'freight'} carriers configured. Using defaults.
-                <a href="/warehouse/settings" className="underline ml-1">Configure in Settings</a>
-              </p>
-            )}
           </div>
         )}
 
