@@ -48,17 +48,8 @@ export default function OrdersListContent() {
       }
     : undefined;
 
-  // Loading state
-  if (state.isLoading) {
-    return (
-      <main className="flex-1 overflow-hidden bg-[var(--background)] flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--primary)] mx-auto mb-4" />
-          <p className="text-sm text-[var(--muted-foreground)]">Loading orders...</p>
-        </div>
-      </main>
-    );
-  }
+  // Determine if we're loading (initial load or refetch)
+  const isLoading = state.isLoading || state.isFetching;
 
   // Error state
   if (state.error) {
@@ -96,11 +87,15 @@ export default function OrdersListContent() {
               <h1 className="text-2xl font-semibold text-[var(--foreground)]">
                 Orders
               </h1>
-              <p className="text-sm text-[var(--muted-foreground)] mt-1">
-                {state.searchQuery.length >= 2
-                  ? `${state.filteredOrders.length} results for "${state.searchQuery}"`
-                  : `Showing ${state.filteredOrders.length} of ${state.totalCount} orders`}
-              </p>
+              {isLoading ? (
+                <div className="h-5 w-48 bg-[var(--muted)] rounded animate-pulse mt-1" />
+              ) : (
+                <p className="text-sm text-[var(--muted-foreground)] mt-1">
+                  {state.searchQuery.length >= 2
+                    ? `${state.filteredOrders.length} results for "${state.searchQuery}"`
+                    : `Showing ${state.filteredOrders.length} of ${state.totalCount} orders`}
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-3">
               {/* Search Bar */}
@@ -188,6 +183,7 @@ export default function OrdersListContent() {
         <div className="flex-1 overflow-auto p-6 pt-4" onScroll={state.handleScroll}>
           <OrdersTable
             filteredOrders={state.filteredOrders}
+            isLoading={isLoading}
             selectedOrderIds={state.selectedOrderIds}
             toggleOrderSelection={state.toggleOrderSelection}
             selectAllOrders={state.selectAllOrders}

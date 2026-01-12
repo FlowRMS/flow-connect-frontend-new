@@ -10,10 +10,13 @@ import { BulkActionsBar } from './BulkActionsBar';
 import { OrdersTableHeader } from './OrdersTableHeader';
 import { OrderRow } from './OrderRow';
 import { OrdersEmptyState } from './OrdersEmptyState';
+import { OrdersTableSkeleton } from './OrdersTableSkeleton';
 
 interface OrdersTableProps {
   // Data
   filteredOrders: Order[];
+  // Loading state
+  isLoading?: boolean;
   // Selection
   selectedOrderIds: Set<string>;
   toggleOrderSelection: (orderId: string) => void;
@@ -31,6 +34,7 @@ interface OrdersTableProps {
 
 export function OrdersTable({
   filteredOrders,
+  isLoading = false,
   selectedOrderIds,
   toggleOrderSelection,
   selectAllOrders,
@@ -70,7 +74,9 @@ export function OrdersTable({
 
           {/* Table Body */}
           <div className="divide-y divide-[var(--border)]">
-            {filteredOrders.length === 0 ? (
+            {isLoading ? (
+              <OrdersTableSkeleton gridColumns={gridColumns} />
+            ) : filteredOrders.length === 0 ? (
               <OrdersEmptyState />
             ) : (
               filteredOrders.map((order) => (

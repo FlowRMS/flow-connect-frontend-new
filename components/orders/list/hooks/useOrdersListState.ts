@@ -276,6 +276,7 @@ export function useOrdersListState() {
   const {
     data: ordersData,
     isLoading,
+    isFetching,
     error,
     refetch,
     fetchNextPage,
@@ -482,6 +483,7 @@ export function useOrdersListState() {
     setOrders,
     // Loading and error state
     isLoading,
+    isFetching,
     isSearching,
     error,
     refetch,
