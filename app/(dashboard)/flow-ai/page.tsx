@@ -1605,7 +1605,7 @@ function FlowRMSPageContent() {
         </div>
       )}
 
-      <main className="flex-1 mx-auto px-2 py-6 w-full max-w-[85vw]">
+      <main className="flex-1 overflow-auto mx-auto px-2 py-6 w-full max-w-[85vw]">
         {noDocumentFound ? (
           <NoDocumentFoundState onDocumentUploaded={handleDocumentUploaded} />
         ) : !shouldShowWorkspace ? (
