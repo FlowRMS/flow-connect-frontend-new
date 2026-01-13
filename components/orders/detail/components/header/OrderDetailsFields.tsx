@@ -312,7 +312,7 @@ export function OrderDetailsFields({
 
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Factory<span className="text-red-500">*</span>
+                Manufacturer<span className="text-red-500">*</span>
               </label>
               <SearchableDropdownV2
                 value={order.manufacturerId || ''}
@@ -327,7 +327,7 @@ export function OrderDetailsFields({
                   }
                 }}
                 options={factoryOptions}
-                placeholder="Select Factory..."
+                placeholder="Select Manufacturer..."
                 isLoading={isFactoryLoading}
                 onSearch={(query) => {
                   setFactorySearchTerm(query);
@@ -546,11 +546,11 @@ export function OrderDetailsFields({
             </div>
           </div>
 
-          {/* Row 3: Factory SO Number, Outside Rep, Inside Rep, Quote Reference, Freight Terms, Due Date */}
+          {/* Row 3: Manufacturer SO Number, Outside Rep, Inside Rep, Quote Reference, Freight Terms, Due Date */}
           <div className="grid grid-cols-6 gap-4">
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
-                Factory SO Number
+                Manufacturer SO Number
               </label>
               <input
                 type="text"

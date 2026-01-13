@@ -36,7 +36,7 @@ export default function CreateProductPage() {
     defaultCommissionRate: undefined,
     productUomId: '',
     productCategoryId: undefined,
-    published: false,
+    published: true,
     approvalNeeded: false,
     description: '',
   });
@@ -283,14 +283,14 @@ export default function CreateProductPage() {
               </div>
               <div>
                 <h1 className="text-xl font-semibold text-gray-900">
+                  {formData.factoryPartNumber || 'New Product'}
+                </h1>
+                <p className="text-sm text-gray-500">
                   {formData.description
                     ? formData.description.length > 50
                       ? `${formData.description.slice(0, 50)}...`
                       : formData.description
-                    : 'New Product'}
-                </h1>
-                <p className="text-sm text-gray-500">
-                  {formData.factoryPartNumber || 'Enter product details below'}
+                    : 'Enter product details below'}
                 </p>
               </div>
             </div>

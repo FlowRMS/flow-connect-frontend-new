@@ -19,10 +19,8 @@ import { parseApiError } from '../lib/error-utils';
 import { useJobsState } from './hooks/useJobsState';
 import { getJobFilterOptions, getJobSortOptions } from './config/filterConfig';
 import { JobDetailView } from './detail/JobDetailView';
-import { CompanyDetailView } from './detail/CompanyDetailView';
 import { KanbanView } from './views/KanbanView';
 import { ListView } from './views/ListView';
-import { getCompanyDetails } from './mockData';
 import type { Job } from './types';
 import { mapAPIJobToUIJob } from './types';
 import type { JobLandingPage, LandingPageFilter, LandingPageOrderBy, RelatedEntityCompany, RelatedEntityContact } from '../lib/crm-graphql';
@@ -116,7 +114,6 @@ export default function JobsContent() {
     selectedJob, setSelectedJob,
     isEditing, setIsEditing,
     editFormData, setEditFormData,
-    selectedCompany, setSelectedCompany,
     activeId, setActiveId,
     overId, setOverId,
     showCreateJobModal, setShowCreateJobModal,
@@ -576,19 +573,6 @@ export default function JobsContent() {
     );
   }
 
-  // Company detail view
-  if (selectedCompany) {
-    const companyDetails = getCompanyDetails(selectedCompany.id);
-    if (!companyDetails) return null;
-    
-    return (
-      <CompanyDetailView
-        company={companyDetails}
-        onBack={() => setSelectedCompany(null)}
-      />
-    );
-  }
-
   // Job detail view
   if (selectedJob) {
     // Show loading state while fetching full job details
@@ -640,7 +624,7 @@ export default function JobsContent() {
         onDelete={handleDeleteJob}
         onRepTypeChange={setRepType}
         onToggleRepTypeModal={setShowRepTypeModal}
-        onCompanyClick={(company: RelatedEntityCompany) => setSelectedCompany(company)}
+        onCompanyClick={(company: RelatedEntityCompany) => router.push(`/companies?id=${company.id}`)}
         onContactClick={(contact: RelatedEntityContact) => router.push(`/contacts?id=${contact.id}`)}
       />
     );
