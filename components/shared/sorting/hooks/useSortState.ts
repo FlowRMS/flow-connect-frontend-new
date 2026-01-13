@@ -12,7 +12,7 @@ interface UseSortStateOptions {
 }
 
 interface UseSortStateReturn {
-  // Estado unificado
+  // Unified state
   activeSort: ActiveSort | null;
   
   // Handlers
@@ -26,7 +26,7 @@ interface UseSortStateReturn {
   getMenuOptions: () => SortConfig[];
   getColumnOptions: () => SortConfig[];
   
-  // Para API
+  // For API
   toOrderBy: () => Array<{ columnName: string; direction: SortDirection }>;
 }
 

@@ -226,6 +226,7 @@ export function ListViewV2({
           : undefined}
         isOpen={openFilter === columnKey}
         onToggle={() => setOpenFilter(openFilter === columnKey ? null : columnKey)}
+        filterOption={filterOption}
       />
     );
   };

@@ -51,14 +51,16 @@ export function getQuoteFilterOptions(
       label: 'Total Amount', 
       type: 'number' as const, 
       columnName: 'total', 
-      available: true 
+      available: true,
+      numberFormat: 'currency' as const
     },
     { 
       id: 'commission', 
       label: 'Commission', 
       type: 'number' as const, 
       columnName: 'commission', 
-      available: true 
+      available: true,
+      numberFormat: 'currency' as const
     },
     { 
       id: 'created-date', 

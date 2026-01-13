@@ -34,6 +34,7 @@ export interface ColumnFilterProps {
   placeholder?: string;
   isOpen: boolean;
   onToggle: () => void;
+  filterOption?: FilterOption; // Optional: full filter option with numberFormat, etc.
 }
 
 /**
@@ -49,6 +50,7 @@ export function ColumnFilter({
   placeholder,
   isOpen,
   onToggle,
+  filterOption: externalFilterOption,
 }: ColumnFilterProps) {
   // Extract values from ActiveFilter[] based on type
   const getTextValue = () => {
@@ -137,8 +139,8 @@ export function ColumnFilter({
       : getDateStart() !== null || getDateEnd() !== null || localDateStart !== null || localDateEnd !== null;
 
   // Create filter option for internal components
-  // Preserve the type explicitly to prevent it from changing
-  const filterOption = {
+  // Use external filterOption if provided (includes numberFormat, etc.), otherwise create one
+  const filterOption: FilterOption = externalFilterOption || {
     id: columnName,
     label: columnName,
     type: type as 'text' | 'dropdown' | 'number' | 'date' | 'boolean',
