@@ -34,6 +34,34 @@ export function QuotesV2Content() {
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>('createdAt');
   const [sortDirection, setSortDirection] = useState<'ASC' | 'DESC'>('DESC');
+  
+  // Column sort state (for table headers)
+  const [columnSort, setColumnSort] = useState<string | null>(null);
+  const [columnSortDirection, setColumnSortDirection] = useState<'ASC' | 'DESC'>('DESC');
+  
+  // Map UI column keys to backend column names
+  const columnToBackendMap: Record<string, string> = useMemo(() => ({
+    quoteNumber: 'quoteNumber',
+    status: 'status',
+    pipelineStage: 'pipelineStage',
+    quoteAmount: 'total',
+    commission: 'commission',
+    entryDate: 'createdAt',
+    quoteDate: 'entityDate',
+    expirationDate: 'expDate',
+    published: 'published',
+    soldToCustomerName: 'soldToCustomerName',
+  }), []);
+  
+  // Handler for column sort
+  const handleColumnSort = useCallback((column: string) => {
+    if (columnSort === column) {
+      setColumnSortDirection(prev => prev === 'ASC' ? 'DESC' : 'ASC');
+    } else {
+      setColumnSort(column);
+      setColumnSortDirection('DESC');
+    }
+  }, [columnSort]);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -227,10 +255,16 @@ export function QuotesV2Content() {
     return result;
   }, [quickFilter, quickDateField]);
 
-  // Build order by
+  // Build order by - use columnSort if set, otherwise use sortBy (from sort menu)
   const orderBy = useMemo<QuoteLandingPageOrderBy[]>(() => {
+    if (columnSort) {
+      const backendColumn = columnToBackendMap[columnSort];
+      if (backendColumn) {
+        return [{ columnName: backendColumn, direction: columnSortDirection }];
+      }
+    }
     return [{ columnName: sortBy, direction: sortDirection }];
-  }, [sortBy, sortDirection]);
+  }, [columnSort, columnSortDirection, columnToBackendMap, sortBy, sortDirection]);
 
   // Combine all filters (uses columnFiltersToAPIState which will be updated when columnFiltersToAPI is computed)
   const filters = useMemo<QuoteLandingPageFilter[]>(() => {
@@ -252,6 +286,7 @@ export function QuotesV2Content() {
   const {
     data: quotesData,
     isLoading,
+    isFetching,
     error,
     refetch,
     fetchNextPage,
@@ -781,11 +816,15 @@ export function QuotesV2Content() {
                   isPartiallySelected={bulkSelection.isPartiallySelected}
                   onSelectAll={bulkSelection.handleSelectAll}
                   onSelectOne={bulkSelection.handleSelectOne}
-                    onColumnFiltersChange={handleColumnFiltersChange}
-                    filterOptions={quoteFilterOptionsWithValues}
-                    columnFilters={columnFilters}
+                  onColumnFiltersChange={handleColumnFiltersChange}
+                  filterOptions={quoteFilterOptionsWithValues}
+                  columnFilters={columnFilters}
                   isLoading={isLoading}
+                  isFetching={isFetching}
                   hasActiveFilters={hasActiveFilters}
+                  columnSort={columnSort}
+                  columnSortDirection={columnSortDirection}
+                  onColumnSort={handleColumnSort}
                 />
 
                 {/* Loading indicator for infinite scroll - list view */}

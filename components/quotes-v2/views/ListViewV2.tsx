@@ -1,11 +1,13 @@
 'use client';
 
 import React, { useState, useMemo, useCallback } from 'react';
+import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import type { QuoteV2, QuotePipelineStage } from '../types';
 import { AvatarInline } from '@/components/ui/CreatedByBadge';
 import { ColumnFilter } from '@/components/advancedFilters/components/ColumnFilter';
 import type { ActiveFilter } from '@/components/advancedFilters/types';
 import { getQuoteFilterOptions } from '../config/filterConfig';
+import { QuotesTableSkeleton } from '../components/QuotesTableSkeleton';
 
 interface ListViewV2Props {
   quotes: QuoteV2[];
@@ -24,11 +26,14 @@ interface ListViewV2Props {
   columnFilters?: Record<string, ActiveFilter[]>;
   // Loading state
   isLoading?: boolean;
+  isFetching?: boolean; // For showing skeleton during refetch (sort/filter)
   // Whether there are any active filters (for better empty state messaging)
   hasActiveFilters?: boolean;
+  // Column sort props (for backend sorting)
+  columnSort?: string | null;
+  columnSortDirection?: 'ASC' | 'DESC';
+  onColumnSort?: (column: string) => void;
 }
-
-type SortKey = 'quoteNumber' | 'status' | 'pipelineStage' | 'quoteAmount' | 'commission' | 'entryDate' | 'quoteDate' | 'expirationDate' | 'published' | 'soldToCustomerName';
 
 function getStatusBadgeClass(status: string): string {
   switch (status) {
@@ -87,10 +92,12 @@ export function ListViewV2({
   filterOptions = getQuoteFilterOptions([], []),
   columnFilters: parentColumnFilters,
   isLoading = false,
+  isFetching = false,
   hasActiveFilters = false,
+  columnSort = null,
+  columnSortDirection = 'DESC',
+  onColumnSort,
 }: ListViewV2Props) {
-  const [sortColumn, setSortColumn] = useState<SortKey | null>(null);
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   // Local selection state (fallback if parent props not provided)
   const [localSelectedQuotes, setLocalSelectedQuotes] = useState<Set<string>>(new Set());
   
@@ -135,72 +142,41 @@ export function ListViewV2({
     }
   }, [columnFilters, onColumnFiltersChange, setColumnFilters]);
 
-  const handleSort = (column: SortKey) => {
-    if (sortColumn === column) {
-      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortColumn(column);
-      setSortDirection('asc');
+  // SortIndicator component (simple arrows, clickable)
+  const SortIndicator = ({ column }: { column: string }) => {
+    if (!onColumnSort) return null;
+    
+    const handleClick = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      onColumnSort(column);
+    };
+    
+    if (columnSort !== column) {
+      return (
+        <button
+          type="button"
+          onClick={handleClick}
+          className="flex items-center justify-center hover:opacity-100 transition-opacity"
+        >
+          <ArrowUpDown className="w-4 h-4 opacity-50" />
+        </button>
+      );
     }
+    
+    return (
+      <button
+        type="button"
+        onClick={handleClick}
+        className="flex items-center justify-center hover:opacity-80 transition-opacity"
+      >
+        {columnSortDirection === 'ASC' ? (
+          <ArrowUp className="w-4 h-4" />
+        ) : (
+          <ArrowDown className="w-4 h-4" />
+        )}
+      </button>
+    );
   };
-
-  const sortedQuotes = useMemo(() => {
-    if (!sortColumn) return quotes;
-
-    return [...quotes].sort((a, b) => {
-      let aVal: string | number | boolean | undefined = '';
-      let bVal: string | number | boolean | undefined = '';
-
-      switch (sortColumn) {
-        case 'quoteNumber':
-          aVal = a.quoteNumber;
-          bVal = b.quoteNumber;
-          break;
-        case 'status':
-          aVal = a.status;
-          bVal = b.status;
-          break;
-        case 'pipelineStage':
-          aVal = a.pipelineStage || '';
-          bVal = b.pipelineStage || '';
-          break;
-        case 'quoteAmount':
-          aVal = a.quoteAmount;
-          bVal = b.quoteAmount;
-          break;
-        case 'commission':
-          aVal = a.commission;
-          bVal = b.commission;
-          break;
-        case 'entryDate':
-          aVal = a.entryDate;
-          bVal = b.entryDate;
-          break;
-        case 'quoteDate':
-          aVal = a.quoteDate;
-          bVal = b.quoteDate;
-          break;
-        case 'expirationDate':
-          aVal = a.expirationDate;
-          bVal = b.expirationDate;
-          break;
-        case 'published':
-          aVal = a.published ? 1 : 0;
-          bVal = b.published ? 1 : 0;
-          break;
-        case 'soldToCustomerName':
-          aVal = a.soldToCustomerName || '';
-          bVal = b.soldToCustomerName || '';
-          break;
-        default:
-          return 0;
-      }
-
-      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
-      return 0;
-    });
-  }, [quotes, sortColumn, sortDirection]);
 
   // Use parent props if available, otherwise use local state
   const checkIsSelected = (id: string) =>
@@ -258,28 +234,6 @@ export function ListViewV2({
     return daysUntil <= 14 && daysUntil > 0;
   };
 
-  const renderSortIcon = (column: SortKey) => {
-    if (sortColumn !== column) return null;
-    return (
-      <svg
-        width="12"
-        height="12"
-        viewBox="0 0 20 20"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        className={`ml-1 ${sortDirection === 'desc' ? 'rotate-180' : ''}`}
-      >
-        <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    );
-  };
-
-  const renderFilterIcon = () => (
-    <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="ml-0.5 text-gray-400">
-      <path d="M3 4h14M5 8h10M7 12h6M9 16h2" strokeLinecap="round" />
-    </svg>
-  );
   
   // Render column filter component
   const renderColumnFilter = (columnKey: string) => {
@@ -332,94 +286,194 @@ export function ListViewV2({
               {/* Preview */}
               <th className="w-10 px-3 py-3 text-center"></th>
               {/* Quote Number */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center gap-1">
-                  <span className="cursor-pointer hover:text-gray-700" onClick={() => handleSort('quoteNumber')}>
-                    Quote Number {renderSortIcon('quoteNumber')}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '140px' }}>
+                <div className="flex items-center gap-1.5">
+                  <span 
+                    className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
+                    onClick={() => onColumnSort?.('quoteNumber')}
+                  >
+                    Quote Number
                   </span>
-                  {renderColumnFilter('quoteNumber')}
+                  <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {renderColumnFilter('quoteNumber')}
+                  </div>
+                  {onColumnSort && (
+                    <div className="flex-shrink-0">
+                      <SortIndicator column="quoteNumber" />
+                    </div>
+                  )}
                 </div>
               </th>
               {/* Customer Name */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('soldToCustomerName')}>
-                  Customer {renderFilterIcon()} {renderSortIcon('soldToCustomerName')}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '150px' }}>
+                <div className="flex items-center gap-1.5">
+                  <span 
+                    className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
+                    onClick={() => onColumnSort?.('soldToCustomerName')}
+                  >
+                    Customer
+                  </span>
+                  {onColumnSort && (
+                    <div className="flex-shrink-0">
+                      <SortIndicator column="soldToCustomerName" />
+                    </div>
+                  )}
                 </div>
               </th>
               {/* Status */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center gap-1">
-                  <span className="cursor-pointer hover:text-gray-700" onClick={() => handleSort('status')}>
-                    Status {renderSortIcon('status')}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
+                <div className="flex items-center gap-1.5">
+                  <span 
+                    className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
+                    onClick={() => onColumnSort?.('status')}
+                  >
+                    Status
                   </span>
-                  {renderColumnFilter('status')}
+                  <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {renderColumnFilter('status')}
+                  </div>
+                  {onColumnSort && (
+                    <div className="flex-shrink-0">
+                      <SortIndicator column="status" />
+                    </div>
+                  )}
                 </div>
               </th>
               {/* Pipeline Stage */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center gap-1">
-                  <span className="cursor-pointer hover:text-gray-700" onClick={() => handleSort('pipelineStage')}>
-                    Pipeline Stage {renderSortIcon('pipelineStage')}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '150px' }}>
+                <div className="flex items-center gap-1.5">
+                  <span 
+                    className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
+                    onClick={() => onColumnSort?.('pipelineStage')}
+                  >
+                    Pipeline Stage
                   </span>
-                  {renderColumnFilter('pipelineStage')}
+                  <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {renderColumnFilter('pipelineStage')}
+                  </div>
+                  {onColumnSort && (
+                    <div className="flex-shrink-0">
+                      <SortIndicator column="pipelineStage" />
+                    </div>
+                  )}
                 </div>
               </th>
               {/* Quote Amount */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center gap-1">
-                  <span className="cursor-pointer hover:text-gray-700" onClick={() => handleSort('quoteAmount')}>
-                    Total {renderSortIcon('quoteAmount')}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
+                <div className="flex items-center gap-1.5">
+                  <span 
+                    className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
+                    onClick={() => onColumnSort?.('quoteAmount')}
+                  >
+                    Total
                   </span>
-                  {renderColumnFilter('quoteAmount')}
+                  <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {renderColumnFilter('quoteAmount')}
+                  </div>
+                  {onColumnSort && (
+                    <div className="flex-shrink-0">
+                      <SortIndicator column="quoteAmount" />
+                    </div>
+                  )}
                 </div>
               </th>
               {/* Commission */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center gap-1">
-                  <span className="cursor-pointer hover:text-gray-700" onClick={() => handleSort('commission')}>
-                    Commission {renderSortIcon('commission')}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '130px' }}>
+                <div className="flex items-center gap-1.5">
+                  <span 
+                    className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
+                    onClick={() => onColumnSort?.('commission')}
+                  >
+                    Commission
                   </span>
-                  {renderColumnFilter('commission')}
+                  <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {renderColumnFilter('commission')}
+                  </div>
+                  {onColumnSort && (
+                    <div className="flex-shrink-0">
+                      <SortIndicator column="commission" />
+                    </div>
+                  )}
                 </div>
               </th>
               {/* Entry Date */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center gap-1">
-                  <span className="cursor-pointer hover:text-gray-700" onClick={() => handleSort('entryDate')}>
-                    Entry Date {renderSortIcon('entryDate')}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
+                <div className="flex items-center gap-1.5">
+                  <span 
+                    className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
+                    onClick={() => onColumnSort?.('entryDate')}
+                  >
+                    Entry Date
                   </span>
-                  {renderColumnFilter('entryDate')}
+                  <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {renderColumnFilter('entryDate')}
+                  </div>
+                  {onColumnSort && (
+                    <div className="flex-shrink-0">
+                      <SortIndicator column="entryDate" />
+                    </div>
+                  )}
                 </div>
               </th>
               {/* Quote Date */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center gap-1">
-                  <span className="cursor-pointer hover:text-gray-700" onClick={() => handleSort('quoteDate')}>
-                    Quote Date {renderSortIcon('quoteDate')}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
+                <div className="flex items-center gap-1.5">
+                  <span 
+                    className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
+                    onClick={() => onColumnSort?.('quoteDate')}
+                  >
+                    Quote Date
                   </span>
-                  {renderColumnFilter('quoteDate')}
+                  <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {renderColumnFilter('quoteDate')}
+                  </div>
+                  {onColumnSort && (
+                    <div className="flex-shrink-0">
+                      <SortIndicator column="quoteDate" />
+                    </div>
+                  )}
                 </div>
               </th>
               {/* Exp. Date */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center gap-1">
-                  <span className="cursor-pointer hover:text-gray-700" onClick={() => handleSort('expirationDate')}>
-                    Exp. Date {renderSortIcon('expirationDate')}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '110px' }}>
+                <div className="flex items-center gap-1.5">
+                  <span 
+                    className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
+                    onClick={() => onColumnSort?.('expirationDate')}
+                  >
+                    Exp. Date
                   </span>
-                  {renderColumnFilter('expirationDate')}
+                  <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {renderColumnFilter('expirationDate')}
+                  </div>
+                  {onColumnSort && (
+                    <div className="flex-shrink-0">
+                      <SortIndicator column="expirationDate" />
+                    </div>
+                  )}
                 </div>
               </th>
               {/* Created By */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Created By
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
+                <span className="whitespace-nowrap">Created By</span>
               </th>
               {/* Published */}
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="flex items-center gap-1">
-                  <span className="cursor-pointer hover:text-gray-700" onClick={() => handleSort('published')}>
-                    Published {renderSortIcon('published')}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ minWidth: '110px' }}>
+                <div className="flex items-center gap-1.5">
+                  <span 
+                    className="cursor-pointer hover:text-gray-700 whitespace-nowrap" 
+                    onClick={() => onColumnSort?.('published')}
+                  >
+                    Published
                   </span>
-                  {renderColumnFilter('published')}
+                  <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {renderColumnFilter('published')}
+                  </div>
+                  {onColumnSort && (
+                    <div className="flex-shrink-0">
+                      <SortIndicator column="published" />
+                    </div>
+                  )}
                 </div>
               </th>
               {/* Part Numbers */}
@@ -445,18 +499,11 @@ export function ListViewV2({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {isLoading && quotes.length === 0 ? (
+            {(isLoading || isFetching) ? (
+              <QuotesTableSkeleton rowCount={8} />
+            ) : quotes.length === 0 ? (
               <tr>
-                <td colSpan={11} className="px-4 py-8 text-center">
-                  <div className="flex flex-col items-center justify-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-4" />
-                    <p className="text-gray-500">Loading quotes...</p>
-                  </div>
-                </td>
-              </tr>
-            ) : sortedQuotes.length === 0 ? (
-              <tr>
-                <td colSpan={11} className="px-4 py-8 text-center">
+                <td colSpan={14} className="px-4 py-8 text-center">
                   <div className="flex flex-col items-center justify-center py-8">
                     <svg
                       className="w-10 h-10 text-gray-400 mb-4"
@@ -483,7 +530,7 @@ export function ListViewV2({
                 </td>
               </tr>
             ) : (
-              sortedQuotes.map((quote) => {
+              quotes.map((quote) => {
                 return (
                 <tr
                   key={quote.id}
