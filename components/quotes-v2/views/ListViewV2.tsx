@@ -235,7 +235,7 @@ export function ListViewV2({
     <div className="bg-white rounded-lg border border-gray-200 flex flex-col" style={{ maxHeight: 'calc(100vh - 220px)' }}>
       <div className="overflow-auto scrollbar-always-visible flex-1">
         <table className="w-full min-w-[1800px]">
-          <thead className="bg-gray-50 border-b border-gray-200">
+          <thead className="bg-gray-50 border-b-2 border-gray-300 sticky top-0 z-10 shadow-sm">
             <tr>
               {/* Checkbox */}
               <th className="w-10 px-3 py-3 text-left">
