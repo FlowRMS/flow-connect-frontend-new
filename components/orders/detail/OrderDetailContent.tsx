@@ -260,12 +260,6 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         return;
       }
 
-      if (!order.requestedShipDate && !order.shipDate) {
-        console.error('❌ VALIDATION FAILED: Projected Ship Date is missing');
-        orderToasts.updateError('Projected Ship Date is required.');
-        return;
-      }
-
       // Validate End User based on settings (REQUIRED field)
       const orderEndUserId = (order as any).endUserId;
 
@@ -461,7 +455,8 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         const result = await state.createOrderMutation.mutateAsync(createInput);
         console.log('Order created:', result);
         orderToasts.createSuccess(result.orderNumber || createInput.orderNumber);
-        router.push('/orders');
+        // Navigate to the newly created order detail page instead of landing page
+        router.push(`/orders/${result.id}`);
       } else {
         // Update existing order - split rates are now at detail level
         if (state.updateOrderMutation) {
