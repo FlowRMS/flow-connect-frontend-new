@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useApolloClient } from '@apollo/client/react';
-import { Search, Sparkles, Loader2, RefreshCw, FileText, Hash, AlertTriangle } from 'lucide-react';
+import { Search, Sparkles, Loader2, FileText, Hash, AlertTriangle, Plus, Building2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/flow-ai/ui/dialog';
 import { Input } from '@/components/flow-ai/ui/input';
 import { Button } from '@/components/flow-ai/ui/button';
@@ -12,7 +12,6 @@ import { cn } from '@/lib/flow-ai/cn';
 import { Q_GET_CLUSTERS } from '@/lib/flow-ai/gql';
 import { toast } from 'sonner';
 import { EntityType, ENTITY_TYPE_OPTIONS } from '@/components/flow-ai/types/queue';
-import { Building2 } from 'lucide-react';
 
 // Filter entity types to only those relevant for templates
 const TEMPLATE_ENTITY_TYPES: EntityType[] = [
@@ -69,6 +68,9 @@ export function SelectTemplateModal({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClusterId, setSelectedClusterId] = useState<string | null>(null);
   const [showNoInstructionsWarning, setShowNoInstructionsWarning] = useState(false);
+  const [entityTypeFilter, setEntityTypeFilter] = useState<EntityType | 'all'>(
+    (entityType as EntityType) || 'all'
+  );
 
   const fetchClusters = useCallback(async () => {
     setLoading(true);
