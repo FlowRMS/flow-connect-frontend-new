@@ -431,3 +431,17 @@ export {
   type BulkDeleteResult,
   type BulkDeleteFailure,
 } from './bulk-operations';
+
+// Job Company Links module
+export {
+  fetchJobCompanyLinks,
+  fetchJobSpecifiers,
+  fetchJobAwardees,
+  addCompanyToJob,
+  removeCompanyFromJob,
+  type JobCompanyRole,
+  type JobCompanyLink,
+  type JobCompanyLinkCompany,
+  type AddCompanyToJobInput,
+  type RemoveCompanyFromJobInput,
+} from './job-company-links';
