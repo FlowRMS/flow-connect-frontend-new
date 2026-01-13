@@ -6,36 +6,198 @@
 'use client';
 
 import React, { useMemo, useEffect, useState, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useFlowChat } from '@/contexts/FlowChatContext';
 import AdvancedFilters, { ActiveFilter, ActiveSort } from './advancedFilters/AdvancedFilters';
 import SortButton from './SortButton';
 import { useCRMCompanyLandingPagesInfinite, useDeleteCRMCompany, useUpdateCRMCompany, useCRMCompany } from './hooks/useCRMApi';
 
 import { companyToasts } from './lib/toast';
 import { useInfiniteScroll } from './hooks/useInfiniteScroll';
-import type { CompanySourceType, Contact as APIContact, Job as APIJob, LandingPageFilter, LandingPageOrderBy } from './lib/crm-graphql';
+import type { CompanySourceType, RelatedEntityContact, RelatedEntityJob, LandingPageFilter, LandingPageOrderBy } from './lib/crm-graphql';
+import { COMPANY_SOURCE_TYPE_LABELS, COMPANY_SOURCE_TYPE_OPTIONS } from './lib/crm-graphql';
 
 // Modular imports
 import { useCompaniesState } from './companies/hooks/useCompaniesState';
-import { COMPANY_TYPES } from './companies/constants';
 import { getCompanyFilterOptions, getCompanySortOptions } from './companies/config/filterConfig';
 import { mapAPICompanyToUICompany } from './companies/types';
 import CompanyDetailView from './companies/detail/CompanyDetailView';
 import GridView from './companies/views/GridView';
 import ListView from './companies/views/ListView';
 
+// Company Type Filter Dropdown Component
+function CompanyTypeFilterDropdown({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
+  const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // All options including "All" at the top (exclude MANUFACTURER - managed separately in /manufacturers)
+  const allOptions = ['All', ...COMPANY_SOURCE_TYPE_OPTIONS.filter(type => type !== 'MANUFACTURER')];
+
+  // Filter options based on search term
+  const filteredOptions = allOptions.filter(option => {
+    const label = option === 'All' ? 'All' : COMPANY_SOURCE_TYPE_LABELS[option as CompanySourceType];
+    return label.toLowerCase().includes(searchTerm.toLowerCase());
+  });
+
+  useEffect(() => {
+    setPortalTarget(document.body);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const dropdownHeight = 320;
+
+      if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
+        setPosition({
+          top: rect.top + window.scrollY - dropdownHeight - 4,
+          left: rect.left + window.scrollX,
+          width: Math.max(rect.width, 220),
+        });
+      } else {
+        setPosition({
+          top: rect.bottom + window.scrollY + 4,
+          left: rect.left + window.scrollX,
+          width: Math.max(rect.width, 220),
+        });
+      }
+      setTimeout(() => searchInputRef.current?.focus(), 0);
+    } else {
+      setSearchTerm('');
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const isInsideTrigger = triggerRef.current?.contains(target);
+      const isInsideDropdown = dropdownRef.current?.contains(target);
+
+      if (!isInsideTrigger && !isInsideDropdown) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectedLabel = value === 'All' ? 'All Types' : COMPANY_SOURCE_TYPE_LABELS[value as CompanySourceType] || 'All Types';
+
+  const dropdownContent = isOpen && portalTarget && createPortal(
+    <div
+      ref={dropdownRef}
+      className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"
+      style={{ top: position.top, left: position.left, width: position.width }}
+    >
+      {/* Search input */}
+      <div className="p-2 border-b border-gray-100">
+        <input
+          ref={searchInputRef}
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search types..."
+          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+      </div>
+      {/* Options list */}
+      <div className="max-h-60 overflow-y-auto py-1">
+        {filteredOptions.length === 0 ? (
+          <div className="px-4 py-3 text-sm text-gray-500 text-center">No matching types found</div>
+        ) : (
+          filteredOptions.map((option) => {
+            const label = option === 'All' ? 'All Types' : COMPANY_SOURCE_TYPE_LABELS[option as CompanySourceType];
+            const isSelected = value === option;
+            return (
+              <button
+                key={option}
+                type="button"
+                onClick={() => {
+                  onChange(option);
+                  setIsOpen(false);
+                }}
+                className={`
+                  w-full px-4 py-2.5 text-left text-sm flex items-center gap-2.5
+                  transition-colors hover:bg-gray-50
+                  ${isSelected ? 'bg-blue-50' : ''}
+                `}
+              >
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${option === 'All' ? 'bg-gray-400' : 'bg-green-500'}`} />
+                <span className={`flex-1 ${isSelected ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
+                  {label}
+                </span>
+                {isSelected && (
+                  <svg className="w-4 h-4 text-blue-600 ml-auto flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </button>
+            );
+          })
+        )}
+      </div>
+    </div>,
+    portalTarget
+  );
+
+  return (
+    <div className="relative">
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`
+          px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white
+          flex items-center gap-2 transition-all min-w-[140px]
+          hover:border-blue-300 hover:shadow-sm cursor-pointer
+          ${isOpen ? 'ring-2 ring-blue-500 border-transparent shadow-sm' : ''}
+        `}
+      >
+        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${value === 'All' ? 'bg-gray-400' : 'bg-green-500'}`} />
+        <span className="text-gray-900 truncate flex-1 text-left">{selectedLabel}</span>
+        <svg
+          className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {dropdownContent}
+    </div>
+  );
+}
+
 export default function CompaniesContent() {
   // Router for navigation
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { setFullEntityContext } = useFlowChat();
 
   // Hydration-safe mounted state
   const [isMounted, setIsMounted] = useState(false);
 
+  // Selected company type filter (from dropdown)
+  const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('All');
+
   // Server-side filters - defined BEFORE API hook so they can be passed to the query
-  // Default filter: Only show CUSTOMER companies (manufacturers are managed in /manufacturers)
+  // Initial filter excludes manufacturers (they are managed in /manufacturers)
   const [serverFilters, setServerFilters] = useState<LandingPageFilter[]>([
-    { operator: 'EQ', columnName: 'companySourceType', value: 'CUSTOMER' }
+    { operator: 'NE', columnName: 'companySourceType', value: 'MANUFACTURER' }
   ]);
   const [serverOrderBy, setServerOrderBy] = useState<LandingPageOrderBy[]>([]);
 
@@ -43,10 +205,38 @@ export default function CompaniesContent() {
     setIsMounted(true);
   }, []);
 
-  // Default filter to only show CUSTOMER companies (manufacturers are managed separately)
-  const customerOnlyFilter: LandingPageFilter = { operator: 'EQ', columnName: 'companySourceType', value: 'CUSTOMER' };
+  // Always exclude manufacturers - they are managed in /manufacturers
+  const excludeManufacturerFilter: LandingPageFilter = {
+    operator: 'NE',
+    columnName: 'companySourceType',
+    value: 'MANUFACTURER'
+  };
 
-  // Handler for server-side filter changes
+  // Update server filters when type filter changes
+  const updateFiltersWithType = useCallback((typeFilter: string, additionalFilters: LandingPageFilter[]) => {
+    if (typeFilter === 'All') {
+      // No specific type filter - but still exclude manufacturers
+      setServerFilters([excludeManufacturerFilter, ...additionalFilters]);
+    } else {
+      // Filter by specific company type (manufacturer already excluded from dropdown options)
+      const typeFilterObj: LandingPageFilter = {
+        operator: 'EQ',
+        columnName: 'companySourceType',
+        value: typeFilter
+      };
+      setServerFilters([typeFilterObj, ...additionalFilters]);
+    }
+  }, []);
+
+  // Handler for type filter dropdown change
+  const handleTypeFilterChange = useCallback((newType: string) => {
+    setSelectedTypeFilter(newType);
+    // Get current additional filters (exclude any existing companySourceType filter)
+    const currentAdditionalFilters = serverFilters.filter(f => f.columnName !== 'companySourceType');
+    updateFiltersWithType(newType, currentAdditionalFilters);
+  }, [serverFilters, updateFiltersWithType]);
+
+  // Handler for server-side filter changes (from advanced filters)
   const handleServerFiltersChange = useCallback((filters: ActiveFilter[]) => {
     // Only include value OR values, not both - check which one exists
     const apiFilters: LandingPageFilter[] = filters.map(f => {
@@ -63,9 +253,9 @@ export default function CompaniesContent() {
         value: f.value,
       };
     });
-    // Always include the CUSTOMER-only filter
-    setServerFilters([customerOnlyFilter, ...apiFilters]);
-  }, []);
+    // Apply type filter along with advanced filters
+    updateFiltersWithType(selectedTypeFilter, apiFilters);
+  }, [selectedTypeFilter, updateFiltersWithType]);
 
   // Handler for server-side sort changes
   const handleServerSortChange = useCallback((sorts: ActiveSort[]) => {
@@ -109,14 +299,11 @@ export default function CompaniesContent() {
     fetchNextPage,
   });
 
-  // State management
+  // State management (selectedType removed - now using server-side filtering via selectedTypeFilter)
   const {
     viewMode,
     setViewMode,
-    selectedType,
-    setSelectedType,
     companies,
-    filteredCompanies,
     selectedCompany,
     setSelectedCompany,
     isEditing,
@@ -155,17 +342,26 @@ export default function CompaniesContent() {
 
   // Fetch full company details when navigating via URL
   const targetCompanyId = (!isIntentionalClearRef.current && companyIdFromUrl) ? companyIdFromUrl : (selectedCompany?.id || '');
-  const { data: fullCompanyData, isLoading: companyDetailLoading } = useCRMCompany(targetCompanyId);
+  const { data: fullCompanyData, isLoading: companyDetailLoading, error: companyDetailError } = useCRMCompany(targetCompanyId);
+
+  // Fetch parent company name if the selected company has a parentCompanyId
+  const parentCompanyIdToFetch = fullCompanyData?.parentCompanyId || selectedCompany?.parentCompanyId || '';
+  const { data: parentCompanyData } = useCRMCompany(parentCompanyIdToFetch);
 
   // When we get company data from API (navigating via URL), set it as selected
   useEffect(() => {
     if (fullCompanyData && companyIdFromUrl && !isIntentionalClearRef.current) {
       const mappedCompany = mapAPICompanyToUICompany(fullCompanyData);
-      if (!selectedCompany || selectedCompany.id !== mappedCompany.id) {
+      // Include parent company name if we have it
+      if (parentCompanyData && fullCompanyData.parentCompanyId) {
+        mappedCompany.parentCompanyName = parentCompanyData.name;
+      }
+      if (!selectedCompany || selectedCompany.id !== mappedCompany.id ||
+          (parentCompanyData && !selectedCompany.parentCompanyName)) {
         setSelectedCompany(mappedCompany);
       }
     }
-  }, [fullCompanyData, companyIdFromUrl, selectedCompany, setSelectedCompany]);
+  }, [fullCompanyData, companyIdFromUrl, selectedCompany, setSelectedCompany, parentCompanyData]);
 
   // Reset the intentional clear flag when URL has no ID
   useEffect(() => {
@@ -173,6 +369,18 @@ export default function CompaniesContent() {
       isIntentionalClearRef.current = false;
     }
   }, [companyIdFromUrl]);
+
+  // Set full entity context for global chatbot (type, id, and company name)
+  useEffect(() => {
+    if (selectedCompany?.name && selectedCompany?.id) {
+      setFullEntityContext('company', selectedCompany.id, selectedCompany.name);
+    } else {
+      setFullEntityContext(null, null, null);
+    }
+    return () => {
+      setFullEntityContext(null, null, null);
+    };
+  }, [selectedCompany?.name, selectedCompany?.id, setFullEntityContext]);
 
   // Update URL when a company is selected (not when cleared - that's handled by handleBack)
   useEffect(() => {
@@ -194,12 +402,12 @@ export default function CompaniesContent() {
   };
 
   // Navigation handlers for related entities
-  const handleContactClick = (contact: APIContact) => {
+  const handleContactClick = (contact: RelatedEntityContact) => {
     // Navigate to contacts page with the contact ID as query param
     router.push(`/contacts?id=${contact.id}`);
   };
 
-  const handleJobClick = (job: APIJob) => {
+  const handleJobClick = (job: RelatedEntityJob) => {
     // Navigate to jobs page with the job ID as query param
     router.push(`/jobs?id=${job.id}`);
   };
@@ -230,21 +438,25 @@ export default function CompaniesContent() {
     }
   };
 
-  // Helper to normalize company source type
+  // Helper to normalize company source type - handles all valid types
   const normalizeCompanySourceType = (value: string | CompanySourceType | undefined): CompanySourceType => {
+    // Handle legacy numeric values
     if (value === '2' || value === 2 as unknown as string) return 'MANUFACTURER';
     if (value === '1' || value === 1 as unknown as string) return 'CUSTOMER';
-    if (value === 'MANUFACTURER') return 'MANUFACTURER';
+    // Return valid enum values as-is
+    if (value && typeof value === 'string') {
+      return value as CompanySourceType;
+    }
     return 'CUSTOMER';
   };
 
   // Handle save edit
   const handleSaveEdit = async () => {
     if (!selectedCompany) return;
-    
+
     // Ensure companySourceType is a valid enum value
     const normalizedSourceType = normalizeCompanySourceType(editFormData.companySourceType);
-    
+
     // Parse tags - handle both string and array formats
     let tagsToSend: string | undefined;
     if (editFormData.tags) {
@@ -254,23 +466,34 @@ export default function CompaniesContent() {
         tagsToSend = editFormData.tags.join(',');
       }
     }
-    
+
+    // Ensure name is always provided (required by GraphQL schema)
+    const nameToSend = editFormData.name || selectedCompany.name;
+
     try {
+      // Build update input - handle parentCompanyId to allow clearing
+      const updateInput: Record<string, unknown> = {
+        name: nameToSend,
+        phone: editFormData.phone,
+        website: editFormData.website,
+        companySourceType: normalizedSourceType,
+        tags: tagsToSend,
+      };
+
+      // Include parentCompanyId - use null to clear, or the value to set
+      if (editFormData.parentCompanyId !== undefined) {
+        updateInput.parentCompanyId = editFormData.parentCompanyId || null;
+      }
+
       await updateCompanyMutation.mutateAsync({
         id: selectedCompany.id,
-        input: {
-          name: editFormData.name,
-          phone: editFormData.phone,
-          website: editFormData.website,
-          companySourceType: normalizedSourceType,
-          tags: tagsToSend,
-        },
+        input: updateInput as Parameters<typeof updateCompanyMutation.mutateAsync>[0]['input'],
       });
-      
+
       // Update local state
       const updatedName = editFormData.name || selectedCompany.name;
       const updatedTags = tagsToSend ? tagsToSend.split(',').map(t => t.trim()).filter(Boolean) : selectedCompany.tags;
-      
+
       companyToasts.updateSuccess(updatedName);
       setSelectedCompany({
         ...selectedCompany,
@@ -278,8 +501,10 @@ export default function CompaniesContent() {
         phone: editFormData.phone || selectedCompany.phone,
         website: editFormData.website || selectedCompany.website,
         companySourceType: normalizedSourceType,
-        type: normalizedSourceType === 'MANUFACTURER' ? ['Manufacturer'] : ['Customer'],
+        type: [COMPANY_SOURCE_TYPE_LABELS[normalizedSourceType] || 'Customer'],
         tags: updatedTags,
+        parentCompanyId: editFormData.parentCompanyId ?? selectedCompany.parentCompanyId,
+        parentCompanyName: editFormData.parentCompanyName ?? selectedCompany.parentCompanyName,
       });
       
       setIsEditing(false);
@@ -319,6 +544,40 @@ export default function CompaniesContent() {
             </svg>
             <span>Fetching company details...</span>
           </div>
+        </div>
+      </main>
+    );
+  }
+
+  // Show error state if company fetch failed or company not found
+  if (companyIdFromUrl && !companyDetailLoading && !selectedCompany && (companyDetailError || !fullCompanyData)) {
+    return (
+      <main className="flex-1 overflow-y-auto bg-[var(--background)] p-6">
+        <div className="mb-6">
+          <button
+            onClick={handleBack}
+            className="flex items-center gap-2 text-[var(--muted-foreground)] hover:text-[var(--foreground)] mb-4"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M15 10H5M5 10l4-4M5 10l4 4" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Back to Companies
+          </button>
+        </div>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+          <svg className="mx-auto mb-4 w-12 h-12 text-red-500" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <h3 className="text-lg font-medium text-red-800 mb-2">Company Not Found</h3>
+          <p className="text-sm text-red-600 mb-4">
+            {companyDetailError instanceof Error ? companyDetailError.message : 'The requested company could not be found or you do not have permission to view it.'}
+          </p>
+          <button
+            onClick={handleBack}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+          >
+            Back to Companies
+          </button>
         </div>
       </main>
     );
@@ -409,22 +668,11 @@ export default function CompaniesContent() {
             <h1 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]">Companies</h1>
           </div>
           <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-            {/* Type Filter */}
-            <div className="flex items-center gap-1 p-1 bg-[var(--muted)] rounded-md">
-              {COMPANY_TYPES.map((type) => (
-                <button
-                  key={type}
-                  onClick={() => setSelectedType(type)}
-                  className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded text-xs sm:text-sm font-medium transition-colors ${
-                    selectedType === type
-                      ? 'bg-white shadow-sm text-[var(--foreground)]'
-                      : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
-                  }`}
-                >
-                  {type}
-                </button>
-              ))}
-            </div>
+            {/* Type Filter Dropdown */}
+            <CompanyTypeFilterDropdown
+              value={selectedTypeFilter}
+              onChange={handleTypeFilterChange}
+            />
 
             {/* View Mode Toggle */}
             <div className="flex items-center gap-1 p-1 bg-[var(--muted)] rounded-md">
@@ -484,7 +732,7 @@ export default function CompaniesContent() {
       </div>
 
       {/* Empty State */}
-      {filteredCompanies.length === 0 && !isLoading ? (
+      {companies.length === 0 && !isLoading ? (
         <div className="flex flex-col items-center justify-center py-16 px-4">
           <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
@@ -509,9 +757,9 @@ export default function CompaniesContent() {
       ) : (
         <>
           {viewMode === 'grid' ? (
-            <GridView companies={filteredCompanies} onCompanyClick={setSelectedCompany} />
+            <GridView companies={companies} onCompanyClick={setSelectedCompany} />
           ) : (
-            <ListView companies={filteredCompanies} onCompanyClick={setSelectedCompany} />
+            <ListView companies={companies} onCompanyClick={setSelectedCompany} />
           )}
 
           {/* Infinite scroll trigger */}

@@ -9,8 +9,9 @@
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFactoriesInfinite, useDeleteFactory, type FactoryLandingPage } from './api/useFactoriesApi';
+import { fetchAllFactoryIds } from './api/factoriesApi';
 import DeleteFactoryModal from './modals/DeleteFactoryModal';
-import { BulkDeleteFactoriesModal } from './modals/BulkDeleteFactoriesModal';
+import { useBulkSelection, BulkDeleteModal, BulkActionsToolbar } from '../shared';
 import { toast } from 'sonner';
 
 type SortField = 'title' | 'accountNumber' | 'createdAt';
@@ -24,7 +25,6 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [sortField, setSortField] = useState<SortField>('title');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -56,6 +56,23 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
     if (!factoriesData?.pages || factoriesData.pages.length === 0) return 0;
     return factoriesData.pages[0].total;
   }, [factoriesData]);
+
+  // Bulk selection with shared hook
+  const {
+    selectAllMode,
+    selectedCount,
+    isAllSelected,
+    isPartiallySelected,
+    isItemSelected,
+    handleSelectAll,
+    handleSelectOne,
+    clearSelection,
+    getAllSelectedIds,
+  } = useBulkSelection({
+    items: factories,
+    totalCount,
+    fetchAllIds: fetchAllFactoryIds,
+  });
 
   // Handle scroll for infinite loading
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
@@ -137,35 +154,12 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
     }
   }, [deleteFactoryMutation, refetch]);
 
-  // Selection handlers for bulk operations
-  const handleSelectAll = useCallback((checked: boolean) => {
-    if (checked) {
-      setSelectedIds(new Set(filteredFactories.map(f => f.id)));
-    } else {
-      setSelectedIds(new Set());
-    }
-  }, [filteredFactories]);
-
-  const handleSelectOne = useCallback((id: string, checked: boolean) => {
-    setSelectedIds(prev => {
-      const newSet = new Set(prev);
-      if (checked) {
-        newSet.add(id);
-      } else {
-        newSet.delete(id);
-      }
-      return newSet;
-    });
-  }, []);
-
+  // Bulk delete success handler
   const handleBulkDeleteSuccess = useCallback(() => {
-    setSelectedIds(new Set());
+    clearSelection();
     setShowBulkDeleteModal(false);
     refetch();
-  }, [refetch]);
-
-  const isAllSelected = filteredFactories.length > 0 && selectedIds.size === filteredFactories.length;
-  const isPartiallySelected = selectedIds.size > 0 && selectedIds.size < filteredFactories.length;
+  }, [clearSelection, refetch]);
 
   const factoryToDelete = factories.find(f => f.id === deleteConfirmId);
 
@@ -259,30 +253,15 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
       </div>
 
       {/* Bulk Actions Toolbar */}
-      {selectedIds.size > 0 && (
-        <div className="mb-4 p-3 bg-[var(--primary)]/5 border border-[var(--primary)]/20 rounded-lg flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-[var(--foreground)]">
-              {selectedIds.size} manufacturer{selectedIds.size > 1 ? 's' : ''} selected
-            </span>
-            <button
-              onClick={() => setSelectedIds(new Set())}
-              className="text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
-            >
-              Clear selection
-            </button>
-          </div>
-          <button
-            onClick={() => setShowBulkDeleteModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-            Delete Selected
-          </button>
-        </div>
-      )}
+      <BulkActionsToolbar
+        entityType="FACTORIES"
+        selectedCount={selectedCount}
+        totalCount={totalCount}
+        loadedCount={factories.length}
+        selectAllMode={selectAllMode}
+        onClearSelection={clearSelection}
+        onDelete={() => setShowBulkDeleteModal(true)}
+      />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
@@ -425,13 +404,13 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
                     key={factory.id}
                     onClick={() => handleFactoryClick(factory)}
                     className={`hover:bg-[var(--muted)]/30 cursor-pointer transition-colors ${
-                      selectedIds.has(factory.id) ? 'bg-[var(--primary)]/5' : ''
+                      isItemSelected(factory.id) ? 'bg-[var(--primary)]/5' : ''
                     }`}
                   >
                     <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
-                        checked={selectedIds.has(factory.id)}
+                        checked={isItemSelected(factory.id)}
                         onChange={(e) => handleSelectOne(factory.id, e.target.checked)}
                         className="w-4 h-4 text-[var(--primary)] border-[var(--border)] rounded focus:ring-[var(--primary)] cursor-pointer"
                       />
@@ -630,11 +609,14 @@ export default function ManufacturerProfilesContent({ basePath = '/warehouse/man
       )}
 
       {/* Bulk Delete Modal */}
-      <BulkDeleteFactoriesModal
+      <BulkDeleteModal
         isOpen={showBulkDeleteModal}
-        selectedIds={selectedIds}
+        entityType="FACTORIES"
+        selectedCount={selectedCount}
+        getAllSelectedIds={getAllSelectedIds}
         onClose={() => setShowBulkDeleteModal(false)}
         onSuccess={handleBulkDeleteSuccess}
+        queryKeysToInvalidate={[['factories']]}
       />
     </div>
   );

@@ -353,13 +353,14 @@ export type {
   ProductSearchResult,
   ProductCpnResult,
   ProductUomResult,
+  ProductPricingTierResult,
 } from '@/components/quotes/api/quotesApi';
 
 // Re-export job search type from central API
 export type { JobSearchResult } from '@/components/lib/api/search';
 
 // Re-export search functions from quotes API
-export { searchCustomers, searchFactories, searchUsers, searchProducts, listProductCpns, getProductCpnByCustomer, listProductUoms } from '@/components/quotes/api/quotesApi';
+export { searchCustomers, searchFactories, searchUsers, searchProducts, listProductCpns, getProductCpnByCustomer, listProductUoms, listProductPricingTiers, getPriceForQuantity } from '@/components/quotes/api/quotesApi';
 
 // Re-export job search from central API
 export { searchJobs, searchOrders } from '@/components/lib/api/search';

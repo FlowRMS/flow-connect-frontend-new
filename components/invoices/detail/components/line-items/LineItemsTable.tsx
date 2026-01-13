@@ -14,7 +14,8 @@ import type { ColumnKey, ViewMode, LineItemCredit, InvoiceLineItem, EditableInvo
 import { BulkActionsBar } from './BulkActionsBar';
 import { LineItemsTableHeader } from './LineItemsTableHeader';
 import { formatCurrency } from '../../utils';
-import { useProductSearch, useProductCpns, useProductUoms, getProductCpnByCustomer } from '@/components/orders/api';
+import { useProductSearch, useProductCpns, useProductUoms, getProductCpnByCustomer, listProductPricingTiers, getPriceForQuantity } from '@/components/orders/api';
+import type { ProductPricingTierResult } from '@/components/quotes/api/quotesApi';
 
 type EditableColumnKey = 'partNumber' | 'custPartNumber' | 'description' | 'uom' | 'divisor' | 'quantity' | 'unitPrice' | 'commissionPercent';
 
@@ -79,6 +80,10 @@ export function LineItemsTable({
   // Search state with debouncing
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  // Store pricing tiers per product ID for volume discount calculations
+  const [productPricingTiers, setProductPricingTiers] = useState<Record<string, ProductPricingTierResult[]>>({});
+  // Track which line items have CPN pricing (CPN pricing is fixed and doesn't change with quantity)
+  const [lineItemsWithCpnPricing, setLineItemsWithCpnPricing] = useState<Set<string>>(new Set());
 
   // Debounce search - 300ms delay
   useEffect(() => {
@@ -156,6 +161,7 @@ export function LineItemsTable({
 
   // Handle product selection - auto-fills Part#, Description, and fetches CPN
   // Also populates: unit price, qty (defaults to 1), commission %, sell total, commission $
+  // Now includes CPN pricing override and volume pricing tiers
   const handleProductSelect = async (itemId: string, product: any) => {
     const item = invoice.lineItems.find(li => li.id === itemId);
     if (!item) return;
@@ -163,28 +169,78 @@ export function LineItemsTable({
     // Default quantity to 1 if not set (new line item scenario)
     const quantity = item.quantity > 0 ? item.quantity : 1;
     const divisor = product.defaultDivisor || item.divisor || 1;
-    const unitPrice = product.unitPrice || 0;
-    const commissionRate = product.defaultCommissionRate || 0.08;
-    const extendedPrice = quantity * unitPrice / divisor;
-    const commissionAmount = extendedPrice * commissionRate;
+
+    // Default values from product
+    let unitPrice = product.unitPrice || 0;
+    // Commission rate stored as whole percentage (e.g., 8 for 8%)
+    // Product defaultCommissionRate is now stored as whole percentage (8 for 8%)
+    let commissionRate = product.defaultCommissionRate || 8;
 
     // Close dropdown first
     setDropdownOpen(null);
     setSearchQuery('');
 
-    // Fetch CPN for the sold-to customer
+    // Fetch CPN and pricing tiers in parallel
     let custPartNumber = '';
     const soldToCustomerId = invoice.customerId;
-    if (soldToCustomerId && product.id) {
-      try {
-        const cpnResult = await getProductCpnByCustomer(product.id, soldToCustomerId);
-        if (cpnResult?.customerPartNumber) {
-          custPartNumber = cpnResult.customerPartNumber;
+
+    if (product.id) {
+      const [cpnResult, tiersResult] = await Promise.all([
+        // Fetch CPN for the customer
+        soldToCustomerId
+          ? getProductCpnByCustomer(product.id, soldToCustomerId).catch(() => null)
+          : Promise.resolve(null),
+        // Fetch pricing tiers for volume discounts
+        listProductPricingTiers(product.id).catch(() => [])
+      ]);
+
+      // Track if CPN has custom pricing (CPN pricing takes priority over tier pricing)
+      let cpnHasCustomPrice = false;
+
+      if (cpnResult) {
+        custPartNumber = cpnResult.customerPartNumber || '';
+        // Use CPN's unit price if available (override product default)
+        if (cpnResult.unitPrice) {
+          unitPrice = parseFloat(cpnResult.unitPrice);
+          cpnHasCustomPrice = true;
         }
-      } catch (err) {
-        // CPN not found is not an error - just leave it empty
+        // Use CPN's commission rate if available (override product default)
+        // CPN commission rate is stored as whole number (e.g., 3 for 3%)
+        if (cpnResult.commissionRate) {
+          commissionRate = parseFloat(cpnResult.commissionRate);
+        }
+      }
+
+      // Track this line item's CPN pricing status for quantity changes
+      if (cpnHasCustomPrice) {
+        setLineItemsWithCpnPricing(prev => new Set([...prev, itemId]));
+      } else {
+        // Remove from CPN pricing set if no CPN price
+        setLineItemsWithCpnPricing(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(itemId);
+          return newSet;
+        });
+      }
+
+      // Store pricing tiers for quantity-based price updates
+      // Only apply tier pricing if CPN doesn't have custom price
+      if (tiersResult && tiersResult.length > 0) {
+        setProductPricingTiers(prev => ({
+          ...prev,
+          [product.id]: tiersResult
+        }));
+        // Only apply tier pricing if no CPN custom price
+        if (!cpnHasCustomPrice) {
+          unitPrice = getPriceForQuantity(quantity, tiersResult, unitPrice);
+        }
       }
     }
+
+    // Calculate derived values with final pricing
+    const extendedPrice = quantity * unitPrice / divisor;
+    // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
+    const commissionAmount = extendedPrice * (commissionRate / 100);
 
     // Single atomic update with ALL product data including:
     // Part #, Description, CPN, Unit Price, Qty, Divisor, UOM,
@@ -200,9 +256,9 @@ export function LineItemsTable({
       divisor: divisor,
       uom: product.defaultUom?.title || item.uom || null,
       uomId: product.defaultUom?.id || item.uomId || null,
-      // Commission
+      // Commission - stored as whole percentage (e.g., 8 for 8%)
       commissionRate: commissionRate,
-      commissionPercent: commissionRate * 100, // For UI display (percentage format)
+      commissionPercent: commissionRate, // For UI display (already in percentage format)
       // Calculated totals
       amount: extendedPrice, // Sell Total
       total: extendedPrice,  // Backup field
@@ -229,13 +285,14 @@ export function LineItemsTable({
     const quantity = item.quantity || 1;
     const unitPrice = item.unitPrice || 0;
     const extendedPrice = quantity * unitPrice / divisor;
-    const commissionRate = item.commissionRate ?? 0.08;
+    const commissionRate = item.commissionRate ?? 8; // Stored as whole percentage
 
     updateLineItem(itemId, {
       uom: uom.title,
       divisor: divisor,
       amount: extendedPrice,
-      commissionAmount: extendedPrice * commissionRate,
+      // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
+      commissionAmount: extendedPrice * (commissionRate / 100),
     });
     setDropdownOpen(null);
     setSearchQuery('');
@@ -264,9 +321,21 @@ export function LineItemsTable({
       case 'quantity': {
         const qty = parseInt(value) || 1;
         const divisor = item.divisor || 1;
-        const extendedPrice = qty * item.unitPrice / divisor;
-        const commissionAmount = extendedPrice * (item.commissionRate ?? 0.08);
+        // Check if product has pricing tiers and apply tier-based pricing
+        // BUT skip tier pricing if this line item has CPN pricing (CPN price is fixed)
+        let unitPrice = item.unitPrice;
+        const hasCpnPricing = lineItemsWithCpnPricing.has(itemId);
+        if (!hasCpnPricing && item.productId && productPricingTiers[item.productId]) {
+          unitPrice = getPriceForQuantity(qty, productPricingTiers[item.productId], item.unitPrice);
+        }
+        const extendedPrice = qty * unitPrice / divisor;
+        // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
+        const commissionAmount = extendedPrice * ((item.commissionRate ?? 8) / 100);
         updates.quantity = qty;
+        // Only update unit price if using tier pricing (not CPN)
+        if (!hasCpnPricing) {
+          updates.unitPrice = unitPrice;
+        }
         updates.amount = extendedPrice;
         updates.total = extendedPrice;
         updates.commissionAmount = commissionAmount;
@@ -277,7 +346,8 @@ export function LineItemsTable({
         const price = parseFloat(value.replace(/[$,]/g, '')) || 0;
         const divisor = item.divisor || 1;
         const extendedPrice = item.quantity * price / divisor;
-        const commissionAmount = extendedPrice * (item.commissionRate ?? 0.08);
+        // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
+        const commissionAmount = extendedPrice * ((item.commissionRate ?? 8) / 100);
         updates.unitPrice = price;
         updates.amount = extendedPrice;
         updates.total = extendedPrice;
@@ -286,10 +356,11 @@ export function LineItemsTable({
         break;
       }
       case 'commissionPercent': {
-        const pct = parseFloat(value) / 100 || 0;
-        const commissionAmount = item.amount * pct;
+        const pct = parseFloat(value) || 0;
+        // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
+        const commissionAmount = item.amount * (pct / 100);
         updates.commissionRate = pct;
-        updates.commissionPercent = parseFloat(value) || 0;
+        updates.commissionPercent = pct;
         updates.commissionAmount = commissionAmount;
         updates.commission = commissionAmount;
         break;
@@ -297,7 +368,8 @@ export function LineItemsTable({
       case 'divisor': {
         const divisor = parseFloat(value) || 1;
         const extendedPrice = item.quantity * item.unitPrice / divisor;
-        const commissionAmount = extendedPrice * (item.commissionRate ?? 0.08);
+        // Commission rate is stored as whole percentage (e.g., 8 for 8%), convert to decimal for calculation
+        const commissionAmount = extendedPrice * ((item.commissionRate ?? 8) / 100);
         updates.divisor = divisor;
         updates.amount = extendedPrice;
         updates.total = extendedPrice;
@@ -351,8 +423,8 @@ export function LineItemsTable({
         editValue = String(item.unitPrice || 0);
         break;
       case 'commissionPercent':
-        displayValue = `${((item.commissionRate || 0) * 100).toFixed(1)}%`;
-        editValue = ((item.commissionRate || 0) * 100).toFixed(1);
+        displayValue = `${(item.commissionRate || 0).toFixed(1)}%`;
+        editValue = (item.commissionRate || 0).toFixed(1);
         break;
     }
 
@@ -622,14 +694,14 @@ export function LineItemsTable({
                     {/* Commission */}
                     {visibleColumns.has('commission') && (
                       <td className="px-3 py-2 text-sm text-right text-purple-600">
-                        {formatCurrency(item.commissionAmount || item.amount * (item.commissionRate ?? 0.08))}
+                        {formatCurrency(item.commissionAmount || item.amount * ((item.commissionRate ?? 8) / 100))}
                       </td>
                     )}
 
                     {/* Commission Total */}
                     {visibleColumns.has('commissionTotal') && (
                       <td className="px-3 py-2 text-sm text-right text-purple-600 font-medium">
-                        {formatCurrency(item.commissionAmount || item.amount * (item.commissionRate ?? 0.08))}
+                        {formatCurrency(item.commissionAmount || item.amount * ((item.commissionRate ?? 8) / 100))}
                       </td>
                     )}
 
@@ -648,7 +720,7 @@ export function LineItemsTable({
                     {/* Commission Amount */}
                     {visibleColumns.has('commissionAmount') && (
                       <td className="px-3 py-2 text-sm text-right text-purple-600">
-                        {formatCurrency(item.commissionAmount || item.amount * (item.commissionRate ?? 0.08))}
+                        {formatCurrency(item.commissionAmount || item.amount * ((item.commissionRate ?? 8) / 100))}
                       </td>
                     )}
 
@@ -673,7 +745,7 @@ export function LineItemsTable({
                     {visibleColumns.has('earnAmount') && (
                       <td className="px-3 py-2 text-sm text-right text-green-600 font-medium">
                         {formatCurrency(
-                          (item.commissionAmount || item.amount * (item.commissionRate ?? 0.08)) +
+                          (item.commissionAmount || item.amount * ((item.commissionRate ?? 8) / 100)) +
                           item.unitPrice * 0.15 * item.quantity * 0.85
                         )}
                       </td>

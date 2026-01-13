@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { useFlowChat } from '@/contexts/FlowChatContext';
 import {
   useFactory,
   useUpdateFactory,
@@ -32,6 +33,17 @@ export default function ManufacturerEditPage() {
   // API Hooks
   const { data: factory, isLoading, error } = useFactory(factoryId);
   const updateFactory = useUpdateFactory();
+  const { setFullEntityContext } = useFlowChat();
+
+  // Set full entity context for global chatbot (type, id, and manufacturer name)
+  useEffect(() => {
+    if (factory?.title && factoryId) {
+      setFullEntityContext('manufacturer', factoryId, factory.title);
+    }
+    return () => {
+      setFullEntityContext(null, null, null);
+    };
+  }, [factory?.title, factoryId, setFullEntityContext]);
 
   // State
   const [activeTab, setActiveTab] = useState<TabId>('overview');

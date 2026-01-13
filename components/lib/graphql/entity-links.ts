@@ -144,6 +144,7 @@ const GET_NOTES_BY_ENTITY = `
       content
       mentions
       tags
+      isPublic
       createdBy {
         email
         firstName
@@ -272,6 +273,7 @@ const GET_RELATED_ENTITIES = `
           username
         }
         id
+        isPublic
         mentions
         tags
         title
@@ -370,7 +372,13 @@ const GET_RELATED_ENTITIES = `
         versionOf
       }
       tasks {
-        assignedToId
+        assignees {
+          id
+          firstName
+          lastName
+          fullName
+          email
+        }
         createdAt
         createdBy {
           authProviderId
@@ -477,6 +485,7 @@ interface Note {
   content: string;
   mentions: string;
   tags: string;
+  isPublic: boolean;
   createdBy: string;
   createdAt: string;
 }

@@ -13,6 +13,8 @@ import {
   createCustomer,
   updateCustomer,
   deleteCustomer,
+  fetchCustomerChildren,
+  fetchCustomerBuyingGroupMembers,
   type Customer,
   type CustomerLandingPage,
   type CreateCustomerInput,
@@ -20,6 +22,7 @@ import {
   type PaginatedCustomersResult,
   type CustomerLandingPageFilter,
   type CustomerLandingPageOrderBy,
+  type CustomerLiteResponse,
 } from './customersApi';
 
 import { searchCustomers, type CustomerSearchResult } from '@/components/lib/api/search';
@@ -35,6 +38,8 @@ export const customersQueryKeys = {
     [...customersQueryKeys.all, 'list', { filters, orderBy }] as const,
   detail: (id: string) => [...customersQueryKeys.all, 'detail', id] as const,
   search: (searchTerm: string) => [...customersQueryKeys.all, 'search', { searchTerm }] as const,
+  children: (parentId: string) => [...customersQueryKeys.all, 'children', parentId] as const,
+  buyingGroupMembers: (buyingGroupId: string) => [...customersQueryKeys.all, 'buyingGroupMembers', buyingGroupId] as const,
 };
 
 // ============================================================================
@@ -82,10 +87,10 @@ export function useCustomersInfinite(
 /**
  * Fetch a single customer by ID
  */
-export function useCustomer(customerId: string) {
+export function useCustomer(customerId: string | undefined) {
   return useQuery<Customer | null, Error>({
-    queryKey: customersQueryKeys.detail(customerId),
-    queryFn: () => fetchCustomerById(customerId),
+    queryKey: customersQueryKeys.detail(customerId || ''),
+    queryFn: () => fetchCustomerById(customerId!),
     enabled: !!customerId,
     staleTime: 30 * 1000,
   });
@@ -209,6 +214,36 @@ export function useBulkDeleteCustomers() {
 }
 
 // ============================================================================
+// Customer Hierarchy Hooks
+// ============================================================================
+
+/**
+ * Fetch child customers of a parent customer
+ * Used to display the child customers in the parent customer's detail view
+ */
+export function useCustomerChildren(parentId: string | undefined) {
+  return useQuery<CustomerLiteResponse[], Error>({
+    queryKey: customersQueryKeys.children(parentId || ''),
+    queryFn: () => fetchCustomerChildren(parentId!),
+    enabled: !!parentId,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Fetch buying group members (parent customers that belong to a buying group)
+ * Used to display the parent customers in a buying group's detail view
+ */
+export function useCustomerBuyingGroupMembers(buyingGroupId: string | undefined) {
+  return useQuery<CustomerLiteResponse[], Error>({
+    queryKey: customersQueryKeys.buyingGroupMembers(buyingGroupId || ''),
+    queryFn: () => fetchCustomerBuyingGroupMembers(buyingGroupId!),
+    enabled: !!buyingGroupId,
+    staleTime: 30 * 1000,
+  });
+}
+
+// ============================================================================
 // Customer Search Hook
 // ============================================================================
 
@@ -247,6 +282,7 @@ export type {
   UpdateCustomerInput,
   CustomerLandingPageFilter,
   CustomerLandingPageOrderBy,
+  CustomerLiteResponse,
 };
 
 // Re-export search result type

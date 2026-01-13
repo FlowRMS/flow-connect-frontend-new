@@ -287,22 +287,18 @@ export function PostedStatementModal({
                           {item.number}
                         </td>
                         <td className="px-4 py-3 text-sm text-[var(--muted-foreground)]">
-                          {item.orderId ? (
-                            <span className="font-mono text-xs">{item.orderId.substring(0, 8)}...</span>
-                          ) : '-'}
+                          {item.orderNumber || '-'}
                         </td>
                         <td className="px-4 py-3 text-sm text-[var(--foreground)] text-right">
-                          ${item.expectedCommission.toFixed(5)}
+                          ${Number(item.expectedCommission).toFixed(5)}
                         </td>
                         <td className="px-4 py-3 text-sm text-[var(--foreground)] text-right">
-                          ${item.paidCommission.toFixed(5)}
+                          ${Number(item.paidCommission).toFixed(5)}
                         </td>
                         <td className="px-4 py-3 text-sm text-[var(--foreground)] text-right">
-                          $
-                          {(
-                            item.paidCommission /
-                            (item.commissionRateActual / 100)
-                          ).toFixed(5)}
+                          {Number(item.commissionRateActual) > 0
+                            ? `$${(Number(item.paidCommission) / (Number(item.commissionRateActual) / 100)).toFixed(2)}`
+                            : '-'}
                         </td>
                         <td className="px-4 py-3 text-sm text-[var(--foreground)]">
                           {item.salesRep}

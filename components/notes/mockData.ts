@@ -15,6 +15,7 @@ export const INITIAL_NOTES: Note[] = [
     createdAt: '2024-11-22',
     tags: 'Meeting,Lighting,Controls',
     mentions: '@Turner Construction,@Miller Electric',
+    isPublic: false,
   },
   {
     id: 'N-002',
@@ -24,6 +25,7 @@ export const INITIAL_NOTES: Note[] = [
     createdAt: '2024-11-21',
     tags: 'Opportunity,HVAC,Controls',
     mentions: '@David Torres',
+    isPublic: false,
   },
   {
     id: 'N-003',
@@ -33,6 +35,7 @@ export const INITIAL_NOTES: Note[] = [
     createdAt: '2024-11-20',
     tags: 'Site Visit,Healthcare,Coordination',
     mentions: '@McCarthy Building',
+    isPublic: true,
   },
   {
     id: 'N-004',
@@ -42,6 +45,7 @@ export const INITIAL_NOTES: Note[] = [
     createdAt: '2024-11-19',
     tags: 'Strategy,Planning',
     mentions: '',
+    isPublic: false,
   },
   {
     id: 'N-005',
@@ -51,6 +55,7 @@ export const INITIAL_NOTES: Note[] = [
     createdAt: '2024-11-18',
     tags: 'Pricing,EC,Distributor',
     mentions: '@Miller Electric',
+    isPublic: false,
   },
   {
     id: 'N-006',
@@ -60,6 +65,7 @@ export const INITIAL_NOTES: Note[] = [
     createdAt: '2024-11-17',
     tags: 'Engineering,Education,Custom',
     mentions: '',
+    isPublic: false,
   },
   {
     id: 'N-007',
@@ -69,6 +75,7 @@ export const INITIAL_NOTES: Note[] = [
     createdAt: '2024-11-16',
     tags: 'Lunch-and-Learn,GC,Education',
     mentions: '',
+    isPublic: true,
   },
   {
     id: 'N-008',
@@ -78,6 +85,7 @@ export const INITIAL_NOTES: Note[] = [
     createdAt: '2024-11-15',
     tags: 'Bidding,Residential,Strategy',
     mentions: '@Bay Area Electric',
+    isPublic: false,
   },
   {
     id: 'N-009',
@@ -87,6 +95,7 @@ export const INITIAL_NOTES: Note[] = [
     createdAt: '2024-11-14',
     tags: 'Relationship,EC,Education',
     mentions: '@Prime Electric',
+    isPublic: false,
   },
   {
     id: 'N-010',
@@ -96,6 +105,7 @@ export const INITIAL_NOTES: Note[] = [
     createdAt: '2024-11-13',
     tags: 'Trade Show,Planning,Events',
     mentions: '@Sarah Johnson,@David Torres',
+    isPublic: true,
   },
 ];
 

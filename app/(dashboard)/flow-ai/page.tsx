@@ -430,6 +430,7 @@ function FlowRMSPageContent() {
   const [manualEditInitialValue, setManualEditInitialValue] = useState('');
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
   const [isSelectTemplateOpen, setIsSelectTemplateOpen] = useState(false);
+  const hasShownTemplateModalRef = useRef<string | null>(null);
 
   // Dummy quick prompts to replace additionalInstructions
   const dummyQuickPrompts = [
@@ -548,6 +549,7 @@ function FlowRMSPageContent() {
   // Check if entity type requires validation (quotes and orders only)
   const normalizedEntityType = entityType?.toUpperCase();
   const requiresFieldValidation = normalizedEntityType === 'QUOTES' || normalizedEntityType === 'ORDERS';
+  const isQuote = normalizedEntityType === 'QUOTES';
 
   // Extract sold to customer name from primary fields
   const soldToCustomerName = useMemo(() => {
@@ -561,6 +563,20 @@ function FlowRMSPageContent() {
     }
     return null;
   }, [primary]);
+
+  // Extract factory name from primary fields (for QUOTES only)
+  const factoryName = useMemo(() => {
+    if (!isQuote) return null;
+    const factoryField = primary.find(f => f.key === 'Factory');
+    if (factoryField?.nested) {
+      const nameField = factoryField.nested.find(nf => nf.key === 'Name');
+      const value = nameField?.value;
+      if (value && value !== 'NA' && value !== 'N/A') {
+        return value;
+      }
+    }
+    return null;
+  }, [primary, isQuote]);
 
   // Get line items that need end user names
   const lineItemsForEndUserAssignment = useMemo(() => {
@@ -604,6 +620,48 @@ function FlowRMSPageContent() {
     return lineItemsForEndUserAssignment.filter(item => !item.currentEndUserName);
   }, [lineItemsForEndUserAssignment]);
 
+  // Get line items that need factory names (for QUOTES only)
+  const lineItemsForFactoryAssignment = useMemo(() => {
+    if (!isQuote) return [];
+    return displayLineItems.map((item, idx) => {
+      const factoryNameValue = item.factory_name as string | null | undefined;
+      const flowIndex = item.flow_index as string | number | null;
+      // Get first non-internal column value as identifier
+      const keys = Object.keys(item).filter(k => !k.startsWith('_') && k !== 'internal_uuid');
+      const identifier = keys.length > 0 ? `${keys[0]}: ${item[keys[0]]}` : `Row ${idx + 1}`;
+
+      // Extract additional display fields with flexible key matching
+      const getFieldValue = (patterns: RegExp[]): string | number | null => {
+        for (const pattern of patterns) {
+          const key = keys.find(k => pattern.test(k));
+          if (key && item[key] != null && item[key] !== '') {
+            return item[key] as string | number;
+          }
+        }
+        return null;
+      };
+
+      const itemNumber = getFieldValue([/^item[_\s]?(number|no|#)?$/i, /^line[_\s]?(number|no|#|item)?$/i]);
+      const quantity = getFieldValue([/^(quantity|qty)$/i, /^(units?|count)$/i]);
+      const unitPrice = getFieldValue([/^unit[_\s]?price$/i, /^price$/i, /^(unit[_\s]?cost|cost)$/i]);
+
+      return {
+        rowIndex: idx,
+        flowIndex: flowIndex ?? null,
+        currentFactoryName: factoryNameValue?.trim() || null,
+        identifier,
+        itemNumber,
+        quantity,
+        unitPrice,
+      };
+    });
+  }, [displayLineItems, isQuote]);
+
+  // Check which line items are missing factory names (for QUOTES)
+  const lineItemsMissingFactory = useMemo(() => {
+    return lineItemsForFactoryAssignment.filter(item => !item.currentFactoryName);
+  }, [lineItemsForFactoryAssignment]);
+
   // Check if all required fields are valid
   // NOTE: This validation is ONLY for PDFs, not for CSV/spreadsheets
   const allRequiredFieldsValid = useMemo(() => {
@@ -612,8 +670,14 @@ function FlowRMSPageContent() {
     if (!requiresFieldValidation) return true;
     const hasSoldToName = Boolean(soldToCustomerName?.trim());
     const hasAllEndUsers = lineItemsMissingEndUser.length === 0;
+    // For QUOTES, also check factory validation
+    if (isQuote) {
+      const hasFactoryName = Boolean(factoryName?.trim());
+      const hasAllFactories = lineItemsMissingFactory.length === 0;
+      return hasSoldToName && hasAllEndUsers && hasFactoryName && hasAllFactories;
+    }
     return hasSoldToName && hasAllEndUsers;
-  }, [isCsv, requiresFieldValidation, soldToCustomerName, lineItemsMissingEndUser]);
+  }, [isCsv, requiresFieldValidation, soldToCustomerName, lineItemsMissingEndUser, isQuote, factoryName, lineItemsMissingFactory]);
 
   const instructionStatusRef = useRef(isInstructionRunning);
   const isSavingManualEditsRef = useRef(false);
@@ -769,6 +833,40 @@ function FlowRMSPageContent() {
   }, [pendingId, isInstructionRunning, refreshHistory]);
 
   const shouldShowWorkspace = Boolean(pendingId);
+
+  // Auto-show Select Template modal when reaching prompting step without a template applied
+  useEffect(() => {
+    if (
+      shouldShowWorkspace &&
+      !isHydrating &&
+      !isApplyingTemplate &&
+      !isInstructionRunning &&
+      !isSelectTemplateOpen &&
+      pendingId &&
+      hasShownTemplateModalRef.current !== pendingId &&
+      (!suggestedPrompts || suggestedPrompts.length === 0)
+    ) {
+      setIsSelectTemplateOpen(true);
+      hasShownTemplateModalRef.current = pendingId;
+    }
+  }, [
+    shouldShowWorkspace,
+    isHydrating,
+    isApplyingTemplate,
+    isInstructionRunning,
+    isSelectTemplateOpen,
+    pendingId,
+    suggestedPrompts,
+  ]);
+
+  // Reset the ref when pendingId changes (new document)
+  useEffect(() => {
+    if (pendingId && hasShownTemplateModalRef.current !== pendingId) {
+      // Reset when we get a new pendingId
+      hasShownTemplateModalRef.current = null;
+    }
+  }, [pendingId]);
+
   // Use entity processing action message when available, otherwise fall back to loadingAction
   const entityProcessingMessage = isEntityProcessing && entityProgress?.action ? entityProgress.action : null;
   const loadingMessage = isHydrating
@@ -942,6 +1040,56 @@ function FlowRMSPageContent() {
       updates.forEach(({ rowIndex, endUserName }) => {
         const sourcePath = `details.${rowIndex}.end_user.name`;
         updateManualEditValue(activeDataSetIndex, sourcePath, endUserName);
+      });
+    },
+    [activeDataSetIndex, updateManualEditValue]
+  );
+
+  // Search for factories (used for Factory assignment in RequiredFieldsGate - QUOTES only)
+  const handleSearchFactories = useCallback(
+    async (query: string, limit = 15): Promise<EntitySearchResult[]> => {
+      try {
+        const result = await flowrmsApolloClient.query<{ searchExistingEntities: Array<{ entityId: string; name: string; similarityScore?: number; metadata?: string }> }>({
+          query: Q_SEARCH_EXISTING_ENTITIES,
+          variables: {
+            input: {
+              entityType: 'FACTORIES',
+              query,
+              limit,
+            },
+          },
+          fetchPolicy: 'network-only',
+        });
+        const entities = result.data?.searchExistingEntities || [];
+        return entities.map((e) => ({
+          entityId: e.entityId,
+          name: e.name,
+          similarityScore: e.similarityScore,
+          metadata: e.metadata,
+        }));
+      } catch (error) {
+        console.error('Error searching factories:', error);
+        return [];
+      }
+    },
+    []
+  );
+
+  // Handle factory change from RequiredFieldsGate (QUOTES only)
+  const handleFactoryChange = useCallback(
+    (name: string, _entityId: string) => {
+      // Update the factory.name field via manual edit
+      updateManualEditValue(activeDataSetIndex, 'factory.name', name);
+    },
+    [activeDataSetIndex, updateManualEditValue]
+  );
+
+  // Handle factory name updates for line items from RequiredFieldsGate (QUOTES only)
+  const handleFactoryNamesChange = useCallback(
+    (updates: Array<{ rowIndex: number; factoryName: string }>) => {
+      updates.forEach(({ rowIndex, factoryName }) => {
+        const sourcePath = `details.${rowIndex}.factory.name`;
+        updateManualEditValue(activeDataSetIndex, sourcePath, factoryName);
       });
     },
     [activeDataSetIndex, updateManualEditValue]
@@ -1519,6 +1667,12 @@ function FlowRMSPageContent() {
                 onEndUserNamesChange={handleEndUserNamesChange}
                 onSearchCustomers={handleSearchCustomers}
                 onSearchEndUsers={handleSearchEndUsers}
+                // Factory-related props (only for QUOTES)
+                factoryName={factoryName}
+                onFactoryChange={handleFactoryChange}
+                factoryLineItems={lineItemsForFactoryAssignment}
+                onFactoryNamesChange={handleFactoryNamesChange}
+                onSearchFactories={handleSearchFactories}
               />
             )}
 
@@ -1653,6 +1807,7 @@ function FlowRMSPageContent() {
         onOpenChange={setIsSelectTemplateOpen}
         onApplyTemplate={handleApplyTemplate}
         isApplyingTemplate={isApplyingTemplate}
+        entityType={entityType}
       />
 
       <SupportSubmissionModal

@@ -5,6 +5,8 @@
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useCustomersInfinite, useCustomerSearch, type CustomerLandingPage, type CustomerLandingPageFilter, type CustomerLandingPageOrderBy, type CustomerSearchResult } from '../api/useCustomersApi';
+import { fetchAllCustomerIds } from '../api/customersApi';
+import { useBulkSelection } from '../../shared/hooks/useBulkSelection';
 import type { ActiveFilter } from '../../advancedFilters/AdvancedFilters';
 
 export type ViewMode = 'list' | 'grid';
@@ -60,8 +62,7 @@ export function useCustomersState() {
   // Delete modal state (other modals replaced by dedicated pages)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-  // Selection state for bulk operations
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Bulk delete modal state
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
 
   // Filter & sort state
@@ -107,6 +108,12 @@ export function useCustomersState() {
     return data.pages.flatMap(page => page.records);
   }, [data]);
 
+  // Get total count from API
+  const totalCount = useMemo(() => {
+    if (!data?.pages || data.pages.length === 0) return 0;
+    return data.pages[0].total;
+  }, [data]);
+
   // Transform search results to CustomerLandingPage format
   const transformSearchResultToLandingPage = (result: CustomerSearchResult): CustomerLandingPage => ({
     id: result.id,
@@ -148,6 +155,18 @@ export function useCustomersState() {
     return result;
   }, [customers, searchQuery, searchResults, selectedType]);
 
+  // Function to fetch all customer IDs for bulk operations
+  const fetchAllIds = useCallback(async (): Promise<string[]> => {
+    return fetchAllCustomerIds(serverFilters, serverOrderBy);
+  }, [serverFilters, serverOrderBy]);
+
+  // Use shared bulk selection hook
+  const bulkSelection = useBulkSelection({
+    items: filteredCustomers,
+    totalCount,
+    fetchAllIds,
+  });
+
   // Unique values for filter dropdowns
   const uniqueCompanyNames = useMemo(() => getUniqueValues(customers, 'companyName'), [customers]);
 
@@ -164,34 +183,10 @@ export function useCustomersState() {
     setDeleteConfirmId(null);
   }, []);
 
-  // Selection handlers
-  const handleSelectAll = useCallback((checked: boolean) => {
-    if (checked) {
-      setSelectedIds(new Set(filteredCustomers.map(c => c.id)));
-    } else {
-      setSelectedIds(new Set());
-    }
-  }, [filteredCustomers]);
-
-  const handleSelectOne = useCallback((id: string, checked: boolean) => {
-    setSelectedIds(prev => {
-      const newSet = new Set(prev);
-      if (checked) {
-        newSet.add(id);
-      } else {
-        newSet.delete(id);
-      }
-      return newSet;
-    });
-  }, []);
-
   const handleBulkDeleteSuccess = useCallback(() => {
-    setSelectedIds(new Set());
+    bulkSelection.resetSelection();
     setShowBulkDeleteModal(false);
-  }, []);
-
-  const isAllSelected = filteredCustomers.length > 0 && selectedIds.size === filteredCustomers.length;
-  const isPartiallySelected = selectedIds.size > 0 && selectedIds.size < filteredCustomers.length;
+  }, [bulkSelection]);
 
   return {
     // State
@@ -203,21 +198,19 @@ export function useCustomersState() {
     setSelectedType,
     customers,
     filteredCustomers,
+    totalCount,
 
     // Delete modal state
     deleteConfirmId,
     setDeleteConfirmId,
 
-    // Selection state for bulk operations
-    selectedIds,
-    setSelectedIds,
+    // Bulk delete modal state
     showBulkDeleteModal,
     setShowBulkDeleteModal,
-    handleSelectAll,
-    handleSelectOne,
     handleBulkDeleteSuccess,
-    isAllSelected,
-    isPartiallySelected,
+
+    // Bulk selection (from shared hook)
+    ...bulkSelection,
 
     // Loading state
     isLoading,
@@ -236,6 +229,8 @@ export function useCustomersState() {
     setActiveFilters,
     clientSortColumns,
     setClientSortColumns,
+    serverFilters,
+    serverOrderBy,
     uniqueCompanyNames,
     handleFiltersChange,
     handleMultiSortChange,

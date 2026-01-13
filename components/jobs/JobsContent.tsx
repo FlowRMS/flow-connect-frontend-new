@@ -7,6 +7,7 @@
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useFlowChat } from '@/contexts/FlowChatContext';
 import type { DragEndEvent, DragStartEvent, DragOverEvent } from '@dnd-kit/core';
 import AdvancedFilters, { ActiveFilter, ActiveSort } from '../advancedFilters/AdvancedFilters';
 import SortButton from '../SortButton';
@@ -18,10 +19,8 @@ import { parseApiError } from '../lib/error-utils';
 import { useJobsState } from './hooks/useJobsState';
 import { getJobFilterOptions, getJobSortOptions } from './config/filterConfig';
 import { JobDetailView } from './detail/JobDetailView';
-import { CompanyDetailView } from './detail/CompanyDetailView';
 import { KanbanView } from './views/KanbanView';
 import { ListView } from './views/ListView';
-import { getCompanyDetails } from './mockData';
 import type { Job } from './types';
 import { mapAPIJobToUIJob } from './types';
 import type { JobLandingPage, LandingPageFilter, LandingPageOrderBy, RelatedEntityCompany, RelatedEntityContact } from '../lib/crm-graphql';
@@ -31,7 +30,8 @@ export default function JobsContent() {
   // Router for navigation
   const router = useRouter();
   const searchParams = useSearchParams();
-  
+  const { setFullEntityContext } = useFlowChat();
+
   // Hydration-safe mounted state
   const [isMounted, setIsMounted] = useState(false);
 
@@ -114,7 +114,6 @@ export default function JobsContent() {
     selectedJob, setSelectedJob,
     isEditing, setIsEditing,
     editFormData, setEditFormData,
-    selectedCompany, setSelectedCompany,
     activeId, setActiveId,
     overId, setOverId,
     showCreateJobModal, setShowCreateJobModal,
@@ -189,6 +188,18 @@ export default function JobsContent() {
       }
     }
   }, [selectedJob?.id, isMounted, router, searchParams]);
+
+  // Set full entity context for global chatbot (type, id, and job name)
+  useEffect(() => {
+    if (detailedJob?.name && detailedJob?.id) {
+      setFullEntityContext('job', detailedJob.id, detailedJob.name);
+    } else {
+      setFullEntityContext(null, null, null);
+    }
+    return () => {
+      setFullEntityContext(null, null, null);
+    };
+  }, [detailedJob?.name, detailedJob?.id, setFullEntityContext]);
 
   // Filter and sort configuration
   const jobFilterOptions = getJobFilterOptions(uniqueJobNames, uniqueStatuses, uniqueTypes, uniqueCreators);
@@ -562,19 +573,6 @@ export default function JobsContent() {
     );
   }
 
-  // Company detail view
-  if (selectedCompany) {
-    const companyDetails = getCompanyDetails(selectedCompany.id);
-    if (!companyDetails) return null;
-    
-    return (
-      <CompanyDetailView
-        company={companyDetails}
-        onBack={() => setSelectedCompany(null)}
-      />
-    );
-  }
-
   // Job detail view
   if (selectedJob) {
     // Show loading state while fetching full job details
@@ -626,7 +624,7 @@ export default function JobsContent() {
         onDelete={handleDeleteJob}
         onRepTypeChange={setRepType}
         onToggleRepTypeModal={setShowRepTypeModal}
-        onCompanyClick={(company: RelatedEntityCompany) => setSelectedCompany(company)}
+        onCompanyClick={(company: RelatedEntityCompany) => router.push(`/companies?id=${company.id}`)}
         onContactClick={(contact: RelatedEntityContact) => router.push(`/contacts?id=${contact.id}`)}
       />
     );

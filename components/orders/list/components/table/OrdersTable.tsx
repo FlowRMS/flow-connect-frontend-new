@@ -7,7 +7,6 @@ import type { Order } from '@/lib/types/rms';
 import type { SortField, SortDirection, ColumnFilters } from '../../types';
 import { getGridTemplateColumns } from '../../config/columnConfig';
 import { isOrderLinked, getOrderLinkedReason } from '../../utils';
-import { BulkActionsBar } from './BulkActionsBar';
 import { OrdersTableHeader } from './OrdersTableHeader';
 import { OrderRow } from './OrderRow';
 import { OrdersEmptyState } from './OrdersEmptyState';
@@ -15,12 +14,18 @@ import { OrdersEmptyState } from './OrdersEmptyState';
 interface OrdersTableProps {
   // Data
   filteredOrders: Order[];
-  // Selection
+  // Selection (legacy API - for backwards compatibility)
   selectedOrderIds: Set<string>;
   toggleOrderSelection: (orderId: string) => void;
   selectAllOrders: (orders: Order[]) => void;
   clearSelection: () => void;
-  areAllEligibleSelected: (orders: Order[]) => boolean;
+  areAllEligibleSelected: ((orders: Order[]) => boolean) | boolean;
+  // Selection (new shared hook API)
+  isItemSelected?: (id: string) => boolean;
+  isAllSelected?: boolean;
+  isPartiallySelected?: boolean;
+  handleSelectAll?: (checked: boolean) => void;
+  handleSelectOne?: (id: string, checked: boolean) => void;
   // Sorting
   sortField: SortField;
   sortDirection: SortDirection;
@@ -51,6 +56,11 @@ export function OrdersTable({
   selectAllOrders,
   clearSelection,
   areAllEligibleSelected,
+  isItemSelected,
+  isAllSelected,
+  isPartiallySelected,
+  handleSelectAll,
+  handleSelectOne,
   sortField,
   sortDirection,
   handleSort,
@@ -71,27 +81,29 @@ export function OrdersTable({
 }: OrdersTableProps) {
   const gridColumns = getGridTemplateColumns();
 
+  // Use new API if available, otherwise fall back to legacy
+  const checkIsSelected = (id: string) => isItemSelected ? isItemSelected(id) : selectedOrderIds.has(id);
+  const allSelected = isAllSelected !== undefined ? isAllSelected : (typeof areAllEligibleSelected === 'function' ? areAllEligibleSelected(filteredOrders) : areAllEligibleSelected);
+  const partiallySelected = isPartiallySelected !== undefined ? isPartiallySelected : (selectedOrderIds.size > 0 && !allSelected);
+
   return (
     <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] overflow-hidden">
-      {/* Bulk Actions Bar */}
-      {selectedOrderIds.size > 0 && (
-        <BulkActionsBar
-          selectedCount={selectedOrderIds.size}
-          showBulkActionsMenu={showBulkActionsMenu}
-          setShowBulkActionsMenu={setShowBulkActionsMenu}
-          onClearSelection={clearSelection}
-          onBulkSetStatus={bulkSetStatus}
-          onBulkDelete={bulkDelete}
-        />
-      )}
-
       <div className="overflow-x-auto">
         <div className="min-w-[1990px]">
           {/* Table Header */}
           <OrdersTableHeader
             filteredOrders={filteredOrders}
-            areAllEligibleSelected={areAllEligibleSelected(filteredOrders)}
-            onSelectAll={() => selectAllOrders(filteredOrders)}
+            areAllEligibleSelected={allSelected}
+            isPartiallySelected={partiallySelected}
+            onSelectAll={(checked) => {
+              if (handleSelectAll) {
+                handleSelectAll(checked);
+              } else if (checked) {
+                selectAllOrders(filteredOrders);
+              } else {
+                clearSelection();
+              }
+            }}
             sortField={sortField}
             sortDirection={sortDirection}
             onSort={handleSort}
@@ -116,10 +128,16 @@ export function OrdersTable({
                 <OrderRow
                   key={order.id}
                   order={order}
-                  isSelected={selectedOrderIds.has(order.id)}
+                  isSelected={checkIsSelected(order.id)}
                   isLinked={isOrderLinked(order)}
                   linkedReason={getOrderLinkedReason(order)}
-                  onToggleSelection={() => toggleOrderSelection(order.id)}
+                  onToggleSelection={() => {
+                    if (handleSelectOne) {
+                      handleSelectOne(order.id, !checkIsSelected(order.id));
+                    } else {
+                      toggleOrderSelection(order.id);
+                    }
+                  }}
                   onPreview={() => setSelectedOrder(order)}
                   gridColumns={gridColumns}
                 />

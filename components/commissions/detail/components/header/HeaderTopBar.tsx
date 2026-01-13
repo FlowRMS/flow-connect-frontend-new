@@ -40,10 +40,12 @@ interface HeaderTopBarProps {
   onSaveAndClose?: () => void;
   onSaveAsNewVersion?: () => void;
   onUnpost?: () => void;
+  onDelete?: () => void;
   // Create mode
   isCreateMode?: boolean;
   isSaving?: boolean;
   isUnposting?: boolean;
+  isDeleting?: boolean;
   // Whether the check was originally posted (from API) - controls if Save is disabled
   isOriginallyPosted?: boolean;
 }
@@ -77,9 +79,11 @@ export function HeaderTopBar({
   onSaveAndClose,
   onSaveAsNewVersion,
   onUnpost,
+  onDelete,
   isCreateMode = false,
   isSaving = false,
   isUnposting = false,
+  isDeleting = false,
   isOriginallyPosted = false,
 }: HeaderTopBarProps) {
   const router = useRouter();
@@ -267,13 +271,14 @@ export function HeaderTopBar({
                 )}
               </div>
 
-              {/* Unpost Button - Only shown for posted checks */}
-              <button
-                onClick={onUnpost}
-                disabled={isUnposting}
-                className="flex items-center gap-2 px-3 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Unpost this check to enable editing"
-              >
+              {/* Unpost Button - Only shown for posted checks, disabled until saved */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={onUnpost}
+                  disabled={isUnposting || !isOriginallyPosted}
+                  className="flex items-center gap-2 px-3 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={!isOriginallyPosted ? "Save the check first before unposting" : "Unpost this check to enable editing"}
+                >
                 {isUnposting ? (
                   <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
@@ -301,8 +306,47 @@ export function HeaderTopBar({
                   </svg>
                 )}
                 {isUnposting ? 'Unposting...' : 'Unpost'}
-              </button>
+                </button>
+                {!isOriginallyPosted && (
+                  <span className="text-xs text-amber-600 font-medium whitespace-nowrap">
+                    Please hit save to post this
+                  </span>
+                )}
+              </div>
             </>
+          )}
+
+          {/* Delete Button - Only for existing checks that are not posted */}
+          {!isCreateMode && !isOriginallyPosted && (
+            <button
+              onClick={onDelete}
+              disabled={isDeleting}
+              className="flex items-center gap-2 px-3 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Delete this check"
+            >
+              {isDeleting ? (
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                </svg>
+              ) : (
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path
+                    d="M3 6h14M8 6V4a1 1 0 011-1h2a1 1 0 011 1v2M5 6v11a2 2 0 002 2h6a2 2 0 002-2V6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              )}
+              {isDeleting ? 'Deleting...' : 'Delete'}
+            </button>
           )}
 
           {/* PDF Button */}

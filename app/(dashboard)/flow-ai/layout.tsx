@@ -20,7 +20,7 @@ export default function FlowAILayout({ children }: { children: ReactNode }) {
     <ApolloProvider client={flowrmsApiSubscriptionClient}>
       <TooltipProvider>
         <ContextMenuProvider>
-          <div className="flow-ai-scope flex-1 overflow-auto">
+          <div className="flow-ai-scope flex-1 flex flex-col overflow-hidden">
             {children}
           </div>
         </ContextMenuProvider>
