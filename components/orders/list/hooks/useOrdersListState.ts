@@ -4,13 +4,14 @@
  * Integrates all sub-hooks and manages overall state
  */
 
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import type { Order, OrderSplitRate } from '@/lib/types/rms';
 import { mockSalesReps } from '@/lib/data/rms-mock';
 import { useOrdersInfinite, useOrderSearch, type OrderLandingPage, type OrderSearchResult } from '../../api';
+import { fetchAllOrderIds } from '../../api/ordersApi';
 import { useOrderFilters } from './useOrderFilters';
-import { useOrderSelection } from './useOrderSelection';
 import { useOrderBulkActions } from './useOrderBulkActions';
+import { useBulkSelection } from '../../../shared';
 
 /**
  * Transform OrderLandingPage from API to UI Order type
@@ -190,15 +191,42 @@ export function useOrdersListState() {
   // Integrate filter hook
   const filterState = useOrderFilters(orders);
 
-  // Integrate selection hook
-  const selectionState = useOrderSelection();
+  // Bulk selection with shared hook (properly handles select all for unloaded items)
+  // Note: Not using isItemEligible for orders since billingStatus/commissionStatus
+  // aren't available from the landing page API - all orders can be selected
+  const bulkSelection = useBulkSelection({
+    items: orders,
+    totalCount,
+    fetchAllIds: fetchAllOrderIds,
+  });
+
+  // Bulk delete modal state
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+
+  // Handle bulk delete success
+  const handleBulkDeleteSuccess = useCallback(() => {
+    bulkSelection.clearSelection();
+    setShowBulkDeleteModal(false);
+    refetch();
+  }, [bulkSelection, refetch]);
 
   // Integrate bulk actions hook
   const bulkActionsState = useOrderBulkActions({
-    selectedOrderIds: selectionState.selectedOrderIds,
-    clearSelection: selectionState.clearSelection,
+    selectedOrderIds: bulkSelection.selectedIds,
+    clearSelection: bulkSelection.clearSelection,
     setOrders,
   });
+
+  // Compatibility layer: map shared hook to existing API
+  const selectedOrderIds = bulkSelection.selectedIds;
+  const toggleOrderSelection = useCallback((orderId: string) => {
+    bulkSelection.handleSelectOne(orderId, !bulkSelection.isItemSelected(orderId));
+  }, [bulkSelection]);
+  const selectAllOrders = useCallback(() => {
+    bulkSelection.handleSelectAll(true);
+  }, [bulkSelection]);
+  const clearSelection = bulkSelection.clearSelection;
+  const areAllEligibleSelected = bulkSelection.isAllSelected;
 
   // Commission split editing functions
   const startEditingSplits = () => {
@@ -326,8 +354,25 @@ export function useOrdersListState() {
     splitPercentageTotal,
     // Filter state and actions
     ...filterState,
-    // Selection state and actions
-    ...selectionState,
+    // Selection state and actions (compatibility layer)
+    selectedOrderIds,
+    toggleOrderSelection,
+    selectAllOrders,
+    clearSelection,
+    areAllEligibleSelected,
+    // Bulk selection (new shared hook API)
+    selectAllMode: bulkSelection.selectAllMode,
+    selectedCount: bulkSelection.selectedCount,
+    isAllSelected: bulkSelection.isAllSelected,
+    isPartiallySelected: bulkSelection.isPartiallySelected,
+    isItemSelected: bulkSelection.isItemSelected,
+    handleSelectAll: bulkSelection.handleSelectAll,
+    handleSelectOne: bulkSelection.handleSelectOne,
+    getAllSelectedIds: bulkSelection.getAllSelectedIds,
+    // Bulk delete modal
+    showBulkDeleteModal,
+    setShowBulkDeleteModal,
+    handleBulkDeleteSuccess,
     // Bulk actions state and actions
     ...bulkActionsState,
   };

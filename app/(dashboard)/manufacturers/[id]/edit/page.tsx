@@ -52,6 +52,9 @@ export default function ManufacturerEditPage() {
   });
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
+  // Flag to disable scroll spy during programmatic scrolling
+  const isScrollingRef = useRef(false);
+
   // Address state and hooks
   const [showAddAddressModal, setShowAddAddressModal] = useState(false);
   const [editingAddress, setEditingAddress] = useState<Address | null>(null);
@@ -108,14 +111,18 @@ export default function ManufacturerEditPage() {
     const tabIds: TabId[] = ['overview', 'addresses', 'split-rates', 'connected-entities', 'customer-xref', 'shipto-xref', 'freight'];
 
     const handleScroll = () => {
-      const scrollTop = container.scrollTop;
+      // Skip scroll spy updates during programmatic scrolling
+      if (isScrollingRef.current) return;
+
+      const containerRect = container.getBoundingClientRect();
       let currentSection: TabId = 'overview';
 
       for (const tabId of tabIds) {
         const section = sectionRefs.current[tabId];
         if (section) {
-          const sectionTop = section.offsetTop;
-          if (scrollTop >= sectionTop - 100) {
+          const sectionRect = section.getBoundingClientRect();
+          // Check if section top is at or above the container top + offset
+          if (sectionRect.top <= containerRect.top + 100) {
             currentSection = tabId;
           }
         }
@@ -124,19 +131,33 @@ export default function ManufacturerEditPage() {
     };
 
     container.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll();
     return () => container.removeEventListener('scroll', handleScroll);
-  }, [isLoading]);
+  }, []);
 
   const scrollToSection = useCallback((tabId: TabId) => {
     const section = sectionRefs.current[tabId];
     const container = scrollContainerRef.current;
     if (section && container) {
+      // Disable scroll spy during programmatic scroll
+      isScrollingRef.current = true;
+      setActiveTab(tabId);
+
+      // Calculate the section's position relative to the scroll container
+      const containerRect = container.getBoundingClientRect();
+      const sectionRect = section.getBoundingClientRect();
+      const scrollTop = container.scrollTop;
       const headerOffset = 20;
-      const sectionTop = section.offsetTop - headerOffset;
+
+      // Calculate the target scroll position
+      const sectionTop = sectionRect.top - containerRect.top + scrollTop - headerOffset;
+
       container.scrollTo({ top: sectionTop, behavior: 'smooth' });
+
+      // Re-enable scroll spy after scroll animation completes
+      setTimeout(() => {
+        isScrollingRef.current = false;
+      }, 500);
     }
-    setActiveTab(tabId);
   }, []);
 
   const handleFieldChange = (field: keyof Factory, value: unknown) => {

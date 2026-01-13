@@ -66,6 +66,14 @@ export interface ContactSearchResult {
   createdAt: string;
 }
 
+export interface TaskSearchResultAssignee {
+  id: string;
+  firstName?: string;
+  lastName?: string;
+  fullName?: string;
+  email?: string;
+}
+
 export interface TaskSearchResult {
   id: string;
   title: string;
@@ -74,7 +82,7 @@ export interface TaskSearchResult {
   priority: string;
   dueDate: string;
   reminderDate?: string;
-  assignedToId: string;
+  assignees?: TaskSearchResultAssignee[];
   tags?: string;
   createdAt: string;
   createdBy: string;
@@ -192,13 +200,66 @@ export interface OpenInvoiceSearchResult {
   status?: string;
   orderId?: string;
   order?: {
-    id: string;
-    orderNumber: string;
+    id?: string;
+    orderNumber?: string;
     entityDate?: string;
     status?: string;
     headerStatus?: string;
     factoryId?: string;
     soldToCustomerId?: string;
+    soldToCustomer?: {
+      id?: string;
+      companyName?: string;
+      isParent?: boolean;
+      parentId?: string;
+      buyingGroupId?: string;
+      published?: boolean;
+    };
+    url?: string;
+    shippingTerms?: string;
+    shipDate?: string;
+    quoteId?: string;
+    published?: boolean;
+    projectedShipDate?: string;
+    outsidePerLineItem?: boolean;
+    orderType?: string;
+    markNumber?: string;
+    insidePerLineItem?: boolean;
+    freightTerms?: string;
+    factSoNumber?: string;
+    endUserPerLineItem?: boolean;
+    creationType?: string;
+    createdById?: string;
+    createdAt?: string;
+    billToCustomerId?: string;
+    balanceId?: string;
+  };
+  salesReps?: Array<{
+    id?: string;
+    fullName?: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    username?: string;
+    role?: string;
+    inside?: boolean;
+    outside?: boolean;
+    enabled?: boolean;
+    visible?: boolean;
+    authProviderId?: string;
+  }>;
+  balance?: {
+    id?: string;
+    total?: number;
+    subtotal?: number;
+    quantity?: number;
+    paidBalance?: number;
+    discountRate?: number;
+    discount?: number;
+    commissionDiscount?: number;
+    commission?: number;
+    commissionDiscountRate?: number;
+    commissionRate?: number;
   };
   balanceId?: string;
   locked?: boolean;
@@ -236,6 +297,7 @@ export interface CustomerSearchResult {
   companyName: string;
   isParent?: boolean;
   parentId?: string;
+  buyingGroupId?: string;
   insideRepId?: string;
   published?: boolean;
 }
@@ -326,7 +388,13 @@ const CONTACT_SEARCH = `
 const TASK_SEARCH = `
   query TaskSearch($searchTerm: String!, $limit: Int) {
     taskSearch(searchTerm: $searchTerm, limit: $limit) {
-      assignedToId
+      assignees {
+        id
+        firstName
+        lastName
+        fullName
+        email
+      }
       createdAt
       createdBy {
         email
@@ -500,6 +568,59 @@ const SEARCH_OPEN_INVOICES = `
         headerStatus
         factoryId
         soldToCustomerId
+        soldToCustomer {
+          id
+          companyName
+          isParent
+          parentId
+          buyingGroupId
+          published
+        }
+        url
+        shippingTerms
+        shipDate
+        quoteId
+        published
+        projectedShipDate
+        outsidePerLineItem
+        orderType
+        markNumber
+        insidePerLineItem
+        freightTerms
+        factSoNumber
+        endUserPerLineItem
+        creationType
+        createdById
+        createdAt
+        billToCustomerId
+        balanceId
+      }
+      salesReps {
+        id
+        fullName
+        firstName
+        lastName
+        email
+        username
+        role
+        inside
+        outside
+        enabled
+        visible
+        authProviderId
+      }
+      balance {
+        id
+        total
+        subtotal
+        quantity
+        paidBalance
+        discountRate
+        discount
+        commissionDiscount
+        commission
+        commissionDiscountRate
+        commissionRate
       }
       balanceId
       locked
@@ -549,6 +670,7 @@ const CUSTOMER_SEARCH = `
       companyName
       isParent
       parentId
+      buyingGroupId
       published
     }
   }

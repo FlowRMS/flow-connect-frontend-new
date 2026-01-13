@@ -25,6 +25,10 @@ interface AdditionalDetailsModalProps {
   onClose: () => void;
   lineItem: InvoiceLineItem | null;
   onSave: (updates: Partial<InvoiceLineItem>) => void;
+  // Per-line-item flags - when true, show the corresponding section in the modal
+  endUserPerLineItem?: boolean;
+  outsidePerLineItem?: boolean;
+  insidePerLineItem?: boolean;
 }
 
 export function AdditionalDetailsModal({
@@ -32,6 +36,9 @@ export function AdditionalDetailsModal({
   onClose,
   lineItem,
   onSave,
+  endUserPerLineItem = false,
+  outsidePerLineItem = false,
+  insidePerLineItem = false,
 }: AdditionalDetailsModalProps) {
   const [formData, setFormData] = useState({
     endUserId: '',
@@ -46,6 +53,8 @@ export function AdditionalDetailsModal({
 
   // Outside rep state for line item level
   const [outsideSplitReps, setOutsideSplitReps] = useState<CommissionSplitRep[]>([]);
+  // Inside rep state for line item level
+  const [insideSplitReps, setInsideSplitReps] = useState<CommissionSplitRep[]>([]);
 
   // End user search
   const [endUserSearchTerm, setEndUserSearchTerm] = useState('');
@@ -62,6 +71,15 @@ export function AdditionalDetailsModal({
     outsideRepSearchTerm,
     { isInside: false, isOutside: true },
     outsideRepSearchEnabled
+  );
+
+  // Inside rep search
+  const [insideRepSearchTerm, setInsideRepSearchTerm] = useState('');
+  const [insideRepSearchEnabled, setInsideRepSearchEnabled] = useState(false);
+  const { data: insideReps, isLoading: isInsideRepLoading } = useUserSearch(
+    insideRepSearchTerm,
+    { isInside: true, isOutside: false },
+    insideRepSearchEnabled
   );
 
   const endUserOptions = useMemo(() => {
@@ -82,6 +100,17 @@ export function AdditionalDetailsModal({
     }));
   }, [outsideReps]);
 
+  const insideRepOptions = useMemo(() => {
+    return (insideReps || []).map(u => ({
+      id: u.id,
+      label: u.fullName || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || '',
+      sublabel: u.email,
+      fullName: u.fullName,
+      firstName: u.firstName,
+      lastName: u.lastName,
+    }));
+  }, [insideReps]);
+
   useEffect(() => {
     if (lineItem) {
       setFormData({
@@ -98,7 +127,7 @@ export function AdditionalDetailsModal({
       // Initialize outside split reps from line item
       if (lineItem.outsideSplitRates && lineItem.outsideSplitRates.length > 0) {
         const reps: CommissionSplitRep[] = lineItem.outsideSplitRates.map((rep, idx) => ({
-          id: crypto.randomUUID(),
+          id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
           userId: rep.userId || '',
           userName: rep.userName || '',
           splitRate: rep.splitRate || 0,
@@ -108,17 +137,31 @@ export function AdditionalDetailsModal({
       } else {
         setOutsideSplitReps([]);
       }
+
+      // Initialize inside split reps from line item
+      if (lineItem.insideSplitRates && lineItem.insideSplitRates.length > 0) {
+        const reps: CommissionSplitRep[] = lineItem.insideSplitRates.map((rep, idx) => ({
+          id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
+          userId: rep.userId || '',
+          userName: rep.userName || '',
+          splitRate: rep.splitRate || 0,
+          position: rep.position || idx + 1,
+        }));
+        setInsideSplitReps(reps);
+      } else {
+        setInsideSplitReps([]);
+      }
     }
   }, [lineItem]);
 
   if (!isOpen || !lineItem) return null;
 
-  // Add rep to split commission
-  const addRepToSplit = (rep: { id: string; fullName?: string; firstName?: string; lastName?: string }) => {
+  // Add outside rep to split commission
+  const addOutsideRepToSplit = (rep: { id: string; fullName?: string; firstName?: string; lastName?: string }) => {
     const repName = rep.fullName || `${rep.firstName || ''} ${rep.lastName || ''}`.trim();
 
     const newRep: CommissionSplitRep = {
-      id: crypto.randomUUID(),
+      id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
       userId: rep.id,
       userName: repName,
       splitRate: 0,
@@ -135,8 +178,8 @@ export function AdditionalDetailsModal({
     setOutsideSplitReps(updatedReps);
   };
 
-  // Remove rep from split commission
-  const removeRepFromSplit = (repId: string) => {
+  // Remove outside rep from split commission
+  const removeOutsideRepFromSplit = (repId: string) => {
     const newReps = outsideSplitReps.filter(r => r.id !== repId);
     if (newReps.length > 0) {
       // Re-distribute percentages
@@ -152,9 +195,53 @@ export function AdditionalDetailsModal({
     }
   };
 
-  // Update split rate for a rep
-  const updateSplitRate = (repId: string, rate: number) => {
+  // Update outside split rate for a rep
+  const updateOutsideSplitRate = (repId: string, rate: number) => {
     setOutsideSplitReps(reps => reps.map(r => r.id === repId ? { ...r, splitRate: rate } : r));
+  };
+
+  // Add inside rep to split commission
+  const addInsideRepToSplit = (rep: { id: string; fullName?: string; firstName?: string; lastName?: string }) => {
+    const repName = rep.fullName || `${rep.firstName || ''} ${rep.lastName || ''}`.trim();
+
+    const newRep: CommissionSplitRep = {
+      id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
+      userId: rep.id,
+      userName: repName,
+      splitRate: 0,
+      position: insideSplitReps.length + 1,
+    };
+
+    const newReps = [...insideSplitReps, newRep];
+    // Auto-distribute percentages
+    const splitRate = Math.floor(100 / newReps.length);
+    const updatedReps = newReps.map((r, idx) => ({
+      ...r,
+      splitRate: idx === newReps.length - 1 ? (100 - (splitRate * (newReps.length - 1))) : splitRate,
+    }));
+    setInsideSplitReps(updatedReps);
+  };
+
+  // Remove inside rep from split commission
+  const removeInsideRepFromSplit = (repId: string) => {
+    const newReps = insideSplitReps.filter(r => r.id !== repId);
+    if (newReps.length > 0) {
+      // Re-distribute percentages
+      const splitRate = Math.floor(100 / newReps.length);
+      const updatedReps = newReps.map((r, idx) => ({
+        ...r,
+        splitRate: idx === newReps.length - 1 ? (100 - (splitRate * (newReps.length - 1))) : splitRate,
+        position: idx + 1,
+      }));
+      setInsideSplitReps(updatedReps);
+    } else {
+      setInsideSplitReps([]);
+    }
+  };
+
+  // Update inside split rate for a rep
+  const updateInsideSplitRate = (repId: string, rate: number) => {
+    setInsideSplitReps(reps => reps.map(r => r.id === repId ? { ...r, splitRate: rate } : r));
   };
 
   const handleSave = () => {
@@ -176,6 +263,20 @@ export function AdditionalDetailsModal({
         splitRate: r.splitRate,
         position: idx + 1,
       }));
+    } else {
+      updates.outsideSplitRates = [];
+    }
+
+    // Add inside split rates
+    if (insideSplitReps.length > 0) {
+      updates.insideSplitRates = insideSplitReps.map((r, idx) => ({
+        userId: r.userId,
+        userName: r.userName,
+        splitRate: r.splitRate,
+        position: idx + 1,
+      }));
+    } else {
+      updates.insideSplitRates = [];
     }
 
     onSave(updates);
@@ -183,7 +284,14 @@ export function AdditionalDetailsModal({
   };
 
   const outsideSplitTotal = outsideSplitReps.reduce((sum, r) => sum + (r.splitRate || 0), 0);
-  const isOutsideSplitValid = outsideSplitReps.length === 0 || outsideSplitTotal === 100;
+  // Only validate outside split if we're showing it (outsidePerLineItem is true)
+  const isOutsideSplitValid = !outsidePerLineItem || outsideSplitReps.length === 0 || outsideSplitTotal === 100;
+
+  const insideSplitTotal = insideSplitReps.reduce((sum, r) => sum + (r.splitRate || 0), 0);
+  // Only validate inside split if we're showing it (insidePerLineItem is true)
+  const isInsideSplitValid = !insidePerLineItem || insideSplitReps.length === 0 || insideSplitTotal === 100;
+
+  const isSplitValid = isOutsideSplitValid && isInsideSplitValid;
 
   return (
     <>
@@ -213,30 +321,33 @@ export function AdditionalDetailsModal({
 
           {/* Content */}
           <div className="px-6 py-4 space-y-4 overflow-y-auto flex-1">
-            {/* End User */}
-            <div>
-              <label className="block text-sm text-gray-700 mb-1">End User</label>
-              <SearchableDropdownV2
-                value={formData.endUserId}
-                displayValue={formData.endUserName}
-                onChange={(id, label) => {
-                  setFormData({
-                    ...formData,
-                    endUserId: id,
-                    endUserName: label,
-                  });
-                }}
-                options={endUserOptions}
-                placeholder="Search end user..."
-                onSearch={(term) => {
-                  setEndUserSearchTerm(term);
-                  setEndUserSearchEnabled(true);
-                }}
-                isLoading={isEndUserLoading}
-              />
-            </div>
+            {/* End User - only shown when endUserPerLineItem is true */}
+            {endUserPerLineItem && (
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">End User</label>
+                <SearchableDropdownV2
+                  value={formData.endUserId}
+                  displayValue={formData.endUserName}
+                  onChange={(id, label) => {
+                    setFormData({
+                      ...formData,
+                      endUserId: id,
+                      endUserName: label,
+                    });
+                  }}
+                  options={endUserOptions}
+                  placeholder="Search end user..."
+                  onSearch={(term) => {
+                    setEndUserSearchTerm(term);
+                    setEndUserSearchEnabled(true);
+                  }}
+                  isLoading={isEndUserLoading}
+                />
+              </div>
+            )}
 
-            {/* Outside Rep Commission Split */}
+            {/* Outside Rep Commission Split - only shown when outsidePerLineItem is true */}
+            {outsidePerLineItem && (
             <div className="border border-green-200 rounded-lg p-4 bg-green-50/30">
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-2 h-2 rounded-full bg-green-500"></div>
@@ -257,13 +368,13 @@ export function AdditionalDetailsModal({
                           min="0"
                           max="100"
                           value={rep.splitRate}
-                          onChange={(e) => updateSplitRate(rep.id, parseInt(e.target.value) || 0)}
+                          onChange={(e) => updateOutsideSplitRate(rep.id, parseInt(e.target.value) || 0)}
                           className="w-14 px-2 py-1 text-sm border border-gray-300 rounded text-right"
                         />
                         <span className="text-sm text-gray-500">%</span>
                       </div>
                       <button
-                        onClick={() => removeRepFromSplit(rep.id)}
+                        onClick={() => removeOutsideRepFromSplit(rep.id)}
                         className="p-1 text-gray-400 hover:text-red-500"
                         title="Remove rep"
                       >
@@ -291,7 +402,7 @@ export function AdditionalDetailsModal({
                 onChange={(id) => {
                   const rep = outsideReps?.find(r => r.id === id);
                   if (rep) {
-                    addRepToSplit(rep);
+                    addOutsideRepToSplit(rep);
                   }
                 }}
                 options={outsideRepOptions.filter(opt => !outsideSplitReps.some(r => r.userId === opt.id))}
@@ -303,6 +414,77 @@ export function AdditionalDetailsModal({
                 placeholder="Search to add outside rep..."
               />
             </div>
+            )}
+
+            {/* Inside Rep Commission Split - only shown when insidePerLineItem is true */}
+            {insidePerLineItem && (
+            <div className="border border-blue-200 rounded-lg p-4 bg-blue-50/30">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                <label className="text-sm font-medium text-gray-800">Inside Rep Commission Split</label>
+              </div>
+
+              {/* Rep list */}
+              {insideSplitReps.length > 0 ? (
+                <div className="space-y-2 mb-3">
+                  {insideSplitReps.map((rep) => (
+                    <div key={rep.id} className="flex items-center gap-2 p-2 bg-white rounded-md border border-gray-200">
+                      <div className="flex-1">
+                        <span className="text-sm font-medium text-gray-900">{rep.userName || 'Unknown'}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={rep.splitRate}
+                          onChange={(e) => updateInsideSplitRate(rep.id, parseInt(e.target.value) || 0)}
+                          className="w-14 px-2 py-1 text-sm border border-gray-300 rounded text-right"
+                        />
+                        <span className="text-sm text-gray-500">%</span>
+                      </div>
+                      <button
+                        onClick={() => removeInsideRepFromSplit(rep.id)}
+                        className="p-1 text-gray-400 hover:text-red-500"
+                        title="Remove rep"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between text-xs px-1">
+                    <span className="text-gray-500">Total:</span>
+                    <span className={`font-medium ${insideSplitTotal === 100 ? 'text-blue-600' : 'text-red-600'}`}>
+                      {insideSplitTotal}%
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500 mb-3">No inside reps assigned. Search below to add.</p>
+              )}
+
+              {/* Add rep search */}
+              <SearchableDropdownV2
+                value=""
+                displayValue=""
+                onChange={(id) => {
+                  const rep = insideReps?.find(r => r.id === id);
+                  if (rep) {
+                    addInsideRepToSplit(rep);
+                  }
+                }}
+                options={insideRepOptions.filter(opt => !insideSplitReps.some(r => r.userId === opt.id))}
+                onSearch={(term) => {
+                  setInsideRepSearchTerm(term);
+                  setInsideRepSearchEnabled(true);
+                }}
+                isLoading={isInsideRepLoading}
+                placeholder="Search to add inside rep..."
+              />
+            </div>
+            )}
 
             {/* Commission Discount % */}
             <div>
@@ -405,16 +587,16 @@ export function AdditionalDetailsModal({
 
           {/* Footer */}
           <div className="px-6 py-4 border-t border-gray-200 flex-shrink-0">
-            {!isOutsideSplitValid && (
+            {!isSplitValid && (
               <p className="text-xs text-red-500 mb-2 text-center">
                 Split percentages must total 100%
               </p>
             )}
             <button
               onClick={handleSave}
-              disabled={!isOutsideSplitValid}
+              disabled={!isSplitValid}
               className={`w-full px-4 py-2 text-sm text-white rounded-lg transition-colors ${
-                isOutsideSplitValid
+                isSplitValid
                   ? 'bg-indigo-600 hover:bg-indigo-700'
                   : 'bg-gray-400 cursor-not-allowed'
               }`}

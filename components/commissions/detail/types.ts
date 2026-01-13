@@ -65,7 +65,9 @@ export interface LineItem {
   orderId: string; // Order UUID from API (empty for adjustments)
   orderNumber?: string; // Human-readable order number from nested order object
   customer: string;
-  salesRep: string;
+  salesRep: string; // Primary sales rep name
+  salesRepsCount?: number; // Total number of sales reps
+  salesRepsList?: string[]; // List of all sales rep names for tooltip
   commissionRateExpected: number;
   commissionRateActual: number;
   expectedCommission: number;
@@ -91,6 +93,8 @@ export interface LineItem {
   factoryName?: string; // From adjustment.factory.title
   customerName?: string; // From adjustment.customer.companyName
   locked?: boolean;
+  // For tracking new/unsaved items from "Invoices after" search
+  isNew?: boolean; // True for items added via "Invoices after" that haven't been saved yet
 }
 
 // Version info

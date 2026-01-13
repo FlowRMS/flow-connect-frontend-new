@@ -106,11 +106,12 @@ export function formatCreatedDateTime(dateString: string | null | undefined): st
   if (!dateString) return '-';
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return '-';
-  return date.toLocaleDateString('en-US', {
+  return date.toLocaleString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
+    hour12: true,
   });
 }

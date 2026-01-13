@@ -6,17 +6,17 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import type { Company, CompanyAddress, AddressType, ManufacturerInfo, SalesRepAssignment, CompanyHierarchyRole, ChildCompanyRef } from '../types';
-import type { CompanySourceType, Contact as APIContact, Job as APIJob } from '../../lib/crm-graphql';
-import CompanyRelatedEntities from './CompanyRelatedEntities';
-import ConnectedNotesSection from '../../notes/ConnectedNotesSection';
-import ConnectedTasksSection from '../../tasks/ConnectedTasksSection';
+import type { CompanySourceType } from '../../lib/crm-graphql';
+import { COMPANY_SOURCE_TYPE_OPTIONS, COMPANY_SOURCE_TYPE_LABELS } from '../../lib/crm-graphql';
+import type { RelatedEntityContact, RelatedEntityJob } from '../../lib/crm-graphql';
+import { ConnectedEntitiesSection } from '../../shared/ConnectedEntitiesSection';
 import DeleteConfirmModal from './DeleteConfirmModal';
-import { AddTaskNoteLinkModal } from '../modals/AddTaskNoteLinkModal';
 import { AddAddressModal, type Address } from '../../shared/AddAddressModal';
 import AliasesModal, { CompanyAlias } from '../../AliasesModal';
 import { SelectChildCompaniesModal } from '../modals/SelectChildCompaniesModal';
+import { useCompanySearch } from '../../notes/api';
 
-type TabId = 'overview' | 'factory-info' | 'sales-reps' | 'addresses' | 'contacts' | 'jobs' | 'quotes' | 'orders' | 'invoices' | 'commission-statements' | 'pre-quotes' | 'emails' | 'meetings' | 'tasks' | 'notes';
+type TabId = 'overview' | 'factory-info' | 'sales-reps' | 'addresses' | 'emails' | 'meetings' | 'connected-entities';
 
 // US States list
 const US_STATES = [
@@ -54,50 +54,37 @@ interface CompanyDetailViewProps {
   onDeleteConfirm: () => void;
   onDeleteCancel: () => void;
   onFieldChange: (field: string, value: string | number | boolean | string[] | CompanySourceType | CompanyAddress[] | ManufacturerInfo | SalesRepAssignment[] | CompanyHierarchyRole | ChildCompanyRef[]) => void;
-  onContactClick?: (contact: APIContact) => void;
-  onJobClick?: (job: APIJob) => void;
+  onContactClick?: (contact: RelatedEntityContact) => void;
+  onJobClick?: (job: RelatedEntityJob) => void;
 }
 
-// Default company type options
-const DEFAULT_COMPANY_TYPES = [
-  { value: 'Customer', label: 'Customer', color: { bg: 'bg-green-100', text: 'text-green-700', dot: 'bg-green-500' } },
-  { value: 'Manufacturer', label: 'Manufacturer', color: { bg: 'bg-purple-100', text: 'text-purple-700', dot: 'bg-purple-500' } },
-];
 
-// Company Type Single-Select Dropdown with "Add Category" option
+// Company Type Single-Select Dropdown using proper enum values
 function CompanyTypeSelect({
   value,
   onChange,
-  customTypes = [],
-  onAddCustomType,
   disabled,
 }: {
-  value: string;
-  onChange: (value: string) => void;
-  customTypes?: string[];
-  onAddCustomType?: (type: string) => void;
+  value: CompanySourceType | string;
+  onChange: (value: CompanySourceType) => void;
   disabled: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newTypeName, setNewTypeName] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // All options: defaults + custom
-  const allOptions = [
-    ...DEFAULT_COMPANY_TYPES,
-    ...customTypes.map(t => ({
-      value: t,
-      label: t,
-      color: { bg: 'bg-blue-100', text: 'text-blue-700', dot: 'bg-blue-500' },
-      isCustom: true,
-    })),
-  ];
+  // Filter options based on search term
+  const filteredOptions = COMPANY_SOURCE_TYPE_OPTIONS.filter(option =>
+    COMPANY_SOURCE_TYPE_LABELS[option].toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
-  const selectedOption = allOptions.find(opt => opt.value === value) || allOptions[0];
+  const selectedLabel = value && COMPANY_SOURCE_TYPE_LABELS[value as CompanySourceType]
+    ? COMPANY_SOURCE_TYPE_LABELS[value as CompanySourceType]
+    : 'Select Company Type';
 
   useEffect(() => {
     setPortalTarget(document.body);
@@ -106,8 +93,175 @@ function CompanyTypeSelect({
   useEffect(() => {
     if (isOpen && triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
-      const dropdownHeight = 200;
+      const dropdownHeight = 320;
       const spaceBelow = window.innerHeight - rect.bottom;
+
+      if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
+        setPosition({
+          top: rect.top + window.scrollY - dropdownHeight - 4,
+          left: rect.left + window.scrollX,
+          width: Math.max(rect.width, 280),
+        });
+      } else {
+        setPosition({
+          top: rect.bottom + window.scrollY + 4,
+          left: rect.left + window.scrollX,
+          width: Math.max(rect.width, 280),
+        });
+      }
+      // Focus search input when dropdown opens
+      setTimeout(() => searchInputRef.current?.focus(), 0);
+    } else {
+      setSearchTerm('');
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const isInsideTrigger = triggerRef.current?.contains(target);
+      const isInsideDropdown = dropdownRef.current?.contains(target);
+
+      if (!isInsideTrigger && !isInsideDropdown) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  if (disabled) {
+    return (
+      <div className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 flex items-center gap-2">
+        <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+        <span className="text-gray-900">{selectedLabel}</span>
+      </div>
+    );
+  }
+
+  const dropdownContent = isOpen && portalTarget && createPortal(
+    <div
+      ref={dropdownRef}
+      className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"
+      style={{ top: position.top, left: position.left, width: position.width }}
+    >
+      {/* Search input */}
+      <div className="p-2 border-b border-gray-100">
+        <input
+          ref={searchInputRef}
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search company types..."
+          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+      </div>
+      {/* Options list */}
+      <div className="max-h-60 overflow-y-auto py-1">
+        {filteredOptions.length === 0 ? (
+          <div className="px-4 py-3 text-sm text-gray-500 text-center">No matching types found</div>
+        ) : (
+          filteredOptions.map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => {
+                onChange(option);
+                setIsOpen(false);
+              }}
+              className={`
+                w-full px-4 py-2.5 text-left text-sm flex items-center gap-2.5
+                transition-colors hover:bg-gray-50
+                ${value === option ? 'bg-blue-50' : ''}
+              `}
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-500 flex-shrink-0" />
+              <span className={`flex-1 ${value === option ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
+                {COMPANY_SOURCE_TYPE_LABELS[option]}
+              </span>
+              {value === option && (
+                <svg className="w-4 h-4 text-blue-600 ml-auto flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </button>
+          ))
+        )}
+      </div>
+    </div>,
+    portalTarget
+  );
+
+  return (
+    <div className="relative">
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`
+          w-full px-4 py-3 border border-gray-300 rounded-lg text-sm bg-white text-left
+          flex items-center justify-between gap-2 transition-all
+          hover:border-blue-300 hover:shadow-sm cursor-pointer
+          ${isOpen ? 'ring-2 ring-blue-500 border-transparent shadow-sm' : ''}
+        `}
+      >
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+          <span className={value ? 'text-gray-900' : 'text-gray-400'}>{selectedLabel}</span>
+        </div>
+        <svg
+          className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {dropdownContent}
+    </div>
+  );
+}
+
+// Parent Company Search Select Component
+interface ParentCompanySelectProps {
+  value: string;
+  selectedName: string;
+  onChange: (id: string, name: string) => void;
+  onClear: () => void;
+  excludeId?: string;
+  disabled?: boolean;
+}
+
+function ParentCompanySelect({ value, selectedName, onChange, onClear, excludeId, disabled }: ParentCompanySelectProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
+  const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const { data: searchResults = [], isLoading } = useCompanySearch(searchQuery);
+
+  // Filter out current company from parent options
+  const filteredResults = searchResults.filter(c => c.id !== excludeId);
+
+  useEffect(() => {
+    setPortalTarget(document.body);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const dropdownHeight = 280;
 
       if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
         setPosition({
@@ -133,31 +287,28 @@ function CompanyTypeSelect({
 
       if (!isInsideTrigger && !isInsideDropdown) {
         setIsOpen(false);
+        setSearchQuery('');
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleAddCategory = () => {
-    if (newTypeName.trim() && onAddCustomType) {
-      const trimmed = newTypeName.trim();
-      // Don't allow duplicates
-      if (!allOptions.some(opt => opt.value.toLowerCase() === trimmed.toLowerCase())) {
-        onAddCustomType(trimmed);
-        onChange(trimmed); // Select the newly added type
-      }
-    }
-    setNewTypeName('');
-    setShowAddModal(false);
-    setIsOpen(false);
-  };
-
   if (disabled) {
     return (
       <div className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 flex items-center gap-2">
-        <span className={`w-2.5 h-2.5 rounded-full ${selectedOption.color.dot}`} />
-        <span className="text-gray-900">{selectedOption.label}</span>
+        {value ? (
+          <>
+            <div className="w-6 h-6 rounded bg-blue-100 flex items-center justify-center">
+              <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+            </div>
+            <span className="text-gray-900">{selectedName}</span>
+          </>
+        ) : (
+          <span className="text-gray-400">No parent company</span>
+        )}
       </div>
     );
   }
@@ -168,86 +319,88 @@ function CompanyTypeSelect({
       className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"
       style={{ top: position.top, left: position.left, width: position.width }}
     >
-      <div className="py-1 max-h-[250px] overflow-y-auto">
-        {allOptions.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            onClick={() => {
-              onChange(option.value);
-              setIsOpen(false);
-            }}
-            className={`
-              w-full px-4 py-2.5 text-left text-sm flex items-center gap-2.5
-              transition-colors hover:bg-gray-50
-              ${value === option.value ? 'bg-blue-50' : ''}
-            `}
-          >
-            <span className={`w-2.5 h-2.5 rounded-full ${option.color.dot} flex-shrink-0`} />
-            <span className={`flex-1 ${value === option.value ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
-              {option.label}
-            </span>
-            {value === option.value && (
-              <svg className="w-4 h-4 text-blue-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-              </svg>
-            )}
-          </button>
-        ))}
-
-        {/* Add Category Option */}
-        <div className="border-t border-gray-100 mt-1 pt-1">
-          <button
-            type="button"
-            onClick={() => setShowAddModal(true)}
-            className="w-full px-4 py-2.5 text-left text-sm flex items-center gap-2.5 text-gray-600 hover:bg-gray-50 transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            <span>Add category</span>
-          </button>
+      <div className="p-3 border-b border-gray-100">
+        <div className="relative">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Search companies..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       </div>
-    </div>,
-    portalTarget
-  );
 
-  // Add Category Modal
-  const addModal = showAddModal && portalTarget && createPortal(
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={() => setShowAddModal(false)} />
-      <div className="relative bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Add Company Type</h3>
-        <input
-          type="text"
-          value={newTypeName}
-          onChange={(e) => setNewTypeName(e.target.value)}
-          placeholder="Enter type name..."
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          autoFocus
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') handleAddCategory();
-            if (e.key === 'Escape') setShowAddModal(false);
+      <div className="max-h-48 overflow-y-auto">
+        <button
+          type="button"
+          onClick={() => {
+            onClear();
+            setIsOpen(false);
+            setSearchQuery('');
           }}
-        />
-        <div className="flex justify-end gap-3 mt-4">
-          <button
-            type="button"
-            onClick={() => setShowAddModal(false)}
-            className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleAddCategory}
-            disabled={!newTypeName.trim()}
-            className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-          >
-            Add
-          </button>
-        </div>
+          className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 transition-colors text-gray-500 flex items-center gap-2"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+          None (No parent company)
+        </button>
+
+        {isLoading ? (
+          <div className="px-4 py-6 text-center">
+            <svg className="animate-spin h-5 w-5 text-gray-400 mx-auto mb-2" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+            </svg>
+            <span className="text-sm text-gray-500">Searching...</span>
+          </div>
+        ) : filteredResults.length === 0 ? (
+          <div className="px-4 py-6 text-center text-sm text-gray-500">
+            {searchQuery ? 'No companies found' : 'Type to search for companies'}
+          </div>
+        ) : (
+          filteredResults.map((company) => (
+            <button
+              key={company.id}
+              type="button"
+              onClick={() => {
+                onChange(company.id, company.name);
+                setIsOpen(false);
+                setSearchQuery('');
+              }}
+              className={`w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 transition-colors flex items-center justify-between ${
+                value === company.id ? 'bg-blue-50' : ''
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-semibold ${
+                  company.companySourceType === 'MANUFACTURER' ? 'bg-purple-500' : 'bg-green-500'
+                }`}>
+                  {company.name.substring(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <div className={`font-medium ${value === company.id ? 'text-blue-600' : 'text-gray-900'}`}>
+                    {company.name}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {company.companySourceType === 'MANUFACTURER' ? 'Manufacturer' : 'Customer'}
+                  </div>
+                </div>
+              </div>
+              {value === company.id && (
+                <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </button>
+          ))
+        )}
       </div>
     </div>,
     portalTarget
@@ -255,20 +408,29 @@ function CompanyTypeSelect({
 
   return (
     <div className="relative">
-      <button
+      <div
         ref={triggerRef}
-        type="button"
         onClick={() => setIsOpen(!isOpen)}
         className={`
-          w-full px-4 py-3 border border-gray-300 rounded-lg text-sm bg-white text-left
+          w-full px-4 py-3 border border-gray-300 rounded-lg text-sm bg-white cursor-pointer
           flex items-center justify-between gap-2 transition-all
-          hover:border-blue-300 hover:shadow-sm cursor-pointer
+          hover:border-blue-300 hover:shadow-sm
           ${isOpen ? 'ring-2 ring-blue-500 border-transparent shadow-sm' : ''}
         `}
       >
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span className={`w-2.5 h-2.5 rounded-full ${selectedOption.color.dot}`} />
-          <span className="text-gray-900">{selectedOption.label}</span>
+          {value ? (
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded bg-blue-100 flex items-center justify-center">
+                <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
+              <span className="text-gray-900 truncate">{selectedName}</span>
+            </div>
+          ) : (
+            <span className="text-gray-400">Select parent company (optional)</span>
+          )}
         </div>
         <svg
           className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`}
@@ -278,9 +440,8 @@ function CompanyTypeSelect({
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
-      </button>
+      </div>
       {dropdownContent}
-      {addModal}
     </div>
   );
 }
@@ -443,11 +604,6 @@ export default function CompanyDetailView({
   onContactClick,
   onJobClick,
 }: CompanyDetailViewProps) {
-  // Modal states for linking tasks/notes
-  const [showAddLinkModal, setShowAddLinkModal] = useState(false);
-  const [addLinkEntityType, setAddLinkEntityType] = useState<'TASK' | 'NOTE'>('TASK');
-  const [tasksSectionKey, setTasksSectionKey] = useState(0);
-  const [notesSectionKey, setNotesSectionKey] = useState(0);
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [showAddAddressModal, setShowAddAddressModal] = useState(false);
   const [showAddTagModal, setShowAddTagModal] = useState(false);
@@ -496,35 +652,44 @@ export default function CompanyDetailView({
     'factory-info': null,
     'sales-reps': null,
     'addresses': null,
-    'contacts': null,
-    'jobs': null,
-    'quotes': null,
-    'orders': null,
-    'invoices': null,
-    'commission-statements': null,
-    'pre-quotes': null,
     'emails': null,
     'meetings': null,
-    'tasks': null,
-    'notes': null,
+    'connected-entities': null,
   });
 
   // Reference to the scrollable container
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
+  // Flag to disable scroll spy during programmatic scrolling
+  const isScrollingRef = useRef(false);
+
   const scrollToSection = useCallback((tabId: TabId) => {
     const section = sectionRefs.current[tabId];
     const container = scrollContainerRef.current;
     if (section && container) {
+      // Disable scroll spy during programmatic scroll
+      isScrollingRef.current = true;
+      setActiveTab(tabId);
+
+      // Calculate the section's position relative to the scroll container
+      const containerRect = container.getBoundingClientRect();
+      const sectionRect = section.getBoundingClientRect();
+      const scrollTop = container.scrollTop;
       const headerOffset = 20;
-      const sectionTop = section.offsetTop - headerOffset;
+
+      // Calculate the target scroll position
+      const sectionTop = sectionRect.top - containerRect.top + scrollTop - headerOffset;
 
       container.scrollTo({
         top: sectionTop,
         behavior: 'smooth'
       });
+
+      // Re-enable scroll spy after scroll animation completes
+      setTimeout(() => {
+        isScrollingRef.current = false;
+      }, 500);
     }
-    setActiveTab(tabId);
   }, []);
 
   // Scroll spy - update active tab based on scroll position
@@ -532,19 +697,23 @@ export default function CompanyDetailView({
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    const handleScroll = () => {
-      const scrollTop = container.scrollTop;
-      let currentSection: TabId = 'overview';
+    const tabIds: TabId[] = isManufacturer
+      ? ['overview', 'factory-info', 'sales-reps', 'addresses', 'emails', 'meetings', 'connected-entities']
+      : ['overview', 'sales-reps', 'addresses', 'emails', 'meetings', 'connected-entities'];
 
-      const tabIds: TabId[] = isManufacturer
-        ? ['overview', 'factory-info', 'addresses', 'contacts', 'pre-quotes', 'emails', 'meetings', 'tasks', 'notes']
-        : ['overview', 'addresses', 'contacts', 'pre-quotes', 'emails', 'meetings', 'tasks', 'notes'];
+    const handleScroll = () => {
+      // Skip scroll spy updates during programmatic scrolling
+      if (isScrollingRef.current) return;
+
+      const containerRect = container.getBoundingClientRect();
+      let currentSection: TabId = 'overview';
 
       for (const tabId of tabIds) {
         const section = sectionRefs.current[tabId];
         if (section) {
-          const sectionTop = section.offsetTop;
-          if (scrollTop >= sectionTop - 100) {
+          const sectionRect = section.getBoundingClientRect();
+          // Check if section top is at or above the container top + offset
+          if (sectionRect.top <= containerRect.top + 100) {
             currentSection = tabId;
           }
         }
@@ -554,24 +723,8 @@ export default function CompanyDetailView({
     };
 
     container.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll();
     return () => container.removeEventListener('scroll', handleScroll);
   }, [isManufacturer]);
-
-  // Handle link success - trigger refetch via key change
-  const handleLinkSuccess = () => {
-    if (addLinkEntityType === 'TASK') {
-      setTasksSectionKey(prev => prev + 1);
-    } else {
-      setNotesSectionKey(prev => prev + 1);
-    }
-  };
-
-  // Open add link modal for specific entity type
-  const openAddLinkModal = (entityType: 'TASK' | 'NOTE') => {
-    setAddLinkEntityType(entityType);
-    setShowAddLinkModal(true);
-  };
 
   // Get addresses
   const addresses = isEditing ? (editFormData.addresses || company.addresses || []) : (company.addresses || []);
@@ -671,17 +824,9 @@ export default function CompanyDetailView({
     ),
     { id: 'sales-reps', label: 'Sales Reps' },
     { id: 'addresses', label: 'Addresses' },
-    { id: 'contacts', label: 'Contacts' },
     { id: 'emails', label: 'Emails' },
     { id: 'meetings', label: 'Meetings' },
-    { id: 'tasks', label: 'Tasks' },
-    { id: 'notes', label: 'Notes' },
-    { id: 'jobs', label: 'Jobs' },
-    { id: 'pre-quotes', label: 'Pre-Quotes' },
-    { id: 'quotes', label: 'Quotes' },
-    { id: 'orders', label: 'Orders' },
-    { id: 'invoices', label: 'Invoices' },
-    { id: 'commission-statements', label: 'Commissions' },
+    { id: 'connected-entities', label: 'Connected Entities' },
   ];
 
   const inputClass = "w-full px-4 py-3 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400";
@@ -735,32 +880,63 @@ export default function CompanyDetailView({
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={onDeleteClick}
-              className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 hover:border-red-300 transition-colors"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M4 6h12M6 6v10a2 2 0 002 2h4a2 2 0 002-2V6M8 6V4a2 2 0 012-2h0a2 2 0 012 2v2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              Delete
-            </button>
-            <button
-              onClick={onSaveEdit}
-              disabled={updatePending}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-            >
-              {updatePending ? (
-                <>
-                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+            {isEditing ? (
+              <>
+                <button
+                  onClick={onDeleteClick}
+                  className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 hover:border-red-300 transition-colors"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M4 6h12M6 6v10a2 2 0 002 2h4a2 2 0 002-2V6M8 6V4a2 2 0 012-2h0a2 2 0 012 2v2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
-                  Saving...
-                </>
-              ) : (
-                'Save'
-              )}
-            </button>
+                  Delete
+                </button>
+                <button
+                  onClick={onCancelEdit}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={onSaveEdit}
+                  disabled={updatePending}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                  {updatePending ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                      </svg>
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Changes'
+                  )}
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={onDeleteClick}
+                  className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 hover:border-red-300 transition-colors"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M4 6h12M6 6v10a2 2 0 002 2h4a2 2 0 002-2V6M8 6V4a2 2 0 012-2h0a2 2 0 012 2v2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  Delete
+                </button>
+                <button
+                  onClick={onStartEdit}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  Edit
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -877,13 +1053,9 @@ export default function CompanyDetailView({
                   <div>
                     <label className={labelClass}>Company Type</label>
                     <CompanyTypeSelect
-                      value={isEditing ? (editFormData.type?.[0] ?? company.type[0] ?? 'Customer') : (company.type[0] ?? 'Customer')}
-                      onChange={(value) => onFieldChange('type', [value] as unknown as string)}
-                      customTypes={[]}
-                      onAddCustomType={(newType) => {
-                        onFieldChange('type', [newType] as unknown as string);
-                      }}
-                      disabled={false}
+                      value={isEditing ? (editFormData.companySourceType ?? company.companySourceType ?? 'CUSTOMER') : (company.companySourceType ?? 'CUSTOMER')}
+                      onChange={(value) => onFieldChange('companySourceType', value)}
+                      disabled={!isEditing}
                     />
                   </div>
                 </div>
@@ -1054,13 +1226,19 @@ export default function CompanyDetailView({
                       {(company.hierarchyRole !== 'grandparent') && (
                         <div>
                           <label className={labelClass}>Parent Company</label>
-                          <input
-                            type="text"
-                            value={isEditing ? (editFormData.parentCompanyName ?? company.parentCompanyName ?? '') : (company.parentCompanyName ?? '')}
-                            onChange={(e) => onFieldChange('parentCompanyName', e.target.value)}
-                            className={isEditing ? inputClass : readOnlyClass}
-                            readOnly={!isEditing}
-                            placeholder="Enter parent company name"
+                          <ParentCompanySelect
+                            value={isEditing ? (editFormData.parentCompanyId ?? company.parentCompanyId ?? '') : (company.parentCompanyId ?? '')}
+                            selectedName={isEditing ? (editFormData.parentCompanyName ?? company.parentCompanyName ?? '') : (company.parentCompanyName ?? '')}
+                            onChange={(id, name) => {
+                              onFieldChange('parentCompanyId', id);
+                              onFieldChange('parentCompanyName', name);
+                            }}
+                            onClear={() => {
+                              onFieldChange('parentCompanyId', '');
+                              onFieldChange('parentCompanyName', '');
+                            }}
+                            excludeId={company.id}
+                            disabled={!isEditing}
                           />
                         </div>
                       )}
@@ -1394,13 +1572,9 @@ export default function CompanyDetailView({
                     <div>
                       <label className={labelClass}>Company Type</label>
                       <CompanyTypeSelect
-                        value={isEditing ? (editFormData.type?.[0] ?? company.type[0] ?? 'Manufacturer') : (company.type[0] ?? 'Manufacturer')}
-                        onChange={(value) => onFieldChange('type', [value] as unknown as string)}
-                        customTypes={[]}
-                        onAddCustomType={(newType) => {
-                          onFieldChange('type', [newType] as unknown as string);
-                        }}
-                        disabled={false}
+                        value={isEditing ? (editFormData.companySourceType ?? company.companySourceType ?? 'MANUFACTURER') : (company.companySourceType ?? 'MANUFACTURER')}
+                        onChange={(value) => onFieldChange('companySourceType', value)}
+                        disabled={!isEditing}
                       />
                     </div>
 
@@ -1560,7 +1734,13 @@ export default function CompanyDetailView({
 
         {/* ============ SALES REPS SECTION ============ */}
         <div ref={el => { sectionRefs.current['sales-reps'] = el; }} id="section-sales-reps">
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] relative overflow-hidden opacity-60">
+            {/* Coming Soon Overlay */}
+            <div className="absolute inset-0 bg-gray-50/80 backdrop-blur-[1px] z-10 flex items-center justify-center">
+              <div className="bg-white px-4 py-2 rounded-full shadow-sm border border-gray-200">
+                <span className="text-sm font-medium text-gray-500">Coming Soon</span>
+              </div>
+            </div>
             <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <h2 className="text-lg font-semibold text-[var(--foreground)]">Sales Reps</h2>
@@ -1570,8 +1750,8 @@ export default function CompanyDetailView({
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => handleAddSalesRep('inside')}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                  disabled
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg opacity-50 cursor-not-allowed"
                 >
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
@@ -1579,8 +1759,8 @@ export default function CompanyDetailView({
                   Add Inside Rep
                 </button>
                 <button
-                  onClick={() => handleAddSalesRep('outside')}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+                  disabled
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg opacity-50 cursor-not-allowed"
                 >
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
@@ -1773,7 +1953,13 @@ export default function CompanyDetailView({
 
         {/* ============ ADDRESSES SECTION ============ */}
         <div ref={el => { sectionRefs.current['addresses'] = el; }} id="section-addresses">
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] relative overflow-hidden opacity-60">
+            {/* Coming Soon Overlay */}
+            <div className="absolute inset-0 bg-gray-50/80 backdrop-blur-[1px] z-10 flex items-center justify-center">
+              <div className="bg-white px-4 py-2 rounded-full shadow-sm border border-gray-200">
+                <span className="text-sm font-medium text-gray-500">Coming Soon</span>
+              </div>
+            </div>
             <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <h2 className="text-lg font-semibold text-[var(--foreground)]">Addresses</h2>
@@ -1783,8 +1969,8 @@ export default function CompanyDetailView({
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => {/* TODO: Link address modal */}}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                  disabled
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg opacity-50 cursor-not-allowed"
                 >
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
@@ -1793,8 +1979,8 @@ export default function CompanyDetailView({
                   Link Address
                 </button>
                 <button
-                  onClick={() => setShowAddAddressModal(true)}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+                  disabled
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg opacity-50 cursor-not-allowed"
                 >
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
@@ -1835,314 +2021,15 @@ export default function CompanyDetailView({
           </div>
         </div>
 
-        {/* ============ CONTACTS SECTION ============ */}
-        <div ref={el => { sectionRefs.current['contacts'] = el; }} id="section-contacts">
-          <CompanyRelatedEntities
-            company={company}
-            onContactClick={onContactClick}
-            onJobClick={onJobClick}
-            onNewContactClick={() => {/* TODO: New contact modal */}}
-            onNewJobClick={() => {/* TODO: New job modal */}}
-          />
-        </div>
-
-        {/* ============ JOBS SECTION ============ */}
-        <div ref={el => { sectionRefs.current['jobs'] = el; }} id="section-jobs">
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
-            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg font-semibold text-[var(--foreground)]">Jobs</h2>
-                <span className="px-2 py-0.5 text-xs font-medium bg-[var(--muted)] text-[var(--muted-foreground)] rounded-full">
-                  0
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {/* TODO: Link job modal */}}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg hover:bg-[var(--muted)] transition-colors"
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Link Job
-                </button>
-                <button
-                  onClick={() => {/* TODO: New job modal */}}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-                  </svg>
-                  New Job
-                </button>
-              </div>
-            </div>
-            <div className="p-6">
-              <div className="text-center py-4 text-[var(--muted-foreground)]">
-                <svg className="w-12 h-12 text-[var(--muted-foreground)]/30 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-                <p className="text-sm">No jobs linked</p>
-                <button
-                  onClick={() => {/* TODO: New job modal */}}
-                  className="mt-2 text-sm text-[var(--primary)] hover:underline"
-                >
-                  + Add a job
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ============ QUOTES SECTION ============ */}
-        <div ref={el => { sectionRefs.current['quotes'] = el; }} id="section-quotes">
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
-            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg font-semibold text-[var(--foreground)]">Quotes</h2>
-                <span className="px-2 py-0.5 text-xs font-medium bg-[var(--muted)] text-[var(--muted-foreground)] rounded-full">
-                  0
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {/* TODO: Link quote modal */}}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg hover:bg-[var(--muted)] transition-colors"
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Link Quote
-                </button>
-                <button
-                  onClick={() => {/* TODO: New quote modal */}}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-                  </svg>
-                  New Quote
-                </button>
-              </div>
-            </div>
-            <div className="p-6">
-              <div className="text-center py-4 text-[var(--muted-foreground)]">
-                <svg className="w-12 h-12 text-[var(--muted-foreground)]/30 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <p className="text-sm">No quotes linked</p>
-                <button
-                  onClick={() => {/* TODO: New quote modal */}}
-                  className="mt-2 text-sm text-[var(--primary)] hover:underline"
-                >
-                  + Add a quote
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ============ ORDERS SECTION ============ */}
-        <div ref={el => { sectionRefs.current['orders'] = el; }} id="section-orders">
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
-            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg font-semibold text-[var(--foreground)]">Orders</h2>
-                <span className="px-2 py-0.5 text-xs font-medium bg-[var(--muted)] text-[var(--muted-foreground)] rounded-full">
-                  0
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {/* TODO: Link order modal */}}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg hover:bg-[var(--muted)] transition-colors"
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Link Order
-                </button>
-                <button
-                  onClick={() => {/* TODO: New order modal */}}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-                  </svg>
-                  New Order
-                </button>
-              </div>
-            </div>
-            <div className="p-6">
-              <div className="text-center py-4 text-[var(--muted-foreground)]">
-                <svg className="w-12 h-12 text-[var(--muted-foreground)]/30 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                </svg>
-                <p className="text-sm">No orders linked</p>
-                <button
-                  onClick={() => {/* TODO: New order modal */}}
-                  className="mt-2 text-sm text-[var(--primary)] hover:underline"
-                >
-                  + Add an order
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ============ INVOICES SECTION ============ */}
-        <div ref={el => { sectionRefs.current['invoices'] = el; }} id="section-invoices">
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
-            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg font-semibold text-[var(--foreground)]">Invoices</h2>
-                <span className="px-2 py-0.5 text-xs font-medium bg-[var(--muted)] text-[var(--muted-foreground)] rounded-full">
-                  0
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {/* TODO: Link invoice modal */}}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg hover:bg-[var(--muted)] transition-colors"
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Link Invoice
-                </button>
-                <button
-                  onClick={() => {/* TODO: New invoice modal */}}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-                  </svg>
-                  New Invoice
-                </button>
-              </div>
-            </div>
-            <div className="p-6">
-              <div className="text-center py-4 text-[var(--muted-foreground)]">
-                <svg className="w-12 h-12 text-[var(--muted-foreground)]/30 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2zM10 8.5a.5.5 0 11-1 0 .5.5 0 011 0zm5 5a.5.5 0 11-1 0 .5.5 0 011 0z" />
-                </svg>
-                <p className="text-sm">No invoices linked</p>
-                <button
-                  onClick={() => {/* TODO: New invoice modal */}}
-                  className="mt-2 text-sm text-[var(--primary)] hover:underline"
-                >
-                  + Add an invoice
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ============ COMMISSION STATEMENTS SECTION ============ */}
-        <div ref={el => { sectionRefs.current['commission-statements'] = el; }} id="section-commission-statements">
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
-            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg font-semibold text-[var(--foreground)]">Commissions</h2>
-                <span className="px-2 py-0.5 text-xs font-medium bg-[var(--muted)] text-[var(--muted-foreground)] rounded-full">
-                  0
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {/* TODO: Link commission statement modal */}}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg hover:bg-[var(--muted)] transition-colors"
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Link Statement
-                </button>
-                <button
-                  onClick={() => {/* TODO: New commission statement modal */}}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-                  </svg>
-                  New Statement
-                </button>
-              </div>
-            </div>
-            <div className="p-6">
-              <div className="text-center py-4 text-[var(--muted-foreground)]">
-                <svg className="w-12 h-12 text-[var(--muted-foreground)]/30 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <p className="text-sm">No commission statements linked</p>
-                <button
-                  onClick={() => {/* TODO: New commission statement modal */}}
-                  className="mt-2 text-sm text-[var(--primary)] hover:underline"
-                >
-                  + Add a statement
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ============ PRE-QUOTES SECTION ============ */}
-        <div ref={el => { sectionRefs.current['pre-quotes'] = el; }} id="section-pre-quotes">
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
-            <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg font-semibold text-[var(--foreground)]">Pre-Quotes</h2>
-                <span className="px-2 py-0.5 text-xs font-medium bg-[var(--muted)] text-[var(--muted-foreground)] rounded-full">
-                  0
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {/* TODO: Link pre-quote modal */}}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg hover:bg-[var(--muted)] transition-colors"
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M6.172 9.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Link Pre-Quote
-                </button>
-                <button
-                  onClick={() => {/* TODO: New pre-quote modal */}}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
-                  </svg>
-                  New Pre-Quote
-                </button>
-              </div>
-            </div>
-            <div className="p-6">
-              <div className="text-center py-4 text-[var(--muted-foreground)]">
-                <svg className="w-12 h-12 text-[var(--muted-foreground)]/30 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <p className="text-sm">No pre-quotes linked</p>
-                <button
-                  onClick={() => {/* TODO: New pre-quote modal */}}
-                  className="mt-2 text-sm text-[var(--primary)] hover:underline"
-                >
-                  + Add a pre-quote
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* ============ EMAILS SECTION ============ */}
         <div ref={el => { sectionRefs.current['emails'] = el; }} id="section-emails">
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] relative overflow-hidden opacity-60">
+            {/* Coming Soon Overlay */}
+            <div className="absolute inset-0 bg-gray-50/80 backdrop-blur-[1px] z-10 flex items-center justify-center">
+              <div className="bg-white px-4 py-2 rounded-full shadow-sm border border-gray-200">
+                <span className="text-sm font-medium text-gray-500">Coming Soon</span>
+              </div>
+            </div>
             <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <h2 className="text-lg font-semibold text-[var(--foreground)]">Emails</h2>
@@ -2152,8 +2039,8 @@ export default function CompanyDetailView({
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => {/* TODO: Link email modal */}}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                  disabled
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg opacity-50 cursor-not-allowed"
                 >
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
@@ -2162,8 +2049,8 @@ export default function CompanyDetailView({
                   Link Email
                 </button>
                 <button
-                  onClick={() => {/* TODO: Compose email modal */}}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+                  disabled
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg opacity-50 cursor-not-allowed"
                 >
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
@@ -2178,12 +2065,6 @@ export default function CompanyDetailView({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
                 <p className="text-sm">No emails linked</p>
-                <button
-                  onClick={() => {/* TODO: Compose email modal */}}
-                  className="mt-2 text-sm text-[var(--primary)] hover:underline"
-                >
-                  + Compose an email
-                </button>
               </div>
             </div>
           </div>
@@ -2191,7 +2072,13 @@ export default function CompanyDetailView({
 
         {/* ============ MEETINGS SECTION ============ */}
         <div ref={el => { sectionRefs.current['meetings'] = el; }} id="section-meetings">
-          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
+          <div className="bg-[var(--card)] rounded-lg border border-[var(--border)] relative overflow-hidden opacity-60">
+            {/* Coming Soon Overlay */}
+            <div className="absolute inset-0 bg-gray-50/80 backdrop-blur-[1px] z-10 flex items-center justify-center">
+              <div className="bg-white px-4 py-2 rounded-full shadow-sm border border-gray-200">
+                <span className="text-sm font-medium text-gray-500">Coming Soon</span>
+              </div>
+            </div>
             <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <h2 className="text-lg font-semibold text-[var(--foreground)]">Meetings</h2>
@@ -2201,8 +2088,8 @@ export default function CompanyDetailView({
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => {/* TODO: Link meeting modal */}}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+                  disabled
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-[var(--border)] text-[var(--foreground)] rounded-lg opacity-50 cursor-not-allowed"
                 >
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" strokeLinecap="round" strokeLinejoin="round"/>
@@ -2211,8 +2098,8 @@ export default function CompanyDetailView({
                   Link Meeting
                 </button>
                 <button
-                  onClick={() => {/* TODO: Schedule meeting modal */}}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+                  disabled
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-white rounded-lg opacity-50 cursor-not-allowed"
                 >
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M10 5v10M5 10h10" strokeLinecap="round"/>
@@ -2227,54 +2114,24 @@ export default function CompanyDetailView({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
                 <p className="text-sm">No meetings linked</p>
-                <button
-                  onClick={() => {/* TODO: Schedule meeting modal */}}
-                  className="mt-2 text-sm text-[var(--primary)] hover:underline"
-                >
-                  + Schedule a meeting
-                </button>
               </div>
             </div>
           </div>
         </div>
 
-        {/* ============ TASKS SECTION ============ */}
-        <div ref={el => { sectionRefs.current['tasks'] = el; }} id="section-tasks">
-          <ConnectedTasksSection
-            key={`tasks-${tasksSectionKey}`}
+        {/* ============ CONNECTED ENTITIES SECTION ============ */}
+        <div ref={el => { sectionRefs.current['connected-entities'] = el; }} id="section-connected-entities">
+          <ConnectedEntitiesSection
             entityId={company.id}
-            entityType="COMPANY"
-            title="Tasks"
-            onAddClick={() => { openAddLinkModal('TASK'); }}
-            onNewClick={() => {/* TODO: New task modal */}}
-            onUnlinkSuccess={() => setTasksSectionKey(prev => prev + 1)}
-          />
-        </div>
-
-        {/* ============ NOTES SECTION ============ */}
-        <div ref={el => { sectionRefs.current['notes'] = el; }} id="section-notes">
-          <ConnectedNotesSection
-            key={`notes-${notesSectionKey}`}
-            entityId={company.id}
-            entityType="COMPANY"
-            title="Notes"
-            onAddClick={() => { openAddLinkModal('NOTE'); }}
-            onNewClick={() => {/* TODO: New note modal */}}
-            onUnlinkSuccess={() => setNotesSectionKey(prev => prev + 1)}
+            sourceEntityType="COMPANY"
+            title="Connected Entities"
+            enabledCategories={['contacts', 'jobs', 'pre-opportunities', 'tasks', 'notes', 'quotes', 'orders', 'invoices', 'checks', 'files']}
+            onContactClick={onContactClick}
+            onJobClick={onJobClick}
           />
         </div>
 
       </div>
-
-      {/* Add Link Modal for Tasks/Notes */}
-      <AddTaskNoteLinkModal
-        isOpen={showAddLinkModal}
-        entityId={company.id}
-        entityType="COMPANY"
-        initialLinkType={addLinkEntityType}
-        onClose={() => { setShowAddLinkModal(false); }}
-        onSuccess={handleLinkSuccess}
-      />
 
       <AddAddressModal
         isOpen={showAddAddressModal}

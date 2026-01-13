@@ -322,7 +322,7 @@ export function AdjustmentModal({
   const addRep = useCallback((repId: string, repName: string) => {
     if (!splitRates.some(r => r.userId === repId)) {
       const newRep: SplitRateState = {
-        id: crypto.randomUUID(),
+        id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
         userId: repId,
         userName: repName,
         splitRate: 0,

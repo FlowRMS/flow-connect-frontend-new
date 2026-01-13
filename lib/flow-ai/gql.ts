@@ -1166,6 +1166,38 @@ export const M_SEND_PENDING_DOCUMENT_STATUS_EMAIL = gql`
   }
 `;
 
+// Mutation to trigger pending entities by factory
+// Used when factory is matched in CHECKS/INVOICES documents to populate Orders, Invoices, Credits, Adjustments tabs
+export const M_TRIGGER_PENDING_ENTITIES_BY_FACTORY = gql`
+  mutation TriggerPendingEntitiesByFactory($input: TriggerPendingEntitiesInput!) {
+    triggerPendingEntitiesByFactory(input: $input) {
+      bestMatchId
+      bestMatchName
+      bestMatchSimilarity
+      confirmationStatus
+      confirmedAt
+      confirmedByUserId
+      matchCandidates {
+        similarityScore
+        rank
+        name
+        metadata
+        entityId
+      }
+      updatedAt
+      sourceLineNumbers
+      pendingDocumentId
+      id
+      flowIndexDetail
+      extractedData
+      entityType
+      dtoIds
+      displayName
+      createdAt
+    }
+  }
+`;
+
 
 
 

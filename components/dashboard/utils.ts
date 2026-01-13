@@ -363,7 +363,11 @@ function transformTask(task: TaskLandingPage): Activity {
     entity: task.title,
     entityType: 'Task',
     tags: task.priority ? [task.priority] : [],
-    assignedTo: task.assignedTo || task.createdBy || 'Unassigned',
+    assignedTo: (task.assignees && task.assignees.length > 0)
+      ? (task.assignees.length === 1
+          ? (task.assignees[0]?.trim() || 'Unknown')
+          : `${task.assignees.length} assignees`)
+      : (task.createdBy || 'Unassigned'),
     mentions: [],
     linkedEntities,
     status: task.status,

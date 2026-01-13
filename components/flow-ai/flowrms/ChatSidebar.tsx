@@ -88,7 +88,7 @@ export const ChatSidebar = memo(function ChatSidebar({
         </div>
 
         {/* Chat Icons */}
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1" showScrollbar>
           <div className="p-2 space-y-2">
             {chats.map((chat) => (
               <Button
@@ -154,7 +154,7 @@ export const ChatSidebar = memo(function ChatSidebar({
       </div>
 
       {/* Chat List */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1" showScrollbar>
         <div className="p-3 space-y-1.5">
           {isLoading && chats.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">

@@ -67,7 +67,23 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/flow-ai/ui/tooltip';
+import { Check, ChevronsUpDown } from 'lucide-react';
+import { cn } from '@/lib/flow-ai/cn';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/flow-ai/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/flow-ai/ui/popover';
 import { AdminSettingsDialog } from '@/components/flow-ai/flowrms/AdminSettingsDialog';
+import { searchUsers } from '@/components/lib/api/search';
 import { navigateToNewUpload } from '@/lib/flow-ai/navigation-utils';
 import { useApolloClient, useMutation } from '@apollo/client/react';
 import { Q_PENDING_DOCUMENTS_LANDING, M_ARCHIVE_PENDING_DOCUMENTS, M_SEND_PENDING_DOCUMENT_STATUS_EMAIL } from '@/lib/flow-ai/gql';
@@ -444,8 +460,79 @@ function QueuePageContent() {
   const [entityTypeFilter, setEntityTypeFilter] = useState<EntityType | 'all'>('all');
   const [createdByIdFilter, setCreatedByIdFilter] = useState<string | 'all'>('all');
 
-  // Track unique creators from loaded documents for the filter dropdown
-  const [uniqueCreators, setUniqueCreators] = useState<{ id: string; name: string }[]>([]);
+  // User search state
+  const [userSearchOpen, setUserSearchOpen] = useState(false);
+  const [userSearchQuery, setUserSearchQuery] = useState("");
+  const [userOptions, setUserOptions] = useState<{ id: string; name: string }[]>([]);
+  // Cache all known users for label display
+  const [userCache, setUserCache] = useState<Map<string, string>>(new Map());
+
+  // Track unique creators from loaded documents for the filter dropdown fallback
+  const [documentCreators, setDocumentCreators] = useState<{ id: string; name: string }[]>([]);
+
+  // Update user cache helper
+  const updateUserCache = useCallback((users: { id: string; name: string }[]) => {
+    setUserCache(prev => {
+      const next = new Map(prev);
+      users.forEach(u => {
+        if (u.id && u.name) next.set(u.id, u.name);
+      });
+      return next;
+    });
+  }, []);
+
+  // Pre-populate user cache and options
+  useEffect(() => {
+    const fetchInitialUsers = async () => {
+      try {
+        const users = await searchUsers({ searchTerm: '', limit: 50 });
+        const formattedUsers = users.map(user => ({
+          id: user.id,
+          name: user.fullName || [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || user.email || 'Unknown'
+        }));
+        setUserOptions(formattedUsers);
+        updateUserCache(formattedUsers);
+      } catch (error) {
+        console.error('Failed to fetch initial users:', error);
+      }
+    };
+    fetchInitialUsers();
+  }, [updateUserCache]);
+
+  // Search users effect
+  useEffect(() => {
+    const fetchUsers = async () => {
+      if (!userSearchQuery) {
+        // If query is empty, show document creators + initial list (or just document creators?)
+        // Let's fallback to document creators if available, merged with current options?
+        // Actually, let's just re-fetch default or show document creators.
+        // Simple: Set options to documentCreators merged with whatever we had initially?
+        // Let's just do a default search or rely on documentCreators.
+        setUserOptions(prev => {
+           // Merge document creators into view when search is empty
+           const existing = new Map(prev.map(p => [p.id, p]));
+           documentCreators.forEach(dc => existing.set(dc.id, dc));
+           return Array.from(existing.values()).sort((a,b) => a.name.localeCompare(b.name));
+        });
+        return;
+      }
+
+      try {
+        const users = await searchUsers({ searchTerm: userSearchQuery, limit: 20 });
+        const formattedUsers = users.map(user => ({
+          id: user.id,
+          name: user.fullName || [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || user.email || 'Unknown'
+        }));
+        setUserOptions(formattedUsers);
+        updateUserCache(formattedUsers);
+      } catch (error) {
+        console.error('Failed to search users:', error);
+      }
+    };
+
+    const timer = setTimeout(fetchUsers, 300);
+    return () => clearTimeout(timer);
+  }, [userSearchQuery, documentCreators, updateUserCache]);
 
   // Sorting state
   const [orderBy, setOrderBy] = useState<OrderBy>('CREATED_AT');
@@ -612,15 +699,21 @@ function QueuePageContent() {
       setTotalCount(response?.total || 0);
 
       // Update unique creators list (merge with existing to keep all seen creators)
-      setUniqueCreators(prev => {
-        const existingMap = new Map(prev.map(c => [c.id, c]));
-        items.forEach(doc => {
-          if (doc.createdById && doc.createdBy && !existingMap.has(doc.createdById)) {
-            existingMap.set(doc.createdById, { id: doc.createdById, name: doc.createdBy });
-          }
-        });
-        return Array.from(existingMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+      const creators: { id: string; name: string }[] = [];
+      items.forEach(doc => {
+        if (doc.createdById && doc.createdBy) {
+          creators.push({ id: doc.createdById, name: doc.createdBy });
+        }
       });
+      
+      if (creators.length > 0) {
+        setDocumentCreators(prev => {
+          const next = new Map(prev.map(c => [c.id, c]));
+          creators.forEach(c => next.set(c.id, c));
+          return Array.from(next.values()).sort((a, b) => a.name.localeCompare(b.name));
+        });
+        updateUserCache(creators);
+      }
 
       if (showRefreshToast) {
         toast.success('Queue refreshed');
@@ -667,15 +760,21 @@ function QueuePageContent() {
           setTotalCount(response?.total || 0);
 
           // Update unique creators list
-          setUniqueCreators(prev => {
-            const existingMap = new Map(prev.map(c => [c.id, c]));
-            items.forEach(doc => {
-              if (doc.createdById && doc.createdBy && !existingMap.has(doc.createdById)) {
-                existingMap.set(doc.createdById, { id: doc.createdById, name: doc.createdBy });
-              }
-            });
-            return Array.from(existingMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+          const creators: { id: string; name: string }[] = [];
+          items.forEach(doc => {
+            if (doc.createdById && doc.createdBy) {
+              creators.push({ id: doc.createdById, name: doc.createdBy });
+            }
           });
+          
+          if (creators.length > 0) {
+            setDocumentCreators(prev => {
+              const next = new Map(prev.map(c => [c.id, c]));
+              creators.forEach(c => next.set(c.id, c));
+              return Array.from(next.values()).sort((a, b) => a.name.localeCompare(b.name));
+            });
+            updateUserCache(creators);
+          }
         } catch (error) {
           // Silent fail - don't show error to user for background refresh
           console.error('Silent refresh failed:', error);
@@ -846,7 +945,7 @@ function QueuePageContent() {
   };
 
   return (
-    <div className="min-h-full bg-gradient-to-br from-background via-background to-primary/5 flex flex-col">
+    <div className="h-full overflow-y-auto bg-gradient-to-br from-background via-background to-primary/5 flex flex-col">
       {/* Main Content */}
       <main className="flex-1 w-full max-w-[1800px] mx-auto px-6 py-8">
         <div className="space-y-6">
@@ -947,20 +1046,73 @@ function QueuePageContent() {
                       </SelectContent>
                     </Select>
 
-                    <Select value={createdByIdFilter} onValueChange={(v) => setCreatedByIdFilter(v)}>
-                      <SelectTrigger className="w-[180px] focus:ring-0 focus:ring-offset-0">
-                        <Users className="w-4 h-4 mr-2 shrink-0" />
-                        <SelectValue placeholder="Created By" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Users</SelectItem>
-                        {uniqueCreators.map((creator) => (
-                          <SelectItem key={creator.id} value={creator.id}>
-                            {creator.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Popover open={userSearchOpen} onOpenChange={setUserSearchOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={userSearchOpen}
+                          className="w-[200px] justify-between focus:ring-0 focus:ring-offset-0"
+                        >
+                          <div className="flex items-center truncate">
+                            <Users className="w-4 h-4 mr-2 shrink-0" />
+                            <span className="truncate">
+                              {createdByIdFilter !== 'all'
+                                ? userCache.get(createdByIdFilter) || 'Unknown User'
+                                : "All Users"}
+                            </span>
+                          </div>
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[200px] p-0">
+                        <Command shouldFilter={false}>
+                          <CommandInput 
+                            placeholder="Search user..." 
+                            value={userSearchQuery}
+                            onValueChange={setUserSearchQuery}
+                          />
+                          <CommandList>
+                            <CommandEmpty>No user found.</CommandEmpty>
+                            <CommandGroup>
+                              <CommandItem
+                                value="all"
+                                onSelect={() => {
+                                  setCreatedByIdFilter("all");
+                                  setUserSearchOpen(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    createdByIdFilter === "all" ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                All Users
+                              </CommandItem>
+                              {(userOptions.length > 0 ? userOptions : documentCreators).map((user) => (
+                                <CommandItem
+                                  key={user.id}
+                                  value={user.id}
+                                  onSelect={() => {
+                                    setCreatedByIdFilter(user.id);
+                                    setUserSearchOpen(false);
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      createdByIdFilter === user.id ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  {user.name}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
 
                     {hasActiveFilters && (
                       <Button variant="ghost" size="sm" onClick={clearFilters} className="h-10 focus:ring-0 focus:ring-offset-0 focus-visible:ring-0">

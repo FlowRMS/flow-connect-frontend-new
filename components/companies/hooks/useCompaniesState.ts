@@ -2,7 +2,7 @@
  * Custom Hook for Companies State Management
  */
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import type { Company, ViewMode } from '../types';
 import type { ActiveFilter, ActiveSort } from '../../advancedFilters/AdvancedFilters';
 import { applyFilter as applyFilterUtil } from '../../lib/filter-utils';
@@ -19,9 +19,35 @@ export function useCompaniesState(
 
   // Company selection and editing
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
-  // Always editable by default
-  const [isEditing, setIsEditing] = useState(true);
+  // Start in view mode - user clicks Edit to enable editing
+  const [isEditing, setIsEditing] = useState(false);
   const [editFormData, setEditFormData] = useState<Partial<Company>>({});
+
+  // Auto-initialize editFormData when selectedCompany changes
+  // This fixes the "can't edit until refresh" bug by ensuring form data is populated on navigation
+  useEffect(() => {
+    if (selectedCompany) {
+      setEditFormData({
+        name: selectedCompany.name,
+        phone: selectedCompany.phone,
+        website: selectedCompany.website,
+        companySourceType: selectedCompany.companySourceType,
+        tags: selectedCompany.tags,
+        parentCompanyId: selectedCompany.parentCompanyId,
+        parentCompanyName: selectedCompany.parentCompanyName,
+        grandparentCompanyId: selectedCompany.grandparentCompanyId,
+        grandparentCompanyName: selectedCompany.grandparentCompanyName,
+        hierarchyRole: selectedCompany.hierarchyRole,
+        addresses: selectedCompany.addresses,
+        manufacturerInfo: selectedCompany.manufacturerInfo,
+        salesReps: selectedCompany.salesReps,
+        standardCommissionRate: selectedCompany.standardCommissionRate,
+        warehouseCommissionRate: selectedCompany.warehouseCommissionRate,
+      });
+    } else {
+      setEditFormData({});
+    }
+  }, [selectedCompany]);
 
   // Modals
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -132,6 +158,17 @@ export function useCompaniesState(
         phone: selectedCompany.phone,
         website: selectedCompany.website,
         companySourceType: selectedCompany.companySourceType,
+        tags: selectedCompany.tags,
+        parentCompanyId: selectedCompany.parentCompanyId,
+        parentCompanyName: selectedCompany.parentCompanyName,
+        grandparentCompanyId: selectedCompany.grandparentCompanyId,
+        grandparentCompanyName: selectedCompany.grandparentCompanyName,
+        hierarchyRole: selectedCompany.hierarchyRole,
+        addresses: selectedCompany.addresses,
+        manufacturerInfo: selectedCompany.manufacturerInfo,
+        salesReps: selectedCompany.salesReps,
+        standardCommissionRate: selectedCompany.standardCommissionRate,
+        warehouseCommissionRate: selectedCompany.warehouseCommissionRate,
       });
       setIsEditing(true);
     }
