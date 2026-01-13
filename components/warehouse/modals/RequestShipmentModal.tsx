@@ -1,8 +1,33 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
-import { getWarehouseFactories, mockInventory, mockWarehouses, getManufacturerContacts, getDefaultContact, setDefaultContact, addShipmentRequest } from '@/lib/data/warehouse-mock';
-import { ManufacturerContact, ShipmentRequestMethod, ShipmentRequest, shipmentRequestMethodLabels } from '@/lib/types/warehouse';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useQuery } from '@apollo/client/react';
+import { GET_FACTORIES, GET_PRODUCTS } from '@/app/graphql/warehouse';
+import { ShipmentRequestMethod, ShipmentRequestStatus, ShipmentPriority, shipmentRequestMethodLabels } from '@/lib/types/warehouse';
+import { formatQuantity } from '../inventory/utils';
+
+interface VendorProduct {
+  productId: string;
+  productName: string;
+  partNumber: string;
+  factoryId: string;
+  availableQuantity: number;
+  reorderPoint: number;
+}
+
+export interface CreateShipmentRequestInput {
+  warehouseId: string;
+  factoryId: string;
+  requestDate: string;
+  priority: ShipmentPriority;
+  method?: ShipmentRequestMethod | null;
+  status: ShipmentRequestStatus;
+  notes?: string | null;
+  items: {
+    productId: string;
+    quantity: number;
+  }[];
+}
 
 interface RequestShipmentLineItem {
   id: string;
@@ -15,27 +40,60 @@ interface RequestShipmentLineItem {
 }
 
 interface RequestShipmentModalProps {
+  currentWarehouseId?: string;
+  currentWarehouseName?: string;
+  editingRequestId?: string;
+  initialVendorId?: string;
+  initialItems?: { productId: string; quantity: number }[];
   onClose: () => void;
-  onSubmit: (request: ShipmentRequest) => void;
+  onSubmit: (input: CreateShipmentRequestInput) => void;
+  onUpdate?: (requestId: string, input: UpdateShipmentRequestInput) => void;
 }
 
-export default function RequestShipmentModal({ onClose, onSubmit }: RequestShipmentModalProps) {
-  const factories = useMemo(() => getWarehouseFactories(), []);
+export interface UpdateShipmentRequestInput {
+  id: string;
+  factoryId?: string;
+  priority?: string;
+  method?: string;
+  status?: string;
+  notes?: string;
+  items?: { productId: string; quantity: number }[];
+}
+
+export default function RequestShipmentModal({
+  currentWarehouseId,
+  currentWarehouseName,
+  editingRequestId,
+  initialVendorId,
+  initialItems,
+  onClose,
+  onSubmit,
+  onUpdate,
+}: RequestShipmentModalProps) {
+  // Queries
+  const { data: factoriesData, loading: loadingFactories, error: factoriesError } = useQuery<{ factorySearch: any[] }>(GET_FACTORIES, {
+    variables: { search: '' } // Fetch all factories
+  });
+
+  const factories = useMemo(() => factoriesData?.factorySearch || [], [factoriesData]);
 
   // Form state
   const [selectedVendorId, setSelectedVendorId] = useState<string>('');
-  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>(mockWarehouses[0]?.id || '');
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>(currentWarehouseId || '');
   const [requestedDate, setRequestedDate] = useState<string>(
     new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   );
-  const [priority, setPriority] = useState<'standard' | 'expedited' | 'urgent'>('standard');
+  const [priority, setPriority] = useState<ShipmentPriority>('STANDARD');
   const [requestMethod, setRequestMethod] = useState<ShipmentRequestMethod>('EMAIL');
   const [notes, setNotes] = useState('');
   const [lineItems, setLineItems] = useState<RequestShipmentLineItem[]>([]);
 
+
+
+
   // Email-specific state
-  const [selectedContactId, setSelectedContactId] = useState<string>('');
-  const [contacts, setContacts] = useState<ManufacturerContact[]>([]);
+  // const [selectedContactId, setSelectedContactId] = useState<string>(''); // Removed
+  // const [contacts, setContacts] = useState<ManufacturerContact[]>([]); // Removed
 
   // Call/System confirmation state
   const [isConfirmed, setIsConfirmed] = useState(false);
@@ -44,37 +102,76 @@ export default function RequestShipmentModal({ onClose, onSubmit }: RequestShipm
   // Product search state
   const [productSearch, setProductSearch] = useState('');
   const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const selectedVendor = factories.find(f => f.id === selectedVendorId);
-  const selectedWarehouse = mockWarehouses.find(w => w.id === selectedWarehouseId);
-  const selectedContact = contacts.find(c => c.id === selectedContactId);
-
-  // Load contacts when vendor changes
   useEffect(() => {
-    if (selectedVendorId) {
-      const vendorContacts = getManufacturerContacts(selectedVendorId);
-      setContacts(vendorContacts);
-
-      // Auto-select default contact
-      const defaultContact = getDefaultContact(selectedVendorId);
-      if (defaultContact) {
-        setSelectedContactId(defaultContact.id);
-      } else if (vendorContacts.length > 0) {
-        setSelectedContactId(vendorContacts[0].id);
-      } else {
-        setSelectedContactId('');
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowProductDropdown(false);
       }
-    } else {
-      setContacts([]);
-      setSelectedContactId('');
     }
-  }, [selectedVendorId]);
 
-  // Get products available from selected vendor
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Fetch inventory for selected warehouse to find vendor products
+  // Fetch products from catalog for selected vendor
+  const { data: productsData } = useQuery<{ productSearch: any[] }>(GET_PRODUCTS, {
+    variables: { search: '', factoryId: selectedVendorId },
+    skip: !selectedVendorId
+  });
+
+  const selectedVendor = factories.find((f: any) => f.id === selectedVendorId);
+
+  // Get products available from selected vendor from catalog
   const vendorProducts = useMemo(() => {
-    if (!selectedVendorId) return [];
-    return mockInventory.filter(inv => inv.factoryId === selectedVendorId);
-  }, [selectedVendorId]);
+    if (!selectedVendorId || !productsData?.productSearch) return [];
+
+    return productsData.productSearch.map((prod: any) => ({
+      productId: prod.id,
+      productName: prod.description || 'Unknown Product',
+      partNumber: prod.factoryPartNumber || 'N/A',
+      factoryId: selectedVendorId,
+      availableQuantity: 0, // We are requesting new inventory, so current stock is not relevant/fetched here
+      reorderPoint: 0,
+    }));
+  }, [selectedVendorId, productsData]);
+
+  // Initialize from props
+  useEffect(() => {
+    if (initialVendorId) {
+      setSelectedVendorId(initialVendorId);
+    }
+  }, [initialVendorId]);
+
+  // Need to populate lineItems from initialItems once products are loaded
+  useEffect(() => {
+    // Logic: if we have initial items, and products for the selected vendor are loaded, 
+    // check if any initial items match loaded products and add them if lineItems is empty.
+    if (initialItems && initialItems.length > 0 && productsData?.productSearch && lineItems.length === 0) {
+      const newItems: RequestShipmentLineItem[] = [];
+      initialItems.forEach(initItem => {
+        const product = productsData.productSearch.find((p: any) => p.id === initItem.productId);
+        if (product) {
+          newItems.push({
+            id: `line-${Date.now()}-${initItem.productId}`,
+            productId: product.id,
+            productName: product.description || 'Unknown',
+            partNumber: product.factoryPartNumber || 'N/A',
+            requestedQuantity: Number(initItem.quantity) || 1,
+            currentStock: 0,
+            reorderPoint: 0,
+          });
+        }
+      });
+      if (newItems.length > 0) {
+        setLineItems(newItems);
+      }
+    }
+  }, [initialItems, productsData, lineItems.length]);
 
   // Filter products based on search
   const filteredProducts = useMemo(() => {
@@ -86,7 +183,7 @@ export default function RequestShipmentModal({ onClose, onSubmit }: RequestShipm
     );
   }, [vendorProducts, productSearch]);
 
-  const handleAddProduct = (product: typeof mockInventory[0]) => {
+  const handleAddProduct = (product: VendorProduct) => {
     if (lineItems.some(item => item.productId === product.productId)) {
       return;
     }
@@ -114,19 +211,26 @@ export default function RequestShipmentModal({ onClose, onSubmit }: RequestShipm
     ));
   };
 
-  const handleSetDefaultContact = (contactId: string) => {
-    if (selectedVendorId) {
-      setDefaultContact(selectedVendorId, contactId);
-      // Refresh contacts to reflect the change
-      setContacts([...getManufacturerContacts(selectedVendorId)]);
+  // Removed handleSetDefaultContact
+
+  // Sync state with prop
+  useEffect(() => {
+    if (currentWarehouseId) {
+      setSelectedWarehouseId(currentWarehouseId);
     }
-  };
+  }, [currentWarehouseId]);
+
+  useEffect(() => {
+    if (currentWarehouseId) {
+      setSelectedWarehouseId(currentWarehouseId);
+    }
+  }, [currentWarehouseId]);
 
   const canSubmit = () => {
     if (!selectedVendorId || !selectedWarehouseId || lineItems.length === 0) return false;
 
-    if (requestMethod === 'EMAIL' && !selectedContactId) return false;
-    if ((requestMethod === 'CALL' || requestMethod === 'MANUFACTURER_SYSTEM') && !isConfirmed) return false;
+    // Contact check removed
+    if ((requestMethod === 'PHONE_CALL' || requestMethod === 'MANUFACTURER_SYSTEM') && !isConfirmed) return false;
 
     return true;
   };
@@ -135,38 +239,49 @@ export default function RequestShipmentModal({ onClose, onSubmit }: RequestShipm
     e.preventDefault();
     if (!canSubmit()) return;
 
-    const newRequest = addShipmentRequest({
-      vendorId: selectedVendorId,
-      vendorName: selectedVendor?.name || '',
-      warehouseId: selectedWarehouseId,
-      warehouseName: selectedWarehouse?.name || '',
-      requestMethod,
-      status: requestMethod === 'EMAIL' ? 'SENT' : 'SENT',
-      priority,
-      requestedDeliveryDate: new Date(requestedDate).toISOString(),
-      items: lineItems,
-      totalQuantity: lineItems.reduce((sum, item) => sum + item.requestedQuantity, 0),
+    // Construct the input payload for the mutation
+    // Note: Some fields like contactId, confirmationNotes, etc., might not be supported by the backend yet
+    // or need to be appended to 'notes' if strict schema applies.
+    // For now, we follow the strict CreateShipmentRequestInput structure.
 
-      // Email fields
-      ...(requestMethod === 'EMAIL' && selectedContact ? {
-        contactId: selectedContact.id,
-        contactName: selectedContact.name,
-        contactEmail: selectedContact.email,
-        emailSentAt: new Date().toISOString(),
-      } : {}),
+    let additionalNotes = notes;
+    if (requestMethod === 'EMAIL') {
+      additionalNotes = `${additionalNotes ? additionalNotes + '\n' : ''}Sent via EMAIL to vendor: ${selectedVendor?.email || 'N/A'}`;
+    } else if ((requestMethod === 'PHONE_CALL' || requestMethod === 'MANUFACTURER_SYSTEM') && isConfirmed) {
+      additionalNotes = `${additionalNotes ? additionalNotes + '\n' : ''}Confirmed by user. Notes: ${confirmationNotes}`;
+    }
 
-      // Call/System confirmation fields
-      ...((requestMethod === 'CALL' || requestMethod === 'MANUFACTURER_SYSTEM') ? {
-        confirmedAt: new Date().toISOString(),
-        confirmedBy: 'Current User', // In real app, get from auth
-        confirmationNotes: confirmationNotes || undefined,
-      } : {}),
+    const itemsPayload = lineItems.map(item => ({
+      productId: item.productId,
+      quantity: item.requestedQuantity
+    }));
 
-      notes: notes || undefined,
-      createdBy: 'Current User',
-    });
-
-    onSubmit(newRequest);
+    // If editing an existing request, call onUpdate
+    if (editingRequestId && onUpdate) {
+      const updateInput: UpdateShipmentRequestInput = {
+        id: editingRequestId,
+        factoryId: selectedVendorId,
+        priority: priority,
+        method: requestMethod,
+        status: requestMethod === 'EMAIL' ? 'SENT' : 'CONFIRMED',
+        notes: additionalNotes || undefined,
+        items: itemsPayload,
+      };
+      onUpdate(editingRequestId, updateInput);
+    } else {
+      // Creating a new request
+      const input: CreateShipmentRequestInput = {
+        warehouseId: selectedWarehouseId,
+        factoryId: selectedVendorId,
+        requestDate: new Date(requestedDate).toISOString(),
+        priority: priority,
+        method: requestMethod,
+        status: requestMethod === 'EMAIL' ? 'SENT' : 'CONFIRMED',
+        notes: additionalNotes || null,
+        items: itemsPayload
+      };
+      onSubmit(input);
+    }
   };
 
   const totalItems = lineItems.reduce((sum, item) => sum + item.requestedQuantity, 0);
@@ -187,7 +302,7 @@ export default function RequestShipmentModal({ onClose, onSubmit }: RequestShipm
             className="p-2 hover:bg-[var(--muted)] rounded-lg transition-colors"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M18 6L6 18M6 6l12 12"/>
+              <path d="M18 6L6 18M6 6l12 12" />
             </svg>
           </button>
         </div>
@@ -211,11 +326,19 @@ export default function RequestShipmentModal({ onClose, onSubmit }: RequestShipm
                 required
               >
                 <option value="">Select vendor</option>
-                {factories.map((factory) => (
-                  <option key={factory.id} value={factory.id}>
-                    {factory.name}
-                  </option>
-                ))}
+                {loadingFactories ? (
+                  <option disabled>Loading vendors...</option>
+                ) : factoriesError ? (
+                  <option disabled>Error: {factoriesError.message}</option>
+                ) : factories.length > 0 ? (
+                  factories.map((factory: any) => (
+                    <option key={factory.id} value={factory.id}>
+                      {factory.name || factory.title}
+                    </option>
+                  ))
+                ) : (
+                  <option disabled>No vendors found</option>
+                )}
               </select>
             </div>
             <div>
@@ -228,11 +351,7 @@ export default function RequestShipmentModal({ onClose, onSubmit }: RequestShipm
                 className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
                 required
               >
-                {mockWarehouses.map((warehouse) => (
-                  <option key={warehouse.id} value={warehouse.id}>
-                    {warehouse.name}
-                  </option>
-                ))}
+                <option value={currentWarehouseId || ''}>{currentWarehouseName || 'Current Warehouse'}</option>
               </select>
             </div>
           </div>
@@ -258,12 +377,12 @@ export default function RequestShipmentModal({ onClose, onSubmit }: RequestShipm
               </label>
               <select
                 value={priority}
-                onChange={(e) => setPriority(e.target.value as 'standard' | 'expedited' | 'urgent')}
+                onChange={(e) => setPriority(e.target.value as ShipmentPriority)}
                 className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
               >
-                <option value="standard">Standard</option>
-                <option value="expedited">Expedited</option>
-                <option value="urgent">Urgent</option>
+                <option value="STANDARD">Standard</option>
+                <option value="EXPEDITED">Expedited</option>
+                <option value="URGENT">Urgent</option>
               </select>
             </div>
           </div>
@@ -275,7 +394,7 @@ export default function RequestShipmentModal({ onClose, onSubmit }: RequestShipm
             </label>
 
             {selectedVendorId ? (
-              <div className="relative mb-3">
+              <div ref={dropdownRef} className="relative mb-3">
                 <div className="relative">
                   <svg
                     className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
@@ -286,8 +405,8 @@ export default function RequestShipmentModal({ onClose, onSubmit }: RequestShipm
                     stroke="currentColor"
                     strokeWidth="2"
                   >
-                    <circle cx="11" cy="11" r="8"/>
-                    <path d="M21 21l-4.35-4.35"/>
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="M21 21l-4.35-4.35" />
                   </svg>
                   <input
                     type="text"
@@ -310,13 +429,12 @@ export default function RequestShipmentModal({ onClose, onSubmit }: RequestShipm
                       const isLowStock = product.availableQuantity <= (product.reorderPoint || 0);
                       return (
                         <button
-                          key={product.id}
+                          key={product.productId}
                           type="button"
                           onClick={() => handleAddProduct(product)}
                           disabled={isAdded}
-                          className={`w-full px-4 py-3 text-left flex items-center justify-between hover:bg-[var(--muted)]/50 transition-colors border-b border-[var(--border)] last:border-b-0 ${
-                            isAdded ? 'opacity-50 cursor-not-allowed bg-[var(--muted)]/30' : ''
-                          }`}
+                          className={`w-full px-4 py-3 text-left flex items-center justify-between hover:bg-[var(--muted)]/50 transition-colors border-b border-[var(--border)] last:border-b-0 ${isAdded ? 'opacity-50 cursor-not-allowed bg-[var(--muted)]/30' : ''
+                            }`}
                         >
                           <div className="flex-1 min-w-0">
                             <div className="font-medium text-sm text-[var(--foreground)] truncate">{product.productName}</div>
@@ -333,8 +451,8 @@ export default function RequestShipmentModal({ onClose, onSubmit }: RequestShipm
                               <span className="text-xs text-green-600 whitespace-nowrap">Added</span>
                             ) : (
                               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--primary)]">
-                                <line x1="12" y1="5" x2="12" y2="19"/>
-                                <line x1="5" y1="12" x2="19" y2="12"/>
+                                <line x1="12" y1="5" x2="12" y2="19" />
+                                <line x1="5" y1="12" x2="19" y2="12" />
                               </svg>
                             )}
                           </div>
@@ -381,7 +499,7 @@ export default function RequestShipmentModal({ onClose, onSubmit }: RequestShipm
                             <span className={`text-sm font-medium ${isLowStock ? 'text-red-600' : 'text-[var(--foreground)]'}`}>
                               {item.currentStock}
                             </span>
-                            {item.reorderPoint && (
+                            {(item.reorderPoint || 0) > 0 && (
                               <div className="text-xs text-[var(--muted-foreground)]">
                                 Reorder: {item.reorderPoint}
                               </div>
@@ -395,7 +513,7 @@ export default function RequestShipmentModal({ onClose, onSubmit }: RequestShipm
                                 className="p-1 hover:bg-[var(--muted)] rounded transition-colors"
                               >
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <line x1="5" y1="12" x2="19" y2="12"/>
+                                  <line x1="5" y1="12" x2="19" y2="12" />
                                 </svg>
                               </button>
                               <input
@@ -411,8 +529,8 @@ export default function RequestShipmentModal({ onClose, onSubmit }: RequestShipm
                                 className="p-1 hover:bg-[var(--muted)] rounded transition-colors"
                               >
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <line x1="12" y1="5" x2="12" y2="19"/>
-                                  <line x1="5" y1="12" x2="19" y2="12"/>
+                                  <line x1="12" y1="5" x2="12" y2="19" />
+                                  <line x1="5" y1="12" x2="19" y2="12" />
                                 </svg>
                               </button>
                             </div>
@@ -424,7 +542,7 @@ export default function RequestShipmentModal({ onClose, onSubmit }: RequestShipm
                               className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
                             >
                               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M18 6L6 18M6 6l12 12"/>
+                                <path d="M18 6L6 18M6 6l12 12" />
                               </svg>
                             </button>
                           </td>
@@ -443,7 +561,7 @@ export default function RequestShipmentModal({ onClose, onSubmit }: RequestShipm
               Request Method <span className="text-red-500">*</span>
             </label>
             <div className="grid grid-cols-3 gap-3">
-              {(['EMAIL', 'CALL', 'MANUFACTURER_SYSTEM'] as ShipmentRequestMethod[]).map((method) => (
+              {(['EMAIL', 'PHONE_CALL', 'MANUFACTURER_SYSTEM'] as ShipmentRequestMethod[]).map((method) => (
                 <button
                   key={method}
                   type="button"
@@ -452,36 +570,35 @@ export default function RequestShipmentModal({ onClose, onSubmit }: RequestShipm
                     setIsConfirmed(false);
                     setConfirmationNotes('');
                   }}
-                  className={`p-3 border rounded-lg text-left transition-all ${
-                    requestMethod === method
-                      ? 'border-[var(--primary)] bg-[var(--primary)]/5 ring-2 ring-[var(--primary)]/20'
-                      : 'border-[var(--border)] hover:border-[var(--primary)]/50'
-                  }`}
+                  className={`p-3 border rounded-lg text-left transition-all ${requestMethod === method
+                    ? 'border-[var(--primary)] bg-[var(--primary)]/5 ring-2 ring-[var(--primary)]/20'
+                    : 'border-[var(--border)] hover:border-[var(--primary)]/50'
+                    }`}
                 >
                   <div className="flex items-center gap-2">
                     {method === 'EMAIL' && (
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                        <polyline points="22,6 12,13 2,6"/>
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                        <polyline points="22,6 12,13 2,6" />
                       </svg>
                     )}
-                    {method === 'CALL' && (
+                    {method === 'PHONE_CALL' && (
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/>
+                        <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z" />
                       </svg>
                     )}
                     {method === 'MANUFACTURER_SYSTEM' && (
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-                        <line x1="8" y1="21" x2="16" y2="21"/>
-                        <line x1="12" y1="17" x2="12" y2="21"/>
+                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                        <line x1="8" y1="21" x2="16" y2="21" />
+                        <line x1="12" y1="17" x2="12" y2="21" />
                       </svg>
                     )}
                     <span className="font-medium text-sm">{shipmentRequestMethodLabels[method]}</span>
                   </div>
                   <p className="text-xs text-[var(--muted-foreground)] mt-1">
                     {method === 'EMAIL' && 'Send request via email'}
-                    {method === 'CALL' && 'Request by phone call'}
+                    {method === 'PHONE_CALL' && 'Request by phone call'}
                     {method === 'MANUFACTURER_SYSTEM' && 'Submit via vendor portal'}
                   </p>
                 </button>
@@ -489,163 +606,44 @@ export default function RequestShipmentModal({ onClose, onSubmit }: RequestShipm
             </div>
           </div>
 
-          {/* Email Contact Selection */}
+          {/* Email Contact Selection Removed - Display Factory Info Instead */}
           {requestMethod === 'EMAIL' && selectedVendorId && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-3">
-                <label className="block text-sm font-medium text-blue-800">
-                  Select Contact <span className="text-red-500">*</span>
-                </label>
-                {contacts.length > 3 && (
-                  <div className="relative">
-                    <input
-                      type="text"
-                      placeholder="Filter contacts..."
-                      className="px-3 py-1.5 text-xs border border-blue-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400/50 w-48"
-                      onChange={(e) => {
-                        // Simple client-side filter - contacts are filtered visually
-                        const filter = e.target.value.toLowerCase();
-                        const labels = document.querySelectorAll('[data-contact-label]');
-                        labels.forEach((label) => {
-                          const name = label.getAttribute('data-contact-name')?.toLowerCase() || '';
-                          const email = label.getAttribute('data-contact-email')?.toLowerCase() || '';
-                          const role = label.getAttribute('data-contact-role')?.toLowerCase() || '';
-                          if (name.includes(filter) || email.includes(filter) || role.includes(filter)) {
-                            (label as HTMLElement).style.display = '';
-                          } else {
-                            (label as HTMLElement).style.display = 'none';
-                          }
-                        });
-                      }}
-                    />
-                  </div>
-                )}
+              <div className="flex items-center gap-2 mb-2">
+                <span className="font-medium text-blue-800">Vendor Email:</span>
+                <span className="text-blue-600">{selectedVendor?.email || 'No email on file'}</span>
               </div>
-              {contacts.length > 0 ? (
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {contacts.map((contact) => (
-                    <label
-                      key={contact.id}
-                      data-contact-label
-                      data-contact-name={contact.name}
-                      data-contact-email={contact.email}
-                      data-contact-role={contact.role}
-                      className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-all ${
-                        selectedContactId === contact.id
-                          ? 'border-blue-500 bg-white'
-                          : 'border-blue-200 hover:border-blue-300 bg-white/50'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="contact"
-                        value={contact.id}
-                        checked={selectedContactId === contact.id}
-                        onChange={(e) => setSelectedContactId(e.target.value)}
-                        className="text-blue-600 focus:ring-blue-500"
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-sm text-[var(--foreground)]">{contact.name}</span>
-                          {contact.isDefaultForOrders && (
-                            <span className="px-1.5 py-0.5 text-xs bg-blue-100 text-blue-700 rounded">Default</span>
-                          )}
-                        </div>
-                        <div className="text-xs text-[var(--muted-foreground)]">{contact.role}</div>
-                        <div className="text-xs text-blue-600 mt-0.5">{contact.email}</div>
-                      </div>
-                      {!contact.isDefaultForOrders && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            handleSetDefaultContact(contact.id);
-                          }}
-                          className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
-                        >
-                          Set as default
-                        </button>
-                      )}
-                    </label>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-blue-700">No contacts available for this vendor.</p>
-              )}
-
-              {/* FlowMail Preview */}
-              {selectedContact && lineItems.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-blue-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                      </svg>
-                      <div>
-                        <div className="text-sm font-medium text-blue-800">FlowMail will be sent</div>
-                        <div className="text-xs text-blue-600">
-                          To: {selectedContact.name} ({selectedContact.email})
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        // Generate a preview of the FlowMail content
-                        const productList = lineItems.map(item => `- ${item.productName} (${item.partNumber}): ${item.requestedQuantity} units`).join('\n');
-                        const subject = `Inventory Request from ${selectedWarehouse?.name || 'Warehouse'}`;
-                        const body = `Hello ${selectedContact.name},\n\nWe would like to request the following inventory items:\n\n${productList}\n\nTotal: ${totalItems} units\n\nRequested delivery date: ${new Date(requestedDate).toLocaleDateString()}\nPriority: ${priority.charAt(0).toUpperCase() + priority.slice(1)}\n\n${notes ? `Additional notes: ${notes}\n\n` : ''}Thank you.`;
-
-                        // Open FlowMail compose in new tab with pre-filled data
-                        const flowmailUrl = `/flowmail/compose?to=${encodeURIComponent(selectedContact.email)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&template=inventory-request`;
-                        window.open(flowmailUrl, '_blank');
-                      }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-lg transition-colors"
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                      Preview FlowMail
-                    </button>
-                  </div>
-                  <p className="text-xs text-blue-600 mt-2">
-                    An automated inventory request email will be generated and sent via FlowMail when you submit this request.
-                  </p>
-                </div>
-              )}
+              <p className="text-sm text-blue-700">
+                An email request will be sent to the vendor at the address above.
+              </p>
             </div>
           )}
 
           {/* Call/System Confirmation */}
-          {(requestMethod === 'CALL' || requestMethod === 'MANUFACTURER_SYSTEM') && (
-            <div className={`border rounded-lg p-4 ${
-              requestMethod === 'CALL' ? 'bg-green-50 border-green-200' : 'bg-purple-50 border-purple-200'
-            }`}>
+          {(requestMethod === 'PHONE_CALL' || requestMethod === 'MANUFACTURER_SYSTEM') && (
+            <div className={`border rounded-lg p-4 ${requestMethod === 'PHONE_CALL' ? 'bg-green-50 border-green-200' : 'bg-purple-50 border-purple-200'
+              }`}>
               <div className="flex items-start gap-3">
                 <input
                   type="checkbox"
                   id="confirmed"
                   checked={isConfirmed}
                   onChange={(e) => setIsConfirmed(e.target.checked)}
-                  className={`mt-1 rounded ${
-                    requestMethod === 'CALL' ? 'text-green-600 focus:ring-green-500' : 'text-purple-600 focus:ring-purple-500'
-                  }`}
+                  className={`mt-1 rounded ${requestMethod === 'PHONE_CALL' ? 'text-green-600 focus:ring-green-500' : 'text-purple-600 focus:ring-purple-500'
+                    }`}
                 />
                 <div className="flex-1">
-                  <label htmlFor="confirmed" className={`block text-sm font-medium cursor-pointer ${
-                    requestMethod === 'CALL' ? 'text-green-800' : 'text-purple-800'
-                  }`}>
-                    {requestMethod === 'CALL'
+                  <label htmlFor="confirmed" className={`block text-sm font-medium cursor-pointer ${requestMethod === 'PHONE_CALL' ? 'text-green-800' : 'text-purple-800'
+                    }`}>
+                    {requestMethod === 'PHONE_CALL'
                       ? 'I confirm I have called and requested this inventory'
                       : 'I confirm I have submitted this request in the manufacturer system'
                     }
                     <span className="text-red-500 ml-1">*</span>
                   </label>
-                  <p className={`text-xs mt-1 ${
-                    requestMethod === 'CALL' ? 'text-green-700' : 'text-purple-700'
-                  }`}>
-                    {requestMethod === 'CALL'
+                  <p className={`text-xs mt-1 ${requestMethod === 'PHONE_CALL' ? 'text-green-700' : 'text-purple-700'
+                    }`}>
+                    {requestMethod === 'PHONE_CALL'
                       ? 'Check this box after completing your phone call with the vendor.'
                       : 'Check this box after submitting the order in the manufacturer\'s portal.'
                     }
@@ -655,16 +653,15 @@ export default function RequestShipmentModal({ onClose, onSubmit }: RequestShipm
 
               {isConfirmed && (
                 <div className="mt-3">
-                  <label className={`block text-sm font-medium mb-1 ${
-                    requestMethod === 'CALL' ? 'text-green-800' : 'text-purple-800'
-                  }`}>
+                  <label className={`block text-sm font-medium mb-1 ${requestMethod === 'PHONE_CALL' ? 'text-green-800' : 'text-purple-800'
+                    }`}>
                     Confirmation Notes
                   </label>
                   <textarea
                     value={confirmationNotes}
                     onChange={(e) => setConfirmationNotes(e.target.value)}
                     rows={2}
-                    placeholder={requestMethod === 'CALL'
+                    placeholder={requestMethod === 'PHONE_CALL'
                       ? 'Who did you speak with? What was confirmed?'
                       : 'Confirmation number or any relevant details...'
                     }
@@ -692,11 +689,9 @@ export default function RequestShipmentModal({ onClose, onSubmit }: RequestShipm
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-[var(--border)] flex items-center justify-between flex-shrink-0">
-          <div className="text-sm text-[var(--muted-foreground)]">
-            {lineItems.length > 0 && (
-              <span>{lineItems.length} product{lineItems.length !== 1 ? 's' : ''}, {totalItems} total units</span>
-            )}
-          </div>
+          {lineItems.length > 0 && (
+            <span>{lineItems.length} product{lineItems.length !== 1 ? 's' : ''}, {formatQuantity(totalItems)} total units</span>
+          )}
           <div className="flex items-center gap-3">
             <button
               type="button"

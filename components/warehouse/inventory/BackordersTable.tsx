@@ -1,17 +1,22 @@
 import React from 'react';
 import Link from 'next/link';
 import { BackorderItem } from './types';
+import { formatQuantity } from './utils';
 
 interface BackordersTableProps {
     backorders: BackorderItem[];
     searchQuery: string;
+
     onRemoveBackorder: (backorderId: string) => void;
+    onRequestInventory: (item: BackorderItem) => void;
 }
 
 export default function BackordersTable({
     backorders,
     searchQuery,
+
     onRemoveBackorder,
+    onRequestInventory,
 }: BackordersTableProps) {
     const formatDate = (dateString: string | undefined | null) => {
         if (!dateString) return '-';
@@ -24,15 +29,17 @@ export default function BackordersTable({
         });
     };
 
-    const filteredBackorders = backorders.filter(item =>
-        !searchQuery ||
-        item.partNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.customerName.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredBackorders = backorders.filter(item => {
+        const matchesSearch = !searchQuery ||
+            item.partNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            item.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            item.customerName.toLowerCase().includes(searchQuery.toLowerCase());
+
+        return matchesSearch;
+    });
 
     return (
-        <div className="p-6 pt-0">
+        <div className="flex-1 overflow-auto p-6 pt-0">
             <div className="bg-[var(--card)] rounded-lg border border-[var(--border)]">
                 <div className="px-6 py-4 border-b border-[var(--border)]">
                     <h2 className="text-lg font-semibold text-[var(--foreground)]">
@@ -72,7 +79,7 @@ export default function BackordersTable({
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded text-sm font-medium">
-                                            {backorder.backorderQty}
+                                            {formatQuantity(backorder.backorderQty)}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4">
@@ -82,13 +89,13 @@ export default function BackordersTable({
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex items-center justify-end gap-2">
-                                            <Link
-                                                href="/warehouse/inventory/request/new"
+                                            <button
+                                                onClick={() => onRequestInventory(backorder)}
                                                 className="px-2 py-1 text-xs font-medium text-[var(--primary)] hover:bg-[var(--primary)]/10 rounded transition-colors"
                                                 title="Request Inventory"
                                             >
                                                 Request
-                                            </Link>
+                                            </button>
                                             <button
                                                 onClick={() => onRemoveBackorder(backorder.id)}
                                                 className="px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 rounded transition-colors"

@@ -1,8 +1,9 @@
 'use client';
 
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useMemo } from 'react';
+import { useQuery } from '@apollo/client/react';
 import { Warehouse } from '@/lib/types/warehouse';
-import { mockWarehouses } from '@/lib/data/warehouse-mock';
+import { GET_ALL_WAREHOUSES } from '@/app/graphql/warehouse';
 
 export type WarehouseViewMode = 'manager' | 'worker';
 
@@ -21,10 +22,18 @@ const VIEW_MODE_STORAGE_KEY = 'warehouse-view-mode';
 const WarehouseContext = createContext<WarehouseContextType | undefined>(undefined);
 
 export function WarehouseProvider({ children }: { children: ReactNode }) {
-  const [warehouses] = useState<Warehouse[]>(mockWarehouses);
-  const [selectedWarehouse, setSelectedWarehouse] = useState<Warehouse | null>(
-    mockWarehouses.length > 0 ? mockWarehouses[0] : null
-  );
+  const { data } = useQuery<{ warehouses: any[] }>(GET_ALL_WAREHOUSES);
+  const warehouses = useMemo(() => (data?.warehouses || []) as Warehouse[], [data]);
+
+  const [selectedWarehouse, setSelectedWarehouse] = useState<Warehouse | null>(null);
+
+  // Default to first warehouse when data loads
+  useEffect(() => {
+    if (warehouses.length > 0 && !selectedWarehouse) {
+      setSelectedWarehouse(warehouses[0]);
+    }
+  }, [warehouses, selectedWarehouse]);
+
   const [viewMode, setViewModeState] = useState<WarehouseViewMode>('manager');
 
   // Load view mode from localStorage on mount

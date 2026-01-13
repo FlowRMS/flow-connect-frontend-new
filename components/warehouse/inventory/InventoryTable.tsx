@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { FlatInventoryItem, InventorySortField, SortDirection, InventoryColumnFilters } from './types';
 import { Inventory, inventoryStatusColors, inventoryStatusLabels, InventoryStatus } from '@/lib/types/warehouse';
+import { formatQuantity } from './utils';
+import UpdateInventoryItemModal from '../modals/UpdateInventoryItemModal';
 
 interface InventoryTableProps {
     items: FlatInventoryItem[];
@@ -19,6 +21,7 @@ interface InventoryTableProps {
     setOpenFilter: (filterId: string | null) => void;
     uniqueFactories: string[];
     uniqueStatuses: InventoryStatus[];
+    onAddItem: (inventory: Inventory) => void;
 }
 
 // Sort Icon Component
@@ -129,7 +132,10 @@ export default function InventoryTable({
     setOpenFilter,
     uniqueFactories,
     uniqueStatuses,
+    onAddItem,
 }: InventoryTableProps) {
+    const [editingItem, setEditingItem] = useState<FlatInventoryItem | null>(null);
+
     const formatDate = (dateString: string | undefined | null) => {
         if (!dateString) return '-';
         return new Date(dateString).toLocaleDateString('en-US', {
@@ -140,10 +146,7 @@ export default function InventoryTable({
     };
 
     const formatLocation = (item: FlatInventoryItem) => {
-        if (item.fullLocationPath) {
-            return item.fullLocationPath;
-        }
-        return item.binLocation;
+        return item.locationName || 'Unassigned';
     };
 
     return (
@@ -178,8 +181,8 @@ export default function InventoryTable({
                             </th>
                             <th className="px-4 py-3 text-left">
                                 <div className="flex items-center">
-                                    <button onClick={() => onSort('binLocation')} className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors">
-                                        Location<SortIcon field="binLocation" currentSortField={sortField} currentSortDirection={sortDirection} />
+                                    <button onClick={() => onSort('locationName')} className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider flex items-center hover:text-[var(--foreground)] transition-colors">
+                                        Location<SortIcon field="locationName" currentSortField={sortField} currentSortDirection={sortDirection} />
                                     </button>
                                     <TextFilterDropdown value={columnFilters.location} onChange={(value) => setColumnFilters(prev => ({ ...prev, location: value }))} placeholder="Search..." isOpen={openFilter === 'location'} onToggle={() => setOpenFilter(openFilter === 'location' ? null : 'location')} />
                                 </div>
@@ -225,7 +228,7 @@ export default function InventoryTable({
                                 const inv = inventory.find(i => i.id === item.inventoryId);
 
                                 return (
-                                    <tr key={item.id} className="hover:bg-[var(--muted)]/20 transition-colors">
+                                    <tr key={item.id} className="hover:bg-[var(--muted)]/20 transition-colors group">
                                         <td className="px-4 py-3">
                                             <span className="px-2 py-1 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded text-xs font-medium">
                                                 {item.factoryName.split(' ')[0]}
@@ -263,23 +266,58 @@ export default function InventoryTable({
                                             </span>
                                         </td>
                                         <td className="px-4 py-3 text-right">
-                                            <span className="text-sm font-semibold text-[var(--foreground)]">{item.quantity}</span>
+                                            <span className="text-sm font-semibold text-[var(--foreground)]">{formatQuantity(item.quantity)}</span>
                                         </td>
                                         <td className="px-4 py-3 text-right">
                                             <span className={`text-sm font-semibold ${item.status === 'AVAILABLE' ? 'text-green-600' : 'text-[var(--muted-foreground)]'}`}>
-                                                {item.status === 'AVAILABLE' ? item.quantity : '-'}
+                                                {item.status === 'AVAILABLE' ? formatQuantity(item.quantity) : '-'}
                                             </span>
                                         </td>
                                         <td className="px-4 py-3 text-right">
                                             <span className={`text-sm font-semibold ${item.status === 'RESERVED' ? 'text-blue-600' : 'text-[var(--muted-foreground)]'}`}>
-                                                {item.status === 'RESERVED' ? item.quantity : '-'}
+                                                {item.status === 'RESERVED' ? formatQuantity(item.quantity) : '-'}
                                             </span>
                                         </td>
                                         <td className="px-4 py-3">
                                             <span className="text-sm text-[var(--foreground)]">{item.lotNumber || '-'}</span>
                                         </td>
                                         <td className="px-4 py-3">
-                                            <span className="text-sm text-[var(--muted-foreground)]">{formatDate(item.receivedDate)}</span>
+                                            <div className="flex items-center justify-end gap-1">
+                                                <span className="text-sm text-[var(--muted-foreground)] mr-2">{formatDate(item.receivedDate)}</span>
+
+                                                {/* Add Item Button - Only for placeholder items */}
+                                                {(item.id === item.inventoryId) && inv && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            onAddItem(inv);
+                                                        }}
+                                                        className="p-1 text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)] rounded transition-all"
+                                                        title="Add Item"
+                                                    >
+                                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                            <path d="M12 5v14M5 12h14" />
+                                                        </svg>
+                                                    </button>
+                                                )}
+
+                                                {/* Edit Item Button - Only for real items */}
+                                                {(item.id !== item.inventoryId) && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setEditingItem(item);
+                                                        }}
+                                                        className="p-1 text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)] rounded transition-all"
+                                                        title="Edit Item"
+                                                    >
+                                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                                        </svg>
+                                                    </button>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 );
@@ -288,6 +326,15 @@ export default function InventoryTable({
                     </tbody>
                 </table>
             </div>
+            {editingItem && (
+                <UpdateInventoryItemModal
+                    item={editingItem}
+                    onClose={() => setEditingItem(null)}
+                    onSuccess={() => {
+                        setEditingItem(null);
+                    }}
+                />
+            )}
         </div>
     );
 }

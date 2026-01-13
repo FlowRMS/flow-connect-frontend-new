@@ -1,15 +1,20 @@
 import React from 'react';
 import Link from 'next/link';
 import { BackorderItem } from './types';
+import { formatQuantity } from './utils';
 
 interface BackorderAlertProps {
     backorderItems: BackorderItem[];
     totalBackorderQty: number;
+    onLogBackorder: (item: BackorderItem) => void;
+    onRequestInventory: () => void;
 }
 
 export default function BackorderAlert({
     backorderItems,
     totalBackorderQty,
+    onLogBackorder,
+    onRequestInventory,
 }: BackorderAlertProps) {
     if (backorderItems.length === 0) return null;
 
@@ -23,14 +28,17 @@ export default function BackorderAlert({
                 </div>
                 <div className="flex-1">
                     <h3 className="text-sm font-medium text-orange-800">Backorder Alert</h3>
-                    <p className="text-sm text-orange-700 mt-1">
-                        {backorderItems.length} product{backorderItems.length !== 1 ? 's' : ''} on backorder ({totalBackorderQty} total units) across {new Set(backorderItems.map(b => b.orderNumber)).size} order{new Set(backorderItems.map(b => b.orderNumber)).size !== 1 ? 's' : ''}
-                    </p>
+                    <p className="text-xs text-orange-600 mt-1 mb-2">Click items to log them to the Backorders tab.</p>
                     <div className="mt-2 flex flex-wrap gap-2">
                         {backorderItems.slice(0, 3).map((item, idx) => (
-                            <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-800 rounded text-xs">
-                                {item.partNumber}: {item.backorderQty} units ({item.orderNumber})
-                            </span>
+                            <button
+                                key={idx}
+                                onClick={() => onLogBackorder(item)}
+                                className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-800 rounded text-xs hover:bg-orange-200 transition-colors cursor-pointer"
+                                title="Click to log and view in Backorders tab"
+                            >
+                                {item.partNumber}: {formatQuantity(item.backorderQty)} units ({item.orderNumber})
+                            </button>
                         ))}
                         {backorderItems.length > 3 && (
                             <span className="inline-flex items-center px-2 py-1 bg-orange-100 text-orange-800 rounded text-xs">
@@ -39,12 +47,12 @@ export default function BackorderAlert({
                         )}
                     </div>
                 </div>
-                <Link
-                    href="/warehouse/inventory/request/new"
+                <button
+                    onClick={() => onRequestInventory()}
                     className="flex-shrink-0 px-3 py-1.5 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700 transition-colors"
                 >
                     Request Inventory
-                </Link>
+                </button>
             </div>
         </div>
     );
