@@ -70,6 +70,10 @@ export const Q_GET_PENDING = gql`
       status
       workflowStatus
       updatedAt
+      cluster {
+        id
+        clusterName
+      }
     }
   }
 `;
