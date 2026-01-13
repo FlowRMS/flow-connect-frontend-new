@@ -395,7 +395,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
           productId: item.productId || undefined,
           productNameAdhoc: item.partNumber || undefined,
           productDescriptionAdhoc: item.description || undefined,
-          commissionRate: String((item.commissionRate || 0) * 100), // Convert decimal to percent for API
+          commissionRate: String(item.commissionRate || 0), // Already stored as whole percentage (e.g., 8 for 8%)
           divisionFactor: item.divisor ? String(item.divisor) : undefined,
           uomId: item.uomId || undefined, // Send uomId, null becomes undefined
           // Include inside and outside rep splitRates on each line item

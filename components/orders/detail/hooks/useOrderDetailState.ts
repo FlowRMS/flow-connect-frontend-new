@@ -41,7 +41,7 @@ function createEmptyOrder(): Order {
     quantityCredited: 0,
     unitPrice: 0,
     extendedPrice: 0,
-    commissionRate: 0.08,
+    commissionRate: 8, // Stored as whole percentage (8 for 8%)
     commissionAmount: 0,
     productId: '',
     isCancelled: false,
@@ -102,7 +102,7 @@ function transformApiOrderToUiOrder(apiOrder: ApiOrder): Order {
     quantity: parseFloat(detail.quantity || '0'),
     unitPrice: parseFloat(detail.unitPrice || '0'),
     extendedPrice: detail.subtotal || 0,
-    commissionRate: parseFloat(detail.commissionRate || '0') / 100, // API returns as percent, convert to decimal
+    commissionRate: parseFloat(detail.commissionRate || '0'), // Keep as whole percentage (e.g., 8 for 8%)
     commissionAmount: detail.commission || 0,
     quantityShipped: detail.shippingBalance || 0,
     quantityInvoiced: 0, // API doesn't provide this directly
@@ -442,7 +442,7 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
 
             // Determine pricing based on CPN or quantity tiers
             let unitPrice = li.unitPrice ?? 0;
-            let commissionRate = li.commissionRate ?? 0.08;
+            let commissionRate = li.commissionRate ?? 8; // Stored as whole percentage (e.g., 8 for 8%)
             let custPartNumber = '';
             let hasCpnPricing = false;
 
@@ -453,9 +453,9 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
                 unitPrice = parseFloat(cpnResult.unitPrice);
                 hasCpnPricing = true;
               }
-              // Use CPN's commission rate if available (convert from whole number to decimal)
+              // Use CPN's commission rate if available (already as whole number)
               if (cpnResult.commissionRate) {
-                commissionRate = parseFloat(cpnResult.commissionRate) / 100;
+                commissionRate = parseFloat(cpnResult.commissionRate);
               }
             }
 
@@ -468,7 +468,7 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
             const quantity = li.quantity || 1;
             const divisor = li.divisor || 1;
             const extendedPrice = quantity * unitPrice / divisor;
-            const commissionAmount = extendedPrice * commissionRate;
+            const commissionAmount = extendedPrice * (commissionRate / 100); // Convert to decimal for calculation
 
             return {
               itemId: li.id,
@@ -541,9 +541,9 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
     const updatedItems = items.map(item => {
       const quantity = item.quantity || 0;
       const unitPrice = item.unitPrice || 0;
-      const commissionRate = item.commissionRate || 0;
+      const commissionRate = item.commissionRate || 0; // Stored as whole percentage (e.g., 8 for 8%)
       const extendedPrice = quantity * unitPrice;
-      const commissionAmount = extendedPrice * commissionRate;
+      const commissionAmount = extendedPrice * (commissionRate / 100); // Convert to decimal for calculation
       return {
         ...item,
         extendedPrice,

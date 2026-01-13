@@ -124,7 +124,7 @@ export default function ConvertQuoteToOrderModal({
       quantity: item.quantity,
       unitPrice: item.sellPrice,
       extendedPrice: item.quantity * item.sellPrice,
-      commissionRate: 0.08,
+      commissionRate: 8, // Stored as whole percentage (8 for 8%)
       commissionAmount: (item.quantity * item.sellPrice) * 0.08,
       quantityShipped: 0,
       quantityInvoiced: 0,
