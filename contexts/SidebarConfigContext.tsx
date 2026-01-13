@@ -112,23 +112,16 @@ const defaultConfig: SidebarConfig = {
       label: 'Analytics',
       collapsed: false,
       items: [
-        // Dashboards
         { id: 'analytics-order-dashboard', name: 'Order Dashboard', href: '/analytics/order-dashboard', enabled: true },
         { id: 'analytics-product-dashboard', name: 'Product Dashboard', href: '/analytics/product-dashboard', enabled: true },
         { id: 'analytics-commission-gap', name: 'Commission Gap Reports', href: '/analytics/commission-gap-reports', enabled: true },
-        // Detail Reports
         { id: 'analytics-orders-report', name: 'Orders Detail', href: '/analytics/orders-report', enabled: true },
         { id: 'analytics-check-detail', name: 'Check Detail', href: '/analytics/check-detail', enabled: true },
         { id: 'analytics-quote-detail', name: 'Quote Detail', href: '/analytics/quote-detail', enabled: true },
-        { id: 'analytics-pre-opportunity-detail', name: 'Pre-Opportunity Detail', href: '/analytics/pre-opportunity-detail', enabled: true },
         { id: 'analytics-order-split-rate', name: 'Order Split Rate', href: '/analytics/order-split-rate-commission-detail', enabled: true },
-        // Pivot Reports
         { id: 'analytics-orders-pivot', name: 'Order Pivot', href: '/analytics/orders-pivot', enabled: true },
         { id: 'analytics-check-pivot', name: 'Check Pivot', href: '/analytics/check-pivot', enabled: true },
         { id: 'analytics-quote-pivot', name: 'Quote Pivot', href: '/analytics/quote-pivot', enabled: true },
-        { id: 'analytics-pre-opportunity-pivot', name: 'Pre-Opportunity Pivot', href: '/analytics/pre-opportunity-pivot', enabled: true },
-        { id: 'analytics-job-pivot', name: 'Job Pivot', href: '/analytics/job-pivot', enabled: true },
-        { id: 'analytics-task-pivot', name: 'Task Pivot', href: '/analytics/task-pivot', enabled: true },
         { id: 'analytics-commission-state-pivot', name: 'Commission by State', href: '/analytics/commission-by-state-pivot', enabled: true },
       ]
     },
@@ -162,7 +155,7 @@ const defaultConfig: SidebarConfig = {
 };
 
 const STORAGE_KEY = 'sidebar-config';
-const CONFIG_VERSION = 29; // Increment this to force a reset of cached sidebar config (reordered analytics items)
+const CONFIG_VERSION = 25; // Increment this to force a reset of cached sidebar config (updated Flow AI section)
 
 const SidebarConfigContext = createContext<SidebarConfigContextType | undefined>(undefined);
 
