@@ -36,6 +36,12 @@ import RecurringShipmentsContent from './RecurringShipmentsContent';
 import DeliveryIssuesTabContent from './DeliveryIssuesTabContent';
 import DeliveriesCalendarView from './DeliveriesCalendarView';
 import RecurringShipmentDetailModal from './modals/RecurringShipmentDetailModal';
+import {
+  invalidateDeliveryCaches,
+  invalidateRecurringCache,
+  patchDeliveryCaches,
+  patchRecurringCache,
+} from './receiving/cache';
 
 type ViewMode = 'table' | 'cards';
 
@@ -329,25 +335,61 @@ export default function WarehouseDeliveriesContent() {
       const cachedDeliveries = reloadToken === 0 ? getCachedDeliveries(selectedWarehouse.id) : null;
       const cachedCarriers = reloadToken === 0 ? getCachedCarriers() : null;
       const cachedRecurring = reloadToken === 0 ? getCachedRecurring(selectedWarehouse.id) : null;
+      const warehouseSource = warehouses.length > 0 ? warehouses : (selectedWarehouse ? [selectedWarehouse] : []);
+      const warehouseEntries = warehouseSource.map((warehouse) => ({ id: warehouse.id, name: warehouse.name }));
+
+      if (cachedCarriers) {
+        setCarrierLookups(cachedCarriers);
+      }
+
+      if (warehouseEntries.length > 0) {
+        setWarehouseLookups(warehouseEntries);
+      }
+
+      if (cachedDeliveries) {
+        const vendors = cachedDeliveries
+          .map((delivery) => delivery.vendor)
+          .filter(Boolean) as Array<{ id: string; title: string; email?: string | null }>;
+        const warehouseMap = new Map(warehouseSource.map((warehouse) => [warehouse.id, warehouse]));
+        const carrierMap = new Map((cachedCarriers || []).map((carrier) => [carrier.id, carrier]));
+        const factoryMap = new Map(vendors.map((vendor) => [vendor.id, vendor]));
+        const mappedShipments = cachedDeliveries.map((delivery) =>
+          mapDeliveryToShipment(delivery, warehouseMap, factoryMap, carrierMap)
+        );
+
+        setFactoryLookups(vendors);
+        setShipments(mappedShipments);
+      }
+
+      if (cachedRecurring) {
+        const recurringVendors = cachedDeliveries
+          ? cachedDeliveries
+              .map((delivery) => delivery.vendor)
+              .filter(Boolean) as Array<{ id: string; title: string; email?: string | null }>
+          : factoryLookups;
+        const warehouseMap = new Map(warehouseSource.map((warehouse) => [warehouse.id, warehouse]));
+        const factoryMap = new Map(recurringVendors.map((vendor) => [vendor.id, vendor]));
+        const mappedRecurring = cachedRecurring.map((recurring) =>
+          mapRecurringShipment(recurring, warehouseMap, factoryMap)
+        );
+        setRecurringShipments(mappedRecurring);
+      }
 
       setIsLoading(true);
       setLoadError(null);
       try {
-        const deliveriesPromise = cachedDeliveries
-          ? Promise.resolve(cachedDeliveries)
-          : fetchDeliveries(selectedWarehouse?.id || undefined);
+        const deliveriesPromise = fetchDeliveries(selectedWarehouse?.id || undefined);
 
         const [carriersData, deliveriesData, recurringData] = await Promise.all([
           cachedCarriers ? Promise.resolve(cachedCarriers) : fetchShippingCarriers(true),
           deliveriesPromise,
-          cachedRecurring ? Promise.resolve(cachedRecurring) : fetchRecurringShipments(selectedWarehouse?.id || undefined),
+          fetchRecurringShipments(selectedWarehouse?.id || undefined),
         ]);
 
         const vendors = deliveriesData
           .map((delivery) => delivery.vendor)
           .filter(Boolean) as Array<{ id: string; title: string; email?: string | null }>;
 
-        const warehouseSource = warehouses.length > 0 ? warehouses : (selectedWarehouse ? [selectedWarehouse] : []);
         const warehouseMap = new Map(warehouseSource.map((warehouse) => [warehouse.id, warehouse]));
         const carrierMap = new Map(carriersData.map((carrier) => [carrier.id, carrier]));
         const factoryMap = new Map(vendors.map((vendor) => [vendor.id, vendor]));
@@ -360,48 +402,41 @@ export default function WarehouseDeliveriesContent() {
         );
 
         if (!isActive) return;
-        if (!cachedDeliveries) {
-          try {
-            sessionStorage.setItem(
-              'warehouseDeliveriesCache',
-              JSON.stringify({
-                updatedAt: new Date().toISOString(),
-                warehouseId: selectedWarehouse?.id || null,
-                deliveries: deliveriesData,
-              })
-            );
-          } catch {
-            // Ignore cache write failures (private mode / quota).
-          }
+        try {
+          sessionStorage.setItem(
+            'warehouseDeliveriesCache',
+            JSON.stringify({
+              updatedAt: new Date().toISOString(),
+              warehouseId: selectedWarehouse?.id || null,
+              deliveries: deliveriesData,
+            })
+          );
+        } catch {
+          // Ignore cache write failures (private mode / quota).
         }
-        if (!cachedCarriers) {
-          try {
-            sessionStorage.setItem(
-              'warehouseCarriersCache',
-              JSON.stringify({
-                carriers: carriersData,
-              })
-            );
-          } catch {
-            // Ignore cache write failures (private mode / quota).
-          }
+        try {
+          sessionStorage.setItem(
+            'warehouseCarriersCache',
+            JSON.stringify({
+              carriers: carriersData,
+            })
+          );
+        } catch {
+          // Ignore cache write failures (private mode / quota).
         }
-        if (!cachedRecurring) {
-          try {
-            sessionStorage.setItem(
-              'warehouseRecurringCache',
-              JSON.stringify({
-                warehouseId: selectedWarehouse?.id || null,
-                recurring: recurringData,
-              })
-            );
-          } catch {
-            // Ignore cache write failures (private mode / quota).
-          }
+        try {
+          sessionStorage.setItem(
+            'warehouseRecurringCache',
+            JSON.stringify({
+              warehouseId: selectedWarehouse?.id || null,
+              recurring: recurringData,
+            })
+          );
+        } catch {
+          // Ignore cache write failures (private mode / quota).
         }
         setCarrierLookups(carriersData);
         setFactoryLookups(vendors);
-        const warehouseEntries = warehouseSource.map((warehouse) => ({ id: warehouse.id, name: warehouse.name }));
         setWarehouseLookups(warehouseEntries);
         try {
           sessionStorage.setItem(
@@ -439,14 +474,13 @@ export default function WarehouseDeliveriesContent() {
         return;
       }
 
-      if (issuesWarehouseId === selectedWarehouse.id && deliveryIssues.length > 0 && reloadToken === 0) {
-        return;
-      }
-
       const cachedIssues = reloadToken === 0 ? getCachedIssues(selectedWarehouse.id) : null;
       if (cachedIssues) {
         setDeliveryIssues(cachedIssues);
         setIssuesWarehouseId(selectedWarehouse.id);
+      }
+
+      if (issuesWarehouseId === selectedWarehouse.id && deliveryIssues.length > 0 && reloadToken === 0 && !cachedIssues) {
         return;
       }
 
@@ -675,6 +709,7 @@ export default function WarehouseDeliveriesContent() {
         note: 'Delivery created',
       });
 
+      invalidateDeliveryCaches();
       setShowCreateRecordModal(false);
       setCreateRecordInitialStatus(undefined);
       setReloadToken((prev) => prev + 1);
@@ -708,6 +743,7 @@ export default function WarehouseDeliveriesContent() {
         userId: null,
         note: 'Status updated',
       });
+      patchDeliveryCaches({ id: selectedShipment.id, status });
       setReloadToken((prev) => prev + 1);
     } catch (error) {
       console.error('Failed to update delivery status', error);
@@ -736,6 +772,7 @@ export default function WarehouseDeliveriesContent() {
         userId: null,
         note: 'Quick status update',
       });
+      patchDeliveryCaches({ id: shipmentId, status });
       setReloadToken((prev) => prev + 1);
     } catch (error) {
       console.error('Failed to update delivery status', error);
@@ -758,6 +795,7 @@ export default function WarehouseDeliveriesContent() {
         vendorContactEmail: selectedShipment.vendorEmail || null,
         notes: selectedShipment.notes || null,
       });
+      patchDeliveryCaches({ id: selectedShipment.id, status: 'RECEIVED' });
       setReloadToken((prev) => prev + 1);
     } catch (error) {
       console.error('Failed to complete receiving', error);
@@ -1071,6 +1109,8 @@ export default function WarehouseDeliveriesContent() {
                   lastGeneratedDate: expectedDateIso,
                   nextExpectedDate: formatDateOnly(nextDate),
                 });
+                invalidateDeliveryCaches();
+                invalidateRecurringCache();
                 setReloadToken((prev) => prev + 1);
               } catch (error) {
                 console.error('Failed to create recurring shipment', error);
@@ -1103,6 +1143,15 @@ export default function WarehouseDeliveriesContent() {
                   recurrencePattern,
                   expectedItems: updates.expectedItems || current.expectedItems,
                 });
+                patchRecurringCache(
+                  {
+                    id,
+                    ...updates,
+                    recurrencePattern,
+                    expectedItems: updates.expectedItems || current.expectedItems,
+                  },
+                  selectedWarehouse?.id || null
+                );
               } catch (error) {
                 console.error('Failed to update recurring shipment', error);
               }
@@ -1128,6 +1177,7 @@ export default function WarehouseDeliveriesContent() {
                   nextExpectedDate: recurring.nextExpectedDate || null,
                 });
                 updateRecurringState(recurring.id, { status });
+                patchRecurringCache({ id: recurring.id, status }, selectedWarehouse?.id || null);
               } catch (error) {
                 console.error('Failed to toggle recurring shipment', error);
               }
@@ -1153,6 +1203,7 @@ export default function WarehouseDeliveriesContent() {
                   nextExpectedDate: recurring.nextExpectedDate || null,
                 });
                 updateRecurringState(recurring.id, { status: 'CANCELLED' });
+                patchRecurringCache({ id: recurring.id, status: 'CANCELLED' }, selectedWarehouse?.id || null);
               } catch (error) {
                 console.error('Failed to cancel recurring shipment', error);
               }
@@ -1586,6 +1637,7 @@ export default function WarehouseDeliveriesContent() {
           onSubmit={handleCreateRecord}
           initialStatus={createRecordInitialStatus}
           isSubmitting={isCreatingDelivery}
+          carriers={carrierLookups.map((carrier) => ({ id: carrier.id, name: carrier.name }))}
         />
       )}
 

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { fetchFactories, fetchProducts, fetchWarehouses } from '../api/warehouseDeliveriesApi';
+import { readCachedLookups } from '../receiving/cache';
 import { ShipmentStatus } from '@/lib/types/warehouse';
 
 interface ShipmentLineItem {
@@ -17,6 +18,7 @@ interface CreateShipmentRecordModalProps {
   onSubmit: (record: ShipmentRecord) => void;
   initialStatus?: ShipmentStatus;
   isSubmitting?: boolean;
+  carriers: Array<{ id: string; name: string }>;
 }
 
 export interface ShipmentRecord {
@@ -33,13 +35,12 @@ export interface ShipmentRecord {
   notes?: string;
 }
 
-const carriers = ['UPS', 'FedEx', 'USPS', 'DHL', 'Freight', 'Other'];
-
 export default function CreateShipmentRecordModal({
   onClose,
   onSubmit,
   initialStatus,
   isSubmitting = false,
+  carriers,
 }: CreateShipmentRecordModalProps) {
   const [factories, setFactories] = useState<Array<{ id: string; name: string }>>([]);
   const [warehouses, setWarehouses] = useState<Array<{ id: string; name: string }>>([]);
@@ -68,14 +69,37 @@ export default function CreateShipmentRecordModal({
 
     const loadLookups = async () => {
       try {
+        const cached = readCachedLookups();
+        if (cached.warehouses) {
+          setWarehouses(cached.warehouses);
+          setSelectedWarehouseId((current) => current || cached.warehouses?.[0]?.id || '');
+        }
+        if (cached.vendors) {
+          setFactories(cached.vendors.map((vendor) => ({ id: vendor.id, name: vendor.title })));
+        }
+
         const [warehouseData, factoryData] = await Promise.all([
           fetchWarehouses(),
           fetchFactories('', true, 100),
         ]);
         if (!isActive) return;
-        setWarehouses(warehouseData.map((wh) => ({ id: wh.id, name: wh.name })));
+        const warehouseOptions = warehouseData.map((wh) => ({ id: wh.id, name: wh.name }));
+        setWarehouses(warehouseOptions);
         setFactories(factoryData.map((factory) => ({ id: factory.id, name: factory.title })));
         setSelectedWarehouseId((current) => current || warehouseData[0]?.id || '');
+        try {
+          sessionStorage.setItem(
+            'warehouseLookupCache',
+            JSON.stringify({ warehouses: warehouseOptions })
+          );
+        } catch {
+          // Ignore cache write failures (private mode / quota).
+        }
+        try {
+          sessionStorage.setItem('warehouseVendorsCache', JSON.stringify({ vendors: factoryData }));
+        } catch {
+          // Ignore cache write failures (private mode / quota).
+        }
       } catch (error) {
         console.error('Failed to load warehouse lookups', error);
       }
@@ -292,8 +316,8 @@ export default function CreateShipmentRecordModal({
                 className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
               >
                 <option value="">Select carrier</option>
-                {carriers.map((c) => (
-                  <option key={c} value={c}>{c}</option>
+                {carriers.map((carrierOption) => (
+                  <option key={carrierOption.id} value={carrierOption.name}>{carrierOption.name}</option>
                 ))}
               </select>
             </div>

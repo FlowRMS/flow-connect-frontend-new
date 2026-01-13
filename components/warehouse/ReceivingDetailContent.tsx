@@ -189,8 +189,10 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
         if (cached.warehouses) {
           setWarehouseOptions(cached.warehouses);
         }
-        if (cached.carriers && cached.vendors) {
+        if (cached.carriers) {
           setCarrierOptions(cached.carriers.map((carrier) => ({ id: carrier.id, name: carrier.name })));
+        }
+        if (cached.vendors) {
           const cachedVendorMap = new Map<string, { id: string; name: string; email?: string | null }>();
           cached.vendors.forEach((vendor) => {
             if (!cachedVendorMap.has(vendor.id)) {
@@ -207,7 +209,7 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
         const [warehouses, carriersList, vendors] = await Promise.all([
           cached.warehouses ? Promise.resolve(cached.warehouses) : fetchWarehouses(),
           cached.carriers ? Promise.resolve(cached.carriers) : fetchShippingCarriers(true),
-          cached.vendors ? Promise.resolve(cached.vendors) : fetchFactories('', true, 200),
+          fetchFactories('', true, 200),
         ]);
         if (!isActive) return;
         const warehouseOptionsList = warehouses.map((warehouse) => ({ id: warehouse.id, name: warehouse.name }));
@@ -226,7 +228,13 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
             uniqueVendors.set(vendor.id, { id: vendor.id, name: vendor.title, email: vendor.email });
           }
         });
-        setVendorOptions(Array.from(uniqueVendors.values()));
+        const vendorOptionsList = Array.from(uniqueVendors.values());
+        setVendorOptions(vendorOptionsList);
+        try {
+          sessionStorage.setItem('warehouseVendorsCache', JSON.stringify({ vendors }));
+        } catch {
+          // Ignore cache write failures (private mode / quota).
+        }
       } catch (error) {
         if (!isActive) return;
         console.error('Failed to load delivery options:', error);
@@ -791,7 +799,7 @@ export default function ReceivingDetailContent({ shipmentId }: ReceivingDetailCo
   const totalIssues = discrepancySummary.totals.total;
   const totalReceived = Math.max(0, totalRawReceived);
   const totalDamaged = totalRawDamaged + discrepancySummary.totals.damage;
-  const totalVariance = totalReceived - totalExpected;
+  const totalVariance = totalReceived + totalDamaged - totalExpected;
   const allItemsVerified = lineItems.every(item => item.verified || getItemAccountedTotal(item) >= item.expectedQty);
   const allItemsPutAway = lineItems.every(item => item.putAway);
   const allBinsAssigned = lineItems.every(item => item.binId);

@@ -1,4 +1,5 @@
 import type { DeliveryApi } from '@/components/warehouse/api/warehouseDeliveriesApi';
+import type { RecurringShipment } from '@/lib/types/warehouse';
 import type { DeliveryCacheLookup, DeliveryCacheRecord } from './types';
 
 export const readCachedDelivery = (shipmentId: string): DeliveryApi | null => {
@@ -16,6 +17,7 @@ export const readCachedLookups = (): DeliveryCacheLookup => {
   try {
     const warehousesRaw = sessionStorage.getItem('warehouseLookupCache');
     const carriersRaw = sessionStorage.getItem('warehouseCarriersCache');
+    const vendorsRaw = sessionStorage.getItem('warehouseVendorsCache');
     const recurringRaw = sessionStorage.getItem('warehouseRecurringCache');
     const deliveriesRaw = sessionStorage.getItem('warehouseDeliveriesCache');
     const warehouses = warehousesRaw
@@ -27,7 +29,10 @@ export const readCachedLookups = (): DeliveryCacheLookup => {
     const deliveries = deliveriesRaw
       ? (JSON.parse(deliveriesRaw).deliveries as DeliveryApi[] | undefined)
       : undefined;
-    const vendors = deliveries ? deliveries.map((delivery) => delivery.vendor).filter(Boolean) : undefined;
+    const cachedVendors = vendorsRaw
+      ? (JSON.parse(vendorsRaw).vendors as Array<{ id: string; title: string; email?: string | null }> | undefined)
+      : undefined;
+    const vendors = cachedVendors || (deliveries ? deliveries.map((delivery) => delivery.vendor).filter(Boolean) : undefined);
     const recurring = recurringRaw
       ? (JSON.parse(recurringRaw).recurring as Array<{ id: string; name: string; vendorId: string; warehouseId: string; status: string }> | undefined)
       : undefined;
@@ -80,6 +85,31 @@ export const invalidateDeliveryCaches = () => {
     sessionStorage.removeItem('warehouseDeliveryIssuesCache');
   } catch {
     // Ignore cache clear failures.
+  }
+};
+
+export const invalidateRecurringCache = () => {
+  try {
+    sessionStorage.removeItem('warehouseRecurringCache');
+  } catch {
+    // Ignore cache clear failures.
+  }
+};
+
+export const patchRecurringCache = (
+  patch: Partial<RecurringShipment> & { id: string },
+  warehouseId?: string | null
+) => {
+  try {
+    const raw = sessionStorage.getItem('warehouseRecurringCache');
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as { warehouseId?: string | null; recurring?: RecurringShipment[] };
+    if (warehouseId && parsed.warehouseId && parsed.warehouseId !== warehouseId) return;
+    if (!Array.isArray(parsed.recurring)) return;
+    const recurring = parsed.recurring.map((item) => (item.id === patch.id ? { ...item, ...patch } : item));
+    sessionStorage.setItem('warehouseRecurringCache', JSON.stringify({ ...parsed, recurring }));
+  } catch {
+    // Ignore cache update failures.
   }
 };
 
