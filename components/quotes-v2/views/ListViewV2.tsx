@@ -3,13 +3,20 @@
 import React, { useState, useMemo } from 'react';
 import type { QuoteV2, QuotePipelineStage } from '../types';
 import { AvatarInline } from '@/components/ui/CreatedByBadge';
+import { ListPreviewHoverCard } from '@/components/shared/ListPreviewHoverCard';
 
 interface ListViewV2Props {
   quotes: QuoteV2[];
   onQuoteClick: (quote: QuoteV2) => void;
+  // Selection props from parent (optional for backward compatibility)
+  isItemSelected?: (id: string) => boolean;
+  isAllSelected?: boolean;
+  isPartiallySelected?: boolean;
+  onSelectAll?: (checked: boolean) => void;
+  onSelectOne?: (id: string, checked: boolean) => void;
 }
 
-type SortKey = 'quoteNumber' | 'status' | 'pipelineStage' | 'quoteAmount' | 'commission' | 'entryDate' | 'quoteDate' | 'expirationDate' | 'published';
+type SortKey = 'quoteNumber' | 'status' | 'pipelineStage' | 'quoteAmount' | 'commission' | 'entryDate' | 'quoteDate' | 'expirationDate' | 'published' | 'soldToCustomerName';
 
 function getStatusBadgeClass(status: string): string {
   switch (status) {
@@ -56,10 +63,19 @@ function formatPipelineStage(stage?: QuotePipelineStage): string {
     .join(' ');
 }
 
-export function ListViewV2({ quotes, onQuoteClick }: ListViewV2Props) {
+export function ListViewV2({
+  quotes,
+  onQuoteClick,
+  isItemSelected,
+  isAllSelected,
+  isPartiallySelected,
+  onSelectAll,
+  onSelectOne,
+}: ListViewV2Props) {
   const [sortColumn, setSortColumn] = useState<SortKey | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [selectedQuotes, setSelectedQuotes] = useState<Set<string>>(new Set());
+  // Local selection state (fallback if parent props not provided)
+  const [localSelectedQuotes, setLocalSelectedQuotes] = useState<Set<string>>(new Set());
 
   const handleSort = (column: SortKey) => {
     if (sortColumn === column) {
@@ -114,6 +130,10 @@ export function ListViewV2({ quotes, onQuoteClick }: ListViewV2Props) {
           aVal = a.published ? 1 : 0;
           bVal = b.published ? 1 : 0;
           break;
+        case 'soldToCustomerName':
+          aVal = a.soldToCustomerName || '';
+          bVal = b.soldToCustomerName || '';
+          break;
         default:
           return 0;
       }
@@ -124,22 +144,46 @@ export function ListViewV2({ quotes, onQuoteClick }: ListViewV2Props) {
     });
   }, [quotes, sortColumn, sortDirection]);
 
+  // Use parent props if available, otherwise use local state
+  const checkIsSelected = (id: string) =>
+    isItemSelected ? isItemSelected(id) : localSelectedQuotes.has(id);
+
+  const allSelected = isAllSelected !== undefined
+    ? isAllSelected
+    : (localSelectedQuotes.size === quotes.length && quotes.length > 0);
+
+  const partiallySelected = isPartiallySelected !== undefined
+    ? isPartiallySelected
+    : (localSelectedQuotes.size > 0 && localSelectedQuotes.size < quotes.length);
+
   const toggleSelectAll = () => {
-    if (selectedQuotes.size === quotes.length) {
-      setSelectedQuotes(new Set());
+    if (onSelectAll) {
+      // Use parent handler
+      onSelectAll(!allSelected);
     } else {
-      setSelectedQuotes(new Set(quotes.map((q) => q.id)));
+      // Local fallback
+      if (localSelectedQuotes.size === quotes.length) {
+        setLocalSelectedQuotes(new Set());
+      } else {
+        setLocalSelectedQuotes(new Set(quotes.map((q) => q.id)));
+      }
     }
   };
 
   const toggleSelect = (id: string) => {
-    const newSet = new Set(selectedQuotes);
-    if (newSet.has(id)) {
-      newSet.delete(id);
+    if (onSelectOne) {
+      // Use parent handler
+      onSelectOne(id, !checkIsSelected(id));
     } else {
-      newSet.add(id);
+      // Local fallback
+      const newSet = new Set(localSelectedQuotes);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      setLocalSelectedQuotes(newSet);
     }
-    setSelectedQuotes(newSet);
   };
 
   const formatDate = (dateStr: string): string => {
@@ -182,7 +226,7 @@ export function ListViewV2({ quotes, onQuoteClick }: ListViewV2Props) {
   return (
     <div className="bg-white rounded-lg border border-gray-200">
       <div className="overflow-x-auto">
-        <table className="w-full">
+        <table className="w-full min-w-[1800px]">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
               {/* Checkbox */}
@@ -190,7 +234,10 @@ export function ListViewV2({ quotes, onQuoteClick }: ListViewV2Props) {
                 <input
                   type="checkbox"
                   className="rounded border-gray-300 accent-indigo-600"
-                  checked={selectedQuotes.size === quotes.length && quotes.length > 0}
+                  checked={allSelected}
+                  ref={(el) => {
+                    if (el) el.indeterminate = partiallySelected;
+                  }}
                   onChange={toggleSelectAll}
                 />
               </th>
@@ -201,6 +248,32 @@ export function ListViewV2({ quotes, onQuoteClick }: ListViewV2Props) {
                 <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('quoteNumber')}>
                   Quote Number {renderFilterIcon()} {renderSortIcon('quoteNumber')}
                 </div>
+              </th>
+              {/* Customer Name */}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <div className="flex items-center cursor-pointer hover:text-gray-700" onClick={() => handleSort('soldToCustomerName')}>
+                  Customer {renderFilterIcon()} {renderSortIcon('soldToCustomerName')}
+                </div>
+              </th>
+              {/* Part Numbers - moved after Customer */}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Part Numbers
+              </th>
+              {/* Sales Reps - moved after Customer */}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Sales Reps
+              </th>
+              {/* Factories - moved after Customer */}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Factories
+              </th>
+              {/* End Users - moved after Customer */}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                End Users
+              </th>
+              {/* Categories - moved after Customer */}
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Categories
               </th>
               {/* Status */}
               <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -269,7 +342,7 @@ export function ListViewV2({ quotes, onQuoteClick }: ListViewV2Props) {
                     <input
                       type="checkbox"
                       className="rounded border-gray-300 accent-indigo-600"
-                      checked={selectedQuotes.has(quote.id)}
+                      checked={checkIsSelected(quote.id)}
                       onChange={() => toggleSelect(quote.id)}
                     />
                   </td>
@@ -285,6 +358,47 @@ export function ListViewV2({ quotes, onQuoteClick }: ListViewV2Props) {
                   {/* Quote Number */}
                   <td className="px-3 py-3">
                     <span className="text-sm font-medium text-indigo-600 hover:underline">{quote.quoteNumber}</span>
+                  </td>
+                  {/* Customer Name */}
+                  <td className="px-3 py-3">
+                    <span className="text-sm text-gray-900 truncate max-w-[200px] block" title={quote.soldToCustomerName || '-'}>
+                      {quote.soldToCustomerName || '-'}
+                    </span>
+                  </td>
+                  {/* Part Numbers - moved after Customer */}
+                  <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                    <ListPreviewHoverCard
+                      items={quote.partNumbers || []}
+                      type="partNumber"
+                    />
+                  </td>
+                  {/* Sales Reps - moved after Customer */}
+                  <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                    <ListPreviewHoverCard
+                      items={quote.salesReps || []}
+                      type="salesRep"
+                    />
+                  </td>
+                  {/* Factories - moved after Customer */}
+                  <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                    <ListPreviewHoverCard
+                      items={quote.factories || []}
+                      type="factory"
+                    />
+                  </td>
+                  {/* End Users - moved after Customer */}
+                  <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                    <ListPreviewHoverCard
+                      items={quote.endUsers || []}
+                      type="endUser"
+                    />
+                  </td>
+                  {/* Categories - moved after Customer */}
+                  <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                    <ListPreviewHoverCard
+                      items={quote.categories || []}
+                      type="category"
+                    />
                   </td>
                   {/* Status */}
                   <td className="px-3 py-3">

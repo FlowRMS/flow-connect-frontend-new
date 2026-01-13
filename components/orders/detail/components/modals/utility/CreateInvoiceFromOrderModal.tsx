@@ -5,7 +5,7 @@
 
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCreateInvoiceFromOrder } from '@/components/invoices/api/useInvoicesApi';
 import { useFactorySearch } from '@/components/orders/api/useOrdersApi';
@@ -20,6 +20,7 @@ interface CreateInvoiceFromOrderModalProps {
   factoryId?: string;
   factoryName?: string;
   lineItems?: OrderLineItem[];
+  initialSelectedItemIds?: Set<string>;
   onClose: () => void;
   onSuccess?: (invoice: Invoice) => void;
 }
@@ -33,6 +34,7 @@ export function CreateInvoiceFromOrderModal({
   factoryId: initialFactoryId = '',
   factoryName: initialFactoryName = '',
   lineItems = [],
+  initialSelectedItemIds,
   onClose,
   onSuccess,
 }: CreateInvoiceFromOrderModalProps) {
@@ -51,7 +53,43 @@ export function CreateInvoiceFromOrderModal({
   const [factoryName, setFactoryName] = useState(initialFactoryName);
   const [createdInvoice, setCreatedInvoice] = useState<Invoice | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set(invoiceableItems.map(item => item.id)));
+  // Use initialSelectedItemIds if provided (from detail page selection), filtered to only invoiceable items
+  // Otherwise default to all invoiceable items
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(() => {
+    if (initialSelectedItemIds && initialSelectedItemIds.size > 0) {
+      // Filter initial selection to only include invoiceable items (non-credit)
+      const invoiceableIds = new Set(invoiceableItems.map(item => item.id));
+      const filteredSelection = new Set<string>();
+      initialSelectedItemIds.forEach(id => {
+        if (invoiceableIds.has(id)) {
+          filteredSelection.add(id);
+        }
+      });
+      // If no items remain after filtering, default to all invoiceable items
+      return filteredSelection.size > 0 ? filteredSelection : new Set(invoiceableItems.map(item => item.id));
+    }
+    return new Set(invoiceableItems.map(item => item.id));
+  });
+
+  // Sync selection state when modal opens or initialSelectedItemIds changes
+  useEffect(() => {
+    if (isOpen) {
+      if (initialSelectedItemIds && initialSelectedItemIds.size > 0) {
+        // Filter initial selection to only include invoiceable items (non-credit)
+        const invoiceableIds = new Set(invoiceableItems.map(item => item.id));
+        const filteredSelection = new Set<string>();
+        initialSelectedItemIds.forEach(id => {
+          if (invoiceableIds.has(id)) {
+            filteredSelection.add(id);
+          }
+        });
+        // If no items remain after filtering, default to all invoiceable items
+        setSelectedItemIds(filteredSelection.size > 0 ? filteredSelection : new Set(invoiceableItems.map(item => item.id)));
+      } else {
+        setSelectedItemIds(new Set(invoiceableItems.map(item => item.id)));
+      }
+    }
+  }, [isOpen, initialSelectedItemIds, invoiceableItems]);
 
   // Factory search
   const [factorySearchTerm, setFactorySearchTerm] = useState('');
@@ -164,7 +202,19 @@ export function CreateInvoiceFromOrderModal({
     setFactoryName(initialFactoryName);
     setCreatedInvoice(null);
     setError(null);
-    setSelectedItemIds(new Set(invoiceableItems.map(item => item.id)));
+    // Reset to initial selection if provided (filtered to invoiceable items), otherwise all invoiceable items
+    if (initialSelectedItemIds && initialSelectedItemIds.size > 0) {
+      const invoiceableIds = new Set(invoiceableItems.map(item => item.id));
+      const filteredSelection = new Set<string>();
+      initialSelectedItemIds.forEach(id => {
+        if (invoiceableIds.has(id)) {
+          filteredSelection.add(id);
+        }
+      });
+      setSelectedItemIds(filteredSelection.size > 0 ? filteredSelection : new Set(invoiceableItems.map(item => item.id)));
+    } else {
+      setSelectedItemIds(new Set(invoiceableItems.map(item => item.id)));
+    }
     onClose();
   };
 

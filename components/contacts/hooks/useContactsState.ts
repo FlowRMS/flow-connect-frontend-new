@@ -15,7 +15,7 @@ import { mapLandingPageToUIContact } from '../types';
 import { contactToasts } from '../../lib/toast';
 import { applyFilter } from '../../lib/filter-utils';
 import type { Contact, ViewMode } from '../types';
-import type { ActiveFilter, ActiveSort } from '../../AdvancedFilters';
+import type { ActiveFilter, ActiveSort } from '../../advancedFilters/AdvancedFilters';
 import type { LandingPageFilter, LandingPageOrderBy } from '../../lib/crm-graphql';
 
 export function useContactsState() {
@@ -40,6 +40,24 @@ export function useContactsState() {
   const [isEditing, setIsEditing] = useState(true);
   const [editFormData, setEditFormData] = useState<Partial<Contact>>({});
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  // Initialize editFormData when a contact is selected
+  useEffect(() => {
+    if (selectedContact && isEditing) {
+      setEditFormData({
+        firstName: selectedContact.firstName,
+        lastName: selectedContact.lastName,
+        email: selectedContact.email,
+        phone: selectedContact.phone,
+        role: selectedContact.role,
+        company: selectedContact.company,
+        companyId: selectedContact.companyId,
+        territory: selectedContact.territory,
+        tags: selectedContact.tags,
+        notes: selectedContact.notes,
+      });
+    }
+  }, [selectedContact?.id, isEditing]); // Re-initialize when contact changes or edit mode changes
 
   // Filter and sort state (client-side for backward compatibility)
   const [activeFilter, setActiveFilter] = useState<ActiveFilter | undefined>(undefined);

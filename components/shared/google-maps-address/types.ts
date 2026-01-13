@@ -15,7 +15,8 @@ export interface Address {
   id: string;
   sourceId: string;
   sourceType: AddressSourceType;
-  addressType: AddressType;
+  addressType: AddressType; // For UI use - derived from addressTypes[0]
+  addressTypes?: AddressType[]; // From API - array of address types
   line1: string;
   line2?: string;
   city: string;
@@ -34,7 +35,8 @@ export interface Address {
 export interface CreateAddressInput {
   sourceId: string;
   sourceType: AddressSourceType;
-  addressType: AddressType;
+  addressType?: AddressType;
+  addressTypes?: AddressType[]; // Allow passing array for API compatibility
   line1: string;
   line2?: string;
   city: string;
@@ -49,6 +51,7 @@ export interface UpdateAddressInput {
   sourceId?: string;
   sourceType?: AddressSourceType;
   addressType?: AddressType;
+  addressTypes?: AddressType[]; // Allow passing array for API compatibility
   line1?: string;
   line2?: string;
   city?: string;
@@ -104,7 +107,7 @@ export interface GoogleMapsAddressModalProps {
 }
 
 export interface AddressFormData {
-  addressType: AddressType;
+  addressTypes: AddressType[];
   line1: string;
   line2: string;
   city: string;

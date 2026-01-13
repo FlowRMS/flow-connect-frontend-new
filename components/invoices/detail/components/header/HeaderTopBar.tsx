@@ -39,6 +39,10 @@ interface HeaderTopBarProps {
   handleGeneratePDF?: () => void;
   handleSave?: () => void;
   handleSaveAsNew?: () => void;
+  // Unsaved changes
+  isCreateMode?: boolean;
+  hasChanges?: boolean;
+  isSaving?: boolean;
 }
 
 const getStatusColor = (status: InvoiceStatus) => {
@@ -75,6 +79,9 @@ export function HeaderTopBar({
   handleGeneratePDF,
   handleSave,
   handleSaveAsNew,
+  isCreateMode = false,
+  hasChanges = false,
+  isSaving = false,
 }: HeaderTopBarProps) {
   const router = useRouter();
   const overdue = isOverdue(invoice);
@@ -234,32 +241,34 @@ export function HeaderTopBar({
                       </button>
                       <div className="border-t border-[var(--border)]" />
                       <button
-                        onClick={() => {
-                          handleMakeWarehouseOrder();
-                          setShowActionsDropdown(false);
-                        }}
-                        className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-b-lg flex items-center gap-2 text-teal-600"
+                        disabled
+                        className="w-full px-4 py-2 text-left text-sm rounded-b-lg flex items-center justify-between opacity-50 cursor-not-allowed text-gray-500"
                       >
-                        <svg
-                          width="16"
-                          height="16"
-                          viewBox="0 0 20 20"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                        >
-                          <path
-                            d="M3 7h14l-1.5 9H4.5L3 7z"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                          <path
-                            d="M8 7V5a2 2 0 012-2v0a2 2 0 012 2v2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                        Make Warehouse Order
+                        <span className="flex items-center gap-2">
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 20 20"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                          >
+                            <path
+                              d="M3 7h14l-1.5 9H4.5L3 7z"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                            <path
+                              d="M8 7V5a2 2 0 012-2v0a2 2 0 012 2v2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                          Make Warehouse Order
+                        </span>
+                        <span className="text-[9px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded font-medium">
+                          Coming Soon
+                        </span>
                       </button>
                     </>
                   ) : (
@@ -314,32 +323,34 @@ export function HeaderTopBar({
                       </button>
                       <div className="border-t border-[var(--border)]" />
                       <button
-                        onClick={() => {
-                          handleMakeWarehouseOrder();
-                          setShowActionsDropdown(false);
-                        }}
-                        className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors rounded-b-lg flex items-center gap-2 text-teal-600"
+                        disabled
+                        className="w-full px-4 py-2 text-left text-sm rounded-b-lg flex items-center justify-between opacity-50 cursor-not-allowed text-gray-500"
                       >
-                        <svg
-                          width="16"
-                          height="16"
-                          viewBox="0 0 20 20"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                        >
-                          <path
-                            d="M3 7h14l-1.5 9H4.5L3 7z"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                          <path
-                            d="M8 7V5a2 2 0 012-2v0a2 2 0 012 2v2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                        Make Warehouse Order
+                        <span className="flex items-center gap-2">
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 20 20"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                          >
+                            <path
+                              d="M3 7h14l-1.5 9H4.5L3 7z"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                            <path
+                              d="M8 7V5a2 2 0 012-2v0a2 2 0 012 2v2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                          Make Warehouse Order
+                        </span>
+                        <span className="text-[9px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded font-medium">
+                          Coming Soon
+                        </span>
                       </button>
                     </>
                   )}
@@ -395,13 +406,17 @@ export function HeaderTopBar({
                     <button
                       key={v.version}
                       onClick={() => {
+                        if (v.version === 1) return; // Disable v1
                         setCurrentVersion(v.version);
                         setShowVersionDropdown(false);
                       }}
-                      className={`w-full px-4 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors first:rounded-t-lg last:rounded-b-lg flex items-center justify-between ${
-                        currentVersion === v.version
+                      disabled={v.version === 1}
+                      className={`w-full px-4 py-2 text-left text-sm transition-colors first:rounded-t-lg last:rounded-b-lg flex items-center justify-between ${
+                        v.version === 1
+                          ? 'opacity-50 cursor-not-allowed text-gray-500'
+                          : currentVersion === v.version
                           ? 'bg-[var(--primary)]/10 text-[var(--primary)]'
-                          : ''
+                          : 'hover:bg-[var(--muted)]'
                       }`}
                     >
                       <div className="flex items-center gap-2">
@@ -409,6 +424,11 @@ export function HeaderTopBar({
                         {v.isLatest && (
                           <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-xs">
                             Latest
+                          </span>
+                        )}
+                        {v.version === 1 && (
+                          <span className="text-[9px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded font-medium">
+                            Coming Soon
                           </span>
                         )}
                       </div>
@@ -516,16 +536,8 @@ export function HeaderTopBar({
                     )}
                   </button>
                   <button
-                    onClick={() => {
-                      setViewMode('overage');
-                      setVisibleColumns(new Set(overageColumns));
-                      setShowViewModeDropdown(false);
-                    }}
-                    className={`w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors rounded-b-lg flex items-center justify-between ${
-                      viewMode === 'overage'
-                        ? 'text-[var(--primary)] font-medium'
-                        : ''
-                    }`}
+                    disabled
+                    className="w-full text-left px-4 py-2 text-sm rounded-b-lg flex items-center justify-between opacity-50 cursor-not-allowed text-gray-500"
                   >
                     <span className="flex items-center gap-2">
                       <svg
@@ -544,22 +556,9 @@ export function HeaderTopBar({
                       </svg>
                       Overage View
                     </span>
-                    {viewMode === 'overage' && (
-                      <svg
-                        width="14"
-                        height="14"
-                        viewBox="0 0 20 20"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                      >
-                        <path
-                          d="M5 10l3 3 7-7"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    )}
+                    <span className="text-[9px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded font-medium">
+                      Coming Soon
+                    </span>
                   </button>
                 </div>
               </>
@@ -601,12 +600,22 @@ export function HeaderTopBar({
 
           {/* Save Button with Dropdown */}
           <div className="relative">
+            {/* Unsaved changes indicator */}
+            {hasChanges && !isCreateMode && (
+              <span className="absolute -top-1 -left-1 w-2.5 h-2.5 bg-amber-500 rounded-full animate-pulse" title="You have unsaved changes" />
+            )}
             <div className="flex">
               <button
-                onClick={() => handleSave?.() || alert('Invoice saved!')}
-                className="px-4 py-2 bg-green-600 text-white rounded-l-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                onClick={() => handleSave?.()}
+                disabled={isSaving || (!isCreateMode && !hasChanges)}
+                className={`px-4 py-2 text-white rounded-l-lg transition-colors text-sm font-medium ${
+                  isSaving || (!isCreateMode && !hasChanges)
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-700'
+                }`}
+                title={!isCreateMode && !hasChanges ? 'No changes to save' : undefined}
               >
-                Save
+                {isSaving ? 'Saving...' : isCreateMode ? 'Create' : 'Save'}
               </button>
               <button
                 onClick={() => {
@@ -614,7 +623,12 @@ export function HeaderTopBar({
                   setShowActionsDropdown(false);
                   setShowStatusDropdown(false);
                 }}
-                className="px-2 py-2 bg-green-600 text-white rounded-r-lg hover:bg-green-700 transition-colors border-l border-green-500"
+                disabled={isSaving || (!isCreateMode && !hasChanges)}
+                className={`px-2 py-2 text-white rounded-r-lg transition-colors border-l border-green-500 ${
+                  isSaving || (!isCreateMode && !hasChanges)
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-700'
+                }`}
               >
                 <svg
                   width="12"
@@ -649,26 +663,28 @@ export function HeaderTopBar({
                     Save
                   </button>
                   <button
-                    onClick={() => {
-                      handleSaveAsNew?.();
-                      setShowSaveDropdown(false);
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm hover:bg-[var(--muted)] transition-colors flex items-center gap-2"
+                    disabled
+                    className="w-full text-left px-4 py-2 text-sm flex items-center justify-between opacity-50 cursor-not-allowed text-gray-500"
                   >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 20 20"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <path
-                        d="M10 5v10M5 10h10"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                    Save as New Version
+                    <span className="flex items-center gap-2">
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 20 20"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <path
+                          d="M10 5v10M5 10h10"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                      Save as New Version
+                    </span>
+                    <span className="text-[9px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded font-medium">
+                      Coming Soon
+                    </span>
                   </button>
                 </div>
               </>

@@ -5,6 +5,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import type { Company, CompanyHierarchyRole } from '../types';
 import { getCompanyInitials, getLogoColor, formatDate } from '../utils';
+import { COMPANY_SOURCE_TYPE_LABELS, COMPANY_SOURCE_TYPE_OPTIONS } from '../../lib/crm-graphql';
 
 // Sort direction type
 type SortDirection = 'asc' | 'desc' | null;
@@ -203,8 +204,10 @@ export default function ListView({ companies, onCompanyClick }: ListViewProps) {
 
   // Get unique values for dropdown filters
   const filterOptions = useMemo(() => {
+    // Get all company type labels for the dropdown
+    const companyTypeLabels = COMPANY_SOURCE_TYPE_OPTIONS.map(type => COMPANY_SOURCE_TYPE_LABELS[type]);
     return {
-      companySourceType: ['Manufacturer', 'Customer'],
+      companySourceType: companyTypeLabels,
       hierarchyRole: ['None', 'Parent', 'Grandparent'],
       tags: [...new Set(companies.flatMap(c => c.tags))].sort(),
       isDocumentSpecific: ['Yes', 'No'],
@@ -239,8 +242,13 @@ export default function ListView({ companies, onCompanyClick }: ListViewProps) {
       result = result.filter(c => c.name.toLowerCase().includes(query));
     }
     if (columnFilters.companySourceType) {
-      const isManufacturer = columnFilters.companySourceType === 'Manufacturer';
-      result = result.filter(c => (c.companySourceType === 'MANUFACTURER') === isManufacturer);
+      // Find the matching company source type key from the label
+      const matchingType = COMPANY_SOURCE_TYPE_OPTIONS.find(
+        type => COMPANY_SOURCE_TYPE_LABELS[type] === columnFilters.companySourceType
+      );
+      if (matchingType) {
+        result = result.filter(c => c.companySourceType === matchingType);
+      }
     }
     if (columnFilters.hierarchyRole) {
       const roleMap: Record<string, CompanyHierarchyRole> = { 'None': 'none', 'Parent': 'parent', 'Grandparent': 'grandparent' };
@@ -453,7 +461,7 @@ export default function ListView({ companies, onCompanyClick }: ListViewProps) {
                       ? 'bg-purple-100 text-purple-700'
                       : 'bg-green-100 text-green-700'
                   }`}>
-                    {company.companySourceType === 'MANUFACTURER' ? 'Manufacturer' : 'Customer'}
+                    {COMPANY_SOURCE_TYPE_LABELS[company.companySourceType] || 'Customer'}
                   </span>
                 </div>
                 <div className="col-span-2 flex items-center">

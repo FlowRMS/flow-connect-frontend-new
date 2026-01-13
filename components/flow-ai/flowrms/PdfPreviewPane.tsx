@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo, useCallback, memo } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
-import { FileText, Loader2, ZoomIn, ZoomOut, RotateCw, Maximize2, FileCode } from 'lucide-react';
+import { FileText, Loader2, ZoomIn, ZoomOut, RotateCw, Maximize2, FileCode, Download } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/flow-ai/ui/card';
 import { Badge } from '@/components/flow-ai/ui/badge';
 import { Button } from '@/components/flow-ai/ui/button';
@@ -176,6 +176,51 @@ export function PdfPreviewPane({ file, fileUrl, fileName, pages, onMarkdownTextS
     setZoom(100);
   }, []);
 
+  // Download the PDF
+  const handleDownload = useCallback(async () => {
+    if (!documentSource) return;
+
+    try {
+      let blob: Blob;
+      let downloadFileName = displayName;
+
+      // Ensure filename has .pdf extension
+      if (!downloadFileName.toLowerCase().endsWith('.pdf')) {
+        downloadFileName += '.pdf';
+      }
+
+      if (file) {
+        // If we have a File object, use it directly
+        blob = file;
+      } else if (fileUrl) {
+        // Fetch the PDF from the URL (use proxy for external URLs)
+        const fetchUrl = fileUrl.includes('digitaloceanspaces.com') || fileUrl.includes('s3.')
+          ? `/api/flow-ai/pdf-proxy?url=${encodeURIComponent(fileUrl)}`
+          : fileUrl;
+
+        const response = await fetch(fetchUrl);
+        if (!response.ok) {
+          throw new Error('Failed to fetch PDF');
+        }
+        blob = await response.blob();
+      } else {
+        return;
+      }
+
+      // Create download link
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = downloadFileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Download error:', err);
+    }
+  }, [documentSource, file, fileUrl, displayName]);
+
   useEffect(() => {
     setNumPages(0);
     setLoading(true);
@@ -273,13 +318,23 @@ export function PdfPreviewPane({ file, fileUrl, fileName, pages, onMarkdownTextS
                 {numPages} page{numPages !== 1 ? 's' : ''}
               </Badge>
             )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleDownload}
+              title="Download PDF"
+              className="ml-2 shrink-0 h-7 w-7 p-0"
+              type="button"
+            >
+              <Download className="w-4 h-4" />
+            </Button>
             <Dialog open={isFullscreenOpen} onOpenChange={setIsFullscreenOpen}>
               <DialogTrigger asChild>
                 <Button
                   variant="ghost"
                   size="sm"
                   title="Fullscreen"
-                  className="ml-2 shrink-0 h-7 w-7 p-0"
+                  className="shrink-0 h-7 w-7 p-0"
                   type="button"
                 >
                   <Maximize2 className="w-4 h-4" />
@@ -289,7 +344,17 @@ export function PdfPreviewPane({ file, fileUrl, fileName, pages, onMarkdownTextS
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
                     <FileText className="w-4 h-4 text-primary" />
-                    {displayName} - Fullscreen View
+                    <span className="flex-1">{displayName} - Fullscreen View</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleDownload}
+                      title="Download PDF"
+                      className="shrink-0 h-7 w-7 p-0 mr-6"
+                      type="button"
+                    >
+                      <Download className="w-4 h-4" />
+                    </Button>
                   </DialogTitle>
                 </DialogHeader>
                 <div className="flex-1 mt-4 overflow-hidden h-[calc(95vh-100px)]">

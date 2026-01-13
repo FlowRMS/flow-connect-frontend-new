@@ -66,6 +66,7 @@ import {
   type Organization,
 } from './lib/graphql/organization';
 import { uploadFile, getFilePresignedUrl } from './lib/graphql/files';
+import { SearchableDropdownV2 } from './quotes-v2/components/SearchableDropdownV2';
 
 // Coming Soon Overlay Component for non-functional tabs
 function ComingSoonOverlay({ children }: { children: React.ReactNode }) {
@@ -6369,6 +6370,7 @@ function AddUserModalWithApi({ onClose }: { onClose: () => void }) {
     enabled: true,
     inside: false,
     outside: false,
+    visible: true,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -6490,15 +6492,13 @@ function AddUserModalWithApi({ onClose }: { onClose: () => void }) {
             <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
               Role <span className="text-red-500">*</span>
             </label>
-            <select
+            <SearchableDropdownV2
               value={formData.role}
-              onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
-              className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:border-[var(--primary)] focus:ring-[var(--primary)]/20"
-            >
-              {USER_ROLES.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
+              displayValue={getRoleDisplayLabel(formData.role)}
+              onChange={(id) => setFormData({ ...formData, role: id as UserRole })}
+              options={USER_ROLES.map(r => ({ id: r.value, label: r.label }))}
+              placeholder="Select role..."
+            />
           </div>
 
           <div className="flex items-center gap-3">
@@ -6512,6 +6512,19 @@ function AddUserModalWithApi({ onClose }: { onClose: () => void }) {
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[var(--primary)]/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary)]"></div>
             </label>
             <span className="text-sm text-[var(--foreground)]">Active</span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.visible}
+                onChange={(e) => setFormData({ ...formData, visible: e.target.checked })}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[var(--primary)]/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary)]"></div>
+            </label>
+            <span className="text-sm text-[var(--foreground)]">Visible</span>
           </div>
         </div>
 
@@ -6554,6 +6567,7 @@ function EditUserModalWithApi({ user, onClose }: { user: User; onClose: () => vo
     enabled: user.enabled,
     inside: user.inside,
     outside: user.outside,
+    visible: user.visible,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -6571,6 +6585,10 @@ function EditUserModalWithApi({ user, onClose }: { user: User; onClose: () => vo
   const handleSubmit = async () => {
     if (!validate()) return;
 
+    // Set inside/outside flags based on role
+    // INSIDE_REP: inside=true, outside=false
+    // OUTSIDE_REP: inside=false, outside=true
+    // Others: inside=false, outside=false
     const input: Partial<UserInput> = {
       ...formData,
       inside: formData.role === 'INSIDE_REP',
@@ -6675,15 +6693,13 @@ function EditUserModalWithApi({ user, onClose }: { user: User; onClose: () => vo
             <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
               Role <span className="text-red-500">*</span>
             </label>
-            <select
+            <SearchableDropdownV2
               value={formData.role}
-              onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
-              className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:border-[var(--primary)] focus:ring-[var(--primary)]/20"
-            >
-              {USER_ROLES.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
+              displayValue={getRoleDisplayLabel(formData.role)}
+              onChange={(id) => setFormData({ ...formData, role: id as UserRole })}
+              options={USER_ROLES.map(r => ({ id: r.value, label: r.label }))}
+              placeholder="Select role..."
+            />
           </div>
 
           <div className="flex items-center gap-3">
@@ -6697,6 +6713,19 @@ function EditUserModalWithApi({ user, onClose }: { user: User; onClose: () => vo
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[var(--primary)]/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary)]"></div>
             </label>
             <span className="text-sm text-[var(--foreground)]">Active</span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.visible}
+                onChange={(e) => setFormData({ ...formData, visible: e.target.checked })}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[var(--primary)]/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary)]"></div>
+            </label>
+            <span className="text-sm text-[var(--foreground)]">Visible</span>
           </div>
         </div>
 

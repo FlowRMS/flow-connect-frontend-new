@@ -21,8 +21,37 @@ import { BulkCreateNewPane } from '@/components/flow-ai/flowrms/entity-matching/
 import { CreateNewSpreadsheet } from '@/components/flow-ai/flowrms/entity-matching/CreateNewSpreadsheet';
 import { WorkflowBreadcrumb } from '@/components/flow-ai/flowrms/WorkflowBreadcrumb';
 import { useEntityMatching, CreateExtraFields } from '@/components/flow-ai/hooks/useEntityMatching';
-import type { PendingEntity, PendingEntityType } from '@/components/flow-ai/types/entity-matching';
+import type { PendingEntity, PendingEntityType, EntityStep } from '@/components/flow-ai/types/entity-matching';
 import { getConfidencePercentage, parseExtractedData } from '@/components/flow-ai/types/entity-matching';
+
+// Tabs that require factory to be matched first (only for CHECKS and INVOICES document types)
+const FACTORY_DEPENDENT_TABS: EntityStep[] = ['orders', 'invoices', 'credits', 'adjustments'];
+
+// All possible steps in order
+const ALL_STEPS: EntityStep[] = ['factories', 'customers', 'billtocustomers', 'endusers', 'products', 'orders', 'invoices', 'credits', 'adjustments'];
+
+// Get visible steps based on document type
+function getVisibleSteps(documentType: string | null): EntityStep[] {
+  const normalizedDocType = documentType?.toUpperCase();
+
+  // For CHECKS: Show all tabs (orders, invoices, credits, adjustments all visible)
+  if (normalizedDocType === 'CHECKS') {
+    return ALL_STEPS;
+  }
+
+  // For INVOICES: Hide invoices, credits, adjustments tabs - only show orders
+  if (normalizedDocType === 'INVOICES') {
+    return ALL_STEPS.filter(step =>
+      !['invoices', 'credits', 'adjustments'].includes(step)
+    );
+  }
+
+  // For other document types (ORDERS, QUOTES, ORDER_ACKNOWLEDGEMENTS, etc.):
+  // Hide orders, invoices, credits, adjustments tabs entirely
+  return ALL_STEPS.filter(step =>
+    !FACTORY_DEPENDENT_TABS.includes(step)
+  );
+}
 import { flowrmsApolloClient } from '@/lib/flow-ai/flowrms-apollo';
 import { Q_GET_PENDING, M_EXECUTE_DOCUMENT_WORKFLOW } from '@/lib/flow-ai/gql';
 
@@ -147,8 +176,8 @@ function EntityMatchingContent() {
   // State for workflow triggering (new flow)
   const [isProcessingWorkflow, setIsProcessingWorkflow] = useState(false);
 
-  // Ref to track if we've already checked for empty entities redirect
-  const hasCheckedEmptyRedirect = useRef(false);
+  // State for document type (CHECKS, INVOICES, etc.)
+  const [documentType, setDocumentType] = useState<string | null>(null);
 
   // Pagination for performance - only render a limited number of items initially
   const ITEMS_PER_PAGE = 50;
@@ -161,6 +190,35 @@ function EntityMatchingContent() {
       router.push('/flow-ai');
     }
   }, [pendingId, router]);
+
+  // Fetch document type from pending document
+  useEffect(() => {
+    const fetchDocumentType = async () => {
+      if (!pendingId) return;
+
+      try {
+        const result = await flowrmsApolloClient.query<{
+          getPendingDocument?: {
+            entityType: string | null;
+          };
+        }>({
+          query: Q_GET_PENDING,
+          variables: { pendingId },
+          fetchPolicy: 'cache-first',
+        });
+
+        const entityType = result.data?.getPendingDocument?.entityType;
+        if (entityType) {
+          console.log('Document type:', entityType);
+          setDocumentType(entityType);
+        }
+      } catch (error) {
+        console.error('Error fetching document type:', error);
+      }
+    };
+
+    fetchDocumentType();
+  }, [pendingId]);
 
   const {
     factories,
@@ -200,39 +258,45 @@ function EntityMatchingContent() {
     handleSearchEntities,
     handleSearchUsers,
     initialLoadComplete,
-  } = useEntityMatching({ pendingDocumentId: pendingId });
+    // Factory-based entities state (for CHECKS/INVOICES document types)
+    isFactoryMatched,
+    factoryEntitiesLoading,
+  } = useEntityMatching({ pendingDocumentId: pendingId, documentType });
 
   // Reset display limit when switching tabs for performance
   useEffect(() => {
     setDisplayLimit(ITEMS_PER_PAGE);
   }, [currentStep]);
 
-  // Auto-skip to upload-complete if all entity arrays are empty after loading
-  // This triggers the executeDocumentWorkflow and navigates to upload-complete
-  useEffect(() => {
-    // Wait until initial load is complete before checking
-    if (!initialLoadComplete || hasCheckedEmptyRedirect.current || !pendingId) return;
+  // Compute visible steps based on document type
+  const visibleSteps = useMemo(() => getVisibleSteps(documentType), [documentType]);
 
-    hasCheckedEmptyRedirect.current = true;
+  // Get the last visible step (for showing Complete button)
+  const lastVisibleStep = useMemo(() => visibleSteps[visibleSteps.length - 1], [visibleSteps]);
 
-    // Check if all entity arrays are empty
-    const hasNoEntities = factories.length === 0 &&
-                          customers.length === 0 &&
-                          billToCustomers.length === 0 &&
-                          endUsers.length === 0 &&
-                          products.length === 0 &&
-                          orders.length === 0 &&
-                          invoices.length === 0 &&
-                          credits.length === 0 &&
-                          adjustments.length === 0;
+  // Check if current step is the last visible step
+  const isLastStep = currentStep === lastVisibleStep;
 
-    if (hasNoEntities) {
-      toast.info('No entities to match. Starting document processing...');
-      // Trigger the same flow as handleCompleteMatching - this will execute the workflow
-      // and navigate to queue page
-      handleCompleteMatching();
+  // Get next step in navigation
+  const getNextStep = useCallback((current: EntityStep): EntityStep | null => {
+    const currentIndex = visibleSteps.indexOf(current);
+    if (currentIndex === -1 || currentIndex >= visibleSteps.length - 1) {
+      return null;
     }
-  }, [initialLoadComplete, factories, customers, billToCustomers, endUsers, products, orders, invoices, credits, adjustments, pendingId]);
+    return visibleSteps[currentIndex + 1];
+  }, [visibleSteps]);
+
+  // Get previous step in navigation
+  const getPreviousStep = useCallback((current: EntityStep): EntityStep | null => {
+    const currentIndex = visibleSteps.indexOf(current);
+    if (currentIndex <= 0) {
+      return null;
+    }
+    return visibleSteps[currentIndex - 1];
+  }, [visibleSteps]);
+
+  // Removed auto-skip logic - user must manually click "Complete & Continue" button
+  // even when all entities are automatically matched or no entities exist
 
   const handleCompleteMatching = async () => {
     if (!pendingId) {
@@ -1116,7 +1180,7 @@ function EntityMatchingContent() {
   );
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex-1 overflow-auto bg-background">
       <div className="container max-w-7xl mx-auto py-8 px-4 space-y-6 pb-24">
         {/* Breadcrumb */}
         <WorkflowBreadcrumb currentStep="validate" showMapColumns={isFromSpreadsheet} />
@@ -1153,7 +1217,7 @@ function EntityMatchingContent() {
               <Button
                 size="lg"
                 onClick={handleCompleteMatching}
-                disabled={isProcessingWorkflow}
+                disabled={isProcessingWorkflow || factoryEntitiesLoading}
                 className="gap-2 bg-green-600 hover:bg-green-700"
               >
                 {isProcessingWorkflow ? (
@@ -1167,6 +1231,17 @@ function EntityMatchingContent() {
             )}
           </div>
         </div>
+
+        {/* Loading banner when factory entities are being loaded */}
+        {factoryEntitiesLoading && (
+          <div className="flex items-center gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+            <div>
+              <p className="font-medium text-blue-800">Loading additional records...</p>
+              <p className="text-sm text-blue-600">Please wait while we fetch orders, invoices, and other related records.</p>
+            </div>
+          </div>
+        )}
 
         {/* Step Navigation */}
         <EntityStepNavigation
@@ -1182,6 +1257,9 @@ function EntityMatchingContent() {
           creditsCount={credits.length}
           adjustmentsCount={adjustments.length}
           getStepStatus={getStepStatus}
+          documentType={documentType}
+          isFactoryMatched={isFactoryMatched}
+          factoryEntitiesLoading={factoryEntitiesLoading}
         />
 
         {/* Filter and Action Controls */}
@@ -1307,11 +1385,13 @@ function EntityMatchingContent() {
             variant="outline"
             size="lg"
             onClick={() => {
-              if (currentStep === 'customers') setCurrentStep('factories');
-              else if (currentStep === 'billtocustomers') setCurrentStep('customers');
-              else if (currentStep === 'endusers') setCurrentStep('billtocustomers');
-              else if (currentStep === 'products') setCurrentStep('endusers');
-              else setShowBackWarningModal(true);
+              const prevStep = getPreviousStep(currentStep);
+              if (prevStep) {
+                setCurrentStep(prevStep);
+              } else {
+                // On first step, show back warning
+                setShowBackWarningModal(true);
+              }
             }}
           >
             <ChevronRight className="w-4 h-4 mr-2 rotate-180" />
@@ -1320,20 +1400,28 @@ function EntityMatchingContent() {
           <Button
             size="lg"
             onClick={() => {
-              if (currentStep === 'factories') setCurrentStep('customers');
-              else if (currentStep === 'customers') setCurrentStep('billtocustomers');
-              else if (currentStep === 'billtocustomers') setCurrentStep('endusers');
-              else if (currentStep === 'endusers') setCurrentStep('products');
-              else if (currentStep === 'products' && allValidated) handleCompleteMatching();
+              if (isLastStep && allValidated) {
+                handleCompleteMatching();
+              } else {
+                const nextStep = getNextStep(currentStep);
+                if (nextStep) {
+                  setCurrentStep(nextStep);
+                }
+              }
             }}
-            disabled={(currentStep === 'products' && !allValidated) || isProcessingWorkflow}
+            disabled={
+              (isLastStep && !allValidated) ||
+              isProcessingWorkflow ||
+              // Only disable for factory loading if trying to go to a factory-dependent step or completing
+              (factoryEntitiesLoading && (isLastStep || FACTORY_DEPENDENT_TABS.includes(getNextStep(currentStep) as EntityStep)))
+            }
           >
             {isProcessingWorkflow ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 Processing...
               </>
-            ) : currentStep === 'products' ? (
+            ) : isLastStep ? (
               <>
                 Complete & Continue
                 <ChevronRight className="w-4 h-4 ml-2" />

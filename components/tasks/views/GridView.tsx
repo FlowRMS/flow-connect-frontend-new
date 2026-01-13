@@ -280,14 +280,46 @@ export default function GridView({
             {/* Assignee display - click on task card to edit in modal */}
             <div
               className="flex items-center gap-2 cursor-pointer hover:bg-[var(--muted)] px-2 py-1 rounded"
-              title="Click task to edit assignee"
+              title="Click task to edit assignees"
             >
-              <div className={`w-6 h-6 rounded-full ${getAvatarColor(task.assignedTo)} flex items-center justify-center text-white text-xs font-semibold`}>
-                {getInitials(task.assignedTo)}
-              </div>
-              <div className="text-xs text-[var(--muted-foreground)]">
-                {task.assignedTo}
-              </div>
+              {task.assigneeNames && task.assigneeNames.length > 0 ? (
+                <>
+                  <div className="flex -space-x-2">
+                    {task.assigneeNames.slice(0, 3).map((name, idx) => {
+                      const displayName = name.trim() || 'Unknown';
+                      return (
+                        <div
+                          key={`${task.id}-assignee-${idx}`}
+                          className={`w-6 h-6 rounded-full ${getAvatarColor(displayName)} flex items-center justify-center text-white text-xs font-semibold border-2 border-white`}
+                          style={{ zIndex: 3 - idx }}
+                          title={displayName}
+                        >
+                          {getInitials(displayName)}
+                        </div>
+                      );
+                    })}
+                    {task.assigneeNames.length > 3 && (
+                      <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 text-xs font-semibold border-2 border-white">
+                        +{task.assigneeNames.length - 3}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-xs text-[var(--muted-foreground)]">
+                    {task.assigneeNames.length === 1
+                      ? task.assigneeNames[0].trim() || 'Unknown'
+                      : `${task.assigneeNames.length} assignees`}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className={`w-6 h-6 rounded-full ${getAvatarColor(task.assignedTo)} flex items-center justify-center text-white text-xs font-semibold`}>
+                    {getInitials(task.assignedTo)}
+                  </div>
+                  <div className="text-xs text-[var(--muted-foreground)]">
+                    {task.assignedTo}
+                  </div>
+                </>
+              )}
             </div>
             <div className="flex items-center gap-3 text-xs text-[var(--muted-foreground)]">
               {(task.comments ?? 0) > 0 && (

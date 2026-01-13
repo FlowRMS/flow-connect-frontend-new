@@ -6,9 +6,10 @@
 
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
+import { useFlowChat } from '@/contexts/FlowChatContext';
 import { useInvoiceDetailState, useInvoiceLineItemsTable } from './hooks';
 import { HeaderTopBar, PricingSummaryBar, InvoiceDetailsFields } from './components/header';
 import { LineItemsTable } from './components/line-items';
@@ -33,6 +34,7 @@ import { isOverdue } from './utils';
 import { mockOrders, mockChecks } from '@/lib/data/rms-mock';
 import type { ColumnKey, RepSplit, InvoiceLineItem } from './types';
 import type { OrderLineItem } from '@/lib/types/rms';
+import { toast } from 'sonner';
 
 interface InvoiceDetailContentProps {
   invoiceId: string;
@@ -42,6 +44,17 @@ interface InvoiceDetailContentProps {
 export default function InvoiceDetailContent({ invoiceId, initialOrderId }: InvoiceDetailContentProps) {
   const router = useRouter();
   const state = useInvoiceDetailState({ invoiceId, initialOrderId });
+  const { setFullEntityContext } = useFlowChat();
+
+  // Set full entity context for global chatbot (type, id, and invoice number)
+  useEffect(() => {
+    if (state?.invoice?.invoiceNumber && invoiceId) {
+      setFullEntityContext('invoice', invoiceId, state.invoice.invoiceNumber);
+    }
+    return () => {
+      setFullEntityContext(null, null, null);
+    };
+  }, [state?.invoice?.invoiceNumber, invoiceId, setFullEntityContext]);
 
   // Line items table hook - must be called before any early returns to respect Rules of Hooks
   const tableHook = useInvoiceLineItemsTable({
@@ -133,24 +146,24 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
       state.setWarehouseConversionMode('all');
       state.setShowWarehouseConversionModal(true);
     } else {
-      alert('All products are already marked as warehouse products.');
+      toast.info('All products are already marked as warehouse products.');
     }
     state.setShowActionsDropdown(false);
   };
 
   const handleGeneratePDF = () => {
-    alert('Generate PDF');
+    toast.info('Generate PDF feature coming soon');
   };
 
   const handleSave = async () => {
     const success = await state.saveInvoice();
     if (success) {
-      alert('Invoice saved successfully');
+      toast.success('Invoice saved successfully');
       if (state.isCreateMode) {
         router.push('/invoices');
       }
     } else {
-      alert('Failed to save invoice');
+      toast.error('Failed to save invoice');
     }
   };
 
@@ -166,7 +179,7 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
       { version: newVersion, date: today, isLatest: true },
     ]);
     state.setCurrentVersion(newVersion);
-    alert(`Saved as version ${newVersion}`);
+    toast.success(`Saved as version ${newVersion}`);
   };
 
   const handleBulkConvertToWarehouse = () => {
@@ -188,7 +201,7 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
       state.setWarehouseConversionMode('selected');
       state.setShowWarehouseConversionModal(true);
     } else {
-      alert('All selected products are already marked as warehouse products.');
+      toast.info('All selected products are already marked as warehouse products.');
     }
   };
 
@@ -234,7 +247,7 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
   };
 
   return (
-    <main className="flex flex-col h-screen bg-[var(--background)]">
+    <main className="h-full overflow-auto bg-[var(--background)]">
       {/* Header Top Bar */}
       <HeaderTopBar
         invoice={state.invoice}
@@ -259,6 +272,9 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
         handleGeneratePDF={handleGeneratePDF}
         handleSave={handleSave}
         handleSaveAsNew={handleSaveAsNew}
+        isCreateMode={state.isCreateMode}
+        hasChanges={state.hasChanges}
+        isSaving={state.isSaving}
       />
 
       {/* Pricing Summary Bar */}
@@ -296,20 +312,20 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
       />
 
       {/* Main Content Area with Tabs */}
-      <div className="flex flex-1 overflow-hidden min-h-0">
+      <div>
         {/* Main Content */}
-        <div className="flex-1 flex flex-col p-6 min-w-0 overflow-hidden">
+        <div className="p-6">
           {/* Tabs */}
-          <div className="flex items-center justify-between gap-1 mb-6 border-b border-[var(--border)] flex-shrink-0 bg-white -mx-6 px-6 pt-4 -mt-6">
+          <div className="flex items-center justify-between gap-1 mb-6 border-b border-[var(--border)] bg-white -mx-6 px-6 pt-4 -mt-6">
             <div className="flex gap-1">
               {getTabsConfig(state.invoice.lineItems.length, state.isCreateMode).map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => !tab.disabled && state.setActiveTab(tab.id)}
-                  disabled={tab.disabled}
-                  title={tab.disabled ? tab.disabledReason : undefined}
+                  onClick={() => !tab.disabled && !tab.comingSoon && state.setActiveTab(tab.id)}
+                  disabled={tab.disabled || tab.comingSoon}
+                  title={tab.disabled ? tab.disabledReason : tab.comingSoon ? 'Coming soon' : undefined}
                   className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                    tab.disabled
+                    tab.disabled || tab.comingSoon
                       ? 'border-transparent text-gray-300 cursor-not-allowed'
                       : state.activeTab === tab.id
                       ? 'border-[var(--primary)] text-[var(--primary)]'
@@ -317,6 +333,11 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
                   }`}
                 >
                   {tab.label}
+                  {tab.comingSoon && (
+                    <span className="ml-2 px-1.5 py-0.5 rounded text-xs bg-yellow-100 text-yellow-700">
+                      SOON
+                    </span>
+                  )}
                   {tab.id === 'credits' &&
                     !tab.disabled &&
                     Object.keys(state.lineItemCredits).length > 0 && (
@@ -448,7 +469,7 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
 
           {/* Tab Content */}
           {state.activeTab === 'line-items' && (
-            <div className="flex-1 overflow-auto pb-32">
+            <div className="pb-32">
               <LineItemsTable
                 invoice={state.invoice}
                 selectedLineItems={state.selectedLineItems}
@@ -474,7 +495,7 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
 
           {/* Files Tab */}
           {state.activeTab === 'files' && (
-            <div className="flex-1 overflow-auto">
+            <div>
               <FilesTab
                 entityId={invoiceId}
                 entityType="INVOICE"
@@ -484,7 +505,7 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
 
           {/* Credits Tab */}
           {state.activeTab === 'credits' && (
-            <div className="flex-1 overflow-auto">
+            <div>
               <CreditsTab
                 invoice={state.invoice}
                 lineItemCredits={state.lineItemCredits}
@@ -494,36 +515,36 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
 
           {/* Notes Tab */}
           {state.activeTab === 'notes' && (
-            <div className="flex-1 overflow-auto">
+            <div>
               <NotesTab invoiceId={invoiceId} />
             </div>
           )}
 
           {/* Tasks Tab */}
           {state.activeTab === 'tasks' && (
-            <div className="flex-1 overflow-auto">
+            <div>
               <TasksTab invoiceId={invoiceId} />
             </div>
           )}
 
           {/* Activity Tab */}
           {state.activeTab === 'activity' && (
-            <div className="flex-1 overflow-auto">
+            <div>
               <ActivityTab />
             </div>
           )}
 
           {/* Linked Objects Tab */}
           {state.activeTab === 'linked-objects' && (
-            <div className="flex-1 overflow-auto">
+            <div>
               <LinkedObjectsTab invoiceId={invoiceId} />
             </div>
           )}
 
           {/* Settings Tab */}
           {state.activeTab === 'settings' && (
-            <div className="flex-1 overflow-auto">
-              <SettingsTab />
+            <div>
+              <SettingsTab invoice={state.invoice} />
             </div>
           )}
         </div>
@@ -652,6 +673,9 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
         onClose={() => state.setShowAdditionalDetailsModal(false)}
         lineItem={state.selectedLineItemForDetails}
         onSave={state.saveAdditionalDetails}
+        endUserPerLineItem={(state.invoice as any)?.endUserPerLineItem}
+        outsidePerLineItem={(state.invoice as any)?.outsidePerLineItem}
+        insidePerLineItem={(state.invoice as any)?.insidePerLineItem}
       />
     </main>
   );

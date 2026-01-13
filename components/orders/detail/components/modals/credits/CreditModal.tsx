@@ -393,7 +393,7 @@ export function CreditModal({
           linkedLineItemId: lineItemId,
           linkedLineItemLabel: label,
           unitPrice: orderLineItem.unitPrice,
-          commissionRate: (orderLineItem.commissionRate ?? 0.08) * 100,
+          commissionRate: orderLineItem.commissionRate ?? 8, // Already stored as whole percentage
           outsideSplitRates: [],
           showOutsideSplits: true,
           outsideSplitsFromLineItem: hasOutsideSplits,
@@ -451,7 +451,7 @@ export function CreditModal({
       const item = newItems[lineIndex];
       if (!item.outsideSplitRates.some(r => r.userId === repId)) {
         const newRep: OutsideSplitRate = {
-          id: crypto.randomUUID(),
+          id: `new-${crypto.randomUUID()}`,  // Use new- prefix so it's not mistaken for a database ID
           userId: repId,
           userName: repName,
           splitRate: 0,
@@ -924,7 +924,7 @@ export function CreditModal({
                                 </div>
                                 <div>
                                   <span className="text-blue-600/70 text-xs block mb-1">Commission Rate</span>
-                                  <div className="font-semibold text-blue-900">{((linkedLineItem.commissionRate || 0) * 100).toFixed(2)}%</div>
+                                  <div className="font-semibold text-blue-900">{(linkedLineItem.commissionRate || 0).toFixed(2)}%</div>
                                 </div>
                               </div>
                             </CollapsibleSection>

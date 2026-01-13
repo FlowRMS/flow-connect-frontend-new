@@ -256,6 +256,15 @@ export interface OrderLineItem {
   // Optional overrides
   splitRateOverride?: OrderSplitRate[];
   notes?: string;
+  // Per-line-item rep split rates
+  outsideSplitRates?: { id?: string; userId?: string; userName?: string; splitRate?: string; position?: number }[];
+  insideSplitRates?: { id?: string; userId?: string; userName?: string; splitRate?: string; position?: number }[];
+  // Per-line-item end user
+  endUserId?: string;
+  endUserName?: string;
+  // Per-line-item manufacturer
+  manufacturerId?: string;
+  manufacturerName?: string;
 }
 
 export interface OrderSplitRate {

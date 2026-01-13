@@ -35,8 +35,22 @@ export interface CheckFactory {
   additionalInformation?: string;
 }
 
+export interface CheckInvoiceOrderCustomer {
+  companyName?: string;
+}
+
 export interface CheckInvoiceOrder {
   orderNumber?: string;
+  soldToCustomer?: CheckInvoiceOrderCustomer;
+}
+
+export interface CheckInvoiceSalesRep {
+  fullName?: string;
+}
+
+export interface CheckInvoiceBalance {
+  commissionRate?: string;
+  commission?: string;
 }
 
 export interface CheckInvoice {
@@ -54,6 +68,8 @@ export interface CheckInvoice {
   createdAt?: string;
   url?: string;
   order?: CheckInvoiceOrder;
+  salesReps?: CheckInvoiceSalesRep[];
+  balance?: CheckInvoiceBalance;
 }
 
 export interface CheckCreditOrder {
@@ -113,6 +129,21 @@ export interface CheckDetail {
   appliedAmount?: string;
 }
 
+export interface CheckCreatedBy {
+  id: string;
+  authProviderId?: string;
+  email?: string;
+  enabled?: boolean;
+  firstName?: string;
+  fullName?: string;
+  inside?: boolean;
+  lastName?: string;
+  role?: string;
+  outside?: boolean;
+  username?: string;
+  visible?: boolean;
+}
+
 export interface Check {
   id: string;
   checkNumber?: string;
@@ -125,6 +156,7 @@ export interface Check {
   factory?: CheckFactory;
   creationType?: CheckCreationType;
   createdById?: string;
+  createdBy?: CheckCreatedBy;
   createdAt?: string;
   url?: string;
   details?: CheckDetail[];
@@ -215,6 +247,16 @@ const CHECK_DETAIL_FIELDS = `
     url
     order {
       orderNumber
+      soldToCustomer {
+        companyName
+      }
+    }
+    salesReps {
+      fullName
+    }
+    balance {
+      commissionRate
+      commission
     }
   }
   creditId
@@ -288,6 +330,20 @@ const CHECK_FIELDS = `
   }
   creationType
   createdById
+  createdBy {
+    id
+    authProviderId
+    email
+    enabled
+    firstName
+    fullName
+    inside
+    lastName
+    role
+    outside
+    username
+    visible
+  }
   createdAt
   url
   details {

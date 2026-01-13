@@ -5,7 +5,7 @@
 
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCreateOrderFromQuote, useFactorySearch } from '../../orders/api';
 import { SearchableDropdownV2 } from '../components/SearchableDropdownV2';
@@ -19,6 +19,7 @@ interface CreateOrderFromQuoteModalProps {
   factoryId?: string;
   factoryName?: string;
   lineItems?: LineItemV2[];
+  initialSelectedItemIds?: Set<string>;
   onClose: () => void;
   onSuccess?: (order: Order) => void;
 }
@@ -32,6 +33,7 @@ export function CreateOrderFromQuoteModal({
   factoryId: initialFactoryId = '',
   factoryName: initialFactoryName = '',
   lineItems = [],
+  initialSelectedItemIds,
   onClose,
   onSuccess,
 }: CreateOrderFromQuoteModalProps) {
@@ -45,7 +47,23 @@ export function CreateOrderFromQuoteModal({
   const [factoryName, setFactoryName] = useState(initialFactoryName);
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set(lineItems.map(item => item.id)));
+  // Use initialSelectedItemIds if provided (from detail page selection), otherwise default to all items
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(
+    initialSelectedItemIds && initialSelectedItemIds.size > 0
+      ? new Set(initialSelectedItemIds)
+      : new Set(lineItems.map(item => item.id))
+  );
+
+  // Sync selection state when modal opens or initialSelectedItemIds changes
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedItemIds(
+        initialSelectedItemIds && initialSelectedItemIds.size > 0
+          ? new Set(initialSelectedItemIds)
+          : new Set(lineItems.map(item => item.id))
+      );
+    }
+  }, [isOpen, initialSelectedItemIds, lineItems]);
 
   // Factory search
   const [factorySearchTerm, setFactorySearchTerm] = useState('');
@@ -158,7 +176,12 @@ export function CreateOrderFromQuoteModal({
     setFactoryName(initialFactoryName);
     setCreatedOrder(null);
     setError(null);
-    setSelectedItemIds(new Set(lineItems.map(item => item.id)));
+    // Reset to initial selection if provided, otherwise all items
+    setSelectedItemIds(
+      initialSelectedItemIds && initialSelectedItemIds.size > 0
+        ? new Set(initialSelectedItemIds)
+        : new Set(lineItems.map(item => item.id))
+    );
     onClose();
   };
 
