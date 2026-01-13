@@ -11,6 +11,8 @@ import { OrdersTableHeader } from './OrdersTableHeader';
 import { OrderRow } from './OrderRow';
 import { OrdersEmptyState } from './OrdersEmptyState';
 import { OrdersTableSkeleton } from './OrdersTableSkeleton';
+import type { ActiveFilter } from '@/components/advancedFilters/types';
+import { getOrderFilterOptions } from '../../config/filterConfig';
 
 interface OrdersTableProps {
   // Data
@@ -32,6 +34,10 @@ interface OrdersTableProps {
   bulkDelete: () => void;
   // Selected order for preview
   setSelectedOrder: (order: Order) => void;
+  // Column filters
+  onColumnFiltersChange?: (filters: Record<string, ActiveFilter[]>) => void;
+  filterOptions?: ReturnType<typeof getOrderFilterOptions>;
+  columnFilters?: Record<string, ActiveFilter[]>;
 }
 
 export function OrdersTable({
@@ -48,6 +54,9 @@ export function OrdersTable({
   bulkSetStatus,
   bulkDelete,
   setSelectedOrder,
+  onColumnFiltersChange,
+  filterOptions,
+  columnFilters,
 }: OrdersTableProps) {
   const gridColumns = getGridTemplateColumns();
 
@@ -77,6 +86,9 @@ export function OrdersTable({
               areAllEligibleSelected={areAllEligibleSelected(filteredOrders)}
               onSelectAll={() => selectAllOrders(filteredOrders)}
               gridColumns={gridColumns}
+              onColumnFiltersChange={onColumnFiltersChange}
+              filterOptions={filterOptions}
+              columnFilters={columnFilters}
             />
 
             {/* Table Body */}

@@ -37,8 +37,13 @@ export function getOrderSortOptions() {
 
 /**
  * Get filter options for the AdvancedFilters component
+ * Note: columnName should match the API OrderLandingPage field names
  */
-export const getOrderFilterOptions = (): FilterOption[] => [
+export function getOrderFilterOptions(
+  uniqueOrderNumbers: string[] = [],
+  uniqueCustomers: string[] = []
+): FilterOption[] {
+  return [
   { 
     id: 'order-number', 
     label: 'Order Number', 
@@ -55,10 +60,33 @@ export const getOrderFilterOptions = (): FilterOption[] => [
     options: ORDER_STATUSES 
   },
   { 
+    id: 'total', 
+    label: 'Total', 
+    type: 'number' as const, 
+    columnName: 'total', 
+    available: true,
+    numberFormat: 'currency' as const
+  },
+  { 
     id: 'commission', 
     label: 'Commission', 
     type: 'number' as const, 
     columnName: 'commission', 
+    available: true,
+    numberFormat: 'currency' as const
+  },
+  { 
+    id: 'order-date', 
+    label: 'Order Date', 
+    type: 'date' as const, 
+    columnName: 'entityDate', 
+    available: true 
+  },
+  { 
+    id: 'created-date', 
+    label: 'Entry Date', 
+    type: 'date' as const, 
+    columnName: 'createdAt', 
     available: true 
   },
   { 
@@ -69,32 +97,17 @@ export const getOrderFilterOptions = (): FilterOption[] => [
     available: true 
   },
   { 
-    id: 'order-date', 
-    label: 'Order Date', 
-    type: 'date' as const, 
-    columnName: 'entityDate', 
-    available: true 
-  },
-  { 
     id: 'published', 
     label: 'Published', 
-    type: 'dropdown' as const, 
+    type: 'boolean' as const, 
     columnName: 'published', 
-    available: true, 
-    options: ['true', 'false'] 
-  },
-  { 
-    id: 'total', 
-    label: 'Total', 
-    type: 'number' as const, 
-    columnName: 'total', 
-    available: true 
+    available: true
   },
   // Soon filters
   { 
     id: 'factory-name', 
     label: 'Factory Name', 
-    type: 'dropdown' as const, 
+    type: 'text' as const, 
     columnName: 'factoryName', 
     available: false 
   },
@@ -105,4 +118,5 @@ export const getOrderFilterOptions = (): FilterOption[] => [
     columnName: 'soldToCustomerName', 
     available: false 
   },
-];
+  ];
+}

@@ -29,11 +29,15 @@ export function convertAdvancedToColumn(
     const filterOption = filterOptions.find(
       (opt) => opt.columnName === filter.columnName
     );
-    if (!filterOption) return;
+    if (!filterOption) {
+      return;
+    }
 
     const filterId = filterOption.id;
     const columnKey = filterIdToColumnKey[filterId];
-    if (!columnKey) return;
+    if (!columnKey) {
+      return;
+    }
 
     // Add filter to the array for this column
     if (!columnFilters[columnKey]) {
@@ -58,7 +62,10 @@ export function convertColumnToAdvanced(
 
   // Flatten all filters from all columns into a single array
   Object.values(columnFilters).forEach((filters) => {
-    activeFilters.push(...filters);
+    // Ensure filters is always an array before spreading
+    if (Array.isArray(filters)) {
+      activeFilters.push(...filters);
+    }
   });
 
   return activeFilters;

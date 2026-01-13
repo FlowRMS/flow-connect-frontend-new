@@ -14,7 +14,9 @@ import { useOrderBulkActions } from './useOrderBulkActions';
 import type { ActiveFilter } from '../../../advancedFilters/AdvancedFilters';
 import type { QuickDatePreset, QuickDateField, SortField, SortDirection } from '../types';
 import { getQuickDateRange } from '../utils';
-import { formatDateToISO } from '../../../advancedFilters/utils';
+import { formatDateToISO, formatDateToBackend } from '../../../advancedFilters/utils';
+import { useFilterSync } from '../../../advancedFilters/hooks/useFilterSync';
+import { getOrderFilterOptions } from '../config/filterConfig';
 
 /**
  * Transform OrderLandingPage from API to UI Order type
@@ -134,6 +136,14 @@ export function useOrdersListState() {
   // Server-side filters - defined BEFORE API hook so they can be passed to the query
   const [serverFilters, setServerFilters] = useState<OrderLandingPageFilter[]>([]);
   const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
+  const [columnFilters, setColumnFilters] = useState<Record<string, ActiveFilter[]>>({});
+  
+  // Initialize columnFiltersToAPI as empty (will be computed after orders are loaded)
+  const [columnFiltersToAPIState, setColumnFiltersToAPIState] = useState<OrderLandingPageFilter[]>([]);
+  
+  // Refs to prevent infinite loops during synchronization
+  const isSyncingFromAdvanced = useRef(false);
+  const isSyncingFromColumn = useRef(false);
   
   // Sort state - defined BEFORE API hook
   const [sortField, setSortField] = useState<SortField>('orderDate');
@@ -148,7 +158,32 @@ export function useOrdersListState() {
     }];
   });
   
-  // Handler for server-side filter changes
+  // Map from UI column keys to filter option IDs (for sync)
+  const columnKeyToFilterId: Record<string, string> = useMemo(() => ({
+    orderNumber: 'order-number',
+    status: 'status',
+    total: 'total',
+    commission: 'commission',
+    orderDate: 'order-date',
+    entryDate: 'created-date',
+    jobName: 'job-name',
+    published: 'published',
+    factoryName: 'factory-name',
+    customerName: 'customer-name',
+  }), []);
+
+  // We initialize with empty arrays to avoid dependency issues
+  const orderFilterOptionsForSync = useMemo(() => {
+    return getOrderFilterOptions([], []);
+  }, []);
+
+  // Hook for synchronizing filters between AdvancedFilters and ColumnFilters
+  const { syncAdvancedToColumn, syncColumnToAdvanced } = useFilterSync({
+    filterOptions: orderFilterOptionsForSync,
+    columnKeyToFilterId,
+  });
+
+  // Handler for server-side filter changes (from AdvancedFilters)
   const handleServerFiltersChange = useCallback((filters: ActiveFilter[]) => {
     setActiveFilters(filters);
     
@@ -169,7 +204,61 @@ export function useOrdersListState() {
       };
     });
     setServerFilters(apiFilters);
-  }, []);
+
+    // Sync to ColumnFilters (most recent filter replaces previous one for same column)
+    // Only sync if not already syncing from column filters to avoid infinite loop
+    if (!isSyncingFromColumn.current) {
+      isSyncingFromAdvanced.current = true;
+      const syncedColumnFilters = syncAdvancedToColumn(filters);
+      
+      setColumnFilters((prev) => {
+        // If filters array is empty, clear all column filters
+        // Otherwise, merge: new filters from AdvancedFilters replace old ones for same columns
+        if (filters.length === 0) {
+          return {};
+        }
+        return { ...prev, ...syncedColumnFilters };
+      });
+      // Reset flag after state update
+      setTimeout(() => {
+        isSyncingFromAdvanced.current = false;
+      }, 0);
+    }
+  }, [syncAdvancedToColumn]);
+
+  // Handler for column filter changes (from ColumnFilters)
+  const handleColumnFiltersChange = useCallback((filters: Record<string, ActiveFilter[]>) => {
+    setColumnFilters(filters);
+
+    // Sync to AdvancedFilters (most recent filter replaces previous one for same column)
+    // Only sync if not already syncing from advanced filters to avoid infinite loop
+    if (!isSyncingFromAdvanced.current) {
+      isSyncingFromColumn.current = true;
+      const syncedActiveFilters = syncColumnToAdvanced(filters);
+      setActiveFilters(syncedActiveFilters);
+      
+      // Also update serverFilters to trigger API call
+      const apiFilters: OrderLandingPageFilter[] = syncedActiveFilters.map(f => {
+        if (f.values && f.values.length > 0) {
+          return {
+            operator: f.operator,
+            columnName: f.columnName,
+            values: f.values,
+          };
+        }
+        return {
+          operator: f.operator,
+          columnName: f.columnName,
+          value: f.value,
+        };
+      });
+      setServerFilters(apiFilters);
+      // Reset flag after state update
+      setTimeout(() => {
+        isSyncingFromColumn.current = false;
+      }, 0);
+    }
+  }, [syncColumnToAdvanced]);
 
   // Handler for server-side sort changes (from SortButton - ActiveSort format)
   const handleSortChange = useCallback((sort: { columnName: string; direction: 'ASC' | 'DESC' } | undefined) => {
@@ -208,23 +297,6 @@ export function useOrdersListState() {
     }
   }, []);
 
-  // Format date for backend API (createdAt field)
-  // Converts ISO format with Z to format with +00:00 and adds microseconds
-  // Example: "2025-11-21T18:10:22.149Z" -> "2025-11-21T18:10:22.149000+00:00"
-  const formatDateForBackend = (date: Date): string => {
-    const isoString = date.toISOString();
-    // Extract milliseconds part (3 digits after the dot)
-    const match = isoString.match(/^(.+)\.(\d{3})Z$/);
-    if (match) {
-      const [, dateTime, milliseconds] = match;
-      // Pad milliseconds to microseconds (6 digits)
-      const microseconds = milliseconds.padEnd(6, '0');
-      return `${dateTime}.${microseconds}+00:00`;
-    }
-    // Fallback: just replace Z with +00:00 if pattern doesn't match
-    return isoString.replace('Z', '+00:00');
-  };
-
   // Build quick filters based on quick date filter selection
   const quickFilters = useMemo<OrderLandingPageFilter[]>(() => {
     const result: OrderLandingPageFilter[] = [];
@@ -237,12 +309,12 @@ export function useOrdersListState() {
         
         // Format date based on column type:
         // - entityDate (Order Date): YYYY-MM-DD format (date only)
-        // - createdAt: Backend format with microseconds and +00:00 timezone
+        // - createdAt: Backend format '%Y-%m-%d %H:%M:%S' (datetime with time)
         const formatDate = (date: Date): string => {
           if (columnName === 'entityDate') {
             return formatDateToISO(date); // Returns YYYY-MM-DD
           }
-          return formatDateForBackend(date); // Returns format: YYYY-MM-DDTHH:mm:ss.microseconds+00:00
+          return formatDateToBackend(date); // Returns 'YYYY-MM-DD HH:MM:SS'
         };
         
         result.push({
@@ -262,10 +334,45 @@ export function useOrdersListState() {
     return result;
   }, [quickDatePreset, quickDateField]);
 
-  // Combine quick filters with advanced filters
+  // Convert column filters (Record<string, ActiveFilter[]>) to OrderLandingPageFilter[]
+  const columnFiltersToAPI = useMemo<OrderLandingPageFilter[]>(() => {
+    const filters: OrderLandingPageFilter[] = [];
+    
+    // Flatten all column filters into a single array
+    Object.values(columnFilters).forEach((columnFilterArray) => {
+      // Ensure columnFilterArray is always an array
+      if (!Array.isArray(columnFilterArray)) return;
+      
+      columnFilterArray.forEach((filter) => {
+        // Convert ActiveFilter to OrderLandingPageFilter
+        if (filter.values && filter.values.length > 0) {
+          filters.push({
+            operator: filter.operator,
+            columnName: filter.columnName,
+            values: filter.values,
+          });
+        } else if (filter.value) {
+          filters.push({
+            operator: filter.operator,
+            columnName: filter.columnName,
+            value: filter.value,
+          });
+        }
+      });
+    });
+    
+    return filters;
+  }, [columnFilters]);
+
+  // Update state when columnFiltersToAPI changes
+  useEffect(() => {
+    setColumnFiltersToAPIState(columnFiltersToAPI);
+  }, [columnFiltersToAPI]);
+
+  // Combine quick filters with advanced filters and column filters
   const filters = useMemo<OrderLandingPageFilter[]>(() => {
-    return [...quickFilters, ...serverFilters];
-  }, [quickFilters, serverFilters]);
+    return [...quickFilters, ...serverFilters, ...columnFiltersToAPIState];
+  }, [quickFilters, serverFilters, columnFiltersToAPIState]);
 
   // Build orderBy from sort state
   const orderBy = useMemo<OrderLandingPageOrderBy[]>(() => {
@@ -319,6 +426,13 @@ export function useOrdersListState() {
     return allOrdersData.map(transformLandingPageToOrder);
   }, [allOrdersData, searchQuery, searchResults]);
 
+  // Get filter options with unique values (for column filters)
+  const orderFilterOptionsWithValues = useMemo(() => {
+    // Extract unique values from orders if needed in the future
+    // For now, use empty arrays
+    return getOrderFilterOptions([], []);
+  }, [orders]);
+
   // Scroll handler for infinite scroll
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const target = e.target as HTMLDivElement;
@@ -367,7 +481,7 @@ export function useOrdersListState() {
   // Note: quickDatePreset, quickDateField, and sorting are now managed at this level for server-side
   const filterState = useOrderFilters(orders);
   
-  // Extract filter state, excluding quick date filters and sorting (we manage those at this level)
+  // Extract filter state, excluding quick date filters, sorting, and columnFilters (we manage those at this level)
   const {
     quickDatePreset: _quickDatePreset,
     setQuickDatePreset: _setQuickDatePreset,
@@ -378,6 +492,8 @@ export function useOrdersListState() {
     sortField: _sortField,
     sortDirection: _sortDirection,
     handleSort: _handleSort,
+    columnFilters: _oldColumnFilters, // Exclude old columnFilters
+    setColumnFilters: _oldSetColumnFilters, // Exclude old setColumnFilters
     ...otherFilterState
   } = filterState;
 
@@ -500,6 +616,10 @@ export function useOrdersListState() {
     activeFilters,
     handleServerFiltersChange,
     serverFilters,
+    // Column filters
+    columnFilters,
+    handleColumnFiltersChange,
+    orderFilterOptionsWithValues,
     // Quick date filters
     quickDatePreset,
     setQuickDatePreset,

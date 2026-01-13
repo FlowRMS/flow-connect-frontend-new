@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 import type { FilterOperator, FilterOption, ActiveFilter } from '../types';
 import { TextFilter } from './filter-types/TextFilter';
@@ -52,29 +52,32 @@ export function ColumnFilter({
   onToggle,
   filterOption: externalFilterOption,
 }: ColumnFilterProps) {
+  // Ensure value is always an array
+  const safeValue = Array.isArray(value) ? value : [];
+  
   // Extract values from ActiveFilter[] based on type
   const getTextValue = () => {
-    const filter = value.find(f => f.columnName === columnName && f.value);
+    const filter = safeValue.find(f => f.columnName === columnName && f.value);
     return filter?.value || '';
   };
 
   const getSelectedValues = () => {
-    const filter = value.find(f => f.columnName === columnName && f.operator === 'IN' && f.values);
+    const filter = safeValue.find(f => f.columnName === columnName && f.operator === 'IN' && f.values);
     return filter?.values || [];
   };
 
   const getDateStart = () => {
-    const filter = value.find(f => f.columnName === columnName && f.operator === 'GTE' && f.value);
+    const filter = safeValue.find(f => f.columnName === columnName && f.operator === 'GTE' && f.value);
     return filter?.value ? parseDateString(filter.value) : null;
   };
 
   const getDateEnd = () => {
-    const filter = value.find(f => f.columnName === columnName && f.operator === 'LTE' && f.value);
+    const filter = safeValue.find(f => f.columnName === columnName && f.operator === 'LTE' && f.value);
     return filter?.value ? parseDateString(filter.value) : null;
   };
 
   const getOperator = () => {
-    const filter = value.find(f => f.columnName === columnName && f.value);
+    const filter = safeValue.find(f => f.columnName === columnName && f.value);
     return filter?.operator;
   };
 
@@ -126,17 +129,72 @@ export function ColumnFilter({
     }
   }, [value, type, columnName]);
 
-  // Determine if filter has an active value - check both prop value and local state
-  const hasValue =
-    type === 'text'
-      ? getTextValue().trim() !== '' || localTextValue.trim() !== ''
-      : type === 'dropdown'
-      ? getSelectedValues().length > 0 || localSelectedValues.length > 0
-      : type === 'number'
-      ? getTextValue().trim() !== '' || localTextValue.trim() !== ''
-      : type === 'boolean'
-      ? (getTextValue() === 'true' || getTextValue() === 'false') || (localBooleanValue !== 'all' && localBooleanValue !== null)
-      : getDateStart() !== null || getDateEnd() !== null || localDateStart !== null || localDateEnd !== null;
+  // Determine if filter has an active value - check prop value
+  // safeValue should already contain only filters for this column when passed from parent
+  const hasActiveFilterInValue = useMemo(() => {
+    // If value is not an array or is empty, no active filter
+    if (!Array.isArray(safeValue) || safeValue.length === 0) {
+      return false;
+    }
+    
+    // Check if any filter in safeValue has a valid value
+    // Note: safeValue should already be filtered by column when passed from parent component
+    // So we check all filters in the array (they should all be for this column)
+    // But we also verify columnName matches as a safety check
+    for (const filter of safeValue) {
+      if (!filter) continue;
+      
+      // Safety check: verify the filter matches this column
+      // This is important because safeValue might contain filters for other columns in edge cases
+      if (filter.columnName && filter.columnName !== columnName) {
+        continue;
+      }
+      
+      // Check based on type - any filter with a valid value means it's active
+      if (type === 'text' || type === 'number') {
+        if (filter.value && String(filter.value).trim() !== '') {
+          return true;
+        }
+      } else if (type === 'dropdown') {
+        if (filter.values && Array.isArray(filter.values) && filter.values.length > 0) {
+          return true;
+        }
+      } else if (type === 'boolean') {
+        if (filter.value === 'true' || filter.value === 'false') {
+          return true;
+        }
+      } else if (type === 'date') {
+        // For date filters, check if there's a GTE or LTE filter with a value
+        if ((filter.operator === 'GTE' || filter.operator === 'LTE') && filter.value) {
+          return true;
+        }
+      }
+    }
+    
+    return false;
+  }, [safeValue, type, columnName]);
+
+  // Calculate hasValue - prioritize prop value over local state
+  // This ensures the badge shows when filters are applied from backend
+  const hasValue = useMemo(() => {
+    // First check if there are active filters in the prop value
+    if (hasActiveFilterInValue) return true;
+    
+    // Then check local state (for when user is configuring but hasn't applied yet)
+    if (type === 'text' || type === 'number') {
+      return localTextValue.trim() !== '';
+    }
+    if (type === 'dropdown') {
+      return localSelectedValues.length > 0;
+    }
+    if (type === 'boolean') {
+      return localBooleanValue !== 'all' && localBooleanValue !== null;
+    }
+    if (type === 'date') {
+      return localDateStart !== null || localDateEnd !== null;
+    }
+    return false;
+  }, [hasActiveFilterInValue, type, localTextValue, localSelectedValues, localBooleanValue, localDateStart, localDateEnd]);
 
   // Create filter option for internal components
   // Use external filterOption if provided (includes numberFormat, etc.), otherwise create one
@@ -150,7 +208,7 @@ export function ColumnFilter({
 
   // Helper to remove existing filters for this column and add new ones
   const updateFilters = (newFilters: ActiveFilter[]) => {
-    const otherFilters = value.filter(f => f.columnName !== columnName);
+    const otherFilters = safeValue.filter(f => f.columnName !== columnName);
     onChange([...otherFilters, ...newFilters]);
   };
 
@@ -164,7 +222,7 @@ export function ColumnFilter({
       }]);
     } else {
       // Remove filter if empty
-      const otherFilters = value.filter(f => f.columnName !== columnName);
+      const otherFilters = safeValue.filter(f => f.columnName !== columnName);
       onChange(otherFilters);
     }
     onToggle();
@@ -179,7 +237,7 @@ export function ColumnFilter({
       }]);
     } else {
       // Remove filter if empty
-      const otherFilters = value.filter(f => f.columnName !== columnName);
+      const otherFilters = safeValue.filter(f => f.columnName !== columnName);
       onChange(otherFilters);
     }
     onToggle();
@@ -195,7 +253,7 @@ export function ColumnFilter({
       }]);
     } else {
       // Remove filter if empty
-      const otherFilters = value.filter(f => f.columnName !== columnName);
+      const otherFilters = safeValue.filter(f => f.columnName !== columnName);
       onChange(otherFilters);
     }
     onToggle();
@@ -221,7 +279,7 @@ export function ColumnFilter({
       updateFilters(newFilters);
     } else {
       // Remove filter if empty
-      const otherFilters = value.filter(f => f.columnName !== columnName);
+      const otherFilters = safeValue.filter(f => f.columnName !== columnName);
       onChange(otherFilters);
     }
     onToggle();
@@ -230,7 +288,7 @@ export function ColumnFilter({
   const handleBooleanChange = (val: 'all' | 'true' | 'false') => {
     if (val === 'all') {
       // Remove filter
-      const otherFilters = value.filter(f => f.columnName !== columnName);
+      const otherFilters = safeValue.filter(f => f.columnName !== columnName);
       onChange(otherFilters);
     } else {
       updateFilters([{
@@ -245,7 +303,7 @@ export function ColumnFilter({
 
   const handleClear = () => {
     // Remove all filters for this column
-    const otherFilters = value.filter(f => f.columnName !== columnName);
+    const otherFilters = safeValue.filter(f => f.columnName !== columnName);
     onChange(otherFilters);
     onToggle();
   };

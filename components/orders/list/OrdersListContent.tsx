@@ -52,9 +52,10 @@ export default function OrdersListContent() {
   // Determine if we're loading (initial load or refetch)
   const isLoading = state.isLoading || state.isFetching;
 
-  // Check if there are any filters applied (advanced filters, quick date filter, or search)
+  // Check if there are any filters applied (advanced filters, quick date filter, column filters, or search)
   const hasFilters = state.activeFilters.length > 0 || 
                      state.quickDatePreset !== 'all' || 
+                     Object.keys(state.columnFilters || {}).length > 0 ||
                      (state.searchQuery.length >= 2);
 
   // Error state
@@ -201,6 +202,9 @@ export default function OrdersListContent() {
             bulkSetStatus={state.bulkSetStatus}
             bulkDelete={state.bulkDelete}
             setSelectedOrder={state.setSelectedOrder}
+            onColumnFiltersChange={state.handleColumnFiltersChange}
+            filterOptions={state.orderFilterOptionsWithValues}
+            columnFilters={state.columnFilters}
           />
 
           {/* Empty State - shown outside table when no data */}
