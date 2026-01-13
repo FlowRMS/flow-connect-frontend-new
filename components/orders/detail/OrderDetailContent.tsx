@@ -640,6 +640,8 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         openInsideRepModal={state.openInsideRepModal}
         onUpdateOrder={state.updateLocalOrder}
         isCreateMode={isCreateMode}
+        hasChanges={state.hasChanges}
+        isSaving={state.createOrderMutation?.isPending || state.updateOrderMutation?.isPending}
         showEndUserPerLine={state.showEndUserPerLine}
         showOutsideRepPerLine={state.showOutsideRepPerLine}
         showInsideRepPerLine={state.showInsideRepPerLine}
@@ -1109,6 +1111,7 @@ export default function OrderDetailContent({ orderId }: OrderDetailContentProps)
         factoryId={order.manufacturerId}
         factoryName={order.manufacturerName}
         lineItems={order.lineItems || []}
+        initialSelectedItemIds={state.selectedLineItems}
         onClose={() => setShowCreateInvoiceModal(false)}
         onSuccess={(invoice) => {
           orderToasts.invoiceCreatedFromOrder(invoice.invoiceNumber || invoice.id);

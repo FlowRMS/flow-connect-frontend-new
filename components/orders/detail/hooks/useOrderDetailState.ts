@@ -752,6 +752,9 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
       error,
       refetch,
       isCreateMode: false,
+      // Unsaved changes tracking
+      hasChanges: false,
+      resetChanges: noop,
       order: null,
       orders: [],
       setOrders: noop,
@@ -932,6 +935,9 @@ export function useOrderDetailState({ orderId }: UseOrderDetailStateProps) {
     refetch,
     // Create mode flag
     isCreateMode,
+    // Unsaved changes tracking
+    hasChanges: isCreateMode || hasLocalEdits,
+    resetChanges: () => setHasLocalEdits(false),
     // Order data
     order,
     orders,

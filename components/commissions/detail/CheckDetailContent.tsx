@@ -204,6 +204,7 @@ export default function CheckDetailContent({
         isUnposting={state.isUnposting}
         isDeleting={state.isDeleting}
         isOriginallyPosted={state.isOriginallyPosted}
+        hasChanges={state.hasChanges}
       />
 
       {/* Pricing Summary Bar */}

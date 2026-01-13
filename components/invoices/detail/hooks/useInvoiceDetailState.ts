@@ -313,6 +313,9 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
   // Uses EditableInvoice which has extended InvoiceLineItem type
   const [localInvoice, setLocalInvoice] = useState<EditableInvoice | null>(null);
 
+  // Track if we've made local edits (for unsaved changes indicator)
+  const [hasLocalEdits, setHasLocalEdits] = useState(false);
+
   // Order population state - for manual order selection in create mode
   // Initialize with initialOrderId from query params if provided
   const [selectedOrderId, setSelectedOrderId] = useState<string>(initialOrderId || '');
@@ -585,22 +588,25 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
 
   // Update local invoice field
   const updateInvoice = useCallback((updates: Partial<EditableInvoice>) => {
+    if (!isCreateMode) setHasLocalEdits(true);
     setLocalInvoice(prev => {
       if (!prev) return prev;
       return { ...prev, ...updates };
     });
-  }, []);
+  }, [isCreateMode]);
 
   // Update line items
   const updateLineItems = useCallback((lineItems: InvoiceLineItem[]) => {
+    if (!isCreateMode) setHasLocalEdits(true);
     setLocalInvoice(prev => {
       if (!prev) return prev;
       return { ...prev, lineItems };
     });
-  }, []);
+  }, [isCreateMode]);
 
   // Add new line item
   const addLineItem = useCallback(() => {
+    if (!isCreateMode) setHasLocalEdits(true);
     setLocalInvoice(prev => {
       if (!prev) return prev;
       const newLineNumber = prev.lineItems.length > 0
@@ -641,10 +647,11 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
       };
       return { ...prev, lineItems: [...prev.lineItems, newItem] };
     });
-  }, []);
+  }, [isCreateMode]);
 
   // Delete line item
   const deleteLineItem = useCallback((lineItemId: string) => {
+    if (!isCreateMode) setHasLocalEdits(true);
     setLocalInvoice(prev => {
       if (!prev) return prev;
       return {
@@ -652,10 +659,11 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
         lineItems: prev.lineItems.filter(l => l.id !== lineItemId)
       };
     });
-  }, []);
+  }, [isCreateMode]);
 
   // Update single line item
   const updateLineItem = useCallback((lineItemId: string, updates: Partial<InvoiceLineItem>) => {
+    if (!isCreateMode) setHasLocalEdits(true);
     setLocalInvoice(prev => {
       if (!prev) return prev;
       return {
@@ -665,7 +673,7 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
         ),
       };
     });
-  }, []);
+  }, [isCreateMode]);
 
   // Save invoice to API
   const saveInvoice = useCallback(async () => {
@@ -954,6 +962,10 @@ export function useInvoiceDetailState({ invoiceId, initialOrderId }: UseInvoiceD
     error,
     refetch,
     isCreateMode,
+
+    // Unsaved changes tracking
+    hasChanges: isCreateMode || hasLocalEdits,
+    resetChanges: () => setHasLocalEdits(false),
 
     // Invoice mutations
     updateInvoice,

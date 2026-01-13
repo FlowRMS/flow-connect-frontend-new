@@ -67,6 +67,9 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
   // Line items state
   const [lineItems, setLineItems] = useState<LineItemV2[]>([]);
 
+  // Line item selection state (lifted from LineItemsTabV2 for sharing with header modal)
+  const [selectedLineItemIds, setSelectedLineItemIds] = useState<Set<string>>(new Set());
+
   // Current reps with names (for passing to line items when adding new ones)
   const [currentOutsideReps, setCurrentOutsideReps] = useState<RepSplitRate[]>([]);
   const [currentInsideReps, setCurrentInsideReps] = useState<RepSplitRate[]>([]);
@@ -874,6 +877,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
         hasChanges={hasChanges}
         isNew={isNew}
         lineItems={lineItems}
+        selectedLineItemIds={selectedLineItemIds}
         settings={settings}
         onClearLineItemProducts={handleClearLineItemProducts}
         onAutoPopulateOutsideRepsToLineItems={handleAutoPopulateOutsideRepsToLineItems}
@@ -933,6 +937,8 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
             headerFactoryName={quote.factoryName}
             currentOutsideReps={currentOutsideReps}
             currentInsideReps={currentInsideReps}
+            selectedItems={selectedLineItemIds}
+            onSelectedItemsChange={setSelectedLineItemIds}
           />
         )}
 

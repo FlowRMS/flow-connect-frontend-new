@@ -60,6 +60,9 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
   const updateCheckMutation = useUpdateCheck();
   const deleteCheckMutation = useDeleteCheck();
 
+  // Track if we've made local edits (for unsaved changes indicator)
+  const [hasLocalEdits, setHasLocalEdits] = useState(false);
+
   // Convert API check to CommissionCheck format for compatibility
   const check: CommissionCheck | undefined = useMemo(() => {
     const now = new Date().toISOString();
@@ -412,6 +415,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
 
   // Adjustment functions
   const addAdjustment = () => {
+    if (!isCreateMode) setHasLocalEdits(true);
     const newId = `adj-${Date.now()}`;
     setAdjustments((prev) => [
       ...prev,
@@ -430,6 +434,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
   };
 
   const deleteAdjustment = (id: string) => {
+    if (!isCreateMode) setHasLocalEdits(true);
     setAdjustments((prev) => prev.filter((adj) => adj.id !== id));
   };
 
@@ -438,6 +443,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     field: keyof Adjustment,
     value: string | number | RepSplit[] | AllocationMethod | Date
   ) => {
+    if (!isCreateMode) setHasLocalEdits(true);
     setAdjustments((prev) =>
       prev.map((adj) => (adj.id === id ? { ...adj, [field]: value } : adj))
     );
@@ -523,6 +529,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
 
   // Add a new line item from modal
   const handleAddLineItem = (item: Omit<LineItem, 'id'>) => {
+    if (!isCreateMode) setHasLocalEdits(true);
     const newId = `li-${Date.now()}`;
     setLineItems((prev) => [
       ...prev,
@@ -560,6 +567,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
 
   // Update line item amount
   const updateLineItemAmount = (id: string, amount: number) => {
+    if (!isCreateMode) setHasLocalEdits(true);
     setLineItems((prev) =>
       prev.map((item) =>
         item.id === id
@@ -574,11 +582,13 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
   };
 
   const deleteLineItem = (id: string) => {
+    if (!isCreateMode) setHasLocalEdits(true);
     setLineItems((prev) => prev.filter((item) => item.id !== id));
     closeLineItemDetail();
   };
 
   const togglePaid = (id: string) => {
+    if (!isCreateMode) setHasLocalEdits(true);
     setLineItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, paid: !item.paid } : item))
     );
@@ -586,6 +596,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
 
   // Handler for open invoices loaded from Lines to Reconcile search
   const handleOpenInvoicesLoaded = useCallback((invoices: OpenInvoiceSearchResult[]) => {
+    if (!isCreateMode) setHasLocalEdits(true);
     // Convert open invoices to line items format with isNew flag
     const newLineItems: LineItem[] = invoices.map((invoice) => {
       // Get customer name from order.soldToCustomer
@@ -639,7 +650,7 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
       // Return new unique items at the TOP + existing items
       return [...uniqueNewItems, ...prevLineItems];
     });
-  }, []);
+  }, [isCreateMode]);
 
   // Summary calculations
   const summary = useMemo(() => {
@@ -871,6 +882,10 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
     isLoading: false,
     isLoadingCheck,
     checkError,
+
+    // Unsaved changes tracking
+    hasChanges: isCreateMode || hasLocalEdits,
+    resetChanges: () => setHasLocalEdits(false),
 
     // Save/Delete/Unpost actions
     handleSave,

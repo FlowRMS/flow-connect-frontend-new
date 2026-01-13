@@ -272,6 +272,9 @@ export default function InvoiceDetailContent({ invoiceId, initialOrderId }: Invo
         handleGeneratePDF={handleGeneratePDF}
         handleSave={handleSave}
         handleSaveAsNew={handleSaveAsNew}
+        isCreateMode={state.isCreateMode}
+        hasChanges={state.hasChanges}
+        isSaving={state.isSaving}
       />
 
       {/* Pricing Summary Bar */}

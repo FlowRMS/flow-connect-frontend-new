@@ -45,6 +45,8 @@ interface OrderDetailHeaderProps {
   // New props for field updates
   onUpdateOrder?: (updates: Partial<Order>) => void;
   isCreateMode?: boolean;
+  hasChanges?: boolean;
+  isSaving?: boolean;
   // Settings for per-line-item fields
   showEndUserPerLine?: boolean;
   showOutsideRepPerLine?: boolean;
@@ -103,6 +105,8 @@ export function OrderDetailHeader(props: OrderDetailHeaderProps) {
     // New props for field updates
     onUpdateOrder,
     isCreateMode = false,
+    hasChanges = false,
+    isSaving = false,
     // Settings for per-line-item fields
     showEndUserPerLine = false,
     showOutsideRepPerLine = false,
@@ -186,6 +190,8 @@ export function OrderDetailHeader(props: OrderDetailHeaderProps) {
         setActiveView={setActiveView}
         onSave={onSave}
         isCreateMode={isCreateMode}
+        hasChanges={hasChanges}
+        isSaving={isSaving}
         updateOrderStatus={updateOrderStatus}
         setShowQuoteLookupModal={setShowQuoteLookupModal}
         handleMakeWarehouseOrder={handleMakeWarehouseOrder}

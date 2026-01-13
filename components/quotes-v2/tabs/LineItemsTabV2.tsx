@@ -39,6 +39,9 @@ interface LineItemsTabV2Props {
   // Current reps for inheriting to new line items
   currentOutsideReps?: RepSplitRateInfo[];
   currentInsideReps?: RepSplitRateInfo[];
+  // Selection state lifted to parent for sharing with header modal
+  selectedItems?: Set<string>;
+  onSelectedItemsChange?: (items: Set<string>) => void;
 }
 
 export function LineItemsTabV2({
@@ -54,8 +57,13 @@ export function LineItemsTabV2({
   headerFactoryName,
   currentOutsideReps,
   currentInsideReps,
+  selectedItems: externalSelectedItems,
+  onSelectedItemsChange,
 }: LineItemsTabV2Props) {
-  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  // Use external selection state if provided, otherwise use local state
+  const [localSelectedItems, setLocalSelectedItems] = useState<Set<string>>(new Set());
+  const selectedItems = externalSelectedItems ?? localSelectedItems;
+  const setSelectedItems = onSelectedItemsChange ?? setLocalSelectedItems;
   const [showSectionsMenu, setShowSectionsMenu] = useState(false);
   const [editingCell, setEditingCell] = useState<{ itemId: string; column: LineItemColumnKey } | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState<{ itemId: string; column: LineItemColumnKey; position: { top: number; left: number } } | null>(null);
