@@ -2,17 +2,19 @@
  * AddLineItemModal Component
  * Modal for adding new invoices, credits, or adjustments to a check
  * Uses searchable dropdowns with API integration
+ * Invoice search uses searchOpenInvoices endpoint which returns full data
  */
 
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
 import type { LineItem } from '../../types';
-import { searchInvoices, type InvoiceSearchResult } from '@/components/lib/api/search';
+import { searchOpenInvoices, type OpenInvoiceSearchResult } from '@/components/lib/api/search';
 import { searchCredits, type CreditSearchResult } from '@/components/orders/api/creditsApi';
 import { searchAdjustments, type AdjustmentSearchResult } from '@/components/orders/api/adjustmentsApi';
-import { fetchInvoiceById, type Invoice } from '@/components/lib/graphql/invoices';
 import { fetchCreditById, type Credit } from '@/components/lib/graphql/credits';
+import { StyledDatePicker, parseDateString, formatDateToString } from '@/components/shared/StyledDatePicker';
+import { ListPreviewHoverCard } from '@/components/shared/ListPreviewHoverCard';
 
 interface AddLineItemModalProps {
   onClose: () => void;
@@ -28,16 +30,14 @@ export function AddLineItemModal({
   const [type, setType] = useState<'invoice' | 'credit' | 'adjustment'>('invoice');
   const [appliedAmount, setAppliedAmount] = useState<number>(0);
 
-  // Invoice search state
+  // Invoice search state - uses searchOpenInvoices which returns all data
   const [invoiceSearch, setInvoiceSearch] = useState('');
-  const [invoices, setInvoices] = useState<InvoiceSearchResult[]>([]);
-  const [selectedInvoice, setSelectedInvoice] = useState<InvoiceSearchResult | null>(null);
+  const [invoiceStartDate, setInvoiceStartDate] = useState<string>('');
+  const [invoices, setInvoices] = useState<OpenInvoiceSearchResult[]>([]);
+  const [filteredInvoices, setFilteredInvoices] = useState<OpenInvoiceSearchResult[]>([]);
+  const [selectedInvoice, setSelectedInvoice] = useState<OpenInvoiceSearchResult | null>(null);
   const [showInvoiceDropdown, setShowInvoiceDropdown] = useState(false);
   const [isSearchingInvoices, setIsSearchingInvoices] = useState(false);
-
-  // Full invoice details (fetched after selection)
-  const [invoiceDetails, setInvoiceDetails] = useState<Invoice | null>(null);
-  const [isLoadingInvoiceDetails, setIsLoadingInvoiceDetails] = useState(false);
 
   // Credit search state
   const [creditSearch, setCreditSearch] = useState('');
@@ -49,6 +49,13 @@ export function AddLineItemModal({
   // Full credit details (fetched after selection)
   const [creditDetails, setCreditDetails] = useState<Credit | null>(null);
   const [isLoadingCreditDetails, setIsLoadingCreditDetails] = useState(false);
+
+  // Set default start date to 1 year ago when modal opens
+  useEffect(() => {
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    setInvoiceStartDate(formatDateToString(oneYearAgo));
+  }, []);
 
   // Adjustment search state
   const [adjustmentSearch, setAdjustmentSearch] = useState('');
@@ -89,18 +96,45 @@ export function AddLineItemModal({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Search invoices - with openOnly and unlockedOnly for checks
-  const handleInvoiceSearch = async (term: string) => {
+  // Fetch open invoices when factory and start date are available
+  useEffect(() => {
+    const fetchInvoices = async () => {
+      if (!factoryId || !invoiceStartDate) {
+        setInvoices([]);
+        setFilteredInvoices([]);
+        return;
+      }
+
+      setIsSearchingInvoices(true);
+      try {
+        const results = await searchOpenInvoices(factoryId, invoiceStartDate);
+        setInvoices(results);
+        setFilteredInvoices(results);
+      } catch (error) {
+        console.error('Error searching open invoices:', error);
+        setInvoices([]);
+        setFilteredInvoices([]);
+      } finally {
+        setIsSearchingInvoices(false);
+      }
+    };
+
+    fetchInvoices();
+  }, [factoryId, invoiceStartDate]);
+
+  // Filter invoices based on search term
+  const handleInvoiceSearch = (term: string) => {
     setInvoiceSearch(term);
-    setIsSearchingInvoices(true);
-    try {
-      const results = await searchInvoices(term, 20, { openOnly: true, unlockedOnly: true });
-      setInvoices(results);
-    } catch (error) {
-      console.error('Error searching invoices:', error);
-      setInvoices([]);
-    } finally {
-      setIsSearchingInvoices(false);
+    if (!term.trim()) {
+      setFilteredInvoices(invoices);
+    } else {
+      const searchLower = term.toLowerCase();
+      const filtered = invoices.filter(invoice =>
+        invoice.invoiceNumber?.toLowerCase().includes(searchLower) ||
+        invoice.order?.orderNumber?.toLowerCase().includes(searchLower) ||
+        invoice.order?.soldToCustomer?.companyName?.toLowerCase().includes(searchLower)
+      );
+      setFilteredInvoices(filtered);
     }
   };
 
@@ -134,25 +168,15 @@ export function AddLineItemModal({
     }
   };
 
-  // Handle invoice selection
-  const handleSelectInvoice = async (invoice: InvoiceSearchResult) => {
+  // Handle invoice selection - no need to fetch details, we have everything from searchOpenInvoices
+  const handleSelectInvoice = (invoice: OpenInvoiceSearchResult) => {
     setSelectedInvoice(invoice);
     setInvoiceSearch(invoice.invoiceNumber);
     setShowInvoiceDropdown(false);
 
-    // Fetch full invoice details
-    setIsLoadingInvoiceDetails(true);
-    try {
-      const details = await fetchInvoiceById(invoice.id);
-      setInvoiceDetails(details);
-      // Pre-fill applied amount with the invoice's commission if available
-      if (details?.balance?.commission) {
-        setAppliedAmount(details.balance.commission);
-      }
-    } catch (error) {
-      console.error('Error fetching invoice details:', error);
-    } finally {
-      setIsLoadingInvoiceDetails(false);
+    // Pre-fill applied amount with the invoice's commission if available
+    if (invoice.balance?.commission) {
+      setAppliedAmount(Number(invoice.balance.commission));
     }
   };
 
@@ -188,9 +212,9 @@ export function AddLineItemModal({
   // Clear invoice selection
   const handleClearInvoice = () => {
     setSelectedInvoice(null);
-    setInvoiceDetails(null);
     setInvoiceSearch('');
     setAppliedAmount(0);
+    setFilteredInvoices(invoices);
   };
 
   // Clear credit selection
@@ -208,26 +232,55 @@ export function AddLineItemModal({
     setAppliedAmount(0);
   };
 
+  // Helper function to get sales rep name from a sales rep object
+  const getSalesRepName = (rep: { fullName?: string; firstName?: string; lastName?: string } | undefined): string => {
+    if (!rep) return '-';
+    return rep.fullName ||
+      (rep.firstName && rep.lastName ? `${rep.firstName} ${rep.lastName}`.trim() :
+       rep.firstName || rep.lastName || '-');
+  };
+
   // Handle adding the line item
   const handleAdd = () => {
     if (type === 'invoice' && selectedInvoice) {
+      // Get all sales rep names
+      const salesRepsList = selectedInvoice.salesReps?.map(rep => getSalesRepName(rep)).filter(name => name !== '-') || [];
+      const salesRepsCount = salesRepsList.length;
+      const primarySalesRep = salesRepsList[0] || '-';
+
+      // Get customer name from the order's soldToCustomer
+      const customerName = selectedInvoice.order?.soldToCustomer?.companyName || '-';
+
+      // Get commission rate from balance
+      const commissionRate = selectedInvoice.balance?.commissionRate
+        ? Number(selectedInvoice.balance.commissionRate)
+        : 0;
+
+      // Get expected commission from balance
+      const expectedCommission = selectedInvoice.balance?.commission
+        ? Number(selectedInvoice.balance.commission)
+        : appliedAmount;
+
       onAdd({
         type: 'invoice',
         number: selectedInvoice.invoiceNumber,
         orderId: selectedInvoice.orderId || '',
-        orderNumber: invoiceDetails?.order?.orderNumber || '',
-        customer: '-',
-        salesRep: '-',
-        commissionRateExpected: 0,
-        commissionRateActual: 0,
-        expectedCommission: appliedAmount,
+        orderNumber: selectedInvoice.order?.orderNumber || '',
+        customer: customerName,
+        salesRep: primarySalesRep,
+        salesRepsCount: salesRepsCount,
+        salesRepsList: salesRepsList,
+        commissionRateExpected: commissionRate,
+        commissionRateActual: commissionRate,
+        expectedCommission: expectedCommission,
         paidCommission: appliedAmount,
-        balance: 0,
+        balance: expectedCommission - appliedAmount,
         paid: false,
         invoiceId: selectedInvoice.id,
         entityDate: selectedInvoice.entityDate,
         dueDate: selectedInvoice.dueDate,
         status: selectedInvoice.status,
+        url: selectedInvoice.url,
       });
       onClose();
     } else if (type === 'credit' && selectedCredit) {
@@ -331,6 +384,7 @@ export function AddLineItemModal({
                   setSelectedAdjustment(null);
                   setAdjustmentSearch('');
                   setAppliedAmount(0);
+                  setFilteredInvoices(invoices);
                 }}
                 className={`flex-1 px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
                   type === 'invoice'
@@ -344,7 +398,6 @@ export function AddLineItemModal({
                 onClick={() => {
                   setType('credit');
                   setSelectedInvoice(null);
-                  setInvoiceDetails(null);
                   setInvoiceSearch('');
                   setSelectedAdjustment(null);
                   setAdjustmentSearch('');
@@ -362,7 +415,6 @@ export function AddLineItemModal({
                 onClick={() => {
                   setType('adjustment');
                   setSelectedInvoice(null);
-                  setInvoiceDetails(null);
                   setInvoiceSearch('');
                   setSelectedCredit(null);
                   setCreditDetails(null);
@@ -383,6 +435,32 @@ export function AddLineItemModal({
           {/* Invoice Search Dropdown */}
           {type === 'invoice' && (
             <div ref={invoiceDropdownRef} className="relative">
+              {/* Date filter for invoices */}
+              <div className="mb-3">
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                  Invoices After Date
+                </label>
+                <div className="flex items-center gap-2">
+                  <StyledDatePicker
+                    selected={parseDateString(invoiceStartDate)}
+                    onChange={(date) => setInvoiceStartDate(formatDateToString(date))}
+                    placeholder="Select start date..."
+                    className="!py-2 !px-3 !rounded-lg !text-sm flex-1"
+                  />
+                  {isSearchingInvoices && (
+                    <div className="flex items-center gap-1.5 text-xs text-blue-600">
+                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600" />
+                      <span>Loading...</span>
+                    </div>
+                  )}
+                  {!isSearchingInvoices && invoices.length > 0 && (
+                    <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full whitespace-nowrap">
+                      {invoices.length} found
+                    </span>
+                  )}
+                </div>
+              </div>
+
               <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
                 Select Invoice <span className="text-red-500">*</span>
               </label>
@@ -400,10 +478,10 @@ export function AddLineItemModal({
                     }}
                     onFocus={() => {
                       setShowInvoiceDropdown(true);
-                      if (!invoices.length) handleInvoiceSearch('');
                     }}
-                    placeholder="Search by invoice number..."
+                    placeholder="Search by invoice #, order #, or customer..."
                     className="w-full px-4 py-2 pl-10 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                    disabled={!factoryId || !invoiceStartDate}
                   />
                   <svg
                     className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
@@ -417,11 +495,6 @@ export function AddLineItemModal({
                     <circle cx="9" cy="9" r="6" />
                     <path d="M13.5 13.5L17 17" strokeLinecap="round" />
                   </svg>
-                  {isSearchingInvoices && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[var(--primary)]" />
-                    </div>
-                  )}
                 </div>
                 {selectedInvoice && (
                   <button
@@ -432,6 +505,11 @@ export function AddLineItemModal({
                   </button>
                 )}
               </div>
+              {!factoryId && (
+                <p className="mt-1 text-xs text-amber-600">
+                  ⚠ Factory must be selected to search invoices
+                </p>
+              )}
               {selectedInvoice && (
                 <p className="mt-1 text-xs text-green-600">
                   ✓ Selected: {selectedInvoice.invoiceNumber}
@@ -439,26 +517,49 @@ export function AddLineItemModal({
               )}
 
               {/* Invoice Dropdown */}
-              {showInvoiceDropdown && !selectedInvoice && (
-                <div className="absolute z-20 w-full mt-1 bg-white border border-[var(--border)] rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                  {invoices.length > 0 ? (
-                    invoices.map((invoice) => (
+              {showInvoiceDropdown && !selectedInvoice && factoryId && (
+                <div className="absolute z-20 w-full mt-1 bg-white border border-[var(--border)] rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                  {filteredInvoices.length > 0 ? (
+                    filteredInvoices.map((invoice) => (
                       <button
                         key={invoice.id}
                         type="button"
                         onClick={() => handleSelectInvoice(invoice)}
                         className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0"
                       >
-                        <div className="font-medium text-gray-900">{invoice.invoiceNumber}</div>
-                        <div className="text-xs text-gray-500">
-                          {invoice.entityDate ? `Date: ${invoice.entityDate}` : ''}
-                          {invoice.status ? ` • Status: ${invoice.status}` : ''}
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-gray-900">{invoice.invoiceNumber}</span>
+                          {invoice.order?.orderNumber && (
+                            <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                              Order: {invoice.order.orderNumber}
+                            </span>
+                          )}
                         </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {invoice.order?.soldToCustomer?.companyName && (
+                            <span className="font-medium">{invoice.order.soldToCustomer.companyName}</span>
+                          )}
+                          {invoice.entityDate && (
+                            <span> • {invoice.entityDate}</span>
+                          )}
+                          {invoice.balance?.commission != null && (
+                            <span className="text-green-600"> • Commission: ${Number(invoice.balance.commission).toFixed(2)}</span>
+                          )}
+                        </div>
+                        {invoice.salesReps && invoice.salesReps.length > 0 && (
+                          <div className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
+                            <span>Rep:</span>
+                            <ListPreviewHoverCard
+                              items={invoice.salesReps.map(rep => getSalesRepName(rep)).filter(name => name !== '-')}
+                              type="salesRep"
+                            />
+                          </div>
+                        )}
                       </button>
                     ))
                   ) : !isSearchingInvoices ? (
                     <div className="p-4 text-center text-gray-500 text-sm">
-                      {invoiceSearch ? `No invoices found for "${invoiceSearch}"` : 'No invoices available'}
+                      {invoiceSearch ? `No invoices found for "${invoiceSearch}"` : 'No open invoices available for this factory and date range'}
                     </div>
                   ) : null}
                 </div>
@@ -679,59 +780,59 @@ export function AddLineItemModal({
               <div className="grid grid-cols-2 gap-2 text-sm">
                 {type === 'invoice' && selectedInvoice && (
                   <>
-                    {isLoadingInvoiceDetails ? (
-                      <div className="col-span-2 flex items-center gap-2">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[var(--primary)]" />
-                        <span className="text-[var(--muted-foreground)]">Loading details...</span>
-                      </div>
-                    ) : (
-                      <>
-                        <div>
-                          <span className="text-[var(--muted-foreground)]">Number:</span>{' '}
-                          <span className="font-medium">{selectedInvoice.invoiceNumber}</span>
-                        </div>
-                        <div>
-                          <span className="text-[var(--muted-foreground)]">Date:</span>{' '}
-                          <span className="font-medium">{selectedInvoice.entityDate || '-'}</span>
-                        </div>
-                        <div>
-                          <span className="text-[var(--muted-foreground)]">Due Date:</span>{' '}
-                          <span className="font-medium">{selectedInvoice.dueDate || '-'}</span>
-                        </div>
-                        <div>
-                          <span className="text-[var(--muted-foreground)]">Status:</span>{' '}
-                          <span className="font-medium">{selectedInvoice.status || '-'}</span>
-                        </div>
-                        {invoiceDetails && (
-                          <>
-                            <div>
-                              <span className="text-[var(--muted-foreground)]">Total:</span>{' '}
-                              <span className="font-medium">
-                                ${invoiceDetails.balance?.total?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="text-[var(--muted-foreground)]">Commission Rate:</span>{' '}
-                              <span className="font-medium">
-                                {invoiceDetails.balance?.commissionRate != null
-                                  ? `${Number(invoiceDetails.balance.commissionRate).toFixed(2)}%`
-                                  : '-'}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="text-[var(--muted-foreground)]">Commission:</span>{' '}
-                              <span className="font-medium text-green-600">
-                                ${invoiceDetails.balance?.commission?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="text-[var(--muted-foreground)]">Order #:</span>{' '}
-                              <span className="font-medium">{invoiceDetails.order?.orderNumber || '-'}</span>
-                            </div>
-                          </>
-                        )}
-                      </>
-                    )}
+                    <div>
+                      <span className="text-[var(--muted-foreground)]">Number:</span>{' '}
+                      <span className="font-medium">{selectedInvoice.invoiceNumber}</span>
+                    </div>
+                    <div>
+                      <span className="text-[var(--muted-foreground)]">Date:</span>{' '}
+                      <span className="font-medium">{selectedInvoice.entityDate || '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[var(--muted-foreground)]">Due Date:</span>{' '}
+                      <span className="font-medium">{selectedInvoice.dueDate || '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[var(--muted-foreground)]">Status:</span>{' '}
+                      <span className="font-medium">{selectedInvoice.status || '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[var(--muted-foreground)]">Order #:</span>{' '}
+                      <span className="font-medium">{selectedInvoice.order?.orderNumber || '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[var(--muted-foreground)]">Customer:</span>{' '}
+                      <span className="font-medium">{selectedInvoice.order?.soldToCustomer?.companyName || '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[var(--muted-foreground)]">Sales Rep:</span>{' '}
+                      <ListPreviewHoverCard
+                        items={selectedInvoice.salesReps?.map(rep => getSalesRepName(rep)).filter(name => name !== '-') || []}
+                        type="salesRep"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[var(--muted-foreground)]">Total:</span>{' '}
+                      <span className="font-medium">
+                        ${selectedInvoice.balance?.total?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[var(--muted-foreground)]">Commission Rate:</span>{' '}
+                      <span className="font-medium">
+                        {selectedInvoice.balance?.commissionRate != null
+                          ? `${Number(selectedInvoice.balance.commissionRate).toFixed(2)}%`
+                          : '-'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[var(--muted-foreground)]">Commission:</span>{' '}
+                      <span className="font-medium text-green-600">
+                        ${selectedInvoice.balance?.commission != null
+                          ? Number(selectedInvoice.balance.commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                          : '0.00'}
+                      </span>
+                    </div>
                   </>
                 )}
                 {type === 'credit' && selectedCredit && (

@@ -959,7 +959,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
   }
 
   return (
-    <div className="min-h-full flex flex-col bg-white">
+    <div className="h-full overflow-auto bg-white">
       {/* Save Error Banner */}
       {saveError && (
         <div className="bg-red-50 border-b border-red-200 px-6 py-3 flex items-center justify-between">
@@ -992,7 +992,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       />
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 px-6 border-b border-gray-200 flex-shrink-0">
+      <div className="flex items-center gap-1 px-6 border-b border-gray-200">
         {tabs.map((tab) => (
           <button
             key={tab.key}
@@ -1028,7 +1028,7 @@ export function QuoteDetailV2Page({ quoteId, onBack, isNew = false }: QuoteDetai
       </div>
 
       {/* Tab Content */}
-      <div className="flex-1">
+      <div>
         {activeTab === 'lineItems' && (
           <LineItemsTabV2
             lineItems={lineItems}

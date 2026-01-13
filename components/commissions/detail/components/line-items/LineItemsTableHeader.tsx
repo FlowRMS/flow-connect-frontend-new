@@ -33,49 +33,29 @@ export function LineItemsTableHeader({
         )}
         {visibleColumns.has('customer') && (
           <th className="px-4 py-3 text-left text-sm font-medium text-[var(--foreground)]">
-            <div className="flex items-center gap-1.5">
-              <span className="opacity-50">Customer</span>
-              <span className="text-[9px] bg-gray-200 text-gray-500 px-1 py-0.5 rounded font-medium">
-                Soon
-              </span>
-            </div>
+            Customer
           </th>
         )}
         {visibleColumns.has('salesRep') && (
           <th className="px-4 py-3 text-left text-sm font-medium text-[var(--foreground)]">
-            <div className="flex items-center gap-1.5">
-              <span className="opacity-50">Sales Rep</span>
-              <span className="text-[9px] bg-gray-200 text-gray-500 px-1 py-0.5 rounded font-medium">
-                Soon
-              </span>
-            </div>
+            Sales Rep
           </th>
         )}
         {visibleColumns.has('commissionRate') && (
           <th className="px-4 py-3 text-left text-sm font-medium text-[var(--foreground)]">
-            <div className="flex items-center gap-1.5">
-              <span className="opacity-50">Commission Rate</span>
-              <span className="text-[9px] bg-gray-200 text-gray-500 px-1 py-0.5 rounded font-medium">
-                Soon
-              </span>
-            </div>
+            Commission Rate
           </th>
         )}
         {visibleColumns.has('expectedCommission') && (
           <th className="px-4 py-3 text-left text-sm font-medium text-[var(--foreground)]">
-            <div className="flex items-center gap-1.5">
-              <div className="relative inline-block group opacity-50">
-                <span className="cursor-help border-b border-dashed border-[var(--muted-foreground)]">
-                  Expected Commission
-                </span>
-                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[100] pointer-events-none">
-                  Totaled from {commissionSource === 'invoice' ? 'Invoices' : 'Orders'}
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-gray-900"></div>
-                </div>
-              </div>
-              <span className="text-[9px] bg-gray-200 text-gray-500 px-1 py-0.5 rounded font-medium">
-                Soon
+            <div className="relative inline-block group">
+              <span className="cursor-help border-b border-dashed border-[var(--muted-foreground)]">
+                Expected Commission
               </span>
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[100] pointer-events-none">
+                Totaled from {commissionSource === 'invoice' ? 'Invoices' : 'Orders'}
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-gray-900"></div>
+              </div>
             </div>
           </th>
         )}
@@ -86,22 +66,12 @@ export function LineItemsTableHeader({
         )}
         {visibleColumns.has('balance') && (
           <th className="px-4 py-3 text-left text-sm font-medium text-[var(--foreground)]">
-            <div className="flex items-center gap-1.5">
-              <span className="opacity-50">Balance</span>
-              <span className="text-[9px] bg-gray-200 text-gray-500 px-1 py-0.5 rounded font-medium">
-                Soon
-              </span>
-            </div>
+            Balance
           </th>
         )}
         {visibleColumns.has('paid') && (
           <th className="px-4 py-3 text-center text-sm font-medium text-[var(--foreground)]">
-            <div className="flex items-center justify-center gap-1.5">
-              <span className="opacity-50">{COLUMN_LABELS.paid}</span>
-              <span className="text-[9px] bg-gray-200 text-gray-500 px-1 py-0.5 rounded font-medium">
-                Soon
-              </span>
-            </div>
+            {COLUMN_LABELS.paid}
           </th>
         )}
       </tr>

@@ -35,8 +35,22 @@ export interface CheckFactory {
   additionalInformation?: string;
 }
 
+export interface CheckInvoiceOrderCustomer {
+  companyName?: string;
+}
+
 export interface CheckInvoiceOrder {
   orderNumber?: string;
+  soldToCustomer?: CheckInvoiceOrderCustomer;
+}
+
+export interface CheckInvoiceSalesRep {
+  fullName?: string;
+}
+
+export interface CheckInvoiceBalance {
+  commissionRate?: string;
+  commission?: string;
 }
 
 export interface CheckInvoice {
@@ -54,6 +68,8 @@ export interface CheckInvoice {
   createdAt?: string;
   url?: string;
   order?: CheckInvoiceOrder;
+  salesReps?: CheckInvoiceSalesRep[];
+  balance?: CheckInvoiceBalance;
 }
 
 export interface CheckCreditOrder {
@@ -231,6 +247,16 @@ const CHECK_DETAIL_FIELDS = `
     url
     order {
       orderNumber
+      soldToCustomer {
+        companyName
+      }
+    }
+    salesReps {
+      fullName
+    }
+    balance {
+      commissionRate
+      commission
     }
   }
   creditId

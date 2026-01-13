@@ -30,6 +30,7 @@ import {
 } from '@/components/orders/api/checksApi';
 import { unpostCheck as unpostCheckApi } from '@/components/lib/graphql/checks';
 import type { AdjustmentLandingPage } from '@/components/orders/api/adjustmentsApi';
+import type { OpenInvoiceSearchResult } from '@/components/lib/api/search';
 import { DEFAULT_ACTIVE_TAB } from '../config/tabsConfig';
 import { DEFAULT_VISIBLE_COLUMNS } from '../constants';
 import {
@@ -281,19 +282,27 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
 
         // Handle invoices
         if (isInvoice && detail.invoice) {
+          // Get customer name from order.soldToCustomer
+          const invoiceCustomer = detail.invoice.order?.soldToCustomer?.companyName || '-';
+          // Get sales rep names (join multiple if present)
+          const invoiceSalesReps = detail.invoice.salesReps?.map(rep => rep.fullName).filter(Boolean).join(', ') || '-';
+          // Get commission rate and expected commission from balance
+          const invoiceCommRate = detail.invoice.balance?.commissionRate ? parseFloat(detail.invoice.balance.commissionRate) : 0;
+          const invoiceExpectedComm = detail.invoice.balance?.commission ? parseFloat(detail.invoice.balance.commission) : appliedAmount;
+
           convertedLineItems.push({
             id: detail.id,
             type: 'invoice' as const,
             number: detail.invoice.invoiceNumber || '',
             orderId: detail.invoice.orderId || '',
             orderNumber: detail.invoice.order?.orderNumber || '',
-            customer: '-',
-            salesRep: '-',
-            commissionRateExpected: 0,
-            commissionRateActual: 0,
-            expectedCommission: appliedAmount,
+            customer: invoiceCustomer,
+            salesRep: invoiceSalesReps,
+            commissionRateExpected: invoiceCommRate,
+            commissionRateActual: invoiceCommRate,
+            expectedCommission: invoiceExpectedComm,
             paidCommission: appliedAmount,
-            balance: 0,
+            balance: invoiceExpectedComm - appliedAmount,
             paid: detail.invoice.status === 'PAID',
             invoiceId: detail.invoiceId,
             entityDate: detail.invoice.entityDate,
@@ -306,14 +315,16 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
 
         // Handle credits
         if (isCredit && detail.credit) {
+          // Credits don't have soldToCustomer, salesReps, or balance in the current GraphQL schema
+          // Use appliedAmount as the commission value
           convertedLineItems.push({
             id: detail.id,
             type: 'credit' as const,
             number: detail.credit.creditNumber || '',
             orderId: detail.credit.orderId || '',
             orderNumber: detail.credit.order?.orderNumber || '',
-            customer: '-',
-            salesRep: '-',
+            customer: '-', // Credit schema doesn't include customer info
+            salesRep: '-', // Credit schema doesn't include sales rep info
             commissionRateExpected: 0,
             commissionRateActual: 0,
             expectedCommission: -appliedAmount,
@@ -574,53 +585,42 @@ export function useCheckDetailState({ checkId }: UseCheckDetailStateProps) {
   };
 
   // Handler for open invoices loaded from Lines to Reconcile search
-  const handleOpenInvoicesLoaded = useCallback((invoices: Array<{
-    id: string;
-    invoiceNumber: string;
-    entityDate?: string;
-    dueDate?: string;
-    status?: string;
-    orderId?: string;
-    order?: {
-      id: string;
-      orderNumber: string;
-      entityDate?: string;
-      status?: string;
-      headerStatus?: string;
-      factoryId?: string;
-      soldToCustomerId?: string;
-    };
-    balanceId?: string;
-    locked?: boolean;
-    published?: boolean;
-    creationType?: string;
-    createdAt?: string;
-    createdById?: string;
-    url?: string;
-  }>) => {
+  const handleOpenInvoicesLoaded = useCallback((invoices: OpenInvoiceSearchResult[]) => {
     // Convert open invoices to line items format with isNew flag
-    const newLineItems: LineItem[] = invoices.map((invoice) => ({
-      id: `temp-${invoice.id}`,
-      type: 'invoice' as const,
-      number: invoice.invoiceNumber || '',
-      orderId: invoice.orderId || '',
-      orderNumber: invoice.order?.orderNumber || '',
-      customer: '-',
-      salesRep: '-',
-      commissionRateExpected: 0,
-      commissionRateActual: 0,
-      expectedCommission: 0,
-      paidCommission: 0,
-      balance: 0,
-      paid: false,
-      invoiceId: invoice.id,
-      entityDate: invoice.entityDate,
-      dueDate: invoice.dueDate,
-      status: invoice.status,
-      createdAt: invoice.createdAt,
-      url: invoice.url,
-      isNew: true, // Mark as new/unsaved
-    }));
+    const newLineItems: LineItem[] = invoices.map((invoice) => {
+      // Get customer name from order.soldToCustomer
+      const customerName = invoice.order?.soldToCustomer?.companyName || '-';
+
+      // Get sales rep names (join multiple if present)
+      const salesRepNames = invoice.salesReps?.map(rep => rep.fullName).filter(Boolean).join(', ') || '-';
+
+      // Get commission rate and amount from balance
+      const commissionRate = invoice.balance?.commissionRate ?? 0;
+      const commission = invoice.balance?.commission ?? 0;
+
+      return {
+        id: `temp-${invoice.id}`,
+        type: 'invoice' as const,
+        number: invoice.invoiceNumber || '',
+        orderId: invoice.orderId || '',
+        orderNumber: invoice.order?.orderNumber || '',
+        customer: customerName,
+        salesRep: salesRepNames,
+        commissionRateExpected: commissionRate,
+        commissionRateActual: commissionRate,
+        expectedCommission: commission,
+        paidCommission: commission, // Default to expected commission
+        balance: 0,
+        paid: false,
+        invoiceId: invoice.id,
+        entityDate: invoice.entityDate,
+        dueDate: invoice.dueDate,
+        status: invoice.status,
+        createdAt: invoice.createdAt,
+        url: invoice.url,
+        isNew: true, // Mark as new/unsaved
+      };
+    });
 
     // ADD to existing line items instead of replacing
     // Filter out duplicates based on invoiceId to avoid adding the same invoice twice
